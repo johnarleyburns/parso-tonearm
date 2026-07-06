@@ -2,10 +2,6 @@ import Foundation
 import AVFoundation
 import UniformTypeIdentifiers
 
-/// FR-3.4 CachingAssetProvider: an AVAssetResourceLoaderDelegate behind the
-/// `tonearm-cache://` scheme. Serves cached ranges from a sparse file and fetches
-/// misses via a shared URLSession, filling the cache as it goes. Belongs in the
-/// audio engine; kept app-side here since the engine package is not vendored.
 final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
     static let scheme = "tonearm-cache"
 
@@ -13,13 +9,31 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
     private let cacheKey: String
     private let session: URLSession
     private var resolvedURL: URL?
-    private let queue = DispatchQueue(label: "guru.parso.tonearm.loader")
+    private let stateLock = NSLock()
+    private var inFlight: [Task<Void, Never>] = []
+    private var didShutdown = false
 
     init(originalURL: URL) {
         self.originalURL = originalURL
         self.cacheKey = CachingResourceLoader.key(for: originalURL)
-        self.session = URLSession(configuration: .default)
+        let cfg = URLSessionConfiguration.default
+        cfg.timeoutIntervalForRequest = 30
+        cfg.timeoutIntervalForResource = 3600
+        self.session = URLSession(configuration: cfg)
         super.init()
+    }
+
+    deinit {
+        session.invalidateAndCancel()
+    }
+
+    func shutdown() {
+        stateLock.lock()
+        didShutdown = true
+        let tasks = inFlight
+        inFlight.removeAll()
+        stateLock.unlock()
+        tasks.forEach { $0.cancel() }
     }
 
     static func key(for url: URL) -> String {
@@ -29,7 +43,6 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
         return String(h, radix: 16) + "-" + (url.lastPathComponent as NSString).pathExtension.lowercased()
     }
 
-    /// Rewrite a remote https URL to the custom scheme so AVURLAsset routes through us.
     static func cacheURL(for remote: URL) -> URL {
         var comps = URLComponents(url: remote, resolvingAgainstBaseURL: false)!
         comps.scheme = scheme
@@ -38,9 +51,19 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
 
     func resourceLoader(_ resourceLoader: AVAssetResourceLoader,
                         shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest) -> Bool {
-        Task { await self.handle(loadingRequest) }
+        stateLock.lock()
+        guard !didShutdown else { stateLock.unlock(); return false }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.handle(loadingRequest)
+        }
+        inFlight.append(task)
+        stateLock.unlock()
         return true
     }
+
+    func resourceLoader(_ resourceLoader: AVAssetResourceLoader,
+                        didCancel loadingRequest: AVAssetResourceLoadingRequest) { }
 
     private func handle(_ request: AVAssetResourceLoadingRequest) async {
         do {
@@ -51,10 +74,11 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
                 info.contentType = contentType()
             }
             if let dataRequest = request.dataRequest {
-                try await fulfill(dataRequest, total: total)
+                try await serve(dataRequest, total: total)
             }
             request.finishLoading()
-        } catch {
+        } catch is CancellationError { }
+        catch {
             request.finishLoading(with: error)
         }
     }
@@ -71,17 +95,18 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
         }
     }
 
-    // MARK: - Resolution
+    // MARK: - Content-length probe
 
     private func ensureResolvedLength() async throws -> Int64 {
         if let cached = await CacheStore.shared.totalBytes(for: cacheKey), cached > 0 {
             return cached
         }
         var request = URLRequest(url: originalURL)
-        request.setValue("bytes=0-1", forHTTPHeaderField: "Range")
+        request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
         request.setValue("Platterhead (parso.guru)", forHTTPHeaderField: "User-Agent")
         let (_, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        guard (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
         self.resolvedURL = http.url ?? originalURL
         let total = Self.totalLength(from: http)
         if total > 0 { await CacheStore.shared.setContentLength(total, for: cacheKey) }
@@ -97,50 +122,92 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
         return 0
     }
 
-    // MARK: - Serving data
+    // MARK: - Progressive streaming serve
 
-    private func fulfill(_ dataRequest: AVAssetResourceLoadingDataRequest, total: Int64) async throws {
-        let start = dataRequest.currentOffset
-        let requestedLength = Int64(dataRequest.requestedLength)
-        var end = start + requestedLength
-        if total > 0 { end = min(end, total) }
-        guard end > start else { return }
+    private func serve(_ dr: AVAssetResourceLoadingDataRequest, total: Int64) async throws {
+        let start = dr.currentOffset
+        let requestedLength = Int64(dr.requestedLength)
+        var endRequested: Int64
+        if dr.requestsAllDataToEndOfResource {
+            endRequested = total > 0 ? total : Int64.max
+        } else {
+            endRequested = start + requestedLength
+        }
+        if total > 0 { endRequested = min(endRequested, total) }
+        guard endRequested > start else { return }
 
         let fileURL = await CacheStore.shared.fileURL(for: cacheKey)
         ensureFileExists(fileURL, size: total)
 
-        var offset = start
-        while offset < end {
-            let map = await CacheStore.shared.rangeMap(for: cacheKey)
-            let available = map.contiguousBytes(from: offset)
-            if available > 0 {
-                let chunkEnd = min(offset + available, end)
-                if let data = readFile(fileURL, offset: offset, length: chunkEnd - offset) {
-                    dataRequest.respond(with: data)
-                }
-                offset = chunkEnd
-            } else {
-                let fetchEnd = min(end + 256 * 1024, total > 0 ? total : end + 256 * 1024)
-                let fetched = try await fetchRange(offset..<fetchEnd)
-                writeFile(fileURL, offset: offset, data: fetched)
-                await CacheStore.shared.recordWrite(range: offset..<(offset + Int64(fetched.count)), for: cacheKey)
-                let usable = min(Int64(fetched.count), end - offset)
-                if usable > 0 {
-                    dataRequest.respond(with: fetched.prefix(Int(usable)))
-                }
-                offset += Int64(fetched.count)
-                if fetched.isEmpty { break }
-            }
-        }
-    }
+        var cursor = start
 
-    private func fetchRange(_ range: Range<Int64>) async throws -> Data {
-        let url = resolvedURL ?? originalURL
-        var request = URLRequest(url: url)
-        request.setValue("bytes=\(range.lowerBound)-\(range.upperBound - 1)", forHTTPHeaderField: "Range")
-        request.setValue("Platterhead (parso.guru)", forHTTPHeaderField: "User-Agent")
-        let (data, _) = try await session.data(for: request)
-        return data
+        while cursor < endRequested {
+            try Task.checkCancellation()
+
+            let map = await CacheStore.shared.rangeMap(for: cacheKey)
+            let cachedContiguous = map.contiguousBytes(from: cursor)
+
+            if cachedContiguous > 0 {
+                let chunkEnd = min(cursor + cachedContiguous, endRequested)
+                if let data = readFile(fileURL, offset: cursor, length: chunkEnd - cursor) {
+                    dr.respond(with: data)
+                }
+                cursor = chunkEnd
+                continue
+            }
+
+            let rangeHeader: String
+            if endRequested < Int64.max && total > 0 {
+                rangeHeader = "bytes=\(cursor)-\(endRequested - 1)"
+            } else if total > 0, cursor < total {
+                rangeHeader = "bytes=\(cursor)-\(total - 1)"
+            } else {
+                rangeHeader = "bytes=\(cursor)-"
+            }
+
+            let url = resolvedURL ?? originalURL
+            var req = URLRequest(url: url)
+            req.setValue(rangeHeader, forHTTPHeaderField: "Range")
+            req.setValue("Platterhead (parso.guru)", forHTTPHeaderField: "User-Agent")
+            let (bytes, response) = try await session.bytes(for: req)
+            if let http = response as? HTTPURLResponse,
+               !(200..<300).contains(http.statusCode) {
+                throw URLError(.badServerResponse)
+            }
+
+            let chunkSize = 32 * 1024
+            var buf: [UInt8] = []
+            buf.reserveCapacity(chunkSize)
+
+            for try await byte in bytes {
+                buf.append(byte)
+                if buf.count >= chunkSize {
+                    try Task.checkCancellation()
+                    let chunk = Data(buf)
+                    writeFile(fileURL, offset: cursor, data: chunk)
+                    await CacheStore.shared.recordWrite(range: cursor..<(cursor + Int64(chunk.count)), for: cacheKey)
+                    if cursor < endRequested {
+                        let usable = min(Int64(chunk.count), endRequested - cursor)
+                        if usable > 0 { dr.respond(with: chunk.prefix(Int(usable))) }
+                    }
+                    cursor += Int64(chunk.count)
+                    buf.removeAll(keepingCapacity: true)
+                }
+            }
+
+            if !buf.isEmpty {
+                let chunk = Data(buf)
+                writeFile(fileURL, offset: cursor, data: chunk)
+                await CacheStore.shared.recordWrite(range: cursor..<(cursor + Int64(chunk.count)), for: cacheKey)
+                if cursor < endRequested {
+                    let usable = min(Int64(chunk.count), endRequested - cursor)
+                    if usable > 0 { dr.respond(with: chunk.prefix(Int(usable))) }
+                }
+                cursor += Int64(chunk.count)
+            }
+
+            if cursor >= endRequested { break }
+        }
     }
 
     // MARK: - Sparse file IO

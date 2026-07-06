@@ -84,7 +84,9 @@ struct RecentCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ArtworkView(seed: row.album?.title ?? row.track.title, cornerRadius: 14)
+            ArtworkView(identifier: row.source?.iaIdentifier,
+                        seed: row.album?.title ?? row.track.title,
+                        cornerRadius: 14)
                 .frame(width: 132, height: 132)
             Text(row.track.title)
                 .font(.system(size: 12.5, weight: .semibold))

@@ -59,7 +59,7 @@ struct SourceDetailView: View {
 
     private var hero: some View {
         VStack(spacing: 0) {
-            ArtworkView(seed: source.title, cornerRadius: 18)
+            ArtworkView(identifier: source.iaIdentifier, seed: source.title, cornerRadius: 18)
                 .frame(width: 168, height: 168)
                 .shadow(color: .black.opacity(0.55), radius: 20, y: 12)
             Text(source.title)
@@ -71,6 +71,18 @@ struct SourceDetailView: View {
             }
             badge.padding(.top, 9)
             cta.padding(.top, 14)
+            if let id = source.iaIdentifier, !id.isEmpty,
+               let iaURL = ShareURLBuilder.url(identifier: id) {
+                Link(destination: iaURL) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "safari")
+                        Text("View on archive.org")
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Palette.ink3)
+                }
+                .padding(.top, 10)
+            }
         }
         .padding(.bottom, 6)
     }

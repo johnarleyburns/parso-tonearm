@@ -78,6 +78,7 @@ struct TrackRowView: View {
     let row: TrackRow
     var showCacheGlyph = true
     @EnvironmentObject var player: AudioPlayer
+    @EnvironmentObject var appState: AppState
 
     var body: some View {
         HStack(spacing: 11) {
@@ -92,6 +93,14 @@ struct TrackRowView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
+            Button {
+                Task { await appState.toggleFavorite(row) }
+            } label: {
+                Image(systemName: appState.isFavorite(row) ? "heart.fill" : "heart")
+                    .font(.system(size: 12))
+                    .foregroundStyle(appState.isFavorite(row) ? Color.red : Palette.ink3)
+            }
+            .buttonStyle(.plain)
             if showCacheGlyph, row.asset?.kind == .remote {
                 cacheGlyph
             }

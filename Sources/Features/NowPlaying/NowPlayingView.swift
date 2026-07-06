@@ -1,10 +1,13 @@
 import SwiftUI
+import UIKit
 
 struct NowPlayingView: View {
     @EnvironmentObject var player: AudioPlayer
+    @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var scrubValue: Double = 0
     @State private var isScrubbing = false
+    @State private var npArtwork: UIImage?
 
     var body: some View {
         ZStack {
@@ -13,20 +16,30 @@ struct NowPlayingView: View {
                 Capsule().fill(Color.white.opacity(0.35))
                     .frame(width: 36, height: 5).padding(.top, 8)
 
-                ArtworkView(seed: player.currentTrack?.album?.title ?? "np", cornerRadius: 16)
-                    .aspectRatio(1, contentMode: .fit)
-                    .shadow(color: .black.opacity(0.55), radius: 30, y: 16)
-                    .padding(.top, 22)
+                ArtworkView(
+                    image: npArtwork,
+                    identifier: player.currentTrack?.source?.iaIdentifier,
+                    seed: player.currentTrack?.album?.title ?? "np",
+                    cornerRadius: 16
+                )
+                .aspectRatio(1, contentMode: .fit)
+                .shadow(color: .black.opacity(0.55), radius: 30, y: 16)
+                .padding(.top, 22)
 
                 meta.padding(.top, 22)
                 scrubber.padding(.top, 20)
                 transport.padding(.top, 16)
+                toolbar.padding(.top, 16)
                 Spacer()
             }
             .padding(.horizontal, 24)
             .foregroundStyle(.white)
         }
         .presentationDragIndicator(.hidden)
+        .task(id: player.currentTrack?.source?.iaIdentifier) {
+            guard let id = player.currentTrack?.source?.iaIdentifier, !id.isEmpty else { return }
+            npArtwork = await ArtworkService.shared.artwork(forIdentifier: id)
+        }
     }
 
     private var npBackground: some View {
@@ -47,9 +60,29 @@ struct NowPlayingView: View {
                     .font(.system(size: 14)).foregroundStyle(.white.opacity(0.62))
             }
             Spacer()
-            Image(systemName: "ellipsis")
-                .frame(width: 30, height: 30)
-                .background(.ultraThinMaterial, in: Circle())
+            Menu {
+                if let row = player.currentTrack {
+                    Button {
+                        Task { await appState.toggleFavorite(row) }
+                    } label: {
+                        let fav = appState.isFavorite(row)
+                        Label(fav ? "Remove from Favorites" : "Add to Favorites",
+                              systemImage: fav ? "heart.fill" : "heart")
+                    }
+                }
+                if let source = player.currentTrack?.source,
+                   let id = source.iaIdentifier, !id.isEmpty {
+                    if let url = ShareURLBuilder.url(identifier: id) {
+                        Link(destination: url) {
+                            Label("View on archive.org", systemImage: "safari")
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .frame(width: 30, height: 30)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
         }
     }
 
@@ -121,5 +154,24 @@ struct NowPlayingView: View {
             }
         }
         .foregroundStyle(.white)
+    }
+
+    private var toolbar: some View {
+        HStack {
+            if let row = player.currentTrack {
+                Button {
+                    Task { await appState.toggleFavorite(row) }
+                } label: {
+                    Image(systemName: appState.isFavorite(row) ? "heart.fill" : "heart")
+                        .foregroundStyle(appState.isFavorite(row) ? Color.red : .white.opacity(0.6))
+                        .font(.system(size: 16))
+                        .frame(width: 36, height: 36)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+            }
+            Spacer()
+            AirPlayButton()
+                .frame(width: 36, height: 36)
+        }
     }
 }

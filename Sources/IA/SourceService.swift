@@ -101,8 +101,9 @@ struct SourceService {
     }
 
     private func persistItem(_ item: ResolvedItem, sourceId: Int64, store: LibraryStore) async throws {
+        let artworkId = item.identifier ?? item.title
         var album = Album(id: nil, sourceId: sourceId, title: item.title,
-                          artist: item.artist, year: item.year, artworkId: nil)
+                          artist: item.artist, year: item.year, artworkId: artworkId)
         album = try await store.insertAlbum(album)
         guard let albumId = album.id else { return }
         for rt in item.tracks {

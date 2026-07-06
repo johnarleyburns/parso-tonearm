@@ -30,8 +30,12 @@ final class AudioPlayer: ObservableObject {
     private var player = AVPlayer()
     private var timeObserver: Any?
     private var itemEndObserver: NSObjectProtocol?
+    private var routeChangeObserver: NSObjectProtocol?
     private var loaders: [CachingResourceLoader] = []
     private let loaderQueue = DispatchQueue(label: "guru.parso.tonearm.loaders")
+    private var stallModel = StallModel()
+    private var prefetchedURLs: [Int64: URL] = [:]
+    private let retryPolicy = RetryPolicy()
 
     var currentTrack: TrackRow? {
         guard queue.indices.contains(index) else { return nil }
@@ -42,6 +46,7 @@ final class AudioPlayer: ObservableObject {
         configureSession()
         setupRemoteCommands()
         addPeriodicObserver()
+        observeRouteChanges()
     }
 
     // MARK: - Public control
@@ -99,6 +104,10 @@ final class AudioPlayer: ObservableObject {
             return
         }
 
+        shutdownLoaders()
+        _ = stallModel.beginLoad()
+        prefetchedURLs.removeAll()
+
         let item: AVPlayerItem
         if asset.kind == .remote, let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) {
             let cacheURL = CachingResourceLoader.cacheURL(for: remote)
@@ -118,6 +127,9 @@ final class AudioPlayer: ObservableObject {
             return
         }
 
+        item.preferredForwardBufferDuration = 120
+        item.automaticallyPreservesTimeOffsetFromLive = false
+
         replaceItem(item)
         if autoplay {
             player.play()
@@ -128,6 +140,14 @@ final class AudioPlayer: ObservableObject {
         prefetchNext()
         if let trackId = row.track.id {
             Task { try? await LibraryStore.shared.recordPlay(trackId: trackId) }
+        }
+    }
+
+    private func shutdownLoaders() {
+        let oldLoaders = loaders
+        loaders.removeAll()
+        for loader in oldLoaders {
+            loader.shutdown()
         }
     }
 
@@ -162,11 +182,17 @@ final class AudioPlayer: ObservableObject {
         guard prefetchDepth > 0 else { return }
         let upcoming = queue.dropFirst(index + 1).prefix(prefetchDepth)
         for row in upcoming {
-            guard let asset = row.asset, asset.kind == .remote,
-                  let urlString = asset.remoteURL, let remote = URL(string: urlString) else { continue }
+            guard let trackId = row.track.id,
+                  let asset = row.asset, asset.kind == .remote,
+                  let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else { continue }
+            prefetchedURLs[trackId] = remote
             Task.detached(priority: .background) {
                 let loader = CachingResourceLoader(originalURL: remote)
-                _ = loader
+                let cacheURL = CachingResourceLoader.cacheURL(for: remote)
+                let avAsset = AVURLAsset(url: cacheURL)
+                avAsset.resourceLoader.setDelegate(loader, queue: DispatchQueue(label: "prefetch"))
+                let item = AVPlayerItem(asset: avAsset)
+                _ = item
             }
         }
     }
@@ -178,9 +204,13 @@ final class AudioPlayer: ObservableObject {
         timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             guard let self else { return }
             Task { @MainActor in
+                let previous = self.currentTime
                 self.currentTime = time.seconds
                 if let d = self.player.currentItem?.duration.seconds, d.isFinite, d > 0 {
                     self.duration = d
+                }
+                if time.seconds > 0 && time.seconds != previous {
+                    self.stallModel.confirmPlayback(generation: self.stallModel.loadGeneration)
                 }
                 self.refreshCacheState()
                 self.updateNowPlayingTime()
@@ -219,6 +249,32 @@ final class AudioPlayer: ObservableObject {
         try? session.setActive(true)
     }
 
+    private func observeRouteChanges() {
+        routeChangeObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: nil, queue: .main
+        ) { [weak self] notification in
+            Task { @MainActor [weak self] in
+                guard let self, self.isPlaying else { return }
+                guard let reasonRaw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                      let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw) else { return }
+                let prevKey = AVAudioSessionRouteChangePreviousRouteKey
+                let prevRoute = notification.userInfo?[prevKey] as? AVAudioSessionRouteDescription
+                let prevHadExternal = prevRoute?.outputs.contains(where: { $0.portType != .builtInSpeaker }) == true
+
+                switch reason {
+                case .oldDeviceUnavailable:
+                    if prevHadExternal { self.pause() }
+                case .routeConfigurationChange:
+                    let currentOutputs = AVAudioSession.sharedInstance().currentRoute.outputs
+                    let isBuiltInOnly = currentOutputs.allSatisfy { $0.portType == .builtInSpeaker }
+                    if isBuiltInOnly && prevHadExternal { self.pause() }
+                default: break
+                }
+            }
+        }
+    }
+
     private func setupRemoteCommands() {
         let c = MPRemoteCommandCenter.shared()
         c.playCommand.addTarget { [weak self] _ in self?.resume(); return .success }
@@ -245,6 +301,18 @@ final class AudioPlayer: ObservableObject {
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
         ]
         info[MPMediaItemPropertyAlbumTitle] = row.album?.title
+
+        if let source = row.source, let iaIdentifier = source.iaIdentifier, !iaIdentifier.isEmpty {
+            Task {
+                if let image = await ArtworkService.shared.artwork(forIdentifier: iaIdentifier) {
+                    let art = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                    var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+                    current[MPMediaItemPropertyArtwork] = art
+                    MPNowPlayingInfoCenter.default().nowPlayingInfo = current
+                }
+            }
+        }
+
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 

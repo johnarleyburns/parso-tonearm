@@ -21,7 +21,9 @@ struct MiniPlayer: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            ArtworkView(seed: player.currentTrack?.album?.title ?? "np", cornerRadius: 10)
+            ArtworkView(identifier: player.currentTrack?.source?.iaIdentifier,
+                        seed: player.currentTrack?.album?.title ?? "np",
+                        cornerRadius: 10)
                 .frame(width: 36, height: 36)
             VStack(alignment: .leading, spacing: 1) {
                 Text(player.currentTrack?.track.title ?? "")
