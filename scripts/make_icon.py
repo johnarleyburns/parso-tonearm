@@ -54,12 +54,6 @@ glow_col = Image.new("RGB", (SIZE, SIZE), BRASS)
 img = Image.composite(glow_col, img, glow)
 draw = ImageDraw.Draw(img)
 
-# Subtle vertical gleam line.
-for y in range(0, SIZE, 4):
-    a = int(15 * (1 - abs(y - SIZE * 0.45) / (SIZE * 0.45)))
-    if a > 0:
-        draw.rectangle([SIZE//2 - 55, y, SIZE//2 - 48, y + 3], fill=(255, 255, 255, a))
-
 # Rounded tile border.
 margin = int(SIZE * 0.115)
 radius = int(SIZE * 0.11)

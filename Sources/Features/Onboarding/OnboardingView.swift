@@ -14,6 +14,10 @@ struct OnboardingView: View {
 
     @State private var page = 0
     @State private var isFinishing = false
+    @State private var showFolderImporter = false
+    @State private var showFileImporter = false
+    @State private var localAddedCount = 0
+    @State private var pickedFolder: URL?
     @State private var options: [OnboardingSourceOption] = [
         .init(title: "Chopin — Musopen",
               subtitle: "Public domain recordings",
@@ -46,7 +50,8 @@ struct OnboardingView: View {
                     ForEach(Array(intros.enumerated()), id: \.offset) { idx, intro in
                         introPage(intro).tag(idx)
                     }
-                    sourcesPage.tag(intros.count)
+                    localPage.tag(intros.count)
+                    sourcesPage.tag(intros.count + 1)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .always))
                 .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -56,7 +61,25 @@ struct OnboardingView: View {
         }
         .foregroundStyle(Palette.ink)
         .interactiveDismissDisabled()
+        .fileImporter(isPresented: $showFolderImporter, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result { pickedFolder = url }
+        }
+        .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.audio],
+                      allowsMultipleSelection: true) { result in
+            if case .success(let urls) = result {
+                Task {
+                    await IngestService().addFiles(urls, into: appState.store)
+                    localAddedCount += urls.count
+                    await appState.reload()
+                }
+            }
+        }
+        .sheet(item: $pickedFolder) { url in
+            AddFolderSheet(folderURL: url)
+        }
     }
+
+    private var lastPage: Int { intros.count + 1 }
 
     private func introPage(_ intro: (icon: String, title: String, body: String)) -> some View {
         VStack(spacing: 20) {
@@ -71,6 +94,46 @@ struct OnboardingView: View {
                 .padding(.horizontal, 34)
             Spacer(); Spacer()
         }
+    }
+
+    private var localPage: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 58)).foregroundStyle(Palette.brass)
+            Text("Add your own music")
+                .font(.system(size: 24, weight: .heavy)).kerning(-0.5)
+                .multilineTextAlignment(.center)
+            Text("Import a local folder or individual files.\nThey stay where they are — Tonearm reads them in place.")
+                .font(.system(size: 14)).foregroundStyle(Palette.ink2)
+                .multilineTextAlignment(.center).padding(.horizontal, 30)
+
+            VStack(spacing: 10) {
+                Button { showFolderImporter = true } label: {
+                    localButton(icon: "folder", title: "Add Local Folder")
+                }
+                Button { showFileImporter = true } label: {
+                    localButton(icon: "music.note", title: "Add Files")
+                }
+            }
+            .padding(.horizontal, 30).padding(.top, 6)
+
+            if localAddedCount > 0 {
+                Text("Added \(localAddedCount) file\(localAddedCount == 1 ? "" : "s")")
+                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Palette.ok)
+            }
+            Spacer(); Spacer()
+        }
+    }
+
+    private func localButton(icon: String, title: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).font(.system(size: 16)).foregroundStyle(Palette.brass)
+            Text(title).font(.system(size: 14.5, weight: .semibold)).foregroundStyle(Palette.ink)
+            Spacer()
+            Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
+        }
+        .padding(14).glassSurface(cornerRadius: 14)
     }
 
     private var sourcesPage: some View {
@@ -109,7 +172,7 @@ struct OnboardingView: View {
 
     private var footer: some View {
         VStack(spacing: 10) {
-            if page < intros.count {
+            if page < lastPage {
                 Button { withAnimation { page += 1 } } label: {
                     primaryLabel("Continue")
                 }

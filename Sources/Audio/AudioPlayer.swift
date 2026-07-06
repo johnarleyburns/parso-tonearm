@@ -25,6 +25,7 @@ final class AudioPlayer: ObservableObject {
 
     var streamOnCellular = true
     var prefetchDepth = 2
+    var preferFLAC = false
 
     private var player = AVPlayer()
     private var timeObserver: Any?
@@ -99,7 +100,7 @@ final class AudioPlayer: ObservableObject {
         }
 
         let item: AVPlayerItem
-        if asset.kind == .remote, let urlString = asset.remoteURL, let remote = URL(string: urlString) {
+        if asset.kind == .remote, let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) {
             let cacheURL = CachingResourceLoader.cacheURL(for: remote)
             let avAsset = AVURLAsset(url: cacheURL)
             let loader = CachingResourceLoader(originalURL: remote)
@@ -128,6 +129,13 @@ final class AudioPlayer: ObservableObject {
         if let trackId = row.track.id {
             Task { try? await LibraryStore.shared.recordPlay(trackId: trackId) }
         }
+    }
+
+    /// Chooses the FLAC alternate when the user prefers lossless and one exists,
+    /// otherwise the primary (MP3) URL.
+    private func remoteURLString(for asset: Asset) -> String? {
+        if preferFLAC, let alt = asset.altRemoteURL, !alt.isEmpty { return alt }
+        return asset.remoteURL
     }
 
     private func replaceItem(_ item: AVPlayerItem) {
@@ -182,7 +190,7 @@ final class AudioPlayer: ObservableObject {
 
     private func refreshCacheState() {
         guard let asset = currentTrack?.asset, asset.kind == .remote,
-              let urlString = asset.remoteURL, let remote = URL(string: urlString) else {
+              let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else {
             cacheState = .cached
             cachePercent = 100
             cachedFraction = 1

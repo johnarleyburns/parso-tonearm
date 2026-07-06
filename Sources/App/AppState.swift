@@ -5,6 +5,10 @@ enum AppTab: Int, CaseIterable {
     case listen, playlists, library, sources, settings
 }
 
+enum PendingImport {
+    case folder, files
+}
+
 @MainActor
 final class AppState: ObservableObject {
     let store: LibraryStore
@@ -14,6 +18,7 @@ final class AppState: ObservableObject {
     @Published var playlists: [Playlist] = []
     @Published var allTracks: [TrackRow] = []
     @Published var recentlyPlayed: [TrackRow] = []
+    @Published var recentlyAdded: [TrackRow] = []
     @Published var favoriteRows: [TrackRow] = []
     @Published var favoriteIds: Set<Int64> = []
     @Published var searchText: String = ""
@@ -25,9 +30,10 @@ final class AppState: ObservableObject {
     @Published var showFileImporter = false
     @Published var showCreatePlaylist = false
     @Published var pickedFolder: URL?
+    @Published var pendingImport: PendingImport?
     // Settings-backed values
     @AppStorage("streamOnCellular") var streamOnCellular = true
-    @AppStorage("preferFLAC") var preferFLAC = true
+    @AppStorage("preferFLAC") var preferFLAC = false
     @AppStorage("prefetchDepth") var prefetchDepth = 2
     @AppStorage("didOnboard") var didOnboard = false
 
@@ -44,6 +50,7 @@ final class AppState: ObservableObject {
     func applySettingsToPlayer() {
         AudioPlayer.shared.streamOnCellular = streamOnCellular
         AudioPlayer.shared.prefetchDepth = prefetchDepth
+        AudioPlayer.shared.preferFLAC = preferFLAC
     }
 
     func reload() async {
@@ -52,6 +59,7 @@ final class AppState: ObservableObject {
             playlists = try await store.allPlaylists()
             allTracks = try await store.allTrackRows()
             recentlyPlayed = try await store.recentlyPlayedRows()
+            recentlyAdded = try await store.recentlyAddedRows()
             favoriteRows = try await store.favoriteRows()
             favoriteIds = try await store.favoriteTrackIds()
         } catch {

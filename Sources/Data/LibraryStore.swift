@@ -48,6 +48,18 @@ actor LibraryStore {
         }
     }
 
+    func firstSource(title: String, kind: SourceKind) throws -> Source? {
+        try dbQueue.read { db in
+            try Source.filter(Column("title") == title && Column("kind") == kind.rawValue).fetchOne(db)
+        }
+    }
+
+    func firstAlbum(sourceId: Int64, title: String) throws -> Album? {
+        try dbQueue.read { db in
+            try Album.filter(Column("sourceId") == sourceId && Column("title") == title).fetchOne(db)
+        }
+    }
+
     func deleteSource(id: Int64) throws {
         _ = try dbQueue.write { db in
             try Source.deleteOne(db, key: id)
@@ -267,11 +279,26 @@ actor LibraryStore {
 
     func favoriteRows() throws -> [TrackRow] {
         try dbQueue.read { db in
-            let favs = try Favorite.order(Column("favoritedAt").desc).fetchAll(db)
-            return try favs.compactMap { fav -> TrackRow? in
-                guard let t = try Track.fetchOne(db, key: fav.trackId) else { return nil }
-                return try self.hydrate(t, db: db)
-            }
+            // Most-recently-played first; favorites never played fall back to
+            // recency of favoriting.
+            let sql = """
+            SELECT track.* FROM track
+            JOIN favorite f ON f.trackId = track.id
+            LEFT JOIN (SELECT trackId, MAX(playedAt) AS lastPlayed
+                       FROM play_history GROUP BY trackId) h
+              ON h.trackId = track.id
+            ORDER BY COALESCE(h.lastPlayed, f.favoritedAt) DESC
+            """
+            let tracks = try Track.fetchAll(db, sql: sql)
+            return try tracks.map { try self.hydrate($0, db: db) }
+        }
+    }
+
+    /// Most-recently-added library tracks (by insertion order).
+    func recentlyAddedRows(limit: Int = 12) throws -> [TrackRow] {
+        try dbQueue.read { db in
+            let tracks = try Track.order(Column("id").desc).limit(limit).fetchAll(db)
+            return try tracks.map { try self.hydrate($0, db: db) }
         }
     }
 

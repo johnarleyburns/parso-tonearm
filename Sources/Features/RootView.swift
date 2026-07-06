@@ -26,7 +26,7 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
             set: { if $0 == false { appState.didOnboard = true } })) {
             OnboardingView()
         }
-        .sheet(isPresented: $appState.showAddMenu) {
+        .sheet(isPresented: $appState.showAddMenu, onDismiss: handlePendingImport) {
             AddMenuSheet()
                 .presentationDetents([.height(300)])
                 .presentationBackground(.clear)
@@ -59,6 +59,15 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
                 }
             }
         }
+    }
+
+    private func handlePendingImport() {
+        switch appState.pendingImport {
+        case .folder: appState.showFolderImporter = true
+        case .files: appState.showFileImporter = true
+        case .none: break
+        }
+        appState.pendingImport = nil
     }
 
     private var backgroundLayer: some View {

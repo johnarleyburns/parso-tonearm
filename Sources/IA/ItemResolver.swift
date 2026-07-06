@@ -71,6 +71,7 @@ struct ResolvedTrack {
     let bitDepthOrBitrate: String?
     let sizeBytes: Int64?
     let remoteURL: URL
+    let altFlacURL: URL?
     let unsupportedReason: String?
     let sortKey: String
 }
@@ -106,29 +107,36 @@ struct ItemResolver {
 struct FileSelectionPolicy {
     var preferFLAC: Bool
 
-    private static let audioFormats: Set<String> = [
-        "flac", "vbr mp3", "mp3", "320kbps mp3", "128kbps mp3", "64kbps mp3",
-        "aac", "apple lossless audio", "ogg vorbis", "wave", "aiff", "24bit flac"
-    ]
+    /// Real audio container extensions we can stream. Opus and other unsupported
+    /// formats are intentionally excluded so they never appear in a track listing.
     private static let audioExtensions: Set<String> = [
-        "mp3", "flac", "m4a", "aac", "wav", "aif", "aiff", "ogg", "oga", "opus", "caf"
+        "mp3", "flac", "m4a", "aac", "wav", "aif", "aiff", "ogg", "oga"
     ]
 
     func selectTracks(files: [IAFile], identifier: String, itemArtist: String?) -> [ResolvedTrack] {
-        // Group by logical track (original name when present, else own name minus ext).
+        // 1. Candidates by real audio extension (drops opus/spectrograms/art/etc.).
+        let candidates = files.filter { isCandidateAudio($0, identifier: identifier) }
+
+        // 2. Group by the file's OWN basename stem. Format variants of the same
+        //    logical track (foo.mp3 / foo.flac / foo.ogg) share a stem; distinct
+        //    movements stay distinct. We deliberately do NOT group by `original`,
+        //    which on many IA items points at a shared side-long rip or a
+        //    segments.json and would collapse every movement into one track.
         var groups: [String: [IAFile]] = [:]
-        for f in files {
-            guard isCandidateAudio(f) else { continue }
-            let key = (f.original?.isEmpty == false ? f.original! : baseName(f.name))
-            groups[baseName(key), default: []].append(f)
+        var order: [String] = []
+        for f in candidates {
+            let key = baseName(f.name)
+            if groups[key] == nil { order.append(key) }
+            groups[key, default: []].append(f)
         }
 
         var results: [ResolvedTrack] = []
-        for (_, groupFiles) in groups {
-            guard let chosen = pickPreferred(groupFiles) else { continue }
-            results.append(makeTrack(chosen, identifier: identifier, fallbackArtist: itemArtist))
+        for key in order {
+            guard let groupFiles = groups[key], let chosen = pickPreferred(groupFiles) else { continue }
+            let flacAlt = groupFiles.first { ($0.name as NSString).pathExtension.lowercased() == "flac" }
+            results.append(makeTrack(chosen, flacAlt: flacAlt, identifier: identifier,
+                                     fallbackArtist: itemArtist))
         }
-        // Sort by track number then title.
         return results.sorted { a, b in
             switch (a.trackNo, b.trackNo) {
             case let (x?, y?) where x != y: return x < y
@@ -137,15 +145,17 @@ struct FileSelectionPolicy {
         }
     }
 
-    private func isCandidateAudio(_ f: IAFile) -> Bool {
-        let ext = (f.name as NSString).pathExtension.lowercased()
-        let fmt = (f.format ?? "").lowercased()
-        // Skip spectrograms, samples, non-audio.
-        if f.name.lowercased().contains("_sample") { return false }
-        if fmt.contains("spectrogram") || fmt.contains("png") || fmt.contains("jpeg") { return false }
-        if f.height != nil { return false }
-        // Decide by format field + extension, not mime alone (FR-2.5).
-        return Self.audioExtensions.contains(ext) || Self.audioFormats.contains(fmt)
+    private func isCandidateAudio(_ f: IAFile, identifier: String) -> Bool {
+        let name = f.name
+        let ext = (name as NSString).pathExtension.lowercased()
+        guard Self.audioExtensions.contains(ext) else { return false }
+        // Skip preview samples.
+        if name.lowercased().contains("_sample") { return false }
+        // Skip raw side-long rips whose filename embeds the item identifier
+        // (e.g. "…_disc1side1.flac"); their contents are represented by the
+        // finer per-track derivatives.
+        if name.lowercased().contains(identifier.lowercased()) { return false }
+        return true
     }
 
     private func pickPreferred(_ files: [IAFile]) -> IAFile? {
@@ -167,25 +177,29 @@ struct FileSelectionPolicy {
         return files.min { rank($0) < rank($1) }
     }
 
-    private func makeTrack(_ f: IAFile, identifier: String, fallbackArtist: String?) -> ResolvedTrack {
+    private func makeTrack(_ f: IAFile, flacAlt: IAFile?, identifier: String,
+                           fallbackArtist: String?) -> ResolvedTrack {
         let ext = (f.name as NSString).pathExtension.lowercased()
         let streamURL = URL(string: "https://archive.org/download/\(identifier)/\(escape(f.name))")!
-        let unsupported = (ext == "opus") ? "Opus not supported in this version" : nil
+        let flacURL: URL? = {
+            guard let flacAlt, flacAlt.name != f.name else { return nil }
+            return URL(string: "https://archive.org/download/\(identifier)/\(escape(flacAlt.name))")
+        }()
         let codec = ext.uppercased()
         let duration = f.length.flatMap { parseDuration($0) }
         let size = f.size.flatMap { Int64($0) }
-        let title = f.title ?? (f.name as NSString).deletingPathExtension
+        let title = f.title ?? (f.name as NSString).lastPathComponent.replacingOccurrences(of: ".\(ext)", with: "")
         let trackNo = f.track.flatMap { Int($0.split(separator: "/").first.map(String.init) ?? $0) }
         let sortKey = String(format: "%04d_%@", trackNo ?? 9999, title.lowercased())
         return ResolvedTrack(title: title, trackNo: trackNo, durationSec: duration,
                             codec: codec, sampleRate: nil,
                             bitDepthOrBitrate: f.bitrate.map { "\($0) kbps" },
-                            sizeBytes: size, remoteURL: streamURL,
-                            unsupportedReason: unsupported, sortKey: sortKey)
+                            sizeBytes: size, remoteURL: streamURL, altFlacURL: flacURL,
+                            unsupportedReason: nil, sortKey: sortKey)
     }
 
     private func baseName(_ name: String) -> String {
-        (name as NSString).deletingPathExtension
+        ((name as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
     private func escape(_ s: String) -> String {

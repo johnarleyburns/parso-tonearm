@@ -62,6 +62,7 @@ struct Asset: Identifiable, Equatable, Codable {
     var bookmark: Data?
     var relPath: String?
     var remoteURL: String?
+    var altRemoteURL: String?
     var sizeBytes: Int64?
     var unsupportedReason: String?
 }

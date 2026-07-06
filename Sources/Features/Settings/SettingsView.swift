@@ -107,7 +107,7 @@ struct SettingsView: View {
             settingToggle("Stream on cellular", "Off = Wi-Fi only; cached tracks always play",
                           $appState.streamOnCellular)
             Divider().overlay(Palette.hairline)
-            settingToggle("Prefer FLAC over MP3", "When an item offers both", $appState.preferFLAC)
+            settingToggle("Prefer FLAC over MP3", "Stream lossless when available (larger files)", $appState.preferFLAC)
             Divider().overlay(Palette.hairline)
             Stepper(value: $appState.prefetchDepth, in: 0...5) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -120,6 +120,7 @@ struct SettingsView: View {
         .padding(15)
         .glassSurface(cornerRadius: 18)
         .onChange(of: appState.streamOnCellular) { _, _ in appState.applySettingsToPlayer() }
+        .onChange(of: appState.preferFLAC) { _, _ in appState.applySettingsToPlayer() }
         .onChange(of: appState.prefetchDepth) { _, _ in appState.applySettingsToPlayer() }
     }
 

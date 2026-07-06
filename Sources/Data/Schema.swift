@@ -113,6 +113,14 @@ enum Schema {
             }
         }
 
+        migrator.registerMigration("v3") { db in
+            try db.alter(table: "asset") { t in
+                t.add(column: "altRemoteURL", .text)
+            }
+            // Remove the legacy demo playlist for existing installs.
+            try db.execute(sql: "DELETE FROM playlist WHERE title = 'Starter Playlist' AND kind = 'manual'")
+        }
+
         return migrator
     }
 }

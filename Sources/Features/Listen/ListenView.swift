@@ -10,15 +10,13 @@ struct ListenView: View {
                 ScreenHeader(title: "Listen")
                     .padding(.bottom, 16)
 
-                if appState.recentlyPlayed.isEmpty && appState.favoriteRows.isEmpty {
-                    EmptyStateView(icon: "play.circle",
-                                   title: "Nothing here yet",
-                                   message: "Add a source, then play something. Your recent tracks and favorites show up here.")
-                        .padding(.top, 60)
-                } else {
-                    if !appState.recentlyPlayed.isEmpty { jumpBackIn }
-                    if !appState.favoriteRows.isEmpty { favorites }
+                if !appState.recentlyPlayed.isEmpty {
+                    cardRow(title: "Jump Back In", rows: appState.recentlyPlayed)
                 }
+                if !appState.recentlyAdded.isEmpty {
+                    cardRow(title: "Recently Added", rows: appState.recentlyAdded)
+                }
+                favorites
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 160)
@@ -27,15 +25,15 @@ struct ListenView: View {
         .task { await appState.reload() }
     }
 
-    private var jumpBackIn: some View {
+    private func cardRow(title: String, rows: [TrackRow]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(title: "Jump Back In")
+            SectionHeader(title: title)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(appState.recentlyPlayed) { row in
+                    ForEach(rows) { row in
                         Button {
-                            if let idx = appState.recentlyPlayed.firstIndex(where: { $0.id == row.id }) {
-                                player.play(tracks: appState.recentlyPlayed, startAt: idx)
+                            if let idx = rows.firstIndex(where: { $0.id == row.id }) {
+                                player.play(tracks: rows, startAt: idx)
                             }
                         } label: {
                             RecentCard(row: row)
@@ -52,18 +50,30 @@ struct ListenView: View {
 
     private var favorites: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(title: "Favorites", trailing: "\(appState.favoriteRows.count)")
-            ForEach(appState.favoriteRows) { row in
-                Button {
-                    if let idx = appState.favoriteRows.firstIndex(where: { $0.id == row.id }) {
-                        player.play(tracks: appState.favoriteRows, startAt: idx)
+            SectionHeader(title: "Favorites",
+                          trailing: appState.favoriteRows.isEmpty ? nil : "\(appState.favoriteRows.count)")
+            if appState.favoriteRows.isEmpty {
+                Text("Favorite a track and it will show up here.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.ink3)
+                    .padding(.vertical, 18)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(appState.favoriteRows) { row in
+                            Button {
+                                if let idx = appState.favoriteRows.firstIndex(where: { $0.id == row.id }) {
+                                    player.play(tracks: appState.favoriteRows, startAt: idx)
+                                }
+                            } label: {
+                                RecentCard(row: row)
+                            }
+                            .buttonStyle(.plain)
+                            .trackContextMenu(row)
+                        }
                     }
-                } label: {
-                    TrackRowView(row: row)
+                    .padding(.horizontal, 2)
                 }
-                .buttonStyle(.plain)
-                .trackContextMenu(row)
-                Divider().overlay(Palette.hairline)
             }
         }
     }

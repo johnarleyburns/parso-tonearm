@@ -152,6 +152,40 @@ top of the F-series engineering fixes above.
   - https://archive.org/details/The_Open_Goldberg_Variations-11823
   - https://archive.org/details/bach-well-tempered-clavier-book-1
 
+## Testing feedback round 2 (v2.2 → v2.3)
+
+Second live-testing pass. Root causes verified against live archive.org metadata
+for the four onboarding items.
+
+- **RC1** — App icon had a stray white vertical "gleam" line; removed from
+  `make_icon.py` and regenerated `AppIcon-1024.png`.
+- **RC2 (file selection, critical)** — `FileSelectionPolicy` rejected every audio
+  file because IA audio carries `height: "0"` (a string) and the code did
+  `if f.height != nil { skip }` → Open Goldberg / WTC resolved to **zero tracks**.
+  It also grouped by `original`, collapsing per-movement MP3s (whose `original`
+  is a shared side rip or `segments.json`) and surfacing side-long `.opus`
+  originals as "Opus not supported" junk (Beethoven). Rewrote the policy:
+  audio-by-extension only (opus/unsupported dropped, never listed), exclude raw
+  side-rips whose name embeds the item identifier, group by own filename stem,
+  prefer **MP3 by default**, capture a FLAC alternate. Verified live: 91 / 32 /
+  48(+FLAC) / 104 tracks.
+- **RC3** — "Prefer FLAC" is a Settings toggle, **off by default**; each track
+  stores both MP3 (primary) and FLAC (alternate) URLs; the player picks live.
+- **RC4** — Individually-added files append to a single persistent **"Local
+  Files"** source (no more repeated "Added Files"); folders remain
+  one-source-per-folder.
+- **RC5** — "Add Local Folder" launched nothing: replaced the post-dismiss timer
+  with a sheet `onDismiss` handler that reliably presents the importer.
+- **RC6** — Legacy "Starter Playlist" removed (cleanup migration) and no longer
+  created.
+- **RC7** — Onboarding gained a local-import step (folder + files) before the IA
+  source picker.
+- **RC8** — Listen page shows Jump Back In (history), **Recently Added**, and a
+  **Favorites** row ordered most-recently-played-first with an empty-state hint.
+- **RC9** — Adding a source immediately begins playing its first track.
+- **Deferred** — Real artwork (IA item/collection images + embedded local art) is
+  scheduled as a separate follow-up.
+
 ## Suggested agent run order
 F1+F3 (one PR: cache correctness) → F2 (CI gates, so regressions get caught) →
 F5+F4+F6 (one PR: network policy + prefetch + protection) → F7+F8 → F9+F10+F11.

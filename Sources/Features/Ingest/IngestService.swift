@@ -17,15 +17,28 @@ struct IngestService {
     func addFiles(_ urls: [URL], into store: LibraryStore) async {
         guard !urls.isEmpty else { return }
         do {
-            var source = Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
-                                title: "Added Files", addedAt: Date(), lastResolvedAt: nil,
-                                followUpdates: false, licenseText: nil, memberCapHit: false)
-            source = try await store.insertSource(source)
+            // Reuse a single persistent "Local Files" source rather than creating
+            // a new source per import.
+            let source: Source
+            if let existing = try await store.firstSource(title: "Local Files", kind: .local) {
+                source = existing
+            } else {
+                let s = Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
+                               title: "Local Files", addedAt: Date(), lastResolvedAt: nil,
+                               followUpdates: false, licenseText: nil, memberCapHit: false)
+                source = try await store.insertSource(s)
+            }
             guard let sid = source.id else { return }
-            var album = Album(id: nil, sourceId: sid, title: "Added Files", artist: nil, year: nil, artworkId: nil)
-            album = try await store.insertAlbum(album)
+            let album: Album
+            if let existing = try await store.firstAlbum(sourceId: sid, title: "Local Files") {
+                album = existing
+            } else {
+                let a = Album(id: nil, sourceId: sid, title: "Local Files", artist: nil, year: nil, artworkId: nil)
+                album = try await store.insertAlbum(a)
+            }
+            let existingCount = (try? await store.tracks(forSource: sid).count) ?? 0
             for (i, url) in urls.enumerated() {
-                try await ingestOne(url, sourceId: sid, albumId: album.id, index: i,
+                try await ingestOne(url, sourceId: sid, albumId: album.id, index: existingCount + i,
                                     section: nil, store: store)
             }
         } catch {
@@ -108,8 +121,8 @@ struct IngestService {
         track = try await store.insertTrack(track)
         guard let tid = track.id else { return nil }
         let asset = Asset(id: nil, trackId: tid, kind: .localRef, bookmark: bookmark,
-                          relPath: nil, remoteURL: url.absoluteString, sizeBytes: nil,
-                          unsupportedReason: unsupported)
+                          relPath: nil, remoteURL: url.absoluteString, altRemoteURL: nil,
+                          sizeBytes: nil, unsupportedReason: unsupported)
         try await store.insertAsset(asset)
         return tid
     }
