@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tonearm — Liquid Glass Mockups v2</title>
+<style>
+  :root{
+    --bg:#0a0b0d;
+    --ink:#f2f4f6;
+    --ink-2:rgba(235,240,245,.58);
+    --ink-3:rgba(235,240,245,.34);
+    --glass:rgba(255,255,255,.085);
+    --hairline:rgba(255,255,255,.14);
+    --brass:#e3a44b;
+    --brass-deep:#b97f2e;
+    --ok:#4cd471;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    background:
+      radial-gradient(1100px 600px at 15% -5%, rgba(227,164,75,.07), transparent 60%),
+      radial-gradient(900px 700px at 90% 100%, rgba(80,120,200,.06), transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    padding:56px 40px 80px;
+  }
+  .mono{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+
+  header.page{max-width:1780px;margin:0 auto 44px}
+  .eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--brass);margin-bottom:10px}
+  header.page h1{font-family:-apple-system,"SF Pro Display",sans-serif;font-size:34px;font-weight:700;letter-spacing:-.02em}
+  header.page p{max-width:70ch;margin-top:10px;color:var(--ink-2);font-size:14.5px;line-height:1.55}
+  header.page p b{color:var(--ink);font-weight:600}
+  .changelog{max-width:1780px;margin:14px auto 0;font-size:12px;color:var(--ink-3);line-height:1.6}
+  .changelog b{color:var(--brass);font-weight:600}
+
+  .gallery{max-width:1780px;margin:0 auto;display:flex;flex-wrap:wrap;gap:44px 34px;align-items:flex-start;justify-content:center}
+  .shot{width:312px}
+  .shot .label{margin:0 6px 14px}
+  .shot .label .num{font-size:11px;letter-spacing:.18em;color:var(--ink-3);text-transform:uppercase}
+  .shot .label h2{font-size:15.5px;font-weight:650;margin-top:3px}
+  .shot .note{margin:16px 8px 0;font-size:12.5px;line-height:1.55;color:var(--ink-2)}
+  .shot .note b{color:var(--brass);font-weight:600}
+
+  /* phone chrome */
+  .phone{position:relative;width:312px;height:664px;border-radius:52px;background:#000;border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 0 0 6px rgba(20,21,24,.9),0 0 0 7px rgba(255,255,255,.07),0 34px 70px rgba(0,0,0,.55);overflow:hidden}
+  .screen{position:absolute;inset:0;overflow:hidden;border-radius:52px;display:flex;flex-direction:column}
+  .island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:96px;height:28px;background:#000;border-radius:16px;z-index:60}
+  .statusbar{position:relative;z-index:50;display:flex;justify-content:space-between;align-items:center;padding:16px 26px 0;font-size:13px;font-weight:600}
+  .sb-right{display:flex;gap:5px;align-items:center;font-size:11px}
+  .homebar{position:absolute;bottom:7px;left:50%;transform:translateX(-50%);width:118px;height:4px;border-radius:2px;background:rgba(255,255,255,.5);z-index:60}
+
+  .glass{background:var(--glass);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);
+    border:1px solid rgba(255,255,255,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 8px 24px rgba(0,0,0,.28)}
+  .icon{display:inline-block;line-height:1}
+
+  .bg-lib{background:linear-gradient(180deg,#101216 0%,#0b0c0f 100%)}
+  .bg-src{background:linear-gradient(180deg,#241a10 0%,#12100c 34%,#0b0c0f 70%)}
+  .bg-set{background:linear-gradient(180deg,#101216 0%,#0b0c0f 100%)}
+
+  .content{flex:1;overflow:hidden;padding:8px 18px 0;position:relative;z-index:2}
+  .largetitle{font-family:-apple-system,"SF Pro Display",sans-serif;font-size:31px;font-weight:800;letter-spacing:-.02em;margin:10px 2px 12px}
+  .navrow{display:flex;justify-content:space-between;align-items:center;margin:2px 2px 0}
+  .navbtn{width:33px;height:33px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--brass)}
+  .search{display:flex;align-items:center;gap:8px;height:38px;border-radius:19px;padding:0 14px;color:var(--ink-3);font-size:15px;margin-bottom:16px}
+
+  .sechead{display:flex;justify-content:space-between;align-items:baseline;margin:4px 2px 10px}
+  .sechead h3{font-size:18px;font-weight:700;letter-spacing:-.01em}
+  .sechead span{font-size:13px;color:var(--brass)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+  .album .art{aspect-ratio:1;border-radius:14px;position:relative;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+  .album .t{font-size:12.5px;font-weight:600;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .album .s{font-size:11px;color:var(--ink-3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chip{position:absolute;left:8px;bottom:8px;font-size:8.5px;font-weight:700;letter-spacing:.06em;padding:3px 7px;border-radius:8px;color:#fff;background:rgba(0,0,0,.45)}
+
+  .art-cello{background:radial-gradient(120% 120% at 20% 15%,#7a4b1e 0%,#3d2410 55%,#1c1108 100%)}
+  .art-organ{background:radial-gradient(120% 120% at 80% 10%,#4a5f8a 0%,#22304e 55%,#0f1522 100%)}
+  .art-78{background:radial-gradient(circle at 50% 50%,#333 0 12%,#111 13% 15%,#2a2a2a 16% 30%,#151515 31% 46%,#262626 47% 60%,#101010 61%),#0d0d0d}
+  .art-local{background:linear-gradient(145deg,#5a3d78 0%,#2a1c3e 70%)}
+  .art-bpl{background:radial-gradient(120% 130% at 30% 20%,#6e2f2f 0%,#361616 60%,#180a0a 100%)}
+  .art-field{background:linear-gradient(160deg,#2f6e57 0%,#123326 70%)}
+
+  .row{display:flex;align-items:center;gap:11px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,.06)}
+  .row:last-child{border-bottom:0}
+  .row .thumb{width:42px;height:42px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;font-size:17px}
+  .row .m{flex:1;min-width:0}
+  .row .m .t{font-size:14px;font-weight:560;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .m .s{font-size:11.5px;color:var(--ink-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .tail{color:var(--ink-3);font-size:14px}
+
+  /* cache state glyphs */
+  .c-none{width:9px;height:9px;border-radius:50%;border:1.5px solid rgba(255,255,255,.22);flex:none}
+  .c-part{width:16px;height:16px;border-radius:50%;background:conic-gradient(var(--brass) 62%,rgba(255,255,255,.15) 0);position:relative;flex:none}
+  .c-part::after{content:"";position:absolute;inset:3.5px;border-radius:50%;background:#191410}
+  .c-full{width:9px;height:9px;border-radius:50%;background:var(--brass);flex:none;box-shadow:0 0 6px rgba(227,164,75,.5)}
+
+  /* glass dock */
+  .dock{position:absolute;left:12px;right:12px;bottom:20px;z-index:40;display:flex;flex-direction:column;gap:9px}
+  .mini{display:flex;align-items:center;gap:10px;border-radius:22px;padding:8px 14px 8px 8px;background:rgba(30,32,38,.55);
+    -webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);
+    border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 10px 30px rgba(0,0,0,.45)}
+  .mini .thumb{width:36px;height:36px;border-radius:10px;flex:none}
+  .mini .m{flex:1;min-width:0}
+  .mini .m .t{font-size:12.5px;font-weight:620;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .m .s{font-size:10.5px;color:var(--ink-3)}
+  .mini .ctl{display:flex;gap:14px;font-size:16px;align-items:center}
+  .tabbar{display:flex;justify-content:space-around;align-items:center;border-radius:26px;padding:9px 6px;background:rgba(30,32,38,.55);
+    -webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);
+    border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 10px 30px rgba(0,0,0,.45)}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9.5px;color:var(--ink-3);width:60px}
+  .tab .icon{font-size:19px}
+  .tab.active{color:var(--brass)}
+
+  /* source detail */
+  .hero{display:flex;flex-direction:column;align-items:center;text-align:center;margin-top:4px}
+  .hero .art{width:168px;height:168px;border-radius:18px;box-shadow:0 18px 40px rgba(0,0,0,.55)}
+  .hero h2{font-size:18px;font-weight:750;letter-spacing:-.01em;margin-top:13px;line-height:1.25}
+  .hero .artist{font-size:14px;color:var(--brass);margin-top:3px}
+  .badge{display:inline-flex;align-items:center;gap:6px;margin-top:9px;font-size:10.5px;font-weight:650;letter-spacing:.05em;padding:5px 11px;border-radius:12px;color:var(--ink-2)}
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:var(--ok)}
+  .cta{display:flex;gap:10px;margin:14px 0 6px;width:100%}
+  .cta .btn{flex:1;height:42px;border-radius:21px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:14.5px;font-weight:650;color:var(--brass)}
+  .footnote{font-size:11px;color:var(--ink-3);text-align:center;padding:10px 6px 4px;line-height:1.5}
+
+  /* now playing */
+  .np{background:linear-gradient(180deg,#8a5a24 0%,#59391a 34%,#241708 78%,#120b05 100%)}
+  .np-blur{position:absolute;inset:-40px;background:radial-gradient(90% 60% at 50% 22%,rgba(255,190,110,.28),transparent 70%);filter:blur(30px)}
+  .np-content{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;padding:6px 24px 0}
+  .grabber{width:36px;height:5px;border-radius:3px;background:rgba(255,255,255,.35);margin:6px auto 0}
+  .np-art{width:100%;aspect-ratio:1;border-radius:16px;margin-top:22px;box-shadow:0 24px 60px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.2)}
+  .np-meta{margin-top:22px;display:flex;justify-content:space-between;align-items:center}
+  .np-meta .t{font-size:17px;font-weight:720;letter-spacing:-.01em}
+  .np-meta .s{font-size:14px;color:rgba(255,255,255,.62);margin-top:2px}
+  .np-meta .more{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff}
+  .scrub{margin-top:20px}
+  .scrub .track{height:7px;border-radius:4px;background:rgba(255,255,255,.16);position:relative}
+  .scrub .cachefill{position:absolute;left:0;top:0;bottom:0;width:74%;border-radius:4px;background:rgba(255,255,255,.3)}
+  .scrub .fill{position:absolute;left:0;top:0;bottom:0;width:38%;border-radius:4px;background:rgba(255,255,255,.9)}
+  .scrub .times{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:rgba(255,255,255,.55);margin-top:7px;font-variant-numeric:tabular-nums}
+  .transport{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:16px}
+  .t-side{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff}
+  .t-main{width:66px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;color:#fff;background:rgba(255,255,255,.16)}
+  .np-foot{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding:0 8px 88px;color:rgba(255,255,255,.6);font-size:16px}
+  .np-quality{font-size:9.5px;letter-spacing:.12em;font-weight:700;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:3px 7px}
+
+  /* sheets & menus */
+  .dim{position:absolute;inset:0;background:rgba(5,6,8,.55);z-index:5}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:10;border-radius:34px 34px 0 0;padding:14px 20px 24px;background:rgba(28,30,36,.72);
+    -webkit-backdrop-filter:blur(34px) saturate(180%);backdrop-filter:blur(34px) saturate(180%);
+    border-top:1px solid rgba(255,255,255,.18);box-shadow:0 -20px 60px rgba(0,0,0,.5)}
+  .sheet h2{font-size:19px;font-weight:750;text-align:center;margin-top:12px}
+  .sheet .sub{font-size:12.5px;color:var(--ink-2);text-align:center;margin-top:5px;line-height:1.45}
+  .field{margin-top:16px;border-radius:14px;padding:11px 14px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12)}
+  .field .l{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  .field .v{font-size:12.5px;margin-top:4px;word-break:break-all;line-height:1.4}
+  .field .v .cursor{display:inline-block;width:1.5px;height:13px;background:var(--brass);vertical-align:-2px}
+  .preview{margin-top:13px;border-radius:16px;padding:12px;display:flex;gap:12px;align-items:center}
+  .preview .art{width:56px;height:56px;border-radius:12px;flex:none}
+  .preview .m .t{font-size:13.5px;font-weight:650}
+  .preview .m .s{font-size:11.5px;color:var(--ink-2);margin-top:3px;line-height:1.4}
+  .preview .m .lic{color:var(--ok);font-weight:600}
+  .addbtn{margin-top:16px;height:48px;border-radius:24px;background:linear-gradient(180deg,#eeb35b,#cf8f34);display:flex;align-items:center;justify-content:center;
+    font-size:15.5px;font-weight:700;color:#221503;box-shadow:0 10px 26px rgba(227,164,75,.28),inset 0 1px 0 rgba(255,255,255,.4)}
+  .hint{text-align:center;font-size:10.5px;color:var(--ink-3);margin-top:11px;line-height:1.5}
+  .togglerow{display:flex;justify-content:space-between;align-items:center;margin-top:13px;padding:12px 14px;border-radius:14px}
+  .togglerow .t{font-size:13.5px;font-weight:560}
+  .togglerow .s{font-size:11px;color:var(--ink-3);margin-top:2px}
+  .switch{width:44px;height:27px;border-radius:14px;background:rgba(255,255,255,.18);position:relative;flex:none}
+  .switch.on{background:var(--brass-deep)}
+  .switch::after{content:"";position:absolute;top:2.5px;left:2.5px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.35)}
+  .switch.on::after{left:auto;right:2.5px}
+
+  /* add menu popover */
+  .popover{position:absolute;top:118px;right:16px;z-index:20;width:238px;border-radius:20px;overflow:hidden;background:rgba(34,36,42,.78);
+    -webkit-backdrop-filter:blur(30px) saturate(180%);backdrop-filter:blur(30px) saturate(180%);
+    border:1px solid rgba(255,255,255,.16);box-shadow:0 18px 50px rgba(0,0,0,.5)}
+  .pop-item{display:flex;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .pop-item:last-child{border-bottom:0}
+  .pop-item .ic{font-size:17px;width:22px;text-align:center;color:var(--brass)}
+  .pop-item .m .t{font-size:13.5px;font-weight:600}
+  .pop-item .m .s{font-size:10.5px;color:var(--ink-3);margin-top:1px}
+
+  /* settings */
+  .card{border-radius:18px;padding:15px;margin-bottom:14px}
+  .card h4{font-size:13px;font-weight:700;letter-spacing:.02em;margin-bottom:11px;display:flex;justify-content:space-between;align-items:baseline}
+  .card h4 span{font-size:11px;color:var(--ink-3);font-weight:500}
+  .cachebar{height:10px;border-radius:5px;background:rgba(255,255,255,.1);overflow:hidden;display:flex}
+  .cachebar .seg{background:linear-gradient(90deg,#cf8f34,#e3a44b)}
+  .cachelegend{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-3);margin-top:8px}
+  .seg-picker{display:flex;gap:6px;margin-top:12px}
+  .seg-opt{flex:1;text-align:center;font-size:11px;font-weight:600;padding:8px 0;border-radius:11px;background:rgba(255,255,255,.07);color:var(--ink-2)}
+  .seg-opt.sel{background:var(--brass-deep);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+  .setrow{display:flex;justify-content:space-between;align-items:center;padding:11px 2px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13.5px}
+  .setrow:last-child{border-bottom:0}
+  .setrow .s{font-size:11px;color:var(--ink-3);margin-top:2px}
+  .setrow .val{color:var(--ink-3);font-size:13px}
+  .danger{color:#ff6b5e;font-weight:600}
+
+  @media (max-width:760px){body{padding:36px 16px 60px}.gallery{gap:36px}}
+</style>
+</head>
+<body>
+
+<header class="page">
+  <div class="eyebrow mono">PARSO · TONEARM · DESIGN MOCKUPS · V2</div>
+  <h1>Tonearm — you bring the records</h1>
+  <p>A local-first iOS player with archive.org sources added by URL. <b>v2 removes downloads entirely:</b> IA audio is stream-only, backed by a <b>transparent LRU cache</b> (default 500 MB, user-adjustable) that makes recently played music effectively offline without a download button ever existing. Local music arrives via <b>Add Folder as Playlist</b> or <b>Add Audio Files</b>. IA items, <b>public user lists/playlists</b>, favorites pages, and collections are all accepted as pasted URLs. No IA search, ever.</p>
+  <p class="changelog"><b>Changed from v1:</b> Downloads tab → Playlists tab · download cloud icons → passive cache dots (empty ○ / filling ◔ / cached ●) · Add Source accepts list &amp; favorites URLs · new Add menu, folder-import sheet, and cache settings screens · renamed Phono → Tonearm.</p>
+</header>
+
+<div class="gallery">
+
+  <!-- ============ 1. LIBRARY ============ -->
+  <div class="shot">
+    <div class="label"><div class="num mono">01 / LIBRARY</div><h2>Library home</h2></div>
+    <div class="phone"><div class="screen bg-lib">
+      <div class="island"></div>
+      <div class="statusbar"><span>9:41</span><span class="sb-right">●●●●  wifi  ▮</span></div>
+      <div class="content">
+        <div class="navrow"><div></div><div style="display:flex;gap:9px"><div class="navbtn glass icon">＋</div><div class="navbtn glass icon">⋯</div></div></div>
+        <div class="largetitle">Library</div>
+        <div class="search glass"><span class="icon">🔍</span> Your artists, albums, tracks…</div>
+
+        <div class="sechead"><h3>Pinned</h3><span>Edit</span></div>
+        <div class="grid2">
+          <div class="album"><div class="art art-cello"><div class="chip">☁ ARCHIVE.ORG</div></div><div class="t">Six Suites for Solo Cello</div><div class="s">J.S. Bach · CC0 · mostly cached</div></div>
+          <div class="album"><div class="art art-local"><div class="chip">📱 ON DEVICE</div></div><div class="t">Field Recordings ’24</div><div class="s">Folder playlist · 124 files</div></div>
+          <div class="album"><div class="art art-78"><div class="chip">☁ ARCHIVE.ORG</div></div><div class="t">Early Opera on 78s</div><div class="s">List by @shellac_hound</div></div>
+          <div class="album"><div class="art art-organ"><div class="chip">☁ ARCHIVE.ORG</div></div><div class="t">Organ Works, BWV 525–530</div><div class="s">J.S. Bach · CC0</div></div>
+        </div>
+
+        <div class="sechead"><h3>Recently Added</h3><span>See All</span></div>
+        <div class="row"><div class="thumb art-bpl"></div><div class="m"><div class="t">Boston Public Library LPs</div><div class="s">Collection · streams from archive.org</div></div><div class="tail">›</div></div>
+        <div class="row"><div class="thumb art-field"></div><div class="m"><div class="t">Marsh Dawn Chorus.flac</div><div class="s">Added from Files · FLAC 96 kHz</div></div><div class="tail">›</div></div>
+      </div>
+      <div class="dock">
+        <div class="mini"><div class="thumb art-cello"></div><div class="m"><div class="t">Suite No. 1 — Prélude</div><div class="s">archive.org · cached</div></div><div class="ctl"><span class="icon">⏸</span><span class="icon">⏭</span></div></div>
+        <div class="tabbar">
+          <div class="tab active"><span class="icon">▦</span>Library</div>
+          <div class="tab"><span class="icon">♫</span>Playlists</div>
+          <div class="tab"><span class="icon">☁</span>Sources</div>
+          <div class="tab"><span class="icon">⚙</span>Settings</div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+    <p class="note">One merged library, provenance as <b>badges</b>. Tab 3 is now <b>Playlists</b> — the Downloads tab is gone because downloads are gone. The mini-player quietly says "cached" when playback is local-speed.</p>
+  </div>
+
+  <!-- ============ 2. ADD MENU ============ -->
+  <div class="shot">
+    <div class="label"><div class="num mono">02 / ADD MENU</div><h2>Three ways in — all manual</h2></div>
+    <div class="phone"><div class="screen bg-lib">
+      <div class="island"></div>
+      <div class="statusbar"><span>9:41</span><span class="sb-right">●●●●  wifi  ▮</span></div>
+      <div class="content" style="filter:blur(1.5px);opacity:.75">
+        <div class="navrow"><div></div><div style="display:flex;gap:9px"><div class="navbtn glass icon" style="color:#fff;background:rgba(227,164,75,.35)">＋</div><div class="navbtn glass icon">⋯</div></div></div>
+        <div class="largetitle">Library</div>
+        <div class="search glass">Your artists, albums, tracks…</div>
+        <div class="sechead"><h3>Pinned</h3><span>Edit</span></div>
+        <div class="grid2">
+          <div class="album"><div class="art art-cello"></div></div>
+          <div class="album"><div class="art art-local"></div></div>
+        </div>
+      </div>
+      <div class="dim" style="background:rgba(5,6,8,.35)"></div>
+      <div class="popover">
+        <div class="pop-item"><div class="ic">🔗</div><div class="m"><div class="t">Paste archive.org Link</div><div class="s">Item, playlist, favorites, or collection</div></div></div>
+        <div class="pop-item"><div class="ic">🗂</div><div class="m"><div class="t">Add Folder as Playlist</div><div class="s">Import a folder, keep its order</div></div></div>
+        <div class="pop-item"><div class="ic">🎵</div><div class="m"><div class="t">Add Audio Files</div><div class="s">Pick individual tracks from Files</div></div></div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+    <p class="note">The entire ingestion surface is this one glass popover. Nothing is discovered <i>for</i> you: a pasted IA URL, a folder, or files. Same menu is reachable from Library, Playlists, and Sources tabs.</p>
+  </div>
+
+  <!-- ============ 3. ADD SOURCE (IA LIST) ============ -->
+  <div class="shot">
+    <div class="label"><div class="num mono">03 / ADD SOURCE</div><h2>Paste URL — item, list, or collection</h2></div>
+    <div class="phone"><div class="screen bg-lib">
+      <div class="island"></div>
+      <div class="statusbar"><span>9:41</span><span class="sb-right">●●●●  wifi  ▮</span></div>
+      <div class="content" style="filter:blur(1px)">
+        <div class="largetitle" style="margin-top:26px">Library</div>
+        <div class="search glass">Your artists, albums, tracks…</div>
+      </div>
+      <div class="dim"></div>
+      <div class="sheet" style="top:104px">
+        <div class="grabber"></div>
+        <h2>Add archive.org Source</h2>
+        <p class="sub">Paste a link to an item, a public list or<br>favorites page, or a collection.</p>
+        <div class="field">
+          <div class="l mono">URL</div>
+          <div class="v mono">https://archive.org/details/@shellac_hound<br>/lists/2841/early-opera-on-78s<span class="cursor"></span></div>
+        </div>
+        <div class="preview glass">
+          <div class="art art-78"></div>
+          <div class="m">
+            <div class="t">Early Opera on 78s</div>
+            <div class="s">Public list by @shellac_hound<br>41 items · audio · <span class="lic">✓ streams permitted</span></div>
+          </div>
+        </div>
+        <div class="togglerow glass">
+          <div><div class="t">Follow list updates</div><div class="s">Re-check on pull-to-refresh only</div></div>
+          <div class="switch on"></div>
+        </div>
+        <div class="addbtn">Add to Library</div>
+        <p class="hint">Tonearm streams this music and keeps a temporary cache.<br>Nothing is stored permanently and nothing is searched for you.</p>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+    <p class="note">Same sheet as v1, now resolving <b>four URL shapes</b>: item, <b>@user list/playlist</b>, favorites page (<span class="mono">fav-*</span>), collection. The copy states the cache contract in one line. No download toggle exists anymore.</p>
+  </div>
+
+  <!-- ============ 4. SOURCE DETAIL ============ -->
+  <div class="shot">
+    <div class="label"><div class="num mono">04 / SOURCE DETAIL</div><h2>Stream-only, cache as state</h2></div>
+    <div class="phone"><div class="screen bg-src">
+      <div class="island"></div>
+      <div class="statusbar"><span>9:41</span><span class="sb-right">●●●●  wifi  ▮</span></div>
+      <div class="content">
+        <div class="navrow"><div class="navbtn glass icon">‹</div><div class="navbtn glass icon">⋯</div></div>
+        <div class="hero">
+          <div class="art art-cello"></div>
+          <h2>Six Suites for Solo Cello</h2>
+          <div class="artist">J.S. Bach · Colin Carr</div>
+          <div class="badge glass"><span class="dot"></span> archive.org · CC0 Public Domain</div>
+          <div class="cta">
+            <div class="btn glass"><span class="icon">▶</span> Play</div>
+            <div class="btn glass"><span class="icon">⤨</span> Shuffle</div>
+          </div>
+        </div>
+        <div class="row"><div class="m"><div class="t">1 · Suite No. 1 — Prélude</div><div class="s">4:12 · FLAC 44.1</div></div><div class="c-full"></div></div>
+        <div class="row"><div class="m"><div class="t">2 · Suite No. 1 — Allemande</div><div class="s">5:04 · FLAC 44.1 · playing</div></div><div class="c-part"></div></div>
+        <div class="row"><div class="m"><div class="t">3 · Suite No. 1 — Courante</div><div class="s">2:41 · FLAC 44.1</div></div><div class="c-none"></div></div>
+        <div class="row"><div class="m"><div class="t">4 · Suite No. 1 — Sarabande</div><div class="s">6:30 · FLAC 44.1</div></div><div class="c-none"></div></div>
+        <div class="row"><div class="m"><div class="t">5 · Suite No. 1 — Menuets</div><div class="s">3:22 · FLAC 44.1</div></div><div class="c-none"></div></div>
+        <div class="footnote">Streams from archive.org · played tracks stay in the cache<br>and work offline until space is needed</div>
+      </div>
+      <div class="dock">
+        <div class="mini"><div class="thumb art-cello"></div><div class="m"><div class="t">Suite No. 1 — Allemande</div><div class="s">archive.org · caching…</div></div><div class="ctl"><span class="icon">⏸</span><span class="icon">⏭</span></div></div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+    <p class="note">No cloud-download buttons, no Download All. Cache is <b>passive state, not an action</b>: empty ring ○ → filling ◔ (current + prefetched next tracks) → brass dot ●. Tapping a track just plays it.</p>
+  </div>
+
+  <!-- ============ 5. NOW PLAYING ============ -->
+  <div class="shot">
+    <div class="label"><div class="num mono">05 / NOW PLAYING</div><h2>Glass over artwork</h2></div>
+    <div class="phone"><div class="screen np">
+      <div class="np-blur"></div>
+      <div class="island"></div>
+      <div class="statusbar"><span>9:41</span><span class="sb-right">●●●●  wifi  ▮</span></div>
+      <div class="np-content">
+        <div class="grabber"></div>
+        <div class="np-art art-cello"></div>
+        <div class="np-meta">
+          <div><div class="t">Suite No. 1 — Allemande</div><div class="s">J.S. Bach · Colin Carr</div></div>
+          <div class="more glass icon">⋯</div>
+        </div>
+        <div class="scrub">
+          <div class="track"><div class="cachefill"></div><div class="fill"></div></div>
+          <div class="times"><span>1:36</span><span class="np-quality">FLAC · 44.1 kHz · ● 74% CACHED</span><span>−3:28</span></div>
+        </div>
+        <div class="transport">
+          <div class="t-side glass icon">⏮</div>
+          <div class="t-main glass icon">⏸</div>
+          <div class="t-side glass icon">⏭</div>
+        </div>
+        <div class="np-foot"><span class="icon">✈▾</span><span class="icon">Aa</span><span class="icon">☰</span></div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+    <p class="note">The scrubber shows <b>three layers</b>: played (bright), cached bytes (mid), uncached (dim) — honest buffering feedback, fb2k-style transparency. Codec chip now also carries the cache percentage.</p>
+  </div>
+
+  <!-- ============ 6. ADD FOLDER AS PLAYLIST ============ -->
+  <div class="shot">
+    <div class="label"><div class="num mono">06 / IMPORT FOLDER</div><h2>Folder → playlist, order kept</h2></div>
+    <div class="phone"><div class="screen bg-lib">
+      <div class="island"></div>
+      <div class="statusbar"><span>9:41</span><span class="sb-right">●●●●  wifi  ▮</span></div>
+      <div class="content" style="filter:blur(1px)">
+        <div class="largetitle" style="margin-top:26px">Playlists</div>
+      </div>
+      <div class="dim"></div>
+      <div class="sheet" style="top:96px">
+        <div class="grabber"></div>
+        <h2>Add Folder as Playlist</h2>
+        <p class="sub">On My iPhone › Music › <b style="color:var(--ink)">Field Recordings ’24</b></p>
+        <div class="preview glass">
+          <div class="art art-field"></div>
+          <div class="m">
+            <div class="t">Field Recordings ’24</div>
+            <div class="s">124 audio files · 3 subfolders · 2.1 GB<br>FLAC ×98 · WAV ×22 · MP3 ×4</div>
+          </div>
+        </div>
+        <div class="togglerow glass">
+          <div><div class="t">Keep folder order</div><div class="s">Off sorts by track number &amp; name</div></div>
+          <div class="switch on"></div>
+        </div>
+        <div class="togglerow glass">
+          <div><div class="t">Include subfolders</div><div class="s">Adds 3 nested folders as sections</div></div>
+          <div class="switch on"></div>
+        </div>
+        <div class="togglerow glass">
+          <div><div class="t">Watch folder for changes</div><div class="s">Rescan on app launch</div></div>
+          <div class="switch"></div>
+        </div>
+        <div class="addbtn">Import 124 Files</div>
+        <p class="hint">Files stay where they are — Tonearm keeps a secure<br>bookmark and reads them in place.</p>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+    <p class="note">Folder import = playlist creation. <b>Files are referenced in place</b> via security-scoped bookmarks, never copied — your Files app stays the source of truth. Individual "Add Audio Files" uses the same sheet minus folder options.</p>
+  </div>
+
+  <!-- ============ 7. SETTINGS / CACHE ============ -->
+  <div class="shot">
+    <div class="label"><div class="num mono">07 / SETTINGS</div><h2>The cache, made honest</h2></div>
+    <div class="phone"><div class="screen bg-set">
+      <div class="island"></div>
+      <div class="statusbar"><span>9:41</span><span class="sb-right">●●●●  wifi  ▮</span></div>
+      <div class="content">
+        <div class="largetitle">Settings</div>
+
+        <div class="card glass">
+          <h4>Streaming Cache <span>412 MB of 500 MB</span></h4>
+          <div class="cachebar"><div class="seg" style="width:82%"></div></div>
+          <div class="cachelegend"><span>287 tracks cached</span><span>oldest evicted first</span></div>
+          <div class="seg-picker">
+            <div class="seg-opt">200 MB</div>
+            <div class="seg-opt sel">500 MB</div>
+            <div class="seg-opt">2 GB</div>
+            <div class="seg-opt">10 GB</div>
+            <div class="seg-opt">Custom</div>
+          </div>
+        </div>
+
+        <div class="card glass">
+          <div class="setrow"><div>Stream on cellular<div class="s">Off = Wi-Fi only; cached tracks always play</div></div><div class="switch on"></div></div>
+          <div class="setrow"><div>Prefer FLAC over MP3<div class="s">When an item offers both</div></div><div class="switch on"></div></div>
+          <div class="setrow"><div>Prefetch next tracks<div class="s">Cache ahead while playing</div></div><div class="val">2 tracks ›</div></div>
+        </div>
+
+        <div class="card glass">
+          <div class="setrow"><div class="danger">Clear Cache</div><div class="val">412 MB</div></div>
+        </div>
+
+        <div class="card glass">
+          <div class="setrow"><div>Privacy<div class="s">No accounts · no ads · no analytics · talks only to archive.org for your added sources</div></div><div class="val">›</div></div>
+        </div>
+      </div>
+      <div class="dock">
+        <div class="tabbar">
+          <div class="tab"><span class="icon">▦</span>Library</div>
+          <div class="tab"><span class="icon">♫</span>Playlists</div>
+          <div class="tab"><span class="icon">☁</span>Sources</div>
+          <div class="tab active"><span class="icon">⚙</span>Settings</div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div></div>
+    <p class="note">One card is the whole cache contract: usage vs limit (<b>default 500 MB</b>), preset limits + custom, LRU eviction stated in plain words, Clear Cache with real byte count. Bigger limit = more of your music effectively offline.</p>
+  </div>
+
+</div>
+</body>
+</html>
