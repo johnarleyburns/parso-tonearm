@@ -202,6 +202,79 @@ actor LibraryStore {
         }
     }
 
+    /// Creates a manual playlist from an ordered list of track ids.
+    @discardableResult
+    func createManualPlaylist(title: String, trackIds: [Int64]) throws -> Playlist {
+        try dbQueue.write { db in
+            var pl = Playlist(id: nil, title: title, kind: .manual, folderBookmark: nil, watch: false)
+            try pl.insert(db)
+            guard let pid = pl.id else { return pl }
+            for (i, tid) in trackIds.enumerated() {
+                var item = PlaylistItem(id: nil, playlistId: pid, position: i,
+                                        trackId: tid, sectionTitle: nil)
+                try item.insert(db)
+            }
+            return pl
+        }
+    }
+
+    // MARK: - Listening history (TF7)
+
+    func recordPlay(trackId: Int64) throws {
+        try dbQueue.write { db in
+            var event = PlayEvent(id: nil, trackId: trackId, playedAt: Date())
+            try event.insert(db)
+        }
+    }
+
+    /// Distinct tracks ordered by most-recently played, capped at `limit`.
+    func recentlyPlayedRows(limit: Int = 12) throws -> [TrackRow] {
+        try dbQueue.read { db in
+            let sql = """
+            SELECT track.* FROM track
+            JOIN (SELECT trackId, MAX(playedAt) AS lastPlayed
+                  FROM play_history GROUP BY trackId) h
+              ON h.trackId = track.id
+            ORDER BY h.lastPlayed DESC
+            LIMIT ?
+            """
+            let tracks = try Track.fetchAll(db, sql: sql, arguments: [limit])
+            return try tracks.map { try self.hydrate($0, db: db) }
+        }
+    }
+
+    // MARK: - Favorites (TF7)
+
+    func favoriteTrackIds() throws -> Set<Int64> {
+        try dbQueue.read { db in
+            let favs = try Favorite.fetchAll(db)
+            return Set(favs.map { $0.trackId })
+        }
+    }
+
+    func setFavorite(trackId: Int64, _ isFavorite: Bool) throws {
+        try dbQueue.write { db in
+            if isFavorite {
+                if try Favorite.filter(Column("trackId") == trackId).fetchCount(db) == 0 {
+                    var fav = Favorite(id: nil, trackId: trackId, favoritedAt: Date())
+                    try fav.insert(db)
+                }
+            } else {
+                _ = try Favorite.filter(Column("trackId") == trackId).deleteAll(db)
+            }
+        }
+    }
+
+    func favoriteRows() throws -> [TrackRow] {
+        try dbQueue.read { db in
+            let favs = try Favorite.order(Column("favoritedAt").desc).fetchAll(db)
+            return try favs.compactMap { fav -> TrackRow? in
+                guard let t = try Track.fetchOne(db, key: fav.trackId) else { return nil }
+                return try self.hydrate(t, db: db)
+            }
+        }
+    }
+
     // MARK: - Cache entries
 
     func cacheEntry(assetId: Int64) throws -> CacheEntry? {

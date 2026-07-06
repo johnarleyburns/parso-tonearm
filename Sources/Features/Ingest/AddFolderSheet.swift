@@ -15,7 +15,7 @@ struct AddFolderSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Capsule().fill(Color.white.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
-            Text("Add Folder as Playlist").font(.system(size: 19, weight: .bold)).padding(.top, 12)
+            Text("Add Local Folder").font(.system(size: 19, weight: .bold)).padding(.top, 12)
             Text(folderURL.lastPathComponent).font(.system(size: 12.5)).foregroundStyle(Palette.ink2).padding(.top, 5)
 
             HStack(spacing: 12) {

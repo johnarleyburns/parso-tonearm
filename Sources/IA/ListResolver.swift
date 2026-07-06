@@ -29,22 +29,40 @@ struct ListResolver {
 
     // Strategy 1: the JSON members endpoint used by the web app.
     private static func jsonMembers(_ screenname: String, _ listId: String) async throws -> [IAMember] {
+        let path = "https://archive.org/services/lists/@\(screenname)/lists/\(listId)/members.json"
+        guard let url = URL(string: path) else { return [] }
+        let data = try await IAClient.shared.data(from: url)
+        return parseMembers(from: data)
+    }
+
+    /// Parses the several JSON shapes archive.org uses for list members.
+    /// Deterministic and pure so it can be unit-tested without the network.
+    static func parseMembers(from data: Data) -> [IAMember] {
+        // Shape A/B: {"members":[{identifier,title}]} or {"ids":[...]}
         struct MembersResponse: Decodable {
             struct Member: Decodable { let identifier: String?; let title: String? }
             let members: [Member]?
             let ids: [String]?
         }
-        let path = "https://archive.org/services/lists/@\(screenname)/lists/\(listId)/members.json"
-        guard let url = URL(string: path) else { return [] }
-        let data = try await IAClient.shared.data(from: url)
-        let decoded = try JSONDecoder().decode(MembersResponse.self, from: data)
-        if let members = decoded.members {
-            return members.compactMap { m in
-                m.identifier.map { IAMember(identifier: $0, title: m.title, mediatype: nil) }
+        if let decoded = try? JSONDecoder().decode(MembersResponse.self, from: data) {
+            if let members = decoded.members, !members.isEmpty {
+                let mapped = members.compactMap { m in
+                    m.identifier.map { IAMember(identifier: $0, title: m.title, mediatype: nil) }
+                }
+                if !mapped.isEmpty { return mapped }
+            }
+            if let ids = decoded.ids, !ids.isEmpty {
+                return ids.map { IAMember(identifier: $0, title: nil, mediatype: nil) }
             }
         }
-        if let ids = decoded.ids {
-            return ids.map { IAMember(identifier: $0, title: nil, mediatype: nil) }
+        // Shape C: {"members": {"id1": {"title": ...}, "id2": {...}}}
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let membersDict = obj["members"] as? [String: Any] {
+            let members = membersDict.keys.sorted().map { key -> IAMember in
+                let title = (membersDict[key] as? [String: Any])?["title"] as? String
+                return IAMember(identifier: key, title: title, mediatype: nil)
+            }
+            if !members.isEmpty { return members }
         }
         return []
     }

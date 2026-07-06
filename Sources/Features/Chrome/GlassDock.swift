@@ -65,8 +65,9 @@ struct TabBar: View {
     @Binding var selection: AppTab
 
     private let items: [(AppTab, String, String)] = [
-        (.library, "square.grid.2x2.fill", "Library"),
+        (.listen, "play.circle.fill", "Listen"),
         (.playlists, "music.note.list", "Playlists"),
+        (.library, "square.grid.2x2.fill", "Library"),
         (.sources, "cloud.fill", "Sources"),
         (.settings, "gearshape.fill", "Settings")
     ]

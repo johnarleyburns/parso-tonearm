@@ -4,88 +4,49 @@ struct LibraryView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
 
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    private var rows: [TrackRow] {
+        appState.searchText.isEmpty ? appState.allTracks : appState.searchResults
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 0) {
                 ScreenHeader(title: "Library")
-                SearchField(text: $appState.searchText, placeholder: "Your artists, albums, tracks…")
+                SearchField(text: $appState.searchText, placeholder: "Search all your music…")
                     .padding(.top, 12)
                     .padding(.bottom, 16)
                     .onChange(of: appState.searchText) { _, _ in
                         Task { await appState.runSearch() }
                     }
 
-                if !appState.searchText.isEmpty {
-                    searchResults
+                if rows.isEmpty {
+                    EmptyStateView(icon: "music.note",
+                                   title: appState.searchText.isEmpty ? "Your library is empty" : "No matches",
+                                   message: appState.searchText.isEmpty
+                                        ? "Add a source or a local folder to fill your library."
+                                        : "Nothing in your library matches that.")
+                        .padding(.top, 60)
                 } else {
-                    pinned
-                    recentlyAdded
+                    SectionHeader(title: "All Music", trailing: "\(rows.count)")
+                    ForEach(rows) { row in
+                        Button {
+                            if let idx = rows.firstIndex(where: { $0.id == row.id }) {
+                                player.play(tracks: rows, startAt: idx)
+                            }
+                        } label: {
+                            TrackRowView(row: row)
+                        }
+                        .buttonStyle(.plain)
+                        .trackContextMenu(row)
+                        Divider().overlay(Palette.hairline)
+                    }
                 }
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 160)
         }
         .foregroundStyle(Palette.ink)
-    }
-
-    private var pinned: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(title: "Pinned", trailing: "Sources")
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(appState.sources.prefix(4)) { source in
-                    Button {
-                        appState.tab = .sources
-                    } label: {
-                        AlbumCell(source: source)
-                    }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                        Button("Play") { Task { await appState.playSource(source) } }
-                    }
-                }
-            }
-            .padding(.bottom, 18)
-        }
-    }
-
-    private var recentlyAdded: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(title: "Recently Added", trailing: "See All")
-            ForEach(appState.allTracks.prefix(8)) { row in
-                Button {
-                    if let idx = appState.allTracks.firstIndex(where: { $0.id == row.id }) {
-                        player.play(tracks: appState.allTracks, startAt: idx)
-                    }
-                } label: {
-                    TrackRowView(row: row)
-                }
-                .buttonStyle(.plain)
-                Divider().overlay(Palette.hairline)
-            }
-        }
-    }
-
-    private var searchResults: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(title: "Results", trailing: "\(appState.searchResults.count)")
-            if appState.searchResults.isEmpty {
-                Text("No matches in your library.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Palette.ink3)
-                    .padding(.vertical, 20)
-            }
-            ForEach(appState.searchResults) { row in
-                Button {
-                    if let idx = appState.searchResults.firstIndex(where: { $0.id == row.id }) {
-                        player.play(tracks: appState.searchResults, startAt: idx)
-                    }
-                } label: { TrackRowView(row: row) }
-                .buttonStyle(.plain)
-                Divider().overlay(Palette.hairline)
-            }
-        }
+        .task { await appState.reload() }
     }
 }
 

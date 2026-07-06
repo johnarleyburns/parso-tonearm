@@ -77,7 +77,7 @@ struct CacheEntry: Identifiable, Equatable, Codable {
     var createdAt: Date
 }
 
-struct Playlist: Identifiable, Equatable, Codable {
+struct Playlist: Identifiable, Equatable, Codable, Hashable {
     var id: Int64?
     var title: String
     var kind: PlaylistKind
@@ -91,4 +91,16 @@ struct PlaylistItem: Identifiable, Equatable, Codable {
     var position: Int
     var trackId: Int64
     var sectionTitle: String?
+}
+
+struct PlayEvent: Identifiable, Equatable, Codable {
+    var id: Int64?
+    var trackId: Int64
+    var playedAt: Date
+}
+
+struct Favorite: Identifiable, Equatable, Codable {
+    var id: Int64?
+    var trackId: Int64
+    var favoritedAt: Date
 }

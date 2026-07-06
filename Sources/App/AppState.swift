@@ -2,17 +2,20 @@ import Foundation
 import SwiftUI
 
 enum AppTab: Int, CaseIterable {
-    case library, playlists, sources, settings
+    case listen, playlists, library, sources, settings
 }
 
 @MainActor
 final class AppState: ObservableObject {
     let store: LibraryStore
 
-    @Published var tab: AppTab = .library
+    @Published var tab: AppTab = .listen
     @Published var sources: [Source] = []
     @Published var playlists: [Playlist] = []
     @Published var allTracks: [TrackRow] = []
+    @Published var recentlyPlayed: [TrackRow] = []
+    @Published var favoriteRows: [TrackRow] = []
+    @Published var favoriteIds: Set<Int64> = []
     @Published var searchText: String = ""
     @Published var searchResults: [TrackRow] = []
     @Published var showAddMenu = false
@@ -20,11 +23,13 @@ final class AppState: ObservableObject {
     @Published var showAddSource = false
     @Published var showFolderImporter = false
     @Published var showFileImporter = false
+    @Published var showCreatePlaylist = false
     @Published var pickedFolder: URL?
     // Settings-backed values
     @AppStorage("streamOnCellular") var streamOnCellular = true
     @AppStorage("preferFLAC") var preferFLAC = true
     @AppStorage("prefetchDepth") var prefetchDepth = 2
+    @AppStorage("didOnboard") var didOnboard = false
 
     init(store: LibraryStore = .shared) {
         self.store = store
@@ -32,10 +37,6 @@ final class AppState: ObservableObject {
 
     func bootstrap() async {
         await reload()
-        if sources.isEmpty && playlists.isEmpty {
-            await SampleData.seed(into: store)
-            await reload()
-        }
         applySettingsToPlayer()
         await CacheStore.shared.garbageCollectStalePartials()
     }
@@ -50,6 +51,9 @@ final class AppState: ObservableObject {
             sources = try await store.allSources()
             playlists = try await store.allPlaylists()
             allTracks = try await store.allTrackRows()
+            recentlyPlayed = try await store.recentlyPlayedRows()
+            favoriteRows = try await store.favoriteRows()
+            favoriteIds = try await store.favoriteTrackIds()
         } catch {
             print("reload error: \(error)")
         }
@@ -78,5 +82,56 @@ final class AppState: ObservableObject {
         let tracks = await tracks(for: source)
         guard !tracks.isEmpty else { return }
         AudioPlayer.shared.play(tracks: tracks, startAt: startAt)
+    }
+
+    // MARK: - Favorites (TF7)
+
+    func isFavorite(_ row: TrackRow) -> Bool {
+        favoriteIds.contains(row.id)
+    }
+
+    func toggleFavorite(_ row: TrackRow) async {
+        let makeFavorite = !favoriteIds.contains(row.id)
+        try? await store.setFavorite(trackId: row.id, makeFavorite)
+        if makeFavorite { favoriteIds.insert(row.id) } else { favoriteIds.remove(row.id) }
+        favoriteRows = (try? await store.favoriteRows()) ?? favoriteRows
+    }
+
+    // MARK: - Playlists (TF6)
+
+    func createPlaylist(title: String, trackIds: [Int64]) async {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        _ = try? await store.createManualPlaylist(title: name, trackIds: trackIds)
+        await reload()
+        tab = .playlists
+    }
+
+    // MARK: - Onboarding (TF5, TF9)
+
+    /// Adds the given archive.org sources, persisting all of their tracks to the
+    /// library (never caching), then builds the "Classical Piano Sonatas"
+    /// starter playlist from every track that was added.
+    func completeOnboarding(sourceURLs: [String]) async {
+        let service = SourceService(preferFLAC: preferFLAC)
+        var addedTrackIds: [Int64] = []
+        for raw in sourceURLs {
+            do {
+                let preview = try await service.preview(from: raw)
+                if let source = try? await service.add(preview: preview, followUpdates: true, store: store),
+                   let sid = source.id {
+                    let rows = (try? await store.tracks(forSource: sid)) ?? []
+                    addedTrackIds.append(contentsOf: rows.map { $0.id })
+                }
+            } catch {
+                print("onboarding add error for \(raw): \(error)")
+            }
+        }
+        if !addedTrackIds.isEmpty {
+            _ = try? await store.createManualPlaylist(title: "Classical Piano Sonatas",
+                                                      trackIds: addedTrackIds)
+        }
+        didOnboard = true
+        await reload()
     }
 }

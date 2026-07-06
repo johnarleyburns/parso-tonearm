@@ -35,3 +35,13 @@ extension PlaylistItem: FetchableRecord, MutablePersistableRecord {
     static let databaseTableName = "playlist_item"
     mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
+
+extension PlayEvent: FetchableRecord, MutablePersistableRecord {
+    static let databaseTableName = "play_history"
+    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+}
+
+extension Favorite: FetchableRecord, MutablePersistableRecord {
+    static let databaseTableName = "favorite"
+    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+}

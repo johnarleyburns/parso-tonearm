@@ -9,8 +9,9 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
 
             Group {
                 switch appState.tab {
-                case .library: LibraryView()
+                case .listen: ListenView()
                 case .playlists: PlaylistsView()
+                case .library: LibraryView()
                 case .sources: SourcesView()
                 case .settings: SettingsView()
                 }
@@ -20,10 +21,18 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
                 .padding(.bottom, 8)
         }
         .tint(Palette.brass)
+        .fullScreenCover(isPresented: Binding(
+            get: { !appState.didOnboard },
+            set: { if $0 == false { appState.didOnboard = true } })) {
+            OnboardingView()
+        }
         .sheet(isPresented: $appState.showAddMenu) {
             AddMenuSheet()
                 .presentationDetents([.height(300)])
                 .presentationBackground(.clear)
+        }
+        .sheet(isPresented: $appState.showCreatePlaylist) {
+            CreatePlaylistSheet()
         }
         .sheet(isPresented: $appState.showNowPlaying) {
             NowPlayingView()

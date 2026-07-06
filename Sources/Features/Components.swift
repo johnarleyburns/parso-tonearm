@@ -3,6 +3,7 @@ import SwiftUI
 struct ScreenHeader: View {
     let title: String
     var showAdd = true
+    var addAction: (() -> Void)? = nil
     @EnvironmentObject var appState: AppState
 
     var body: some View {
@@ -12,7 +13,9 @@ struct ScreenHeader: View {
                 .kerning(-0.5)
             Spacer()
             if showAdd {
-                Button { appState.showAddMenu = true } label: {
+                Button {
+                    if let addAction { addAction() } else { appState.showAddMenu = true }
+                } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 15))
                         .foregroundStyle(Palette.brass)
@@ -127,5 +130,30 @@ enum TimeFmt {
         let mb = Double(bytes) / (1024 * 1024)
         if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
         return String(format: "%.0f MB", mb)
+    }
+}
+
+struct TrackContextMenu: ViewModifier {
+    let row: TrackRow
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var player: AudioPlayer
+
+    func body(content: Content) -> some View {
+        content.contextMenu {
+            Button { player.playSingle(row) } label: { Label("Play", systemImage: "play.fill") }
+            Button {
+                Task { await appState.toggleFavorite(row) }
+            } label: {
+                let fav = appState.isFavorite(row)
+                Label(fav ? "Remove from Favorites" : "Add to Favorites",
+                      systemImage: fav ? "heart.slash" : "heart")
+            }
+        }
+    }
+}
+
+extension View {
+    func trackContextMenu(_ row: TrackRow) -> some View {
+        modifier(TrackContextMenu(row: row))
     }
 }

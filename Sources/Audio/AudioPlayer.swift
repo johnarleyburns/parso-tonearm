@@ -125,6 +125,9 @@ final class AudioPlayer: ObservableObject {
         duration = row.track.durationSec ?? 0
         updateNowPlaying()
         prefetchNext()
+        if let trackId = row.track.id {
+            Task { try? await LibraryStore.shared.recordPlay(trackId: trackId) }
+        }
     }
 
     private func replaceItem(_ item: AVPlayerItem) {

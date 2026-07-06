@@ -96,6 +96,23 @@ enum Schema {
             }
         }
 
+        migrator.registerMigration("v2") { db in
+            try db.create(table: "play_history") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("trackId", .integer).notNull()
+                    .references("track", onDelete: .cascade)
+                t.column("playedAt", .datetime).notNull()
+            }
+            try db.create(indexOn: "play_history", columns: ["playedAt"])
+
+            try db.create(table: "favorite") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("trackId", .integer).notNull().unique()
+                    .references("track", onDelete: .cascade)
+                t.column("favoritedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

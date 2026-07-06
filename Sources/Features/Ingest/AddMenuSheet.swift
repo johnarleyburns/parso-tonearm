@@ -8,7 +8,7 @@ struct AddMenuSheet: View {
         VStack(spacing: 0) {
             Spacer()
             VStack(spacing: 0) {
-                MenuItem(icon: "link", title: "Paste archive.org Link",
+                MenuItem(icon: "link", title: "Add Archive.org Collection/List",
                          subtitle: "Item, playlist, favorites, or collection") {
                     appState.showAddMenu = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
@@ -16,7 +16,7 @@ struct AddMenuSheet: View {
                     }
                 }
                 Divider().overlay(Palette.hairline)
-                MenuItem(icon: "folder", title: "Add Folder as Playlist",
+                MenuItem(icon: "folder", title: "Add Local Folder",
                          subtitle: "Import a folder, keep its order") {
                     appState.showAddMenu = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
