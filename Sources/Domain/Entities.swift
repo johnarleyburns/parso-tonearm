@@ -12,6 +12,7 @@ enum AssetKind: String, Codable {
     case localRef
     case managedCopy
     case remote
+    case builtIn
 }
 
 enum PlaylistKind: String, Codable {

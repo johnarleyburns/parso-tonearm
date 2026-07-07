@@ -10,12 +10,26 @@ struct PlaylistsView: View {
                     ScreenHeader(title: "Playlists") { appState.showCreatePlaylist = true }
                         .padding(.bottom, 12)
 
+                    NavigationLink(value: "ambient") {
+                        NavigationRow(icon: "leaf.fill",
+                                      title: "Ambient",
+                                      subtitle: "Built-in nature sounds for focus, relaxation, or sleep")
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.bottom, 18)
+
                     if appState.playlists.isEmpty {
                         EmptyStateView(icon: "music.note.list",
                                        title: "No playlists yet",
                                        message: "Tap + to create a playlist from your library, or add a local folder.")
                             .padding(.top, 60)
                     } else {
+                        Text("Your Playlists")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Palette.ink3)
+                            .kerning(0.6)
+                            .padding(.bottom, 6)
+
                         ForEach(appState.playlists) { playlist in
                             NavigationLink(value: playlist) {
                                 NavigationRow(icon: playlist.kind == .folder ? "folder.fill" : "music.note.list",
@@ -32,6 +46,9 @@ struct PlaylistsView: View {
             .foregroundStyle(Palette.ink)
             .navigationDestination(for: Playlist.self) { playlist in
                 PlaylistDetailView(playlist: playlist)
+            }
+            .navigationDestination(for: String.self) { value in
+                if value == "ambient" { AmbientPlaylistView() }
             }
             .toolbar(.hidden, for: .navigationBar)
         }

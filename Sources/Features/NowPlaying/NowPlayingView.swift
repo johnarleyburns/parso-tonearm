@@ -28,9 +28,19 @@ struct NowPlayingView: View {
                 .aspectRatio(1, contentMode: .fit)
                 .shadow(color: .black.opacity(0.55), radius: 30, y: 16)
                 .padding(.top, 22)
+                .overlay {
+                    if player.isAmbient, let channelId = player.ambientChannelId,
+                       let videoURL = BuiltInContentProvider.bundledVideoURL(forChannelId: channelId) {
+                        LoopingVideoView(url: videoURL, isPlaying: player.isPlaying)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .allowsHitTesting(false)
+                    }
+                }
 
                 meta.padding(.top, 22)
-                scrubber.padding(.top, 20)
+                if !player.isAmbient {
+                    scrubber.padding(.top, 20)
+                }
                 transport.padding(.top, 16)
                 toolbar.padding(.top, 16)
                 Spacer()
@@ -114,6 +124,7 @@ struct NowPlayingView: View {
     }
 
     private var qualityChip: String {
+        if player.isAmbient { return "WAV · built-in" }
         let codec = player.currentTrack?.track.codec ?? "AUDIO"
         if player.currentTrack?.asset?.kind == .remote {
             return "\(codec) · ● \(player.cachePercent)% CACHED"

@@ -22,6 +22,8 @@ final class AudioPlayer: ObservableObject {
     @Published private(set) var cacheState: CacheGlyphState = .none
     @Published private(set) var cachePercent: Int = 0
     @Published private(set) var cachedFraction: Double = 0
+    @Published private(set) var isAmbient = false
+    @Published private(set) var ambientChannelId: String?
 
     var streamOnCellular = true
     var prefetchDepth = 2
@@ -29,6 +31,8 @@ final class AudioPlayer: ObservableObject {
     var sleepAtEndOfTrack = false
 
     private var player = AVPlayer()
+    private var loopPlayer: AVQueuePlayer?
+    private var audioLooper: AVPlayerLooper?
     private var timeObserver: Any?
     private var itemEndObserver: NSObjectProtocol?
     private var routeChangeObserver: NSObjectProtocol?
@@ -39,6 +43,11 @@ final class AudioPlayer: ObservableObject {
     private let retryPolicy = RetryPolicy()
 
     var currentTrack: TrackRow? {
+        if isAmbient, let channelId = ambientChannelId {
+            return BuiltInContentProvider.allTrackRows.first {
+                $0.asset?.relPath?.contains(channelId) == true
+            } ?? queue.first
+        }
         guard queue.indices.contains(index) else { return nil }
         return queue[index]
     }
@@ -53,6 +62,7 @@ final class AudioPlayer: ObservableObject {
     // MARK: - Public control
 
     func play(tracks: [TrackRow], startAt start: Int) {
+        shutdownLoopPlayer()
         queue = tracks
         index = max(0, min(start, tracks.count - 1))
         loadCurrent(autoplay: true)
@@ -63,12 +73,19 @@ final class AudioPlayer: ObservableObject {
     }
 
     func togglePlayPause() {
+        if isAmbient {
+            if isPlaying { loopPlayer?.pause() } else { loopPlayer?.play() }
+            isPlaying.toggle()
+            updateNowPlaying()
+            return
+        }
         if isPlaying { player.pause() } else { player.play() }
         isPlaying.toggle()
         updateNowPlaying()
     }
 
     func next() {
+        if isAmbient { nextAmbientTrack(); return }
         guard !queue.isEmpty else { return }
         if repeatMode == .one { seek(to: 0); player.play(); return }
         if index < queue.count - 1 {
@@ -82,6 +99,7 @@ final class AudioPlayer: ObservableObject {
     }
 
     func previous() {
+        if isAmbient { previousAmbientTrack(); return }
         guard !queue.isEmpty else { return }
         if currentTime > 3 { seek(to: 0); return }
         index = max(0, index - 1)
@@ -89,6 +107,7 @@ final class AudioPlayer: ObservableObject {
     }
 
     func seek(to seconds: Double) {
+        guard !isAmbient else { return }
         let time = CMTime(seconds: seconds, preferredTimescale: 600)
         player.seek(to: time)
         currentTime = seconds
@@ -106,6 +125,12 @@ final class AudioPlayer: ObservableObject {
         }
 
         shutdownLoaders()
+
+        if asset.kind == .builtIn {
+            loadBuiltInAsset(asset, row: row, autoplay: autoplay)
+            return
+        }
+
         _ = stallModel.beginLoad()
         prefetchedURLs.removeAll()
 
@@ -305,8 +330,8 @@ final class AudioPlayer: ObservableObject {
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: row.track.title,
             MPMediaItemPropertyArtist: row.album?.artist ?? "archive.org",
-            MPMediaItemPropertyPlaybackDuration: duration,
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
+            MPMediaItemPropertyPlaybackDuration: isAmbient ? 0 : duration,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: isAmbient ? 0 : currentTime,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
         ]
         info[MPMediaItemPropertyAlbumTitle] = row.album?.title
@@ -327,5 +352,84 @@ final class AudioPlayer: ObservableObject {
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
         info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    // MARK: - Built-in / Ambient
+
+    func playAmbient(channelId: String) {
+        guard let url = BuiltInContentProvider.bundledAudioURL(forChannelId: channelId) else { return }
+        shutdownLoopPlayer()
+        shutdownLoaders()
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+
+        isAmbient = true
+        ambientChannelId = channelId
+
+        let item = AVPlayerItem(url: url)
+        let qp = AVQueuePlayer()
+        qp.actionAtItemEnd = .advance
+        audioLooper = AVPlayerLooper(player: qp, templateItem: item)
+        loopPlayer = qp
+
+        if let row = BuiltInContentProvider.allTrackRows.first(where: {
+            $0.asset?.relPath?.contains(channelId) == true
+        }) {
+            queue = [row]
+            index = 0
+            duration = 0
+            currentTime = 0
+        }
+
+        qp.play()
+        isPlaying = true
+        cacheState = .cached
+        cachePercent = 100
+        cachedFraction = 1
+        updateNowPlaying()
+    }
+
+    func nextAmbientTrack() {
+        guard isAmbient, let currentId = ambientChannelId else { return }
+        let allIds = BuiltInContentProvider.tracks.map { $0.channelId }
+        guard let idx = allIds.firstIndex(of: currentId) else { return }
+        let nextIdx = (idx + 1) % allIds.count
+        playAmbient(channelId: allIds[nextIdx])
+    }
+
+    func previousAmbientTrack() {
+        guard isAmbient, let currentId = ambientChannelId else { return }
+        let allIds = BuiltInContentProvider.tracks.map { $0.channelId }
+        guard let idx = allIds.firstIndex(of: currentId) else { return }
+        let prevIdx = (idx - 1 + allIds.count) % allIds.count
+        playAmbient(channelId: allIds[prevIdx])
+    }
+
+    private func loadBuiltInAsset(_ asset: Asset, row: TrackRow, autoplay: Bool) {
+        guard let relPath = asset.relPath else { return }
+        let name = (relPath as NSString).deletingPathExtension
+        let ext = (relPath as NSString).pathExtension
+        guard let url = Bundle.main.url(forResource: name, withExtension: ext) else { return }
+
+        let item = AVPlayerItem(url: url)
+        item.preferredForwardBufferDuration = 120
+        item.automaticallyPreservesTimeOffsetFromLive = false
+
+        replaceItem(item)
+        if autoplay {
+            player.play()
+            isPlaying = true
+        }
+        duration = row.track.durationSec ?? 0
+        updateNowPlaying()
+    }
+
+    private func shutdownLoopPlayer() {
+        loopPlayer?.pause()
+        audioLooper?.disableLooping()
+        audioLooper = nil
+        loopPlayer = nil
+        isAmbient = false
+        ambientChannelId = nil
     }
 }
