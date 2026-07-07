@@ -19,14 +19,20 @@ struct AddMenuSheet: View {
                 Divider().overlay(Palette.hairline)
                 MenuItem(icon: "folder", title: "Add Local Folder",
                          subtitle: "Import a folder, keep its order") {
-                    appState.pendingImport = .folder
+                    appState.pendingImport = nil
                     appState.showAddMenu = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        appState.showFolderImporter = true
+                    }
                 }
                 Divider().overlay(Palette.hairline)
                 MenuItem(icon: "music.note", title: "Add Audio Files",
                          subtitle: "Pick individual tracks from Files") {
-                    appState.pendingImport = .files
+                    appState.pendingImport = nil
                     appState.showAddMenu = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        appState.showFileImporter = true
+                    }
                 }
             }
             .glassSurface(cornerRadius: 20)

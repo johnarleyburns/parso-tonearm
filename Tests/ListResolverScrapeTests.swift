@@ -76,4 +76,15 @@ final class ListResolverScrapeTests: XCTestCase {
         XCTAssertTrue(ids.contains("some_item"))
         XCTAssertFalse(ids.contains("fav-jsmith"))
     }
+
+    func testParseUsersListResponse() {
+        let json = """
+        {"success":true,"value":{"list_name":"Test","members":[{"identifier":"item-a"},{"identifier":"item-b"}]}}
+        """
+        let data = Data(json.utf8)
+        let result = ListResolver.parseMembers(from: data)
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result[0].identifier, "item-a")
+        XCTAssertEqual(result[1].identifier, "item-b")
+    }
 }

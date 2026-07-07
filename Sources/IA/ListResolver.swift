@@ -7,8 +7,8 @@ struct ListResolver {
     }
 
     var strategies: [Strategy] = [
+        Strategy(name: "users-list", run: ListResolver.usersListAPI),
         Strategy(name: "json-members", run: ListResolver.jsonMembers),
-        Strategy(name: "scrape-search", run: ListResolver.scrapeMembers),
         Strategy(name: "html-scrape", run: ListResolver.htmlMembers)
     ]
 
@@ -25,44 +25,36 @@ struct ListResolver {
         throw lastError
     }
 
-    // Strategy 1: the JSON members endpoint used by the web app.
+    // Strategy 1: /services/users/@screenname/lists/listId (confirmed working).
+    private static func usersListAPI(_ screenname: String, _ listId: String) async throws -> [IAMember] {
+        let path = "https://archive.org/services/users/@\(screenname)/lists/\(listId)"
+        guard let url = URL(string: path) else { return [] }
+        let data = try await IAClient.shared.data(from: url)
+
+        struct ListResponse: Decodable {
+            struct Value: Decodable {
+                struct Member: Decodable {
+                    let identifier: String
+                }
+                let members: [Member]?
+            }
+            let value: Value?
+        }
+
+        guard let decoded = try? JSONDecoder().decode(ListResponse.self, from: data),
+              let members = decoded.value?.members, !members.isEmpty else {
+            return try parseMembers(from: data)
+        }
+
+        return members.map { IAMember(identifier: $0.identifier, title: nil, mediatype: nil) }
+    }
+
+    // Strategy 2: legacy JSON API (may 404, kept as fallback).
     private static func jsonMembers(_ screenname: String, _ listId: String) async throws -> [IAMember] {
         let path = "https://archive.org/services/lists/@\(screenname)/lists/\(listId)/members.json"
         guard let url = URL(string: path) else { return [] }
         let data = try await IAClient.shared.data(from: url)
         return parseMembers(from: data)
-    }
-
-    // Strategy 2: use the scrape API with a collection query for the list.
-    private static func scrapeMembers(_ screenname: String, _ listId: String) async throws -> [IAMember] {
-        var members: [IAMember] = []
-        var cursor: String?
-        let cap = 500
-
-        repeat {
-            var comps = URLComponents(string: "https://archive.org/services/search/v1/scrape")!
-            let query = "collection:@\(screenname)/lists/\(listId)"
-            var qi = [
-                URLQueryItem(name: "q", value: query),
-                URLQueryItem(name: "fields", value: "identifier,title,mediatype"),
-                URLQueryItem(name: "count", value: "100")
-            ]
-            if let cursor { qi.append(URLQueryItem(name: "cursor", value: cursor)) }
-            comps.queryItems = qi
-
-            let data = try await IAClient.shared.data(from: comps.url!)
-            let page = try JSONDecoder().decode(CollectionResolver.Page.self, from: data)
-
-            for doc in page.items ?? [] {
-                guard let mt = doc.mediatype,
-                      ["audio", "etree"].contains(mt) else { continue }
-                members.append(IAMember(identifier: doc.identifier, title: doc.title?.first, mediatype: mt))
-                if members.count >= cap { break }
-            }
-            cursor = page.cursor
-        } while cursor != nil && members.count < cap
-
-        return members
     }
 
     /// Parses the several JSON shapes archive.org uses for list members.
@@ -84,13 +76,22 @@ struct ListResolver {
                 return ids.map { IAMember(identifier: $0, title: nil, mediatype: nil) }
             }
         }
-        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let membersDict = obj["members"] as? [String: Any] {
-            let members = membersDict.keys.sorted().map { key -> IAMember in
-                let title = (membersDict[key] as? [String: Any])?["title"] as? String
-                return IAMember(identifier: key, title: title, mediatype: nil)
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let membersDict = obj["members"] as? [String: Any] {
+                let members = membersDict.keys.sorted().map { key -> IAMember in
+                    let title = (membersDict[key] as? [String: Any])?["title"] as? String
+                    return IAMember(identifier: key, title: title, mediatype: nil)
+                }
+                if !members.isEmpty { return members }
             }
-            if !members.isEmpty { return members }
+            if let value = obj["value"] as? [String: Any],
+               let membersList = value["members"] as? [[String: Any]] {
+                let members = membersList.compactMap { m -> IAMember? in
+                    guard let id = m["identifier"] as? String else { return nil }
+                    return IAMember(identifier: id, title: nil, mediatype: nil)
+                }
+                if !members.isEmpty { return members }
+            }
         }
         return []
     }
