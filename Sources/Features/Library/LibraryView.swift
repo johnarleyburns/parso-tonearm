@@ -31,7 +31,7 @@ struct LibraryView: View {
                     ForEach(rows) { row in
                         Button {
                             if let idx = rows.firstIndex(where: { $0.id == row.id }) {
-                                player.play(tracks: rows, startAt: idx)
+                                player.play(tracks: rows, startAt: idx, source: .library)
                             }
                         } label: {
                             TrackRowView(row: row)

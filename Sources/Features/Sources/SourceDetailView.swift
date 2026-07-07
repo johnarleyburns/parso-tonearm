@@ -14,7 +14,7 @@ struct SourceDetailView: View {
                 hero
                 ForEach(Array(tracks.enumerated()), id: \.element.id) { idx, row in
                     Button {
-                        player.play(tracks: tracks, startAt: idx)
+                        player.play(tracks: tracks, startAt: idx, source: .source(source))
                     } label: {
                         TrackRowView(row: row)
                     }
@@ -104,12 +104,12 @@ struct SourceDetailView: View {
 
     private var cta: some View {
         HStack(spacing: 10) {
-            Button { player.play(tracks: tracks, startAt: 0) } label: {
+            Button { player.play(tracks: tracks, startAt: 0, source: .source(source)) } label: {
                 ctaLabel(icon: "play.fill", title: "Play")
             }
             Button {
                 player.shuffle = true
-                player.play(tracks: tracks.shuffled(), startAt: 0)
+                player.play(tracks: tracks.shuffled(), startAt: 0, source: .source(source))
             } label: {
                 ctaLabel(icon: "shuffle", title: "Shuffle")
             }

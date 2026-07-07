@@ -84,7 +84,7 @@ struct PlaylistDetailView: View {
 
                 ForEach(Array(tracks.enumerated()), id: \.element.id) { idx, row in
                     Button {
-                        player.play(tracks: tracks, startAt: idx)
+                        player.play(tracks: tracks, startAt: idx, source: .playlist(playlist))
                     } label: { TrackRowView(row: row) }
                     .buttonStyle(.plain)
                     .trackContextMenu(row)

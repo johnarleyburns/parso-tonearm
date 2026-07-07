@@ -8,6 +8,24 @@ enum RepeatMode: String, CaseIterable {
     case off, all, one
 }
 
+enum QueueSource: Equatable {
+    case source(Source)
+    case playlist(Playlist)
+    case library
+    case ambient
+    case none
+
+    var label: String {
+        switch self {
+        case .source(let s): return "From Source: \(s.title)"
+        case .playlist(let p): return "From Playlist: \(p.title)"
+        case .library: return "From Library"
+        case .ambient: return "Ambient"
+        case .none: return ""
+        }
+    }
+}
+
 @MainActor
 final class AudioPlayer: ObservableObject {
     static let shared = AudioPlayer()
@@ -24,6 +42,7 @@ final class AudioPlayer: ObservableObject {
     @Published private(set) var cachedFraction: Double = 0
     @Published private(set) var isAmbient = false
     @Published private(set) var ambientChannelId: String?
+    @Published var queueSource: QueueSource = .none
 
     var streamOnCellular = true
     var prefetchDepth = 2
@@ -52,6 +71,12 @@ final class AudioPlayer: ObservableObject {
         return queue[index]
     }
 
+    var upNextTracks: [TrackRow] {
+        if isAmbient { return [] }
+        guard index < queue.count - 1 else { return [] }
+        return Array(queue.dropFirst(index + 1))
+    }
+
     private init() {
         configureSession()
         setupRemoteCommands()
@@ -61,8 +86,9 @@ final class AudioPlayer: ObservableObject {
 
     // MARK: - Public control
 
-    func play(tracks: [TrackRow], startAt start: Int) {
+    func play(tracks: [TrackRow], startAt start: Int, source: QueueSource = .none) {
         shutdownLoopPlayer()
+        queueSource = source
         queue = tracks
         index = max(0, min(start, tracks.count - 1))
         loadCurrent(autoplay: true)
@@ -365,6 +391,7 @@ final class AudioPlayer: ObservableObject {
 
         isAmbient = true
         ambientChannelId = channelId
+        queueSource = .ambient
 
         let item = AVPlayerItem(url: url)
         let qp = AVQueuePlayer()

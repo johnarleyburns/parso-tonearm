@@ -43,7 +43,8 @@ struct NowPlayingView: View {
                 }
                 transport.padding(.top, 16)
                 toolbar.padding(.top, 16)
-                Spacer()
+                UpNextView()
+                    .padding(.top, 20)
             }
             .padding(.horizontal, 24)
             .foregroundStyle(.white)

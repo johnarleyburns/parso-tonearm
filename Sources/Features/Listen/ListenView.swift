@@ -33,7 +33,7 @@ struct ListenView: View {
                     ForEach(rows) { row in
                         Button {
                             if let idx = rows.firstIndex(where: { $0.id == row.id }) {
-                                player.play(tracks: rows, startAt: idx)
+                                player.play(tracks: rows, startAt: idx, source: .library)
                             }
                         } label: {
                             RecentCard(row: row)
@@ -63,7 +63,7 @@ struct ListenView: View {
                         ForEach(appState.favoriteRows) { row in
                             Button {
                                 if let idx = appState.favoriteRows.firstIndex(where: { $0.id == row.id }) {
-                                    player.play(tracks: appState.favoriteRows, startAt: idx)
+                                    player.play(tracks: appState.favoriteRows, startAt: idx, source: .library)
                                 }
                             } label: {
                                 RecentCard(row: row)

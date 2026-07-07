@@ -119,7 +119,7 @@ final class AppState: ObservableObject {
     func playSource(_ source: Source, startAt: Int = 0) async {
         let tracks = await tracks(for: source)
         guard !tracks.isEmpty else { return }
-        AudioPlayer.shared.play(tracks: tracks, startAt: startAt)
+        AudioPlayer.shared.play(tracks: tracks, startAt: startAt, source: .source(source))
     }
 
     // MARK: - Favorites (TF7)
