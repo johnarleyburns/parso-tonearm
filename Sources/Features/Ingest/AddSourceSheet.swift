@@ -141,17 +141,9 @@ struct AddSourceSheet: View {
     private func add() async {
         guard let preview else { return }
         isAdding = true
-        defer { isAdding = false }
-        let service = SourceService(preferFLAC: appState.preferFLAC)
-        let source = try? await service.add(preview: preview, followUpdates: followUpdates, store: appState.store)
-        await appState.reload()
+        let pr = preview
+        let upd = followUpdates
         dismiss()
-        // Immediately start playing the source we just added.
-        if let source {
-            await appState.playSource(source)
-            appState.tab = .listen
-        } else {
-            appState.tab = .sources
-        }
+        appState.addSourceInBackground(preview: pr, followUpdates: upd)
     }
 }

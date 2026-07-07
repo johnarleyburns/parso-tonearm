@@ -19,6 +19,12 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
 
             GlassDock()
                 .padding(.bottom, 8)
+
+            if let title = appState.backgroundTitle {
+                backgroundBanner(title)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.easeInOut(duration: 0.3), value: appState.backgroundTitle)
+            }
         }
         .tint(Palette.brass)
         .fullScreenCover(isPresented: Binding(
@@ -67,6 +73,36 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
             case .sources: Palette.sourcesBackground
             default: Palette.libraryBackground
             }
+        }
+    }
+
+    private func backgroundBanner(_ title: String) -> some View {
+        VStack {
+            HStack(spacing: 10) {
+                if appState.backgroundDone {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Palette.ok)
+                } else if appState.backgroundFailed {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Palette.danger)
+                } else {
+                    ProgressView()
+                        .tint(Palette.brass)
+                }
+                Text(appState.backgroundDone ? "Added \"\(title)\""
+                     : appState.backgroundFailed ? "Failed to add \"\(title)\""
+                     : "Adding \"\(title)\"…")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
+            Spacer()
         }
     }
 }

@@ -29,6 +29,9 @@ final class AppState: ObservableObject {
     @Published var showFolderImporter = false
     @Published var showFileImporter = false
     @Published var showCreatePlaylist = false
+    @Published var backgroundTitle: String?
+    @Published var backgroundDone = false
+    @Published var backgroundFailed = false
     @Published var pickedFolder: URL?
     @Published var pendingImport: PendingImport?
     // Settings-backed values
@@ -84,6 +87,33 @@ final class AppState: ObservableObject {
         guard let id = source.id else { return }
         try? await store.deleteSource(id: id)
         await reload()
+    }
+
+    func addSourceInBackground(preview: SourcePreview, followUpdates: Bool) {
+        let title = preview.title
+        backgroundTitle = title
+        backgroundDone = false
+        backgroundFailed = false
+
+        let pre = preview
+        let upd = followUpdates
+        let db = store
+        let flac = preferFLAC
+
+        Task {
+            let service = SourceService(preferFLAC: flac)
+            let source = try? await service.add(preview: pre, followUpdates: upd, store: db)
+            if source != nil {
+                backgroundDone = true
+            } else {
+                backgroundFailed = true
+            }
+            await reload()
+            try? await Task.sleep(for: .seconds(4))
+            backgroundTitle = nil
+            backgroundDone = false
+            backgroundFailed = false
+        }
     }
 
     func playSource(_ source: Source, startAt: Int = 0) async {
