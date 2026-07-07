@@ -17,7 +17,6 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.10"
     DEVELOPMENT_TEAM: "3264Y8YUGV"
-    CODE_SIGN_STYLE: Automatic
     IPHONEOS_DEPLOYMENT_TARGET: "18.0"
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
     GENERATE_INFOPLIST_FILE: "NO"
@@ -56,8 +55,14 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: guru.parso.tonearm
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: "3264Y8YUGV"
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "Parso Tonearm App Store"
 
   TonearmTests:
     type: bundle.unit-test

@@ -7,14 +7,17 @@
 	<key>teamID</key>
 	<string>3264Y8YUGV</string>
 	<key>signingStyle</key>
-	<string>automatic</string>
-	<key>destination</key>
-	<string>export</string>
+	<string>manual</string>
+	<key>signingCertificate</key>
+	<string>Apple Distribution</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>guru.parso.tonearm</key>
+		<string>Parso Tonearm App Store</string>
+	</dict>
 	<key>stripSwiftSymbols</key>
 	<true/>
 	<key>uploadBitcode</key>
 	<false/>
-	<key>uploadSymbols</key>
-	<true/>
 </dict>
 </plist>
