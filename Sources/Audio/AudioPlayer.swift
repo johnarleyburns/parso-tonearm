@@ -35,7 +35,16 @@ final class AudioPlayer: ObservableObject {
     @Published private(set) var isPlaying = false
     @Published private(set) var currentTime: Double = 0
     @Published private(set) var duration: Double = 0
-    @Published var shuffle = false
+    @Published var shuffle = false {
+        didSet {
+            guard shuffle != oldValue else { return }
+            if shuffle {
+                applyShuffle()
+            } else {
+                restoreShuffle()
+            }
+        }
+    }
     @Published var repeatMode: RepeatMode = .off
     @Published private(set) var cacheState: CacheGlyphState = .none
     @Published private(set) var cachePercent: Int = 0
@@ -60,6 +69,7 @@ final class AudioPlayer: ObservableObject {
     private var stallModel = StallModel()
     private var prefetchedURLs: [Int64: URL] = [:]
     private let retryPolicy = RetryPolicy()
+    private var unshuffledQueue: [TrackRow] = []
 
     var currentTrack: TrackRow? {
         if isAmbient, let channelId = ambientChannelId {
@@ -88,9 +98,11 @@ final class AudioPlayer: ObservableObject {
 
     func play(tracks: [TrackRow], startAt start: Int, source: QueueSource = .none) {
         shutdownLoopPlayer()
+        unshuffledQueue = []
         queueSource = source
         queue = tracks
         index = max(0, min(start, tracks.count - 1))
+        if shuffle { applyShuffle() }
         loadCurrent(autoplay: true)
     }
 
@@ -458,5 +470,40 @@ final class AudioPlayer: ObservableObject {
         loopPlayer = nil
         isAmbient = false
         ambientChannelId = nil
+    }
+
+    // MARK: - Shuffle & Repeat
+
+    private func applyShuffle() {
+        guard queue.count > 1 else { return }
+        unshuffledQueue = queue
+        let current = queue[index]
+        var rest = queue
+        rest.remove(at: index)
+        rest.shuffle()
+        queue = [current] + rest
+        index = 0
+    }
+
+    private func restoreShuffle() {
+        guard !unshuffledQueue.isEmpty else { return }
+        if let current = currentTrack,
+           let origIdx = unshuffledQueue.firstIndex(where: { $0.id == current.id }) {
+            queue = unshuffledQueue
+            index = origIdx
+        }
+        unshuffledQueue = []
+    }
+
+    func cycleRepeatMode() {
+        repeatMode = switch repeatMode {
+        case .off: .all
+        case .all: .one
+        case .one: .off
+        }
+    }
+
+    func toggleShuffle() {
+        shuffle.toggle()
     }
 }

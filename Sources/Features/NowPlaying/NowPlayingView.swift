@@ -133,6 +133,14 @@ struct NowPlayingView: View {
         return codec
     }
 
+    private var repeatIcon: String {
+        switch player.repeatMode {
+        case .off: return "repeat"
+        case .all: return "repeat"
+        case .one: return "repeat.1"
+        }
+    }
+
     private var transport: some View {
         HStack(spacing: 14) {
             Button { player.previous() } label: {
@@ -164,6 +172,23 @@ struct NowPlayingView: View {
                         .background(.ultraThinMaterial, in: Circle())
                 }
             }
+
+            Button { player.cycleRepeatMode() } label: {
+                Image(systemName: repeatIcon)
+                    .font(.system(size: 16))
+                    .foregroundStyle(player.repeatMode != .off ? Palette.brass : .white.opacity(0.6))
+                    .frame(width: 36, height: 36)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+
+            Button { player.shuffle.toggle() } label: {
+                Image(systemName: "shuffle")
+                    .font(.system(size: 16))
+                    .foregroundStyle(player.shuffle ? Palette.brass : .white.opacity(0.6))
+                    .frame(width: 36, height: 36)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .disabled(player.isAmbient)
 
             AirPlayButton()
                 .frame(width: 36, height: 36)

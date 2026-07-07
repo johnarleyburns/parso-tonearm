@@ -53,14 +53,22 @@ struct MiniPlayer: View {
 
     private var subtitle: String {
         guard let row = player.currentTrack else { return "" }
-        if row.asset?.kind == .remote {
-            switch player.cacheState {
-            case .cached: return "archive.org · cached"
-            case .filling: return "archive.org · caching…"
-            case .none: return "archive.org"
+        var parts: [String] = []
+        if player.shuffle { parts.append("Shuffled") }
+        if player.repeatMode == .one { parts.append("Repeat 1") }
+        else if player.repeatMode == .all { parts.append("Repeat All") }
+        let base: String = {
+            if row.asset?.kind == .remote {
+                switch player.cacheState {
+                case .cached: return "archive.org · cached"
+                case .filling: return "archive.org · caching…"
+                case .none: return "archive.org"
+                }
             }
-        }
-        return row.album?.artist ?? "On Device"
+            return row.album?.artist ?? "On Device"
+        }()
+        parts.append(base)
+        return parts.joined(separator: " · ")
     }
 }
 
