@@ -62,12 +62,16 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
     }
 
     private func handlePendingImport() {
-        switch appState.pendingImport {
-        case .folder: appState.showFolderImporter = true
-        case .files: appState.showFileImporter = true
-        case .none: break
-        }
+        let pending = appState.pendingImport
         appState.pendingImport = nil
+        guard pending != nil else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            switch pending {
+            case .folder: appState.showFolderImporter = true
+            case .files: appState.showFileImporter = true
+            case .none: break
+            }
+        }
     }
 
     private var backgroundLayer: some View {

@@ -26,6 +26,7 @@ final class AudioPlayer: ObservableObject {
     var streamOnCellular = true
     var prefetchDepth = 2
     var preferFLAC = false
+    var sleepAtEndOfTrack = false
 
     private var player = AVPlayer()
     private var timeObserver: Any?
@@ -166,7 +167,15 @@ final class AudioPlayer: ObservableObject {
         itemEndObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.next() }
+            Task { @MainActor in
+                guard let self else { return }
+                if self.sleepAtEndOfTrack {
+                    self.sleepAtEndOfTrack = false
+                    self.pause()
+                    return
+                }
+                self.next()
+            }
         }
     }
 
@@ -301,19 +310,16 @@ final class AudioPlayer: ObservableObject {
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
         ]
         info[MPMediaItemPropertyAlbumTitle] = row.album?.title
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
 
-        if let source = row.source, let iaIdentifier = source.iaIdentifier, !iaIdentifier.isEmpty {
-            Task {
-                if let image = await ArtworkService.shared.artwork(forIdentifier: iaIdentifier) {
-                    let art = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                    var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-                    current[MPMediaItemPropertyArtwork] = art
-                    MPNowPlayingInfoCenter.default().nowPlayingInfo = current
-                }
+        Task {
+            if let image = await ArtworkService.shared.artwork(forTrackRow: row) {
+                let art = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+                current[MPMediaItemPropertyArtwork] = art
+                MPNowPlayingInfoCenter.default().nowPlayingInfo = current
             }
         }
-
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
     private func updateNowPlayingTime() {

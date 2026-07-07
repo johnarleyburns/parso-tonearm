@@ -3,13 +3,86 @@ name: iOS Build & TestFlight
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: |
+          XCODE=$(ls /Applications/ | grep "^Xcode_" | sort -V | tail -1)
+          sudo xcode-select -s /Applications/$XCODE
+          xcodebuild -version
+
+      - name: Accept Xcode License
+        run: sudo xcodebuild -license accept
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.swiftpm
+            ~/Library/Developer/Xcode/DerivedData/*/SourcePackages
+          key: spm-${{ hashFiles('project.yml') }}
+          restore-keys: spm-
+
+      - name: Run Unit Tests
+        run: |
+          set -eo pipefail
+          xcodebuild test \
+            -project Tonearm.xcodeproj \
+            -scheme Tonearm \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -parallel-testing-enabled YES \
+            2>&1 | tee test.log
+          if ! grep -q "TEST SUCCEEDED" test.log; then
+            echo "Unit tests failed"
+            grep -E "Test.*failed|error:" test.log | head -20
+            exit 1
+          fi
+
+      - name: Run UI Tests
+        run: |
+          set -eo pipefail
+          xcodebuild test \
+            -project Tonearm.xcodeproj \
+            -scheme TonearmUITests \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            2>&1 | tee uitest.log
+          if ! grep -q "TEST SUCCEEDED" uitest.log; then
+            echo "UI tests failed"
+            grep -E "Test.*failed|error:" uitest.log | head -20
+            exit 1
+          fi
+
+      - name: Upload Test Log on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            test.log
+            uitest.log
+          retention-days: 7
+
   testflight-build:
+    needs: test
+    if: github.event_name != 'pull_request'
     runs-on: macos-latest
     steps:
       - name: Checkout

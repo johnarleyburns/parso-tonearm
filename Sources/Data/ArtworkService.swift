@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import AVFoundation
 
 actor ArtworkService {
     static let shared = ArtworkService()
@@ -60,6 +61,57 @@ actor ArtworkService {
 
         store(image, forKey: key)
         writeDiskCache(image, key: identifier)
+        return image
+    }
+
+    func artwork(forTrackRow row: TrackRow) async -> UIImage? {
+        if let id = row.source?.iaIdentifier, !id.isEmpty {
+            return await artwork(forIdentifier: id)
+        }
+
+        guard let asset = row.asset else { return nil }
+
+        let trackKey = "local-\(row.track.id ?? -1)"
+
+        if let cached = memCache.object(forKey: trackKey as NSString) {
+            return cached === Self.notFoundSentinel ? nil : cached
+        }
+        if let image = readDiskCache(key: trackKey) {
+            store(image, forKey: trackKey as NSString)
+            return image
+        }
+
+        let url: URL?
+        if let bookmark = asset.bookmark, let (resolved, _) = BookmarkVault.resolve(bookmark) {
+            url = resolved
+        } else if let rel = asset.relPath {
+            let base = try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                    in: .userDomainMask, appropriateFor: nil, create: true)
+            url = base?.appendingPathComponent(rel)
+        } else {
+            url = nil
+        }
+
+        guard let fileURL = url else {
+            memCache.setObject(Self.notFoundSentinel, forKey: trackKey as NSString)
+            return nil
+        }
+
+        let needsScopedAccess = asset.bookmark != nil
+        if needsScopedAccess { _ = fileURL.startAccessingSecurityScopedResource() }
+        defer { if needsScopedAccess { fileURL.stopAccessingSecurityScopedResource() } }
+
+        let avAsset = AVURLAsset(url: fileURL)
+        guard let metadata = try? await avAsset.load(.commonMetadata),
+              let item = metadata.first(where: { $0.commonKey == .commonKeyArtwork }),
+              let data = try? await item.load(.dataValue),
+              let image = UIImage(data: data) else {
+            memCache.setObject(Self.notFoundSentinel, forKey: trackKey as NSString)
+            return nil
+        }
+
+        store(image, forKey: trackKey as NSString)
+        writeDiskCache(image, key: trackKey)
         return image
     }
 

@@ -8,6 +8,8 @@ struct NowPlayingView: View {
     @State private var scrubValue: Double = 0
     @State private var isScrubbing = false
     @State private var npArtwork: UIImage?
+    @State private var sleepEndsAt: Date?
+    @State private var sleepTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -19,6 +21,7 @@ struct NowPlayingView: View {
                 ArtworkView(
                     image: npArtwork,
                     identifier: player.currentTrack?.source?.iaIdentifier,
+                    trackRow: player.currentTrack,
                     seed: player.currentTrack?.album?.title ?? "np",
                     cornerRadius: 16
                 )
@@ -36,9 +39,12 @@ struct NowPlayingView: View {
             .foregroundStyle(.white)
         }
         .presentationDragIndicator(.hidden)
-        .task(id: player.currentTrack?.source?.iaIdentifier) {
-            guard let id = player.currentTrack?.source?.iaIdentifier, !id.isEmpty else { return }
-            npArtwork = await ArtworkService.shared.artwork(forIdentifier: id)
+        .task(id: player.currentTrack?.id) {
+            guard let row = player.currentTrack else { return }
+            npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
+        sleepTask?.cancel()
+        sleepTask = nil
+        if sleepEndsAt == nil { player.sleepAtEndOfTrack = false }
         }
     }
 
@@ -60,29 +66,6 @@ struct NowPlayingView: View {
                     .font(.system(size: 14)).foregroundStyle(.white.opacity(0.62))
             }
             Spacer()
-            Menu {
-                if let row = player.currentTrack {
-                    Button {
-                        Task { await appState.toggleFavorite(row) }
-                    } label: {
-                        let fav = appState.isFavorite(row)
-                        Label(fav ? "Remove from Favorites" : "Add to Favorites",
-                              systemImage: fav ? "heart.fill" : "heart")
-                    }
-                }
-                if let source = player.currentTrack?.source,
-                   let id = source.iaIdentifier, !id.isEmpty {
-                    if let url = ShareURLBuilder.url(identifier: id) {
-                        Link(destination: url) {
-                            Label("View on archive.org", systemImage: "safari")
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .frame(width: 30, height: 30)
-                    .background(.ultraThinMaterial, in: Circle())
-            }
         }
     }
 
@@ -157,7 +140,7 @@ struct NowPlayingView: View {
     }
 
     private var toolbar: some View {
-        HStack {
+        HStack(spacing: 12) {
             if let row = player.currentTrack {
                 Button {
                     Task { await appState.toggleFavorite(row) }
@@ -169,9 +152,81 @@ struct NowPlayingView: View {
                         .background(.ultraThinMaterial, in: Circle())
                 }
             }
-            Spacer()
+
             AirPlayButton()
                 .frame(width: 36, height: 36)
+
+            Spacer()
+
+            if let row = player.currentTrack,
+               let shareURL = shareURL(for: row) {
+                ShareLink(item: shareURL) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .frame(width: 36, height: 36)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+            }
+
+            Menu {
+                Button("15 minutes") { startSleepTimer(minutes: 15) }
+                Button("30 minutes") { startSleepTimer(minutes: 30) }
+                Button("45 minutes") { startSleepTimer(minutes: 45) }
+                Button("1 hour") { startSleepTimer(minutes: 60) }
+                Button("End of track") { setSleepAtEndOfTrack(true) }
+                if sleepEndsAt != nil || player.sleepAtEndOfTrack {
+                    Divider()
+                    Button("Cancel Timer", role: .destructive) { cancelSleep() }
+                }
+            } label: {
+                Image(systemName: sleepEndsAt != nil || player.sleepAtEndOfTrack ? "moon.zzz.fill" : "moon.zzz")
+                    .font(.system(size: 16))
+                    .foregroundStyle((sleepEndsAt != nil || player.sleepAtEndOfTrack) ? Palette.brass : .white.opacity(0.6))
+                    .frame(width: 36, height: 36)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
         }
+    }
+
+    private func shareURL(for row: TrackRow) -> URL? {
+        if let id = row.source?.iaIdentifier, !id.isEmpty {
+            return ShareURLBuilder.url(identifier: id)
+        }
+        return nil
+    }
+
+    // MARK: - Sleep timer
+
+    private func startSleepTimer(minutes: Int) {
+        sleepTask?.cancel()
+        player.sleepAtEndOfTrack = false
+        let end = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        sleepEndsAt = end
+        sleepTask = Task {
+            let remaining = end.timeIntervalSinceNow
+            guard remaining > 0 else { return }
+            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                player.togglePlayPause()
+                sleepEndsAt = nil
+                sleepTask = nil
+            }
+        }
+    }
+
+    private func setSleepAtEndOfTrack(_ on: Bool) {
+        sleepTask?.cancel()
+        sleepTask = nil
+        sleepEndsAt = nil
+        player.sleepAtEndOfTrack = on
+    }
+
+    private func cancelSleep() {
+        sleepTask?.cancel()
+        sleepTask = nil
+        sleepEndsAt = nil
+        player.sleepAtEndOfTrack = false
     }
 }

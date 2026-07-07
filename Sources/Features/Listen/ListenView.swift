@@ -85,6 +85,7 @@ struct RecentCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ArtworkView(identifier: row.source?.iaIdentifier,
+                        trackRow: row,
                         seed: row.album?.title ?? row.track.title,
                         cornerRadius: 14)
                 .frame(width: 132, height: 132)

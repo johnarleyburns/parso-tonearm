@@ -3,11 +3,11 @@ import SwiftUI
 struct ArtworkView: View {
     var image: UIImage?
     var identifier: String?
+    var trackRow: TrackRow?
     var seed: String
     var cornerRadius: CGFloat = 12
 
     @State private var fetchedImage: UIImage?
-    @State private var taskID: String?
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -20,10 +20,17 @@ struct ArtworkView: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .task(id: identifier) {
-                guard let identifier, !identifier.isEmpty else { return }
-                fetchedImage = await ArtworkService.shared.artwork(forIdentifier: identifier)
+            .task(id: fetchKey) {
+                if let id = identifier, !id.isEmpty {
+                    fetchedImage = await ArtworkService.shared.artwork(forIdentifier: id)
+                } else if let row = trackRow {
+                    fetchedImage = await ArtworkService.shared.artwork(forTrackRow: row)
+                }
             }
+    }
+
+    private var fetchKey: String {
+        identifier ?? "track-\(trackRow?.track.id ?? -1)"
     }
 
     private var resolvedGradient: LinearGradient {

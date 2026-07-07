@@ -71,3 +71,16 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: guru.parso.tonearm.tests
         GENERATE_INFOPLIST_FILE: "YES"
+
+  TonearmUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: Tonearm
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: guru.parso.tonearm.uitests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: Tonearm

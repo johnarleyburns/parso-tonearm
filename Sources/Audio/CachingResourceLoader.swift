@@ -12,6 +12,7 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
     private let stateLock = NSLock()
     private var inFlight: [Task<Void, Never>] = []
     private var didShutdown = false
+    private var fileHandle: FileHandle?
 
     init(originalURL: URL) {
         self.originalURL = originalURL
@@ -24,6 +25,7 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
     }
 
     deinit {
+        if let h = fileHandle { try? h.close() }
         session.invalidateAndCancel()
     }
 
@@ -34,6 +36,7 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
         inFlight.removeAll()
         stateLock.unlock()
         tasks.forEach { $0.cancel() }
+        if let h = fileHandle { try? h.close(); fileHandle = nil }
     }
 
     static func key(for url: URL) -> String {
@@ -103,7 +106,6 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
         }
         var request = URLRequest(url: originalURL)
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-        request.setValue("Platterhead (parso.guru)", forHTTPHeaderField: "User-Agent")
         let (_, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         guard (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
@@ -137,7 +139,10 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
         guard endRequested > start else { return }
 
         let fileURL = await CacheStore.shared.fileURL(for: cacheKey)
-        ensureFileExists(fileURL, size: total)
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: fileURL.path) {
+            fm.createFile(atPath: fileURL.path, contents: nil)
+        }
 
         var cursor = start
 
@@ -168,7 +173,6 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
             let url = resolvedURL ?? originalURL
             var req = URLRequest(url: url)
             req.setValue(rangeHeader, forHTTPHeaderField: "Range")
-            req.setValue("Platterhead (parso.guru)", forHTTPHeaderField: "User-Agent")
             let (bytes, response) = try await session.bytes(for: req)
             if let http = response as? HTTPURLResponse,
                !(200..<300).contains(http.statusCode) {
@@ -178,6 +182,8 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
             let chunkSize = 32 * 1024
             var buf: [UInt8] = []
             buf.reserveCapacity(chunkSize)
+            var chunkRanges: [Range<Int64>] = []
+            let networkCursor = cursor
 
             for try await byte in bytes {
                 buf.append(byte)
@@ -185,7 +191,7 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
                     try Task.checkCancellation()
                     let chunk = Data(buf)
                     writeFile(fileURL, offset: cursor, data: chunk)
-                    await CacheStore.shared.recordWrite(range: cursor..<(cursor + Int64(chunk.count)), for: cacheKey)
+                    chunkRanges.append(cursor..<(cursor + Int64(chunk.count)))
                     if cursor < endRequested {
                         let usable = min(Int64(chunk.count), endRequested - cursor)
                         if usable > 0 { dr.respond(with: chunk.prefix(Int(usable))) }
@@ -198,7 +204,7 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
             if !buf.isEmpty {
                 let chunk = Data(buf)
                 writeFile(fileURL, offset: cursor, data: chunk)
-                await CacheStore.shared.recordWrite(range: cursor..<(cursor + Int64(chunk.count)), for: cacheKey)
+                chunkRanges.append(cursor..<(cursor + Int64(chunk.count)))
                 if cursor < endRequested {
                     let usable = min(Int64(chunk.count), endRequested - cursor)
                     if usable > 0 { dr.respond(with: chunk.prefix(Int(usable))) }
@@ -206,22 +212,15 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
                 cursor += Int64(chunk.count)
             }
 
+            for range in chunkRanges.reversed() {
+                await CacheStore.shared.recordWrite(range: range, for: cacheKey)
+            }
+
             if cursor >= endRequested { break }
         }
     }
 
     // MARK: - Sparse file IO
-
-    private func ensureFileExists(_ url: URL, size: Int64) {
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: url.path) {
-            fm.createFile(atPath: url.path, contents: nil)
-            if size > 0, let handle = try? FileHandle(forWritingTo: url) {
-                try? handle.truncate(atOffset: UInt64(size))
-                try? handle.close()
-            }
-        }
-    }
 
     private func readFile(_ url: URL, offset: Int64, length: Int64) -> Data? {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
@@ -231,8 +230,11 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
     }
 
     private func writeFile(_ url: URL, offset: Int64, data: Data) {
-        guard !data.isEmpty, let handle = try? FileHandle(forWritingTo: url) else { return }
-        defer { try? handle.close() }
+        guard !data.isEmpty else { return }
+        if fileHandle == nil {
+            fileHandle = try? FileHandle(forWritingTo: url)
+        }
+        guard let handle = fileHandle else { return }
         try? handle.seek(toOffset: UInt64(offset))
         try? handle.write(contentsOf: data)
     }
