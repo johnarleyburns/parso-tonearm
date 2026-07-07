@@ -62,7 +62,11 @@ struct OnboardingView: View {
         .foregroundStyle(Palette.ink)
         .interactiveDismissDisabled()
         .fileImporter(isPresented: $showFolderImporter, allowedContentTypes: [.folder]) { result in
-            if case .success(let url) = result { pickedFolder = url }
+            if case .success(let url) = result {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    pickedFolder = url
+                }
+            }
         }
         .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.audio],
                       allowsMultipleSelection: true) { result in

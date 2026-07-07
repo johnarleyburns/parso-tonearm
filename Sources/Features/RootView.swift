@@ -52,7 +52,9 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
         .fileImporter(isPresented: $appState.showFolderImporter,
                       allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result {
-                appState.pickedFolder = url
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    appState.pickedFolder = url
+                }
             }
         }
         .fileImporter(isPresented: $appState.showFileImporter,
