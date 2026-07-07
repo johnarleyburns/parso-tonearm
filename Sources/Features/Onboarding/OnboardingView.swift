@@ -39,7 +39,7 @@ struct OnboardingView: View {
         ("cloud.fill", "Add sources",
          "Paste any archive.org item, list, favorites page, or collection. Every track lands in your Library instantly. Nothing is downloaded until you press play."),
         ("play.circle.fill", "Listen & keep",
-         "Played tracks are cached so they work offline until space is needed. Build playlists, favorite what you love, and jump back in anytime.")
+         "Played tracks are cached so they work offline until space is needed. Build playlists, favorite what you love, and jump back in anytime. Check out the built-in Ambient playlist with continuous rain, ocean, and flowing water sounds for focus, relaxation, or sleep.")
     ]
 
     var body: some View {
