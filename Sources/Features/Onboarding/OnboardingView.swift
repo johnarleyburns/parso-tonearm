@@ -18,6 +18,7 @@ struct OnboardingView: View {
     @State private var showFileImporter = false
     @State private var localAddedCount = 0
     @State private var pickedFolder: URL?
+    @State private var pickedFolderBookmark: Data?
     @State private var options: [OnboardingSourceOption] = [
         .init(title: "Chopin — Musopen",
               subtitle: "Public domain recordings",
@@ -63,8 +64,13 @@ struct OnboardingView: View {
         .interactiveDismissDisabled()
         .fileImporter(isPresented: $showFolderImporter, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                _ = url.startAccessingSecurityScopedResource()
+                let bookmark = try? url.bookmarkData(options: [.minimalBookmark],
+                                                      includingResourceValuesForKeys: nil,
+                                                      relativeTo: nil)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
                     pickedFolder = url
+                    pickedFolderBookmark = bookmark
                 }
             }
         }
@@ -79,7 +85,7 @@ struct OnboardingView: View {
             }
         }
         .sheet(item: $pickedFolder) { url in
-            AddFolderSheet(folderURL: url)
+            AddFolderSheet(folderURL: url, folderBookmark: pickedFolderBookmark)
         }
     }
 

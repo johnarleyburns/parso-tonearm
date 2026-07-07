@@ -24,7 +24,11 @@ struct ArtworkView: View {
                 if let id = identifier, !id.isEmpty {
                     fetchedImage = await ArtworkService.shared.artwork(forIdentifier: id)
                 } else if let row = trackRow {
-                    fetchedImage = await ArtworkService.shared.artwork(forTrackRow: row)
+                    if let iaId = row.source?.iaIdentifier, !iaId.isEmpty {
+                        fetchedImage = await ArtworkService.shared.artwork(forIdentifier: iaId)
+                    } else {
+                        fetchedImage = await ArtworkService.shared.artwork(forTrackRow: row)
+                    }
                 }
             }
     }

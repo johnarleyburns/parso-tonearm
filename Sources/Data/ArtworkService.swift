@@ -41,27 +41,49 @@ actor ArtworkService {
             return image
         }
 
-        let url = URL(string: "https://archive.org/services/img/\(identifier)")!
-        guard let (data, response) = try? await session.data(from: url),
-              let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
+        let encoded = identifier.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? identifier
+        let urlString = "https://archive.org/services/img/\(encoded)"
+        guard let url = URL(string: urlString) else {
+            print("[ArtworkService] cannot build URL for identifier: \(identifier)")
             memCache.setObject(Self.notFoundSentinel, forKey: key)
             return nil
         }
 
-        if let finalURL = httpResponse.url, finalURL.lastPathComponent == "notfound.png" {
-            memCache.setObject(Self.notFoundSentinel, forKey: key)
+        do {
+            let (data, response) = try await session.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("[ArtworkService] non-HTTP response for: \(identifier)")
+                return nil
+            }
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                print("[ArtworkService] HTTP \(httpResponse.statusCode) for: \(identifier)")
+                if httpResponse.statusCode == 404 {
+                    memCache.setObject(Self.notFoundSentinel, forKey: key)
+                }
+                return nil
+            }
+
+            if let finalURL = httpResponse.url, finalURL.lastPathComponent == "notfound.png" {
+                print("[ArtworkService] notfound.png redirect for: \(identifier)")
+                memCache.setObject(Self.notFoundSentinel, forKey: key)
+                return nil
+            }
+
+            guard data.count > 2048, let image = UIImage(data: data) else {
+                print("[ArtworkService] data too small or invalid image for: \(identifier) (\(data.count) bytes)")
+                if httpResponse.statusCode != 200 || data.count < 100 {
+                    memCache.setObject(Self.notFoundSentinel, forKey: key)
+                }
+                return nil
+            }
+
+            store(image, forKey: key)
+            writeDiskCache(image, key: identifier)
+            return image
+        } catch {
+            print("[ArtworkService] fetch error for \(identifier): \(error.localizedDescription)")
             return nil
         }
-
-        guard data.count > 2048, let image = UIImage(data: data) else {
-            memCache.setObject(Self.notFoundSentinel, forKey: key)
-            return nil
-        }
-
-        store(image, forKey: key)
-        writeDiskCache(image, key: identifier)
-        return image
     }
 
     func artwork(forTrackRow row: TrackRow) async -> UIImage? {

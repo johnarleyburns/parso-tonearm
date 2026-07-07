@@ -33,6 +33,7 @@ final class AppState: ObservableObject {
     @Published var backgroundDone = false
     @Published var backgroundFailed = false
     @Published var pickedFolder: URL?
+    @Published var pickedFolderBookmark: Data?
     @Published var pendingImport: PendingImport?
     // Settings-backed values
     @AppStorage("streamOnCellular") var streamOnCellular = true

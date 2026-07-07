@@ -2,6 +2,22 @@ import Foundation
 import AVFoundation
 import UIKit
 
+enum IngestError: LocalizedError {
+    case noAudioFiles
+    case failedToInsertSource
+    case failedToCreateBookmark
+    case accessDenied
+
+    var errorDescription: String? {
+        switch self {
+        case .noAudioFiles: return "No audio files found in this folder"
+        case .failedToInsertSource: return "Failed to create source in library"
+        case .failedToCreateBookmark: return "Failed to secure folder access"
+        case .accessDenied: return "Cannot access folder — permission denied"
+        }
+    }
+}
+
 /// FR-1 local ingestion: files and folders referenced in place via security-scoped
 /// bookmarks. Metadata via AVFoundation with filename fallback.
 struct IngestService {
@@ -49,54 +65,63 @@ struct IngestService {
     // MARK: - Add folder as playlist (FR-1.2)
 
     func addFolder(_ folderURL: URL, includeSubfolders: Bool, keepOrder: Bool,
-                   watch: Bool, into store: LibraryStore) async {
-        do {
-            let files = scanFolder(folderURL, includeSubfolders: includeSubfolders)
-            let ordered = keepOrder ? files
-                : files.sorted { $0.url.lastPathComponent.localizedStandardCompare($1.url.lastPathComponent) == .orderedAscending }
-
-            var source = Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
-                                title: folderURL.lastPathComponent, addedAt: Date(),
-                                lastResolvedAt: nil, followUpdates: false,
-                                licenseText: nil, memberCapHit: false)
-            source = try await store.insertSource(source)
-            guard let sid = source.id else { return }
-            var album = Album(id: nil, sourceId: sid, title: folderURL.lastPathComponent,
-                              artist: nil, year: nil, artworkId: nil)
-            album = try await store.insertAlbum(album)
-
-            let folderBookmark = BookmarkVault.makeBookmark(for: folderURL)
-            var playlist = Playlist(id: nil, title: folderURL.lastPathComponent, kind: .folder,
-                                    folderBookmark: folderBookmark, watch: watch)
-            playlist = try await store.insertPlaylist(playlist)
-
-            for (i, file) in ordered.enumerated() {
-                let trackId = try await ingestOne(file.url, sourceId: sid, albumId: album.id,
-                                                  index: i, section: file.relativeSection, store: store)
-                if let pid = playlist.id, let trackId {
-                    try await store.addToPlaylist(playlistId: pid, trackId: trackId,
-                                                  sectionTitle: file.relativeSection)
-                }
-            }
-        } catch {
-            print("addFolder error: \(error)")
+                   watch: Bool, into store: LibraryStore) async throws {
+        let files = scanFolder(folderURL, includeSubfolders: includeSubfolders)
+        guard !files.isEmpty else {
+            print("[IngestService] addFolder: no audio files found in \(folderURL.lastPathComponent)")
+            throw IngestError.noAudioFiles
         }
+        let ordered = keepOrder ? files
+            : files.sorted { $0.url.lastPathComponent.localizedStandardCompare($1.url.lastPathComponent) == .orderedAscending }
+
+        var source = Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
+                            title: folderURL.lastPathComponent, addedAt: Date(),
+                            lastResolvedAt: nil, followUpdates: false,
+                            licenseText: nil, memberCapHit: false)
+        source = try await store.insertSource(source)
+        guard let sid = source.id else { throw IngestError.failedToInsertSource }
+        var album = Album(id: nil, sourceId: sid, title: folderURL.lastPathComponent,
+                          artist: nil, year: nil, artworkId: nil)
+        album = try await store.insertAlbum(album)
+
+        let folderBookmark = BookmarkVault.makeBookmark(for: folderURL)
+        var playlist = Playlist(id: nil, title: folderURL.lastPathComponent, kind: .folder,
+                                folderBookmark: folderBookmark, watch: watch)
+        playlist = try await store.insertPlaylist(playlist)
+
+        print("[IngestService] importing \(ordered.count) files from \(folderURL.lastPathComponent)")
+        for (i, file) in ordered.enumerated() {
+            let trackId = try await ingestOne(file.url, sourceId: sid, albumId: album.id,
+                                              index: i, section: file.relativeSection, store: store)
+            if let pid = playlist.id, let trackId {
+                try await store.addToPlaylist(playlistId: pid, trackId: trackId,
+                                              sectionTitle: file.relativeSection)
+            }
+        }
+        print("[IngestService] addFolder complete: \(ordered.count) tracks imported")
     }
 
     func scanFolder(_ folderURL: URL, includeSubfolders: Bool) -> [ScannedFile] {
         let accessed = folderURL.startAccessingSecurityScopedResource()
         defer { if accessed { folderURL.stopAccessingSecurityScopedResource() } }
+        if !accessed {
+            print("[IngestService] scanFolder: cannot access \(folderURL.path) — security scope denied")
+        }
         let fm = FileManager.default
         var results: [ScannedFile] = []
         let options: FileManager.DirectoryEnumerationOptions = includeSubfolders ? [] : [.skipsSubdirectoryDescendants]
         guard let en = fm.enumerator(at: folderURL, includingPropertiesForKeys: [.isRegularFileKey],
-                                     options: options.union(.skipsHiddenFiles)) else { return [] }
+                                     options: options.union(.skipsHiddenFiles)) else {
+            print("[IngestService] scanFolder: cannot enumerate \(folderURL.path)")
+            return []
+        }
         for case let url as URL in en {
             guard Self.audioExtensions.contains(url.pathExtension.lowercased()) else { continue }
             let parent = url.deletingLastPathComponent().lastPathComponent
             let section = parent == folderURL.lastPathComponent ? nil : parent
             results.append(ScannedFile(url: url, relativeSection: section))
         }
+        print("[IngestService] scanFolder: found \(results.count) audio files in \(folderURL.lastPathComponent)")
         return results
     }
 
