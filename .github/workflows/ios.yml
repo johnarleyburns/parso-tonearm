@@ -160,7 +160,7 @@ jobs:
           set -eo pipefail
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode \
-            -o "$HOME/Library/MobileDevice/Provisioning Profiles/Parso_Tonearm_App_Store.mobileprovision"
+            -o "$HOME/Library/MobileDevice/Provisioning Profiles/Parso_Platterhead_App_Store.mobileprovision"
 
       - name: Archive
         env:
