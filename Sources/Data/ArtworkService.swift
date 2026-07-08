@@ -41,6 +41,13 @@ actor ArtworkService {
             return image
         }
 
+        if let image = await fetchDirectCover(identifier: identifier),
+           !SpectrogramDetector().isSpectrogram(image) {
+            store(image, forKey: key)
+            writeDiskCache(image, key: identifier)
+            return image
+        }
+
         let encoded = identifier.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? identifier
         let urlString = "https://archive.org/services/img/\(encoded)"
         guard let url = URL(string: urlString) else {
@@ -87,6 +94,12 @@ actor ArtworkService {
                 return nil
             }
 
+            if SpectrogramDetector().isSpectrogram(image) {
+                print("[ArtworkService] probable spectrogram for: \(identifier) (\(Int(w))×\(Int(h)))")
+                memCache.setObject(Self.notFoundSentinel, forKey: key)
+                return nil
+            }
+
             store(image, forKey: key)
             writeDiskCache(image, key: identifier)
             return image
@@ -94,6 +107,34 @@ actor ArtworkService {
             print("[ArtworkService] fetch error for \(identifier): \(error.localizedDescription)")
             return nil
         }
+    }
+
+    private func fetchDirectCover(identifier: String) async -> UIImage? {
+        let encoded = identifier.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? identifier
+        let candidates = ["cover.jpg", "folder.jpg"]
+
+        for candidate in candidates {
+            guard let url = URL(string: "https://archive.org/download/\(encoded)/\(candidate)") else { continue }
+
+            do {
+                let (data, response) = try await session.data(from: url)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200..<300).contains(httpResponse.statusCode) else { continue }
+
+                guard let mimeType = httpResponse.mimeType?.lowercased(),
+                      mimeType.hasPrefix("image/") else { continue }
+
+                guard data.count > 2048, let image = UIImage(data: data) else { continue }
+
+                let w = image.size.width, h = image.size.height
+                if w > 0, h > 0, max(w, h) / min(w, h) >= 10.0 { continue }
+
+                return image
+            } catch {
+                continue
+            }
+        }
+        return nil
     }
 
     /// Returns the first identifier (in order) that resolves to a real cover,
