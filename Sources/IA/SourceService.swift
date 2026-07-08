@@ -26,7 +26,7 @@ struct SourceService {
         case .item(let identifier, _):
             let item = try await ItemResolver(preferFLAC: preferFLAC).resolve(identifier: identifier)
             if item.mediatype == "collection" {
-                return try await collectionPreview(identifier: identifier, raw: raw)
+                return try await collectionPreview(identifier: identifier, title: item.title, raw: raw)
             }
             let permits = licensePermits(item.licenseText)
             return SourcePreview(
@@ -39,7 +39,7 @@ struct SourceService {
                 resolvedItem: item, members: [])
 
         case .collection(let identifier):
-            return try await collectionPreview(identifier: identifier, raw: raw)
+            return try await collectionPreview(identifier: identifier, title: nil, raw: raw)
 
         case .favorites(let screenname):
             let (members, total, capHit) = try await CollectionResolver().resolveFavorites(screenname: screenname)
@@ -50,10 +50,11 @@ struct SourceService {
                 memberCount: members.count, totalCount: total, capHit: capHit,
                 parsed: parsed, originalURL: raw, resolvedItem: nil, members: members)
 
-        case .list(let screenname, let listId):
+        case .list(let screenname, let listId, let slug):
             let members = try await ListResolver().resolve(screenname: screenname, listId: listId)
+            let title = slug.map(Self.prettify) ?? "List by @\(screenname)"
             return SourcePreview(
-                kind: .iaList, title: "List by @\(screenname)",
+                kind: .iaList, title: title,
                 subtitle: "\(members.count) items · audio",
                 licenseText: nil, licensePermitsStreaming: true,
                 memberCount: members.count, totalCount: members.count, capHit: false,
@@ -61,15 +62,24 @@ struct SourceService {
         }
     }
 
-    private func collectionPreview(identifier: String, raw: String) async throws -> SourcePreview {
+    private func collectionPreview(identifier: String, title: String?, raw: String) async throws -> SourcePreview {
         let (members, total, capHit) = try await CollectionResolver().resolve(collection: identifier)
+        let name = (title?.isEmpty == false) ? title! : Self.prettify(identifier)
         return SourcePreview(
-            kind: .iaCollection, title: identifier,
+            kind: .iaCollection, title: name,
             subtitle: "\(members.count) of \(total) items",
             licenseText: nil, licensePermitsStreaming: true,
             memberCount: members.count, totalCount: total, capHit: capHit,
             parsed: IAResolvedURL.collection(identifier: identifier),
             originalURL: raw, resolvedItem: nil, members: members)
+    }
+
+    /// Turns a slug/identifier into a human-readable title: dashes→spaces, title-case each word.
+    static func prettify(_ slug: String) -> String {
+        slug.replacingOccurrences(of: "-", with: " ")
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
+            .joined(separator: " ")
     }
 
     /// Persists the source and, for items, its tracks. Members resolve lazily elsewhere.
@@ -126,7 +136,7 @@ struct SourceService {
         case .item(let id, _): return id
         case .collection(let id): return id
         case .favorites(let s): return "fav-\(s)"
-        case .list(_, let listId): return listId
+        case .list(_, let listId, _): return listId
         }
     }
 

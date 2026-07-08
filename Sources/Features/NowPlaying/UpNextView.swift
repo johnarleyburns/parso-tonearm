@@ -34,8 +34,7 @@ struct UpNextView: View {
                             .foregroundStyle(.white.opacity(0.4))
                             .frame(width: 18, alignment: .leading)
 
-                        ArtworkView(identifier: row.source?.iaIdentifier,
-                                    trackRow: row,
+                        ArtworkView(trackRow: row,
                                     seed: row.album?.title ?? row.track.title,
                                     cornerRadius: 6)
                             .frame(width: 34, height: 34)

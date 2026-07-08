@@ -84,6 +84,11 @@ final class AppState: ObservableObject {
         return (try? await store.tracks(forSource: id)) ?? []
     }
 
+    func firstArtworkId(for source: Source) async -> String? {
+        guard let id = source.id else { return nil }
+        return try? await store.firstArtworkId(forSource: id)
+    }
+
     func deleteSource(_ source: Source) async {
         guard let id = source.id else { return }
         try? await store.deleteSource(id: id)

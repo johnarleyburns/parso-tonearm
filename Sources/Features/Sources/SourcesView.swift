@@ -46,10 +46,12 @@ struct SourcesView: View {
 
 struct SourceRow: View {
     let source: Source
+    @EnvironmentObject var appState: AppState
+    @State private var artworkId: String?
 
     var body: some View {
         HStack(spacing: 12) {
-            ArtworkView(seed: source.title, cornerRadius: 9)
+            ArtworkView(identifier: artworkId, seed: source.title, cornerRadius: 9)
                 .frame(width: 42, height: 42)
             VStack(alignment: .leading, spacing: 2) {
                 Text(source.title).font(.system(size: 14, weight: .medium)).lineLimit(1)
@@ -60,6 +62,7 @@ struct SourceRow: View {
         }
         .padding(.vertical, 9)
         .contentShape(Rectangle())
+        .task { artworkId = await appState.firstArtworkId(for: source) }
     }
 
     private var subtitle: String {

@@ -24,17 +24,14 @@ struct ArtworkView: View {
                 if let id = identifier, !id.isEmpty {
                     fetchedImage = await ArtworkService.shared.artwork(forIdentifier: id)
                 } else if let row = trackRow {
-                    if let iaId = row.source?.iaIdentifier, !iaId.isEmpty {
-                        fetchedImage = await ArtworkService.shared.artwork(forIdentifier: iaId)
-                    } else {
-                        fetchedImage = await ArtworkService.shared.artwork(forTrackRow: row)
-                    }
+                    fetchedImage = await ArtworkService.shared.artwork(forTrackRow: row)
                 }
             }
     }
 
     private var fetchKey: String {
-        identifier ?? "track-\(trackRow?.track.id ?? -1)"
+        if let identifier, !identifier.isEmpty { return "id-\(identifier)" }
+        return "track-\(trackRow?.track.id ?? -1)"
     }
 
     private var resolvedGradient: LinearGradient {

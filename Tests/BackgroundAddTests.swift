@@ -13,7 +13,7 @@ final class BackgroundAddTests: XCTestCase {
             subtitle: "50 tracks", licenseText: nil,
             licensePermitsStreaming: true,
             memberCount: 50, totalCount: 50, capHit: false,
-            parsed: .list(screenname: "johnarleyburns", listId: "2"),
+            parsed: .list(screenname: "johnarleyburns", listId: "2", slug: "spanish-guitar"),
             originalURL: "https://archive.org/details/@johnarleyburns/lists/2/spanish-guitar",
             resolvedItem: nil, members: []
         )
@@ -51,7 +51,7 @@ final class BackgroundAddTests: XCTestCase {
             subtitle: "200 tracks", licenseText: nil,
             licensePermitsStreaming: true,
             memberCount: 200, totalCount: 200, capHit: false,
-            parsed: .list(screenname: "user", listId: "1"),
+            parsed: .list(screenname: "user", listId: "1", slug: "test"),
             originalURL: "https://archive.org/details/@user/lists/1/test",
             resolvedItem: nil, members: []
         )

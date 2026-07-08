@@ -20,7 +20,6 @@ struct NowPlayingView: View {
 
                 ArtworkView(
                     image: npArtwork,
-                    identifier: player.currentTrack?.source?.iaIdentifier,
                     trackRow: player.currentTrack,
                     seed: player.currentTrack?.album?.title ?? "np",
                     cornerRadius: 16
@@ -227,7 +226,7 @@ struct NowPlayingView: View {
     }
 
     private func shareURL(for row: TrackRow) -> URL? {
-        if let id = row.source?.iaIdentifier, !id.isEmpty {
+        if let id = row.album?.artworkId, !id.isEmpty {
             return ShareURLBuilder.url(identifier: id)
         }
         return nil

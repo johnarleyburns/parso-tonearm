@@ -20,12 +20,12 @@ final class URLGrammarTests: XCTestCase {
 
     func testList() {
         XCTAssertEqual(try? URLGrammar.parse("https://archive.org/details/@shellac_hound/lists/2841/early-opera").get(),
-                       .list(screenname: "shellac_hound", listId: "2841"))
+                       .list(screenname: "shellac_hound", listId: "2841", slug: "early-opera"))
     }
 
     func testListNoSlug() {
         XCTAssertEqual(try? URLGrammar.parse("archive.org/details/@user/lists/99").get(),
-                       .list(screenname: "user", listId: "99"))
+                       .list(screenname: "user", listId: "99", slug: nil))
     }
 
     func testFavorites() {

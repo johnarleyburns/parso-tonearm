@@ -87,7 +87,7 @@ actor ArtworkService {
     }
 
     func artwork(forTrackRow row: TrackRow) async -> UIImage? {
-        if let id = row.source?.iaIdentifier, !id.isEmpty {
+        if let id = row.album?.artworkId, !id.isEmpty {
             return await artwork(forIdentifier: id)
         }
 

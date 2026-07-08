@@ -60,6 +60,17 @@ actor LibraryStore {
         }
     }
 
+    /// Representative per-item IA identifier for a source (first album's artworkId).
+    func firstArtworkId(forSource sourceId: Int64) throws -> String? {
+        try dbQueue.read { db in
+            let album = try Album.filter(Column("sourceId") == sourceId)
+                .order(Column("id"))
+                .fetchOne(db)
+            guard let artworkId = album?.artworkId, !artworkId.isEmpty else { return nil }
+            return artworkId
+        }
+    }
+
     func deleteSource(id: Int64) throws {
         _ = try dbQueue.write { db in
             try Source.deleteOne(db, key: id)

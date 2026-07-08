@@ -2,7 +2,7 @@ import Foundation
 
 enum IAResolvedURL: Equatable {
     case item(identifier: String, filename: String?)
-    case list(screenname: String, listId: String)
+    case list(screenname: String, listId: String, slug: String?)
     case favorites(screenname: String)
     case collection(identifier: String)
 }
@@ -73,7 +73,8 @@ enum URLGrammar {
             guard segments.count >= 3, segments[1] == "lists" else { return .failure(.unrecognized) }
             let listId = segments[2]
             guard !listId.isEmpty else { return .failure(.unrecognized) }
-            return .success(.list(screenname: screenname, listId: listId))
+            let slug = segments.count >= 4 && !segments[3].isEmpty ? segments[3] : nil
+            return .success(.list(screenname: screenname, listId: listId, slug: slug))
         }
 
         // Item: details/{identifier}  or  details/{identifier}/{filename}

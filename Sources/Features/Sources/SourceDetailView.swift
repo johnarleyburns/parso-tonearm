@@ -6,6 +6,7 @@ struct SourceDetailView: View {
     @EnvironmentObject var player: AudioPlayer
     @Environment(\.dismiss) private var dismiss
     @State private var tracks: [TrackRow] = []
+    @State private var heroArtworkId: String?
 
     var body: some View {
         ScrollView {
@@ -33,7 +34,10 @@ struct SourceDetailView: View {
         .background(Palette.sourcesBackground.ignoresSafeArea())
         .foregroundStyle(Palette.ink)
         .navigationBarBackButtonHidden()
-        .task { tracks = await appState.tracks(for: source) }
+        .task {
+            tracks = await appState.tracks(for: source)
+            heroArtworkId = await appState.firstArtworkId(for: source)
+        }
     }
 
     private var navRow: some View {
@@ -59,7 +63,7 @@ struct SourceDetailView: View {
 
     private var hero: some View {
         VStack(spacing: 0) {
-            ArtworkView(identifier: source.iaIdentifier, seed: source.title, cornerRadius: 18)
+            ArtworkView(identifier: heroArtworkId, seed: source.title, cornerRadius: 18)
                 .frame(width: 168, height: 168)
                 .shadow(color: .black.opacity(0.55), radius: 20, y: 12)
             Text(source.title)
@@ -71,7 +75,7 @@ struct SourceDetailView: View {
             }
             badge.padding(.top, 9)
             cta.padding(.top, 14)
-            if let id = source.iaIdentifier, !id.isEmpty,
+            if let id = tracks.first?.album?.artworkId ?? heroArtworkId, !id.isEmpty,
                let iaURL = ShareURLBuilder.url(identifier: id) {
                 Link(destination: iaURL) {
                     HStack(spacing: 5) {
