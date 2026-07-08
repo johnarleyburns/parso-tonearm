@@ -77,6 +77,16 @@ actor ArtworkService {
                 return nil
             }
 
+            // archive.org returns a wide, short grayscale "image not available"
+            // strip (e.g. 180×45) for items with no real cover. Reject it by
+            // aspect ratio so callers fall back to the gradient placeholder.
+            let w = image.size.width, h = image.size.height
+            if w > 0, h > 0, max(w, h) / min(w, h) >= 2.0 {
+                print("[ArtworkService] placeholder aspect ratio for: \(identifier) (\(Int(w))×\(Int(h)))")
+                memCache.setObject(Self.notFoundSentinel, forKey: key)
+                return nil
+            }
+
             store(image, forKey: key)
             writeDiskCache(image, key: identifier)
             return image
@@ -84,6 +94,18 @@ actor ArtworkService {
             print("[ArtworkService] fetch error for \(identifier): \(error.localizedDescription)")
             return nil
         }
+    }
+
+    /// Returns the first identifier (in order) that resolves to a real cover,
+    /// skipping IA "image not available" placeholders. Used to pick a
+    /// representative image for list/collection/source tiles.
+    func firstAvailableIdentifier(_ identifiers: [String]) async -> String? {
+        for id in identifiers where !id.isEmpty {
+            if await artwork(forIdentifier: id) != nil {
+                return id
+            }
+        }
+        return nil
     }
 
     func artwork(forTrackRow row: TrackRow) async -> UIImage? {

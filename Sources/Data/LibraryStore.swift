@@ -71,6 +71,20 @@ actor LibraryStore {
         }
     }
 
+    /// Candidate per-item IA identifiers for a source, in album order. Used to
+    /// pick a representative cover that isn't an IA placeholder.
+    func artworkIds(forSource sourceId: Int64, limit: Int = 12) throws -> [String] {
+        try dbQueue.read { db in
+            let albums = try Album.filter(Column("sourceId") == sourceId)
+                .order(Column("id"))
+                .fetchAll(db)
+            return albums.compactMap { album -> String? in
+                guard let id = album.artworkId, !id.isEmpty else { return nil }
+                return id
+            }.prefix(limit).map { $0 }
+        }
+    }
+
     func deleteSource(id: Int64) throws {
         _ = try dbQueue.write { db in
             try Source.deleteOne(db, key: id)
@@ -81,6 +95,13 @@ actor LibraryStore {
         try dbQueue.write { db in
             try db.execute(sql: "UPDATE source SET lastResolvedAt = ? WHERE id = ?",
                            arguments: [Date(), id])
+        }
+    }
+
+    func updateSourceTitle(id: Int64, title: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE source SET title = ? WHERE id = ?",
+                           arguments: [title, id])
         }
     }
 

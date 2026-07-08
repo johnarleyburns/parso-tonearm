@@ -46,9 +46,40 @@ final class AppState: ObservableObject {
     }
 
     func bootstrap() async {
+        await fixLegacySourceTitles()
         await reload()
         applySettingsToPlayer()
         await CacheStore.shared.garbageCollectStalePartials()
+    }
+
+    /// One-time repair for sources saved before the list/collection naming fix:
+    /// re-derive human-readable titles from the stored originalURL slug.
+    func fixLegacySourceTitles() async {
+        guard let existing = try? await store.allSources() else { return }
+        for source in existing {
+            guard let id = source.id else { continue }
+            var newTitle: String?
+
+            switch source.kind {
+            case .iaList:
+                if let raw = source.originalURL,
+                   case .list(_, _, let slug)? = try? URLGrammar.parse(raw).get(),
+                   let slug, !slug.isEmpty {
+                    newTitle = SourceService.prettify(slug)
+                }
+            case .iaCollection:
+                // Buggy rows stored the raw identifier as the title.
+                if let idf = source.iaIdentifier, source.title == idf {
+                    newTitle = SourceService.prettify(idf)
+                }
+            default:
+                break
+            }
+
+            if let newTitle, !newTitle.isEmpty, newTitle != source.title {
+                try? await store.updateSourceTitle(id: id, title: newTitle)
+            }
+        }
     }
 
     func applySettingsToPlayer() {
@@ -86,7 +117,8 @@ final class AppState: ObservableObject {
 
     func firstArtworkId(for source: Source) async -> String? {
         guard let id = source.id else { return nil }
-        return try? await store.firstArtworkId(forSource: id)
+        guard let ids = try? await store.artworkIds(forSource: id), !ids.isEmpty else { return nil }
+        return await ArtworkService.shared.firstAvailableIdentifier(ids)
     }
 
     func deleteSource(_ source: Source) async {
