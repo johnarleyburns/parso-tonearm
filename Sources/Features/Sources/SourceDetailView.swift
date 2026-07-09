@@ -63,7 +63,7 @@ struct SourceDetailView: View {
 
     private var hero: some View {
         VStack(spacing: 0) {
-            ArtworkView(identifier: heroArtworkId, seed: source.title, cornerRadius: 18)
+            SourceArtworkView(source: source, cornerRadius: 18)
                 .frame(width: 168, height: 168)
                 .shadow(color: .black.opacity(0.55), radius: 20, y: 12)
             Text(source.title)

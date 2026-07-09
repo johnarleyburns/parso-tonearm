@@ -121,6 +121,19 @@ enum Schema {
             try db.execute(sql: "DELETE FROM playlist WHERE title = 'Starter Playlist' AND kind = 'manual'")
         }
 
+        migrator.registerMigration("v4") { db in
+            try db.alter(table: "source") { t in
+                t.add(column: "localIsFolder", .boolean).notNull().defaults(to: false)
+                t.add(column: "artworkTrackId", .integer)
+            }
+            // Backfill existing local sources: everything except the "Local Files"
+            // bucket was created by a folder import.
+            try db.execute(sql: """
+                UPDATE source SET localIsFolder = 1
+                WHERE kind = 'local' AND title <> 'Local Files'
+                """)
+        }
+
         return migrator
     }
 }

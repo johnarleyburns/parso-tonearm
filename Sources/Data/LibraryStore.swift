@@ -105,6 +105,24 @@ actor LibraryStore {
         }
     }
 
+    /// Persists which track's embedded artwork represents a source, so the
+    /// chosen cover is remembered across launches.
+    func setSourceArtworkTrack(id: Int64, trackId: Int64?) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE source SET artworkTrackId = ? WHERE id = ?",
+                           arguments: [trackId, id])
+        }
+    }
+
+    /// First track (by sort order) of a source, hydrated with album/asset.
+    func firstTrackRow(forSource sourceId: Int64) throws -> TrackRow? {
+        try dbQueue.read { db in
+            guard let track = try Track.filter(Column("sourceId") == sourceId)
+                .order(Column("sortKey")).fetchOne(db) else { return nil }
+            return try self.hydrate(track, db: db)
+        }
+    }
+
     // MARK: - Albums / Tracks / Assets
 
     @discardableResult

@@ -31,6 +31,24 @@ struct Source: Identifiable, Equatable, Codable, Hashable {
     var followUpdates: Bool
     var licenseText: String?
     var memberCapHit: Bool
+    /// For `.local` sources: distinguishes a folder import (true) from the
+    /// "Local Files" bucket (false). Drives the no-artwork fallback icon.
+    var localIsFolder: Bool = false
+    /// Remembers which track's embedded artwork represents this source, so the
+    /// representative cover is cached and stable across launches.
+    var artworkTrackId: Int64? = nil
+
+    /// SF Symbol shown over the gradient when no real artwork resolves.
+    var fallbackIcon: String {
+        switch kind {
+        case .local:
+            return localIsFolder ? "folder.fill" : "music.note.list"
+        case .iaList, .iaCollection, .iaFavorites:
+            return "square.stack.fill"
+        case .iaItem:
+            return "music.note"
+        }
+    }
 }
 
 struct Album: Identifiable, Equatable, Codable {

@@ -50,9 +50,29 @@ struct SearchField: View {
     }
 }
 
+/// Renders a source's representative artwork: real cover art for IA sources,
+/// embedded art for local sources, falling back to a per-kind icon over the
+/// seed gradient when no artwork is available.
+struct SourceArtworkView: View {
+    let source: Source
+    var cornerRadius: CGFloat = 12
+    @EnvironmentObject var appState: AppState
+    @State private var resolved: AppState.ResolvedSourceArtwork?
+
+    var body: some View {
+        ArtworkView(identifier: resolved?.identifier,
+                    trackRow: resolved?.trackRow,
+                    seed: source.title,
+                    cornerRadius: cornerRadius,
+                    fallbackIcon: resolved?.fallbackIcon ?? source.fallbackIcon)
+            .task(id: source.id) {
+                resolved = await appState.resolvedArtwork(for: source)
+            }
+    }
+}
+
 struct ProvenanceChip: View {
     let source: Source?
-
     var body: some View {
         let (icon, text) = badge
         HStack(spacing: 4) {

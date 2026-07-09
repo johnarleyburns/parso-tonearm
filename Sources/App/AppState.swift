@@ -49,6 +49,21 @@ final class AppState: ObservableObject {
         await reload()
         applySettingsToPlayer()
         await CacheStore.shared.garbageCollectStalePartials()
+        Task { await warmLocalSourceArtwork() }
+    }
+
+    /// Resolves and caches a representative cover for local sources that don't yet
+    /// have one remembered, so app-update installs pick up embedded artwork without
+    /// waiting for each tile to appear. Runs off the launch critical path.
+    private func warmLocalSourceArtwork() async {
+        let locals = sources.filter { $0.kind == .local && $0.artworkTrackId == nil }
+        guard !locals.isEmpty else { return }
+        for source in locals {
+            _ = await resolvedArtwork(for: source)
+        }
+        // Pick up the persisted artworkTrackId values so tiles use the remembered
+        // pick directly instead of rescanning.
+        await reload()
     }
 
     /// One-time repair for sources saved before the list/collection naming fix:
@@ -118,6 +133,51 @@ final class AppState: ObservableObject {
         guard let id = source.id else { return nil }
         guard let ids = try? await store.artworkIds(forSource: id), !ids.isEmpty else { return nil }
         return await ArtworkService.shared.firstAvailableIdentifier(ids)
+    }
+
+    /// Resolved artwork inputs for a source tile: an IA identifier and/or a local
+    /// track carrying embedded art, plus the per-kind fallback icon. For local
+    /// sources the representative track is chosen once and remembered (cached)
+    /// via `artworkTrackId`.
+    struct ResolvedSourceArtwork {
+        var identifier: String?
+        var trackRow: TrackRow?
+        var fallbackIcon: String
+    }
+
+    func resolvedArtwork(for source: Source) async -> ResolvedSourceArtwork {
+        let icon = source.fallbackIcon
+        guard let id = source.id else {
+            return ResolvedSourceArtwork(identifier: nil, trackRow: nil, fallbackIcon: icon)
+        }
+
+        if source.kind == .local {
+            let row = await representativeLocalTrackRow(for: source, sourceId: id)
+            return ResolvedSourceArtwork(identifier: nil, trackRow: row, fallbackIcon: icon)
+        }
+
+        let identifier = await firstArtworkId(for: source)
+        return ResolvedSourceArtwork(identifier: identifier, trackRow: nil, fallbackIcon: icon)
+    }
+
+    /// Picks the first local track whose embedded artwork extracts successfully,
+    /// preferring a previously remembered `artworkTrackId`. Persists the choice
+    /// so the cover stays stable and cached.
+    private func representativeLocalTrackRow(for source: Source, sourceId: Int64) async -> TrackRow? {
+        if let remembered = source.artworkTrackId,
+           let row = try? await store.trackRow(id: remembered),
+           await ArtworkService.shared.artwork(forTrackRow: row) != nil {
+            return row
+        }
+
+        let rows = (try? await store.tracks(forSource: sourceId)) ?? []
+        for row in rows {
+            if await ArtworkService.shared.artwork(forTrackRow: row) != nil {
+                try? await store.setSourceArtworkTrack(id: sourceId, trackId: row.id)
+                return row
+            }
+        }
+        return nil
     }
 
     func deleteSource(_ source: Source) async {

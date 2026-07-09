@@ -77,7 +77,8 @@ struct IngestService {
         var source = Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
                             title: folderURL.lastPathComponent, addedAt: Date(),
                             lastResolvedAt: nil, followUpdates: false,
-                            licenseText: nil, memberCapHit: false)
+                            licenseText: nil, memberCapHit: false,
+                            localIsFolder: true)
         source = try await store.insertSource(source)
         guard let sid = source.id else { throw IngestError.failedToInsertSource }
         var album = Album(id: nil, sourceId: sid, title: folderURL.lastPathComponent,

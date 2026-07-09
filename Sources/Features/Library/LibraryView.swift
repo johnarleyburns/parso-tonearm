@@ -69,12 +69,10 @@ struct SectionHeader: View {
 
 struct AlbumCell: View {
     let source: Source
-    @EnvironmentObject var appState: AppState
-    @State private var artworkId: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ArtworkView(identifier: artworkId, seed: source.title, cornerRadius: 14)
+            SourceArtworkView(source: source, cornerRadius: 14)
                 .aspectRatio(1, contentMode: .fit)
                 .overlay(alignment: .bottomLeading) {
                     ProvenanceChip(source: source).padding(8)
@@ -89,7 +87,6 @@ struct AlbumCell: View {
                 .lineLimit(1)
                 .padding(.top, 1)
         }
-        .task { artworkId = await appState.firstArtworkId(for: source) }
     }
 
     private var subtitle: String {
