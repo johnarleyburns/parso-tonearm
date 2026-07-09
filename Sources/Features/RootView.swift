@@ -49,28 +49,37 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
         .sheet(item: $appState.pickedFolder) { url in
             AddFolderSheet(folderURL: url, folderBookmark: appState.pickedFolderBookmark)
         }
-        .fileImporter(isPresented: $appState.showFolderImporter,
-                      allowedContentTypes: [.folder]) { result in
-            if case .success(let url) = result {
-                _ = url.startAccessingSecurityScopedResource()
+        .fileImporter(
+            isPresented: Binding(get: { appState.pendingImport != nil },
+                                 set: { if !$0 { appState.pendingImport = nil } }),
+            allowedContentTypes: appState.pendingImport == .folder ? [.folder] : [.audio],
+            allowsMultipleSelection: appState.pendingImport == .files
+        ) { result in
+            guard case .success(let urls) = result else {
+                appState.pendingImport = nil
+                return
+            }
+            switch ImportRouter.route(urls) {
+            case .folder(let url):
+                let didScope = url.startAccessingSecurityScopedResource()
                 let bookmark = try? url.bookmarkData(options: [.minimalBookmark],
                                                       includingResourceValuesForKeys: nil,
                                                       relativeTo: nil)
+                if didScope { url.stopAccessingSecurityScopedResource() }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
                     appState.pickedFolder = url
                     appState.pickedFolderBookmark = bookmark
                 }
-            }
-        }
-        .fileImporter(isPresented: $appState.showFileImporter,
-                      allowedContentTypes: [.audio], allowsMultipleSelection: true) { result in
-            if case .success(let urls) = result {
+            case .files(let urls):
                 Task {
                     await IngestService().addFiles(urls, into: appState.store)
                     await appState.reload()
                     appState.tab = .library
                 }
+            case .none:
+                break
             }
+            appState.pendingImport = nil
         }
     }
 

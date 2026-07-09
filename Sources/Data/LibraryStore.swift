@@ -73,7 +73,7 @@ actor LibraryStore {
 
     /// Candidate per-item IA identifiers for a source, in album order. Used to
     /// pick a representative cover that isn't an IA placeholder.
-    func artworkIds(forSource sourceId: Int64, limit: Int = 12) throws -> [String] {
+    func artworkIds(forSource sourceId: Int64, limit: Int = 40) throws -> [String] {
         try dbQueue.read { db in
             let albums = try Album.filter(Column("sourceId") == sourceId)
                 .order(Column("id"))

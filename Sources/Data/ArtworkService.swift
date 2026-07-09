@@ -14,6 +14,10 @@ actor ArtworkService {
 
     private static let notFoundSentinel = UIImage()
 
+    /// Bump to wipe stale disk/mem caches on next launch (e.g. after fixing
+    /// cover-resolution logic so old waveform images re-resolve).
+    static let cacheGeneration = 2
+
     private let diskCacheDir: URL = {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let dir = docs.appendingPathComponent("Tonearm/artwork_cache")
@@ -29,6 +33,24 @@ actor ArtworkService {
 
     private init() {}
 
+    /// Purges the on-disk artwork cache and empties the in-memory cache if the
+    /// stored generation doesn't match the current one, then stores the current
+    /// generation so the wipe only happens once per bump.
+    func migrateCacheIfNeeded() {
+        let key = "artworkCacheGeneration"
+        let stored = UserDefaults.standard.integer(forKey: key)
+        guard stored < Self.cacheGeneration else { return }
+
+        if let contents = try? FileManager.default.contentsOfDirectory(at: diskCacheDir,
+                                                                       includingPropertiesForKeys: nil) {
+            for url in contents {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        memCache.removeAllObjects()
+        UserDefaults.standard.set(Self.cacheGeneration, forKey: key)
+    }
+
     func artwork(forIdentifier identifier: String) async -> UIImage? {
         let key = identifier as NSString
 
@@ -41,55 +63,45 @@ actor ArtworkService {
             return image
         }
 
-        if let image = await fetchDirectCover(identifier: identifier),
-           !SpectrogramDetector().isSpectrogram(image) {
-            store(image, forKey: key)
-            writeDiskCache(image, key: identifier)
-            return image
-        }
-
-        let encoded = identifier.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? identifier
-        let urlString = "https://archive.org/services/img/\(encoded)"
-        guard let url = URL(string: urlString) else {
-            print("[ArtworkService] cannot build URL for identifier: \(identifier)")
+        // Metadata-driven cover resolution: fetch the IA metadata files list
+        // and let IACoverPicker select the genuine cover, distinguishing real
+        // album art from auto-generated waveform/spectrogram/thumbnail images.
+        guard let metaURL = URL(string: "https://archive.org/metadata/\(identifier)") else {
             memCache.setObject(Self.notFoundSentinel, forKey: key)
             return nil
         }
 
         do {
-            let (data, response) = try await session.data(from: url)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                print("[ArtworkService] non-HTTP response for: \(identifier)")
-                return nil
-            }
-            guard (200..<300).contains(httpResponse.statusCode) else {
-                print("[ArtworkService] HTTP \(httpResponse.statusCode) for: \(identifier)")
-                if httpResponse.statusCode == 404 {
-                    memCache.setObject(Self.notFoundSentinel, forKey: key)
-                }
-                return nil
-            }
-
-            if let finalURL = httpResponse.url, finalURL.lastPathComponent == "notfound.png" {
-                print("[ArtworkService] notfound.png redirect for: \(identifier)")
+            let metaData = try await IAClient.shared.data(from: metaURL)
+            let response = try JSONDecoder().decode(IAMetadataResponse.self, from: metaData)
+            guard let files = response.files,
+                  let coverFilename = IACoverPicker.pickCoverFilename(files: files) else {
                 memCache.setObject(Self.notFoundSentinel, forKey: key)
                 return nil
             }
 
-            guard data.count > 2048, let image = UIImage(data: data) else {
-                print("[ArtworkService] data too small or invalid image for: \(identifier) (\(data.count) bytes)")
-                if httpResponse.statusCode != 200 || data.count < 100 {
-                    memCache.setObject(Self.notFoundSentinel, forKey: key)
-                }
+            let encoded = identifier.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? identifier
+            let fileEncoded = coverFilename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? coverFilename
+            guard let coverURL = URL(string: "https://archive.org/download/\(encoded)/\(fileEncoded)") else {
                 return nil
             }
 
-            // archive.org returns a wide, short grayscale "image not available"
-            // strip (e.g. 180×45) for items with no real cover. Reject it by
-            // aspect ratio so callers fall back to the gradient placeholder.
+            let imageData: Data
+            do {
+                imageData = try await IAClient.shared.data(from: coverURL)
+            } catch {
+                print("[ArtworkService] cover download error for \(identifier)/\(coverFilename): \(error.localizedDescription)")
+                return nil
+            }
+
+            guard imageData.count > 2048, let image = UIImage(data: imageData) else {
+                print("[ArtworkService] data too small or invalid image for: \(identifier) (\(imageData.count) bytes)")
+                return nil
+            }
+
             let w = image.size.width, h = image.size.height
             if w > 0, h > 0, max(w, h) / min(w, h) >= 2.0 {
-                print("[ArtworkService] placeholder aspect ratio for: \(identifier) (\(Int(w))×\(Int(h)))")
+                print("[ArtworkService] extreme aspect for: \(identifier) (\(Int(w))×\(Int(h)))")
                 memCache.setObject(Self.notFoundSentinel, forKey: key)
                 return nil
             }
@@ -107,34 +119,6 @@ actor ArtworkService {
             print("[ArtworkService] fetch error for \(identifier): \(error.localizedDescription)")
             return nil
         }
-    }
-
-    private func fetchDirectCover(identifier: String) async -> UIImage? {
-        let encoded = identifier.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? identifier
-        let candidates = ["cover.jpg", "folder.jpg"]
-
-        for candidate in candidates {
-            guard let url = URL(string: "https://archive.org/download/\(encoded)/\(candidate)") else { continue }
-
-            do {
-                let (data, response) = try await session.data(from: url)
-                guard let httpResponse = response as? HTTPURLResponse,
-                      (200..<300).contains(httpResponse.statusCode) else { continue }
-
-                guard let mimeType = httpResponse.mimeType?.lowercased(),
-                      mimeType.hasPrefix("image/") else { continue }
-
-                guard data.count > 2048, let image = UIImage(data: data) else { continue }
-
-                let w = image.size.width, h = image.size.height
-                if w > 0, h > 0, max(w, h) / min(w, h) >= 10.0 { continue }
-
-                return image
-            } catch {
-                continue
-            }
-        }
-        return nil
     }
 
     /// Returns the first identifier (in order) that resolves to a real cover,

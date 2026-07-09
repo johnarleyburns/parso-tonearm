@@ -5,7 +5,7 @@ enum AppTab: Int, CaseIterable {
     case listen, playlists, library, sources, settings
 }
 
-enum PendingImport {
+enum PendingImport: Equatable {
     case folder, files
 }
 
@@ -26,8 +26,6 @@ final class AppState: ObservableObject {
     @Published var showAddMenu = false
     @Published var showNowPlaying = false
     @Published var showAddSource = false
-    @Published var showFolderImporter = false
-    @Published var showFileImporter = false
     @Published var showCreatePlaylist = false
     @Published var backgroundTitle: String?
     @Published var backgroundDone = false
@@ -47,6 +45,7 @@ final class AppState: ObservableObject {
 
     func bootstrap() async {
         await fixLegacySourceTitles()
+        await ArtworkService.shared.migrateCacheIfNeeded()
         await reload()
         applySettingsToPlayer()
         await CacheStore.shared.garbageCollectStalePartials()
