@@ -24,14 +24,11 @@ final class SpectrogramDetectorTests: XCTestCase {
                 bytes[idx + 3] = 255
             }
         }
-        let ctx = CGContext(
-            data: &bytes,
-            width: w, height: h,
-            bitsPerComponent: 8,
-            bytesPerRow: w * 4,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        )!
+        let rgb = CGColorSpaceCreateDeviceRGB()
+        let info = CGImageAlphaInfo.premultipliedLast.rawValue
+        let ctx = CGContext(data: &bytes, width: w, height: h,
+                            bitsPerComponent: 8, bytesPerRow: w * 4,
+                            space: rgb, bitmapInfo: info)!
         return UIImage(cgImage: ctx.makeImage()!)
     }
 
