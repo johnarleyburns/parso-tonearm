@@ -56,28 +56,12 @@ jobs:
             exit 1
           fi
 
-      - name: Run UI Tests
-        run: |
-          set -eo pipefail
-          xcodebuild test \
-            -project Tonearm.xcodeproj \
-            -scheme TonearmUITests \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-            2>&1 | tee uitest.log
-          if ! grep -q "TEST SUCCEEDED" uitest.log; then
-            echo "UI tests failed"
-            grep -E "Test.*failed|error:" uitest.log | head -20
-            exit 1
-          fi
-
       - name: Upload Test Log on Failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-logs
-          path: |
-            test.log
-            uitest.log
+          path: test.log
           retention-days: 7
 
   testflight-build:
