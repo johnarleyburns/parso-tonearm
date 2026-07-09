@@ -230,7 +230,22 @@ actor ArtworkService {
               let modified = attrs[.modificationDate] as? Date,
               Date().timeIntervalSince(modified) < 7 * 86400,
               let data = try? Data(contentsOf: url) else { return nil }
+        // Renew the entry's lifetime on access so artwork stays cached as long as
+        // its music keeps being played, rather than expiring out from under it.
+        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
         return UIImage(data: data)
+    }
+
+    /// Purges the on-disk and in-memory artwork caches. Call alongside clearing
+    /// the streaming cache so artwork and its music are cleared together.
+    func clearAll() {
+        if let contents = try? FileManager.default.contentsOfDirectory(at: diskCacheDir,
+                                                                       includingPropertiesForKeys: nil) {
+            for url in contents {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        memCache.removeAllObjects()
     }
 
     private func writeDiskCache(_ image: UIImage, key: String) {

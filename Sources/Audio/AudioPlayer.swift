@@ -266,6 +266,11 @@ final class AudioPlayer: ObservableObject {
                 let item = AVPlayerItem(asset: avAsset)
                 _ = item
             }
+            // Cache the artwork alongside its music so prefetched tracks are
+            // fully available offline, not just their audio bytes.
+            Task.detached(priority: .background) {
+                _ = await ArtworkService.shared.artwork(forTrackRow: row)
+            }
         }
     }
 

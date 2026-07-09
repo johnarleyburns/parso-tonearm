@@ -39,6 +39,7 @@ struct SettingsView: View {
             Button("Clear Cache", role: .destructive) {
                 Task {
                     await CacheStore.shared.clearAll()
+                    await ArtworkService.shared.clearAll()
                     try? await appState.store.clearAllCacheEntries()
                     await refresh()
                 }
