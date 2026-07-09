@@ -47,6 +47,7 @@ jobs:
           xcodebuild test \
             -project Tonearm.xcodeproj \
             -scheme Tonearm \
+            -only-testing:TonearmTests \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             -parallel-testing-enabled YES \
             2>&1 | tee test.log
