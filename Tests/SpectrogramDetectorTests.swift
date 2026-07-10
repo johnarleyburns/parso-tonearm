@@ -97,7 +97,8 @@ final class SpectrogramDetectorTests: XCTestCase {
     func testRejectsGrayscalePhotoWithDetail() {
         // Grayscale image with many brightness levels scattered randomly.
         let img = makeImage { x, y in
-            let v = UInt8((x * 13 + y * 17 + (x ^ y) * 7) % 256)
+            let raw: Int = (x * 13) + (y * 17) + ((x ^ y) * 7)
+            let v = UInt8(raw % 256)
             return (v, v, v)
         }
         XCTAssertFalse(detector.isSpectrogram(img),
