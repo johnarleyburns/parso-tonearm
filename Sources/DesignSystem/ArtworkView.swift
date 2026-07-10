@@ -1,5 +1,16 @@
 import SwiftUI
 
+/// Global signal that lets any `ArtworkView` re-resolve its artwork after a
+/// track's art changes (e.g. the user attaches custom artwork), without each
+/// view needing to observe `AppState`.
+@MainActor
+final class ArtworkInvalidation: ObservableObject {
+    static let shared = ArtworkInvalidation()
+    @Published private(set) var version = 0
+    private init() {}
+    func invalidate() { version += 1 }
+}
+
 struct ArtworkView: View {
     var image: UIImage?
     var identifier: String?
@@ -8,6 +19,7 @@ struct ArtworkView: View {
     var cornerRadius: CGFloat = 12
     var fallbackIcon: String? = nil
 
+    @ObservedObject private var invalidation = ArtworkInvalidation.shared
     @State private var fetchedImage: UIImage?
 
     var body: some View {
@@ -39,8 +51,10 @@ struct ArtworkView: View {
     }
 
     private var fetchKey: String {
-        if let identifier, !identifier.isEmpty { return "id-\(identifier)" }
-        return "track-\(trackRow?.track.id ?? -1)"
+        let base: String
+        if let identifier, !identifier.isEmpty { base = "id-\(identifier)" }
+        else { base = "track-\(trackRow?.track.id ?? -1)" }
+        return "\(base)-v\(invalidation.version)"
     }
 
     private var resolvedGradient: LinearGradient {

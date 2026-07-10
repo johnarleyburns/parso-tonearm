@@ -75,6 +75,7 @@ struct NowPlayingView: View {
                       let row = player.currentTrack else { return }
                 try? await appState.store.setCustomArtwork(trackId: row.id, artworkId: artworkId)
                 npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
+                ArtworkInvalidation.shared.invalidate()
                 selectedPhotoItem = nil
             }
         }
