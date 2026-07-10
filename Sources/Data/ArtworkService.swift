@@ -33,6 +33,13 @@ actor ArtworkService {
 
     private init() {}
 
+    /// User setting (FR): when false, no external iTunes artwork lookups occur.
+    private var artworkLookupEnabled = true
+
+    func setArtworkLookupEnabled(_ enabled: Bool) {
+        artworkLookupEnabled = enabled
+    }
+
     /// Purges the on-disk artwork cache and empties the in-memory cache if the
     /// stored generation doesn't match the current one, then stores the current
     /// generation so the wipe only happens once per bump.
@@ -134,22 +141,100 @@ actor ArtworkService {
     }
 
     func artwork(forTrackRow row: TrackRow) async -> UIImage? {
+        await trackArtwork(forTrackRow: row)?.image
+    }
+
+    /// Resolves a track's artwork and reports whether the match is strong enough to
+    /// be remembered as a source's representative cover. Embedded art and IA covers
+    /// are always persistable; iTunes fallbacks are persistable only on a strong
+    /// (artist + album/track aligned) match.
+    func trackArtwork(forTrackRow row: TrackRow) async -> (image: UIImage, persistable: Bool)? {
+        // 1. IA identifier cover (strong).
         if let id = row.album?.artworkId, !id.isEmpty {
-            return await artwork(forIdentifier: id)
+            if let image = await artwork(forIdentifier: id) { return (image, true) }
         }
 
-        guard let asset = row.asset else { return nil }
+        let trackId = row.track.id ?? -1
+        let isRemote = row.asset?.kind == .remote
 
-        let trackKey = "local-\(row.track.id ?? -1)"
+        // For IA tracks the album row carries real artist/title; for local files the
+        // album is a placeholder ("Local Files"/folder), so ignore it and rely on
+        // embedded tags harvested below.
+        var tagArtist: String? = isRemote ? row.album?.artist : nil
+        var tagAlbum: String? = isRemote ? row.album?.title : nil
+        var tagTitle: String? = row.track.title
 
-        if let cached = memCache.object(forKey: trackKey as NSString) {
-            return cached === Self.notFoundSentinel ? nil : cached
+        // 2. Local embedded artwork (strong), harvesting tags for a later iTunes query.
+        if let asset = row.asset, !isRemote {
+            let trackKey = "local-\(trackId)"
+            if let cached = memCache.object(forKey: trackKey as NSString) {
+                if cached !== Self.notFoundSentinel { return (cached, true) }
+            } else if let image = readDiskCache(key: trackKey) {
+                store(image, forKey: trackKey as NSString)
+                return (image, true)
+            } else {
+                let local = await loadLocalFile(asset: asset)
+                tagArtist = local.artist ?? tagArtist
+                tagAlbum = local.album ?? tagAlbum
+                tagTitle = local.title ?? tagTitle
+                if let image = local.image {
+                    store(image, forKey: trackKey as NSString)
+                    writeDiskCache(image, key: trackKey)
+                    return (image, true)
+                } else {
+                    memCache.setObject(Self.notFoundSentinel, forKey: trackKey as NSString)
+                }
+            }
         }
-        if let image = readDiskCache(key: trackKey) {
-            store(image, forKey: trackKey as NSString)
-            return image
+
+        // 3. iTunes fallback (persistable only when strong).
+        if let result = await iTunesArtwork(trackId: trackId, artist: tagArtist,
+                                            album: tagAlbum, title: tagTitle) {
+            return result
+        }
+        return nil
+    }
+
+    /// External iTunes artwork lookup for a track, keyed and cached separately from
+    /// embedded/IA art so a miss on one path doesn't block the other.
+    private func iTunesArtwork(trackId: Int64, artist: String?, album: String?,
+                              title: String?) async -> (image: UIImage, persistable: Bool)? {
+        guard artworkLookupEnabled else { return nil }
+        let key = "itunes-\(trackId)"
+
+        if let cached = memCache.object(forKey: key as NSString) {
+            return cached === Self.notFoundSentinel ? nil : (cached, false)
+        }
+        if let image = readDiskCache(key: key) {
+            store(image, forKey: key as NSString)
+            return (image, false)
         }
 
+        guard let match = await ArtworkSearchClient.shared.artwork(artist: artist, album: album,
+                                                                   trackTitle: title) else {
+            memCache.setObject(Self.notFoundSentinel, forKey: key as NSString)
+            return nil
+        }
+        guard let data = try? await ArtworkSearchClient.shared.imageData(from: match.artworkURL),
+              data.count > 2048, let image = UIImage(data: data) else {
+            memCache.setObject(Self.notFoundSentinel, forKey: key as NSString)
+            return nil
+        }
+        let w = image.size.width, h = image.size.height
+        if w > 0, h > 0, max(w, h) / min(w, h) >= 2.0 {
+            memCache.setObject(Self.notFoundSentinel, forKey: key as NSString)
+            return nil
+        }
+
+        store(image, forKey: key as NSString)
+        writeDiskCache(image, key: key)
+        return (image, match.isStrong)
+    }
+
+    /// Loads a local file's embedded artwork and common tags (artist/album/title) in
+    /// a single metadata pass.
+    private func loadLocalFile(asset: Asset) async
+        -> (image: UIImage?, artist: String?, album: String?, title: String?) {
         let url: URL?
         if let bookmark = asset.bookmark, let (resolved, _) = BookmarkVault.resolve(bookmark) {
             url = resolved
@@ -161,27 +246,37 @@ actor ArtworkService {
             url = nil
         }
 
-        guard let fileURL = url else {
-            memCache.setObject(Self.notFoundSentinel, forKey: trackKey as NSString)
-            return nil
-        }
+        guard let fileURL = url else { return (nil, nil, nil, nil) }
 
         let needsScopedAccess = asset.bookmark != nil
         if needsScopedAccess { _ = fileURL.startAccessingSecurityScopedResource() }
         defer { if needsScopedAccess { fileURL.stopAccessingSecurityScopedResource() } }
 
         let avAsset = AVURLAsset(url: fileURL)
-        guard let metadata = try? await avAsset.load(.commonMetadata),
-              let item = metadata.first(where: { $0.commonKey == .commonKeyArtwork }),
-              let data = try? await item.load(.dataValue),
-              let image = UIImage(data: data) else {
-            memCache.setObject(Self.notFoundSentinel, forKey: trackKey as NSString)
-            return nil
+        guard let metadata = try? await avAsset.load(.commonMetadata) else {
+            return (nil, nil, nil, nil)
         }
 
-        store(image, forKey: trackKey as NSString)
-        writeDiskCache(image, key: trackKey)
-        return image
+        var image: UIImage?
+        var artist: String?
+        var album: String?
+        var title: String?
+        for item in metadata {
+            guard let commonKey = item.commonKey else { continue }
+            switch commonKey {
+            case .commonKeyArtwork:
+                if let data = try? await item.load(.dataValue) { image = UIImage(data: data) }
+            case .commonKeyArtist:
+                artist = try? await item.load(.stringValue)
+            case .commonKeyAlbumName:
+                album = try? await item.load(.stringValue)
+            case .commonKeyTitle:
+                title = try? await item.load(.stringValue)
+            default:
+                break
+            }
+        }
+        return (image, artist, album, title)
     }
 
     @MainActor

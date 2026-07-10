@@ -37,6 +37,7 @@ final class AppState: ObservableObject {
     @AppStorage("streamOnCellular") var streamOnCellular = true
     @AppStorage("preferFLAC") var preferFLAC = false
     @AppStorage("prefetchDepth") var prefetchDepth = 2
+    @AppStorage("artworkLookup") var artworkLookup = true
     @AppStorage("didOnboard") var didOnboard = false
 
     init(store: LibraryStore = .shared) {
@@ -100,6 +101,8 @@ final class AppState: ObservableObject {
         AudioPlayer.shared.streamOnCellular = streamOnCellular
         AudioPlayer.shared.prefetchDepth = prefetchDepth
         AudioPlayer.shared.preferFLAC = preferFLAC
+        let lookup = artworkLookup
+        Task { await ArtworkService.shared.setArtworkLookupEnabled(lookup) }
     }
 
     func reload() async {
@@ -156,13 +159,22 @@ final class AppState: ObservableObject {
             return ResolvedSourceArtwork(identifier: nil, trackRow: row, fallbackIcon: icon)
         }
 
-        let identifier = await firstArtworkId(for: source)
-        return ResolvedSourceArtwork(identifier: identifier, trackRow: nil, fallbackIcon: icon)
+        // IA: prefer a resolvable IA identifier cover.
+        if let identifier = await firstArtworkId(for: source) {
+            return ResolvedSourceArtwork(identifier: identifier, trackRow: nil, fallbackIcon: icon)
+        }
+        // No IA cover: fall back to a representative track so the tile can still get
+        // an iTunes cover from the album's artist/title (same path as Now Playing).
+        if let row = try? await store.firstTrackRow(forSource: id),
+           await ArtworkService.shared.artwork(forTrackRow: row) != nil {
+            return ResolvedSourceArtwork(identifier: nil, trackRow: row, fallbackIcon: icon)
+        }
+        return ResolvedSourceArtwork(identifier: nil, trackRow: nil, fallbackIcon: icon)
     }
 
-    /// Picks the first local track whose embedded artwork extracts successfully,
-    /// preferring a previously remembered `artworkTrackId`. Persists the choice
-    /// so the cover stays stable and cached.
+    /// Picks the first local track with resolvable artwork, preferring a previously
+    /// remembered `artworkTrackId`. Only a strong (persistable) match is remembered
+    /// as the source's representative; weak iTunes guesses are shown but not locked in.
     private func representativeLocalTrackRow(for source: Source, sourceId: Int64) async -> TrackRow? {
         if let remembered = source.artworkTrackId,
            let row = try? await store.trackRow(id: remembered),
@@ -171,13 +183,17 @@ final class AppState: ObservableObject {
         }
 
         let rows = (try? await store.tracks(forSource: sourceId)) ?? []
+        var firstWithArt: TrackRow?
         for row in rows {
-            if await ArtworkService.shared.artwork(forTrackRow: row) != nil {
+            guard let result = await ArtworkService.shared.trackArtwork(forTrackRow: row) else { continue }
+            if firstWithArt == nil { firstWithArt = row }
+            if result.persistable {
                 try? await store.setSourceArtworkTrack(id: sourceId, trackId: row.id)
                 return row
             }
         }
-        return nil
+        // No strong match: show the first weak guess without remembering it.
+        return firstWithArt
     }
 
     func deleteSource(_ source: Source) async {

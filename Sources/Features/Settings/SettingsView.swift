@@ -117,12 +117,17 @@ struct SettingsView: View {
                 }
             }
             .padding(.vertical, 6)
+            Divider().overlay(Palette.hairline)
+            settingToggle("Look up missing artwork",
+                          "Ask Apple's iTunes Search for covers your files lack",
+                          $appState.artworkLookup)
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
         .onChange(of: appState.streamOnCellular) { _, _ in appState.applySettingsToPlayer() }
         .onChange(of: appState.preferFLAC) { _, _ in appState.applySettingsToPlayer() }
         .onChange(of: appState.prefetchDepth) { _, _ in appState.applySettingsToPlayer() }
+        .onChange(of: appState.artworkLookup) { _, _ in appState.applySettingsToPlayer() }
     }
 
     private func settingToggle(_ title: String, _ sub: String, _ binding: Binding<Bool>) -> some View {
@@ -155,7 +160,7 @@ struct SettingsView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Privacy").font(.system(size: 13.5))
-                    Text("No accounts · no ads · no analytics · talks only to archive.org for your added sources")
+                    Text("No accounts · no ads · no analytics · talks to archive.org for your sources and Apple for missing artwork")
                         .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                 }
                 Spacer()
@@ -208,7 +213,7 @@ struct PrivacyView: View {
                         .font(.system(size: 20, weight: .bold))
                     privacyPoint("No accounts", "There is no sign-in and no server that belongs to Platterhead.")
                     privacyPoint("No ads, no analytics", "No third-party SDKs. No tracking of any kind.")
-                    privacyPoint("Network contact", "Only archive.org, and only for sources you added by URL. No search is ever performed for you.")
+                    privacyPoint("Network contact", "archive.org for sources you added by URL, and Apple's iTunes Search for missing cover art. No search is ever performed for you, and artwork lookup can be turned off.")
                     privacyPoint("Your files stay yours", "Local music is referenced in place by secure bookmark and never uploaded.")
                     privacyPoint("The cache is temporary", "Streamed audio is kept in an LRU cache so recently played music works offline. It is evicted automatically and can be cleared anytime.")
                 }

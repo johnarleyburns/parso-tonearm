@@ -57,7 +57,8 @@ with stream-only playback of archive.org audio that the user adds by URL.
    is a URL the user supplies. Mechanical member-enumeration of a user-added list or
    collection is resolution, not search, and must never be exposed as a query UI.
 4. No accounts, no server, no ads, no telemetry. Network contact is limited to
-   archive.org hosts, and only for sources the user added.
+   archive.org hosts for sources the user added, plus Apple's iTunes Search API
+   (opt-out, default on) solely to look up missing album/track cover art.
 5. Modern Apple HIG with Liquid Glass chrome; opaque, legible content layer.
 
 **Non-goals (v2):** IA search/browse/discovery (permanent) · downloads/offline

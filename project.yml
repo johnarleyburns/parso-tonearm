@@ -49,6 +49,12 @@ targets:
             archive.org:
               NSIncludesSubdomains: true
               NSExceptionAllowsInsecureHTTPLoads: false
+            itunes.apple.com:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: false
+            mzstatic.com:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: false
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
