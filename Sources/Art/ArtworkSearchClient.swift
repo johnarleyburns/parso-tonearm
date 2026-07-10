@@ -204,12 +204,13 @@ actor ArtworkSearchClient {
                   let art100 = r.artworkUrl100,
                   let url = upscaledArtworkURL(art100) else { continue }
 
-            // REQUIRED: the query artist must appear within the result's artistName.
-            guard StringSimilarity.tokensContained(needle: queryArtist, in: artistName) else {
-                continue
-            }
+            // REQUIRED: at least half the query-artist tokens must appear within
+            // the result's artistName, so legitimate matches survive extra noise
+            // tokens (city/venue names, qualifiers) that the parser couldn't strip.
+            let artistOverlap = StringSimilarity.tokenOverlap(needle: queryArtist, haystack: artistName)
+            guard artistOverlap >= 0.5 else { continue }
 
-            var score = StringSimilarity.tokenOverlap(needle: queryArtist, haystack: artistName)
+            var score = artistOverlap
 
             // Penalize collab / compilation unless the query itself asked for it.
             let lowerArtist = artistName.lowercased()

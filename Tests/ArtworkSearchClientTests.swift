@@ -144,6 +144,24 @@ final class ArtworkSearchClientTests: XCTestCase {
         XCTAssertNil(match)
     }
 
+    // Fixture 7: "Stephan Bodzin Berlin" (artist + city noise) -> partial
+    // token overlap passes the >=0.5 threshold, returning a weak match.
+    func testArtistWithLocationNoiseAcceptedPartialMatch() {
+        let json = """
+        {"results":[
+          {"wrapperType":"collection","collectionType":"Album","artistName":"Stephan Bodzin","collectionName":"Powers of Ten","artworkUrl100":"https://is1-ssl.mzstatic.com/p/100x100bb.jpg","trackCount":15},
+          {"wrapperType":"collection","collectionType":"Album","artistName":"Skrillex","collectionName":"Quest For Fire","artworkUrl100":"https://is1-ssl.mzstatic.com/q/100x100bb.jpg","trackCount":15}
+        ]}
+        """
+        let match = ArtworkSearchClient.bestMatch(from: decode(json),
+                                                  queryArtist: "Stephan Bodzin Berlin",
+                                                  queryTitle: nil)
+        XCTAssertNotNil(match)
+        XCTAssertEqual(match?.artworkURL.absoluteString,
+                       "https://is1-ssl.mzstatic.com/p/600x600bb.jpg")
+        XCTAssertFalse(match!.isStrong) // extra noise token means inexact artist
+    }
+
     func testEmptyResultsReturnNil() {
         XCTAssertNil(ArtworkSearchClient.bestMatch(from: [], queryArtist: "Anyone", queryTitle: nil))
     }

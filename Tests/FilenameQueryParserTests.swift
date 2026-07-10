@@ -63,4 +63,13 @@ final class FilenameQueryParserTests: XCTestCase {
         XCTAssertNil(q.title)
         XCTAssertEqual(q.cleanedTerm, "Solomun")
     }
+
+    func testArtistWithVenueAndCity() {
+        let q = parser.parse("Stephan Bodzin Boiler Room Berlin Live")
+        // Parser strips known noise (boiler, room, live); city name "Berlin"
+        // survives — the confidence gate handles the remaining extra tokens.
+        XCTAssertEqual(q.artist, "Stephan Bodzin Berlin")
+        XCTAssertNil(q.title)
+        XCTAssertEqual(q.cleanedTerm, "Stephan Bodzin Berlin")
+    }
 }
