@@ -134,6 +134,14 @@ enum Schema {
                 """)
         }
 
+        migrator.registerMigration("v5") { db in
+            try db.create(table: "custom_artwork") { t in
+                t.column("trackId", .integer).notNull().unique()
+                    .references("track", onDelete: .cascade)
+                t.column("artworkId", .text).notNull()
+            }
+        }
+
         return migrator
     }
 }

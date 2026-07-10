@@ -198,6 +198,10 @@ final class AppState: ObservableObject {
 
     func deleteSource(_ source: Source) async {
         guard let id = source.id else { return }
+        // Delete custom artwork files from disk before the cascade removes DB rows.
+        if let artworkIds = try? await store.customArtworkIds(forSource: id) {
+            for aid in artworkIds { await ArtworkStore.shared.delete(id: aid) }
+        }
         try? await store.deleteSource(id: id)
         await reload()
     }

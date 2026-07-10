@@ -6,8 +6,10 @@ struct SettingsView: View {
     @State private var cacheUsed: Int64 = 0
     @State private var cacheLimit: Int64 = CacheStore.defaultLimit
     @State private var cachedCount: Int = 0
+    @State private var customArtworkBytes: Int64 = 0
     @State private var showPrivacy = false
     @State private var showClearConfirm = false
+    @State private var showClearCustomConfirm = false
 
     private let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
@@ -25,6 +27,7 @@ struct SettingsView: View {
                 cacheCard
                 behaviorCard
                 clearCard
+                customArtworkCard
                 privacyCard
                 aboutCard
             }
@@ -44,6 +47,20 @@ struct SettingsView: View {
                     await refresh()
                 }
             }
+        }
+        .alert("Delete all custom artwork?", isPresented: $showClearCustomConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete All", role: .destructive) {
+                Task {
+                    if let ids = try? await appState.store.allCustomArtworkIds() {
+                        for aid in ids { await ArtworkStore.shared.delete(id: aid) }
+                    }
+                    try? await appState.store.clearAllCustomArtwork()
+                    await refresh()
+                }
+            }
+        } message: {
+            Text("Custom artwork you've uploaded will be permanently lost. This cannot be undone.")
         }
     }
 
@@ -155,6 +172,35 @@ struct SettingsView: View {
         .buttonStyle(.plain)
     }
 
+    private var customArtworkCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Custom Artwork").font(.system(size: 13, weight: .bold))
+                Spacer()
+                Text(TimeFmt.megabytes(customArtworkBytes))
+                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+            }
+            .padding(.bottom, 4)
+
+            Text("Images you attach to tracks. Never auto-deleted.")
+                .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                .padding(.bottom, 12)
+
+            Button {
+                showClearCustomConfirm = true
+            } label: {
+                Text("Clear Custom Artwork")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.danger)
+                    .frame(maxWidth: .infinity)
+            }
+            .disabled(customArtworkBytes == 0)
+            .opacity(customArtworkBytes == 0 ? 0.4 : 1)
+        }
+        .padding(15)
+        .glassSurface(cornerRadius: 18)
+    }
+
     private var privacyCard: some View {
         Button { showPrivacy = true } label: {
             HStack {
@@ -200,6 +246,19 @@ struct SettingsView: View {
         cacheUsed = await CacheStore.shared.totalCachedBytes()
         cacheLimit = await CacheStore.shared.currentLimit()
         cachedCount = await CacheStore.shared.cachedTrackCount()
+        customArtworkBytes = customArtworkSize()
+    }
+
+    private func customArtworkSize() -> Int64 {
+        let dir = (try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                in: .userDomainMask, appropriateFor: nil, create: false))
+            .flatMap { $0.appendingPathComponent("Tonearm/Artwork") }
+        guard let dir, let contents = try? FileManager.default.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: [.fileSizeKey]) else { return 0 }
+        return contents.reduce(0) { total, url in
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap(Int64.init) ?? 0
+            return total + size
+        }
     }
 }
 

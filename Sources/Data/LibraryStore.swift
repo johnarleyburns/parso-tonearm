@@ -91,6 +91,57 @@ actor LibraryStore {
         }
     }
 
+    // MARK: - Custom Artwork
+
+    func customArtworkId(for trackId: Int64) throws -> String? {
+        try dbQueue.read { db in
+            try Row.fetchOne(db, sql: "SELECT artworkId FROM custom_artwork WHERE trackId = ?",
+                             arguments: [trackId])?["artworkId"]
+        }
+    }
+
+    func setCustomArtwork(trackId: Int64, artworkId: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: """
+                INSERT INTO custom_artwork (trackId, artworkId) VALUES (?, ?)
+                ON CONFLICT(trackId) DO UPDATE SET artworkId = excluded.artworkId
+                """, arguments: [trackId, artworkId])
+        }
+    }
+
+    func deleteCustomArtwork(trackId: Int64) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM custom_artwork WHERE trackId = ?",
+                           arguments: [trackId])
+        }
+    }
+
+    /// All custom artwork IDs for a source (used to delete files before the
+    /// source cascade removes the DB rows).
+    func customArtworkIds(forSource sourceId: Int64) throws -> [String] {
+        try dbQueue.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT ca.artworkId FROM custom_artwork ca
+                JOIN track t ON t.id = ca.trackId
+                WHERE t.sourceId = ?
+                """, arguments: [sourceId])
+            return rows.compactMap { $0["artworkId"] }
+        }
+    }
+
+    func allCustomArtworkIds() throws -> [String] {
+        try dbQueue.read { db in
+            let rows = try Row.fetchAll(db, sql: "SELECT artworkId FROM custom_artwork")
+            return rows.compactMap { $0["artworkId"] }
+        }
+    }
+
+    func clearAllCustomArtwork() throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM custom_artwork")
+        }
+    }
+
     func touchSourceResolved(id: Int64) throws {
         try dbQueue.write { db in
             try db.execute(sql: "UPDATE source SET lastResolvedAt = ? WHERE id = ?",

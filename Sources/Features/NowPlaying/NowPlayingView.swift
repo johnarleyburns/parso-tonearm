@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PhotosUI
 
 struct NowPlayingView: View {
     @EnvironmentObject var player: AudioPlayer
@@ -10,6 +11,8 @@ struct NowPlayingView: View {
     @State private var npArtwork: UIImage?
     @State private var sleepEndsAt: Date?
     @State private var sleepTask: Task<Void, Never>?
+    @State private var showPhotoPicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
         ZStack {
@@ -33,7 +36,14 @@ struct NowPlayingView: View {
                         LoopingVideoView(url: videoURL, isPlaying: player.isPlaying)
                             .clipShape(RoundedRectangle(cornerRadius: 16))
                             .allowsHitTesting(false)
+                    } else if npArtwork == nil, !player.isAmbient, player.currentTrack != nil {
+                        noImageOverlay
                     }
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 16))
+                .onTapGesture {
+                    guard npArtwork == nil, !player.isAmbient, player.currentTrack != nil else { return }
+                    showPhotoPicker = true
                 }
 
                 meta.padding(.top, 22)
@@ -56,6 +66,33 @@ struct NowPlayingView: View {
         sleepTask = nil
         if sleepEndsAt == nil { player.sleepAtEndOfTrack = false }
         }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+        .onChange(of: selectedPhotoItem) { _, item in
+            guard let item else { return }
+            Task {
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                      let artworkId = await ArtworkStore.shared.store(data),
+                      let row = player.currentTrack else { return }
+                try? await appState.store.setCustomArtwork(trackId: row.id, artworkId: artworkId)
+                npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
+                selectedPhotoItem = nil
+            }
+        }
+    }
+
+    private var noImageOverlay: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "photo.badge.plus")
+                .font(.system(size: 28, weight: .light))
+            Text("No Image")
+                .font(.system(size: 13, weight: .medium))
+            Text("Add Artwork")
+                .font(.system(size: 11, weight: .semibold))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+        }
+        .foregroundStyle(.white.opacity(0.55))
     }
 
     private var npBackground: some View {

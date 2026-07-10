@@ -33,6 +33,12 @@ actor ArtworkStore {
         memory.setObject(img, forKey: id as NSString)
         return img
     }
+
+    func delete(id: String) {
+        memory.removeObject(forKey: id as NSString)
+        let url = dir.appendingPathComponent("\(id).jpg")
+        try? FileManager.default.removeItem(at: url)
+    }
 }
 
 extension UIImage {

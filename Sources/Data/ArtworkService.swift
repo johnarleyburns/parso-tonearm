@@ -149,12 +149,20 @@ actor ArtworkService {
     /// are always persistable; iTunes fallbacks are persistable only on a strong
     /// (artist + album/track aligned) match.
     func trackArtwork(forTrackRow row: TrackRow) async -> (image: UIImage, persistable: Bool)? {
+        let trackId = row.track.id ?? -1
+
+        // 0. Custom user-attached artwork (highest priority, persistable).
+        if let customId = try? await LibraryStore.shared.customArtworkId(for: trackId),
+           !customId.isEmpty,
+           let image = await ArtworkStore.shared.image(id: customId) {
+            return (image, true)
+        }
+
         // 1. IA identifier cover (strong).
         if let id = row.album?.artworkId, !id.isEmpty {
             if let image = await artwork(forIdentifier: id) { return (image, true) }
         }
 
-        let trackId = row.track.id ?? -1
         let isRemote = row.asset?.kind == .remote
 
         // For IA tracks the album row carries real artist/title; for local files the
