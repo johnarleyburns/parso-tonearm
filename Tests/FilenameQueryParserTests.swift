@@ -20,7 +20,8 @@ final class FilenameQueryParserTests: XCTestCase {
     func testDashSeparatedWithTrackNumber() {
         let q = parser.parse("07 - Nicola Cruz - Boiler Room (Live)")
         XCTAssertEqual(q.artist, "Nicola Cruz")
-        XCTAssertEqual(q.title, "Boiler Room")
+        // "Boiler Room" is a venue/recording brand, stripped as noise for artwork lookup.
+        XCTAssertNil(q.title)
     }
 
     func testBracketedLabelRemoved() {
@@ -54,5 +55,12 @@ final class FilenameQueryParserTests: XCTestCase {
     func testDoesNotEatNumericName() {
         let q = parser.parse("3005")
         XCTAssertEqual(q.cleanedTerm, "3005")
+    }
+
+    func testBoilerRoomDJSetStripped() {
+        let q = parser.parse("Solomun Boiler Room DJ Set (320 kbps)")
+        XCTAssertEqual(q.artist, "Solomun")
+        XCTAssertNil(q.title)
+        XCTAssertEqual(q.cleanedTerm, "Solomun")
     }
 }

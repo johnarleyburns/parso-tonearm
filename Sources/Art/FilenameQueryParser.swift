@@ -18,7 +18,7 @@ struct FilenameQueryParser {
         "original", "mix", "remix", "extended", "edit", "radio", "version",
         "live", "dj", "set", "bootleg", "remaster", "remastered", "instrumental",
         "flac", "mp3", "wav", "320", "kbps", "hd", "hq", "official", "audio",
-        "video", "lyrics", "feat", "ft", "featuring"
+        "video", "lyrics", "feat", "ft", "featuring", "boiler", "room"
     ]
 
     func parse(_ raw: String) -> Query {
