@@ -10,34 +10,40 @@ struct PlaylistsView: View {
                     ScreenHeader(title: "Playlists") { appState.showCreatePlaylist = true }
                         .padding(.bottom, 12)
 
+                    Text("Your Playlists")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Palette.ink3)
+                        .kerning(0.6)
+                        .padding(.bottom, 6)
+
                     NavigationLink(value: "ambient") {
                         NavigationRow(icon: "leaf.fill",
                                       title: "Ambient",
                                       subtitle: "Built-in nature sounds for focus, relaxation, or sleep")
                     }
                     .buttonStyle(.plain)
-                    .padding(.bottom, 18)
+
+                    ForEach(appState.playlists) { playlist in
+                        NavigationLink(value: playlist) {
+                            NavigationRow(icon: playlist.kind == .folder ? "folder.fill" : "music.note.list",
+                                          title: playlist.title,
+                                          subtitle: playlist.kind == .folder ? "Folder playlist" : "Manual playlist")
+                        }
+                        .buttonStyle(.plain)
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                Task { await appState.deletePlaylist(playlist) }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
 
                     if appState.playlists.isEmpty {
                         EmptyStateView(icon: "music.note.list",
-                                       title: "No playlists yet",
+                                       title: "Create a playlist",
                                        message: "Tap + to create a playlist from your library, or add a local folder.")
-                            .padding(.top, 60)
-                    } else {
-                        Text("Your Playlists")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Palette.ink3)
-                            .kerning(0.6)
-                            .padding(.bottom, 6)
-
-                        ForEach(appState.playlists) { playlist in
-                            NavigationLink(value: playlist) {
-                                NavigationRow(icon: playlist.kind == .folder ? "folder.fill" : "music.note.list",
-                                              title: playlist.title,
-                                              subtitle: playlist.kind == .folder ? "Folder playlist" : "Manual playlist")
-                            }
-                            .buttonStyle(.plain)
-                        }
+                            .padding(.top, 24)
                     }
                 }
                 .padding(.horizontal, 18)

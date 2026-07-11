@@ -262,6 +262,12 @@ final class AppState: ObservableObject {
         tab = .playlists
     }
 
+    func deletePlaylist(_ playlist: Playlist) async {
+        guard let id = playlist.id else { return }
+        try? await store.deletePlaylist(id: id)
+        await reload()
+    }
+
     // MARK: - Onboarding (TF5, TF9)
 
     /// Adds the given archive.org sources, persisting all of their tracks to the
