@@ -54,19 +54,15 @@ glow_col = Image.new("RGB", (SIZE, SIZE), BRASS)
 img = Image.composite(glow_col, img, glow)
 draw = ImageDraw.Draw(img)
 
-# Rounded tile border.
+# No border.
 margin = int(SIZE * 0.115)
-radius = int(SIZE * 0.11)
-draw.rounded_rectangle([margin, margin, SIZE - margin, SIZE - margin], radius=radius, outline=BRASS_DEEP, width=10)
-# Inner brass hairline
-draw.rounded_rectangle([margin + 16, margin + 16, SIZE - margin - 16, SIZE - margin - 16], radius=radius - 8, outline=BRASS, width=4)
 
 # Atomic number "73" — top-left.
 try:
     f_num = ImageFont.truetype("/System/Library/Fonts/HelveticaNeue.ttc", 130, index=1)
 except:
     f_num = ttf("", size=130, bold=True)
-draw.text((margin + 65, margin + 48), "78", font=f_num, fill=BRASS)
+draw.text((margin + 65, margin + 48), "78", font=f_num, fill=INK)
 
 # "Ta" symbol — large, centered.
 sym = "Pt"
@@ -79,7 +75,7 @@ sw = bbox[2] - bbox[0]
 sh = bbox[3] - bbox[1]
 sx = (SIZE - sw) // 2 - bbox[0]
 sy = (SIZE - sh) // 2 - bbox[1] - 35
-draw.text((sx, sy), sym, font=f_sym, fill=BRASS)
+draw.text((sx, sy), sym, font=f_sym, fill=INK)
 
 # "Platterhead" — below symbol.
 try:
@@ -99,7 +95,7 @@ except:
 wt = "195.08"
 wb_d = draw.textbbox((0, 0), wt, font=f_wt)
 ww = wb_d[2] - wb_d[0]
-draw.text(((SIZE - ww) // 2 - wb_d[0], SIZE - margin - 130), wt, font=f_wt, fill=INK3)
+draw.text(((SIZE - ww) // 2 - wb_d[0], SIZE - margin - 130), wt, font=f_wt, fill=INK)
 
 import sys
 out = sys.argv[1] if len(sys.argv) > 1 else "AppIcon-1024.png"
