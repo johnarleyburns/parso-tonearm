@@ -59,8 +59,18 @@ struct Album: Identifiable, Equatable, Codable {
     var sourceId: Int64
     var title: String
     var artist: String?
+    var artistId: Int64? = nil
+    var albumArtist: String? = nil
+    var genre: String? = nil
     var year: Int?
     var artworkId: String?
+    var syncID: String? = nil
+}
+
+struct Artist: Identifiable, Equatable, Codable, Hashable {
+    var id: Int64?
+    var name: String
+    var sortName: String
     var syncID: String? = nil
 }
 
@@ -76,6 +86,9 @@ struct Track: Identifiable, Equatable, Codable {
     var sampleRate: Int?
     var bitDepthOrBitrate: String?
     var sortKey: String
+    var genre: String? = nil
+    var composer: String? = nil
+    var artistId: Int64? = nil
     var syncID: String? = nil
 }
 

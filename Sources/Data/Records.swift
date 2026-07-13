@@ -11,6 +11,11 @@ extension Album: FetchableRecord, MutablePersistableRecord {
     mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
+extension Artist: FetchableRecord, MutablePersistableRecord {
+    static let databaseTableName = "artist"
+    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+}
+
 extension Track: FetchableRecord, MutablePersistableRecord {
     static let databaseTableName = "track"
     mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
@@ -45,4 +50,3 @@ extension Favorite: FetchableRecord, MutablePersistableRecord {
     static let databaseTableName = "favorite"
     mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
-

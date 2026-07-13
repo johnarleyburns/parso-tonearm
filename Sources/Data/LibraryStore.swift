@@ -206,6 +206,21 @@ actor LibraryStore {
     }
 
     @discardableResult
+    func insertArtist(_ artist: Artist) throws -> Artist {
+        try dbQueue.write { db in
+            var a = artist
+            try a.insert(db)
+            return a
+        }
+    }
+
+    func allArtists() throws -> [Artist] {
+        try dbQueue.read { db in
+            try Artist.order(Column("sortName"), Column("name")).fetchAll(db)
+        }
+    }
+
+    @discardableResult
     func insertTrack(_ track: Track) throws -> Track {
         try dbQueue.write { db in
             var t = track
