@@ -6,6 +6,7 @@ struct TrackRow: Identifiable, Equatable {
     var album: Album?
     var source: Source?
     var asset: Asset?
+    var artist: Artist? = nil
     var id: Int64 { track.id ?? -1 }
 }
 
@@ -354,6 +355,14 @@ actor LibraryStore {
         }
     }
 
+    func smartPlaylistRows(_ playlist: SmartPlaylist) throws -> [TrackRow] {
+        let query = playlist.compiledQuery()
+        return try dbQueue.read { db in
+            let tracks = try Track.fetchAll(db, sql: query.sql, arguments: query.arguments)
+            return try tracks.map { try self.hydrate($0, db: db) }
+        }
+    }
+
     func trackRow(id: Int64) throws -> TrackRow? {
         try dbQueue.read { db in
             guard let t = try Track.fetchOne(db, key: id) else { return nil }
@@ -366,9 +375,13 @@ actor LibraryStore {
         if let albumId = track.albumId {
             album = try Album.fetchOne(db, key: albumId)
         }
+        var artist: Artist?
+        if let artistId = track.artistId {
+            artist = try Artist.fetchOne(db, key: artistId)
+        }
         let source = try Source.fetchOne(db, key: track.sourceId)
         let asset = try Asset.filter(Column("trackId") == track.id).fetchOne(db)
-        return TrackRow(track: track, album: album, source: source, asset: asset)
+        return TrackRow(track: track, album: album, source: source, asset: asset, artist: artist)
     }
 
     private func refreshSearchIndex(trackID: Int64?, db: Database) throws {
