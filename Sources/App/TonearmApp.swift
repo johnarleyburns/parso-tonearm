@@ -20,6 +20,9 @@ struct TonearmApp: App {
                 .environmentObject(player)
                 .preferredColorScheme(.dark)
                 .task { await appState.bootstrap() }
+                .onOpenURL { url in
+                    Task { await appState.handleIncomingURL(url) }
+                }
                 .task {
                     if #available(iOS 17.0, *) {
                         await CloudSyncEngine.shared.reconcile()

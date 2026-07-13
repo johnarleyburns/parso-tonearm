@@ -48,6 +48,49 @@ final class URLGrammarTests: XCTestCase {
                        .item(identifier: "foo", filename: nil))
     }
 
+    // MARK: - Share-sheet payloads
+
+    func testShareSheetURLPayloadExtractsArchiveURL() throws {
+        let raw = "https://archive.org/details/foo"
+        let resolved = SharePayloadResolver.archiveURL(from: [
+            .url(try XCTUnwrap(URL(string: raw)))
+        ])
+
+        XCTAssertEqual(resolved, raw)
+    }
+
+    func testShareSheetTextPayloadExtractsArchiveURL() {
+        let resolved = SharePayloadResolver.archiveURL(from: [
+            .text("Listen here: https://archive.org/details/foo/track01.flac")
+        ])
+
+        XCTAssertEqual(resolved, "https://archive.org/details/foo/track01.flac")
+    }
+
+    func testShareSheetAttributedPayloadExtractsArchiveURL() {
+        let resolved = SharePayloadResolver.archiveURL(from: [
+            .attributedText("Archive source\narchive.org/details/@user/lists/99")
+        ])
+
+        XCTAssertEqual(resolved, "archive.org/details/@user/lists/99")
+    }
+
+    func testShareSheetPayloadSkipsForeignURLs() throws {
+        let resolved = SharePayloadResolver.archiveURL(from: [
+            .url(try XCTUnwrap(URL(string: "https://example.com/details/nope"))),
+            .text("fallback https://archive.org/details/good")
+        ])
+
+        XCTAssertEqual(resolved, "https://archive.org/details/good")
+    }
+
+    func testTonearmDeepLinkRoundTripForSharedURL() throws {
+        let raw = "https://archive.org/details/foo?utm=x"
+        let url = try XCTUnwrap(TonearmDeepLink.url(for: .addSource(raw)))
+
+        XCTAssertEqual(TonearmDeepLink.parse(url), .addSource(raw))
+    }
+
     // MARK: - Rejections
 
     func testEmpty() {

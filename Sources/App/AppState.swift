@@ -244,6 +244,20 @@ final class AppState: ObservableObject {
         }
     }
 
+    func handleIncomingURL(_ url: URL) async {
+        guard case .addSource(let rawURL) = TonearmDeepLink.parse(url) else { return }
+        do {
+            let service = SourceService(preferFLAC: preferFLAC)
+            let preview = try await service.preview(from: rawURL)
+            addSourceInBackground(preview: preview, followUpdates: true)
+            tab = .sources
+        } catch {
+            backgroundTitle = "Shared source"
+            backgroundDone = false
+            backgroundFailed = true
+        }
+    }
+
     func playSource(_ source: Source, startAt: Int = 0) async {
         let tracks = await tracks(for: source)
         guard !tracks.isEmpty else { return }
