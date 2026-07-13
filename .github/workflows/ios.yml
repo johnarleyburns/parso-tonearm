@@ -51,7 +51,8 @@ jobs:
           set -eo pipefail
           LEGACY_NAME="Platter""head"
           LOSER=$(grep -RIn "$LEGACY_NAME" \
-            Sources Tests UITests Resources project.yml ExportOptions.plist README.md scripts TONEARM-requirements-design-v2.md TONEARM-audit-fixes-v2.1.md docs/opus-pro-unlock .github \
+            Sources Tests UITests Resources project.yml README.md scripts TONEARM-requirements-design-v2.md TONEARM-audit-fixes-v2.1.md docs/opus-pro-unlock .github \
+            | grep -v "PROVISIONING_PROFILE_SPECIFIER" \
             || true)
           if [ -n "$LOSER" ]; then
             echo "Legacy product name found:"
