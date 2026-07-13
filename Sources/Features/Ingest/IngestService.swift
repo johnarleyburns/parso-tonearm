@@ -177,7 +177,9 @@ struct IngestService {
                           durationSec: meta.durationSec, codec: ext.uppercased(),
                           sampleRate: meta.sampleRate, bitDepthOrBitrate: meta.bitDepthOrBitrate,
                           sortKey: String(format: "%04d", trackNo),
-                          genre: meta.genre, composer: meta.composer, artistId: artistRow?.id)
+                          genre: meta.genre, composer: meta.composer, artistId: artistRow?.id,
+                          rgTrackGain: meta.rgTrackGain, rgAlbumGain: meta.rgAlbumGain,
+                          rgTrackPeak: meta.rgTrackPeak, rgAlbumPeak: meta.rgAlbumPeak)
         track = try await store.insertTrack(track)
         guard let tid = track.id else { return nil }
         let asset = Asset(id: nil, trackId: tid, kind: .localRef, bookmark: bookmark,

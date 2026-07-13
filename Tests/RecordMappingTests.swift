@@ -36,7 +36,10 @@ final class RecordMappingTests: XCTestCase {
     func testTrackCarriesParentRefs() {
         let track = Track(id: 3, albumId: 2, sourceId: 1, title: "Jam", trackNo: 4, discNo: 1,
                           durationSec: 620, codec: "flac", sampleRate: 44100,
-                          bitDepthOrBitrate: "16", sortKey: "0004", syncID: "TRK-1")
+                          bitDepthOrBitrate: "16", sortKey: "0004",
+                          rgTrackGain: -6.54, rgAlbumGain: -5.25,
+                          rgTrackPeak: 0.91, rgAlbumPeak: 0.98,
+                          syncID: "TRK-1")
         let record = RecordMapping.record(from: track, sourceSyncID: "SRC-1",
                                           albumSyncID: "ALB-1", zoneID: zoneID)
         let decoded = RecordMapping.track(from: record)
@@ -44,6 +47,10 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(decoded?.sourceSyncID, "SRC-1")
         XCTAssertEqual(decoded?.albumSyncID, "ALB-1")
         XCTAssertEqual(decoded?.track.durationSec, 620)
+        XCTAssertEqual(decoded?.track.rgTrackGain, -6.54)
+        XCTAssertEqual(decoded?.track.rgAlbumGain, -5.25)
+        XCTAssertEqual(decoded?.track.rgTrackPeak, 0.91)
+        XCTAssertEqual(decoded?.track.rgAlbumPeak, 0.98)
     }
 
     func testAssetOmitsLocalBookmark() {

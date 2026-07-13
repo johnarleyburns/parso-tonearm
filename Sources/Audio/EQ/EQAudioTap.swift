@@ -3,35 +3,45 @@ import AVFoundation
 
 /// Attaches the 10-band EQ to an `AVPlayerItem` via `MTAudioProcessingTap` on the
 /// item's `audioMix` (valid for the progressive/file assets this app plays). The
-/// tap runs the biquad cascade on the realtime audio thread. When the EQ is
-/// transparent (flat/bypassed) the tap passes samples through untouched so bypass
-/// is bit-transparent.
+/// tap runs the biquad cascade and ReplayGain multiplier on the realtime audio
+/// thread. When both stages are transparent, samples pass through untouched.
 final class EQAudioTap {
 
     /// Shared engine mutated from the main thread (UI) and read on the audio
     /// thread. Access is guarded by a lock.
     private final class Storage {
         var engine: EQEngine
+        var replayGain: Double
         private let lock = NSLock()
-        init(engine: EQEngine) { self.engine = engine }
+        init(engine: EQEngine, replayGain: Double) {
+            self.engine = engine
+            self.replayGain = replayGain
+        }
         func withLock<T>(_ body: (inout EQEngine) -> T) -> T {
             lock.lock(); defer { lock.unlock() }
             return body(&engine)
+        }
+        func withState<T>(_ body: (inout EQEngine, Double) -> T) -> T {
+            lock.lock(); defer { lock.unlock() }
+            return body(&engine, replayGain)
+        }
+        func update(gains: [Double], bypassed: Bool, replayGain: Double) {
+            lock.lock(); defer { lock.unlock() }
+            engine.setGains(gains)
+            engine.bypassed = bypassed
+            self.replayGain = replayGain
         }
     }
 
     private let storage: Storage
 
-    init(engine: EQEngine) {
-        self.storage = Storage(engine: engine)
+    init(engine: EQEngine, replayGain: Double = 1) {
+        self.storage = Storage(engine: engine, replayGain: replayGain)
     }
 
-    /// Updates the EQ gains live (e.g. from the settings sliders).
-    func update(gains: [Double], bypassed: Bool) {
-        storage.withLock { eq in
-            eq.setGains(gains)
-            eq.bypassed = bypassed
-        }
+    /// Updates the processing state live (e.g. from the settings sliders).
+    func update(gains: [Double], bypassed: Bool, replayGain: Double = 1) {
+        storage.update(gains: gains, bypassed: bypassed, replayGain: replayGain)
     }
 
     /// Builds an `AVAudioMix` carrying this EQ tap for the given item's first
@@ -63,15 +73,22 @@ final class EQAudioTap {
                 guard status == noErr else { return }
                 let raw = MTAudioProcessingTapGetStorage(tap)
                 let storage = Unmanaged<Storage>.fromOpaque(raw).takeUnretainedValue()
-                storage.withLock { eq in
-                    guard !eq.isTransparent else { return }  // bit-transparent bypass
+                storage.withState { eq, replayGain in
+                    guard !eq.isTransparent || replayGain != 1 else { return }
                     let abl = UnsafeMutableAudioBufferListPointer(bufferListInOut)
                     for (channel, buffer) in abl.enumerated() {
                         guard let data = buffer.mData else { continue }
                         let count = Int(buffer.mDataByteSize) / MemoryLayout<Float>.size
                         let samples = data.bindMemory(to: Float.self, capacity: count)
                         for i in 0..<count {
-                            samples[i] = Float(eq.process(Double(samples[i]), channel: channel))
+                            var sample = Double(samples[i])
+                            if !eq.isTransparent {
+                                sample = eq.process(sample, channel: channel)
+                            }
+                            if replayGain != 1 {
+                                sample *= replayGain
+                            }
+                            samples[i] = Float(sample)
                         }
                     }
                 }

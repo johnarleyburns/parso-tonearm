@@ -127,7 +127,9 @@ struct SourceService {
                               codec: rt.codec, sampleRate: rt.sampleRate,
                               bitDepthOrBitrate: rt.bitDepthOrBitrate, sortKey: rt.sortKey,
                               genre: rt.genre ?? item.genre, composer: rt.composer,
-                              artistId: trackArtist?.id ?? albumArtist?.id)
+                              artistId: trackArtist?.id ?? albumArtist?.id,
+                              rgTrackGain: rt.rgTrackGain, rgAlbumGain: rt.rgAlbumGain,
+                              rgTrackPeak: rt.rgTrackPeak, rgAlbumPeak: rt.rgAlbumPeak)
             track = try await store.insertTrack(track)
             guard let trackId = track.id else { continue }
             let asset = Asset(id: nil, trackId: trackId, kind: .remote, bookmark: nil,

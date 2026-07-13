@@ -120,6 +120,10 @@ enum RecordMapping {
         record["sampleRate"] = track.sampleRate.map { $0 as CKRecordValue }
         record["bitDepthOrBitrate"] = track.bitDepthOrBitrate as CKRecordValue?
         record["sortKey"] = track.sortKey as CKRecordValue
+        record["rgTrackGain"] = track.rgTrackGain.map { $0 as CKRecordValue }
+        record["rgAlbumGain"] = track.rgAlbumGain.map { $0 as CKRecordValue }
+        record["rgTrackPeak"] = track.rgTrackPeak.map { $0 as CKRecordValue }
+        record["rgAlbumPeak"] = track.rgAlbumPeak.map { $0 as CKRecordValue }
         return record
     }
 
@@ -135,7 +139,12 @@ enum RecordMapping {
                           codec: record["codec"] as? String,
                           sampleRate: record["sampleRate"] as? Int,
                           bitDepthOrBitrate: record["bitDepthOrBitrate"] as? String,
-                          sortKey: sortKey, syncID: syncID)
+                          sortKey: sortKey,
+                          rgTrackGain: record["rgTrackGain"] as? Double,
+                          rgAlbumGain: record["rgAlbumGain"] as? Double,
+                          rgTrackPeak: record["rgTrackPeak"] as? Double,
+                          rgAlbumPeak: record["rgAlbumPeak"] as? Double,
+                          syncID: syncID)
         return (track, record["sourceSyncID"] as? String, record["albumSyncID"] as? String)
     }
 

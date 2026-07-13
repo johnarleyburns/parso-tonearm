@@ -89,6 +89,10 @@ struct Track: Identifiable, Equatable, Codable {
     var genre: String? = nil
     var composer: String? = nil
     var artistId: Int64? = nil
+    var rgTrackGain: Double? = nil
+    var rgAlbumGain: Double? = nil
+    var rgTrackPeak: Double? = nil
+    var rgAlbumPeak: Double? = nil
     var syncID: String? = nil
 }
 

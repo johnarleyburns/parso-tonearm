@@ -59,6 +59,9 @@ final class AudioPlayer: ObservableObject {
     var streamOnCellular = true
     var prefetchDepth = 2
     var preferFLAC = false
+    var replayGainMode: ReplayGain.Mode = .track
+    var replayGainPreampDB: Double = 0
+    var replayGainPreventClipping = true
     var sleepAtEndOfTrack = false
 
     private var player = AVPlayer()
@@ -312,7 +315,7 @@ final class AudioPlayer: ObservableObject {
         item.automaticallyPreservesTimeOffsetFromLive = false
 
         replaceItem(item)
-        applyEQ(to: item)
+        applyEQ(to: item, row: row, setLiveTap: true)
         if autoplay {
             player.play()
             isPlaying = true
@@ -428,7 +431,7 @@ final class AudioPlayer: ObservableObject {
         guard preloadedNextTrackId != row.track.id else { return }
         guard let built = buildItem(for: asset) else { return }
         built.item.preferredForwardBufferDuration = 120
-        applyEQ(to: built.item)
+        applyEQ(to: built.item, row: row, setLiveTap: false)
         preloadedNextItem = built.item
         preloadedNextTrackId = row.track.id
         preloadedNextLoader = built.loader
@@ -449,16 +452,19 @@ final class AudioPlayer: ObservableObject {
     /// `shutdownLoaders()` (the item's audioMix is dropped when the item is
     /// replaced). Reattaches on the preloaded next item so EQ survives near-gapless
     /// swaps.
-    private func applyEQ(to item: AVPlayerItem) {
+    private func applyEQ(to item: AVPlayerItem, row: TrackRow, setLiveTap: Bool) {
         let settings = EQSettingsPersistence.load()
         let store = EQSettingsStore(presets: EQSettingsPersistence.allPresets())
-        guard settings.enabled else {
+        let replayGain = replayGainValue(for: row.track)
+        guard settings.enabled || replayGain != 1 else {
             item.audioMix = nil
             return
         }
-        let engine = EQEngine(gains: store.effectiveBands(for: settings).map(Double.init), bypassed: false)
-        let tap = EQAudioTap(engine: engine)
-        eqTap = tap
+        let gains = settings.enabled ? store.effectiveBands(for: settings).map(Double.init)
+            : Array(repeating: 0, count: EQEngine.bandCount)
+        let engine = EQEngine(gains: gains, bypassed: !settings.enabled)
+        let tap = EQAudioTap(engine: engine, replayGain: replayGain)
+        if setLiveTap { eqTap = tap }
         Task { @MainActor in
             if let mix = await tap.makeAudioMix(for: item) {
                 item.audioMix = mix
@@ -478,14 +484,23 @@ final class AudioPlayer: ObservableObject {
         let normalized = store.normalized(settings)
         EQSettingsPersistence.save(normalized)
         let gains = store.effectiveBands(for: normalized).map(Double.init)
-        if let tap = eqTap, normalized.enabled {
-            tap.update(gains: gains, bypassed: false)
-        } else if !normalized.enabled {
+        let replayGain = currentTrack.map { replayGainValue(for: $0.track) } ?? 1
+        if let tap = eqTap, normalized.enabled || replayGain != 1 {
+            tap.update(gains: gains, bypassed: !normalized.enabled, replayGain: replayGain)
+        } else if !normalized.enabled && replayGain == 1 {
             player.currentItem?.audioMix = nil
-        } else if let item = player.currentItem {
+        } else if let item = player.currentItem, let row = currentTrack {
             // Toggled on/off: (re)attach or clear the mix on the live item.
-            applyEQ(to: item)
+            applyEQ(to: item, row: row, setLiveTap: true)
         }
+    }
+
+    private func replayGainValue(for track: Track) -> Double {
+        ReplayGain.appliedGain(
+            mode: replayGainMode,
+            tags: track.replayGainTags,
+            preampDB: replayGainPreampDB,
+            preventClipping: replayGainPreventClipping)
     }
 
     /// Chooses the FLAC alternate when the user prefers lossless and one exists,

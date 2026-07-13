@@ -108,6 +108,10 @@ struct ResolvedTrack {
     let codec: String?
     let sampleRate: Int?
     let bitDepthOrBitrate: String?
+    let rgTrackGain: Double?
+    let rgAlbumGain: Double?
+    let rgTrackPeak: Double?
+    let rgAlbumPeak: Double?
     let sizeBytes: Int64?
     let remoteURL: URL
     let altFlacURL: URL?
@@ -292,6 +296,10 @@ struct FileSelectionPolicy {
                              durationSec: duration,
                              codec: codec, sampleRate: metadata.sampleRate,
                              bitDepthOrBitrate: metadata.bitDepthOrBitrate,
+                             rgTrackGain: metadata.rgTrackGain,
+                             rgAlbumGain: metadata.rgAlbumGain,
+                             rgTrackPeak: metadata.rgTrackPeak,
+                             rgAlbumPeak: metadata.rgAlbumPeak,
                              sizeBytes: size, remoteURL: streamURL, altFlacURL: flacURL,
                              opusURL: opusURL, requiresRemux: requiresRemux,
                              unsupportedReason: nil, sortKey: sortKey)

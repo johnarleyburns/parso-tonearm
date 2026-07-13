@@ -13,6 +13,10 @@ struct TrackMetadata: Equatable {
     var durationSec: Double?
     var sampleRate: Int?
     var bitDepthOrBitrate: String?
+    var rgTrackGain: Double?
+    var rgAlbumGain: Double?
+    var rgTrackPeak: Double?
+    var rgAlbumPeak: Double?
 }
 
 struct MetadataNormalizer {
@@ -37,6 +41,10 @@ struct MetadataNormalizer {
         var discNumber: [String] = []
         var year: [String] = []
         var bitDepthOrBitrate: [String] = []
+        var replayGainTrackGain: [String] = []
+        var replayGainAlbumGain: [String] = []
+        var replayGainTrackPeak: [String] = []
+        var replayGainAlbumPeak: [String] = []
     }
 
     private enum Field {
@@ -68,7 +76,17 @@ struct MetadataNormalizer {
                 Candidate(value: value, priority: priority(for: item), order: order))
         }
 
-        return normalize(candidates: candidates, fallbackFilename: fallbackFilename)
+        var metadata = normalize(candidates: candidates, fallbackFilename: fallbackFilename)
+        metadata.apply(replayGain: ReplayGain.parse(items: items.map {
+            ReplayGain.TagItem(
+                key: $0.key,
+                commonKey: $0.commonKey,
+                identifier: $0.identifier,
+                keySpace: $0.keySpace,
+                stringValue: $0.stringValue,
+                dataValue: $0.dataValue)
+        }))
+        return metadata
     }
 
     static func normalize(fields: FieldBag, fallbackFilename: String) -> TrackMetadata {
@@ -92,7 +110,13 @@ struct MetadataNormalizer {
         add(.year, fields.year)
         add(.bitDepthOrBitrate, fields.bitDepthOrBitrate)
 
-        return normalize(candidates: candidates, fallbackFilename: fallbackFilename)
+        var metadata = normalize(candidates: candidates, fallbackFilename: fallbackFilename)
+        metadata.apply(replayGain: ReplayGain.Tags(
+            trackGainDB: fields.replayGainTrackGain.lazy.compactMap(ReplayGain.parseGainDB).first,
+            albumGainDB: fields.replayGainAlbumGain.lazy.compactMap(ReplayGain.parseGainDB).first,
+            trackPeak: fields.replayGainTrackPeak.lazy.compactMap(ReplayGain.parsePeak).first,
+            albumPeak: fields.replayGainAlbumPeak.lazy.compactMap(ReplayGain.parsePeak).first))
+        return metadata
     }
 
     private static func normalize(
@@ -281,4 +305,13 @@ struct MetadataNormalizer {
 
 private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
+private extension TrackMetadata {
+    mutating func apply(replayGain tags: ReplayGain.Tags) {
+        rgTrackGain = tags.trackGainDB
+        rgAlbumGain = tags.albumGainDB
+        rgTrackPeak = tags.trackPeak
+        rgAlbumPeak = tags.albumPeak
+    }
 }

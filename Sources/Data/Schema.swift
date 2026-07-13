@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 
 enum Schema {
-    private static let migrationOrder = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]
+    private static let migrationOrder = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"]
 
     static func migrator(upTo target: String? = nil) -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
@@ -327,6 +327,17 @@ enum Schema {
                     ) asset_search ON asset_search.trackId = track.id
                     WHERE track.id IS NOT NULL
                     """)
+            }
+        }
+
+        if shouldRegister("v10", upTo: target) {
+            migrator.registerMigration("v10") { db in
+                try db.alter(table: "track") { t in
+                    t.add(column: "rgTrackGain", .double)
+                    t.add(column: "rgAlbumGain", .double)
+                    t.add(column: "rgTrackPeak", .double)
+                    t.add(column: "rgAlbumPeak", .double)
+                }
             }
         }
 
