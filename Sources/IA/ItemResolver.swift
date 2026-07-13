@@ -11,8 +11,37 @@ struct IAFile: Decodable {
     let track: String?
     let album: String?
     let artist: String?
+    let creator: String?
+    let genre: String?
+    let composer: String?
+    let disc: String?
+    let year: String?
     let bitrate: String?
     let height: String?
+
+    init(name: String, format: String?, source: String?, original: String?,
+         length: String?, size: String?, title: String?, track: String?,
+         album: String?, artist: String?, bitrate: String?, height: String?,
+         creator: String? = nil, genre: String? = nil, composer: String? = nil,
+         disc: String? = nil, year: String? = nil) {
+        self.name = name
+        self.format = format
+        self.source = source
+        self.original = original
+        self.length = length
+        self.size = size
+        self.title = title
+        self.track = track
+        self.album = album
+        self.artist = artist
+        self.creator = creator
+        self.genre = genre
+        self.composer = composer
+        self.disc = disc
+        self.year = year
+        self.bitrate = bitrate
+        self.height = height
+    }
 }
 
 struct IAMetadataResponse: Decodable {
@@ -25,6 +54,8 @@ struct IAMetadataResponse: Decodable {
         let rights: String?
         let date: String?
         let year: String?
+        let subject: StringOrArray?
+        let genre: StringOrArray?
     }
     let metadata: Meta?
     let files: [IAFile]?
@@ -56,6 +87,7 @@ struct ResolvedItem {
     let identifier: String
     let title: String
     let artist: String?
+    let genre: String?
     let year: Int?
     let licenseText: String?
     let mediatype: String?
@@ -64,7 +96,14 @@ struct ResolvedItem {
 
 struct ResolvedTrack {
     let title: String
+    let artist: String?
+    let albumTitle: String?
+    let albumArtist: String?
+    let genre: String?
+    let composer: String?
     let trackNo: Int?
+    let discNo: Int?
+    let year: Int?
     let durationSec: Double?
     let codec: String?
     let sampleRate: Int?
@@ -100,14 +139,18 @@ struct ItemResolver {
         let title = response.metadata?.title?.first ?? identifier
         let artist = response.metadata?.creator?.first
         let year = response.metadata.flatMap { Int($0.year ?? $0.date?.prefix(4).description ?? "") }
+        let genre = response.metadata?.genre?.first ?? response.metadata?.subject?.first
         let license = response.metadata?.licenseurl ?? response.metadata?.rights
 
         let files = response.files ?? []
         let tracks = FileSelectionPolicy(preferFLAC: preferFLAC)
-            .selectTracks(files: files, identifier: identifier, itemArtist: artist)
+            .selectTracks(files: files, identifier: identifier, itemArtist: artist,
+                          itemGenre: genre, itemYear: year)
 
-        return ResolvedItem(identifier: identifier, title: title, artist: artist, year: year,
-                            licenseText: license, mediatype: mediatype, tracks: tracks)
+        return ResolvedItem(identifier: identifier, title: title, artist: artist,
+                            genre: genre, year: year,
+                            licenseText: license, mediatype: mediatype,
+                            tracks: tracks)
     }
 }
 
@@ -126,7 +169,8 @@ struct FileSelectionPolicy {
     private static let candidateExtensions: Set<String> =
         coldPlayableExtensions.union(["opus"])
 
-    func selectTracks(files: [IAFile], identifier: String, itemArtist: String?) -> [ResolvedTrack] {
+    func selectTracks(files: [IAFile], identifier: String, itemArtist: String?,
+                      itemGenre: String? = nil, itemYear: Int? = nil) -> [ResolvedTrack] {
         // 1. Candidates by real audio extension (drops spectrograms/art/etc., but
         //    now keeps opus per D9).
         let candidates = files.filter { isCandidateAudio($0, identifier: identifier) }
@@ -150,7 +194,8 @@ struct FileSelectionPolicy {
             let flacAlt = groupFiles.first { ($0.name as NSString).pathExtension.lowercased() == "flac" }
             let opusAlt = groupFiles.first { ($0.name as NSString).pathExtension.lowercased() == "opus" }
             results.append(makeTrack(chosen, flacAlt: flacAlt, opusAlt: opusAlt,
-                                     identifier: identifier, fallbackArtist: itemArtist))
+                                     identifier: identifier, fallbackArtist: itemArtist,
+                                     fallbackGenre: itemGenre, fallbackYear: itemYear))
         }
         return results.sorted { a, b in
             switch (a.trackNo, b.trackNo) {
@@ -204,7 +249,8 @@ struct FileSelectionPolicy {
     }
 
     private func makeTrack(_ f: IAFile, flacAlt: IAFile?, opusAlt: IAFile?,
-                           identifier: String, fallbackArtist: String?) -> ResolvedTrack {
+                           identifier: String, fallbackArtist: String?,
+                           fallbackGenre: String?, fallbackYear: Int?) -> ResolvedTrack {
         let ext = (f.name as NSString).pathExtension.lowercased()
         let streamURL = downloadURL(identifier: identifier, name: f.name)!
         let flacURL: URL? = {
@@ -219,15 +265,36 @@ struct FileSelectionPolicy {
         let codec = ext.uppercased()
         let duration = f.length.flatMap { parseDuration($0) }
         let size = f.size.flatMap { Int64($0) }
-        let title = f.title ?? (f.name as NSString).lastPathComponent.replacingOccurrences(of: ".\(ext)", with: "")
-        let trackNo = f.track.flatMap { Int($0.split(separator: "/").first.map(String.init) ?? $0) }
+        var fields = MetadataNormalizer.FieldBag()
+        fields.title = [f.title].compactMap { $0 }
+        fields.artist = [f.artist, f.creator, fallbackArtist].compactMap { $0 }
+        fields.albumTitle = [f.album].compactMap { $0 }
+        fields.albumArtist = [fallbackArtist].compactMap { $0 }
+        fields.genre = [f.genre, fallbackGenre].compactMap { $0 }
+        fields.composer = [f.composer].compactMap { $0 }
+        fields.trackNumber = [f.track].compactMap { $0 }
+        fields.discNumber = [f.disc].compactMap { $0 }
+        fields.year = [f.year, fallbackYear.map(String.init)].compactMap { $0 }
+        fields.bitDepthOrBitrate = [f.bitrate].compactMap { $0 }
+        let metadata = MetadataNormalizer.normalize(fields: fields, fallbackFilename: f.name)
+        let title = metadata.title ?? (f.name as NSString).lastPathComponent.replacingOccurrences(of: ".\(ext)", with: "")
+        let trackNo = metadata.trackNo
         let sortKey = String(format: "%04d_%@", trackNo ?? 9999, title.lowercased())
-        return ResolvedTrack(title: title, trackNo: trackNo, durationSec: duration,
-                            codec: codec, sampleRate: nil,
-                            bitDepthOrBitrate: f.bitrate.map { "\($0) kbps" },
-                            sizeBytes: size, remoteURL: streamURL, altFlacURL: flacURL,
-                            opusURL: opusURL, requiresRemux: requiresRemux,
-                            unsupportedReason: nil, sortKey: sortKey)
+        return ResolvedTrack(title: title,
+                             artist: metadata.artist,
+                             albumTitle: metadata.albumTitle,
+                             albumArtist: metadata.albumArtist,
+                             genre: metadata.genre,
+                             composer: metadata.composer,
+                             trackNo: trackNo,
+                             discNo: metadata.discNo,
+                             year: metadata.year,
+                             durationSec: duration,
+                             codec: codec, sampleRate: metadata.sampleRate,
+                             bitDepthOrBitrate: metadata.bitDepthOrBitrate,
+                             sizeBytes: size, remoteURL: streamURL, altFlacURL: flacURL,
+                             opusURL: opusURL, requiresRemux: requiresRemux,
+                             unsupportedReason: nil, sortKey: sortKey)
     }
 
     private func downloadURL(identifier: String, name: String) -> URL? {

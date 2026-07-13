@@ -7,10 +7,15 @@ final class FileSelectionPolicyTests: XCTestCase {
 
     private func file(_ name: String, format: String, source: String? = nil,
                       original: String? = nil, track: String? = nil,
-                      title: String? = nil, height: String? = "0") -> IAFile {
+                      title: String? = nil, height: String? = "0",
+                      album: String? = nil, artist: String? = nil,
+                      genre: String? = nil, composer: String? = nil,
+                      disc: String? = nil, year: String? = nil,
+                      bitrate: String? = nil) -> IAFile {
         IAFile(name: name, format: format, source: source, original: original,
                length: "100", size: "1000", title: title, track: track,
-               album: nil, artist: nil, bitrate: nil, height: height)
+               album: album, artist: artist, bitrate: bitrate, height: height,
+               genre: genre, composer: composer, disc: disc, year: year)
     }
 
     // Regression: audio files carry height="0"; they must not be rejected.
@@ -113,6 +118,30 @@ final class FileSelectionPolicyTests: XCTestCase {
             .selectTracks(files: files, identifier: "wtc", itemArtist: nil)
         XCTAssertEqual(tracks.count, 1)
         XCTAssertEqual(tracks.first?.codec, "FLAC")
+    }
+
+    func testArchiveMetadataMapsToResolvedTrackFields() {
+        let files = [
+            file("03 Song.mp3", format: "VBR MP3", track: "3/12", title: "Song",
+                 album: "Album", artist: "Track Artist", genre: "Folk",
+                 composer: "Composer", disc: "2/3", year: "1972", bitrate: "256")
+        ]
+
+        let track = FileSelectionPolicy(preferFLAC: false)
+            .selectTracks(files: files, identifier: "album", itemArtist: "Album Artist",
+                          itemGenre: "Fallback Genre", itemYear: 1970)
+            .first
+
+        XCTAssertEqual(track?.title, "Song")
+        XCTAssertEqual(track?.artist, "Track Artist")
+        XCTAssertEqual(track?.albumTitle, "Album")
+        XCTAssertEqual(track?.albumArtist, "Album Artist")
+        XCTAssertEqual(track?.genre, "Folk")
+        XCTAssertEqual(track?.composer, "Composer")
+        XCTAssertEqual(track?.trackNo, 3)
+        XCTAssertEqual(track?.discNo, 2)
+        XCTAssertEqual(track?.year, 1972)
+        XCTAssertEqual(track?.bitDepthOrBitrate, "256 kbps")
     }
 
     // MARK: - Ranked policy (T1.1)

@@ -111,16 +111,23 @@ struct SourceService {
     }
 
     private func persistItem(_ item: ResolvedItem, sourceId: Int64, store: LibraryStore) async throws {
-        let artworkId = item.identifier ?? item.title
+        let artworkId = item.identifier
+        let albumArtistName = item.artist
+        let albumArtist = try await artist(for: albumArtistName, store: store)
         var album = Album(id: nil, sourceId: sourceId, title: item.title,
-                          artist: item.artist, year: item.year, artworkId: artworkId)
+                          artist: item.artist, artistId: albumArtist?.id,
+                          albumArtist: ArtistNamePolicy.normalize(albumArtistName),
+                          genre: item.genre, year: item.year, artworkId: artworkId)
         album = try await store.insertAlbum(album)
         guard let albumId = album.id else { return }
         for rt in item.tracks {
+            let trackArtist = try await artist(for: rt.artist ?? item.artist, store: store)
             var track = Track(id: nil, albumId: albumId, sourceId: sourceId, title: rt.title,
-                              trackNo: rt.trackNo, discNo: nil, durationSec: rt.durationSec,
+                              trackNo: rt.trackNo, discNo: rt.discNo, durationSec: rt.durationSec,
                               codec: rt.codec, sampleRate: rt.sampleRate,
-                              bitDepthOrBitrate: rt.bitDepthOrBitrate, sortKey: rt.sortKey)
+                              bitDepthOrBitrate: rt.bitDepthOrBitrate, sortKey: rt.sortKey,
+                              genre: rt.genre ?? item.genre, composer: rt.composer,
+                              artistId: trackArtist?.id ?? albumArtist?.id)
             track = try await store.insertTrack(track)
             guard let trackId = track.id else { continue }
             let asset = Asset(id: nil, trackId: trackId, kind: .remote, bookmark: nil,
@@ -130,6 +137,11 @@ struct SourceService {
                               sizeBytes: rt.sizeBytes, unsupportedReason: rt.unsupportedReason)
             try await store.insertAsset(asset)
         }
+    }
+
+    private func artist(for rawName: String?, store: LibraryStore) async throws -> Artist? {
+        guard let rawName, let name = ArtistNamePolicy.normalize(rawName) else { return nil }
+        return try await store.findOrCreateArtist(name: name, sortName: ArtistNamePolicy.sortName(for: name))
     }
 
     private func identifier(for parsed: IAResolvedURL) -> String? {

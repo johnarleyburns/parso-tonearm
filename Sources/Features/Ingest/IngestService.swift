@@ -158,12 +158,26 @@ struct IngestService {
         let unsupported = Self.audioExtensions.contains(ext) ? nil : "unsupported format"
         _ = supported
 
+        let artistName = meta.artist ?? meta.albumArtist
+        let artistRow = try await artist(for: artistName, store: store)
+        if let albumId {
+            let albumArtist = meta.albumArtist ?? meta.artist
+            let albumArtistRow = try await artist(for: albumArtist, store: store)
+            try await store.fillAlbumMetadataIfEmpty(id: albumId,
+                                                     artistId: albumArtistRow?.id ?? artistRow?.id,
+                                                     albumArtist: albumArtist,
+                                                     genre: meta.genre,
+                                                     year: meta.year)
+        }
+
+        let trackNo = meta.trackNo ?? (index + 1)
         var track = Track(id: nil, albumId: albumId, sourceId: sourceId,
                           title: meta.title ?? url.deletingPathExtension().lastPathComponent,
-                          trackNo: meta.trackNo ?? (index + 1), discNo: nil,
-                          durationSec: meta.duration, codec: ext.uppercased(),
-                          sampleRate: nil, bitDepthOrBitrate: nil,
-                          sortKey: String(format: "%04d", meta.trackNo ?? (index + 1)))
+                          trackNo: trackNo, discNo: meta.discNo,
+                          durationSec: meta.durationSec, codec: ext.uppercased(),
+                          sampleRate: meta.sampleRate, bitDepthOrBitrate: meta.bitDepthOrBitrate,
+                          sortKey: String(format: "%04d", trackNo),
+                          genre: meta.genre, composer: meta.composer, artistId: artistRow?.id)
         track = try await store.insertTrack(track)
         guard let tid = track.id else { return nil }
         let asset = Asset(id: nil, trackId: tid, kind: .localRef, bookmark: bookmark,
@@ -173,34 +187,66 @@ struct IngestService {
         return tid
     }
 
-    struct FileMeta {
-        var title: String?
-        var artist: String?
-        var trackNo: Int?
-        var duration: Double?
-    }
-
-    private func extractMetadata(_ url: URL) async -> FileMeta {
+    private func extractMetadata(_ url: URL) async -> TrackMetadata {
         let accessed = url.startAccessingSecurityScopedResource()
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }
         let asset = AVURLAsset(url: url)
-        var meta = FileMeta()
-        if let duration = try? await asset.load(.duration) {
-            let secs = CMTimeGetSeconds(duration)
-            if secs.isFinite && secs > 0 { meta.duration = secs }
+        var metadataItems: [AVMetadataItem] = []
+        if let items = try? await asset.load(.metadata) {
+            metadataItems.append(contentsOf: items)
         }
         if let items = try? await asset.load(.commonMetadata) {
-            for item in items {
-                guard let key = item.commonKey else { continue }
-                switch key {
-                case .commonKeyTitle:
-                    meta.title = try? await item.load(.stringValue)
-                case .commonKeyArtist:
-                    meta.artist = try? await item.load(.stringValue)
-                default: break
+            metadataItems.append(contentsOf: items)
+        }
+        let normalizedItems = await Self.normalizeMetadataItems(metadataItems)
+        var meta = MetadataNormalizer.normalize(
+            items: normalizedItems,
+            fallbackFilename: url.lastPathComponent)
+        if let duration = try? await asset.load(.duration) {
+            let secs = CMTimeGetSeconds(duration)
+            if secs.isFinite && secs > 0 { meta.durationSec = secs }
+        }
+        if let audioTracks = try? await asset.loadTracks(withMediaType: .audio),
+           let audioTrack = audioTracks.first,
+           let descriptions = try? await audioTrack.load(.formatDescriptions) {
+            for description in descriptions {
+                guard let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(description)?.pointee else {
+                    continue
+                }
+                if meta.sampleRate == nil, asbd.mSampleRate.isFinite, asbd.mSampleRate > 0 {
+                    meta.sampleRate = Int(asbd.mSampleRate.rounded())
+                }
+                if meta.bitDepthOrBitrate == nil, asbd.mBitsPerChannel > 0 {
+                    meta.bitDepthOrBitrate = "\(asbd.mBitsPerChannel)-bit"
                 }
             }
         }
         return meta
+    }
+
+    private func artist(for rawName: String?, store: LibraryStore) async throws -> Artist? {
+        guard let rawName else { return nil }
+        guard let name = ArtistNamePolicy.normalize(rawName) else { return nil }
+        return try await store.findOrCreateArtist(name: name, sortName: ArtistNamePolicy.sortName(for: name))
+    }
+
+    private static func normalizeMetadataItems(_ items: [AVMetadataItem]) async -> [MetadataNormalizer.Item] {
+        var result: [MetadataNormalizer.Item] = []
+        for item in items {
+            let stringValue = try? await item.load(.stringValue)
+            let numberValue = try? await item.load(.numberValue)
+            let dataValue = try? await item.load(.dataValue)
+            let key = item.key.map { String(describing: $0) }
+            result.append(
+                MetadataNormalizer.Item(
+                    key: key,
+                    commonKey: item.commonKey?.rawValue,
+                    identifier: item.identifier?.rawValue,
+                    keySpace: item.keySpace?.rawValue,
+                    stringValue: stringValue,
+                    numberValue: numberValue?.doubleValue,
+                    dataValue: dataValue))
+        }
+        return result
     }
 }

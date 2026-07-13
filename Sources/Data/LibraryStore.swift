@@ -220,6 +220,43 @@ actor LibraryStore {
         }
     }
 
+    func findOrCreateArtist(name: String, sortName: String) throws -> Artist {
+        try dbQueue.write { db in
+            if let existing = try Artist.fetchOne(
+                db,
+                sql: "SELECT * FROM artist WHERE name = ? COLLATE NOCASE",
+                arguments: [name])
+            {
+                return existing
+            }
+            var artist = Artist(id: nil, name: name, sortName: sortName, syncID: UUID().uuidString)
+            try artist.insert(db)
+            return artist
+        }
+    }
+
+    func fillAlbumMetadataIfEmpty(
+        id: Int64,
+        artistId: Int64?,
+        albumArtist: String?,
+        genre: String?,
+        year: Int?
+    ) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    UPDATE album
+                    SET artistId = COALESCE(artistId, ?),
+                        artist = COALESCE(artist, ?),
+                        albumArtist = COALESCE(albumArtist, ?),
+                        genre = COALESCE(genre, ?),
+                        year = COALESCE(year, ?)
+                    WHERE id = ?
+                    """,
+                arguments: [artistId, albumArtist, albumArtist, genre, year, id])
+        }
+    }
+
     @discardableResult
     func insertTrack(_ track: Track) throws -> Track {
         try dbQueue.write { db in
