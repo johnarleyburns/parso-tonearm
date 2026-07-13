@@ -284,6 +284,15 @@ struct AlbumCell: View {
         case .iaList: return "List"
         case .iaCollection: return "Collection"
         case .iaFavorites: return "Favorites"
+        case .subsonic: return "Subsonic"
+        case .webDAV: return "WebDAV"
+        case .smb: return "SMB"
+        case .jellyfin: return "Jellyfin"
+        case .plex: return "Plex"
+        case .dropbox: return "Dropbox"
+        case .googleDrive: return "Google Drive"
+        case .oneDrive: return "OneDrive"
+        case .pCloud: return "pCloud"
         }
     }
 }

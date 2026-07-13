@@ -89,7 +89,11 @@ struct ProvenanceChip: View {
     private var badge: (String, String) {
         switch source?.kind {
         case .local, .none: return ("iphone", "ON DEVICE")
-        default: return ("cloud", "ARCHIVE.ORG")
+        case .iaItem, .iaList, .iaCollection, .iaFavorites:
+            return ("cloud", "ARCHIVE.ORG")
+        case .subsonic, .webDAV, .smb, .jellyfin, .plex,
+             .dropbox, .googleDrive, .oneDrive, .pCloud:
+            return ("network", "REMOTE")
         }
     }
 }

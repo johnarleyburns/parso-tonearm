@@ -69,6 +69,15 @@ struct SourceRow: View {
         case .iaList: return "List · streams from archive.org"
         case .iaCollection: return "Collection · streams from archive.org"
         case .iaFavorites: return "Favorites · streams from archive.org"
+        case .subsonic: return "Subsonic library"
+        case .webDAV: return "WebDAV library"
+        case .smb: return "SMB library"
+        case .jellyfin: return "Jellyfin library"
+        case .plex: return "Plex library"
+        case .dropbox: return "Dropbox library"
+        case .googleDrive: return "Google Drive library"
+        case .oneDrive: return "OneDrive library"
+        case .pCloud: return "pCloud library"
         }
     }
 }

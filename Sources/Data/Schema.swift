@@ -2,7 +2,9 @@ import Foundation
 import GRDB
 
 enum Schema {
-    private static let migrationOrder = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"]
+    private static let migrationOrder = [
+        "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11"
+    ]
 
     static func migrator(upTo target: String? = nil) -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
@@ -338,6 +340,13 @@ enum Schema {
                     t.add(column: "rgTrackPeak", .double)
                     t.add(column: "rgAlbumPeak", .double)
                 }
+            }
+        }
+
+        if shouldRegister("v11", upTo: target) {
+            migrator.registerMigration("v11") { _ in
+                // SourceKind's remote provider cases are persisted in the existing
+                // source.kind text column; v11 records that model boundary.
             }
         }
 

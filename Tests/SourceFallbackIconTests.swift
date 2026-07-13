@@ -30,6 +30,22 @@ final class SourceFallbackIconTests: XCTestCase {
         XCTAssertEqual(makeSource(kind: .iaItem).fallbackIcon, "music.note")
     }
 
+    func testRemoteServerIcons() {
+        XCTAssertEqual(makeSource(kind: .subsonic).fallbackIcon, "server.rack")
+        XCTAssertEqual(makeSource(kind: .jellyfin).fallbackIcon, "server.rack")
+        XCTAssertEqual(makeSource(kind: .plex).fallbackIcon, "server.rack")
+    }
+
+    func testRemoteStorageIcons() {
+        let icon = "externaldrive.connected.to.line.below"
+        XCTAssertEqual(makeSource(kind: .webDAV).fallbackIcon, icon)
+        XCTAssertEqual(makeSource(kind: .smb).fallbackIcon, icon)
+        XCTAssertEqual(makeSource(kind: .dropbox).fallbackIcon, icon)
+        XCTAssertEqual(makeSource(kind: .googleDrive).fallbackIcon, icon)
+        XCTAssertEqual(makeSource(kind: .oneDrive).fallbackIcon, icon)
+        XCTAssertEqual(makeSource(kind: .pCloud).fallbackIcon, icon)
+    }
+
     func testLocalFilesAndFolderIconsDiffer() {
         let files = makeSource(kind: .local, localIsFolder: false).fallbackIcon
         let folder = makeSource(kind: .local, localIsFolder: true).fallbackIcon

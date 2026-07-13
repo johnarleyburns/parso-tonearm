@@ -6,6 +6,15 @@ enum SourceKind: String, Codable, CaseIterable {
     case iaList
     case iaCollection
     case iaFavorites
+    case subsonic
+    case webDAV
+    case smb
+    case jellyfin
+    case plex
+    case dropbox
+    case googleDrive
+    case oneDrive
+    case pCloud
 }
 
 enum AssetKind: String, Codable {
@@ -50,6 +59,10 @@ struct Source: Identifiable, Equatable, Codable, Hashable {
             return "square.stack.fill"
         case .iaItem:
             return "music.note"
+        case .subsonic, .jellyfin, .plex:
+            return "server.rack"
+        case .webDAV, .smb, .dropbox, .googleDrive, .oneDrive, .pCloud:
+            return "externaldrive.connected.to.line.below"
         }
     }
 }
