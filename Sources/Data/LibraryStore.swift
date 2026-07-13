@@ -302,6 +302,13 @@ actor LibraryStore {
                     WHERE id = ?
                     """,
                 arguments: [artistId, albumArtist, albumArtist, genre, year, id])
+            let trackIDs = try Int64.fetchAll(
+                db,
+                sql: "SELECT id FROM track WHERE albumId = ?",
+                arguments: [id])
+            for trackID in trackIDs {
+                try self.refreshSearchIndex(trackID: trackID, db: db)
+            }
         }
     }
 
@@ -310,6 +317,7 @@ actor LibraryStore {
         try dbQueue.write { db in
             var t = track
             try t.insert(db)
+            try self.refreshSearchIndex(trackID: t.id, db: db)
             return t
         }
     }
@@ -319,6 +327,7 @@ actor LibraryStore {
         try dbQueue.write { db in
             var a = asset
             try a.insert(db)
+            try self.refreshSearchIndex(trackID: a.trackId, db: db)
             return a
         }
     }
@@ -356,34 +365,74 @@ actor LibraryStore {
         return TrackRow(track: track, album: album, source: source, asset: asset)
     }
 
-    // MARK: - Search (FTS5 + LIKE)
+    private func refreshSearchIndex(trackID: Int64?, db: Database) throws {
+        guard let trackID else { return }
+        try db.execute(sql: "DELETE FROM track_fts WHERE rowid = ?", arguments: [trackID])
+        guard let row = try Row.fetchOne(db, sql: """
+            SELECT track.title AS title,
+                   COALESCE(track_artist.name, album.albumArtist, album.artist, album_artist.name, '') AS artist,
+                   COALESCE(album.title, '') AS album,
+                   COALESCE(track.genre, '') AS trackGenre,
+                   COALESCE(album.genre, '') AS albumGenre,
+                   asset.relPath AS relPath,
+                   asset.remoteURL AS remoteURL,
+                   asset.altRemoteURL AS altRemoteURL
+            FROM track
+            LEFT JOIN album ON album.id = track.albumId
+            LEFT JOIN artist track_artist ON track_artist.id = track.artistId
+            LEFT JOIN artist album_artist ON album_artist.id = album.artistId
+            LEFT JOIN asset ON asset.trackId = track.id
+            WHERE track.id = ?
+            ORDER BY asset.id
+            LIMIT 1
+            """, arguments: [trackID]) else { return }
+
+        let title: String = row["title"]
+        let artist: String = row["artist"]
+        let album: String = row["album"]
+        let trackGenre: String = row["trackGenre"]
+        let albumGenre: String = row["albumGenre"]
+        let genre = [trackGenre, albumGenre]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let filename = searchFilename(
+            relPath: row["relPath"],
+            remoteURL: row["remoteURL"],
+            altRemoteURL: row["altRemoteURL"])
+
+        try db.execute(sql: """
+            INSERT INTO track_fts(rowid, title, artist, album, genre, filename)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, arguments: [trackID, title, artist, album, genre, filename])
+    }
+
+    private func searchFilename(relPath: String?, remoteURL: String?, altRemoteURL: String?) -> String {
+        for value in [relPath, remoteURL, altRemoteURL] {
+            let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !trimmed.isEmpty else { continue }
+            if let url = URL(string: trimmed), !url.lastPathComponent.isEmpty {
+                return url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
+            }
+            let filename = URL(fileURLWithPath: trimmed).lastPathComponent
+            if !filename.isEmpty { return filename }
+        }
+        return ""
+    }
+
+    // MARK: - Search (FTS5)
 
     func search(_ query: String) throws -> [TrackRow] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
+        guard let expression = SearchQueryBuilder.matchExpression(for: query) else { return [] }
         return try dbQueue.read { db in
-            let pattern = FTS5Pattern(matchingAllPrefixesIn: trimmed)
-            var tracks: [Track] = []
-            if let pattern {
-                let sql = """
-                SELECT track.* FROM track
-                JOIN track_fts ON track_fts.rowid = track.id
-                WHERE track_fts MATCH ?
-                ORDER BY rank
-                """
-                tracks = try Track.fetchAll(db, sql: sql, arguments: [pattern])
-            }
-            if tracks.isEmpty {
-                let like = "%\(trimmed)%"
-                let sql = """
-                SELECT track.* FROM track
-                LEFT JOIN album ON album.id = track.albumId
-                WHERE track.title LIKE ? OR album.title LIKE ? OR album.artist LIKE ?
-                ORDER BY track.sortKey
-                LIMIT 200
-                """
-                tracks = try Track.fetchAll(db, sql: sql, arguments: [like, like, like])
-            }
+            let sql = """
+            SELECT track.* FROM track
+            JOIN track_fts ON track_fts.rowid = track.id
+            WHERE track_fts MATCH ?
+            ORDER BY rank, track.sortKey
+            LIMIT 200
+            """
+            let tracks = try Track.fetchAll(db, sql: sql, arguments: [expression])
             return try tracks.map { try self.hydrate($0, db: db) }
         }
     }

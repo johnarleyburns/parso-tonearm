@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 
 enum Schema {
-    private static let migrationOrder = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"]
+    private static let migrationOrder = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]
 
     static func migrator(upTo target: String? = nil) -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
@@ -284,7 +284,57 @@ enum Schema {
             }
         }
 
+        if shouldRegister("v9", upTo: target) {
+            migrator.registerMigration("v9") { db in
+                let triggers = try String.fetchAll(
+                    db,
+                    sql: """
+                        SELECT name FROM sqlite_master
+                        WHERE type = 'trigger' AND sql LIKE '%track_fts%'
+                        """)
+                for trigger in triggers {
+                    try db.execute(sql: "DROP TRIGGER IF EXISTS \(quotedIdentifier(trigger))")
+                }
+                try db.execute(sql: "DROP TABLE IF EXISTS track_fts")
+                try db.create(virtualTable: "track_fts", using: FTS5()) { t in
+                    t.tokenizer = .unicode61()
+                    t.column("title")
+                    t.column("artist")
+                    t.column("album")
+                    t.column("genre")
+                    t.column("filename")
+                }
+                try db.execute(sql: """
+                    INSERT INTO track_fts(rowid, title, artist, album, genre, filename)
+                    SELECT track.id,
+                           track.title,
+                           COALESCE(track_artist.name, album.albumArtist, album.artist, album_artist.name, ''),
+                           COALESCE(album.title, ''),
+                           TRIM(COALESCE(track.genre, '') || ' ' || COALESCE(album.genre, '')),
+                           COALESCE(asset_search.filename, '')
+                    FROM track
+                    LEFT JOIN album ON album.id = track.albumId
+                    LEFT JOIN artist track_artist ON track_artist.id = track.artistId
+                    LEFT JOIN artist album_artist ON album_artist.id = album.artistId
+                    LEFT JOIN (
+                        SELECT trackId,
+                               MIN(COALESCE(NULLIF(relPath, ''),
+                                            NULLIF(remoteURL, ''),
+                                            NULLIF(altRemoteURL, ''),
+                                            '')) AS filename
+                        FROM asset
+                        GROUP BY trackId
+                    ) asset_search ON asset_search.trackId = track.id
+                    WHERE track.id IS NOT NULL
+                    """)
+            }
+        }
+
         return migrator
+    }
+
+    private static func quotedIdentifier(_ value: String) -> String {
+        "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 
     private static func shouldRegister(_ migration: String, upTo target: String?) -> Bool {
