@@ -170,6 +170,12 @@ struct TrackContextMenu: ViewModifier {
     func body(content: Content) -> some View {
         content.contextMenu {
             Button { player.playSingle(row) } label: { Label("Play", systemImage: "play.fill") }
+            Button { player.insertNext(row) } label: {
+                Label("Play Next", systemImage: "arrowshape.turn.up.right.fill")
+            }
+            Button { player.appendToQueue(row) } label: {
+                Label("Add to Queue", systemImage: "text.badge.plus")
+            }
             Button {
                 Task { await appState.toggleFavorite(row) }
             } label: {

@@ -127,6 +127,55 @@ final class AudioPlayer: ObservableObject {
         play(tracks: [track], startAt: 0)
     }
 
+    func moveQueueItems(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        guard !isAmbient, offsets.count == 1, let source = offsets.first else { return }
+        let target = destination > source ? destination - 1 : destination
+        moveQueueItem(from: source, to: target)
+    }
+
+    func moveQueueItem(from source: Int, to destination: Int) {
+        guard !isAmbient else { return }
+        let edited = QueueEditor.move(
+            from: source,
+            to: destination,
+            in: QueueEditor.State(queue: queue, currentIndex: index))
+        applyQueueEdit(edited, reloadCurrent: false, autoplay: isPlaying)
+    }
+
+    func removeFromQueue(atOffsets offsets: IndexSet) {
+        guard !isAmbient, !offsets.isEmpty else { return }
+        var state = QueueEditor.State(queue: queue, currentIndex: index)
+        var removedCurrent = false
+        for offset in offsets.sorted(by: >) {
+            let normalized = state.normalized
+            if offset == normalized.currentIndex { removedCurrent = true }
+            state = QueueEditor.remove(at: offset, in: normalized)
+        }
+        applyQueueEdit(state, reloadCurrent: removedCurrent, autoplay: isPlaying)
+    }
+
+    func removeFromQueue(at position: Int) {
+        removeFromQueue(atOffsets: IndexSet(integer: position))
+    }
+
+    func insertNext(_ row: TrackRow) {
+        guard !isAmbient else { return }
+        let wasEmpty = queue.isEmpty
+        let edited = QueueEditor.insertNext(
+            row,
+            in: QueueEditor.State(queue: queue, currentIndex: index))
+        applyQueueEdit(edited, reloadCurrent: wasEmpty, autoplay: false)
+    }
+
+    func appendToQueue(_ row: TrackRow) {
+        guard !isAmbient else { return }
+        let wasEmpty = queue.isEmpty
+        let edited = QueueEditor.append(
+            row,
+            in: QueueEditor.State(queue: queue, currentIndex: index))
+        applyQueueEdit(edited, reloadCurrent: wasEmpty, autoplay: false)
+    }
+
     func togglePlayPause() {
         if isAmbient {
             if isPlaying { loopPlayer?.pause() } else { loopPlayer?.play() }
@@ -166,6 +215,51 @@ final class AudioPlayer: ObservableObject {
         let time = CMTime(seconds: seconds, preferredTimescale: 600)
         player.seek(to: time)
         currentTime = seconds
+    }
+
+    private func applyQueueEdit(_ edited: QueueEditor.State<TrackRow>,
+                                reloadCurrent: Bool,
+                                autoplay: Bool) {
+        queue = edited.queue
+        index = edited.currentIndex
+        if shuffle { unshuffledQueue = queue }
+
+        guard !queue.isEmpty else {
+            clearQueuePlayback()
+            return
+        }
+
+        if reloadCurrent {
+            loadCurrent(autoplay: autoplay)
+        } else {
+            invalidatePreloadedNext()
+            prefetchNext()
+            updateNowPlaying()
+        }
+    }
+
+    private func clearQueuePlayback() {
+        shutdownLoaders()
+        for loader in prefetchLoaders.values {
+            loader.shutdown()
+        }
+        prefetchLoaders.removeAll()
+        prefetchedURLs.removeAll()
+        preloadedNextLoader?.shutdown()
+        preloadedNextItem = nil
+        preloadedNextTrackId = nil
+        preloadedNextLoader = nil
+
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        isPlaying = false
+        currentTime = 0
+        duration = 0
+        cacheState = .none
+        cachePercent = 0
+        cachedFraction = 0
+        queueSource = .none
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
     // MARK: - Loading
