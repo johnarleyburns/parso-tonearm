@@ -322,7 +322,7 @@ struct SettingsView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Privacy").font(.system(size: 13.5))
-                    Text("No accounts of ours; optional Apple iCloud sync · no ads · no analytics · talks to archive.org for your sources and Apple for missing artwork")
+                    Text("No accounts of ours; optional Apple iCloud sync · no ads · no analytics · talks only to archive.org, Apple artwork search, and services you explicitly connect")
                         .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                 }
                 Spacer()
@@ -409,8 +409,8 @@ struct PrivacyView: View {
                         .font(.system(size: 20, weight: .bold))
                     privacyPoint("No accounts", "There is no sign-in and no server that belongs to Tonearm.")
                     privacyPoint("Optional iCloud sync", "A Pro feature, off by default. When you turn it on, your library, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Tonearm server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
-                    privacyPoint("No ads, no analytics", "No third-party SDKs. No tracking of any kind.")
-                    privacyPoint("Network contact", "archive.org for sources you added by URL, and Apple's iTunes Search for missing cover art. No search is ever performed for you, and artwork lookup can be turned off.")
+                    privacyPoint("No ads, no analytics", "No tracking of any kind. OAuth tokens are used only for services you explicitly connect.")
+                    privacyPoint("Network contact", "archive.org for sources you added by URL, Apple's iTunes Search for missing cover art, and remote-library providers you add yourself: Subsonic/Navidrome, Jellyfin, Plex, WebDAV, SMB, Dropbox, Google Drive, OneDrive, or pCloud. No search is ever performed for you, and artwork lookup can be turned off.")
                     privacyPoint("Your files stay yours", "Local music is referenced in place by secure bookmark and never uploaded.")
                     privacyPoint("The cache is temporary", "Streamed audio is kept in an LRU cache so recently played music works offline. It is evicted automatically and can be cleared anytime.")
                 }
