@@ -71,6 +71,7 @@ final class AudioPlayer: ObservableObject {
     }
     var crossfadeCurve: CrossfadeCurve = .equalPower
     var sleepAtEndOfTrack = false
+    @Published private(set) var sleepTimerEndsAt: Date?
 
     private var player = AVPlayer()
     private var loopPlayer: AVQueuePlayer?
@@ -102,6 +103,7 @@ final class AudioPlayer: ObservableObject {
     private var eqTap: EQAudioTap?
     private let pathMonitor = NWPathMonitor()
     private let pathMonitorQueue = DispatchQueue(label: "guru.parso.tonearm.network")
+    private var sleepTimerTask: Task<Void, Never>?
 
     var currentTrack: TrackRow? {
         if isAmbient, let channelId = ambientChannelId {
@@ -232,6 +234,35 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
+    func applySleepTimer(_ plan: IntentResolver.SleepTimerPlan, now: Date = Date()) {
+        sleepTimerTask?.cancel()
+        sleepTimerTask = nil
+        sleepTimerEndsAt = nil
+
+        switch plan {
+        case .minutes(let minutes):
+            sleepAtEndOfTrack = false
+            let end = now.addingTimeInterval(TimeInterval(minutes * 60))
+            sleepTimerEndsAt = end
+            sleepTimerTask = Task { [weak self] in
+                let remaining = max(0, end.timeIntervalSinceNow)
+                guard remaining > 0 else { return }
+                try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard let self, self.sleepTimerEndsAt == end else { return }
+                    self.pausePlayback()
+                    self.sleepTimerEndsAt = nil
+                    self.sleepTimerTask = nil
+                }
+            }
+        case .endOfTrack:
+            sleepAtEndOfTrack = true
+        case .cancel:
+            sleepAtEndOfTrack = false
+        }
+    }
+
     func next() {
         if isAmbient { nextAmbientTrack(); return }
         guard !queue.isEmpty else { return }
@@ -306,6 +337,7 @@ final class AudioPlayer: ObservableObject {
         cachePercent = 0
         cachedFraction = 0
         queueSource = .none
+        applySleepTimer(.cancel)
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         WidgetSnapshotPublisher.publishEmpty()
     }

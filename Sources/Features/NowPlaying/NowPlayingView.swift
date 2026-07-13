@@ -9,8 +9,6 @@ struct NowPlayingView: View {
     @State private var scrubValue: Double = 0
     @State private var isScrubbing = false
     @State private var npArtwork: UIImage?
-    @State private var sleepEndsAt: Date?
-    @State private var sleepTask: Task<Void, Never>?
     @State private var showPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showEQ = false
@@ -63,9 +61,6 @@ struct NowPlayingView: View {
         .task(id: player.currentTrack?.id) {
             guard let row = player.currentTrack else { return }
             npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
-        sleepTask?.cancel()
-        sleepTask = nil
-        if sleepEndsAt == nil { player.sleepAtEndOfTrack = false }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
         .sheet(isPresented: $showEQ) { EQView() }
@@ -259,14 +254,14 @@ struct NowPlayingView: View {
                 Button("45 minutes") { startSleepTimer(minutes: 45) }
                 Button("1 hour") { startSleepTimer(minutes: 60) }
                 Button("End of track") { setSleepAtEndOfTrack(true) }
-                if sleepEndsAt != nil || player.sleepAtEndOfTrack {
+                if player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack {
                     Divider()
                     Button("Cancel Timer", role: .destructive) { cancelSleep() }
                 }
             } label: {
-                Image(systemName: sleepEndsAt != nil || player.sleepAtEndOfTrack ? "moon.zzz.fill" : "moon.zzz")
+                Image(systemName: player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack ? "moon.zzz.fill" : "moon.zzz")
                     .font(.system(size: 16))
-                    .foregroundStyle((sleepEndsAt != nil || player.sleepAtEndOfTrack) ? Palette.brass : .white.opacity(0.6))
+                    .foregroundStyle((player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack) ? Palette.brass : .white.opacity(0.6))
                     .frame(width: 36, height: 36)
                     .background(.ultraThinMaterial, in: Circle())
             }
@@ -283,34 +278,14 @@ struct NowPlayingView: View {
     // MARK: - Sleep timer
 
     private func startSleepTimer(minutes: Int) {
-        sleepTask?.cancel()
-        player.sleepAtEndOfTrack = false
-        let end = Date().addingTimeInterval(TimeInterval(minutes * 60))
-        sleepEndsAt = end
-        sleepTask = Task {
-            let remaining = end.timeIntervalSinceNow
-            guard remaining > 0 else { return }
-            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                player.togglePlayPause()
-                sleepEndsAt = nil
-                sleepTask = nil
-            }
-        }
+        player.applySleepTimer(.minutes(minutes))
     }
 
     private func setSleepAtEndOfTrack(_ on: Bool) {
-        sleepTask?.cancel()
-        sleepTask = nil
-        sleepEndsAt = nil
-        player.sleepAtEndOfTrack = on
+        player.applySleepTimer(on ? .endOfTrack : .cancel)
     }
 
     private func cancelSleep() {
-        sleepTask?.cancel()
-        sleepTask = nil
-        sleepEndsAt = nil
-        player.sleepAtEndOfTrack = false
+        player.applySleepTimer(.cancel)
     }
 }
