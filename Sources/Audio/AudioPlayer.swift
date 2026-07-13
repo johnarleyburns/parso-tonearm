@@ -62,6 +62,14 @@ final class AudioPlayer: ObservableObject {
     var replayGainMode: ReplayGain.Mode = .track
     var replayGainPreampDB: Double = 0
     var replayGainPreventClipping = true
+    var crossfadeSeconds: Double = 0 {
+        didSet {
+            if normalizedCrossfadeSeconds == 0 {
+                cancelCrossfade(resetVolume: true)
+            }
+        }
+    }
+    var crossfadeCurve: CrossfadeCurve = .equalPower
     var sleepAtEndOfTrack = false
 
     private var player = AVPlayer()
@@ -84,6 +92,11 @@ final class AudioPlayer: ObservableObject {
     private var preloadedNextItem: AVPlayerItem?
     private var preloadedNextTrackId: Int64?
     private var preloadedNextLoader: CachingResourceLoader?
+    private var crossfadePlayer: AVPlayer?
+    private var crossfadeNextTrackId: Int64?
+    private var crossfadeNextIndex: Int?
+    private var crossfadeNextLoader: CachingResourceLoader?
+    private var crossfadeCompletionInFlight = false
     /// EQ (T4.1): a single tap engine shared across items; reattached to the
     /// preloaded next item so EQ survives near-gapless swaps.
     private var eqTap: EQAudioTap?
@@ -242,6 +255,7 @@ final class AudioPlayer: ObservableObject {
     }
 
     private func clearQueuePlayback() {
+        cancelCrossfade(resetVolume: true)
         shutdownLoaders()
         for loader in prefetchLoaders.values {
             loader.shutdown()
@@ -282,6 +296,7 @@ final class AudioPlayer: ObservableObject {
             return
         }
 
+        cancelCrossfade(resetVolume: true)
         shutdownLoaders()
 
         if asset.kind == .builtIn {
@@ -416,14 +431,8 @@ final class AudioPlayer: ObservableObject {
     /// the next item is unsupported, or when it is already preloaded.
     private func preloadNextItem() {
         guard !isAmbient, repeatMode != .one else { return }
-        let nextIndex: Int
-        if index < queue.count - 1 {
-            nextIndex = index + 1
-        } else if repeatMode == .all, !queue.isEmpty {
-            nextIndex = 0
-        } else {
-            return
-        }
+        guard crossfadePlayer == nil else { return }
+        guard let nextIndex = upcomingQueueIndex() else { return }
         guard queue.indices.contains(nextIndex) else { return }
         let row = queue[nextIndex]
         guard let asset = row.asset, asset.unsupportedReason == nil else { return }
@@ -435,6 +444,173 @@ final class AudioPlayer: ObservableObject {
         preloadedNextItem = built.item
         preloadedNextTrackId = row.track.id
         preloadedNextLoader = built.loader
+    }
+
+    private func upcomingQueueIndex() -> Int? {
+        guard !queue.isEmpty, !isAmbient, repeatMode != .one else { return nil }
+        if index < queue.count - 1 { return index + 1 }
+        if repeatMode == .all, queue.count > 1 { return 0 }
+        return nil
+    }
+
+    // MARK: - Crossfade
+
+    private var normalizedCrossfadeSeconds: Double {
+        guard crossfadeSeconds.isFinite else { return 0 }
+        return max(0, crossfadeSeconds)
+    }
+
+    private func updateCrossfade(position: Double) {
+        let fadeSeconds = normalizedCrossfadeSeconds
+        guard fadeSeconds > 0,
+              !sleepAtEndOfTrack,
+              let nextIndex = upcomingQueueIndex(),
+              queue.indices.contains(nextIndex),
+              let current = currentTrack else {
+            cancelCrossfade(resetVolume: true)
+            return
+        }
+
+        let next = queue[nextIndex]
+        guard !CrossfadeCurve.suppressesForGaplessAlbum(
+            current: CrossfadeCurve.AlbumContinuity(row: current),
+            next: CrossfadeCurve.AlbumContinuity(row: next)
+        ) else {
+            cancelCrossfade(resetVolume: true)
+            return
+        }
+
+        let currentDuration = duration > 0 ? duration : (current.track.durationSec ?? 0)
+        let gains = CrossfadeCurve.gains(position: position,
+                                         duration: currentDuration,
+                                         fadeSeconds: fadeSeconds,
+                                         curve: crossfadeCurve)
+        guard gains.active else {
+            player.volume = 1
+            return
+        }
+
+        guard prepareCrossfadePlayer(for: next, at: nextIndex) else { return }
+        player.volume = Float(min(max(gains.outgoing, 0), 1))
+        crossfadePlayer?.volume = Float(min(max(gains.incoming, 0), 1))
+        crossfadePlayer?.play()
+
+        if gains.incoming >= 1 || position >= currentDuration {
+            finishCrossfade(to: nextIndex, row: next)
+        }
+    }
+
+    @discardableResult
+    private func prepareCrossfadePlayer(for row: TrackRow, at nextIndex: Int) -> Bool {
+        if crossfadePlayer != nil,
+           crossfadeNextTrackId == row.track.id,
+           crossfadeNextIndex == nextIndex {
+            return true
+        }
+
+        cancelCrossfade(resetVolume: false)
+        guard let asset = row.asset,
+              asset.unsupportedReason == nil,
+              playbackDecision(for: asset) != .skipWiFiOnly else {
+            return false
+        }
+
+        let built: (item: AVPlayerItem, loader: CachingResourceLoader?)?
+        if let preloadedNextItem, preloadedNextTrackId == row.track.id {
+            built = (preloadedNextItem, preloadedNextLoader)
+            self.preloadedNextItem = nil
+            preloadedNextTrackId = nil
+            preloadedNextLoader = nil
+        } else {
+            built = buildItem(for: asset)
+        }
+
+        guard let built else { return false }
+        built.item.preferredForwardBufferDuration = 120
+        built.item.automaticallyPreservesTimeOffsetFromLive = false
+        applyEQ(to: built.item, row: row, setLiveTap: false)
+
+        let nextPlayer = AVPlayer(playerItem: built.item)
+        nextPlayer.volume = 0
+        crossfadePlayer = nextPlayer
+        crossfadeNextTrackId = row.track.id
+        crossfadeNextIndex = nextIndex
+        crossfadeNextLoader = built.loader
+        nextPlayer.play()
+        return true
+    }
+
+    private func finishCrossfade(to nextIndex: Int, row: TrackRow) {
+        guard !crossfadeCompletionInFlight,
+              let nextPlayer = crossfadePlayer,
+              queue.indices.contains(nextIndex) else {
+            return
+        }
+        crossfadeCompletionInFlight = true
+        defer { crossfadeCompletionInFlight = false }
+
+        let oldPlayer = player
+        let oldLoaders = loaders
+        loaders.removeAll()
+
+        if let obs = itemEndObserver {
+            NotificationCenter.default.removeObserver(obs)
+            itemEndObserver = nil
+        }
+        if let observer = timeObserver {
+            oldPlayer.removeTimeObserver(observer)
+            timeObserver = nil
+        }
+
+        oldPlayer.pause()
+        oldPlayer.replaceCurrentItem(with: nil)
+        oldLoaders.forEach { $0.shutdown() }
+
+        player = nextPlayer
+        player.volume = 1
+        if let loader = crossfadeNextLoader {
+            loaders.append(loader)
+        }
+        crossfadePlayer = nil
+        crossfadeNextTrackId = nil
+        crossfadeNextIndex = nil
+        crossfadeNextLoader = nil
+
+        index = nextIndex
+        let seconds = player.currentTime().seconds
+        currentTime = seconds.isFinite ? max(0, seconds) : 0
+        if let rowDuration = row.track.durationSec {
+            duration = rowDuration
+        } else {
+            let itemDuration = player.currentItem?.duration.seconds ?? 0
+            duration = itemDuration.isFinite && itemDuration > 0 ? itemDuration : 0
+        }
+        if let item = player.currentItem {
+            observeEnd(of: item)
+        }
+        addPeriodicObserver()
+        updateNowPlaying()
+        prefetchNext()
+        preloadNextItem()
+        if let trackId = row.track.id {
+            Task { try? await LibraryStore.shared.recordPlay(trackId: trackId) }
+        }
+    }
+
+    private func cancelCrossfade(resetVolume: Bool) {
+        guard crossfadePlayer != nil || crossfadeNextLoader != nil || crossfadeNextIndex != nil else {
+            if resetVolume { player.volume = 1 }
+            return
+        }
+        crossfadePlayer?.pause()
+        crossfadePlayer?.replaceCurrentItem(with: nil)
+        crossfadePlayer = nil
+        crossfadeNextTrackId = nil
+        crossfadeNextIndex = nil
+        crossfadeNextLoader?.shutdown()
+        crossfadeNextLoader = nil
+        crossfadeCompletionInFlight = false
+        if resetVolume { player.volume = 1 }
     }
 
     private func shutdownLoaders() {
@@ -511,15 +687,24 @@ final class AudioPlayer: ObservableObject {
     }
 
     private func replaceItem(_ item: AVPlayerItem) {
+        player.replaceCurrentItem(with: item)
+        observeEnd(of: item)
+    }
+
+    private func observeEnd(of item: AVPlayerItem) {
         if let obs = itemEndObserver {
             NotificationCenter.default.removeObserver(obs)
         }
-        player.replaceCurrentItem(with: item)
         itemEndObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
+                if let nextIndex = self.crossfadeNextIndex,
+                   self.queue.indices.contains(nextIndex) {
+                    self.finishCrossfade(to: nextIndex, row: self.queue[nextIndex])
+                    return
+                }
                 if self.sleepAtEndOfTrack {
                     self.sleepAtEndOfTrack = false
                     self.pause()
@@ -617,6 +802,7 @@ final class AudioPlayer: ObservableObject {
                 if let d = self.player.currentItem?.duration.seconds, d.isFinite, d > 0 {
                     self.duration = d
                 }
+                self.updateCrossfade(position: time.seconds)
                 if time.seconds > 0 && time.seconds != previous {
                     self.stallModel.confirmPlayback(generation: self.stallModel.loadGeneration)
                 }
@@ -741,6 +927,7 @@ final class AudioPlayer: ObservableObject {
 
     func playAmbient(channelId: String) {
         guard let url = BuiltInContentProvider.bundledAudioURL(forChannelId: channelId) else { return }
+        cancelCrossfade(resetVolume: true)
         shutdownLoopPlayer()
         shutdownLoaders()
         player.pause()
@@ -845,6 +1032,7 @@ final class AudioPlayer: ObservableObject {
     /// Drops any preloaded next item whose position no longer follows the current
     /// track (e.g. after shuffle reorders the queue), then repreloads.
     private func invalidatePreloadedNext() {
+        cancelCrossfade(resetVolume: true)
         preloadedNextLoader?.shutdown()
         preloadedNextItem = nil
         preloadedNextTrackId = nil
