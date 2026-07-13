@@ -9,6 +9,12 @@ struct TrackRow: Identifiable, Equatable {
     var id: Int64 { track.id ?? -1 }
 }
 
+struct PlaylistTrackRow: Identifiable, Equatable {
+    var item: PlaylistItem
+    var row: TrackRow
+    var id: Int64 { item.id ?? -1 }
+}
+
 actor LibraryStore {
     static let shared = try! LibraryStore()
 
@@ -456,7 +462,16 @@ actor LibraryStore {
 
     func renamePlaylist(id: Int64, title: String) throws {
         try dbQueue.write { db in
+            let existing = try Playlist.fetchOne(db, key: id)
             try db.execute(sql: "UPDATE playlist SET title = ? WHERE id = ?", arguments: [title, id])
+            if existing?.kind == .folder, let oldTitle = existing?.title {
+                try db.execute(
+                    sql: """
+                        UPDATE source SET title = ?
+                        WHERE kind = ? AND title = ?
+                        """,
+                    arguments: [title, SourceKind.local.rawValue, oldTitle])
+            }
         }
     }
 
@@ -474,13 +489,48 @@ actor LibraryStore {
     }
 
     func playlistItems(playlistId: Int64) throws -> [TrackRow] {
+        try playlistTrackRows(playlistId: playlistId).map(\.row)
+    }
+
+    func playlistTrackRows(playlistId: Int64) throws -> [PlaylistTrackRow] {
         try dbQueue.read { db in
-            let items = try PlaylistItem.filter(Column("playlistId") == playlistId)
-                .order(Column("position")).fetchAll(db)
-            return try items.compactMap { item -> TrackRow? in
+            let items = try playlistItemRecords(playlistId: playlistId, db: db)
+            return try items.compactMap { item -> PlaylistTrackRow? in
                 guard let t = try Track.fetchOne(db, key: item.trackId) else { return nil }
-                return try self.hydrate(t, db: db)
+                return try PlaylistTrackRow(item: item, row: self.hydrate(t, db: db))
             }
+        }
+    }
+
+    func reorderPlaylist(id playlistId: Int64, from source: Int, to destination: Int) throws {
+        try dbQueue.write { db in
+            let original = try playlistItemRecords(playlistId: playlistId, db: db)
+            let edited = PlaylistEditor.move(original, from: source, to: destination)
+            try self.persistPlaylistItems(original: original, edited: edited, db: db)
+        }
+    }
+
+    func reorderPlaylist(id playlistId: Int64, fromOffsets offsets: IndexSet, toOffset destination: Int) throws {
+        try dbQueue.write { db in
+            let original = try playlistItemRecords(playlistId: playlistId, db: db)
+            let edited = PlaylistEditor.move(original, fromOffsets: offsets, toOffset: destination)
+            try self.persistPlaylistItems(original: original, edited: edited, db: db)
+        }
+    }
+
+    func removeFromPlaylist(playlistId: Int64, at index: Int) throws {
+        try dbQueue.write { db in
+            let original = try playlistItemRecords(playlistId: playlistId, db: db)
+            let edited = PlaylistEditor.remove(original, at: index)
+            try self.persistPlaylistItems(original: original, edited: edited, db: db)
+        }
+    }
+
+    func removeFromPlaylist(playlistId: Int64, atOffsets offsets: IndexSet) throws {
+        try dbQueue.write { db in
+            let original = try playlistItemRecords(playlistId: playlistId, db: db)
+            let edited = PlaylistEditor.remove(original, atOffsets: offsets)
+            try self.persistPlaylistItems(original: original, edited: edited, db: db)
         }
     }
 
@@ -497,6 +547,31 @@ actor LibraryStore {
                 try item.insert(db)
             }
             return pl
+        }
+    }
+
+    private func playlistItemRecords(playlistId: Int64, db: Database) throws -> [PlaylistItem] {
+        try PlaylistItem
+            .filter(Column("playlistId") == playlistId)
+            .order(Column("position"), Column("id"))
+            .fetchAll(db)
+    }
+
+    private func persistPlaylistItems(
+        original: [PlaylistItem],
+        edited: [PlaylistItem],
+        db: Database
+    ) throws {
+        let retainedIDs = Set(edited.compactMap(\.id))
+        for item in original {
+            guard let id = item.id, !retainedIDs.contains(id) else { continue }
+            try PlaylistItem.deleteOne(db, key: id)
+        }
+        for item in edited {
+            guard let id = item.id else { continue }
+            try db.execute(
+                sql: "UPDATE playlist_item SET position = ? WHERE id = ?",
+                arguments: [item.position, id])
         }
     }
 
