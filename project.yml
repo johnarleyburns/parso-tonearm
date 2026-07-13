@@ -83,7 +83,7 @@ targets:
         Release:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Apple Distribution"
-          PROVISIONING_PROFILE_SPECIFIER: "Parso Tonearm App Store"
+          PROVISIONING_PROFILE_SPECIFIER: "Parso Platterhead App Store"
           CODE_SIGN_ENTITLEMENTS: Sources/App/Tonearm.entitlements
 
   TonearmShareExtension:

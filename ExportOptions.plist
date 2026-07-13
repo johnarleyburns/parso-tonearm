@@ -13,7 +13,7 @@
 	<key>provisioningProfiles</key>
 	<dict>
 		<key>guru.parso.tonearm</key>
-		<string>Parso Tonearm App Store</string>
+		<string>Parso Platterhead App Store</string>
 		<key>guru.parso.tonearm.share</key>
 		<string>Platterhead Share Extension Profile</string>
 		<key>guru.parso.tonearm.widgets</key>
