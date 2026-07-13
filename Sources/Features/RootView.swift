@@ -40,7 +40,7 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
         }
         .sheet(isPresented: $appState.showAddMenu) {
             AddMenuSheet()
-                .presentationDetents([.height(300)])
+                .presentationDetents([.height(365)])
                 .presentationBackground(.clear)
         }
         .sheet(isPresented: $appState.showCreatePlaylist) {
@@ -51,6 +51,9 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
         }
         .sheet(isPresented: $appState.showAddSource) {
             AddSourceSheet()
+        }
+        .sheet(isPresented: $appState.showAddServer) {
+            AddServerSheet()
         }
         .sheet(item: $appState.pickedFolder) { url in
             AddFolderSheet(folderURL: url, folderBookmark: appState.pickedFolderBookmark)

@@ -27,6 +27,7 @@ final class AppState: ObservableObject {
     @Published var showAddMenu = false
     @Published var showNowPlaying = false
     @Published var showAddSource = false
+    @Published var showAddServer = false
     @Published var showCreatePlaylist = false
     @Published var backgroundTitle: String?
     @Published var backgroundDone = false
@@ -214,8 +215,85 @@ final class AppState: ObservableObject {
         if let artworkIds = try? await store.customArtworkIds(forSource: id) {
             for aid in artworkIds { await ArtworkStore.shared.delete(id: aid) }
         }
+        if source.kind == .subsonic {
+            try? CredentialStore().delete(account: SubsonicServerPolicy.credentialAccount(sourceID: id))
+        }
         try? await store.deleteSource(id: id)
         await reload()
+    }
+
+    func addSubsonicServer(url rawURL: String, username rawUsername: String, password: String) async throws {
+        let baseURL = try SubsonicServerPolicy.normalizeBaseURL(rawURL)
+        let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        let provider = SubsonicProvider(baseURL: baseURL, username: username, password: password)
+        try await provider.refresh()
+
+        var source = Source(
+            id: nil,
+            kind: .subsonic,
+            iaIdentifier: username,
+            originalURL: baseURL.absoluteString,
+            title: SubsonicServerPolicy.displayName(baseURL: baseURL),
+            addedAt: Date(),
+            lastResolvedAt: Date(),
+            followUpdates: false,
+            licenseText: nil,
+            memberCapHit: false
+        )
+        source = try await store.insertSource(source)
+        guard let sourceID = source.id else { return }
+        do {
+            try CredentialStore().save(Data(password.utf8),
+                                       account: SubsonicServerPolicy.credentialAccount(sourceID: sourceID))
+        } catch {
+            try? await store.deleteSource(id: sourceID)
+            throw error
+        }
+        await reload()
+        tab = .sources
+    }
+
+    func browseRemote(source: Source, path: String) async throws -> [RemoteNode] {
+        try await subsonicProvider(for: source).browse(path: path)
+    }
+
+    func remoteTrackRows(source: Source, nodes: [RemoteNode]) async throws -> [TrackRow] {
+        let provider = try subsonicProvider(for: source)
+        var rows: [TrackRow] = []
+        for (index, node) in nodes.filter({ $0.kind == .audio }).enumerated() {
+            let resolved = try await provider.resolve(node: node)
+            let trackID = -Int64(index + 1)
+            let track = Track(
+                id: trackID,
+                albumId: nil,
+                sourceId: source.id ?? 0,
+                title: node.title,
+                trackNo: index + 1,
+                discNo: nil,
+                durationSec: node.durationSec,
+                codec: nil,
+                sampleRate: nil,
+                bitDepthOrBitrate: nil,
+                sortKey: String(format: "%06d", index)
+            )
+            let asset = Asset(
+                id: nil,
+                trackId: trackID,
+                kind: .remote,
+                bookmark: nil,
+                relPath: nil,
+                remoteURL: resolved.url.absoluteString,
+                altRemoteURL: nil,
+                sizeBytes: resolved.sizeBytes,
+                unsupportedReason: nil
+            )
+            rows.append(TrackRow(track: track, album: nil, source: source, asset: asset))
+        }
+        return rows
+    }
+
+    private func subsonicProvider(for source: Source) throws -> SubsonicProvider {
+        try SubsonicProvider.from(source: source)
     }
 
     func addSourceInBackground(preview: SourcePreview, followUpdates: Bool) {
