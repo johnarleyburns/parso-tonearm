@@ -1,10 +1,10 @@
 import Foundation
 import UIKit
 
-/// Pro folder-watch (T3.6): rescans watched folders when the app returns to the
+/// Folder watch: rescans watched folders when the app returns to the
 /// foreground and adds any new audio files to the library without a relaunch.
 /// Builds on the existing `Playlist.watch` + `folderBookmark` fields and the
-/// `IngestService` ingestion path. Gated by `ProFeature.folderWatch` at the UI.
+/// `IngestService` ingestion path.
 actor FolderWatchService {
     static let shared = FolderWatchService()
 
@@ -21,8 +21,6 @@ actor FolderWatchService {
     /// source. Returns the number of files added. Safe to call on foreground.
     @discardableResult
     func rescanWatchedFolders(store: LibraryStore) async -> Int {
-        // Only Pro installs watch folders.
-        guard ProEntitlement.isActive else { return 0 }
         guard let playlists = try? await store.allPlaylists() else { return 0 }
         var added = 0
         for playlist in playlists where playlist.kind == .folder && playlist.watch {
@@ -56,7 +54,6 @@ actor FolderWatchService {
     /// Installs an `NSFilePresenter` per watched folder so the system notifies us
     /// of changes while active. Presenters are torn down on `stopPresenting`.
     func startPresenting(store: LibraryStore, onChange: @escaping @Sendable () -> Void) async {
-        guard ProEntitlement.isActive else { return }
         await stopPresenting()
         guard let playlists = try? await store.allPlaylists() else { return }
         for playlist in playlists where playlist.kind == .folder && playlist.watch {

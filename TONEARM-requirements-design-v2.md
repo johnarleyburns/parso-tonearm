@@ -25,7 +25,7 @@ dress, zero use of the strings "foobar"/"fb2k" anywhere (CI-enforced, §9).
   promotions company). Different goods/services classes; low confusion risk for a
   software music player, but **P7 gate:** manual App Store availability check +
   USPTO TESS search before submission. Fallback candidates, in order: **Stylus Deck**,
-  **Platterhead**, **Shellac** (last one conflicts with the band; avoid unless legal
+  **Shellac** (conflicts with the band; avoid unless legal
   review says otherwise).
 - Fit: the tonearm is the component that plays the record you chose — matches the
   product thesis "you bring the records," and the brass/phonograph visual identity.

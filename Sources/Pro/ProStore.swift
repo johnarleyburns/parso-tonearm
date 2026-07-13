@@ -108,6 +108,6 @@ final class ProStore: ObservableObject {
 
     /// Formatted one-time price for display, falling back to the mockup price.
     var displayPrice: String {
-        product?.displayPrice ?? "$9.99"
+        product?.displayPrice ?? "$19.99"
     }
 }

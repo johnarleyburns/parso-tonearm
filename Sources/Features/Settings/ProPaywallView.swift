@@ -11,33 +11,39 @@ final class ProPaywallModel: ObservableObject {
 
     private let store: ProStore
 
-    init(store: ProStore = .shared) {
-        self.store = store
-        self.isPro = store.isPro
-        self.displayPrice = store.displayPrice
+    init(store: ProStore? = nil) {
+        let resolvedStore = store ?? .shared
+        self.store = resolvedStore
+        self.isPro = resolvedStore.isPro
+        self.displayPrice = resolvedStore.displayPrice
     }
 
     /// The six Pro features shown on the sheet, in mockup order (screen 3).
     struct Feature: Identifiable {
-        let id = UUID()
+        var id: String { title }
         let title: String
         let detail: String
-        let comingSoon: Bool
+        let features: [ProFeature]
+        let entryPoint: String
     }
 
     let features: [Feature] = [
-        Feature(title: "2 GB / 10 GB cache",
-                detail: "keep whole concert lists ready offline", comingSoon: false),
-        Feature(title: "Prefetch depth",
-                detail: "cache the next 3 tracks, or the whole list", comingSoon: false),
-        Feature(title: "Folder watch",
-                detail: "new files in your folders appear automatically", comingSoon: false),
-        Feature(title: "10-band EQ",
-                detail: "presets and your own curves", comingSoon: false),
-        Feature(title: "iCloud sync",
-                detail: "your library, playlists & settings across devices", comingSoon: false),
-        Feature(title: "CarPlay",
-                detail: "included when it ships", comingSoon: true)
+        Feature(title: "Remote Libraries",
+                detail: "Subsonic, WebDAV, Jellyfin, Plex and cloud drives",
+                features: [.remoteLibraries],
+                entryPoint: "Settings > Sources"),
+        Feature(title: "iCloud Sync",
+                detail: "library, playlists, favorites, history, artwork and EQ presets",
+                features: [.icloudSync],
+                entryPoint: "Settings > iCloud Sync"),
+        Feature(title: "iPad + Mac",
+                detail: "same purchase on every device",
+                features: [],
+                entryPoint: "Universal purchase"),
+        Feature(title: "Pro Audio & Library Tools",
+                detail: "parametric EQ, crossfeed, convolution, smart playlists, tag editor and duplicate detection",
+                features: [.proAudioTools, .smartPlaylists, .tagEditor],
+                entryPoint: "Settings > Tools")
     ]
 
     func refresh() {
@@ -113,7 +119,7 @@ struct ProPaywallView: View {
                 .tint(Palette.ink2)
                 .padding(.top, 12)
 
-                Text("FLAC · Opus · gapless · Archive sources · zero telemetry:\nfree for everyone, always.")
+                Text("FLAC · Opus · gapless · EQ · cache · Archive sources · zero telemetry:\nfree for everyone, always.")
                     .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                     .multilineTextAlignment(.center)
                     .padding(.top, 16)
@@ -139,9 +145,9 @@ struct ProPaywallView: View {
                 .padding(.top, 2)
             VStack(alignment: .leading, spacing: 1) {
                 Text(feature.title).font(.system(size: 14, weight: .semibold))
-                Text(feature.comingSoon ? "— \(feature.detail)" : feature.detail)
+                Text(feature.detail)
                     .font(.system(size: 12))
-                    .foregroundStyle(feature.comingSoon ? Palette.ink3 : Palette.ink2)
+                    .foregroundStyle(Palette.ink2)
             }
             Spacer()
         }

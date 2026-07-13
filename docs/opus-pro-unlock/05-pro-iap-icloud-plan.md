@@ -9,7 +9,7 @@ added to the Pro tier.
 
 ## Facts (verified against this repo, 2026-07-12)
 
-- Bundle ID: `guru.parso.tonearm` · Product name: *Platterhead* · Team: `3264Y8YUGV`
+- Bundle ID: `guru.parso.tonearm` · Product name: *Tonearm* · Team: `3264Y8YUGV`
 - Pro product ID: `guru.parso.tonearm.pro` (`Sources/Pro/ProEntitlement.swift:21`),
   **non-consumable**, one-time **$9.99** (D5; `Resources/Tonearm.storekit`).
 - StoreKit code already wired: `ProStore` (purchase/restore/observe),
@@ -20,18 +20,18 @@ added to the Pro tier.
   `Application Support/Tonearm/Artwork`. Local files referenced by
   **device-specific security-scoped bookmarks** (`Sources/Data/BookmarkVault.swift`).
 - No existing CloudKit/ubiquity scaffolding.
-- Release signing is **Manual** with profile `Parso Platterhead App Store`
+- Release signing is **Manual** with profile `Parso Tonearm App Store`
   (`project.yml:69-71`, `ExportOptions.plist`), imported in CI from secret
   `PROVISIONING_PROFILE_BASE64` (`.github/workflows/ios.yml:158-165`).
 
 ## Verified provisioning profile
 
-Adopt `~/Downloads/Parso_Platterhead_App_Store-4.mobileprovision`. Inspected and
+Adopt `~/Downloads/Parso_Tonearm_App_Store-4.mobileprovision`. Inspected and
 confirmed complete:
 
 | Field | Value | Status |
 |---|---|---|
-| Name | `Parso Platterhead App Store` | ✅ matches repo specifier (no rename needed) |
+| Name | `Parso Tonearm App Store` | ✅ matches repo specifier (no rename needed) |
 | App ID | `3264Y8YUGV.guru.parso.tonearm` | ✅ correct bundle ID |
 | Team | `3264Y8YUGV` | ✅ |
 | iCloud container | `iCloud.guru.parso.tonearm` | ✅ matches bundle ID |
@@ -117,13 +117,13 @@ aps-environment                                    = production (development in 
   CloudKit silent pushes wake the app for background sync.
 
 **B4. Signing wiring — profile -4 (Name unchanged, so minimal edits):**
-- `project.yml:71` `PROVISIONING_PROFILE_SPECIFIER: "Parso Platterhead App Store"`
+- `project.yml:71` `PROVISIONING_PROFILE_SPECIFIER: "Parso Tonearm App Store"`
   → **no change** (name matches).
 - `ExportOptions.plist` `provisioningProfiles[guru.parso.tonearm]` → **no change**.
 - **CI secret** `PROVISIONING_PROFILE_BASE64` → **update** with
-  `base64 -i ~/Downloads/Parso_Platterhead_App_Store-4.mobileprovision`.
+  `base64 -i ~/Downloads/Parso_Tonearm_App_Store-4.mobileprovision`.
   The CI decode path (`.github/workflows/ios.yml:165`) already writes
-  `Parso_Platterhead_App_Store.mobileprovision` — no filename change needed.
+  `Parso_Tonearm_App_Store.mobileprovision` — no filename change needed.
 - Confirm the CI distribution cert (`APPLE_CERTIFICATE_BASE64`) identity is
   included in this profile (same team/cert — should already hold).
 
@@ -195,7 +195,7 @@ own iCloud account**. EQ presets + settings go through **CloudKit** (not KVS).
 
 **C6. Privacy copy.**
 - Update `SettingsView` privacy card + `PrivacyView`: iCloud sync is **optional,
-  off by default, uses the user's own iCloud account (not a Platterhead server)**,
+  off by default, uses the user's own iCloud account (not a Tonearm server)**,
   and syncs only library metadata/playlists/artwork/settings — never streamed
   cache audio. Adjust "No accounts" → "No accounts of ours; optional Apple iCloud
   sync."

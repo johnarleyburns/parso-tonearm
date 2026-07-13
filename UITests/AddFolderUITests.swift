@@ -23,9 +23,16 @@ final class AddFolderUITests: XCTestCase {
         XCTAssertTrue(addButton.waitForExistence(timeout: 15), "Add (+) control should be visible")
         addButton.tap()
 
-        let folderItem = app.buttons["Add Local Folder"]
-        XCTAssertTrue(folderItem.waitForExistence(timeout: 5), "Add Local Folder menu item should appear")
-        folderItem.tap()
+        let folderButton = app.buttons["Add Local Folder"]
+        let folderText = app.staticTexts["Add Local Folder"]
+        let rowAppeared = folderButton.waitForExistence(timeout: 10)
+            || folderText.waitForExistence(timeout: 2)
+        XCTAssertTrue(rowAppeared, "Add Local Folder menu item should appear\n\(app.debugDescription)")
+        if folderButton.exists {
+            folderButton.tap()
+        } else {
+            folderText.tap()
+        }
 
         // The Files document picker runs in a separate process. Look for its
         // Cancel affordance either in-app or via the Files UI springboard.

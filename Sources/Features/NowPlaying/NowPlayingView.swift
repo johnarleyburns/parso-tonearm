@@ -13,6 +13,7 @@ struct NowPlayingView: View {
     @State private var sleepTask: Task<Void, Never>?
     @State private var showPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var showEQ = false
 
     var body: some View {
         ZStack {
@@ -67,6 +68,7 @@ struct NowPlayingView: View {
         if sleepEndsAt == nil { player.sleepAtEndOfTrack = false }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+        .sheet(isPresented: $showEQ) { EQView() }
         .onChange(of: selectedPhotoItem) { _, item in
             guard let item else { return }
             Task {
@@ -229,6 +231,14 @@ struct NowPlayingView: View {
 
             AirPlayButton()
                 .frame(width: 36, height: 36)
+
+            Button { showEQ = true } label: {
+                Image(systemName: "slider.vertical.3")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .frame(width: 36, height: 36)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
 
             Spacer()
 

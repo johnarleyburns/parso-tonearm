@@ -28,8 +28,7 @@ final class FolderWatchTests: XCTestCase {
         XCTAssertEqual(fresh.count, 2)
     }
 
-    // Rescan does nothing without a Pro entitlement (folder watch is gated, T3.6).
-    func testRescanNoOpWithoutPro() async throws {
+    func testRescanWithoutWatchedFoldersAddsNothing() async throws {
         ProEntitlement.clear()
         defer { ProEntitlement.clear() }
         let store = try LibraryStore(inMemory: true)
@@ -38,9 +37,8 @@ final class FolderWatchTests: XCTestCase {
     }
 
     // Simulated rescan: a new file dropped into a watched folder is ingested into
-    // the folder's source without a relaunch. Uses a real temp folder + Pro on.
+    // the folder's source without a relaunch. Folder watch is free.
     func testRescanIngestsNewFileWithoutRelaunch() async throws {
-        ProEntitlement.persist(ProEntitlement.verified(transactionID: 1, purchaseDate: Date()))
         defer { ProEntitlement.clear() }
 
         let folder = FileManager.default.temporaryDirectory

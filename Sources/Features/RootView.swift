@@ -25,6 +25,12 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .animation(.easeInOut(duration: 0.3), value: appState.backgroundTitle)
             }
+
+            if let message = player.networkSkipMessage {
+                skipBanner(message)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.easeInOut(duration: 0.3), value: player.networkSkipMessage)
+            }
         }
         .tint(Palette.brass)
         .fullScreenCover(isPresented: Binding(
@@ -48,6 +54,13 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
         }
         .sheet(item: $appState.pickedFolder) { url in
             AddFolderSheet(folderURL: url, folderBookmark: appState.pickedFolderBookmark)
+        }
+        .onChange(of: player.networkSkipMessage) { _, message in
+            guard message != nil else { return }
+            Task {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                await MainActor.run { player.networkSkipMessage = nil }
+            }
         }
         .fileImporter(
             isPresented: Binding(get: { appState.pendingImport != nil },
@@ -110,6 +123,27 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
                      : "Adding \"\(title)\"…")
                     .font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(Palette.ink)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
+            Spacer()
+        }
+    }
+
+    private func skipBanner(_ message: String) -> some View {
+        VStack {
+            HStack(spacing: 10) {
+                Image(systemName: "wifi.slash")
+                    .foregroundStyle(Palette.brass)
+                Text(message)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(2)
                 Spacer()
             }
             .padding(.horizontal, 14)

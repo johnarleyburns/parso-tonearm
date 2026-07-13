@@ -247,6 +247,24 @@ extension CacheStore {
         cacheDirectory.appendingPathComponent(key)
     }
 
+    nonisolated static var cacheMetaDirectory: URL {
+        let base = (try? FileManager.default.url(for: .cachesDirectory, in: .userDomainMask,
+                                                 appropriateFor: nil, create: true))
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        return base.appendingPathComponent("Tonearm/StreamCacheMeta", isDirectory: true)
+    }
+
+    nonisolated static func completeCacheExists(for remote: URL) -> Bool {
+        let key = CachingResourceLoader.key(for: remote)
+        let metaURL = cacheMetaDirectory.appendingPathComponent("\(key).json")
+        guard let data = try? Data(contentsOf: metaURL),
+              let meta = try? JSONDecoder().decode(Meta.self, from: data),
+              meta.complete else {
+            return false
+        }
+        return FileManager.default.fileExists(atPath: fileURL(for: key).path)
+    }
+
     /// On-disk CAF sibling for a remote Opus URL, whether or not it exists yet.
     nonisolated static func cafURL(forRemoteOpus url: URL) -> URL {
         let key = CachingResourceLoader.key(for: url)

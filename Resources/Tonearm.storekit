@@ -5,12 +5,12 @@
   ],
   "products" : [
     {
-      "displayPrice" : "9.99",
-      "familyShareable" : false,
+      "displayPrice" : "19.99",
+      "familyShareable" : true,
       "internalID" : "A0000001",
       "localizations" : [
         {
-          "description" : "A one-time unlock for power-user conveniences: 2 GB & 10 GB cache presets, deeper prefetch, folder watch, a 10-band EQ, and iCloud library sync — plus CarPlay when it ships. FLAC, Opus, gapless, and privacy stay free for everyone.",
+          "description" : "A one-time unlock for reach and mastery: Remote Libraries, iCloud Sync, iPad + Mac, and Pro Audio & Library Tools. FLAC, Opus, gapless, EQ, cache, folder watch, archive.org sources, local import, and privacy stay free for everyone.",
           "displayName" : "Tonearm Pro",
           "locale" : "en_US"
         }

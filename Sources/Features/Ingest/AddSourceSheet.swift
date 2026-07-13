@@ -53,7 +53,7 @@ struct AddSourceSheet: View {
             .disabled(preview == nil || isAdding)
             .opacity(preview == nil ? 0.5 : 1)
 
-            Text("Platterhead streams this music and keeps a temporary cache.\nNothing is stored permanently and nothing is searched for you.")
+            Text("Tonearm streams this music and keeps a temporary cache.\nNothing is stored permanently and nothing is searched for you.")
                 .font(.system(size: 10.5)).foregroundStyle(Palette.ink3)
                 .multilineTextAlignment(.center).padding(.top, 11)
         }

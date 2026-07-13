@@ -24,49 +24,8 @@ struct EQPreset: Equatable, Codable, Identifiable {
         gains: [-9, -7, -3, 2, 4, 4, 2, -2, -6, -10], isBuiltIn: true)
 
     static let builtIns: [EQPreset] = [.flat, .concertHall, .spoken, .seventyEight]
-}
 
-/// Storage + selection surface for EQ state, gated by `ProFeature.eq` at the UI.
-enum EQSettings {
-    private static let enabledKey = "eq.enabled"
-    private static let gainsKey = "eq.gains"
-    private static let userPresetsKey = "eq.userPresets"
-
-    static var isEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: enabledKey) }
-        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
+    var floatGains: [Float] {
+        gains.map(Float.init)
     }
-
-    static var gains: [Double] {
-        get {
-            guard let arr = UserDefaults.standard.array(forKey: gainsKey) as? [Double],
-                  arr.count == EQEngine.bandCount else {
-                return Array(repeating: 0, count: EQEngine.bandCount)
-            }
-            return arr
-        }
-        set { UserDefaults.standard.set(newValue, forKey: gainsKey) }
-    }
-
-    static var userPresets: [EQPreset] {
-        get {
-            guard let data = UserDefaults.standard.data(forKey: userPresetsKey),
-                  let presets = try? JSONDecoder().decode([EQPreset].self, from: data) else { return [] }
-            return presets
-        }
-        set {
-            if let data = try? JSONEncoder().encode(newValue) {
-                UserDefaults.standard.set(data, forKey: userPresetsKey)
-            }
-        }
-    }
-
-    static func saveUserPreset(name: String, gains: [Double]) {
-        var presets = userPresets
-        presets.removeAll { $0.name == name }
-        presets.append(EQPreset(name: name, gains: gains, isBuiltIn: false))
-        userPresets = presets
-    }
-
-    static var allPresets: [EQPreset] { EQPreset.builtIns + userPresets }
 }

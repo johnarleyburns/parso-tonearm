@@ -3,6 +3,7 @@ import AVFoundation
 import MediaPlayer
 import Combine
 import UIKit
+import Network
 
 enum RepeatMode: String, CaseIterable {
     case off, all, one
@@ -51,6 +52,8 @@ final class AudioPlayer: ObservableObject {
     @Published private(set) var cachedFraction: Double = 0
     @Published private(set) var isAmbient = false
     @Published private(set) var ambientChannelId: String?
+    @Published private(set) var pathIsExpensive = false
+    @Published var networkSkipMessage: String?
     @Published var queueSource: QueueSource = .none
 
     var streamOnCellular = true
@@ -81,6 +84,8 @@ final class AudioPlayer: ObservableObject {
     /// EQ (T4.1): a single tap engine shared across items; reattached to the
     /// preloaded next item so EQ survives near-gapless swaps.
     private var eqTap: EQAudioTap?
+    private let pathMonitor = NWPathMonitor()
+    private let pathMonitorQueue = DispatchQueue(label: "guru.parso.tonearm.network")
 
     var currentTrack: TrackRow? {
         if isAmbient, let channelId = ambientChannelId {
@@ -103,6 +108,7 @@ final class AudioPlayer: ObservableObject {
         setupRemoteCommands()
         addPeriodicObserver()
         observeRouteChanges()
+        observeNetworkPath()
     }
 
     // MARK: - Public control
@@ -170,6 +176,12 @@ final class AudioPlayer: ObservableObject {
         if let reason = asset.unsupportedReason {
             _ = reason
             next()
+            return
+        }
+
+        let decision = playbackDecision(for: asset)
+        if decision == .skipWiFiOnly {
+            skipCurrentForWiFiOnly(row: row)
             return
         }
 
@@ -250,6 +262,57 @@ final class AudioPlayer: ObservableObject {
         return nil
     }
 
+    private func networkAssetKind(for asset: Asset) -> NetworkPolicy.AssetKind {
+        asset.kind == .remote ? .remote : .local
+    }
+
+    private func playbackDecision(for asset: Asset) -> PlaybackDecision {
+        NetworkPolicy.decide(
+            assetKind: networkAssetKind(for: asset),
+            isCached: isFullyCached(asset),
+            pathIsExpensive: pathIsExpensive,
+            streamOnCellular: streamOnCellular
+        )
+    }
+
+    private func isFullyCached(_ asset: Asset) -> Bool {
+        guard asset.kind == .remote,
+              let urlString = remoteURLString(for: asset),
+              let remote = URL(string: urlString) else {
+            return asset.kind != .remote
+        }
+        return CacheStore.completeCacheExists(for: remote)
+    }
+
+    private func skipCurrentForWiFiOnly(row: TrackRow) {
+        networkSkipMessage = "Skipped \(row.track.title): Wi-Fi only"
+        guard repeatMode != .one else {
+            player.pause()
+            isPlaying = false
+            updateNowPlaying()
+            return
+        }
+        guard let nextIndex = NetworkPolicy.nextPlayableIndex(
+            after: index,
+            count: queue.count,
+            repeatAll: repeatMode == .all,
+            decisionAt: { candidate in
+                guard queue.indices.contains(candidate),
+                      let asset = queue[candidate].asset else {
+                    return .skipWiFiOnly
+                }
+                return playbackDecision(for: asset)
+            }
+        ) else {
+            player.pause()
+            isPlaying = false
+            updateNowPlaying()
+            return
+        }
+        index = nextIndex
+        loadCurrent(autoplay: true)
+    }
+
     /// Preloads the upcoming track's `AVPlayerItem` (with its own cache loader)
     /// so the natural track boundary swaps to a ready item instead of tearing the
     /// player down and rebuilding (T2.5). No-op when there is no next track, when
@@ -267,6 +330,7 @@ final class AudioPlayer: ObservableObject {
         guard queue.indices.contains(nextIndex) else { return }
         let row = queue[nextIndex]
         guard let asset = row.asset, asset.unsupportedReason == nil else { return }
+        guard playbackDecision(for: asset) != .skipWiFiOnly else { return }
         guard preloadedNextTrackId != row.track.id else { return }
         guard let built = buildItem(for: asset) else { return }
         built.item.preferredForwardBufferDuration = 120
@@ -287,16 +351,18 @@ final class AudioPlayer: ObservableObject {
     // MARK: - EQ (T4.1)
 
     /// Applies the current EQ state to an item via `MTAudioProcessingTap` when the
-    /// EQ is enabled and Pro is active. Detaching happens naturally in the same
-    /// teardown path as `shutdownLoaders()` (the item's audioMix is dropped when
-    /// the item is replaced). Reattaches on the preloaded next item so EQ survives
-    /// near-gapless swaps.
+    /// EQ is enabled. Detaching happens naturally in the same teardown path as
+    /// `shutdownLoaders()` (the item's audioMix is dropped when the item is
+    /// replaced). Reattaches on the preloaded next item so EQ survives near-gapless
+    /// swaps.
     private func applyEQ(to item: AVPlayerItem) {
-        guard ProFeature.isEnabled(.eq), EQSettings.isEnabled else {
+        let settings = EQSettingsPersistence.load()
+        let store = EQSettingsStore(presets: EQSettingsPersistence.allPresets())
+        guard settings.enabled else {
             item.audioMix = nil
             return
         }
-        let engine = EQEngine(gains: EQSettings.gains, bypassed: false)
+        let engine = EQEngine(gains: store.effectiveBands(for: settings).map(Double.init), bypassed: false)
         let tap = EQAudioTap(engine: engine)
         eqTap = tap
         Task { @MainActor in
@@ -309,11 +375,19 @@ final class AudioPlayer: ObservableObject {
     /// Live-updates EQ gains on the currently playing item without interrupting
     /// playback (engage/disengage is glitch-free). Call from the EQ settings UI.
     func updateEQ(gains: [Double], enabled: Bool) {
-        EQSettings.gains = gains
-        EQSettings.isEnabled = enabled
-        guard ProFeature.isEnabled(.eq) else { return }
-        if let tap = eqTap, enabled {
+        let settings = EQSettings(bands: gains.map(Float.init), enabled: enabled, activePresetID: nil)
+        updateEQ(settings: settings)
+    }
+
+    func updateEQ(settings: EQSettings) {
+        let store = EQSettingsStore(presets: EQSettingsPersistence.allPresets())
+        let normalized = store.normalized(settings)
+        EQSettingsPersistence.save(normalized)
+        let gains = store.effectiveBands(for: normalized).map(Double.init)
+        if let tap = eqTap, normalized.enabled {
             tap.update(gains: gains, bypassed: false)
+        } else if !normalized.enabled {
+            player.currentItem?.audioMix = nil
         } else if let item = player.currentItem {
             // Toggled on/off: (re)attach or clear the mix on the live item.
             applyEQ(to: item)
@@ -370,6 +444,7 @@ final class AudioPlayer: ObservableObject {
             guard let trackId = row.track.id,
                   let asset = row.asset, asset.kind == .remote,
                   let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else { continue }
+            guard playbackDecision(for: asset) != .skipWiFiOnly else { continue }
             if prefetchLoaders[trackId] != nil { continue }  // already prefetching
             prefetchedURLs[trackId] = remote
             let loader = CachingResourceLoader(originalURL: remote)
@@ -497,6 +572,15 @@ final class AudioPlayer: ObservableObject {
                 }
             }
         }
+    }
+
+    private func observeNetworkPath() {
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                self?.pathIsExpensive = path.isExpensive
+            }
+        }
+        pathMonitor.start(queue: pathMonitorQueue)
     }
 
     private func setupRemoteCommands() {

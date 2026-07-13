@@ -54,7 +54,7 @@ actor ArtworkSearchClient {
             self.session = URLSession(configuration: cfg)
         }
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1"
-        userAgent = "Platterhead/\(version) (parso.guru)"
+        userAgent = "Tonearm/\(version) (parso.guru)"
     }
 
     // MARK: - Host allowlist (mirrors IAClient posture, distinct hosts)

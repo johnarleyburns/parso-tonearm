@@ -65,7 +65,7 @@ struct IngestService {
     // MARK: - Add folder as playlist (FR-1.2)
 
     /// Appends new files into an existing source + its (first) album, keeping the
-    /// folder playlist in sync. Used by Pro folder-watch rescans (T3.6) so freshly
+    /// folder playlist in sync. Used by folder-watch rescans so freshly
     /// dropped files join the same source rather than the generic "Local Files".
     func addFiles(_ urls: [URL], toSourceId sid: Int64, into store: LibraryStore) async {
         guard !urls.isEmpty else { return }

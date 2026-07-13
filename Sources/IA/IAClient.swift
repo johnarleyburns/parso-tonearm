@@ -31,7 +31,7 @@ actor IAClient {
         config.httpAdditionalHeaders = [:]
         session = URLSession(configuration: config)
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1"
-        userAgent = "Platterhead/\(version) (parso.guru)"
+        userAgent = "Tonearm/\(version) (parso.guru)"
     }
 
     static func isAllowedHost(_ host: String) -> Bool {

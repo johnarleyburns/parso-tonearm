@@ -63,5 +63,8 @@ private struct MenuItem: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier(title)
     }
 }

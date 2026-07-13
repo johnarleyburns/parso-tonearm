@@ -3,9 +3,9 @@ import AVFoundation
 
 /// Attaches the 10-band EQ to an `AVPlayerItem` via `MTAudioProcessingTap` on the
 /// item's `audioMix` (valid for the progressive/file assets this app plays). The
-/// tap runs the biquad cascade on the realtime audio thread. Gated by
-/// `ProFeature.eq`; when the EQ is transparent (flat/bypassed) the tap passes
-/// samples through untouched so bypass is bit-transparent (T4.1).
+/// tap runs the biquad cascade on the realtime audio thread. When the EQ is
+/// transparent (flat/bypassed) the tap passes samples through untouched so bypass
+/// is bit-transparent.
 final class EQAudioTap {
 
     /// Shared engine mutated from the main thread (UI) and read on the audio

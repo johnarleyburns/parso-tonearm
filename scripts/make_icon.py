@@ -77,12 +77,12 @@ sx = (SIZE - sw) // 2 - bbox[0]
 sy = (SIZE - sh) // 2 - bbox[1] - 35
 draw.text((sx, sy), sym, font=f_sym, fill=INK)
 
-# "Platterhead" — below symbol.
+# "Tonearm" — below symbol.
 try:
     f_name = ImageFont.truetype("/System/Library/Fonts/HelveticaNeue.ttc", 78, index=0)
 except:
     f_name = ttf("", size=78, bold=False)
-name = "Platterhead"
+name = "Tonearm"
 nb = draw.textbbox((0, 0), name, font=f_name)
 nw = nb[2] - nb[0]
 draw.text(((SIZE - nw) // 2 - nb[0], SIZE - margin - 200), name, font=f_name, fill=INK)

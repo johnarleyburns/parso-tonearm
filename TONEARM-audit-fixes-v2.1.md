@@ -1,6 +1,6 @@
 # Tonearm — Implementation Audit & Fix Handoff (v2.1)
 
-**Repo audited:** `johnarleyburns/parso-tonearm` @ `8b31daf` ("Implement Platterhead…")
+**Repo audited:** `johnarleyburns/parso-tonearm` @ `8b31daf` ("Implement Tonearm…")
 **Against:** TONEARM-requirements-design-v2.md
 **Date:** 2026-07-05
 **Verdict:** Architecturally faithful skeleton, roughly P0–P4 complete and honest,
@@ -105,7 +105,7 @@ diff by URL+mtime+size, append/tombstone as specced.
 
 ### F11 (LOW) — Naming split-brain
 Bundle/project/code say Tonearm; `CFBundleDisplayName`, User-Agent, and the
-commit message say Platterhead. Also User-Agent omits the version (FR-2.6).
+commit message say Tonearm. Also User-Agent omits the version (FR-2.6).
 **Fix:** pick one (default: Tonearm), set display name accordingly, User-Agent
 `Tonearm/{MARKETING_VERSION} (parso.guru)` from Bundle info.
 

@@ -99,10 +99,7 @@ final class AppState: ObservableObject {
 
     func applySettingsToPlayer() {
         AudioPlayer.shared.streamOnCellular = streamOnCellular
-        // Clamp to the free cap unless entitled (T3.5, D7). Guards a stale stored
-        // depth after a Pro downgrade without bulk-mutating the user's setting.
-        AudioPlayer.shared.prefetchDepth = ProGating.clampedPrefetchDepth(prefetchDepth,
-                                                                          isPro: ProEntitlement.isActive)
+        AudioPlayer.shared.prefetchDepth = PrefetchDepthPolicy.clamp(prefetchDepth)
         AudioPlayer.shared.preferFLAC = preferFLAC
         let lookup = artworkLookup
         Task { await ArtworkService.shared.setArtworkLookupEnabled(lookup) }

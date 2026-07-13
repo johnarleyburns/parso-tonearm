@@ -1,9 +1,8 @@
 import XCTest
 @testable import Tonearm
 
-/// T3.3 — paywall view-model state (no snapshot infra exists, so assert state
-/// per the AC). Verifies the six gated features are presented in mockup order
-/// with CarPlay flagged coming-soon, and that Pro status reflects entitlement.
+/// Paywall view-model state (no snapshot infra exists, so assert state instead
+/// of pixels).
 @MainActor
 final class ProPaywallTests: XCTestCase {
 
@@ -17,25 +16,37 @@ final class ProPaywallTests: XCTestCase {
         super.tearDown()
     }
 
-    func testPresentsSixFeaturesInMockupOrder() {
+    func testPresentsFourFeaturesInTruthfulOrder() {
         let model = ProPaywallModel()
-        XCTAssertEqual(model.features.count, 6)
+        XCTAssertEqual(model.features.count, 4)
         XCTAssertEqual(model.features.map { $0.title }, [
-            "2 GB / 10 GB cache",
-            "Prefetch depth",
-            "Folder watch",
-            "10-band EQ",
-            "iCloud sync",
-            "CarPlay"
+            "Remote Libraries",
+            "iCloud Sync",
+            "iPad + Mac",
+            "Pro Audio & Library Tools"
         ])
     }
 
-    func testCarPlayFlaggedComingSoon() {
+    func testNoFeatureCarriesComingSoonFlag() {
         let model = ProPaywallModel()
-        let carplay = model.features.first { $0.title == "CarPlay" }
-        XCTAssertEqual(carplay?.comingSoon, true)
-        // The other five are shippable now.
-        XCTAssertEqual(model.features.filter { !$0.comingSoon }.count, 5)
+        for feature in model.features {
+            let labels = Mirror(reflecting: feature).children.compactMap(\.label)
+            XCTAssertFalse(labels.contains("comingSoon"))
+        }
+    }
+
+    func testEveryProFeatureIsAdvertisedWithReachableEntryPoint() {
+        let model = ProPaywallModel()
+        let advertised = Set(model.features.flatMap(\.features))
+        XCTAssertEqual(advertised, Set(ProFeature.allCases))
+        for feature in model.features {
+            XCTAssertFalse(feature.entryPoint.isEmpty)
+        }
+    }
+
+    func testNoCarPlayRow() {
+        let model = ProPaywallModel()
+        XCTAssertFalse(model.features.contains { $0.title.localizedCaseInsensitiveContains("CarPlay") })
     }
 
     func testShowsPriceString() {

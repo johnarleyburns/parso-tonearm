@@ -11,6 +11,10 @@ struct SettingsView: View {
     @State private var showClearConfirm = false
     @State private var showClearCustomConfirm = false
     @State private var showPaywall = false
+    @State private var showEQ = false
+    @State private var showCustomCacheLimit = false
+    @State private var customCacheLimitMB = ""
+    @State private var customCacheLimitMessage: String?
     @State private var icloudSync = SyncGating.isEnabled
 
     private let presets: [(String, Int64)] = [
@@ -41,6 +45,7 @@ struct SettingsView: View {
         .task { await refresh() }
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
         .sheet(isPresented: $showPaywall) { ProPaywallView() }
+        .sheet(isPresented: $showEQ) { EQView() }
         .confirmationDialog("Clear \(TimeFmt.megabytes(cacheUsed)) of cached audio?",
                             isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button("Clear Cache", role: .destructive) {
@@ -65,6 +70,14 @@ struct SettingsView: View {
             }
         } message: {
             Text("Custom artwork you've uploaded will be permanently lost. This cannot be undone.")
+        }
+        .alert("Custom Cache Limit", isPresented: $showCustomCacheLimit) {
+            TextField("MB", text: $customCacheLimitMB)
+                .keyboardType(.numberPad)
+            Button("Cancel", role: .cancel) {}
+            Button("Set") { applyCustomCacheLimit() }
+        } message: {
+            Text("Enter a limit in MB. Minimum 100 MB; maximum 80% of free disk.")
         }
     }
 
@@ -100,9 +113,16 @@ struct SettingsView: View {
                 ForEach(presets, id: \.0) { label, bytes in
                     presetButton(label, bytes)
                 }
-                presetButton("Custom", -1)
+                customPresetButton
             }
             .padding(.top, 12)
+
+            if let customCacheLimitMessage {
+                Text(customCacheLimitMessage)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Palette.ink3)
+                    .padding(.top, 8)
+            }
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
@@ -110,38 +130,49 @@ struct SettingsView: View {
 
     private func presetButton(_ label: String, _ bytes: Int64) -> some View {
         let selected = bytes == cacheLimit
-        let locked = bytes > 0 && ProGating.isCachePresetLocked(bytes, isPro: ProEntitlement.isActive)
         return Button {
-            guard bytes > 0 else { return }
-            if locked {
-                showPaywall = true
-                return
-            }
             cacheLimit = bytes
+            customCacheLimitMessage = nil
             Task { await CacheStore.shared.setLimit(bytes); await refresh() }
         } label: {
-            HStack(spacing: 4) {
-                Text(label)
-                if locked {
-                    Image(systemName: "lock.fill").font(.system(size: 8, weight: .bold))
-                }
-            }
+            Text(label)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(selected ? .white : (locked ? Palette.brass : Palette.ink2))
+            .foregroundStyle(selected ? .white : Palette.ink2)
             .frame(maxWidth: .infinity).padding(.vertical, 8)
             .background(selected ? Palette.brassDeep : Color.white.opacity(0.07),
                         in: RoundedRectangle(cornerRadius: 11))
         }
     }
 
+    private var customPresetButton: some View {
+        let presetValues = Set(presets.map(\.1))
+        let selected = !presetValues.contains(cacheLimit)
+        return Button {
+            customCacheLimitMB = String(max(100, cacheLimit / 1024 / 1024))
+            showCustomCacheLimit = true
+        } label: {
+            Text(selected ? TimeFmt.megabytes(cacheLimit) : "Custom")
+                .font(.system(size: 11, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(selected ? .white : Palette.ink2)
+                .frame(maxWidth: .infinity).padding(.vertical, 8)
+                .background(selected ? Palette.brassDeep : Color.white.opacity(0.07),
+                            in: RoundedRectangle(cornerRadius: 11))
+        }
+    }
+
     private var behaviorCard: some View {
         VStack(spacing: 0) {
-            settingToggle("Stream on cellular", "Off = Wi-Fi only; cached tracks always play",
+            settingToggle(appState.streamOnCellular ? "Stream on cellular" : "Wi-Fi only",
+                          "Off = Wi-Fi only; cached tracks always play",
                           $appState.streamOnCellular)
             Divider().overlay(Palette.hairline)
             settingToggle("Prefer FLAC over MP3", "Stream lossless when available (larger files)", $appState.preferFLAC)
             Divider().overlay(Palette.hairline)
             prefetchControl
+            Divider().overlay(Palette.hairline)
+            eqRow
             Divider().overlay(Palette.hairline)
             settingToggle("Look up missing artwork",
                           "Ask Apple's iTunes Search for covers your files lack",
@@ -155,35 +186,16 @@ struct SettingsView: View {
         .onChange(of: appState.artworkLookup) { _, _ in appState.applySettingsToPlayer() }
     }
 
-    /// Free tier caps prefetch at depth 1 (powers near-gapless + Opus-when-ready,
-    /// D7); Pro unlocks deeper values. A locked deeper tap presents the paywall.
     private var prefetchControl: some View {
-        let isPro = ProEntitlement.isActive
-        let maxDepth = isPro ? 5 : ProGating.freeMaxPrefetchDepth
-        return HStack {
+        HStack {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
-                    Text("Prefetch next tracks").font(.system(size: 13.5))
-                    if !isPro {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 8, weight: .bold)).foregroundStyle(Palette.brass)
-                    }
-                }
-                Text(isPro ? "Cache ahead while playing"
-                           : "Free caches 1 ahead · Pro caches more")
+                Text("Prefetch next tracks").font(.system(size: 13.5))
+                Text("Cache ahead while playing")
                     .font(.system(size: 11)).foregroundStyle(Palette.ink3)
             }
             Spacer()
-            Stepper(value: Binding(
-                get: { appState.prefetchDepth },
-                set: { newValue in
-                    if !isPro && newValue > ProGating.freeMaxPrefetchDepth {
-                        showPaywall = true
-                        return
-                    }
-                    appState.prefetchDepth = newValue
-                }
-            ), in: 0...maxDepth) {
+            Stepper(value: $appState.prefetchDepth,
+                    in: PrefetchDepthPolicy.minimum...PrefetchDepthPolicy.maximum) {
                 Text("\(appState.prefetchDepth)").font(.system(size: 13, weight: .semibold))
                     .monospacedDigit()
             }
@@ -191,6 +203,24 @@ struct SettingsView: View {
             .fixedSize()
         }
         .padding(.vertical, 6)
+    }
+
+    private var eqRow: some View {
+        Button { showEQ = true } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("10-band EQ").font(.system(size: 13.5))
+                    Text("Presets and custom curves")
+                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                }
+                Spacer()
+                Image(systemName: "slider.vertical.3")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Palette.ink3)
+            }
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
     }
 
     /// iCloud sync (Pro, C1/C5). Off by default; a locked tap presents the paywall.
@@ -306,9 +336,14 @@ struct SettingsView: View {
 
     private var aboutCard: some View {
         VStack(spacing: 0) {
+            Button { showPaywall = true } label: {
+                aboutRow("Tonearm Pro", "Remote libraries, sync, iPad + Mac")
+            }
+            .buttonStyle(.plain)
+            Divider().overlay(Palette.hairline)
             aboutRow("Licenses", "GPLv3 + third-party")
             Divider().overlay(Palette.hairline)
-            aboutRow("About", "Platterhead 0.1 — you bring the records")
+            aboutRow("About", "Tonearm 0.1 — you bring the records")
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
@@ -335,6 +370,22 @@ struct SettingsView: View {
         customArtworkBytes = customArtworkSize()
     }
 
+    private func applyCustomCacheLimit() {
+        let mb = Int64(customCacheLimitMB.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        let requested = mb * 1024 * 1024
+        let result = CacheLimitPolicy.validate(requestedBytes: requested, freeDiskBytes: freeDiskBytes())
+        cacheLimit = result.allowedBytes
+        customCacheLimitMessage = result.reason
+        Task { await CacheStore.shared.setLimit(result.allowedBytes); await refresh() }
+    }
+
+    private func freeDiskBytes() -> Int64 {
+        let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return values?.volumeAvailableCapacityForImportantUsage ?? 0
+    }
+
     private func customArtworkSize() -> Int64 {
         let dir = (try? FileManager.default.url(for: .applicationSupportDirectory,
                                                 in: .userDomainMask, appropriateFor: nil, create: false))
@@ -354,10 +405,10 @@ struct PrivacyView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Platterhead collects nothing.")
+                    Text("Tonearm collects nothing.")
                         .font(.system(size: 20, weight: .bold))
-                    privacyPoint("No accounts", "There is no sign-in and no server that belongs to Platterhead.")
-                    privacyPoint("Optional iCloud sync", "A Pro feature, off by default. When you turn it on, your library, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Platterhead server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
+                    privacyPoint("No accounts", "There is no sign-in and no server that belongs to Tonearm.")
+                    privacyPoint("Optional iCloud sync", "A Pro feature, off by default. When you turn it on, your library, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Tonearm server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
                     privacyPoint("No ads, no analytics", "No third-party SDKs. No tracking of any kind.")
                     privacyPoint("Network contact", "archive.org for sources you added by URL, and Apple's iTunes Search for missing cover art. No search is ever performed for you, and artwork lookup can be turned off.")
                     privacyPoint("Your files stay yours", "Local music is referenced in place by secure bookmark and never uploaded.")

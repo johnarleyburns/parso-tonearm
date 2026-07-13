@@ -10,7 +10,7 @@ layout `ParsoRadio/Core/Services/…`, iOS 17, files named
 `MP3AudioFormatSelector`, `ContiguousFileCache`, `CachingResourceLoaderDelegate`,
 `InternetArchiveService`, `QueueManager`, `SessionRestoreController`,
 `LocalFileImportService`, `ContributionSupportView`). **None of those files or
-paths exist here.** This repo is `Tonearm` / product name *Platterhead*, layout
+paths exist here.** This repo is `Tonearm`, layout
 `Sources/…`, deployment target **iOS 18.0**, tests in `Tests/` via XCTest, built
 with XcodeGen + `xcodebuild` in `.github/workflows/ios.yml`.
 
