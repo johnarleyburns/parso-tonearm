@@ -22,18 +22,39 @@ final class FileSelectionPolicyTests: XCTestCase {
         XCTAssertEqual(tracks.first?.codec, "MP3")
     }
 
-    // Opus is unsupported and must never appear as a track.
-    func testExcludesOpusEntirely() {
+    // Opus is a free format via the CAF pipeline (D9), but it is not cold-streamed:
+    // a mixed MP3+Opus group still cold-plays the instant MP3 and exposes the Opus
+    // derivative for the prefetch/remux upgrade path.
+    func testOpusAllowedButNotColdStreamed() {
         let files = [
-            file("side1.opus", format: "Unknown", source: "original"),
+            file("01. Movement.opus", format: "Opus", source: "derivative",
+                 original: "01. Movement.flac", track: "1", title: "Movement"),
             file("01. Movement.mp3", format: "VBR MP3", source: "derivative",
-                 original: "segments.json", track: "1", title: "Movement")
+                 original: "01. Movement.flac", track: "1", title: "Movement")
         ]
         let tracks = FileSelectionPolicy(preferFLAC: false)
             .selectTracks(files: files, identifier: "album", itemArtist: nil)
         XCTAssertEqual(tracks.count, 1)
+        // Cold play stays on the instant MP3, never Opus.
         XCTAssertEqual(tracks.first?.codec, "MP3")
+        XCTAssertFalse(tracks.first?.requiresRemux ?? true)
         XCTAssertNil(tracks.first?.unsupportedReason)
+        // The Opus derivative is exposed for the prefetch/remux upgrade path.
+        XCTAssertNotNil(tracks.first?.opusURL)
+        XCTAssertEqual(tracks.first?.opusURL?.absoluteString.hasSuffix(".opus"), true)
+    }
+
+    // An Opus-only group still produces a track (not filtered out), but that track
+    // is flagged as requiring remux-before-play since it can't cold-stream.
+    func testOpusOnlyGroupProducesRemuxTrack() {
+        let files = [
+            file("side1.opus", format: "Opus", source: "original", track: "1", title: "Side 1")
+        ]
+        let tracks = FileSelectionPolicy(preferFLAC: false)
+            .selectTracks(files: files, identifier: "album", itemArtist: nil)
+        XCTAssertEqual(tracks.count, 1)
+        XCTAssertEqual(tracks.first?.codec, "OPUS")
+        XCTAssertTrue(tracks.first?.requiresRemux ?? false)
     }
 
     // Per-movement MP3s share a segments.json `original`; grouping by that would
@@ -92,5 +113,50 @@ final class FileSelectionPolicyTests: XCTestCase {
             .selectTracks(files: files, identifier: "wtc", itemArtist: nil)
         XCTAssertEqual(tracks.count, 1)
         XCTAssertEqual(tracks.first?.codec, "FLAC")
+    }
+
+    // MARK: - Ranked policy (T1.1)
+
+    // Wi-Fi + preferFLAC: FLAC wins even when MP3 and Opus are also present.
+    func testRankingPrefersFLACOverAllWhenEnabled() {
+        let files = [
+            file("01 Aria.mp3", format: "VBR MP3", track: "1", title: "Aria"),
+            file("01 Aria.flac", format: "24bit Flac", track: "1", title: "Aria"),
+            file("01 Aria.opus", format: "Opus", track: "1", title: "Aria")
+        ]
+        let tracks = FileSelectionPolicy(preferFLAC: true)
+            .selectTracks(files: files, identifier: "gv", itemArtist: nil)
+        XCTAssertEqual(tracks.count, 1)
+        XCTAssertEqual(tracks.first?.codec, "FLAC")
+        XCTAssertNotNil(tracks.first?.opusURL)
+    }
+
+    // Default (no preferFLAC): MP3 is chosen for cold play; FLAC retained as alt.
+    func testRankingDefaultPrefersMP3AndRetainsFLACAlternate() {
+        let files = [
+            file("01 Aria.mp3", format: "VBR MP3", track: "1", title: "Aria"),
+            file("01 Aria.flac", format: "24bit Flac", track: "1", title: "Aria"),
+            file("01 Aria.opus", format: "Opus", track: "1", title: "Aria")
+        ]
+        let tracks = FileSelectionPolicy(preferFLAC: false)
+            .selectTracks(files: files, identifier: "gv", itemArtist: nil)
+        XCTAssertEqual(tracks.count, 1)
+        XCTAssertEqual(tracks.first?.codec, "MP3")
+        XCTAssertNotNil(tracks.first?.altFlacURL)
+        XCTAssertNotNil(tracks.first?.opusURL)
+        XCTAssertFalse(tracks.first?.requiresRemux ?? true)
+    }
+
+    // Opus never wins a mixed group even when it's the only lossy alternative
+    // to a format the user didn't prefer.
+    func testRankingNeverColdPlaysOpusInMixedGroup() {
+        let files = [
+            file("01 Aria.opus", format: "Opus", track: "1", title: "Aria"),
+            file("01 Aria.mp3", format: "VBR MP3", track: "1", title: "Aria")
+        ]
+        let tracks = FileSelectionPolicy(preferFLAC: true)
+            .selectTracks(files: files, identifier: "gv", itemArtist: nil)
+        XCTAssertEqual(tracks.first?.codec, "MP3")
+        XCTAssertFalse(tracks.first?.requiresRemux ?? true)
     }
 }

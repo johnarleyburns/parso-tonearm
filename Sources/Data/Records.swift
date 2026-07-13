@@ -45,3 +45,4 @@ extension Favorite: FetchableRecord, MutablePersistableRecord {
     static let databaseTableName = "favorite"
     mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
+

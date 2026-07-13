@@ -13,12 +13,17 @@ actor CacheStore {
         var lastAccessedAt: Date
         var createdAt: Date
         var rangeMap: ByteRangeMap
+        /// Byte size of the remuxed Opus CAF sibling, if one exists. Counted in
+        /// `totalCachedBytes()` so eviction accounts for the real on-disk artifact.
+        var cafBytes: Int64? = nil
     }
 
     private let dir: URL
     private let metaDir: URL
     private var metas: [String: Meta] = [:]   // key = cacheKey
     private var limitBytes: Int64
+    /// When true (tests), the limit is not persisted to shared UserDefaults.
+    private let isolated: Bool
 
     static let limitKey = "cache.limit.bytes"
     static let defaultLimit: Int64 = 500 * 1024 * 1024
@@ -33,6 +38,19 @@ actor CacheStore {
         try? FileManager.default.createDirectory(at: metaDir, withIntermediateDirectories: true)
         let stored = UserDefaults.standard.object(forKey: Self.limitKey) as? Int64
         limitBytes = stored ?? Self.defaultLimit
+        isolated = false
+        metas = Self.loadMetas(from: metaDir)
+    }
+
+    /// Isolated instance rooted at a private directory for tests; does not read
+    /// or persist the shared cache limit.
+    init(rootDirectory: URL, limitBytes: Int64 = defaultLimit) {
+        dir = rootDirectory.appendingPathComponent("StreamCache", isDirectory: true)
+        metaDir = rootDirectory.appendingPathComponent("StreamCacheMeta", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: metaDir, withIntermediateDirectories: true)
+        self.limitBytes = limitBytes
+        isolated = true
         metas = Self.loadMetas(from: metaDir)
     }
 
@@ -42,12 +60,12 @@ actor CacheStore {
 
     func setLimit(_ bytes: Int64) async {
         limitBytes = bytes
-        UserDefaults.standard.set(bytes, forKey: Self.limitKey)
+        if !isolated { UserDefaults.standard.set(bytes, forKey: Self.limitKey) }
         await evictToFit(protecting: nil)
     }
 
     func totalCachedBytes() -> Int64 {
-        metas.values.reduce(0) { $0 + $1.cachedBytes }
+        metas.values.reduce(0) { $0 + $1.cachedBytes + ($1.cafBytes ?? 0) }
     }
 
     func cachedTrackCount() -> Int {
@@ -63,6 +81,16 @@ actor CacheStore {
 
     func fileURL(for key: String) -> URL {
         dir.appendingPathComponent(key)
+    }
+
+    /// Sibling CAF URL for a remuxed Opus key.
+    func cafURL(for key: String) -> URL {
+        OpusRemuxer.cafURL(forOpusFile: fileURL(for: key))
+    }
+
+    /// True when a playable remuxed CAF exists on disk for this key.
+    func hasRemuxedCAF(for key: String) -> Bool {
+        FileManager.default.fileExists(atPath: cafURL(for: key).path)
     }
 
     func rangeMap(for key: String) -> ByteRangeMap {
@@ -86,6 +114,7 @@ actor CacheStore {
     func recordWrite(range: Range<Int64>, for key: String) async {
         var m = metas[key] ?? Meta(totalBytes: nil, cachedBytes: 0, complete: false,
                                    lastAccessedAt: Date(), createdAt: Date(), rangeMap: ByteRangeMap())
+        let wasComplete = m.complete
         m.rangeMap.insert(range)
         m.cachedBytes = m.rangeMap.totalBytes()
         if let total = m.totalBytes, m.rangeMap.covers(total: total) {
@@ -94,7 +123,38 @@ actor CacheStore {
         m.lastAccessedAt = Date()
         metas[key] = m
         persistMeta(key)
+        // Trigger Opus→CAF remux the moment an `.opus` key completes (T2.3).
+        if m.complete && !wasComplete && Self.isOpusKey(key) {
+            triggerOpusRemux(for: key)
+        }
         await evictToFit(protecting: key)
+    }
+
+    /// Records the byte size of a remuxed CAF sibling so it counts toward the
+    /// cache budget (T2.3). Called by the remux path after a successful write.
+    func recordCAFBytes(_ bytes: Int64, for key: String) async {
+        guard var m = metas[key] else { return }
+        m.cafBytes = bytes
+        m.lastAccessedAt = Date()
+        metas[key] = m
+        persistMeta(key)
+        await evictToFit(protecting: key)
+    }
+
+    static func isOpusKey(_ key: String) -> Bool {
+        key.hasSuffix("-opus")
+    }
+
+    /// Kicks off a background remux of a completed `.opus` cache file to a sibling
+    /// `.caf`, updating cache accounting on success. Fire-and-forget; failures are
+    /// swallowed (the remuxer marks the key unavailable for playback fallback).
+    private func triggerOpusRemux(for key: String) {
+        let opusURL = fileURL(for: key)
+        Task.detached(priority: .utility) {
+            guard let caf = try? await OpusRemuxer.shared.remux(opusFileURL: opusURL, cacheKey: key) else { return }
+            let size = (try? FileManager.default.attributesOfItem(atPath: caf.path)[.size] as? Int64) ?? nil
+            await CacheStore.shared.recordCAFBytes(size ?? 0, for: key)
+        }
     }
 
     func touch(_ key: String) {
@@ -107,6 +167,7 @@ actor CacheStore {
     func clearAll() {
         for key in metas.keys {
             try? FileManager.default.removeItem(at: fileURL(for: key))
+            try? FileManager.default.removeItem(at: cafURL(for: key))
             try? FileManager.default.removeItem(at: metaURL(key))
         }
         metas.removeAll()
@@ -138,6 +199,7 @@ actor CacheStore {
 
     private func remove(_ key: String) {
         try? FileManager.default.removeItem(at: fileURL(for: key))
+        try? FileManager.default.removeItem(at: cafURL(for: key))
         try? FileManager.default.removeItem(at: metaURL(key))
         metas.removeValue(forKey: key)
     }
@@ -167,5 +229,27 @@ actor CacheStore {
             }
         }
         return result
+    }
+}
+
+extension CacheStore {
+    /// Non-actor-isolated cache directory (same computation as `init`), so the
+    /// @MainActor player can derive on-disk paths synchronously without awaiting
+    /// the actor. Read-only path math — never mutates cache state.
+    nonisolated static var cacheDirectory: URL {
+        let base = (try? FileManager.default.url(for: .cachesDirectory, in: .userDomainMask,
+                                                 appropriateFor: nil, create: true))
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        return base.appendingPathComponent("Tonearm/StreamCache", isDirectory: true)
+    }
+
+    nonisolated static func fileURL(for key: String) -> URL {
+        cacheDirectory.appendingPathComponent(key)
+    }
+
+    /// On-disk CAF sibling for a remote Opus URL, whether or not it exists yet.
+    nonisolated static func cafURL(forRemoteOpus url: URL) -> URL {
+        let key = CachingResourceLoader.key(for: url)
+        return OpusRemuxer.cafURL(forOpusFile: fileURL(for: key))
     }
 }

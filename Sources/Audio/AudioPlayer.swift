@@ -68,8 +68,19 @@ final class AudioPlayer: ObservableObject {
     private let loaderQueue = DispatchQueue(label: "guru.parso.tonearm.loaders")
     private var stallModel = StallModel()
     private var prefetchedURLs: [Int64: URL] = [:]
+    /// Active prefetch loaders keyed by track id, so skipping a track can cancel
+    /// its in-flight fetch (T3.5).
+    private var prefetchLoaders: [Int64: CachingResourceLoader] = [:]
     private let retryPolicy = RetryPolicy()
     private var unshuffledQueue: [TrackRow] = []
+    /// Near-gapless (T2.5): the next queue item, preloaded (with its cache/EQ
+    /// attached) so the boundary swap is seamless rather than a fresh teardown.
+    private var preloadedNextItem: AVPlayerItem?
+    private var preloadedNextTrackId: Int64?
+    private var preloadedNextLoader: CachingResourceLoader?
+    /// EQ (T4.1): a single tap engine shared across items; reattached to the
+    /// preloaded next item so EQ survives near-gapless swaps.
+    private var eqTap: EQAudioTap?
 
     var currentTrack: TrackRow? {
         if isAmbient, let channelId = ambientChannelId {
@@ -172,29 +183,30 @@ final class AudioPlayer: ObservableObject {
         _ = stallModel.beginLoad()
         prefetchedURLs.removeAll()
 
-        let item: AVPlayerItem
-        if asset.kind == .remote, let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) {
-            let cacheURL = CachingResourceLoader.cacheURL(for: remote)
-            let avAsset = AVURLAsset(url: cacheURL)
-            let loader = CachingResourceLoader(originalURL: remote)
-            loaders.append(loader)
-            avAsset.resourceLoader.setDelegate(loader, queue: loaderQueue)
-            item = AVPlayerItem(asset: avAsset)
-        } else if let bookmark = asset.bookmark, let (url, _) = BookmarkVault.resolve(bookmark) {
-            _ = url.startAccessingSecurityScopedResource()
-            item = AVPlayerItem(url: url)
-        } else if let rel = asset.relPath {
-            let url = managedURL(rel)
-            item = AVPlayerItem(url: url)
+        let built: (item: AVPlayerItem, loader: CachingResourceLoader?)?
+        // Near-gapless (T2.5): consume the preloaded next item if it matches the
+        // track we're loading, so the boundary swap avoids a fresh teardown/build.
+        if let preItem = preloadedNextItem, preloadedNextTrackId == row.track.id {
+            built = (preItem, preloadedNextLoader)
         } else {
+            built = buildItem(for: asset)
+        }
+        preloadedNextItem = nil
+        preloadedNextTrackId = nil
+        preloadedNextLoader = nil
+
+        guard let built else {
             next()
             return
         }
+        if let loader = built.loader { loaders.append(loader) }
+        let item = built.item
 
         item.preferredForwardBufferDuration = 120
         item.automaticallyPreservesTimeOffsetFromLive = false
 
         replaceItem(item)
+        applyEQ(to: item)
         if autoplay {
             player.play()
             isPlaying = true
@@ -202,9 +214,66 @@ final class AudioPlayer: ObservableObject {
         duration = row.track.durationSec ?? 0
         updateNowPlaying()
         prefetchNext()
+        preloadNextItem()
         if let trackId = row.track.id {
             Task { try? await LibraryStore.shared.recordPlay(trackId: trackId) }
         }
+    }
+
+    /// Builds an `AVPlayerItem` (and its cache loader, if remote) for an asset,
+    /// applying the "Opus when ready" policy (T2.4): if a remuxed `.caf` exists
+    /// for the track's Opus derivative, play that local file; otherwise cold-play
+    /// FLAC/MP3 via the caching resource loader. The loader is returned rather
+    /// than attached, so callers (near-gapless preload) can own it.
+    private func buildItem(for asset: Asset) -> (item: AVPlayerItem, loader: CachingResourceLoader?)? {
+        // Opus-when-ready: a remuxed CAF upgrades playback to Opus.
+        if let opusString = asset.opusRemoteURL, let opusURL = URL(string: opusString) {
+            let caf = CacheStore.cafURL(forRemoteOpus: opusURL)
+            if FileManager.default.fileExists(atPath: caf.path) {
+                return (AVPlayerItem(url: caf), nil)
+            }
+        }
+
+        if asset.kind == .remote, let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) {
+            let cacheURL = CachingResourceLoader.cacheURL(for: remote)
+            let avAsset = AVURLAsset(url: cacheURL)
+            let loader = CachingResourceLoader(originalURL: remote)
+            avAsset.resourceLoader.setDelegate(loader, queue: loaderQueue)
+            return (AVPlayerItem(asset: avAsset), loader)
+        } else if let bookmark = asset.bookmark, let (url, _) = BookmarkVault.resolve(bookmark) {
+            _ = url.startAccessingSecurityScopedResource()
+            return (AVPlayerItem(url: url), nil)
+        } else if let rel = asset.relPath {
+            let url = managedURL(rel)
+            return (AVPlayerItem(url: url), nil)
+        }
+        return nil
+    }
+
+    /// Preloads the upcoming track's `AVPlayerItem` (with its own cache loader)
+    /// so the natural track boundary swaps to a ready item instead of tearing the
+    /// player down and rebuilding (T2.5). No-op when there is no next track, when
+    /// the next item is unsupported, or when it is already preloaded.
+    private func preloadNextItem() {
+        guard !isAmbient, repeatMode != .one else { return }
+        let nextIndex: Int
+        if index < queue.count - 1 {
+            nextIndex = index + 1
+        } else if repeatMode == .all, !queue.isEmpty {
+            nextIndex = 0
+        } else {
+            return
+        }
+        guard queue.indices.contains(nextIndex) else { return }
+        let row = queue[nextIndex]
+        guard let asset = row.asset, asset.unsupportedReason == nil else { return }
+        guard preloadedNextTrackId != row.track.id else { return }
+        guard let built = buildItem(for: asset) else { return }
+        built.item.preferredForwardBufferDuration = 120
+        applyEQ(to: built.item)
+        preloadedNextItem = built.item
+        preloadedNextTrackId = row.track.id
+        preloadedNextLoader = built.loader
     }
 
     private func shutdownLoaders() {
@@ -212,6 +281,42 @@ final class AudioPlayer: ObservableObject {
         loaders.removeAll()
         for loader in oldLoaders {
             loader.shutdown()
+        }
+    }
+
+    // MARK: - EQ (T4.1)
+
+    /// Applies the current EQ state to an item via `MTAudioProcessingTap` when the
+    /// EQ is enabled and Pro is active. Detaching happens naturally in the same
+    /// teardown path as `shutdownLoaders()` (the item's audioMix is dropped when
+    /// the item is replaced). Reattaches on the preloaded next item so EQ survives
+    /// near-gapless swaps.
+    private func applyEQ(to item: AVPlayerItem) {
+        guard ProFeature.isEnabled(.eq), EQSettings.isEnabled else {
+            item.audioMix = nil
+            return
+        }
+        let engine = EQEngine(gains: EQSettings.gains, bypassed: false)
+        let tap = EQAudioTap(engine: engine)
+        eqTap = tap
+        Task { @MainActor in
+            if let mix = await tap.makeAudioMix(for: item) {
+                item.audioMix = mix
+            }
+        }
+    }
+
+    /// Live-updates EQ gains on the currently playing item without interrupting
+    /// playback (engage/disengage is glitch-free). Call from the EQ settings UI.
+    func updateEQ(gains: [Double], enabled: Bool) {
+        EQSettings.gains = gains
+        EQSettings.isEnabled = enabled
+        guard ProFeature.isEnabled(.eq) else { return }
+        if let tap = eqTap, enabled {
+            tap.update(gains: gains, bypassed: false)
+        } else if let item = player.currentItem {
+            // Toggled on/off: (re)attach or clear the mix on the live item.
+            applyEQ(to: item)
         }
     }
 
@@ -252,24 +357,66 @@ final class AudioPlayer: ObservableObject {
 
     private func prefetchNext() {
         guard prefetchDepth > 0 else { return }
-        let upcoming = queue.dropFirst(index + 1).prefix(prefetchDepth)
+        let upcoming = Array(queue.dropFirst(index + 1).prefix(prefetchDepth))
+        let upcomingIds = Set(upcoming.compactMap { $0.track.id })
+        // Skipping a track cancels its in-flight fetch: tear down any prefetch
+        // loader that is no longer in the upcoming window (T3.5).
+        for (trackId, loader) in prefetchLoaders where !upcomingIds.contains(trackId) {
+            loader.shutdown()
+            prefetchLoaders.removeValue(forKey: trackId)
+            prefetchedURLs.removeValue(forKey: trackId)
+        }
         for row in upcoming {
             guard let trackId = row.track.id,
                   let asset = row.asset, asset.kind == .remote,
                   let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else { continue }
+            if prefetchLoaders[trackId] != nil { continue }  // already prefetching
             prefetchedURLs[trackId] = remote
+            let loader = CachingResourceLoader(originalURL: remote)
+            prefetchLoaders[trackId] = loader
+            let cacheURL = CachingResourceLoader.cacheURL(for: remote)
             Task.detached(priority: .background) {
-                let loader = CachingResourceLoader(originalURL: remote)
-                let cacheURL = CachingResourceLoader.cacheURL(for: remote)
                 let avAsset = AVURLAsset(url: cacheURL)
                 avAsset.resourceLoader.setDelegate(loader, queue: DispatchQueue(label: "prefetch"))
                 let item = AVPlayerItem(asset: avAsset)
                 _ = item
             }
+            // "Opus when ready" (T2.4): fetch the Opus derivative and remux it to
+            // CAF so the NEXT play/repeat of this track upgrades to Opus. Cold play
+            // above stays on the instant FLAC/MP3 — no added latency on the tap.
+            if let opusString = asset.opusRemoteURL, let opusURL = URL(string: opusString) {
+                prefetchOpusAndRemux(opusURL)
+            }
             // Cache the artwork alongside its music so prefetched tracks are
             // fully available offline, not just their audio bytes.
             Task.detached(priority: .background) {
                 _ = await ArtworkService.shared.artwork(forTrackRow: row)
+            }
+        }
+    }
+
+    /// Downloads a complete Opus derivative into the stream cache and remuxes it
+    /// to a sibling CAF. Skips work when a CAF already exists or the key was
+    /// already marked unavailable. Fire-and-forget; failures fall back silently.
+    private func prefetchOpusAndRemux(_ opusURL: URL) {
+        let caf = CacheStore.cafURL(forRemoteOpus: opusURL)
+        guard !FileManager.default.fileExists(atPath: caf.path) else { return }
+        let key = CachingResourceLoader.key(for: opusURL)
+        Task.detached(priority: .background) {
+            if await OpusRemuxer.shared.isUnavailable(key) { return }
+            let dest = CacheStore.fileURL(for: key)
+            do {
+                let (tmp, response) = try await URLSession.shared.download(from: opusURL)
+                if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { return }
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.moveItem(at: tmp, to: dest)
+                let bytes = (try? FileManager.default.attributesOfItem(atPath: dest.path)[.size] as? Int64) ?? nil
+                if let b = bytes { await CacheStore.shared.setContentLength(b, for: key) }
+                let cafURL = try await OpusRemuxer.shared.remux(opusFileURL: dest, cacheKey: key)
+                let cafSize = (try? FileManager.default.attributesOfItem(atPath: cafURL.path)[.size] as? Int64) ?? nil
+                await CacheStore.shared.recordCAFBytes(cafSize ?? 0, for: key)
+            } catch {
+                await OpusRemuxer.shared.markUnavailable(key)
             }
         }
     }
@@ -488,6 +635,7 @@ final class AudioPlayer: ObservableObject {
         rest.shuffle()
         queue = [current] + rest
         index = 0
+        invalidatePreloadedNext()
     }
 
     private func restoreShuffle() {
@@ -498,6 +646,17 @@ final class AudioPlayer: ObservableObject {
             index = origIdx
         }
         unshuffledQueue = []
+        invalidatePreloadedNext()
+    }
+
+    /// Drops any preloaded next item whose position no longer follows the current
+    /// track (e.g. after shuffle reorders the queue), then repreloads.
+    private func invalidatePreloadedNext() {
+        preloadedNextLoader?.shutdown()
+        preloadedNextItem = nil
+        preloadedNextTrackId = nil
+        preloadedNextLoader = nil
+        preloadNextItem()
     }
 
     func cycleRepeatMode() {

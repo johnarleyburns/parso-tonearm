@@ -29,6 +29,23 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: StoreKit import boundary guard
+        run: |
+          set -eo pipefail
+          # `import StoreKit` is permitted ONLY under Sources/Pro/ and the paywall
+          # view. Any other occurrence in Sources/ leaks the StoreKit dependency
+          # past the Pro boundary (Ground rule #2) and fails the build.
+          LEAKS=$(grep -rln "import StoreKit" Sources \
+            | grep -v "^Sources/Pro/" \
+            | grep -v "^Sources/Features/Settings/ProPaywallView.swift" \
+            || true)
+          if [ -n "$LEAKS" ]; then
+            echo "StoreKit import leaked outside Sources/Pro/ and the paywall:"
+            echo "$LEAKS"
+            exit 1
+          fi
+          echo "StoreKit import boundary OK"
+
       - name: Generate Xcode project
         run: xcodegen generate
 

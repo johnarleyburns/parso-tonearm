@@ -72,6 +72,13 @@ struct ResolvedTrack {
     let sizeBytes: Int64?
     let remoteURL: URL
     let altFlacURL: URL?
+    /// Opus derivative for this logical track, if the item offers one. Never used
+    /// for cold play (AVFoundation can't demux Ogg); the prefetcher fetches and
+    /// remuxes it to CAF so the next play/repeat upgrades to Opus (T2.4).
+    let opusURL: URL?
+    /// True when the cold-play `remoteURL` is itself Opus (an Opus-only group);
+    /// playback must remux-before-play rather than stream directly.
+    let requiresRemux: Bool
     let unsupportedReason: String?
     let sortKey: String
 }
@@ -107,18 +114,25 @@ struct ItemResolver {
 struct FileSelectionPolicy {
     var preferFLAC: Bool
 
-    /// Real audio container extensions we can stream. Opus and other unsupported
-    /// formats are intentionally excluded so they never appear in a track listing.
-    private static let audioExtensions: Set<String> = [
+    /// Formats streamable directly by AVFoundation on a cold tap.
+    private static let coldPlayableExtensions: Set<String> = [
         "mp3", "flac", "m4a", "aac", "wav", "aif", "aiff", "ogg", "oga"
     ]
 
+    /// Opus is a candidate (free format via the CAF pipeline, D9) but not
+    /// cold-playable: AVFoundation can't demux Ogg, so Opus goes through
+    /// fetch→remux→CAF (T2.x). An Opus-only group still yields a track, flagged
+    /// `requiresRemux`; mixed groups expose Opus as `opusURL` for the upgrade path.
+    private static let candidateExtensions: Set<String> =
+        coldPlayableExtensions.union(["opus"])
+
     func selectTracks(files: [IAFile], identifier: String, itemArtist: String?) -> [ResolvedTrack] {
-        // 1. Candidates by real audio extension (drops opus/spectrograms/art/etc.).
+        // 1. Candidates by real audio extension (drops spectrograms/art/etc., but
+        //    now keeps opus per D9).
         let candidates = files.filter { isCandidateAudio($0, identifier: identifier) }
 
         // 2. Group by the file's OWN basename stem. Format variants of the same
-        //    logical track (foo.mp3 / foo.flac / foo.ogg) share a stem; distinct
+        //    logical track (foo.mp3 / foo.flac / foo.opus) share a stem; distinct
         //    movements stay distinct. We deliberately do NOT group by `original`,
         //    which on many IA items points at a shared side-long rip or a
         //    segments.json and would collapse every movement into one track.
@@ -134,8 +148,9 @@ struct FileSelectionPolicy {
         for key in order {
             guard let groupFiles = groups[key], let chosen = pickPreferred(groupFiles) else { continue }
             let flacAlt = groupFiles.first { ($0.name as NSString).pathExtension.lowercased() == "flac" }
-            results.append(makeTrack(chosen, flacAlt: flacAlt, identifier: identifier,
-                                     fallbackArtist: itemArtist))
+            let opusAlt = groupFiles.first { ($0.name as NSString).pathExtension.lowercased() == "opus" }
+            results.append(makeTrack(chosen, flacAlt: flacAlt, opusAlt: opusAlt,
+                                     identifier: identifier, fallbackArtist: itemArtist))
         }
         return results.sorted { a, b in
             switch (a.trackNo, b.trackNo) {
@@ -148,7 +163,7 @@ struct FileSelectionPolicy {
     private func isCandidateAudio(_ f: IAFile, identifier: String) -> Bool {
         let name = f.name
         let ext = (name as NSString).pathExtension.lowercased()
-        guard Self.audioExtensions.contains(ext) else { return false }
+        guard Self.candidateExtensions.contains(ext) else { return false }
         // Skip preview samples.
         if name.lowercased().contains("_sample") { return false }
         // Skip raw side-long rips whose filename embeds the item identifier
@@ -158,33 +173,49 @@ struct FileSelectionPolicy {
         return true
     }
 
+    /// Explicit ranked codec policy. Lower rank wins for the cold-play pick.
+    /// Opus is deliberately ranked last so a mixed group never cold-plays Opus;
+    /// it only wins when it is the sole candidate (an Opus-only group).
     private func pickPreferred(_ files: [IAFile]) -> IAFile? {
         func rank(_ f: IAFile) -> Int {
-            let ext = (f.name as NSString).pathExtension.lowercased()
-            let fmt = (f.format ?? "").lowercased()
-            let isFlac = ext == "flac" || fmt.contains("flac")
-            let isMP3 = ext == "mp3" || fmt.contains("mp3")
-            if preferFLAC {
-                if isFlac { return 0 }
-                if isMP3 { return 1 }
-                return 2
-            } else {
-                if isMP3 { return 0 }
-                if isFlac { return 1 }
-                return 2
+            switch codecFamily(f) {
+            case .flac: return preferFLAC ? 0 : 1
+            case .mp3:  return preferFLAC ? 1 : 0
+            case .opus: return 4
+            case .other: return 3
             }
         }
-        return files.min { rank($0) < rank($1) }
+        return files.min {
+            let (ra, rb) = (rank($0), rank($1))
+            if ra != rb { return ra < rb }
+            return $0.name < $1.name
+        }
     }
 
-    private func makeTrack(_ f: IAFile, flacAlt: IAFile?, identifier: String,
-                           fallbackArtist: String?) -> ResolvedTrack {
+    private enum CodecFamily { case flac, mp3, opus, other }
+
+    private func codecFamily(_ f: IAFile) -> CodecFamily {
         let ext = (f.name as NSString).pathExtension.lowercased()
-        let streamURL = URL(string: "https://archive.org/download/\(identifier)/\(escape(f.name))")!
+        let fmt = (f.format ?? "").lowercased()
+        if ext == "flac" || fmt.contains("flac") { return .flac }
+        if ext == "mp3" || fmt.contains("mp3") { return .mp3 }
+        if ext == "opus" || fmt.contains("opus") { return .opus }
+        return .other
+    }
+
+    private func makeTrack(_ f: IAFile, flacAlt: IAFile?, opusAlt: IAFile?,
+                           identifier: String, fallbackArtist: String?) -> ResolvedTrack {
+        let ext = (f.name as NSString).pathExtension.lowercased()
+        let streamURL = downloadURL(identifier: identifier, name: f.name)!
         let flacURL: URL? = {
             guard let flacAlt, flacAlt.name != f.name else { return nil }
-            return URL(string: "https://archive.org/download/\(identifier)/\(escape(flacAlt.name))")
+            return downloadURL(identifier: identifier, name: flacAlt.name)
         }()
+        let opusURL: URL? = {
+            guard let opusAlt else { return nil }
+            return downloadURL(identifier: identifier, name: opusAlt.name)
+        }()
+        let requiresRemux = ext == "opus"
         let codec = ext.uppercased()
         let duration = f.length.flatMap { parseDuration($0) }
         let size = f.size.flatMap { Int64($0) }
@@ -195,7 +226,12 @@ struct FileSelectionPolicy {
                             codec: codec, sampleRate: nil,
                             bitDepthOrBitrate: f.bitrate.map { "\($0) kbps" },
                             sizeBytes: size, remoteURL: streamURL, altFlacURL: flacURL,
+                            opusURL: opusURL, requiresRemux: requiresRemux,
                             unsupportedReason: nil, sortKey: sortKey)
+    }
+
+    private func downloadURL(identifier: String, name: String) -> URL? {
+        URL(string: "https://archive.org/download/\(identifier)/\(escape(name))")
     }
 
     private func baseName(_ name: String) -> String {

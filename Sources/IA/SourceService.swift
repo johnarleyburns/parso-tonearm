@@ -126,6 +126,7 @@ struct SourceService {
             let asset = Asset(id: nil, trackId: trackId, kind: .remote, bookmark: nil,
                               relPath: nil, remoteURL: rt.remoteURL.absoluteString,
                               altRemoteURL: rt.altFlacURL?.absoluteString,
+                              opusRemoteURL: rt.opusURL?.absoluteString,
                               sizeBytes: rt.sizeBytes, unsupportedReason: rt.unsupportedReason)
             try await store.insertAsset(asset)
         }

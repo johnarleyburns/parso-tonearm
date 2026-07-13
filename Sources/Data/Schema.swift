@@ -142,6 +142,37 @@ enum Schema {
             }
         }
 
+        migrator.registerMigration("v6") { db in
+            try db.alter(table: "asset") { t in
+                t.add(column: "opusRemoteURL", .text)
+            }
+        }
+
+        migrator.registerMigration("v7") { db in
+            // Stable cross-device identity for iCloud sync (Pro). GRDB autoincrement
+            // Int64 PKs aren't safe across devices; add a UUID `syncID` to every
+            // synced table and backfill existing rows. Also add `needsReimport` so a
+            // device with no resolvable local file can surface the track as
+            // "not on this device" after a pull (local bookmarks don't sync).
+            let syncedTables = ["source", "album", "track", "asset", "playlist",
+                                "playlist_item", "favorite", "play_history", "custom_artwork"]
+            for table in syncedTables {
+                try db.alter(table: table) { t in
+                    t.add(column: "syncID", .text)
+                }
+                let rows = try Row.fetchAll(db, sql: "SELECT rowid FROM \(table)")
+                for row in rows {
+                    let rowid: Int64 = row["rowid"]
+                    try db.execute(sql: "UPDATE \(table) SET syncID = ? WHERE rowid = ?",
+                                   arguments: [UUID().uuidString, rowid])
+                }
+                try db.create(indexOn: table, columns: ["syncID"], options: .unique)
+            }
+            try db.alter(table: "asset") { t in
+                t.add(column: "needsReimport", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }

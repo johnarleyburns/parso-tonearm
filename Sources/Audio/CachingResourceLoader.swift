@@ -87,7 +87,14 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
     }
 
     private func contentType() -> String {
-        let ext = (originalURL.lastPathComponent as NSString).pathExtension.lowercased()
+        Self.contentType(for: originalURL)
+    }
+
+    /// Maps a remote audio URL to a UTI for AVFoundation. Uses the path extension
+    /// only, so IA download URLs carrying a query string (e.g. `?cnt=…`) still map
+    /// correctly — `pathExtension` ignores the query component.
+    static func contentType(for url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
         switch ext {
         case "flac": return "org.xiph.flac"
         case "mp3": return UTType.mp3.identifier

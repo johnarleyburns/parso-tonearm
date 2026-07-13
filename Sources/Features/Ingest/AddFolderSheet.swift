@@ -14,6 +14,7 @@ struct AddFolderSheet: View {
     @State private var isImporting = false
     @State private var scanError: String?
     @State private var importError: String?
+    @State private var showPaywall = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,7 +40,7 @@ struct AddFolderSheet: View {
             toggle("Keep folder order", "Off sorts by track number & name", $keepOrder).padding(.top, 13)
             toggle("Include subfolders", "Adds nested folders as sections", $includeSubfolders)
                 .padding(.top, 10)
-            toggle("Watch folder for changes", "Rescan on app launch", $watch).padding(.top, 10)
+            watchToggle.padding(.top, 10)
 
             Spacer(minLength: 12)
 
@@ -71,6 +72,40 @@ struct AddFolderSheet: View {
         .presentationBackground(.ultraThinMaterial)
         .onChange(of: includeSubfolders) { _, _ in rescan() }
         .task { rescan() }
+        .sheet(isPresented: $showPaywall) { ProPaywallView() }
+    }
+
+    /// Folder watch is Pro-gated (T3.6). Free users see the lock and a tap opens
+    /// the paywall instead of enabling the toggle.
+    private var watchToggle: some View {
+        let isPro = ProEntitlement.isActive
+        return HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text("Watch folder for changes").font(.system(size: 13.5, weight: .medium))
+                    if !isPro {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 8, weight: .bold)).foregroundStyle(Palette.brass)
+                    }
+                }
+                Text(isPro ? "New files appear automatically"
+                           : "Pro · new files appear automatically")
+                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+            }
+            Spacer()
+            if isPro {
+                Toggle("", isOn: $watch).labelsHidden().tint(Palette.brassDeep)
+            } else {
+                Button { showPaywall = true } label: {
+                    Text("PRO").font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Palette.brass)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Palette.brassDeep, lineWidth: 1))
+                }
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .glassSurface(cornerRadius: 14)
     }
 
     private func toggle(_ title: String, _ sub: String, _ binding: Binding<Bool>) -> some View {

@@ -1,4 +1,5 @@
 import XCTest
+import UniformTypeIdentifiers
 @testable import Tonearm
 
 final class StreamingCacheTests: XCTestCase {
@@ -50,5 +51,24 @@ final class StreamingCacheTests: XCTestCase {
         map.insert(0..<4096)
         XCTAssertTrue(map.covers(total: 4096))
         XCTAssertFalse(map.covers(total: 8192))
+    }
+
+    // MARK: - Content-type mapping (T1.2)
+
+    func testContentTypeMapsFLAC() {
+        let url = URL(string: "https://archive.org/download/item/track.flac")!
+        XCTAssertEqual(CachingResourceLoader.contentType(for: url), "org.xiph.flac")
+    }
+
+    // IA download URLs can carry a query string (e.g. ?cnt=0); the UTI mapping
+    // must still resolve from the path extension.
+    func testContentTypeMapsFLACWithQueryString() {
+        let url = URL(string: "https://archive.org/download/item/track.flac?cnt=0&foo=bar")!
+        XCTAssertEqual(CachingResourceLoader.contentType(for: url), "org.xiph.flac")
+    }
+
+    func testContentTypeMapsMP3WithQueryString() {
+        let url = URL(string: "https://ia600.us.archive.org/download/item/track.mp3?cnt=123")!
+        XCTAssertEqual(CachingResourceLoader.contentType(for: url), UTType.mp3.identifier)
     }
 }

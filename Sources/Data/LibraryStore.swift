@@ -60,6 +60,26 @@ actor LibraryStore {
         }
     }
 
+    /// First album belonging to a source (by insertion order). Used by folder-watch
+    /// rescans to append new tracks into the folder's existing album.
+    func firstAlbumForSource(_ sourceId: Int64) throws -> Album? {
+        try dbQueue.read { db in
+            try Album.filter(Column("sourceId") == sourceId).order(Column("id")).fetchOne(db)
+        }
+    }
+
+    /// The folder playlist whose title matches a source's title, if any. Folder
+    /// imports create both a `.local` source and a `.folder` playlist sharing the
+    /// folder name; this reconnects them for watch rescans.
+    func folderPlaylist(matchingSourceId sourceId: Int64) throws -> Playlist? {
+        try dbQueue.read { db in
+            guard let source = try Source.fetchOne(db, key: sourceId) else { return nil }
+            return try Playlist
+                .filter(Column("title") == source.title && Column("kind") == PlaylistKind.folder.rawValue)
+                .fetchOne(db)
+        }
+    }
+
     /// Representative per-item IA identifier for a source (first album's artworkId).
     func firstArtworkId(forSource sourceId: Int64) throws -> String? {
         try dbQueue.read { db in
@@ -433,5 +453,60 @@ actor LibraryStore {
 
     func clearAllCacheEntries() throws {
         _ = try dbQueue.write { db in try CacheEntry.deleteAll(db) }
+    }
+
+    // MARK: - Sync snapshot (iCloud, Pro)
+
+    /// All rows of every synced table, for a full push snapshot. Raw domain
+    /// values carry their `syncID`; parent references are resolved via the
+    /// `syncID` lookups below so cross-device identity is stable (C2/C3).
+    func allAlbums() throws -> [Album] {
+        try dbQueue.read { db in try Album.fetchAll(db) }
+    }
+
+    func allTracks() throws -> [Track] {
+        try dbQueue.read { db in try Track.fetchAll(db) }
+    }
+
+    func allAssets() throws -> [Asset] {
+        try dbQueue.read { db in try Asset.fetchAll(db) }
+    }
+
+    func allPlaylistItems() throws -> [PlaylistItem] {
+        try dbQueue.read { db in try PlaylistItem.fetchAll(db) }
+    }
+
+    func allFavorites() throws -> [Favorite] {
+        try dbQueue.read { db in try Favorite.fetchAll(db) }
+    }
+
+    func allPlayEvents() throws -> [PlayEvent] {
+        try dbQueue.read { db in try PlayEvent.fetchAll(db) }
+    }
+
+    func allCustomArtworkRecords() throws -> [CustomArtworkRecord] {
+        try dbQueue.read { db in
+            let rows = try Row.fetchAll(db, sql: "SELECT syncID, artworkId FROM custom_artwork WHERE syncID IS NOT NULL")
+            return rows.compactMap { row in
+                guard let syncID: String = row["syncID"], let artworkId: String = row["artworkId"] else { return nil }
+                return CustomArtworkRecord(syncID: syncID, artworkId: artworkId)
+            }
+        }
+    }
+
+    /// Looks up a table's `syncID` for a given local `Int64` PK (parent ref).
+    func syncID(table: String, id: Int64) throws -> String? {
+        try dbQueue.read { db in
+            try Row.fetchOne(db, sql: "SELECT syncID FROM \(table) WHERE id = ?",
+                             arguments: [id])?["syncID"]
+        }
+    }
+
+    /// Resolves a `syncID` back to a local `Int64` PK (used to re-link pulled rows).
+    func localID(table: String, syncID: String) throws -> Int64? {
+        try dbQueue.read { db in
+            try Row.fetchOne(db, sql: "SELECT id FROM \(table) WHERE syncID = ?",
+                             arguments: [syncID])?["id"]
+        }
     }
 }
