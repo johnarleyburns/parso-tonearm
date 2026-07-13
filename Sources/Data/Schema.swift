@@ -182,12 +182,12 @@ enum Schema {
                     try db.alter(table: table) { t in
                         t.add(column: "syncID", .text)
                     }
-                    let rows = try Row.fetchAll(db, sql: "SELECT rowid FROM \(table)")
-                    for row in rows {
-                        let rowid: Int64 = row["rowid"]
+                    let rowIDs = try Int64.fetchAll(
+                        db, sql: "SELECT rowid AS migrationRowID FROM \(table)")
+                    for rowID in rowIDs {
                         try db.execute(
                             sql: "UPDATE \(table) SET syncID = ? WHERE rowid = ?",
-                            arguments: [UUID().uuidString, rowid])
+                            arguments: [UUID().uuidString, rowID])
                     }
                     try db.create(indexOn: table, columns: ["syncID"], options: .unique)
                 }
