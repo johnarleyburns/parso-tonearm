@@ -204,6 +204,34 @@ final class AudioPlayer: ObservableObject {
         updateNowPlaying()
     }
 
+    func resumePlayback() {
+        guard !isPlaying else {
+            updateNowPlaying()
+            return
+        }
+        if isAmbient {
+            loopPlayer?.play()
+            isPlaying = true
+            updateNowPlaying()
+        } else {
+            resume()
+        }
+    }
+
+    func pausePlayback() {
+        guard isPlaying else {
+            updateNowPlaying()
+            return
+        }
+        if isAmbient {
+            loopPlayer?.pause()
+            isPlaying = false
+            updateNowPlaying()
+        } else {
+            pause()
+        }
+    }
+
     func next() {
         if isAmbient { nextAmbientTrack(); return }
         guard !queue.isEmpty else { return }
@@ -213,7 +241,7 @@ final class AudioPlayer: ObservableObject {
         } else if repeatMode == .all {
             index = 0
         } else {
-            player.pause(); isPlaying = false; return
+            player.pause(); isPlaying = false; updateNowPlaying(); return
         }
         loadCurrent(autoplay: true)
     }
@@ -231,6 +259,8 @@ final class AudioPlayer: ObservableObject {
         let time = CMTime(seconds: seconds, preferredTimescale: 600)
         player.seek(to: time)
         currentTime = seconds
+        updateNowPlayingTime()
+        WidgetSnapshotPublisher.publish(player: self)
     }
 
     private func applyQueueEdit(_ edited: QueueEditor.State<TrackRow>,
@@ -277,6 +307,7 @@ final class AudioPlayer: ObservableObject {
         cachedFraction = 0
         queueSource = .none
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        WidgetSnapshotPublisher.publishEmpty()
     }
 
     // MARK: - Loading
@@ -895,7 +926,11 @@ final class AudioPlayer: ObservableObject {
     private func pause() { player.pause(); isPlaying = false; updateNowPlaying() }
 
     private func updateNowPlaying() {
-        guard let row = currentTrack else { return }
+        guard let row = currentTrack else {
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            WidgetSnapshotPublisher.publishEmpty()
+            return
+        }
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: row.track.title,
             MPMediaItemPropertyArtist: row.album?.artist ?? "archive.org",
@@ -905,6 +940,7 @@ final class AudioPlayer: ObservableObject {
         ]
         info[MPMediaItemPropertyAlbumTitle] = row.album?.title
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        WidgetSnapshotPublisher.publish(player: self)
 
         Task {
             if let image = await ArtworkService.shared.artwork(forTrackRow: row) {

@@ -66,32 +66,76 @@ enum SharePayloadResolver {
 
 enum TonearmDeepLink: Equatable {
     case addSource(String)
+    case nowPlaying
+    case resumePlayback
+    case pausePlayback
+    case togglePlayback
+    case nextTrack
+    case previousTrack
 
     static let scheme = "tonearm"
     private static let addSourceHost = "add-source"
+    private static let nowPlayingHost = "now-playing"
+    private static let resumeHost = "resume"
+    private static let pauseHost = "pause"
+    private static let togglePlaybackHost = "toggle-playback"
+    private static let nextTrackHost = "next"
+    private static let previousTrackHost = "previous"
 
     static func url(for action: TonearmDeepLink) -> URL? {
+        var components = URLComponents()
+        components.scheme = scheme
         switch action {
         case .addSource(let rawURL):
             guard !rawURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return nil
             }
-            var components = URLComponents()
-            components.scheme = scheme
             components.host = addSourceHost
             components.queryItems = [URLQueryItem(name: "url", value: rawURL)]
             return components.url
+        case .nowPlaying:
+            components.host = nowPlayingHost
+        case .resumePlayback:
+            components.host = resumeHost
+        case .pausePlayback:
+            components.host = pauseHost
+        case .togglePlayback:
+            components.host = togglePlaybackHost
+        case .nextTrack:
+            components.host = nextTrackHost
+        case .previousTrack:
+            components.host = previousTrackHost
         }
+        return components.url
     }
 
     static func parse(_ url: URL) -> TonearmDeepLink? {
         guard url.scheme?.lowercased() == scheme,
-              url.host?.lowercased() == addSourceHost,
-              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let rawURL = components.queryItems?.first(where: { $0.name == "url" })?.value,
-              case .success = URLGrammar.parse(rawURL) else {
+              let host = url.host?.lowercased() else {
             return nil
         }
-        return .addSource(rawURL)
+        switch host {
+        case addSourceHost:
+            guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                  let rawURL = components.queryItems?.first(where: { $0.name == "url" })?.value,
+                  case .success = URLGrammar.parse(rawURL) else {
+                return nil
+            }
+            return .addSource(rawURL)
+        case nowPlayingHost:
+            return .nowPlaying
+        case resumeHost:
+            return .resumePlayback
+        case pauseHost:
+            return .pausePlayback
+        case togglePlaybackHost:
+            return .togglePlayback
+        case nextTrackHost:
+            return .nextTrack
+        case previousTrackHost:
+            return .previousTrack
+        default:
+            return nil
+        }
     }
 }

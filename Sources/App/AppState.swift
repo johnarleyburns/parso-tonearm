@@ -125,6 +125,7 @@ final class AppState: ObservableObject {
             favoriteRows = loadedFavoriteRows
             favoriteIds = loadedFavoriteIds
             listeningStats = ListeningStats.summarize(events: playEvents, tracks: loadedTracks)
+            WidgetSnapshotPublisher.publish(appState: self, player: AudioPlayer.shared)
         } catch {
             print("reload error: \(error)")
         }
@@ -245,7 +246,26 @@ final class AppState: ObservableObject {
     }
 
     func handleIncomingURL(_ url: URL) async {
-        guard case .addSource(let rawURL) = TonearmDeepLink.parse(url) else { return }
+        guard let action = TonearmDeepLink.parse(url) else { return }
+        switch action {
+        case .addSource(let rawURL):
+            await handleSharedSourceURL(rawURL)
+        case .nowPlaying:
+            showNowPlaying = AudioPlayer.shared.currentTrack != nil
+        case .resumePlayback:
+            AudioPlayer.shared.resumePlayback()
+        case .pausePlayback:
+            AudioPlayer.shared.pausePlayback()
+        case .togglePlayback:
+            AudioPlayer.shared.togglePlayPause()
+        case .nextTrack:
+            AudioPlayer.shared.next()
+        case .previousTrack:
+            AudioPlayer.shared.previous()
+        }
+    }
+
+    private func handleSharedSourceURL(_ rawURL: String) async {
         do {
             let service = SourceService(preferFLAC: preferFLAC)
             let preview = try await service.preview(from: rawURL)

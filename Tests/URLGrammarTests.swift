@@ -91,6 +91,22 @@ final class URLGrammarTests: XCTestCase {
         XCTAssertEqual(TonearmDeepLink.parse(url), .addSource(raw))
     }
 
+    func testTonearmDeepLinkRoundTripsWidgetControls() throws {
+        let actions: [TonearmDeepLink] = [
+            .nowPlaying,
+            .resumePlayback,
+            .pausePlayback,
+            .togglePlayback,
+            .nextTrack,
+            .previousTrack
+        ]
+
+        for action in actions {
+            let url = try XCTUnwrap(TonearmDeepLink.url(for: action))
+            XCTAssertEqual(TonearmDeepLink.parse(url), action)
+        }
+    }
+
     // MARK: - Rejections
 
     func testEmpty() {
