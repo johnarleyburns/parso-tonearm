@@ -16,6 +16,7 @@ struct ListenView: View {
                 if !appState.recentlyAdded.isEmpty {
                     cardRow(title: "Recently Added", rows: appState.recentlyAdded)
                 }
+                statsCard(appState.listeningStats)
                 favorites
             }
             .padding(.horizontal, 18)
@@ -75,6 +76,67 @@ struct ListenView: View {
                     .padding(.horizontal, 2)
                 }
             }
+        }
+    }
+
+    private func statsCard(_ stats: ListeningStats.Summary) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                SectionHeader(title: "Listening Stats")
+                Spacer()
+                if stats.totalPlayCount > 0 {
+                    ShareLink(item: stats.yearInReview.shareText) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Palette.brass)
+                    }
+                    .accessibilityLabel("Share")
+                }
+            }
+
+            HStack(spacing: 10) {
+                statTile(title: "Plays", value: "\(stats.totalPlayCount)")
+                statTile(title: "Time", value: ListeningStats.durationText(stats.totalListeningTime))
+                statTile(title: "Streak", value: "\(stats.currentStreakDays)d")
+            }
+
+            if let artist = stats.topArtists.first {
+                topLine("Top Artist", artist.name, detail: "\(artist.playCount) plays")
+            }
+            if let track = stats.topTracks.first {
+                topLine("Top Track", track.row.track.title, detail: "\(track.playCount) plays")
+            }
+        }
+        .padding(.bottom, 22)
+    }
+
+    private func statTile(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value)
+                .font(.system(size: 18, weight: .bold))
+            Text(title)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(Palette.ink3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .glassSurface(cornerRadius: 8)
+    }
+
+    private func topLine(_ title: String, _ value: String, detail: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(Palette.ink3)
+                Text(value)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+            }
+            Spacer()
+            Text(detail)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Palette.ink3)
         }
     }
 }

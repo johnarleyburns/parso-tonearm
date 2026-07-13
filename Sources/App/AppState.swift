@@ -21,6 +21,7 @@ final class AppState: ObservableObject {
     @Published var recentlyAdded: [TrackRow] = []
     @Published var favoriteRows: [TrackRow] = []
     @Published var favoriteIds: Set<Int64> = []
+    @Published var listeningStats: ListeningStats.Summary = .empty
     @Published var searchText: String = ""
     @Published var searchResults: [TrackRow] = []
     @Published var showAddMenu = false
@@ -107,13 +108,23 @@ final class AppState: ObservableObject {
 
     func reload() async {
         do {
-            sources = try await store.allSources()
-            playlists = try await store.allPlaylists()
-            allTracks = try await store.allTrackRows()
-            recentlyPlayed = try await store.recentlyPlayedRows()
-            recentlyAdded = try await store.recentlyAddedRows()
-            favoriteRows = try await store.favoriteRows()
-            favoriteIds = try await store.favoriteTrackIds()
+            let loadedSources = try await store.allSources()
+            let loadedPlaylists = try await store.allPlaylists()
+            let loadedTracks = try await store.allTrackRows()
+            let loadedRecentlyPlayed = try await store.recentlyPlayedRows()
+            let loadedRecentlyAdded = try await store.recentlyAddedRows()
+            let loadedFavoriteRows = try await store.favoriteRows()
+            let loadedFavoriteIds = try await store.favoriteTrackIds()
+            let playEvents = try await store.allPlayEvents()
+
+            sources = loadedSources
+            playlists = loadedPlaylists
+            allTracks = loadedTracks
+            recentlyPlayed = loadedRecentlyPlayed
+            recentlyAdded = loadedRecentlyAdded
+            favoriteRows = loadedFavoriteRows
+            favoriteIds = loadedFavoriteIds
+            listeningStats = ListeningStats.summarize(events: playEvents, tracks: loadedTracks)
         } catch {
             print("reload error: \(error)")
         }
