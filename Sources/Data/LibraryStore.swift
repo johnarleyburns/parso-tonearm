@@ -220,6 +220,54 @@ actor LibraryStore {
         }
     }
 
+    func albums(forArtist artistName: String) throws -> [Album] {
+        try dbQueue.read { db in
+            try Album.fetchAll(db, sql: """
+                SELECT album.* FROM album
+                LEFT JOIN artist ON artist.id = album.artistId
+                WHERE album.albumArtist = ? COLLATE NOCASE
+                   OR album.artist = ? COLLATE NOCASE
+                   OR artist.name = ? COLLATE NOCASE
+                ORDER BY album.title COLLATE NOCASE, album.year
+                """, arguments: [artistName, artistName, artistName])
+        }
+    }
+
+    func tracks(forArtist artistName: String) throws -> [TrackRow] {
+        try dbQueue.read { db in
+            let tracks = try Track.fetchAll(db, sql: """
+                SELECT track.* FROM track
+                LEFT JOIN album ON album.id = track.albumId
+                LEFT JOIN artist track_artist ON track_artist.id = track.artistId
+                LEFT JOIN artist album_artist ON album_artist.id = album.artistId
+                WHERE album.albumArtist = ? COLLATE NOCASE
+                   OR album.artist = ? COLLATE NOCASE
+                   OR track_artist.name = ? COLLATE NOCASE
+                   OR album_artist.name = ? COLLATE NOCASE
+                ORDER BY track.sortKey
+                """, arguments: [artistName, artistName, artistName, artistName])
+            return try tracks.map { try self.hydrate($0, db: db) }
+        }
+    }
+
+    func allGenres() throws -> [String] {
+        try dbQueue.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT genre FROM (
+                    SELECT genre FROM album WHERE genre IS NOT NULL AND TRIM(genre) <> ''
+                    UNION
+                    SELECT genre FROM track WHERE genre IS NOT NULL AND TRIM(genre) <> ''
+                )
+                ORDER BY genre COLLATE NOCASE
+                """)
+            return rows.compactMap { row in
+                let value: String? = row["genre"]
+                let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return trimmed.isEmpty ? nil : trimmed
+            }
+        }
+    }
+
     func findOrCreateArtist(name: String, sortName: String) throws -> Artist {
         try dbQueue.write { db in
             if let existing = try Artist.fetchOne(
