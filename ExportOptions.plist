@@ -15,9 +15,9 @@
 		<key>guru.parso.tonearm</key>
 		<string>Parso Tonearm App Store</string>
 		<key>guru.parso.tonearm.share</key>
-		<string>Parso Tonearm Share Extension</string>
+		<string>Platterhead Share Extension Profile</string>
 		<key>guru.parso.tonearm.widgets</key>
-		<string>Parso Tonearm Widgets Extension</string>
+		<string>Platterhead Widgets Profile</string>
 	</dict>
 	<key>stripSwiftSymbols</key>
 	<true/>
