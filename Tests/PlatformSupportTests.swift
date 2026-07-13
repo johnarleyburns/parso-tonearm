@@ -14,6 +14,7 @@ final class PlatformSupportTests: XCTestCase {
 
         XCTAssertEqual(orientations, [
             "UIInterfaceOrientationPortrait",
+            "UIInterfaceOrientationPortraitUpsideDown",
             "UIInterfaceOrientationLandscapeLeft",
             "UIInterfaceOrientationLandscapeRight",
         ])
