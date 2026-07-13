@@ -16,6 +16,9 @@ actor CacheStore {
         /// Byte size of the remuxed Opus CAF sibling, if one exists. Counted in
         /// `totalCachedBytes()` so eviction accounts for the real on-disk artifact.
         var cafBytes: Int64? = nil
+        /// Pin state is persisted with cache metadata. `nil` decodes as unpinned
+        /// for caches written before pinning existed.
+        var pinned: Bool? = nil
     }
 
     private let dir: URL
@@ -72,6 +75,10 @@ actor CacheStore {
         metas.values.filter { $0.complete }.count
     }
 
+    func pinnedTrackCount() -> Int {
+        metas.values.filter { $0.pinned == true }.count
+    }
+
     func state(for key: String) -> CacheGlyphState {
         guard let m = metas[key] else { return .none }
         if m.complete { return .cached }
@@ -99,6 +106,10 @@ actor CacheStore {
 
     func totalBytes(for key: String) -> Int64? {
         metas[key]?.totalBytes
+    }
+
+    func isPinned(_ key: String) -> Bool {
+        metas[key]?.pinned == true
     }
 
     // MARK: - Mutation (driven by the resource loader only)
@@ -164,6 +175,14 @@ actor CacheStore {
         persistMeta(key)
     }
 
+    func setPinned(_ pinned: Bool, for key: String) async {
+        guard var m = metas[key] else { return }
+        m.pinned = pinned
+        metas[key] = m
+        persistMeta(key)
+        await evictToFit(protecting: key)
+    }
+
     func clearAll() {
         for key in metas.keys {
             try? FileManager.default.removeItem(at: fileURL(for: key))
@@ -185,15 +204,21 @@ actor CacheStore {
 
     private func evictToFit(protecting protectedKey: String?) async {
         guard limitBytes > 0 else { return }
-        var total = totalCachedBytes()
-        guard total > limitBytes else { return }
-        let candidates = metas
-            .filter { $0.key != protectedKey }
-            .sorted { $0.value.lastAccessedAt < $1.value.lastAccessedAt }
-        for (key, m) in candidates {
-            if total <= limitBytes { break }
+        let plan = PinPolicy.evictionPlan(
+            items: metas.map { key, meta in
+                PinPolicy.Item(
+                    key: key,
+                    bytes: meta.cachedBytes + (meta.cafBytes ?? 0),
+                    lastAccessedAt: meta.lastAccessedAt,
+                    isPinned: meta.pinned == true
+                )
+            },
+            cacheLimitBytes: limitBytes,
+            proEnabled: true,
+            protectedKey: protectedKey
+        )
+        for key in plan.evictKeys {
             remove(key)
-            total -= m.cachedBytes
         }
     }
 
