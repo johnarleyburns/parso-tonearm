@@ -56,6 +56,12 @@ final class RemoteLibraryProviderTests: XCTestCase {
         XCTAssertTrue(SourceKind.allCases.contains(.pCloud))
     }
 
+    func testProviderFactoryDeclaresEveryProductRemoteKindSupported() {
+        for kind in RemoteLibraryAccessPolicy.productSourceKinds {
+            XCTAssertTrue(RemoteLibraryProviderFactory.supports(kind), "\(kind) should have a product provider path")
+        }
+    }
+
     func testV11MigrationAcceptsRemoteProviderSourceKind() throws {
         let dbQueue = try DatabaseQueue()
         try Schema.migrator(upTo: "v11").migrate(dbQueue)

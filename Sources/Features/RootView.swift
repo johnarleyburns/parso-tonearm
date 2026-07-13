@@ -52,8 +52,11 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
         .sheet(isPresented: $appState.showAddSource) {
             AddSourceSheet()
         }
-        .sheet(isPresented: $appState.showAddServer) {
+        .sheet(isPresented: $appState.showAddRemoteLibrary) {
             AddServerSheet()
+        }
+        .sheet(isPresented: $appState.showProPaywall) {
+            ProPaywallView()
         }
         .sheet(item: $appState.pickedFolder) { url in
             AddFolderSheet(folderURL: url, folderBookmark: appState.pickedFolderBookmark)
@@ -68,7 +71,7 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
         .fileImporter(
             isPresented: Binding(get: { appState.pendingImport != nil },
                                  set: { if !$0 { appState.pendingImport = nil } }),
-            allowedContentTypes: appState.pendingImport == .folder ? [.folder] : [.audio],
+            allowedContentTypes: appState.pendingImport == .files ? [.audio] : [.folder],
             allowsMultipleSelection: appState.pendingImport == .files
         ) { result in
             guard case .success(let urls) = result else {
@@ -82,9 +85,15 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
                                                       includingResourceValuesForKeys: nil,
                                                       relativeTo: nil)
                 if didScope { url.stopAccessingSecurityScopedResource() }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
-                    appState.pickedFolder = url
-                    appState.pickedFolderBookmark = bookmark
+                if appState.pendingImport == .smbFolder {
+                    Task {
+                        try? await appState.addSMBFolder(url, bookmark: bookmark)
+                    }
+                } else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                        appState.pickedFolder = url
+                        appState.pickedFolderBookmark = bookmark
+                    }
                 }
             case .files(let urls):
                 Task {

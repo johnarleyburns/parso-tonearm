@@ -33,7 +33,7 @@ struct SourceDetailView: View {
 
     @ViewBuilder
     private var content: some View {
-        if source.kind == .subsonic {
+        if isRemoteLibrary {
             remoteBrowser
         } else {
             localTrackList
@@ -141,7 +141,7 @@ struct SourceDetailView: View {
             }
             badge.padding(.top, 9)
             cta.padding(.top, 14)
-            if source.kind != .subsonic,
+            if isArchiveSource,
                let id = tracks.first?.album?.artworkId ?? heroArtworkId, !id.isEmpty,
                let iaURL = ShareURLBuilder.url(identifier: id) {
                 Link(destination: iaURL) {
@@ -170,13 +170,13 @@ struct SourceDetailView: View {
 
     private var badgeText: String {
         if source.kind == .local { return "on device" }
-        if source.kind == .subsonic { return "Subsonic · private server" }
+        if isRemoteLibrary { return "\(remoteProviderName) · private library" }
         return "archive.org · \(source.licenseText ?? "streams permitted")"
     }
 
     @ViewBuilder
     private var cta: some View {
-        if source.kind == .subsonic {
+        if isRemoteLibrary {
             HStack(spacing: 10) {
                 Button { Task { await playVisibleRemote(startAt: 0, shuffled: false) } } label: {
                     ctaLabel(icon: "play.fill", title: "Play")
@@ -213,7 +213,7 @@ struct SourceDetailView: View {
     }
 
     private func load() async {
-        if source.kind == .subsonic {
+        if isRemoteLibrary {
             await loadRemote(path: remotePath)
         } else {
             tracks = await appState.tracks(for: source)
@@ -284,7 +284,7 @@ struct SourceDetailView: View {
     private func subtitle(for node: RemoteNode) -> String? {
         switch node.kind {
         case .directory:
-            return "Artist"
+            return source.kind == .webDAV || source.kind == .smb || isCloudSource ? "Folder" : "Artist"
         case .collection:
             return "Album"
         case .audio:
@@ -297,6 +297,38 @@ struct SourceDetailView: View {
     private func durationString(_ seconds: Double) -> String {
         let total = max(0, Int(seconds.rounded()))
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    private var isRemoteLibrary: Bool {
+        RemoteLibraryAccessPolicy.isRemoteLibrary(source.kind)
+    }
+
+    private var isArchiveSource: Bool {
+        switch source.kind {
+        case .iaItem, .iaList, .iaCollection, .iaFavorites:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var isCloudSource: Bool {
+        CloudDriveAPI.Provider(sourceKind: source.kind) != nil
+    }
+
+    private var remoteProviderName: String {
+        switch source.kind {
+        case .subsonic: return "Subsonic"
+        case .webDAV: return "WebDAV"
+        case .smb: return "SMB"
+        case .jellyfin: return "Jellyfin"
+        case .plex: return "Plex"
+        case .dropbox: return "Dropbox"
+        case .googleDrive: return "Google Drive"
+        case .oneDrive: return "OneDrive"
+        case .pCloud: return "pCloud"
+        default: return "Remote"
+        }
     }
 }
 

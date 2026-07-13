@@ -17,12 +17,12 @@ struct AddMenuSheet: View {
                     }
                 }
                 Divider().overlay(Palette.hairline)
-                MenuItem(icon: "server.rack", title: "Add Subsonic Server",
-                         subtitle: "Subsonic or Navidrome library") {
+                MenuItem(icon: "server.rack", title: "Add Remote Library",
+                         subtitle: "Subsonic, WebDAV, SMB, Jellyfin, Plex, or cloud") {
                     appState.pendingImport = nil
                     appState.showAddMenu = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        appState.showAddServer = true
+                        appState.requestAddRemoteLibrary()
                     }
                 }
                 Divider().overlay(Palette.hairline)

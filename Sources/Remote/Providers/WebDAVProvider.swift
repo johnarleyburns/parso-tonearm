@@ -14,10 +14,29 @@ struct WebDAVServerPolicy {
         return url
     }
 
+    static func canSubmit(url: String, username: String, password: String) -> Bool {
+        (try? normalizeBaseURL(url)) != nil
+            && !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !password.isEmpty
+    }
+
+    static func displayName(baseURL: URL) -> String {
+        baseURL.host ?? baseURL.absoluteString
+    }
+
+    static func credentialAccount(sourceID: Int64) -> String {
+        "webdav:\(sourceID)"
+    }
+
     static func authorizationHeader(username: String, password: String) -> String {
         let token = Data("\(username):\(password)".utf8).base64EncodedString()
         return "Basic \(token)"
     }
+}
+
+struct WebDAVCredential: Codable, Equatable {
+    var username: String
+    var password: String
 }
 
 struct WebDAVProvider: RemoteLibraryProvider {
@@ -77,6 +96,24 @@ struct WebDAVProvider: RemoteLibraryProvider {
 
     func refresh() async throws {
         _ = try await browse(path: "")
+    }
+
+    static func from(source: Source,
+                     credentialStore: CredentialStore = CredentialStore()) throws -> WebDAVProvider {
+        guard source.kind == .webDAV,
+              let sourceID = source.id,
+              let rawURL = source.originalURL,
+              let data = try credentialStore.read(
+                account: WebDAVServerPolicy.credentialAccount(sourceID: sourceID)
+              ) else {
+            throw URLError(.userAuthenticationRequired)
+        }
+        let credential = try JSONDecoder().decode(WebDAVCredential.self, from: data)
+        return WebDAVProvider(
+            baseURL: try WebDAVServerPolicy.normalizeBaseURL(rawURL),
+            username: credential.username,
+            password: credential.password
+        )
     }
 
     private func url(for path: String) -> URL {

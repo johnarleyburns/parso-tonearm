@@ -127,6 +127,24 @@ struct Asset: Identifiable, Equatable, Codable {
     /// track shows greyed / "not on this device" until re-imported (C4).
     var needsReimport: Bool = false
     var syncID: String? = nil
+    /// Runtime-only headers for browsed remote-library queue rows. Not persisted:
+    /// credentials remain in the Keychain/provider layer.
+    var transientRemoteHeaders: [String: String] = [:]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case trackId
+        case kind
+        case bookmark
+        case relPath
+        case remoteURL
+        case altRemoteURL
+        case opusRemoteURL
+        case sizeBytes
+        case unsupportedReason
+        case needsReimport
+        case syncID
+    }
 }
 
 struct CacheEntry: Identifiable, Equatable, Codable {

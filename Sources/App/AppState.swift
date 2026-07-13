@@ -6,7 +6,7 @@ enum AppTab: Int, CaseIterable {
 }
 
 enum PendingImport: Equatable {
-    case folder, files
+    case folder, files, smbFolder
 }
 
 @MainActor
@@ -27,7 +27,8 @@ final class AppState: ObservableObject {
     @Published var showAddMenu = false
     @Published var showNowPlaying = false
     @Published var showAddSource = false
-    @Published var showAddServer = false
+    @Published var showAddRemoteLibrary = false
+    @Published var showProPaywall = false
     @Published var showCreatePlaylist = false
     @Published var backgroundTitle: String?
     @Published var backgroundDone = false
@@ -215,14 +216,27 @@ final class AppState: ObservableObject {
         if let artworkIds = try? await store.customArtworkIds(forSource: id) {
             for aid in artworkIds { await ArtworkStore.shared.delete(id: aid) }
         }
-        if source.kind == .subsonic {
-            try? CredentialStore().delete(account: SubsonicServerPolicy.credentialAccount(sourceID: id))
+        for account in RemoteLibraryProviderFactory.credentialAccounts(for: id, kind: source.kind) {
+            try? CredentialStore().delete(account: account)
         }
         try? await store.deleteSource(id: id)
         await reload()
     }
 
+    func requestAddRemoteLibrary() {
+        switch RemoteLibraryAccessPolicy.decision(
+            for: .openAddFlow,
+            isPro: ProGating.isEnabled(.remoteLibraries)
+        ) {
+        case .allow:
+            showAddRemoteLibrary = true
+        case .requiresPro:
+            showProPaywall = true
+        }
+    }
+
     func addSubsonicServer(url rawURL: String, username rawUsername: String, password: String) async throws {
+        try requireRemoteLibrary(.connect(.subsonic))
         let baseURL = try SubsonicServerPolicy.normalizeBaseURL(rawURL)
         let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
         let provider = SubsonicProvider(baseURL: baseURL, username: username, password: password)
@@ -253,12 +267,108 @@ final class AppState: ObservableObject {
         tab = .sources
     }
 
+    func addWebDAVServer(url rawURL: String, username rawUsername: String, password: String) async throws {
+        try requireRemoteLibrary(.connect(.webDAV))
+        let baseURL = try WebDAVServerPolicy.normalizeBaseURL(rawURL)
+        let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        let provider = WebDAVProvider(baseURL: baseURL, username: username, password: password)
+        try await provider.refresh()
+
+        let credential = WebDAVCredential(username: username, password: password)
+        try await insertRemoteSource(
+            kind: .webDAV,
+            title: WebDAVServerPolicy.displayName(baseURL: baseURL),
+            originalURL: baseURL.absoluteString,
+            iaIdentifier: username,
+            credential: try JSONEncoder().encode(credential),
+            credentialAccount: WebDAVServerPolicy.credentialAccount
+        )
+    }
+
+    func addJellyfinServer(url rawURL: String, username rawUsername: String, password: String) async throws {
+        try requireRemoteLibrary(.connect(.jellyfin))
+        let baseURL = try JellyfinServerPolicy.normalizeBaseURL(rawURL)
+        let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        let request = try JellyfinAPI.request(
+            baseURL: baseURL,
+            endpoint: .authenticate(username: username, password: password)
+        )
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+            throw URLError(.userAuthenticationRequired)
+        }
+        let auth = try JellyfinAPI.decodeAuthentication(data)
+        let provider = JellyfinProvider(baseURL: baseURL, userID: auth.userID, accessToken: auth.accessToken)
+        try await provider.refresh()
+
+        try await insertRemoteSource(
+            kind: .jellyfin,
+            title: JellyfinServerPolicy.displayName(baseURL: baseURL),
+            originalURL: baseURL.absoluteString,
+            iaIdentifier: auth.userID,
+            credential: Data(auth.accessToken.utf8),
+            credentialAccount: JellyfinServerPolicy.credentialAccount
+        )
+    }
+
+    func addPlexServer(url rawURL: String, token rawToken: String) async throws {
+        try requireRemoteLibrary(.connect(.plex))
+        let baseURL = try PlexServerPolicy.normalizeBaseURL(rawURL)
+        let token = rawToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let provider = PlexProvider(baseURL: baseURL, token: token)
+        try await provider.refresh()
+
+        try await insertRemoteSource(
+            kind: .plex,
+            title: PlexServerPolicy.displayName(baseURL: baseURL),
+            originalURL: baseURL.absoluteString,
+            iaIdentifier: nil,
+            credential: Data(token.utf8),
+            credentialAccount: PlexServerPolicy.credentialAccount
+        )
+    }
+
+    func addCloudDrive(provider cloudProvider: CloudDriveAPI.Provider, accessToken rawToken: String) async throws {
+        try requireRemoteLibrary(.connect(cloudProvider.sourceKind))
+        let token = rawToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let provider = CloudDriveProvider(provider: cloudProvider, accessToken: token)
+        try await provider.refresh()
+
+        try await insertRemoteSource(
+            kind: cloudProvider.sourceKind,
+            title: CloudDriveServerPolicy.displayName(provider: cloudProvider),
+            originalURL: nil,
+            iaIdentifier: nil,
+            credential: Data(token.utf8),
+            credentialAccount: { sourceID in
+                CloudDriveServerPolicy.credentialAccount(sourceID: sourceID, provider: cloudProvider)
+            }
+        )
+    }
+
+    func addSMBFolder(_ folderURL: URL, bookmark folderBookmark: Data?) async throws {
+        try requireRemoteLibrary(.connect(.smb))
+        let bookmark = folderBookmark ?? BookmarkVault.makeBookmark(for: folderURL)
+        guard let bookmark else { throw IngestError.failedToCreateBookmark }
+
+        try await insertRemoteSource(
+            kind: .smb,
+            title: SMBFolderPolicy.displayName(rootURL: folderURL),
+            originalURL: folderURL.absoluteString,
+            iaIdentifier: nil,
+            credential: bookmark,
+            credentialAccount: SMBFolderPolicy.credentialAccount
+        )
+    }
+
     func browseRemote(source: Source, path: String) async throws -> [RemoteNode] {
-        try await subsonicProvider(for: source).browse(path: path)
+        try requireRemoteLibrary(.browse(source.kind))
+        return try await remoteProvider(for: source).browse(path: path)
     }
 
     func remoteTrackRows(source: Source, nodes: [RemoteNode]) async throws -> [TrackRow] {
-        let provider = try subsonicProvider(for: source)
+        try requireRemoteLibrary(.resolve(source.kind))
+        let provider = try remoteProvider(for: source)
         var rows: [TrackRow] = []
         for (index, node) in nodes.filter({ $0.kind == .audio }).enumerated() {
             let resolved = try await provider.resolve(node: node)
@@ -276,24 +386,142 @@ final class AppState: ObservableObject {
                 bitDepthOrBitrate: nil,
                 sortKey: String(format: "%06d", index)
             )
-            let asset = Asset(
+            var asset = Asset(
                 id: nil,
                 trackId: trackID,
-                kind: .remote,
-                bookmark: nil,
+                kind: resolved.url.isFileURL ? .localRef : .remote,
+                bookmark: resolved.url.isFileURL ? BookmarkVault.makeBookmark(for: resolved.url) : nil,
                 relPath: nil,
                 remoteURL: resolved.url.absoluteString,
                 altRemoteURL: nil,
                 sizeBytes: resolved.sizeBytes,
                 unsupportedReason: nil
             )
+            asset.transientRemoteHeaders = resolved.headers
             rows.append(TrackRow(track: track, album: nil, source: source, asset: asset))
         }
         return rows
     }
 
-    private func subsonicProvider(for source: Source) throws -> SubsonicProvider {
-        try SubsonicProvider.from(source: source)
+    private func insertRemoteSource(kind: SourceKind,
+                                    title: String,
+                                    originalURL: String?,
+                                    iaIdentifier: String?,
+                                    credential: Data,
+                                    credentialAccount: (Int64) -> String) async throws {
+        var source = Source(
+            id: nil,
+            kind: kind,
+            iaIdentifier: iaIdentifier,
+            originalURL: originalURL,
+            title: title,
+            addedAt: Date(),
+            lastResolvedAt: Date(),
+            followUpdates: false,
+            licenseText: nil,
+            memberCapHit: false
+        )
+        source = try await store.insertSource(source)
+        guard let sourceID = source.id else { return }
+        do {
+            try CredentialStore().save(credential, account: credentialAccount(sourceID))
+        } catch {
+            try? await store.deleteSource(id: sourceID)
+            throw error
+        }
+        await reload()
+        tab = .sources
+    }
+
+    private func remoteProvider(for source: Source) throws -> any RemoteLibraryProvider {
+        try RemoteLibraryProviderFactory.provider(for: source)
+    }
+
+    private func requireRemoteLibrary(_ action: RemoteLibraryAction) throws {
+        switch RemoteLibraryAccessPolicy.decision(
+            for: action,
+            isPro: ProGating.isEnabled(.remoteLibraries)
+        ) {
+        case .allow:
+            return
+        case .requiresPro(let feature):
+            throw ProFeatureAccessError.requiresPro(feature)
+        }
+    }
+
+    @discardableResult
+    func createSmartPlaylistSnapshot(title rawTitle: String, playlist: SmartPlaylist) async throws -> Playlist {
+        try requireTool(.smartPlaylist)
+        let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rows = try await store.smartPlaylistRows(playlist)
+        let trackIDs = rows.compactMap(\.track.id)
+        let created = try await store.createManualPlaylist(
+            title: title.isEmpty ? "Smart Playlist" : title,
+            trackIds: trackIDs
+        )
+        await reload()
+        tab = .playlists
+        return created
+    }
+
+    @discardableResult
+    func applyTagEdit(trackIDs: Set<Int64>, proposal: TagEdit.Proposal) async throws -> Int {
+        try requireTool(.tagEditor)
+        let rows = try await store.allTrackRows()
+        let selection = rows
+            .filter { row in row.track.id.map(trackIDs.contains) ?? false }
+            .map(TagEdit.editableTrack)
+        let plan = TagEdit.makePlan(selection: selection, proposal: proposal)
+        let applied = try await store.applyTagEditPlan(plan)
+        if applied > 0 {
+            await reload()
+        }
+        return applied
+    }
+
+    func duplicateGroups(limit: Int = 200) async throws -> [DuplicateDetection.Group] {
+        try requireTool(.duplicateDetection)
+        let rows = try await store.allTrackRows()
+        var candidates: [DuplicateDetection.Candidate] = []
+        for row in rows.prefix(limit) {
+            guard let data = localAudioBytes(for: row),
+                  let trackID = row.track.id else { continue }
+            candidates.append(DuplicateDetection.Candidate(id: "\(trackID): \(row.track.title)", bytes: data))
+        }
+        return DuplicateDetection.groups(from: candidates)
+    }
+
+    private func requireTool(_ tool: ProTool) throws {
+        switch ProToolsAccessPolicy.decision(for: tool, isPro: ProGating.isEnabled(tool.feature)) {
+        case .allow:
+            return
+        case .requiresPro(let feature):
+            throw ProFeatureAccessError.requiresPro(feature)
+        }
+    }
+
+    private func localAudioBytes(for row: TrackRow) -> Data? {
+        guard let asset = row.asset else { return nil }
+        let url: URL?
+        if let bookmark = asset.bookmark, let resolved = BookmarkVault.resolve(bookmark) {
+            url = resolved.url
+        } else if let remote = asset.remoteURL.flatMap(URL.init(string:)), remote.isFileURL {
+            url = remote
+        } else if let relPath = asset.relPath {
+            let base = try? FileManager.default.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: false
+            )
+            url = base?.appendingPathComponent(relPath)
+        } else {
+            url = nil
+        }
+        guard let url else { return nil }
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        return try? Data(contentsOf: url, options: [.mappedIfSafe])
     }
 
     func addSourceInBackground(preview: SourcePreview, followUpdates: Bool) {

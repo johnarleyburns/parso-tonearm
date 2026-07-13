@@ -6,6 +6,7 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
     static let scheme = "tonearm-cache"
 
     private let originalURL: URL
+    private let headers: [String: String]
     private let cacheKey: String
     private let session: URLSession
     private var resolvedURL: URL?
@@ -14,8 +15,9 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
     private var didShutdown = false
     private var fileHandle: FileHandle?
 
-    init(originalURL: URL) {
+    init(originalURL: URL, headers: [String: String] = [:]) {
         self.originalURL = originalURL
+        self.headers = headers
         self.cacheKey = CachingResourceLoader.key(for: originalURL)
         let cfg = URLSessionConfiguration.default
         cfg.timeoutIntervalForRequest = 30
@@ -112,6 +114,9 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
             return cached
         }
         var request = URLRequest(url: originalURL)
+        for (field, value) in headers {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
         let (_, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
@@ -179,6 +184,9 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
 
             let url = resolvedURL ?? originalURL
             var req = URLRequest(url: url)
+            for (field, value) in headers {
+                req.setValue(value, forHTTPHeaderField: field)
+            }
             req.setValue(rangeHeader, forHTTPHeaderField: "Range")
             let (bytes, response) = try await session.bytes(for: req)
             if let http = response as? HTTPURLResponse,

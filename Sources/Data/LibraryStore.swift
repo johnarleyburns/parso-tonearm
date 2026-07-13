@@ -363,6 +363,81 @@ actor LibraryStore {
         }
     }
 
+    @discardableResult
+    func applyTagEditPlan(_ plan: TagEdit.Plan) throws -> Int {
+        guard plan.canApply else { return 0 }
+        return try dbQueue.write { db in
+            var applied = 0
+            for operation in plan.operations {
+                guard var track = try Track.fetchOne(db, key: operation.trackID) else { continue }
+                var album = try track.albumId.flatMap { try Album.fetchOne(db, key: $0) }
+                var changed = false
+                var albumChanged = false
+
+                for change in operation.changes {
+                    switch change.field {
+                    case .title:
+                        if let value = change.after?.textValue {
+                            track.title = value
+                            changed = true
+                        }
+                    case .artist:
+                        if let value = change.after?.textValue {
+                            track.artistId = try self.artistID(for: value, db: db)
+                        } else {
+                            track.artistId = nil
+                        }
+                        changed = true
+                    case .albumTitle:
+                        if album != nil {
+                            album?.title = change.after?.textValue ?? ""
+                            albumChanged = true
+                        }
+                    case .albumArtist:
+                        if album != nil {
+                            album?.albumArtist = change.after?.textValue
+                            album?.artist = change.after?.textValue
+                            album?.artistId = try change.after?.textValue.flatMap { try self.artistID(for: $0, db: db) }
+                            albumChanged = true
+                        }
+                    case .genre:
+                        track.genre = change.after?.textValue
+                        changed = true
+                    case .composer:
+                        track.composer = change.after?.textValue
+                        changed = true
+                    case .trackNumber:
+                        track.trackNo = change.after?.integerValue
+                        if let trackNo = track.trackNo {
+                            track.sortKey = String(format: "%04d", trackNo)
+                        }
+                        changed = true
+                    case .discNumber:
+                        track.discNo = change.after?.integerValue
+                        changed = true
+                    case .year:
+                        if album != nil {
+                            album?.year = change.after?.integerValue
+                            albumChanged = true
+                        }
+                    }
+                }
+
+                if changed {
+                    try track.update(db)
+                }
+                if albumChanged, let album {
+                    try album.update(db)
+                }
+                if changed || albumChanged {
+                    try self.refreshSearchIndex(trackID: track.id, db: db)
+                    applied += 1
+                }
+            }
+            return applied
+        }
+    }
+
     func trackRow(id: Int64) throws -> TrackRow? {
         try dbQueue.read { db in
             guard let t = try Track.fetchOne(db, key: id) else { return nil }
@@ -382,6 +457,25 @@ actor LibraryStore {
         let source = try Source.fetchOne(db, key: track.sourceId)
         let asset = try Asset.filter(Column("trackId") == track.id).fetchOne(db)
         return TrackRow(track: track, album: album, source: source, asset: asset, artist: artist)
+    }
+
+    private func artistID(for rawName: String, db: Database) throws -> Int64? {
+        guard let name = ArtistNamePolicy.normalize(rawName) else { return nil }
+        if let existing = try Artist.fetchOne(
+            db,
+            sql: "SELECT * FROM artist WHERE name = ? COLLATE NOCASE",
+            arguments: [name]
+        ) {
+            return existing.id
+        }
+        var artist = Artist(
+            id: nil,
+            name: name,
+            sortName: ArtistNamePolicy.sortName(for: name),
+            syncID: UUID().uuidString
+        )
+        try artist.insert(db)
+        return artist.id
     }
 
     private func refreshSearchIndex(trackID: Int64?, db: Database) throws {

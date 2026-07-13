@@ -424,7 +424,7 @@ final class AudioPlayer: ObservableObject {
         if asset.kind == .remote, let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) {
             let cacheURL = CachingResourceLoader.cacheURL(for: remote)
             let avAsset = AVURLAsset(url: cacheURL)
-            let loader = CachingResourceLoader(originalURL: remote)
+            let loader = CachingResourceLoader(originalURL: remote, headers: asset.transientRemoteHeaders)
             avAsset.resourceLoader.setDelegate(loader, queue: loaderQueue)
             return (AVPlayerItem(asset: avAsset), loader)
         } else if let bookmark = asset.bookmark, let (url, _) = BookmarkVault.resolve(bookmark) {
@@ -804,7 +804,7 @@ final class AudioPlayer: ObservableObject {
             guard playbackDecision(for: asset) != .skipWiFiOnly else { continue }
             if prefetchLoaders[trackId] != nil { continue }  // already prefetching
             prefetchedURLs[trackId] = remote
-            let loader = CachingResourceLoader(originalURL: remote)
+            let loader = CachingResourceLoader(originalURL: remote, headers: asset.transientRemoteHeaders)
             prefetchLoaders[trackId] = loader
             let cacheURL = CachingResourceLoader.cacheURL(for: remote)
             Task.detached(priority: .background) {

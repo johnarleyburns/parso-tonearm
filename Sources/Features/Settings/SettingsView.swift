@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var showClearCustomConfirm = false
     @State private var showPaywall = false
     @State private var showEQ = false
+    @State private var showTools = false
     @State private var showCustomCacheLimit = false
     @State private var customCacheLimitMB = ""
     @State private var customCacheLimitMessage: String?
@@ -32,6 +33,7 @@ struct SettingsView: View {
 
                 cacheCard
                 behaviorCard
+                toolsCard
                 syncCard
                 clearCard
                 customArtworkCard
@@ -46,6 +48,7 @@ struct SettingsView: View {
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
         .sheet(isPresented: $showPaywall) { ProPaywallView() }
         .sheet(isPresented: $showEQ) { EQView() }
+        .sheet(isPresented: $showTools) { ProToolsView() }
         .confirmationDialog("Clear \(TimeFmt.megabytes(cacheUsed)) of cached audio?",
                             isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button("Clear Cache", role: .destructive) {
@@ -261,6 +264,39 @@ struct SettingsView: View {
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
+    }
+
+    private var toolsCard: some View {
+        let isPro = ProEntitlement.isActive
+        return Button {
+            switch ProToolsAccessPolicy.decisionForToolsSurface(isPro: isPro) {
+            case .allow:
+                showTools = true
+            case .requiresPro:
+                showPaywall = true
+            }
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
+                        Text("Tools").font(.system(size: 13.5))
+                        if !isPro {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 8, weight: .bold)).foregroundStyle(Palette.brass)
+                        }
+                    }
+                    Text("Smart playlists, tags, duplicates and Pro audio policy")
+                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                }
+                Spacer()
+                Image(systemName: "wrench.and.screwdriver")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Palette.ink3)
+            }
+            .padding(15)
+            .glassSurface(cornerRadius: 18)
+        }
+        .buttonStyle(.plain)
     }
 
     private func settingToggle(_ title: String, _ sub: String, _ binding: Binding<Bool>) -> some View {
