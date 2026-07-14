@@ -73,7 +73,7 @@ final class PinPolicyTests: XCTestCase {
             items: items,
             cacheLimitBytes: 500,
             proEnabled: true,
-            protectedKey: "current"
+            protectedKeys: ["current"]
         )
 
         XCTAssertEqual(plan.protectedKeys, ["current"])
