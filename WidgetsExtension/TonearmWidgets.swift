@@ -65,7 +65,7 @@ struct NowPlayingWidget: Widget {
         StaticConfiguration(kind: "guru.parso.tonearm.now-playing", provider: TonearmTimelineProvider()) { entry in
             NowPlayingWidgetView(entry: entry)
                 .containerBackground(for: .widget) {
-                    TonearmWidgetBackground()
+                    Color.clear
                 }
                 .widgetURL(TonearmWidgetURL.nowPlaying)
         }
@@ -80,7 +80,7 @@ struct RecentlyPlayedWidget: Widget {
         StaticConfiguration(kind: "guru.parso.tonearm.recently-played", provider: TonearmTimelineProvider()) { entry in
             RecentlyPlayedWidgetView(entry: entry)
                 .containerBackground(for: .widget) {
-                    TonearmWidgetBackground()
+                    Color.clear
                 }
                 .widgetURL(TonearmWidgetURL.nowPlaying)
         }
@@ -102,6 +102,8 @@ private struct NowPlayingWidgetView: View {
             default:
                 standard(nowPlaying)
             }
+        } else if family == .accessoryRectangular {
+            accessoryEmpty("Nothing Playing")
         } else {
             EmptyWidgetView(title: "Nothing Playing", subtitle: "Open Tonearm")
         }
@@ -132,20 +134,35 @@ private struct NowPlayingWidgetView: View {
             .foregroundStyle(.secondary)
         }
         .padding()
+        .background(TonearmWidgetBackground())
     }
 
     private func accessory(_ nowPlaying: WidgetNowPlayingSnapshot) -> some View {
         HStack(spacing: 8) {
             Image(systemName: nowPlaying.isPlaying ? "play.fill" : "pause.fill")
+                .foregroundStyle(.primary)
             VStack(alignment: .leading, spacing: 1) {
                 Text(nowPlaying.track.title)
                     .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                 Text(nowPlaying.track.artist)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary.opacity(0.7))
                     .lineLimit(1)
             }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private func accessoryEmpty(_ text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "music.note")
+                .foregroundStyle(.primary.opacity(0.5))
+            Text(text)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
         }
         .padding(.horizontal, 4)
     }
@@ -158,7 +175,11 @@ private struct RecentlyPlayedWidgetView: View {
     var body: some View {
         let rows = entry.snapshot.recentlyPlayed
         if rows.isEmpty {
-            EmptyWidgetView(title: "No History Yet", subtitle: "Play something in Tonearm")
+            if family == .accessoryRectangular {
+                accessoryEmpty("No History Yet")
+            } else {
+                EmptyWidgetView(title: "No History Yet", subtitle: "Play something in Tonearm")
+            }
         } else if family == .accessoryRectangular {
             accessory(rows[0])
         } else {
@@ -182,21 +203,36 @@ private struct RecentlyPlayedWidgetView: View {
                 Spacer(minLength: 0)
             }
             .padding()
+            .background(TonearmWidgetBackground())
         }
     }
 
     private func accessory(_ track: WidgetTrackSnapshot) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "clock.arrow.circlepath")
+                .foregroundStyle(.primary)
             VStack(alignment: .leading, spacing: 1) {
                 Text(track.title)
                     .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                 Text(track.artist)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary.opacity(0.7))
                     .lineLimit(1)
             }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private func accessoryEmpty(_ text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "clock")
+                .foregroundStyle(.primary.opacity(0.5))
+            Text(text)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
         }
         .padding(.horizontal, 4)
     }
