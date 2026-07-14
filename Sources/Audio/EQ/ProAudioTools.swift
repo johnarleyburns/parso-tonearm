@@ -1,6 +1,6 @@
 import Foundation
 
-enum BiquadFilterType: String, CaseIterable, Equatable {
+enum BiquadFilterType: String, CaseIterable, Equatable, Codable {
     case peaking
     case lowShelf
     case highShelf
@@ -189,7 +189,7 @@ extension Biquad {
     }
 }
 
-struct ParametricEQBand: Equatable, Identifiable {
+struct ParametricEQBand: Equatable, Identifiable, Codable {
     var id: String
     var type: BiquadFilterType
     var frequency: Double

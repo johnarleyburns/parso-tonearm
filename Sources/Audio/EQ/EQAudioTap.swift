@@ -1,51 +1,94 @@
 import Foundation
 import AVFoundation
+import os
 
-/// Attaches the 10-band EQ to an `AVPlayerItem` via `MTAudioProcessingTap` on the
-/// item's `audioMix` (valid for the progressive/file assets this app plays). The
-/// tap runs the biquad cascade and ReplayGain multiplier on the realtime audio
-/// thread. When both stages are transparent, samples pass through untouched.
+/// Attaches the full Pro Audio chain to an `AVPlayerItem` via `MTAudioProcessingTap`
+/// on the item's `audioMix`. The tap runs the 10-band EQ, the parametric cascade,
+/// convolution, crossfeed and the ReplayGain multiplier on the realtime audio
+/// thread. When every stage is transparent, samples pass through untouched.
+///
+/// Realtime safety: the audio thread does NO blocking lock, NO allocation and NO
+/// Swift/ObjC runtime work in the hot path. New settings are compiled into a fully
+/// pre-allocated `ProAudioKernel` on the MAIN thread and published under an
+/// `os_unfair_lock`. The audio thread picks the pending kernel up with
+/// `os_unfair_lock_trylock` (and keeps using the previous one if the trylock
+/// fails), then processes without holding any lock.
 final class EQAudioTap {
 
-    /// Shared engine mutated from the main thread (UI) and read on the audio
-    /// thread. Access is guarded by a lock.
     private final class Storage {
-        var engine: EQEngine
-        var replayGain: Double
-        private let lock = NSLock()
-        init(engine: EQEngine, replayGain: Double) {
-            self.engine = engine
-            self.replayGain = replayGain
+        /// Owned and mutated only on the audio thread (except `reset` in prepare).
+        var live: ProAudioKernel
+        /// Handed off from the main thread, picked up by the audio thread.
+        private var pending: ProAudioKernel?
+        private var lock = os_unfair_lock_s()
+
+        init(kernel: ProAudioKernel) {
+            self.live = kernel
         }
-        func withLock<T>(_ body: (inout EQEngine) -> T) -> T {
-            lock.lock(); defer { lock.unlock() }
-            return body(&engine)
+
+        /// MAIN thread: publish a freshly-compiled kernel (all allocation done).
+        func publish(_ kernel: ProAudioKernel) {
+            os_unfair_lock_lock(&lock)
+            pending = kernel
+            os_unfair_lock_unlock(&lock)
         }
-        func withState<T>(_ body: (inout EQEngine, Double) -> T) -> T {
-            lock.lock(); defer { lock.unlock() }
-            return body(&engine, replayGain)
+
+        /// AUDIO thread: adopt a pending kernel if one is available and the lock is
+        /// free. Never blocks; if the trylock fails we keep the current kernel.
+        func adoptPendingIfAvailable() {
+            guard os_unfair_lock_trylock(&lock) else { return }
+            if let next = pending {
+                live = next
+                pending = nil
+            }
+            os_unfair_lock_unlock(&lock)
         }
-        func update(gains: [Double], bypassed: Bool, replayGain: Double) {
-            lock.lock(); defer { lock.unlock() }
-            engine.setGains(gains)
-            engine.bypassed = bypassed
-            self.replayGain = replayGain
+
+        func reset() {
+            live.reset()
         }
     }
 
     private let storage: Storage
+    private var currentReplayGain: Double
 
-    init(engine: EQEngine, replayGain: Double = 1) {
-        self.storage = Storage(engine: engine, replayGain: replayGain)
+    init(kernel: ProAudioKernel) {
+        self.storage = Storage(kernel: kernel)
+        self.currentReplayGain = kernel.replayGain
     }
 
-    /// Updates the processing state live (e.g. from the settings sliders).
-    func update(gains: [Double], bypassed: Bool, replayGain: Double = 1) {
-        storage.update(gains: gains, bypassed: bypassed, replayGain: replayGain)
+    convenience init(engine: EQEngine,
+                     settings: ProAudioSettings = .default,
+                     replayGain: Double = 1,
+                     sampleRate: Double = ProAudioSettings.convolutionSampleRate) {
+        let kernel = ProAudioKernel(
+            eqGains: engine.gains,
+            eqBypassed: engine.bypassed,
+            settings: settings,
+            replayGain: replayGain,
+            sampleRate: sampleRate)
+        self.init(kernel: kernel)
     }
 
-    /// Builds an `AVAudioMix` carrying this EQ tap for the given item's first
-    /// audio track. Returns nil if the asset exposes no audio track yet.
+    /// Updates the processing state live (from the settings sliders). Compiles the
+    /// new kernel here on the caller's (main) thread, then publishes it.
+    func update(gains: [Double],
+                bypassed: Bool,
+                settings: ProAudioSettings,
+                replayGain: Double = 1,
+                sampleRate: Double = ProAudioSettings.convolutionSampleRate) {
+        currentReplayGain = replayGain
+        let kernel = ProAudioKernel(
+            eqGains: gains,
+            eqBypassed: bypassed,
+            settings: settings,
+            replayGain: replayGain,
+            sampleRate: sampleRate)
+        storage.publish(kernel)
+    }
+
+    /// Builds an `AVAudioMix` carrying this tap for the given item's first audio
+    /// track. Returns nil if the asset exposes no audio track yet.
     func makeAudioMix(for item: AVPlayerItem) async -> AVAudioMix? {
         guard let track = try? await item.asset.loadTracks(withMediaType: .audio).first else {
             return nil
@@ -64,7 +107,7 @@ final class EQAudioTap {
             prepare: { tap, _, _ in
                 let raw = MTAudioProcessingTapGetStorage(tap)
                 let storage = Unmanaged<Storage>.fromOpaque(raw).takeUnretainedValue()
-                storage.withLock { $0.reset() }
+                storage.reset()
             },
             unprepare: nil,
             process: { tap, numberFrames, _, bufferListInOut, numberFramesOut, flagsOut in
@@ -73,24 +116,38 @@ final class EQAudioTap {
                 guard status == noErr else { return }
                 let raw = MTAudioProcessingTapGetStorage(tap)
                 let storage = Unmanaged<Storage>.fromOpaque(raw).takeUnretainedValue()
-                storage.withState { eq, replayGain in
-                    guard !eq.isTransparent || replayGain != 1 else { return }
-                    let abl = UnsafeMutableAudioBufferListPointer(bufferListInOut)
-                    for (channel, buffer) in abl.enumerated() {
-                        guard let data = buffer.mData else { continue }
-                        let count = Int(buffer.mDataByteSize) / MemoryLayout<Float>.size
-                        let samples = data.bindMemory(to: Float.self, capacity: count)
-                        for i in 0..<count {
-                            var sample = Double(samples[i])
-                            if !eq.isTransparent {
-                                sample = eq.process(sample, channel: channel)
-                            }
-                            if replayGain != 1 {
-                                sample *= replayGain
-                            }
-                            samples[i] = Float(sample)
-                        }
+                storage.adoptPendingIfAvailable()
+                guard !storage.live.isTransparent else { return }
+
+                let abl = UnsafeMutableAudioBufferListPointer(bufferListInOut)
+                // PostEffects taps deliver non-interleaved float: one buffer per
+                // channel. Process frame-major so crossfeed sees L and R together.
+                switch abl.count {
+                case 1:
+                    guard let data = abl[0].mData else { return }
+                    let count = Int(abl[0].mDataByteSize) / MemoryLayout<Float>.size
+                    let samples = data.bindMemory(to: Float.self, capacity: count)
+                    for i in 0..<count {
+                        let out = storage.live.processStereo(
+                            left: Double(samples[i]), right: 0, stereo: false)
+                        samples[i] = Float(out.left)
                     }
+                case 2:
+                    guard let leftData = abl[0].mData, let rightData = abl[1].mData else { return }
+                    let leftCount = Int(abl[0].mDataByteSize) / MemoryLayout<Float>.size
+                    let rightCount = Int(abl[1].mDataByteSize) / MemoryLayout<Float>.size
+                    let count = min(leftCount, rightCount)
+                    let left = leftData.bindMemory(to: Float.self, capacity: leftCount)
+                    let right = rightData.bindMemory(to: Float.self, capacity: rightCount)
+                    for i in 0..<count {
+                        let out = storage.live.processStereo(
+                            left: Double(left[i]), right: Double(right[i]), stereo: true)
+                        left[i] = Float(out.left)
+                        right[i] = Float(out.right)
+                    }
+                default:
+                    // Unexpected channel layout: pass through untouched.
+                    return
                 }
             })
 

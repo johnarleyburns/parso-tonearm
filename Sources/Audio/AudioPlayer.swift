@@ -694,15 +694,22 @@ final class AudioPlayer: ObservableObject {
     private func applyEQ(to item: AVPlayerItem, row: TrackRow, setLiveTap: Bool) {
         let settings = EQSettingsPersistence.load()
         let store = EQSettingsStore(presets: EQSettingsPersistence.allPresets())
+        let proAudio = ProAudioSettingsPersistence.load()
         let replayGain = replayGainValue(for: row.track)
-        guard settings.enabled || replayGain != 1 else {
+        // The tap must attach whenever ANY stage is non-transparent: the 10-band
+        // EQ, ReplayGain, OR the pro-audio chain. Without the pro-audio clause a
+        // flat EQ + unity ReplayGain would strand the parametric/crossfeed/
+        // convolution stages (the historical bug).
+        guard settings.enabled || replayGain != 1 || !proAudio.isTransparent else {
             item.audioMix = nil
             return
         }
         let gains = settings.enabled ? store.effectiveBands(for: settings).map(Double.init)
             : Array(repeating: 0, count: EQEngine.bandCount)
-        let engine = EQEngine(gains: gains, bypassed: !settings.enabled)
-        let tap = EQAudioTap(engine: engine, replayGain: replayGain)
+        let tap = EQAudioTap(
+            engine: EQEngine(gains: gains, bypassed: !settings.enabled),
+            settings: proAudio,
+            replayGain: replayGain)
         if setLiveTap { eqTap = tap }
         Task { @MainActor in
             if let mix = await tap.makeAudioMix(for: item) {
@@ -722,14 +729,35 @@ final class AudioPlayer: ObservableObject {
         let store = EQSettingsStore(presets: EQSettingsPersistence.allPresets())
         let normalized = store.normalized(settings)
         EQSettingsPersistence.save(normalized)
-        let gains = store.effectiveBands(for: normalized).map(Double.init)
+        pushLiveAudioProcessing(eqEnabled: normalized.enabled,
+                                gains: store.effectiveBands(for: normalized).map(Double.init))
+    }
+
+    /// Pushes the current Pro Audio settings into the live tap (from the Pro Tools
+    /// audio sliders). Mirrors `updateEQ(settings:)`.
+    func updateProAudio(_ settings: ProAudioSettings) {
+        ProAudioSettingsPersistence.save(settings)
+        let eqSettings = EQSettingsPersistence.load()
+        let store = EQSettingsStore(presets: EQSettingsPersistence.allPresets())
+        let gains = eqSettings.enabled ? store.effectiveBands(for: eqSettings).map(Double.init)
+            : Array(repeating: 0, count: EQEngine.bandCount)
+        pushLiveAudioProcessing(eqEnabled: eqSettings.enabled, gains: gains)
+    }
+
+    /// Shared live-update path: pushes EQ + Pro Audio + ReplayGain into the running
+    /// tap without interrupting playback, attaching or clearing the mix as the
+    /// combined transparency changes.
+    private func pushLiveAudioProcessing(eqEnabled: Bool, gains: [Double]) {
+        let proAudio = ProAudioSettingsPersistence.load()
         let replayGain = currentTrack.map { replayGainValue(for: $0.track) } ?? 1
-        if let tap = eqTap, normalized.enabled || replayGain != 1 {
-            tap.update(gains: gains, bypassed: !normalized.enabled, replayGain: replayGain)
-        } else if !normalized.enabled && replayGain == 1 {
+        let needsTap = eqEnabled || replayGain != 1 || !proAudio.isTransparent
+        if let tap = eqTap, needsTap {
+            tap.update(gains: gains, bypassed: !eqEnabled, settings: proAudio, replayGain: replayGain)
+        } else if !needsTap {
             player.currentItem?.audioMix = nil
+            eqTap = nil
         } else if let item = player.currentItem, let row = currentTrack {
-            // Toggled on/off: (re)attach or clear the mix on the live item.
+            // Toggled on from a clean chain: (re)attach the mix on the live item.
             applyEQ(to: item, row: row, setLiveTap: true)
         }
     }
@@ -740,6 +768,36 @@ final class AudioPlayer: ObservableObject {
             tags: track.replayGainTags,
             preampDB: replayGainPreampDB,
             preventClipping: replayGainPreventClipping)
+    }
+
+    /// The hardware output sample rate the audio session is currently running at.
+    var hardwareSampleRate: Double {
+        AVAudioSession.sharedInstance().sampleRate
+    }
+
+    /// The nominal sample rate of the currently loaded source audio track, or 0
+    /// when unknown (e.g. nothing playing yet).
+    var currentSourceSampleRate: Double {
+        guard let track = player.currentItem?.tracks.first(where: {
+            $0.assetTrack?.mediaType == .audio
+        }), let assetTrack = track.assetTrack else { return 0 }
+        let descriptions = assetTrack.formatDescriptions as? [CMFormatDescription] ?? []
+        for description in descriptions {
+            if let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(description) {
+                return asbd.pointee.mSampleRate
+            }
+        }
+        return 0
+    }
+
+    /// Honest bit-perfect plan for the current state: derived from the REAL
+    /// hardware/source rates and the live ReplayGain, never from view `@State`.
+    func bitPerfectPlan(for settings: ProAudioSettings) -> BitPerfectOutputPlan {
+        let replayGain = currentTrack.map { replayGainValue(for: $0.track) } ?? 1
+        return settings.bitPerfectPlan(
+            hardwareSampleRate: hardwareSampleRate,
+            sourceSampleRate: currentSourceSampleRate,
+            replayGainActive: replayGain != 1)
     }
 
     /// Chooses the FLAC alternate when the user prefers lossless and one exists,

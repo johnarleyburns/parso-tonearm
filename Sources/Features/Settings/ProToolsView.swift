@@ -11,6 +11,7 @@ private enum ProToolsTab: String, CaseIterable, Identifiable {
 
 struct ProToolsView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var player: AudioPlayer
     @Environment(\.dismiss) private var dismiss
 
     @State private var tab: ProToolsTab = .playlists
@@ -27,14 +28,7 @@ struct ProToolsView: View {
     @State private var tagYear = ""
     @State private var tagMessage: String?
 
-    @State private var eqFrequency = 1_000.0
-    @State private var eqGain = 0.0
-    @State private var eqQ = 1.0
-    @State private var crossfeedDB = -12.0
-    @State private var convolutionTaps = 0
-    @State private var bitPerfectRequested = true
-    @State private var sampleRateMatches = true
-    @State private var replayGainEnabled = false
+    @State private var proAudio = ProAudioSettingsPersistence.load()
 
     @State private var duplicateGroups: [DuplicateDetection.Group] = []
     @State private var duplicateMessage: String?
@@ -133,15 +127,16 @@ struct ProToolsView: View {
 
     private var audioPanel: some View {
         VStack(alignment: .leading, spacing: 14) {
-            slider("Frequency", value: $eqFrequency, range: 20...20_000, display: "\(Int(eqFrequency)) Hz")
-            slider("Gain", value: $eqGain, range: -12...12, display: String(format: "%.1f dB", eqGain))
-            slider("Q", value: $eqQ, range: 0.2...10, display: String(format: "%.1f", eqQ))
-            slider("Crossfeed", value: $crossfeedDB, range: -24...0, display: String(format: "%.0f dB", crossfeedDB))
-            Stepper("Convolution taps \(convolutionTaps)", value: $convolutionTaps, in: 0...4096, step: 128)
+            slider("Frequency", value: bandFrequency, range: 20...20_000, display: "\(Int(bandFrequency.wrappedValue)) Hz")
+            slider("Gain", value: bandGain, range: -12...12, display: String(format: "%.1f dB", bandGain.wrappedValue))
+            slider("Q", value: bandQ, range: 0.2...10, display: String(format: "%.1f", bandQ.wrappedValue))
+            Toggle("Crossfeed", isOn: crossfeedEnabled).tint(Palette.brassDeep)
+            slider("Crossfeed level", value: crossfeedLevel, range: -24...0, display: String(format: "%.0f dB", crossfeedLevel.wrappedValue))
+                .disabled(!proAudio.crossfeedEnabled)
+                .opacity(proAudio.crossfeedEnabled ? 1 : 0.45)
+            Stepper("Convolution taps \(proAudio.convolutionTaps)", value: convolutionTaps, in: 0...ProAudioSettings.maxConvolutionTaps, step: 64)
                 .font(.system(size: 13.5))
-            Toggle("Bit-perfect requested", isOn: $bitPerfectRequested).tint(Palette.brassDeep)
-            Toggle("Sample rate matches hardware", isOn: $sampleRateMatches).tint(Palette.brassDeep)
-            Toggle("ReplayGain active", isOn: $replayGainEnabled).tint(Palette.brassDeep)
+            Toggle("Bit-perfect requested", isOn: bitPerfectRequested).tint(Palette.brassDeep)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(bitPerfectPlan.canUseBitPerfect ? "Bit-perfect available" : "Bit-perfect blocked")
@@ -186,23 +181,67 @@ struct ProToolsView: View {
         }
     }
 
+    private static let parametricBandID = "proaudio.parametric.primary"
+
+    private var primaryBand: ParametricEQBand {
+        proAudio.parametricBands.first ?? ParametricEQBand(
+            id: Self.parametricBandID, type: .peaking, frequency: 1_000, gainDB: 0, q: 1)
+    }
+
+    private func updateBand(_ transform: (inout ParametricEQBand) -> Void) {
+        var band = primaryBand
+        transform(&band)
+        // A 0 dB peaking band is transparent; keep it out of the cascade so the
+        // chain can null and bit-perfect stays reachable.
+        if band.gainDB == 0 {
+            proAudio.parametricBands = []
+        } else {
+            proAudio.parametricBands = [band]
+        }
+        commit()
+    }
+
+    private func commit() {
+        player.updateProAudio(proAudio)
+    }
+
+    private var bandFrequency: Binding<Double> {
+        Binding(get: { primaryBand.frequency },
+                set: { value in updateBand { $0.frequency = value } })
+    }
+
+    private var bandGain: Binding<Double> {
+        Binding(get: { primaryBand.gainDB },
+                set: { value in updateBand { $0.gainDB = value } })
+    }
+
+    private var bandQ: Binding<Double> {
+        Binding(get: { primaryBand.q },
+                set: { value in updateBand { $0.q = value } })
+    }
+
+    private var crossfeedEnabled: Binding<Bool> {
+        Binding(get: { proAudio.crossfeedEnabled },
+                set: { proAudio.crossfeedEnabled = $0; commit() })
+    }
+
+    private var crossfeedLevel: Binding<Double> {
+        Binding(get: { proAudio.crossfeedDB },
+                set: { proAudio.crossfeedDB = $0; commit() })
+    }
+
+    private var convolutionTaps: Binding<Int> {
+        Binding(get: { proAudio.convolutionTaps },
+                set: { proAudio.convolutionTaps = $0; commit() })
+    }
+
+    private var bitPerfectRequested: Binding<Bool> {
+        Binding(get: { proAudio.bitPerfectRequested },
+                set: { proAudio.bitPerfectRequested = $0; commit() })
+    }
+
     private var bitPerfectPlan: BitPerfectOutputPlan {
-        let band = ParametricEQBand(type: .peaking, frequency: eqFrequency, gainDB: eqGain, q: eqQ)
-        let eq = ParametricEQCascade(bands: [band], sampleRate: 48_000)
-        let taps = convolutionTaps == 0 ? [] : Array(repeating: 0.25, count: convolutionTaps)
-        return BitPerfectOutputPlan(
-            requested: bitPerfectRequested,
-            sampleRateMatchesHardware: sampleRateMatches,
-            eqCascade: eq,
-            crossfeed: CrossfeedMatrix.symmetric(crossfeedDB: crossfeedDB),
-            convolution: ConvolutionPlan.make(
-                impulseResponse: taps,
-                maxTaps: convolutionTaps,
-                blockSize: 512,
-                normalize: true
-            ),
-            replayGainEnabled: replayGainEnabled
-        )
+        player.bitPerfectPlan(for: proAudio)
     }
 
     private var blockerText: String {
