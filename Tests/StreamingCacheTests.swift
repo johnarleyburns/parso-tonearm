@@ -18,6 +18,17 @@ final class StreamingCacheTests: XCTestCase {
         XCTAssertEqual(k1, k2)
     }
 
+    func testCacheKeyIsStableAcrossLaunches() {
+        let url = URL(string: "https://archive.org/download/item/track.mp3")!
+        let key = CachingResourceLoader.key(for: url)
+        XCTAssertEqual(key, "995d3f45ace3a63922472923d0a45497240725186f0aea72ca31d99e9a2e9818-mp3")
+    }
+
+    func testOpusKeyIsDetected() {
+        XCTAssertTrue(CacheStore.isOpusKey("abc123-opus"))
+        XCTAssertFalse(CacheStore.isOpusKey("abc123-mp3"))
+    }
+
     func testCacheKeyIncludesExtension() {
         let url = URL(string: "https://archive.org/download/item/track.flac")!
         let key = CachingResourceLoader.key(for: url)

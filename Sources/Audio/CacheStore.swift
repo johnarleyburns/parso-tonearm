@@ -28,6 +28,12 @@ actor CacheStore {
     /// When true (tests), the limit is not persisted to shared UserDefaults.
     private let isolated: Bool
 
+    /// After F1 (Hasher → SHA256), old Hasher-based cache keys are unrecoverable
+    /// across launches. A one-shot wipe clears orphaned files and metadata so they
+    /// don't squat on the limit. Increment this when the key scheme changes.
+    private static let cacheSchemaVersionKey = "cache.schema.version"
+    private static let currentSchemaVersion = 1
+
     static let limitKey = "cache.limit.bytes"
     static let defaultLimit: Int64 = 500 * 1024 * 1024
 
@@ -42,7 +48,17 @@ actor CacheStore {
         let stored = UserDefaults.standard.object(forKey: Self.limitKey) as? Int64
         limitBytes = stored ?? Self.defaultLimit
         isolated = false
-        metas = Self.loadMetas(from: metaDir)
+        let existing = Self.loadMetas(from: metaDir)
+        if UserDefaults.standard.integer(forKey: Self.cacheSchemaVersionKey) < Self.currentSchemaVersion {
+            for key in existing.keys {
+                try? FileManager.default.removeItem(at: dir.appendingPathComponent(key))
+                try? FileManager.default.removeItem(at: metaDir.appendingPathComponent("\(key).json"))
+            }
+            UserDefaults.standard.set(Self.currentSchemaVersion, forKey: Self.cacheSchemaVersionKey)
+            metas = [:]
+        } else {
+            metas = existing
+        }
     }
 
     /// Isolated instance rooted at a private directory for tests; does not read
@@ -202,7 +218,18 @@ actor CacheStore {
 
     // MARK: - Eviction
 
-    private func evictToFit(protecting protectedKey: String?) async {
+    /// Keys that eviction must never remove. Maintained by the player so the
+    /// currently playing track and its active prefetch/warm loaders are never
+    /// evicted mid-stream (F6). Call `setProtectedKeys` to atomically replace.
+    private var protectedKeys: Set<String> = []
+
+    func setProtectedKeys(_ keys: Set<String>) {
+        protectedKeys = keys
+    }
+
+    private func evictToFit(protecting extraKey: String? = nil) async {
+        var protected = protectedKeys
+        if let extraKey { protected.insert(extraKey) }
         guard limitBytes > 0 else { return }
         let plan = PinPolicy.evictionPlan(
             items: metas.map { key, meta in
@@ -215,7 +242,7 @@ actor CacheStore {
             },
             cacheLimitBytes: limitBytes,
             proEnabled: true,
-            protectedKey: protectedKey
+            protectedKeys: protected
         )
         for key in plan.evictKeys {
             remove(key)

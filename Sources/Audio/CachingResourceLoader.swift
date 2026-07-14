@@ -1,14 +1,14 @@
 import Foundation
 import AVFoundation
 import UniformTypeIdentifiers
+import CryptoKit
 
 final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
     static let scheme = "tonearm-cache"
 
     private let originalURL: URL
     private let headers: [String: String]
-    private let cacheKey: String
-    private let session: URLSession
+    let cacheKey: String
     private var resolvedURL: URL?
     private let stateLock = NSLock()
     private var inFlight: [Task<Void, Never>] = []
@@ -19,17 +19,21 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
         self.originalURL = originalURL
         self.headers = headers
         self.cacheKey = CachingResourceLoader.key(for: originalURL)
-        let cfg = URLSessionConfiguration.default
-        cfg.timeoutIntervalForRequest = 30
-        cfg.timeoutIntervalForResource = 3600
-        self.session = URLSession(configuration: cfg)
         super.init()
     }
 
     deinit {
         if let h = fileHandle { try? h.close() }
-        session.invalidateAndCancel()
     }
+
+    /// Shared session: avoids per-loader `URLSession` leaks (F8). One session for
+    /// all resource loader instances; individual requests are aborted via cancel.
+    private static let session: URLSession = {
+        let cfg = URLSessionConfiguration.default
+        cfg.timeoutIntervalForRequest = 30
+        cfg.timeoutIntervalForResource = 3600
+        return URLSession(configuration: cfg)
+    }()
 
     func shutdown() {
         stateLock.lock()
@@ -41,11 +45,51 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
         if let h = fileHandle { try? h.close(); fileHandle = nil }
     }
 
+    /// Prefetch-triggered cache fill (F4): walks the same cache-filling path as the
+    /// resource loader at background priority, without involving AVFoundation. The
+    /// loader must not be shut down; callers should retain a reference until warm
+    /// completes or is cancelled via `shutdown()`.
+    func warm(upTo bytes: Int64) {
+        let key = cacheKey
+        let url = originalURL
+        let hdrs = headers
+        Task.detached(priority: .background) {
+            guard bytes > 0 else { return }
+            let fileURL = await CacheStore.shared.fileURL(for: key)
+            if !FileManager.default.fileExists(atPath: fileURL.path) {
+                FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+            }
+            var rangeHeader = "bytes=0-\(bytes - 1)"
+            // respect existing cache so we don't re-download
+            let map = await CacheStore.shared.rangeMap(for: key)
+            let already = map.contiguousBytes(from: 0)
+            guard already < bytes else { return }
+            rangeHeader = "bytes=\(already)-\(bytes - 1)"
+            var req = URLRequest(url: url)
+            for (field, value) in hdrs { req.setValue(value, forHTTPHeaderField: field) }
+            req.setValue(rangeHeader, forHTTPHeaderField: "Range")
+            do {
+                let (body, response) = try await Self.session.data(for: req)
+                guard let http = response as? HTTPURLResponse, http.statusCode == 206 else { return }
+                guard let contentRange = http.value(forHTTPHeaderField: "Content-Range"),
+                      let startStr = contentRange.split(separator: " ").dropFirst().first?
+                        .split(separator: "-").first,
+                      let rangeStart = Int64(startStr),
+                      rangeStart == already else { return }
+                let fh = try FileHandle(forWritingTo: fileURL)
+                defer { try? fh.close() }
+                try fh.seek(toOffset: UInt64(already))
+                try fh.write(contentsOf: body)
+                let end = already + Int64(body.count)
+                await CacheStore.shared.recordWrite(range: already..<end, for: key)
+            } catch {}
+        }
+    }
+
     static func key(for url: URL) -> String {
-        var hasher = Hasher()
-        hasher.combine(url.absoluteString)
-        let h = UInt64(bitPattern: Int64(hasher.finalize()))
-        return String(h, radix: 16) + "-" + (url.lastPathComponent as NSString).pathExtension.lowercased()
+        let digest = SHA256.hash(data: Data(url.absoluteString.utf8))
+        let hex = digest.compactMap { String(format: "%02x", $0) }.joined()
+        return hex + "-" + (url.lastPathComponent as NSString).pathExtension.lowercased()
     }
 
     static func cacheURL(for remote: URL) -> URL {
@@ -71,16 +115,19 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
                         didCancel loadingRequest: AVAssetResourceLoadingRequest) { }
 
     private func handle(_ request: AVAssetResourceLoadingRequest) async {
+        guard !request.isCancelled else { return }
         do {
             let total = try await ensureResolvedLength()
+            guard !request.isCancelled else { return }
             if let info = request.contentInformationRequest {
                 info.contentLength = total
                 info.isByteRangeAccessSupported = true
                 info.contentType = contentType()
             }
-            if let dataRequest = request.dataRequest {
+            if let dataRequest = request.dataRequest, !request.isCancelled {
                 try await serve(dataRequest, total: total)
             }
+            guard !request.isCancelled else { return }
             request.finishLoading()
         } catch is CancellationError { }
         catch {
@@ -118,9 +165,9 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
             request.setValue(value, forHTTPHeaderField: field)
         }
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await Self.session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        guard (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
+        guard http.statusCode == 206 else { throw URLError(.badServerResponse) }
         self.resolvedURL = http.url ?? originalURL
         let total = Self.totalLength(from: http)
         if total > 0 { await CacheStore.shared.setContentLength(total, for: cacheKey) }
@@ -188,9 +235,24 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
                 req.setValue(value, forHTTPHeaderField: field)
             }
             req.setValue(rangeHeader, forHTTPHeaderField: "Range")
-            let (bytes, response) = try await session.bytes(for: req)
-            if let http = response as? HTTPURLResponse,
-               !(200..<300).contains(http.statusCode) {
+            let (bytes, response) = try await Self.session.bytes(for: req)
+            guard let http = response as? HTTPURLResponse else {
+                throw URLError(.badServerResponse)
+            }
+            switch http.statusCode {
+            case 206:
+                guard let contentRange = http.value(forHTTPHeaderField: "Content-Range"),
+                      let rangeStart = contentRange.split(separator: " ").dropFirst().first
+                        .flatMap({ $0.split(separator: "-").first }).flatMap({ Int64($0) }),
+                      rangeStart == cursor else {
+                    throw URLError(.badServerResponse)
+                }
+            case 200 where cursor == 0:
+                let cl = Int64(http.value(forHTTPHeaderField: "Content-Length") ?? "") ?? 0
+                guard cl > 0, let t = await CacheStore.shared.totalBytes(for: cacheKey), t > 0, cl == t else {
+                    throw URLError(.badServerResponse)
+                }
+            default:
                 throw URLError(.badServerResponse)
             }
 

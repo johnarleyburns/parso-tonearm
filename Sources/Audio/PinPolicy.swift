@@ -25,7 +25,7 @@ struct PinPolicy {
     static func evictionPlan(items: [Item],
                              cacheLimitBytes: Int64,
                              proEnabled: Bool,
-                             protectedKey: String? = nil) -> EvictionPlan {
+                             protectedKeys: Set<String> = []) -> EvictionPlan {
         let totalBytes = items.reduce(Int64(0)) { $0 + max(0, $1.bytes) }
         let pinnedBytes = items
             .filter(\.isPinned)
@@ -33,7 +33,7 @@ struct PinPolicy {
         guard cacheLimitBytes > 0 else {
             return EvictionPlan(
                 evictKeys: [],
-                protectedKeys: activeProtectedKeys(items: items, proEnabled: proEnabled, protectedKey: protectedKey),
+                protectedKeys: activeProtectedKeys(items: items, proEnabled: proEnabled, protectedKeys: protectedKeys),
                 bytesAfterEviction: totalBytes,
                 overLimitBytes: 0,
                 pinnedBytes: pinnedBytes,
@@ -41,7 +41,7 @@ struct PinPolicy {
             )
         }
 
-        let protectedKeys = activeProtectedKeys(items: items, proEnabled: proEnabled, protectedKey: protectedKey)
+        let protectedKeys = activeProtectedKeys(items: items, proEnabled: proEnabled, protectedKeys: protectedKeys)
         var bytesAfterEviction = totalBytes
         var evictKeys: [String] = []
         let candidates = items
@@ -80,13 +80,10 @@ struct PinPolicy {
 
     private static func activeProtectedKeys(items: [Item],
                                             proEnabled: Bool,
-                                            protectedKey: String?) -> Set<String> {
-        var protected = Set<String>()
+                                            protectedKeys: Set<String>) -> Set<String> {
+        var protected = protectedKeys
         if proEnabled {
             protected.formUnion(items.filter(\.isPinned).map(\.key))
-        }
-        if let protectedKey {
-            protected.insert(protectedKey)
         }
         return protected
     }

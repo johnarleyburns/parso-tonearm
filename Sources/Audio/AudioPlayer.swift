@@ -327,6 +327,7 @@ final class AudioPlayer: ObservableObject {
         preloadedNextItem = nil
         preloadedNextTrackId = nil
         preloadedNextLoader = nil
+        Task { await CacheStore.shared.setProtectedKeys([]) }
 
         player.pause()
         player.replaceCurrentItem(with: nil)
@@ -394,6 +395,7 @@ final class AudioPlayer: ObservableObject {
 
         replaceItem(item)
         applyEQ(to: item, row: row, setLiveTap: true)
+        protectCacheKeys(for: asset)
         if autoplay {
             player.play()
             isPlaying = true
@@ -842,6 +844,22 @@ final class AudioPlayer: ObservableObject {
         return base.appendingPathComponent(rel)
     }
 
+    /// F6: protects the current track's cache key from eviction while it's playing.
+    /// Also protects any active prefetch keys so they aren't evicted mid-stream before
+    /// the track advances to them.
+    private func protectCacheKeys(for asset: Asset) {
+        var keys: Set<String> = []
+        if asset.kind == .remote,
+           let urlString = remoteURLString(for: asset),
+           let remote = URL(string: urlString) {
+            keys.insert(CachingResourceLoader.key(for: remote))
+        }
+        for loader in prefetchLoaders.values {
+            keys.insert(loader.cacheKey)
+        }
+        Task { await CacheStore.shared.setProtectedKeys(keys) }
+    }
+
     // MARK: - Prefetch (FR-3.5)
 
     private func prefetchNext() {
@@ -864,13 +882,7 @@ final class AudioPlayer: ObservableObject {
             prefetchedURLs[trackId] = remote
             let loader = CachingResourceLoader(originalURL: remote, headers: asset.transientRemoteHeaders)
             prefetchLoaders[trackId] = loader
-            let cacheURL = CachingResourceLoader.cacheURL(for: remote)
-            Task.detached(priority: .background) {
-                let avAsset = AVURLAsset(url: cacheURL)
-                avAsset.resourceLoader.setDelegate(loader, queue: DispatchQueue(label: "prefetch"))
-                let item = AVPlayerItem(asset: avAsset)
-                _ = item
-            }
+            loader.warm(upTo: 2 * 1024 * 1024)  // warm 2 MB to seed near-gapless
             // "Opus when ready" (T2.4): fetch the Opus derivative and remux it to
             // CAF so the NEXT play/repeat of this track upgrades to Opus. Cold play
             // above stays on the instant FLAC/MP3 — no added latency on the tap.
