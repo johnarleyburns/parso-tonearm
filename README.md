@@ -35,7 +35,7 @@ browse by artist, album and genre · queue and playlist editing · archive.org s
 local import · widgets, Shortcuts, share extension · listening stats · scrobbling · lyrics ·
 zero telemetry, no account.
 
-### Tonearm Pro — $19.99, one time
+### Tonearm Pro — $9.99, one time
 
 1. **Remote Libraries** — your music wherever it lives: Subsonic/Navidrome, Jellyfin, Plex,
    WebDAV, SMB, Dropbox, Google Drive, OneDrive, pCloud. Streamed through the same
