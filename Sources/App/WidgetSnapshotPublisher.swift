@@ -95,8 +95,11 @@ final class NowPlayingLiveActivityController {
     private init() {}
 
     func publish(_ snapshot: WidgetSnapshot) {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled,
-              UserDefaults.standard.object(forKey: "showLiveActivity") as? Bool ?? true else { return }
+        let enabled = UserDefaults.standard.object(forKey: "showLiveActivity") as? Bool ?? false
+        guard ActivityAuthorizationInfo().areActivitiesEnabled, enabled else {
+            endAll()
+            return
+        }
 
         guard let state = TonearmNowPlayingAttributes.ContentState(snapshot: snapshot) else {
             endAll()

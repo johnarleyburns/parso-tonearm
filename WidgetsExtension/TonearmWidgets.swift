@@ -321,46 +321,25 @@ struct TonearmNowPlayingLiveActivity: Widget {
                     LiveActivityContentView(context: context)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if #available(iOS 17.0, *) {
-                        HStack(spacing: 24) {
-                            Button(intent: TonearmPreviousTrackIntent()) {
-                                Image(systemName: "backward.fill")
-                                    .font(.title3)
-                            }
-                            .tint(.white)
-
-                            Button(intent: TonearmTogglePlaybackIntent()) {
-                                Image(systemName: context.state.isPlaying ? "pause.fill" : "play.fill")
-                                    .font(.title2)
-                            }
-                            .tint(.white)
-
-                            Button(intent: TonearmNextTrackIntent()) {
-                                Image(systemName: "forward.fill")
-                                    .font(.title3)
-                            }
-                            .tint(.white)
-                        }
-                    }
-                    if context.state.isPlaying {
-                        ProgressView(timerInterval: context.state.startDate...context.state.endDate, countsDown: false)
-                            .tint(.green)
-                    } else {
-                        ProgressView(value: context.state.progress)
-                            .tint(.green)
-                    }
+                    LiveActivityProgressView(state: context.state)
                 }
             } compactLeading: {
                 Image(systemName: context.state.isPlaying ? "play.fill" : "pause.fill")
                     .foregroundStyle(.green)
             } compactTrailing: {
-                Text("\(Int((context.state.progress * 100).rounded()))%")
-                    .font(.caption2.weight(.semibold))
+                if context.state.duration > 0 {
+                    Text("\(Int((context.state.progress * 100).rounded()))%")
+                        .font(.caption2.weight(.semibold))
+                } else {
+                    Image(systemName: "waveform")
+                        .foregroundStyle(.green)
+                }
             } minimal: {
                 Image(systemName: "music.note")
                     .foregroundStyle(.green)
             }
             .widgetURL(TonearmWidgetURL.nowPlaying)
+            .keylineTint(.green)
         }
     }
 }
@@ -371,21 +350,19 @@ private struct LiveActivityContentView: View {
 
     var body: some View {
         let state = context.state
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             if context.isStale {
-                HStack {
+                HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.yellow)
                     Text("Outdated")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(.white.opacity(0.65))
                     Spacer()
                 }
             }
-            HStack(spacing: 12) {
-                Image(systemName: state.isPlaying ? "play.circle.fill" : "pause.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(isLuminanceReduced ? .white : .green)
+            HStack(alignment: .center, spacing: 12) {
+                LiveActivityArtwork(filename: state.artworkFilename, size: 52)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(state.title)
                         .font(.headline)
@@ -393,45 +370,81 @@ private struct LiveActivityContentView: View {
                         .lineLimit(1)
                     Text(state.artist)
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(.white.opacity(0.72))
                         .lineLimit(1)
-                    if state.isPlaying {
-                        ProgressView(timerInterval: state.startDate...state.endDate, countsDown: false)
-                            .tint(.green)
-                        Text(timerInterval: state.startDate...state.endDate, countsDown: true)
-                            .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.5))
-                            .monospacedDigit()
-                    } else {
-                        ProgressView(value: state.progress)
-                            .tint(.green)
-                    }
+                    LiveActivityProgressView(state: state)
                 }
+                Image(systemName: state.isPlaying ? "play.circle.fill" : "pause.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(isLuminanceReduced ? Color.white.opacity(0.7) : Color.green)
             }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .unredacted()
+        .privacySensitive(false)
+    }
+}
 
-            if !isLuminanceReduced, #available(iOS 17.0, *) {
-                HStack(spacing: 20) {
-                    Button(intent: TonearmPreviousTrackIntent()) {
-                        Image(systemName: "backward.fill")
-                            .font(.title3)
-                    }
-                    .tint(.white)
+private struct LiveActivityProgressView: View {
+    var state: TonearmNowPlayingAttributes.ContentState
 
-                    Button(intent: TonearmTogglePlaybackIntent()) {
-                        Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.title2)
-                    }
-                    .tint(.white)
-
-                    Button(intent: TonearmNextTrackIntent()) {
-                        Image(systemName: "forward.fill")
-                            .font(.title3)
-                    }
-                    .tint(.white)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if state.duration > 0, state.isPlaying, state.endDate > state.startDate {
+                ProgressView(timerInterval: state.startDate...state.endDate, countsDown: false)
+                    .tint(.green)
+                Text(timerInterval: state.startDate...state.endDate, countsDown: true)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.65))
+                    .monospacedDigit()
+            } else if state.duration > 0 {
+                ProgressView(value: state.progress)
+                    .tint(.green)
+            } else {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(state.isPlaying ? Color.green : Color.white.opacity(0.5))
+                        .frame(width: 6, height: 6)
+                    Text(state.isPlaying ? "Playing" : "Paused")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.65))
                 }
             }
         }
-        .padding()
+    }
+}
+
+private struct LiveActivityArtwork: View {
+    var filename: String?
+    var size: CGFloat
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(0.12))
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size, height: size)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                Image(systemName: "music.note")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.green)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+
+    private var image: UIImage? {
+        guard let filename,
+              let url = WidgetArtworkStore.imageURL(for: filename),
+              let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        return UIImage(data: data)
     }
 }
 

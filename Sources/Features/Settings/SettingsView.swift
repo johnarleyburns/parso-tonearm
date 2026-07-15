@@ -181,8 +181,8 @@ struct SettingsView: View {
                           "Ask Apple's iTunes Search for covers your files lack",
                           $appState.artworkLookup)
             Divider().overlay(Palette.hairline)
-            settingToggle("Show Live Activity",
-                          "Display a now-playing card on the lock screen",
+            settingToggle("Experimental Live Activity",
+                          "Adds a companion card; native playback controls still appear",
                           $appState.showLiveActivity)
         }
         .padding(15)
@@ -191,6 +191,14 @@ struct SettingsView: View {
         .onChange(of: appState.preferFLAC) { _, _ in appState.applySettingsToPlayer() }
         .onChange(of: appState.prefetchDepth) { _, _ in appState.applySettingsToPlayer() }
         .onChange(of: appState.artworkLookup) { _, _ in appState.applySettingsToPlayer() }
+        .onChange(of: appState.showLiveActivity) { _, enabled in
+            guard #available(iOS 16.2, *) else { return }
+            if enabled {
+                WidgetSnapshotPublisher.publish(player: AudioPlayer.shared)
+            } else {
+                NowPlayingLiveActivityController.shared.endAll()
+            }
+        }
     }
 
     private var prefetchControl: some View {
