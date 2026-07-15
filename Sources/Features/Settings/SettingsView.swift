@@ -181,8 +181,8 @@ struct SettingsView: View {
                           "Ask Apple's iTunes Search for covers your files lack",
                           $appState.artworkLookup)
             Divider().overlay(Palette.hairline)
-            settingToggle("Experimental Live Activity",
-                          "Adds a companion card; native playback controls still appear",
+            settingToggle("Show Live Activity",
+                          "Display a now-playing card on the lock screen",
                           $appState.showLiveActivity)
         }
         .padding(15)

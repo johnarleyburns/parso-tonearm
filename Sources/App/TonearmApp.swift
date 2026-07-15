@@ -12,9 +12,6 @@ struct TonearmApp: App {
         }
         ProStore.shared.start()
         TonearmPlaybackCommands.handler = AudioPlayer.shared
-        if #available(iOS 16.2, *) {
-            NowPlayingLiveActivityController.shared.endAll()
-        }
     }
 
     var body: some Scene {

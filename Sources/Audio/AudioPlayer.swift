@@ -34,6 +34,7 @@ final class AudioPlayer: ObservableObject {
     @Published private(set) var queue: [TrackRow] = []
     @Published private(set) var index: Int = 0
     @Published private(set) var isPlaying = false
+    @Published private(set) var isStalled = false
     @Published private(set) var currentTime: Double = 0
     @Published private(set) var duration: Double = 0
     @Published var shuffle = false {
@@ -79,6 +80,9 @@ final class AudioPlayer: ObservableObject {
     private var timeObserver: Any?
     private var itemEndObserver: NSObjectProtocol?
     private var routeChangeObserver: NSObjectProtocol?
+    private var interruptionObserver: NSObjectProtocol?
+    private var timeControlCancellable: AnyCancellable?
+    private var restoreTask: Task<Void, Never>?
     private var loaders: [CachingResourceLoader] = []
     private let loaderQueue = DispatchQueue(label: "guru.parso.tonearm.loaders")
     private var stallModel = StallModel()
@@ -105,6 +109,11 @@ final class AudioPlayer: ObservableObject {
     private let pathMonitorQueue = DispatchQueue(label: "guru.parso.tonearm.network")
     private var sleepTimerTask: Task<Void, Never>?
 
+    /// The observed playback truth: playing AND not stalled/buffering. Drives the
+    /// Live Activity's self-advancing progress bar so it freezes at the real
+    /// position during stalls, interruptions, and pauses.
+    var isAdvancing: Bool { isPlaying && !isStalled }
+
     var currentTrack: TrackRow? {
         if isAmbient, let channelId = ambientChannelId {
             return BuiltInContentProvider.allTrackRows.first {
@@ -125,7 +134,9 @@ final class AudioPlayer: ObservableObject {
         configureSession()
         setupRemoteCommands()
         addPeriodicObserver()
+        observeTimeControlStatus()
         observeRouteChanges()
+        observeInterruptions()
         observeNetworkPath()
     }
 
@@ -291,6 +302,7 @@ final class AudioPlayer: ObservableObject {
         player.seek(to: time)
         currentTime = seconds
         updateNowPlayingTime()
+        persistPlaybackState()
         WidgetSnapshotPublisher.publish(player: self)
     }
 
@@ -340,6 +352,7 @@ final class AudioPlayer: ObservableObject {
         queueSource = .none
         applySleepTimer(.cancel)
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        PlaybackStateStore.clear()
         WidgetSnapshotPublisher.publishEmpty()
     }
 
@@ -404,7 +417,7 @@ final class AudioPlayer: ObservableObject {
         updateNowPlaying()
         prefetchNext()
         preloadNextItem()
-        if let trackId = row.track.id {
+        if autoplay, let trackId = row.track.id {
             Task { try? await LibraryStore.shared.recordPlay(trackId: trackId) }
         }
     }
@@ -626,6 +639,7 @@ final class AudioPlayer: ObservableObject {
             oldPlayer.removeTimeObserver(observer)
             timeObserver = nil
         }
+        timeControlCancellable = nil
 
         oldPlayer.pause()
         oldPlayer.replaceCurrentItem(with: nil)
@@ -654,6 +668,7 @@ final class AudioPlayer: ObservableObject {
             observeEnd(of: item)
         }
         addPeriodicObserver()
+        observeTimeControlStatus()
         updateNowPlaying()
         prefetchNext()
         preloadNextItem()
@@ -945,6 +960,44 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
+    /// Observes the player's true playback state (Fix 1). `timeControlStatus` is
+    /// the ground truth: manual `isPlaying` flips can't see buffering stalls on
+    /// remote streams, which made the self-advancing Live Activity bar sprint
+    /// ahead while audio was actually frozen. Re-subscribed after crossfade swaps
+    /// the player instance.
+    private func observeTimeControlStatus() {
+        timeControlCancellable = player.publisher(for: \.timeControlStatus)
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.handleTimeControlChange(self.player.timeControlStatus)
+                }
+            }
+    }
+
+    private func handleTimeControlChange(_ status: AVPlayer.TimeControlStatus) {
+        guard !isAmbient else { return }
+        let wasAdvancing = isAdvancing
+        let wasPlaying = isPlaying
+        switch status {
+        case .playing:
+            isPlaying = true
+            isStalled = false
+        case .waitingToPlayAtSpecifiedRate:
+            isStalled = true
+        case .paused:
+            if crossfadePlayer == nil {
+                isPlaying = false
+            }
+            isStalled = false
+        @unknown default:
+            break
+        }
+        if isAdvancing != wasAdvancing || isPlaying != wasPlaying {
+            updateNowPlaying()
+        }
+    }
+
     private func refreshCacheState() {
         guard let asset = currentTrack?.asset, asset.kind == .remote,
               let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else {
@@ -1002,6 +1055,33 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
+    /// Pauses on interruption begin (phone call, Siri) and resumes when the
+    /// system says playback should continue (Fix 1). Both paths publish the
+    /// Live Activity via `updateNowPlaying()` so the card reflects reality.
+    private func observeInterruptions() {
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let typeRaw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: typeRaw) else { return }
+            let optionsRaw = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                switch type {
+                case .began:
+                    self.pausePlayback()
+                case .ended:
+                    if AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume) {
+                        self.resumePlayback()
+                    }
+                @unknown default:
+                    break
+                }
+            }
+        }
+    }
+
     private func observeNetworkPath() {
         pathMonitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
@@ -1030,6 +1110,7 @@ final class AudioPlayer: ObservableObject {
     private func updateNowPlaying() {
         guard let row = currentTrack else {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            PlaybackStateStore.clear()
             WidgetSnapshotPublisher.publishEmpty()
             return
         }
@@ -1038,10 +1119,11 @@ final class AudioPlayer: ObservableObject {
             MPMediaItemPropertyArtist: row.album?.artist ?? "archive.org",
             MPMediaItemPropertyPlaybackDuration: isAmbient ? 0 : duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: isAmbient ? 0 : currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
+            MPNowPlayingInfoPropertyPlaybackRate: isAdvancing ? 1.0 : 0.0
         ]
         info[MPMediaItemPropertyAlbumTitle] = row.album?.title
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        persistPlaybackState()
         WidgetSnapshotPublisher.publish(player: self)
 
         Task {
@@ -1052,18 +1134,102 @@ final class AudioPlayer: ObservableObject {
                 MPNowPlayingInfoCenter.default().nowPlayingInfo = current
 
                 if let artworkID = row.album?.artworkId ?? row.source?.iaIdentifier {
+                    // The save must complete before the re-publish so the snapshot's
+                    // filename-exists check (Fix 4) sees the file on disk.
                     WidgetArtworkStore.save(image: image, for: artworkID)
+                    pruneWidgetArtwork()
                     WidgetSnapshotPublisher.publish(player: self)
                 }
             }
         }
     }
 
+    /// Bounds the App Group artwork directory: keeps only files referenced by the
+    /// current snapshot (now playing + recently played).
+    private func pruneWidgetArtwork() {
+        let snapshot = WidgetSnapshotStore.load()
+        var keep = Set<String>()
+        if let id = snapshot.nowPlaying?.track.artworkID {
+            keep.insert(WidgetArtworkStore.filename(for: id))
+        }
+        for track in snapshot.recentlyPlayed {
+            if let id = track.artworkID {
+                keep.insert(WidgetArtworkStore.filename(for: id))
+            }
+        }
+        if let id = currentTrack.flatMap({ $0.album?.artworkId ?? $0.source?.iaIdentifier }) {
+            keep.insert(WidgetArtworkStore.filename(for: id))
+        }
+        WidgetArtworkStore.prune(keeping: keep)
+    }
+
     private func updateNowPlayingTime() {
         var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
-        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isAdvancing ? 1.0 : 0.0
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    // MARK: - Queue persistence (Fix 2)
+
+    /// Persists the queue/position to the App Group on the same discrete events
+    /// that publish now-playing info, so an intent-launched suspended app can
+    /// rebuild the player instead of no-oping on an empty queue.
+    private func persistPlaybackState() {
+        guard !isAmbient else { return }
+        var ids: [Int64] = []
+        var currentIndex = 0
+        for (position, row) in queue.enumerated() {
+            guard let id = row.track.id, id > 0 else { continue }
+            if position == index { currentIndex = ids.count }
+            ids.append(id)
+        }
+        guard !ids.isEmpty else {
+            PlaybackStateStore.clear()
+            return
+        }
+        PlaybackStateStore.save(PlaybackStateSnapshot(
+            trackIDs: ids,
+            currentIndex: currentIndex,
+            elapsed: currentTime,
+            isPlaying: isPlaying,
+            savedAt: Date()
+        ))
+    }
+
+    /// Rebuilds the queue from the persisted state (paused, no autoplay) when the
+    /// player is empty — the self-healing path for Live Activity intents that
+    /// launch a suspended app, and for normal app launches. Runs at most once per
+    /// process; concurrent callers await the same restore.
+    func restorePersistedQueue() async {
+        if let restoreTask {
+            await restoreTask.value
+            return
+        }
+        let task = Task { await performQueueRestore() }
+        restoreTask = task
+        await task.value
+    }
+
+    private func performQueueRestore() async {
+        guard queue.isEmpty, !isAmbient else { return }
+        guard let saved = PlaybackStateStore.load(), !saved.trackIDs.isEmpty else { return }
+
+        var rows: [TrackRow] = []
+        var startIndex = 0
+        for (position, id) in saved.trackIDs.enumerated() {
+            guard let row = try? await LibraryStore.shared.trackRow(id: id) else { continue }
+            if position == saved.currentIndex { startIndex = rows.count }
+            rows.append(row)
+        }
+        guard !rows.isEmpty, queue.isEmpty, !isAmbient else { return }
+
+        queue = rows
+        index = min(startIndex, rows.count - 1)
+        loadCurrent(autoplay: false)
+        if saved.elapsed > 0 {
+            seek(to: saved.elapsed)
+        }
     }
 
     // MARK: - Built-in / Ambient
@@ -1198,4 +1364,5 @@ final class AudioPlayer: ObservableObject {
 
 extension AudioPlayer: TonearmPlaybackCommanding {
     func toggle() { togglePlayPause() }
+    func ensureReady() async { await restorePersistedQueue() }
 }

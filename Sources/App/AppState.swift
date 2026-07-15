@@ -42,7 +42,7 @@ final class AppState: ObservableObject {
     @AppStorage("prefetchDepth") var prefetchDepth = 2
     @AppStorage("artworkLookup") var artworkLookup = true
     @AppStorage("didOnboard") var didOnboard = false
-    @AppStorage("showLiveActivity") var showLiveActivity = false
+    @AppStorage("showLiveActivity") var showLiveActivity = true
 
     init(store: LibraryStore = .shared) {
         self.store = store
@@ -51,8 +51,11 @@ final class AppState: ObservableObject {
     func bootstrap() async {
         await fixLegacySourceTitles()
         await ArtworkService.shared.migrateCacheIfNeeded()
-        await reload()
         applySettingsToPlayer()
+        // Restore the queue BEFORE the first publish so a Live Activity that
+        // survived a force-quit is adopted (updated) instead of ended.
+        await AudioPlayer.shared.restorePersistedQueue()
+        await reload()
         await CacheStore.shared.garbageCollectStalePartials()
         Task { await warmLocalSourceArtwork() }
     }

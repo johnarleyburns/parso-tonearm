@@ -157,7 +157,15 @@ enum WidgetSnapshotBuilder {
     private static func trackSnapshot(from input: TrackInput) -> WidgetTrackSnapshot {
         let artworkID = input.artworkID?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedArtworkID = artworkID?.isEmpty == true ? nil : artworkID
-        let filename = normalizedArtworkID.map { WidgetArtworkStore.filename(for: $0) }
+        // Only reference an artwork file that already exists on disk: the JPEG is
+        // written asynchronously after the first publish, and a dangling filename
+        // renders as a blank rectangle instead of the SF-symbol fallback.
+        let filename = normalizedArtworkID.flatMap { id -> String? in
+            let name = WidgetArtworkStore.filename(for: id)
+            guard let url = WidgetArtworkStore.imageURL(for: name),
+                  FileManager.default.fileExists(atPath: url.path) else { return nil }
+            return name
+        }
         return WidgetTrackSnapshot(
             id: input.id,
             title: displayText(input.title, fallback: "Untitled Track"),
