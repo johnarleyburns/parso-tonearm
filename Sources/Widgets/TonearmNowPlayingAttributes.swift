@@ -11,6 +11,9 @@ struct TonearmNowPlayingAttributes: ActivityAttributes {
         var duration: Double
         var progress: Double
         var updatedAt: Date
+        var startDate: Date
+        var endDate: Date
+        var artworkFilename: String?
 
         init?(snapshot: WidgetSnapshot) {
             guard let nowPlaying = snapshot.nowPlaying else { return nil }
@@ -22,6 +25,9 @@ struct TonearmNowPlayingAttributes: ActivityAttributes {
             duration = nowPlaying.duration
             progress = nowPlaying.progress
             updatedAt = nowPlaying.updatedAt
+            startDate = nowPlaying.startDate
+            endDate = nowPlaying.endDate
+            artworkFilename = nowPlaying.track.artworkFilename
         }
     }
 

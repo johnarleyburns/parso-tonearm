@@ -26,6 +26,10 @@ enum WidgetSnapshotStore {
     }
 
     private static func sharedDefaults() -> UserDefaults? {
-        UserDefaults(suiteName: appGroupIdentifier) ?? .standard
+        guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
+            print("WidgetSnapshotStore: App Group suite \(appGroupIdentifier) unavailable — check entitlements")
+            return nil
+        }
+        return defaults
     }
 }

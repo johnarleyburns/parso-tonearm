@@ -95,6 +95,9 @@ final class NowPlayingLiveActivityController {
     private init() {}
 
     func publish(_ snapshot: WidgetSnapshot) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled,
+              UserDefaults.standard.object(forKey: "showLiveActivity") as? Bool ?? true else { return }
+
         guard let state = TonearmNowPlayingAttributes.ContentState(snapshot: snapshot) else {
             endAll()
             return
@@ -120,11 +123,15 @@ final class NowPlayingLiveActivityController {
             if let matching {
                 await matching.update(content)
             } else if state.isPlaying {
-                _ = try? Activity<TonearmNowPlayingAttributes>.request(
-                    attributes: attributes,
-                    content: content,
-                    pushType: nil
-                )
+                do {
+                    _ = try Activity<TonearmNowPlayingAttributes>.request(
+                        attributes: attributes,
+                        content: content,
+                        pushType: nil
+                    )
+                } catch {
+                    print("NowPlayingLiveActivity: failed to request activity: \(error)")
+                }
             }
         }
     }

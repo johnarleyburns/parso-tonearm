@@ -42,6 +42,7 @@ final class AppState: ObservableObject {
     @AppStorage("prefetchDepth") var prefetchDepth = 2
     @AppStorage("artworkLookup") var artworkLookup = true
     @AppStorage("didOnboard") var didOnboard = false
+    @AppStorage("showLiveActivity") var showLiveActivity = true
 
     init(store: LibraryStore = .shared) {
         self.store = store

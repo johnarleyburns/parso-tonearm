@@ -180,6 +180,10 @@ struct SettingsView: View {
             settingToggle("Look up missing artwork",
                           "Ask Apple's iTunes Search for covers your files lack",
                           $appState.artworkLookup)
+            Divider().overlay(Palette.hairline)
+            settingToggle("Show Live Activity",
+                          "Display a now-playing card on the lock screen",
+                          $appState.showLiveActivity)
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)

@@ -1050,6 +1050,11 @@ final class AudioPlayer: ObservableObject {
                 var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
                 current[MPMediaItemPropertyArtwork] = art
                 MPNowPlayingInfoCenter.default().nowPlayingInfo = current
+
+                if let artworkID = row.album?.artworkId ?? row.source?.iaIdentifier {
+                    WidgetArtworkStore.save(image: image, for: artworkID)
+                    WidgetSnapshotPublisher.publish(player: self)
+                }
             }
         }
     }
@@ -1189,4 +1194,8 @@ final class AudioPlayer: ObservableObject {
     func toggleShuffle() {
         shuffle.toggle()
     }
+}
+
+extension AudioPlayer: TonearmPlaybackCommanding {
+    func toggle() { togglePlayPause() }
 }

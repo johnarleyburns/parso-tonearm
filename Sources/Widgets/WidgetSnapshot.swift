@@ -13,6 +13,7 @@ struct WidgetTrackSnapshot: Codable, Equatable, Hashable {
     var duration: Double?
     var artworkID: String?
     var artworkStatus: WidgetArtworkStatus
+    var artworkFilename: String?
 
     var stableID: String {
         if let id { return "track-\(id)" }
@@ -31,6 +32,8 @@ struct WidgetNowPlayingSnapshot: Codable, Equatable {
     var duration: Double
     var progress: Double
     var updatedAt: Date
+    var startDate: Date
+    var endDate: Date
 }
 
 struct WidgetSnapshot: Codable, Equatable {
@@ -117,13 +120,18 @@ enum WidgetSnapshotBuilder {
             let elapsed = min(max(0, normalizedSeconds(playback.elapsed) ?? 0), duration ?? 0)
             let total = duration ?? 0
             let progress = total > 0 ? min(1, max(0, elapsed / total)) : 0
+            let start = Date(timeInterval: -elapsed, since: now)
+            let remaining = max(0, total - elapsed)
+            let end = Date(timeInterval: remaining, since: now)
             return WidgetNowPlayingSnapshot(
                 track: trackSnapshot(from: input),
                 isPlaying: playback.isPlaying,
                 elapsed: elapsed,
                 duration: total,
                 progress: progress,
-                updatedAt: now
+                updatedAt: now,
+                startDate: start,
+                endDate: end
             )
         }
 
@@ -149,6 +157,7 @@ enum WidgetSnapshotBuilder {
     private static func trackSnapshot(from input: TrackInput) -> WidgetTrackSnapshot {
         let artworkID = input.artworkID?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedArtworkID = artworkID?.isEmpty == true ? nil : artworkID
+        let filename = normalizedArtworkID.map { WidgetArtworkStore.filename(for: $0) }
         return WidgetTrackSnapshot(
             id: input.id,
             title: displayText(input.title, fallback: "Untitled Track"),
@@ -156,7 +165,8 @@ enum WidgetSnapshotBuilder {
             albumTitle: optionalDisplayText(input.albumTitle),
             duration: normalizedSeconds(input.duration),
             artworkID: normalizedArtworkID,
-            artworkStatus: normalizedArtworkID == nil ? .missing : .available
+            artworkStatus: normalizedArtworkID == nil ? .missing : .available,
+            artworkFilename: filename
         )
     }
 

@@ -11,6 +11,7 @@ struct TonearmApp: App {
             UserDefaults.standard.set(true, forKey: "didOnboard")
         }
         ProStore.shared.start()
+        TonearmPlaybackCommands.handler = AudioPlayer.shared
     }
 
     var body: some Scene {

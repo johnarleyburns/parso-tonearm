@@ -149,6 +149,77 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(nowPlaying.progress, 1)
     }
 
+    func testStartEndDatesDeriveFromElapsedAndDuration() throws {
+        let now = Date(timeIntervalSince1970: 1_000)
+
+        let snapshot = WidgetSnapshotBuilder.build(
+            playback: .init(
+                track: track(1, "Timed"),
+                isPlaying: true,
+                elapsed: 30,
+                duration: 120
+            ),
+            recentlyPlayed: [],
+            now: now
+        )
+        let nowPlaying = try XCTUnwrap(snapshot.nowPlaying)
+
+        XCTAssertEqual(nowPlaying.startDate.timeIntervalSince1970, 1_000 - 30, accuracy: 0.001)
+        XCTAssertEqual(nowPlaying.endDate.timeIntervalSince1970, 1_000 + 90, accuracy: 0.001)
+    }
+
+    func testZeroDurationProducesEqualStartAndEndDates() throws {
+        let now = Date(timeIntervalSince1970: 1_000)
+
+        let snapshot = WidgetSnapshotBuilder.build(
+            playback: .init(
+                track: .init(
+                    id: 1,
+                    title: "ZeroDur",
+                    artist: "A",
+                    albumTitle: nil,
+                    duration: nil,
+                    artworkID: nil
+                ),
+                isPlaying: false,
+                elapsed: 0,
+                duration: 0
+            ),
+            recentlyPlayed: [],
+            now: now
+        )
+        let nowPlaying = try XCTUnwrap(snapshot.nowPlaying)
+
+        XCTAssertEqual(nowPlaying.elapsed, 0)
+        XCTAssertEqual(nowPlaying.duration, 0)
+        XCTAssertEqual(nowPlaying.startDate, nowPlaying.endDate)
+    }
+
+    func testArtworkFilenameDerivedFromArtworkID() throws {
+        let now = Date(timeIntervalSince1970: 1_500)
+
+        let snapshot = WidgetSnapshotBuilder.build(
+            playback: .init(
+                track: .init(
+                    id: 99,
+                    title: "T",
+                    artist: "A",
+                    albumTitle: nil,
+                    duration: 10,
+                    artworkID: "my-cover-art"
+                ),
+                isPlaying: true,
+                elapsed: 1,
+                duration: 10
+            ),
+            recentlyPlayed: [],
+            now: now
+        )
+        let track = try XCTUnwrap(snapshot.nowPlaying?.track)
+
+        XCTAssertEqual(track.artworkFilename, "my-cover-art.jpg")
+    }
+
     private func track(_ id: Int64, _ title: String) -> WidgetSnapshotBuilder.TrackInput {
         WidgetSnapshotBuilder.TrackInput(
             id: id,

@@ -124,14 +124,23 @@ private struct NowPlayingWidgetView: View {
                 }
             }
             Spacer(minLength: 0)
-            ProgressView(value: nowPlaying.progress)
-                .tint(.green)
-            HStack {
-                Image(systemName: nowPlaying.isPlaying ? "play.fill" : "pause.fill")
-                Text(nowPlaying.isPlaying ? "Playing" : "Paused")
+            if nowPlaying.isPlaying, nowPlaying.duration > 0, nowPlaying.endDate > nowPlaying.startDate {
+                ProgressView(timerInterval: nowPlaying.startDate...nowPlaying.endDate, countsDown: false)
+                    .tint(.green)
+                Text(timerInterval: nowPlaying.startDate...nowPlaying.endDate, countsDown: true)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            } else {
+                ProgressView(value: nowPlaying.progress)
+                    .tint(.green)
+                HStack {
+                    Image(systemName: nowPlaying.isPlaying ? "play.fill" : "pause.fill")
+                    Text(nowPlaying.isPlaying ? "Playing" : "Paused")
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
             }
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.secondary)
         }
         .padding()
         .background(TonearmWidgetBackground())
@@ -267,8 +276,19 @@ private struct ArtworkBadge: View {
         ZStack {
             RoundedRectangle(cornerRadius: 6)
                 .fill(track.hasArtwork ? Color.green.opacity(0.45) : Color.white.opacity(0.12))
-            Image(systemName: track.hasArtwork ? "music.quarternote.3" : "music.note")
-                .foregroundStyle(.white)
+            if let filename = track.artworkFilename,
+               let url = WidgetArtworkStore.imageURL(for: filename),
+               let data = try? Data(contentsOf: url),
+               let uiImage = UIImage(data: data) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size, height: size)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else {
+                Image(systemName: track.hasArtwork ? "music.quarternote.3" : "music.note")
+                    .foregroundStyle(.white)
+            }
         }
         .frame(width: size, height: size)
     }
@@ -291,18 +311,44 @@ private struct TonearmWidgetBackground: View {
 struct TonearmNowPlayingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TonearmNowPlayingAttributes.self) { context in
-            LiveActivityContentView(state: context.state)
+            LiveActivityContentView(context: context)
                 .activityBackgroundTint(Color.black)
                 .activitySystemActionForegroundColor(.green)
                 .widgetURL(TonearmWidgetURL.nowPlaying)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.center) {
-                    LiveActivityContentView(state: context.state)
+                    LiveActivityContentView(context: context)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    ProgressView(value: context.state.progress)
-                        .tint(.green)
+                    if #available(iOS 17.0, *) {
+                        HStack(spacing: 24) {
+                            Button(intent: TonearmPreviousTrackIntent()) {
+                                Image(systemName: "backward.fill")
+                                    .font(.title3)
+                            }
+                            .tint(.white)
+
+                            Button(intent: TonearmTogglePlaybackIntent()) {
+                                Image(systemName: context.state.isPlaying ? "pause.fill" : "play.fill")
+                                    .font(.title2)
+                            }
+                            .tint(.white)
+
+                            Button(intent: TonearmNextTrackIntent()) {
+                                Image(systemName: "forward.fill")
+                                    .font(.title3)
+                            }
+                            .tint(.white)
+                        }
+                    }
+                    if context.state.isPlaying {
+                        ProgressView(timerInterval: context.state.startDate...context.state.endDate, countsDown: false)
+                            .tint(.green)
+                    } else {
+                        ProgressView(value: context.state.progress)
+                            .tint(.green)
+                    }
                 }
             } compactLeading: {
                 Image(systemName: context.state.isPlaying ? "play.fill" : "pause.fill")
@@ -320,23 +366,69 @@ struct TonearmNowPlayingLiveActivity: Widget {
 }
 
 private struct LiveActivityContentView: View {
-    var state: TonearmNowPlayingAttributes.ContentState
+    var context: ActivityViewContext<TonearmNowPlayingAttributes>
+    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: state.isPlaying ? "play.circle.fill" : "pause.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.green)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(state.title)
-                    .font(.headline)
-                    .lineLimit(1)
-                Text(state.artist)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                ProgressView(value: state.progress)
-                    .tint(.green)
+        let state = context.state
+        VStack(spacing: 8) {
+            if context.isStale {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.yellow)
+                    Text("Outdated")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.5))
+                    Spacer()
+                }
+            }
+            HStack(spacing: 12) {
+                Image(systemName: state.isPlaying ? "play.circle.fill" : "pause.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(isLuminanceReduced ? .white : .green)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(state.title)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    Text(state.artist)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.7))
+                        .lineLimit(1)
+                    if state.isPlaying {
+                        ProgressView(timerInterval: state.startDate...state.endDate, countsDown: false)
+                            .tint(.green)
+                        Text(timerInterval: state.startDate...state.endDate, countsDown: true)
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.5))
+                            .monospacedDigit()
+                    } else {
+                        ProgressView(value: state.progress)
+                            .tint(.green)
+                    }
+                }
+            }
+
+            if !isLuminanceReduced, #available(iOS 17.0, *) {
+                HStack(spacing: 20) {
+                    Button(intent: TonearmPreviousTrackIntent()) {
+                        Image(systemName: "backward.fill")
+                            .font(.title3)
+                    }
+                    .tint(.white)
+
+                    Button(intent: TonearmTogglePlaybackIntent()) {
+                        Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.title2)
+                    }
+                    .tint(.white)
+
+                    Button(intent: TonearmNextTrackIntent()) {
+                        Image(systemName: "forward.fill")
+                            .font(.title3)
+                    }
+                    .tint(.white)
+                }
             }
         }
         .padding()
