@@ -136,7 +136,7 @@ final class NowPlayingLiveActivityController {
         }
     }
 
-    private func endAll() {
+    func endAll() {
         Task {
             for activity in Activity<TonearmNowPlayingAttributes>.activities {
                 await activity.end(nil, dismissalPolicy: .immediate)
