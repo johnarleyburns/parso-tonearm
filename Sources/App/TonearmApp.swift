@@ -11,6 +11,7 @@ struct TonearmApp: App {
             UserDefaults.standard.set(true, forKey: "didOnboard")
         }
         ProStore.shared.start()
+        AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
         TonearmPlaybackCommands.handler = AudioPlayer.shared
     }
 

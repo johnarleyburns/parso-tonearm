@@ -4,11 +4,10 @@ import XCTest
 /// Locates Opus test fixtures copied into the test bundle under `Fixtures/`.
 enum Fixtures {
     static func url(_ name: String, ext: String) -> URL {
-        let bundle = Bundle(for: FixtureAnchor.self)
-        if let u = bundle.url(forResource: name, withExtension: ext, subdirectory: "Fixtures") {
+        if let u = Bundle.module.url(forResource: name, withExtension: ext, subdirectory: "Fixtures") {
             return u
         }
-        if let u = bundle.url(forResource: name, withExtension: ext) {
+        if let u = Bundle.module.url(forResource: name, withExtension: ext) {
             return u
         }
         fatalError("Missing fixture \(name).\(ext) in test bundle")
@@ -18,5 +17,3 @@ enum Fixtures {
         (try? Data(contentsOf: url(name, ext: ext))) ?? Data()
     }
 }
-
-private final class FixtureAnchor {}

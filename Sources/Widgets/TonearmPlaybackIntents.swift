@@ -1,21 +1,6 @@
 import AppIntents
 import Foundation
 
-@MainActor
-protocol TonearmPlaybackCommanding {
-    func toggle()
-    func next()
-    func previous()
-    /// Restores the play queue from persisted state when the app was relaunched
-    /// by an intent and the player is empty, so commands never no-op.
-    func ensureReady() async
-}
-
-@MainActor
-enum TonearmPlaybackCommands {
-    static var handler: (any TonearmPlaybackCommanding)?
-}
-
 @available(iOS 17.0, *)
 struct TonearmTogglePlaybackIntent: AudioPlaybackIntent, LiveActivityIntent {
     static var title: LocalizedStringResource = "Play/Pause"

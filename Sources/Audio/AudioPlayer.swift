@@ -1,8 +1,6 @@
 import Foundation
 import AVFoundation
-import MediaPlayer
 import Combine
-import UIKit
 import Network
 
 enum RepeatMode: String, CaseIterable {
@@ -79,8 +77,6 @@ final class AudioPlayer: ObservableObject {
     private var audioLooper: AVPlayerLooper?
     private var timeObserver: Any?
     private var itemEndObserver: NSObjectProtocol?
-    private var routeChangeObserver: NSObjectProtocol?
-    private var interruptionObserver: NSObjectProtocol?
     private var timeControlCancellable: AnyCancellable?
     private var restoreTask: Task<Void, Never>?
     private var loaders: [CachingResourceLoader] = []
@@ -109,6 +105,11 @@ final class AudioPlayer: ObservableObject {
     private let pathMonitorQueue = DispatchQueue(label: "guru.parso.tonearm.network")
     private var sleepTimerTask: Task<Void, Never>?
 
+    /// The platform seam. Defaults to a no-op so the queue/shuffle/repeat logic is
+    /// host-testable; the app installs `SystemPlaybackBridge` via
+    /// `attachPlatformBridge(_:)` at launch.
+    private var bridge: PlaybackPlatformBridge = NoopPlaybackBridge()
+
     /// The observed playback truth: playing AND not stalled/buffering. Drives the
     /// Live Activity's self-advancing progress bar so it freezes at the real
     /// position during stalls, interruptions, and pauses.
@@ -131,13 +132,31 @@ final class AudioPlayer: ObservableObject {
     }
 
     private init() {
-        configureSession()
-        setupRemoteCommands()
         addPeriodicObserver()
         observeTimeControlStatus()
-        observeRouteChanges()
-        observeInterruptions()
         observeNetworkPath()
+    }
+
+    /// Installs the real platform bridge and starts the iOS-only integrations
+    /// (audio session, remote commands, route/interruption observation). Called
+    /// once at app launch; never called under `swift test`, which keeps the
+    /// no-op bridge.
+    public func attachPlatformBridge(_ bridge: PlaybackPlatformBridge) {
+        self.bridge = bridge
+        bridge.configureSession()
+        bridge.setupRemoteCommands(
+            resume: { [weak self] in self?.resume() },
+            pause: { [weak self] in self?.pause() },
+            next: { [weak self] in self?.next() },
+            previous: { [weak self] in self?.previous() },
+            seek: { [weak self] seconds in self?.seek(to: seconds) })
+        bridge.startObservers(
+            routeShouldPause: { [weak self] in
+                guard let self, self.isPlaying else { return }
+                self.pause()
+            },
+            interruptionPause: { [weak self] in self?.pausePlayback() },
+            interruptionResume: { [weak self] in self?.resumePlayback() })
     }
 
     // MARK: - Public control
@@ -303,7 +322,7 @@ final class AudioPlayer: ObservableObject {
         currentTime = seconds
         updateNowPlayingTime()
         persistPlaybackState()
-        WidgetSnapshotPublisher.publish(player: self)
+        bridge.publishSnapshot(self)
     }
 
     private func applyQueueEdit(_ edited: QueueEditor.State<TrackRow>,
@@ -351,9 +370,8 @@ final class AudioPlayer: ObservableObject {
         cachedFraction = 0
         queueSource = .none
         applySleepTimer(.cancel)
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         PlaybackStateStore.clear()
-        WidgetSnapshotPublisher.publishEmpty()
+        bridge.clearNowPlaying()
     }
 
     // MARK: - Loading
@@ -789,7 +807,7 @@ final class AudioPlayer: ObservableObject {
 
     /// The hardware output sample rate the audio session is currently running at.
     var hardwareSampleRate: Double {
-        AVAudioSession.sharedInstance().sampleRate
+        bridge.sampleRate
     }
 
     /// The nominal sample rate of the currently loaded source audio track, or 0
@@ -906,9 +924,7 @@ final class AudioPlayer: ObservableObject {
             }
             // Cache the artwork alongside its music so prefetched tracks are
             // fully available offline, not just their audio bytes.
-            Task.detached(priority: .background) {
-                _ = await ArtworkService.shared.artwork(forTrackRow: row)
-            }
+            bridge.prefetchArtwork(for: row)
         }
     }
 
@@ -1023,65 +1039,6 @@ final class AudioPlayer: ObservableObject {
 
     // MARK: - Session / Remote
 
-    private func configureSession() {
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .default)
-        try? session.setActive(true)
-    }
-
-    private func observeRouteChanges() {
-        routeChangeObserver = NotificationCenter.default.addObserver(
-            forName: AVAudioSession.routeChangeNotification,
-            object: nil, queue: .main
-        ) { [weak self] notification in
-            Task { @MainActor [weak self] in
-                guard let self, self.isPlaying else { return }
-                guard let reasonRaw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
-                      let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw) else { return }
-                let prevKey = AVAudioSessionRouteChangePreviousRouteKey
-                let prevRoute = notification.userInfo?[prevKey] as? AVAudioSessionRouteDescription
-                let prevHadExternal = prevRoute?.outputs.contains(where: { $0.portType != .builtInSpeaker }) == true
-
-                switch reason {
-                case .oldDeviceUnavailable:
-                    if prevHadExternal { self.pause() }
-                case .routeConfigurationChange:
-                    let currentOutputs = AVAudioSession.sharedInstance().currentRoute.outputs
-                    let isBuiltInOnly = currentOutputs.allSatisfy { $0.portType == .builtInSpeaker }
-                    if isBuiltInOnly && prevHadExternal { self.pause() }
-                default: break
-                }
-            }
-        }
-    }
-
-    /// Pauses on interruption begin (phone call, Siri) and resumes when the
-    /// system says playback should continue (Fix 1). Both paths publish the
-    /// Live Activity via `updateNowPlaying()` so the card reflects reality.
-    private func observeInterruptions() {
-        interruptionObserver = NotificationCenter.default.addObserver(
-            forName: AVAudioSession.interruptionNotification,
-            object: nil, queue: .main
-        ) { [weak self] notification in
-            guard let typeRaw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
-                  let type = AVAudioSession.InterruptionType(rawValue: typeRaw) else { return }
-            let optionsRaw = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                switch type {
-                case .began:
-                    self.pausePlayback()
-                case .ended:
-                    if AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume) {
-                        self.resumePlayback()
-                    }
-                @unknown default:
-                    break
-                }
-            }
-        }
-    }
-
     private func observeNetworkPath() {
         pathMonitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
@@ -1091,83 +1048,21 @@ final class AudioPlayer: ObservableObject {
         pathMonitor.start(queue: pathMonitorQueue)
     }
 
-    private func setupRemoteCommands() {
-        let c = MPRemoteCommandCenter.shared()
-        c.playCommand.addTarget { [weak self] _ in self?.resume(); return .success }
-        c.pauseCommand.addTarget { [weak self] _ in self?.pause(); return .success }
-        c.nextTrackCommand.addTarget { [weak self] _ in self?.next(); return .success }
-        c.previousTrackCommand.addTarget { [weak self] _ in self?.previous(); return .success }
-        c.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let e = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            self?.seek(to: e.positionTime)
-            return .success
-        }
-    }
-
     private func resume() { player.play(); isPlaying = true; updateNowPlaying() }
     private func pause() { player.pause(); isPlaying = false; updateNowPlaying() }
 
     private func updateNowPlaying() {
-        guard let row = currentTrack else {
-            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        guard currentTrack != nil else {
             PlaybackStateStore.clear()
-            WidgetSnapshotPublisher.publishEmpty()
+            bridge.clearNowPlaying()
             return
         }
-        var info: [String: Any] = [
-            MPMediaItemPropertyTitle: row.track.title,
-            MPMediaItemPropertyArtist: row.album?.artist ?? "archive.org",
-            MPMediaItemPropertyPlaybackDuration: isAmbient ? 0 : duration,
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: isAmbient ? 0 : currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isAdvancing ? 1.0 : 0.0
-        ]
-        info[MPMediaItemPropertyAlbumTitle] = row.album?.title
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
         persistPlaybackState()
-        WidgetSnapshotPublisher.publish(player: self)
-
-        Task {
-            if let image = await ArtworkService.shared.artwork(forTrackRow: row) {
-                let art = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-                current[MPMediaItemPropertyArtwork] = art
-                MPNowPlayingInfoCenter.default().nowPlayingInfo = current
-
-                if let artworkID = row.album?.artworkId ?? row.source?.iaIdentifier {
-                    // The save must complete before the re-publish so the snapshot's
-                    // filename-exists check (Fix 4) sees the file on disk.
-                    WidgetArtworkStore.save(image: image, for: artworkID)
-                    pruneWidgetArtwork()
-                    WidgetSnapshotPublisher.publish(player: self)
-                }
-            }
-        }
-    }
-
-    /// Bounds the App Group artwork directory: keeps only files referenced by the
-    /// current snapshot (now playing + recently played).
-    private func pruneWidgetArtwork() {
-        let snapshot = WidgetSnapshotStore.load()
-        var keep = Set<String>()
-        if let id = snapshot.nowPlaying?.track.artworkID {
-            keep.insert(WidgetArtworkStore.filename(for: id))
-        }
-        for track in snapshot.recentlyPlayed {
-            if let id = track.artworkID {
-                keep.insert(WidgetArtworkStore.filename(for: id))
-            }
-        }
-        if let id = currentTrack.flatMap({ $0.album?.artworkId ?? $0.source?.iaIdentifier }) {
-            keep.insert(WidgetArtworkStore.filename(for: id))
-        }
-        WidgetArtworkStore.prune(keeping: keep)
+        bridge.refreshNowPlaying(self)
     }
 
     private func updateNowPlayingTime() {
-        var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
-        info[MPNowPlayingInfoPropertyPlaybackRate] = isAdvancing ? 1.0 : 0.0
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        bridge.refreshNowPlayingTime(self)
     }
 
     // MARK: - Queue persistence (Fix 2)
