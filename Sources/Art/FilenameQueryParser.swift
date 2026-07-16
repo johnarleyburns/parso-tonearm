@@ -4,9 +4,9 @@ import Foundation
 /// artwork lookup. Handles the messy cases where only an artist name, or a
 /// single keyword, is present (e.g. "Stephan Bodzin", "Solomun.flac",
 /// "01 - Nicola Cruz - Boiler Room (Live)").
-struct FilenameQueryParser {
+public struct FilenameQueryParser {
 
-    struct Query: Equatable {
+    public struct Query: Equatable {
         var artist: String?
         var title: String?
         /// Whole cleaned string, used for last-resort term searches.
@@ -21,7 +21,7 @@ struct FilenameQueryParser {
         "video", "lyrics", "feat", "ft", "featuring", "boiler", "room"
     ]
 
-    func parse(_ raw: String) -> Query {
+    public func parse(_ raw: String) -> Query {
         var s = raw
 
         // 1. Strip a file extension if present.

@@ -1,17 +1,17 @@
 import Foundation
 
-enum ScrobblePolicy {
-    static let minimumTrackDuration: TimeInterval = 30
-    static let fourMinuteThreshold: TimeInterval = 240
-    static let defaultOptIn = false
-    static let privacyStatement = "Scrobbling is off until you connect Last.fm or ListenBrainz. When enabled, Tonearm sends the track title, artist, album, duration, and play time to the service you choose."
+public enum ScrobblePolicy {
+    public static let minimumTrackDuration: TimeInterval = 30
+    public static let fourMinuteThreshold: TimeInterval = 240
+    public static let defaultOptIn = false
+    public static let privacyStatement = "Scrobbling is off until you connect Last.fm or ListenBrainz. When enabled, Tonearm sends the track title, artist, album, duration, and play time to the service you choose."
 
-    enum Provider: String, CaseIterable, Hashable {
+    public enum Provider: String, CaseIterable, Hashable {
         case lastFM = "Last.fm"
         case listenBrainz = "ListenBrainz"
     }
 
-    struct Track: Equatable, Hashable {
+    public struct Track: Equatable, Hashable {
         var id: String
         var title: String
         var artist: String?
@@ -31,13 +31,13 @@ enum ScrobblePolicy {
         }
     }
 
-    struct Submission: Equatable, Hashable, Identifiable {
+    public struct Submission: Equatable, Hashable, Identifiable {
         var provider: Provider
         var track: Track
         var playedAt: Date
         var creditedSeconds: TimeInterval
 
-        var id: String {
+        public var id: String {
             "\(provider.rawValue)|\(track.id)|\(playedAtMilliseconds)"
         }
 
@@ -46,7 +46,7 @@ enum ScrobblePolicy {
         }
     }
 
-    struct Session: Equatable {
+    public struct Session: Equatable {
         var track: Track
         var startedAt: Date
         var lastPosition: TimeInterval
@@ -70,7 +70,7 @@ enum ScrobblePolicy {
         }
     }
 
-    enum PlaybackEvent: Equatable {
+    public enum PlaybackEvent: Equatable {
         case start(track: Track, at: Date)
         case progress(position: TimeInterval, isPlaying: Bool, at: Date)
         case pause(position: TimeInterval, at: Date)
@@ -78,12 +78,12 @@ enum ScrobblePolicy {
         case repeatOneRestart(at: Date)
     }
 
-    struct Update: Equatable {
+    public struct Update: Equatable {
         var session: Session?
         var submission: Submission?
     }
 
-    struct OfflineQueue: Equatable {
+    public struct OfflineQueue: Equatable {
         enum Delivery {
             case delivered
             case offline
@@ -135,17 +135,17 @@ enum ScrobblePolicy {
         }
     }
 
-    static func requiredPlaySeconds(for duration: TimeInterval) -> TimeInterval? {
+    public static func requiredPlaySeconds(for duration: TimeInterval) -> TimeInterval? {
         guard duration.isFinite, duration >= minimumTrackDuration else { return nil }
         return min(duration * 0.5, fourMinuteThreshold)
     }
 
-    static func isEligible(duration: TimeInterval, creditedSeconds: TimeInterval) -> Bool {
+    public static func isEligible(duration: TimeInterval, creditedSeconds: TimeInterval) -> Bool {
         guard let required = requiredPlaySeconds(for: duration) else { return false }
         return creditedSeconds >= required
     }
 
-    static func reduce(_ session: Session?,
+    public static func reduce(_ session: Session?,
                        event: PlaybackEvent,
                        isOptedIn: Bool,
                        provider: Provider) -> Update {

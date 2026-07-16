@@ -2,6 +2,7 @@ import ActivityKit
 import AppIntents
 import SwiftUI
 import WidgetKit
+import TonearmCore
 
 private enum TonearmWidgetURL {
     static let nowPlaying = URL(string: "tonearm://now-playing")!
@@ -311,17 +312,22 @@ private struct TonearmWidgetBackground: View {
 struct TonearmNowPlayingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TonearmNowPlayingAttributes.self) { context in
-            LiveActivityContentView(context: context)
+            LiveActivityContentView(context: context, showsControls: true)
                 .activityBackgroundTint(Color.black)
                 .activitySystemActionForegroundColor(.green)
                 .widgetURL(TonearmWidgetURL.nowPlaying)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.center) {
-                    LiveActivityContentView(context: context)
+                    LiveActivityContentView(context: context, showsControls: false)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    LiveActivityProgressView(state: context.state)
+                    VStack(spacing: 10) {
+                        if #available(iOS 17.0, *) {
+                            LiveActivityTransportControls(isPlaying: context.state.isPlaying)
+                        }
+                        LiveActivityProgressView(state: context.state)
+                    }
                 }
             } compactLeading: {
                 Image(systemName: context.state.isPlaying ? "play.fill" : "pause.fill")
@@ -346,6 +352,7 @@ struct TonearmNowPlayingLiveActivity: Widget {
 
 private struct LiveActivityContentView: View {
     var context: ActivityViewContext<TonearmNowPlayingAttributes>
+    var showsControls: Bool
     @Environment(\.isLuminanceReduced) private var isLuminanceReduced
 
     var body: some View {
@@ -378,11 +385,42 @@ private struct LiveActivityContentView: View {
                     .font(.title3)
                     .foregroundStyle(isLuminanceReduced ? Color.white.opacity(0.7) : Color.green)
             }
+            if showsControls, #available(iOS 17.0, *) {
+                LiveActivityTransportControls(isPlaying: state.isPlaying)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .unredacted()
         .privacySensitive(false)
+    }
+}
+
+@available(iOS 17.0, *)
+private struct LiveActivityTransportControls: View {
+    var isPlaying: Bool
+
+    var body: some View {
+        HStack(spacing: 24) {
+            Button(intent: TonearmPreviousTrackIntent()) {
+                Image(systemName: "backward.fill")
+                    .font(.title3)
+            }
+            .tint(.white)
+
+            Button(intent: TonearmTogglePlaybackIntent()) {
+                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                    .font(.title2)
+            }
+            .tint(.white)
+
+            Button(intent: TonearmNextTrackIntent()) {
+                Image(systemName: "forward.fill")
+                    .font(.title3)
+            }
+            .tint(.white)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

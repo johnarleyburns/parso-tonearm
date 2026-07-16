@@ -1,73 +1,73 @@
 import Foundation
 
-enum WidgetArtworkStatus: String, Codable, Equatable, Hashable {
+public enum WidgetArtworkStatus: String, Codable, Equatable, Hashable {
     case available
     case missing
 }
 
-struct WidgetTrackSnapshot: Codable, Equatable, Hashable {
-    var id: Int64?
-    var title: String
-    var artist: String
-    var albumTitle: String?
-    var duration: Double?
-    var artworkID: String?
-    var artworkStatus: WidgetArtworkStatus
-    var artworkFilename: String?
+public struct WidgetTrackSnapshot: Codable, Equatable, Hashable {
+    public var id: Int64?
+    public var title: String
+    public var artist: String
+    public var albumTitle: String?
+    public var duration: Double?
+    public var artworkID: String?
+    public var artworkStatus: WidgetArtworkStatus
+    public var artworkFilename: String?
 
-    var stableID: String {
+    public var stableID: String {
         if let id { return "track-\(id)" }
         return "\(title)|\(artist)|\(albumTitle ?? "")"
     }
 
-    var hasArtwork: Bool {
+    public var hasArtwork: Bool {
         artworkStatus == .available
     }
 }
 
-struct WidgetNowPlayingSnapshot: Codable, Equatable {
-    var track: WidgetTrackSnapshot
-    var isPlaying: Bool
-    var elapsed: Double
-    var duration: Double
-    var progress: Double
-    var updatedAt: Date
-    var startDate: Date
-    var endDate: Date
+public struct WidgetNowPlayingSnapshot: Codable, Equatable {
+    public var track: WidgetTrackSnapshot
+    public var isPlaying: Bool
+    public var elapsed: Double
+    public var duration: Double
+    public var progress: Double
+    public var updatedAt: Date
+    public var startDate: Date
+    public var endDate: Date
 }
 
-struct WidgetSnapshot: Codable, Equatable {
-    var generatedAt: Date
-    var nowPlaying: WidgetNowPlayingSnapshot?
-    var recentlyPlayed: [WidgetTrackSnapshot]
+public struct WidgetSnapshot: Codable, Equatable {
+    public var generatedAt: Date
+    public var nowPlaying: WidgetNowPlayingSnapshot?
+    public var recentlyPlayed: [WidgetTrackSnapshot]
 
-    static func empty(now: Date) -> WidgetSnapshot {
+    public static func empty(now: Date) -> WidgetSnapshot {
         WidgetSnapshot(generatedAt: now, nowPlaying: nil, recentlyPlayed: [])
     }
 
-    func isStale(at now: Date, staleAfter: TimeInterval) -> Bool {
+    public func isStale(at now: Date, staleAfter: TimeInterval) -> Bool {
         now.timeIntervalSince(generatedAt) > staleAfter
     }
 }
 
-enum WidgetTimelineState: Equatable {
+public enum WidgetTimelineState: Equatable {
     case empty
     case fresh
     case stale
 }
 
-struct WidgetTimelineEntrySnapshot: Equatable {
-    var date: Date
-    var snapshot: WidgetSnapshot
-    var state: WidgetTimelineState
-    var nextRefreshDate: Date
+public struct WidgetTimelineEntrySnapshot: Equatable {
+    public var date: Date
+    public var snapshot: WidgetSnapshot
+    public var state: WidgetTimelineState
+    public var nextRefreshDate: Date
 }
 
-enum WidgetSnapshotTimeline {
-    static let staleAfter: TimeInterval = 30 * 60
-    static let minimumRefreshInterval: TimeInterval = 5 * 60
+public enum WidgetSnapshotTimeline {
+    public static let staleAfter: TimeInterval = 30 * 60
+    public static let minimumRefreshInterval: TimeInterval = 5 * 60
 
-    static func entry(for snapshot: WidgetSnapshot, now: Date) -> WidgetTimelineEntrySnapshot {
+    public static func entry(for snapshot: WidgetSnapshot, now: Date) -> WidgetTimelineEntrySnapshot {
         let state: WidgetTimelineState
         if snapshot.nowPlaying == nil && snapshot.recentlyPlayed.isEmpty {
             state = .empty
@@ -90,27 +90,51 @@ enum WidgetSnapshotTimeline {
     }
 }
 
-enum WidgetSnapshotBuilder {
-    static let recentLimit = 5
-    static let maxDisplayCharacters = 96
+public enum WidgetSnapshotBuilder {
+    public static let recentLimit = 5
+    public static let maxDisplayCharacters = 96
 
-    struct TrackInput: Equatable {
-        var id: Int64?
-        var title: String
-        var artist: String?
-        var albumTitle: String?
-        var duration: Double?
-        var artworkID: String?
+    public struct TrackInput: Equatable {
+        public var id: Int64?
+        public var title: String
+        public var artist: String?
+        public var albumTitle: String?
+        public var duration: Double?
+        public var artworkID: String?
+
+        public init(id: Int64?,
+                    title: String,
+                    artist: String?,
+                    albumTitle: String?,
+                    duration: Double?,
+                    artworkID: String?) {
+            self.id = id
+            self.title = title
+            self.artist = artist
+            self.albumTitle = albumTitle
+            self.duration = duration
+            self.artworkID = artworkID
+        }
     }
 
-    struct PlaybackInput: Equatable {
-        var track: TrackInput?
-        var isPlaying: Bool
-        var elapsed: Double
-        var duration: Double
+    public struct PlaybackInput: Equatable {
+        public var track: TrackInput?
+        public var isPlaying: Bool
+        public var elapsed: Double
+        public var duration: Double
+
+        public init(track: TrackInput?,
+                    isPlaying: Bool,
+                    elapsed: Double,
+                    duration: Double) {
+            self.track = track
+            self.isPlaying = isPlaying
+            self.elapsed = elapsed
+            self.duration = duration
+        }
     }
 
-    static func build(
+    public static func build(
         playback: PlaybackInput,
         recentlyPlayed: [TrackInput],
         now: Date
@@ -157,7 +181,15 @@ enum WidgetSnapshotBuilder {
     private static func trackSnapshot(from input: TrackInput) -> WidgetTrackSnapshot {
         let artworkID = input.artworkID?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedArtworkID = artworkID?.isEmpty == true ? nil : artworkID
-        let filename = normalizedArtworkID.map { WidgetArtworkStore.filename(for: $0) }
+        // Only reference an artwork file that already exists on disk: the JPEG is
+        // written asynchronously after the first publish, and a dangling filename
+        // renders as a blank rectangle instead of the SF-symbol fallback.
+        let filename = normalizedArtworkID.flatMap { id -> String? in
+            let name = WidgetArtworkStore.filename(for: id)
+            guard let url = WidgetArtworkStore.imageURL(for: name),
+                  FileManager.default.fileExists(atPath: url.path) else { return nil }
+            return name
+        }
         return WidgetTrackSnapshot(
             id: input.id,
             title: displayText(input.title, fallback: "Untitled Track"),

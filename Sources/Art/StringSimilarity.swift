@@ -2,11 +2,11 @@ import Foundation
 
 /// Pure string-similarity helpers used by the artwork search confidence gate.
 /// Case- and diacritic-insensitive throughout so "Bodzín" matches "Bodzin".
-enum StringSimilarity {
+public enum StringSimilarity {
 
     /// Normalizes a string for comparison: lowercased, diacritic-folded,
     /// punctuation reduced to spaces, whitespace collapsed.
-    static func normalize(_ s: String) -> String {
+    public static func normalize(_ s: String) -> String {
         let folded = s.folding(options: [.diacriticInsensitive, .caseInsensitive],
                                locale: Locale(identifier: "en_US"))
         let mapped = folded.unicodeScalars.map { scalar -> Character in
@@ -19,12 +19,12 @@ enum StringSimilarity {
     }
 
     /// Distinct normalized tokens of a string.
-    static func tokens(_ s: String) -> Set<String> {
+    public static func tokens(_ s: String) -> Set<String> {
         Set(normalize(s).split(separator: " ").map(String.init))
     }
 
     /// Levenshtein edit distance between two already-normalized strings.
-    static func levenshtein(_ a: String, _ b: String) -> Int {
+    public static func levenshtein(_ a: String, _ b: String) -> Int {
         let x = Array(a), y = Array(b)
         if x.isEmpty { return y.count }
         if y.isEmpty { return x.count }
@@ -43,7 +43,7 @@ enum StringSimilarity {
 
     /// Similarity ratio in [0,1] based on normalized Levenshtein distance.
     /// 1.0 = identical (after normalization), 0.0 = maximally different.
-    static func ratio(_ a: String, _ b: String) -> Double {
+    public static func ratio(_ a: String, _ b: String) -> Double {
         let na = normalize(a), nb = normalize(b)
         if na.isEmpty && nb.isEmpty { return 1 }
         let maxLen = max(na.count, nb.count)
@@ -55,7 +55,7 @@ enum StringSimilarity {
     /// True when every non-trivial token of `needle` appears (as a close match)
     /// within `haystack`'s tokens. Used to confirm an inferred artist appears in
     /// a candidate's artistName. Tokens of length < 2 are ignored.
-    static func tokensContained(needle: String, in haystack: String,
+    public static func tokensContained(needle: String, in haystack: String,
                                 perTokenThreshold: Double = 0.85) -> Bool {
         let needleTokens = tokens(needle).filter { $0.count >= 2 }
         guard !needleTokens.isEmpty else { return false }
@@ -70,7 +70,7 @@ enum StringSimilarity {
     }
 
     /// Overlap fraction of `needle` tokens found within `haystack` tokens.
-    static func tokenOverlap(needle: String, haystack: String) -> Double {
+    public static func tokenOverlap(needle: String, haystack: String) -> Double {
         let needleTokens = tokens(needle).filter { $0.count >= 2 }
         guard !needleTokens.isEmpty else { return 0 }
         let hayTokens = tokens(haystack)

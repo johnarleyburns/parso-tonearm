@@ -3,10 +3,10 @@ import Foundation
 /// FR-3.2 / FR-3.3 cache accounting: limit, LRU eviction, GC of stale partials.
 /// The cache is passive (Invariant #5): nothing here initiates caching of a track
 /// the player/prefetcher didn't request. It only stores/evicts what flows through.
-actor CacheStore {
-    static let shared = CacheStore()
+public actor CacheStore {
+    public static let shared = CacheStore()
 
-    struct Meta: Codable {
+    public struct Meta: Codable {
         var totalBytes: Int64?
         var cachedBytes: Int64
         var complete: Bool
@@ -34,10 +34,10 @@ actor CacheStore {
     private static let cacheSchemaVersionKey = "cache.schema.version"
     private static let currentSchemaVersion = 1
 
-    static let limitKey = "cache.limit.bytes"
-    static let defaultLimit: Int64 = 500 * 1024 * 1024
+    public static let limitKey = "cache.limit.bytes"
+    public static let defaultLimit: Int64 = 500 * 1024 * 1024
 
-    init() {
+    public init() {
         let base = (try? FileManager.default.url(for: .cachesDirectory, in: .userDomainMask,
                                                  appropriateFor: nil, create: true))
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
@@ -63,7 +63,7 @@ actor CacheStore {
 
     /// Isolated instance rooted at a private directory for tests; does not read
     /// or persist the shared cache limit.
-    init(rootDirectory: URL, limitBytes: Int64 = defaultLimit) {
+    public init(rootDirectory: URL, limitBytes: Int64 = defaultLimit) {
         dir = rootDirectory.appendingPathComponent("StreamCache", isDirectory: true)
         metaDir = rootDirectory.appendingPathComponent("StreamCacheMeta", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -75,62 +75,62 @@ actor CacheStore {
 
     // MARK: - Public accounting
 
-    func currentLimit() -> Int64 { limitBytes }
+    public func currentLimit() -> Int64 { limitBytes }
 
-    func setLimit(_ bytes: Int64) async {
+    public func setLimit(_ bytes: Int64) async {
         limitBytes = bytes
         if !isolated { UserDefaults.standard.set(bytes, forKey: Self.limitKey) }
         await evictToFit(protecting: nil)
     }
 
-    func totalCachedBytes() -> Int64 {
+    public func totalCachedBytes() -> Int64 {
         metas.values.reduce(0) { $0 + $1.cachedBytes + ($1.cafBytes ?? 0) }
     }
 
-    func cachedTrackCount() -> Int {
+    public func cachedTrackCount() -> Int {
         metas.values.filter { $0.complete }.count
     }
 
-    func pinnedTrackCount() -> Int {
+    public func pinnedTrackCount() -> Int {
         metas.values.filter { $0.pinned == true }.count
     }
 
-    func state(for key: String) -> CacheGlyphState {
+    public func state(for key: String) -> CacheGlyphState {
         guard let m = metas[key] else { return .none }
         if m.complete { return .cached }
         guard let total = m.totalBytes, total > 0 else { return .filling(0.05) }
         return .filling(Double(m.cachedBytes) / Double(total))
     }
 
-    func fileURL(for key: String) -> URL {
+    public func fileURL(for key: String) -> URL {
         dir.appendingPathComponent(key)
     }
 
     /// Sibling CAF URL for a remuxed Opus key.
-    func cafURL(for key: String) -> URL {
+    public func cafURL(for key: String) -> URL {
         OpusRemuxer.cafURL(forOpusFile: fileURL(for: key))
     }
 
     /// True when a playable remuxed CAF exists on disk for this key.
-    func hasRemuxedCAF(for key: String) -> Bool {
+    public func hasRemuxedCAF(for key: String) -> Bool {
         FileManager.default.fileExists(atPath: cafURL(for: key).path)
     }
 
-    func rangeMap(for key: String) -> ByteRangeMap {
+    public func rangeMap(for key: String) -> ByteRangeMap {
         metas[key]?.rangeMap ?? ByteRangeMap()
     }
 
-    func totalBytes(for key: String) -> Int64? {
+    public func totalBytes(for key: String) -> Int64? {
         metas[key]?.totalBytes
     }
 
-    func isPinned(_ key: String) -> Bool {
+    public func isPinned(_ key: String) -> Bool {
         metas[key]?.pinned == true
     }
 
     // MARK: - Mutation (driven by the resource loader only)
 
-    func setContentLength(_ length: Int64, for key: String) {
+    public func setContentLength(_ length: Int64, for key: String) {
         var m = metas[key] ?? Meta(totalBytes: nil, cachedBytes: 0, complete: false,
                                     lastAccessedAt: Date(), createdAt: Date(), rangeMap: ByteRangeMap())
         m.totalBytes = length
@@ -138,7 +138,7 @@ actor CacheStore {
         persistMeta(key)
     }
 
-    func recordWrite(range: Range<Int64>, for key: String) async {
+    public func recordWrite(range: Range<Int64>, for key: String) async {
         var m = metas[key] ?? Meta(totalBytes: nil, cachedBytes: 0, complete: false,
                                    lastAccessedAt: Date(), createdAt: Date(), rangeMap: ByteRangeMap())
         let wasComplete = m.complete
@@ -159,7 +159,7 @@ actor CacheStore {
 
     /// Records the byte size of a remuxed CAF sibling so it counts toward the
     /// cache budget (T2.3). Called by the remux path after a successful write.
-    func recordCAFBytes(_ bytes: Int64, for key: String) async {
+    public func recordCAFBytes(_ bytes: Int64, for key: String) async {
         guard var m = metas[key] else { return }
         m.cafBytes = bytes
         m.lastAccessedAt = Date()
@@ -168,7 +168,7 @@ actor CacheStore {
         await evictToFit(protecting: key)
     }
 
-    static func isOpusKey(_ key: String) -> Bool {
+    public static func isOpusKey(_ key: String) -> Bool {
         key.hasSuffix("-opus")
     }
 
@@ -184,14 +184,14 @@ actor CacheStore {
         }
     }
 
-    func touch(_ key: String) {
+    public func touch(_ key: String) {
         guard var m = metas[key] else { return }
         m.lastAccessedAt = Date()
         metas[key] = m
         persistMeta(key)
     }
 
-    func setPinned(_ pinned: Bool, for key: String) async {
+    public func setPinned(_ pinned: Bool, for key: String) async {
         guard var m = metas[key] else { return }
         m.pinned = pinned
         metas[key] = m
@@ -199,7 +199,7 @@ actor CacheStore {
         await evictToFit(protecting: key)
     }
 
-    func clearAll() {
+    public func clearAll() {
         for key in metas.keys {
             try? FileManager.default.removeItem(at: fileURL(for: key))
             try? FileManager.default.removeItem(at: cafURL(for: key))
@@ -209,7 +209,7 @@ actor CacheStore {
     }
 
     /// FR-3.3: GC partial segments older than 7 days.
-    func garbageCollectStalePartials() {
+    public func garbageCollectStalePartials() {
         let cutoff = Date().addingTimeInterval(-7 * 24 * 3600)
         for (key, m) in metas where !m.complete && m.lastAccessedAt < cutoff {
             remove(key)
@@ -223,7 +223,7 @@ actor CacheStore {
     /// evicted mid-stream (F6). Call `setProtectedKeys` to atomically replace.
     private var protectedKeys: Set<String> = []
 
-    func setProtectedKeys(_ keys: Set<String>) {
+    public func setProtectedKeys(_ keys: Set<String>) {
         protectedKeys = keys
     }
 
@@ -284,7 +284,7 @@ actor CacheStore {
     }
 }
 
-extension CacheStore {
+public extension CacheStore {
     /// Non-actor-isolated cache directory (same computation as `init`), so the
     /// @MainActor player can derive on-disk paths synchronously without awaiting
     /// the actor. Read-only path math — never mutates cache state.

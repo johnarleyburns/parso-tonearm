@@ -1,23 +1,23 @@
 import Foundation
 
-enum TagEdit {
-    struct EditableTrack: Equatable, Identifiable {
-        var id: Int64
-        var tags: Tags
-        var filename: String?
-        var writeAccess: WriteAccess
+public enum TagEdit {
+    public struct EditableTrack: Equatable, Identifiable {
+        public var id: Int64
+        public var tags: Tags
+        public var filename: String?
+        public var writeAccess: WriteAccess
     }
 
-    struct Tags: Equatable {
-        var title: String?
-        var artist: String?
-        var albumTitle: String?
-        var albumArtist: String?
-        var genre: String?
-        var composer: String?
-        var trackNumber: Int?
-        var discNumber: Int?
-        var year: Int?
+    public struct Tags: Equatable {
+        public var title: String?
+        public var artist: String?
+        public var albumTitle: String?
+        public var albumArtist: String?
+        public var genre: String?
+        public var composer: String?
+        public var trackNumber: Int?
+        public var discNumber: Int?
+        public var year: Int?
 
         func value(for field: Field) -> Value? {
             switch field {
@@ -48,7 +48,7 @@ enum TagEdit {
         }
     }
 
-    enum Field: String, CaseIterable, Equatable {
+    public enum Field: String, CaseIterable, Equatable {
         case title
         case artist
         case albumTitle
@@ -59,7 +59,7 @@ enum TagEdit {
         case discNumber
         case year
 
-        var kind: FieldKind {
+        public var kind: FieldKind {
             switch self {
             case .title, .artist, .albumTitle, .albumArtist, .genre, .composer:
                 return .text
@@ -69,23 +69,23 @@ enum TagEdit {
         }
     }
 
-    enum FieldKind {
+    public enum FieldKind {
         case text
         case integer
     }
 
-    enum Value: Equatable {
+    public enum Value: Equatable {
         case text(String)
         case integer(Int)
 
-        var textValue: String? {
+        public var textValue: String? {
             switch self {
             case .text(let value): return value
             case .integer: return nil
             }
         }
 
-        var integerValue: Int? {
+        public var integerValue: Int? {
             switch self {
             case .text(let value): return Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
             case .integer(let value): return value
@@ -93,18 +93,18 @@ enum TagEdit {
         }
     }
 
-    enum WriteAccess: Equatable {
+    public enum WriteAccess: Equatable {
         case localFile(path: String)
         case readOnly(reason: String)
 
-        var localPath: String? {
+        public var localPath: String? {
             switch self {
             case .localFile(let path): return path
             case .readOnly: return nil
             }
         }
 
-        var readOnlyReason: String? {
+        public var readOnlyReason: String? {
             switch self {
             case .localFile: return nil
             case .readOnly(let reason): return reason
@@ -112,58 +112,66 @@ enum TagEdit {
         }
     }
 
-    struct SelectionSummary: Equatable {
-        var states: [Field: FieldState]
+    public struct SelectionSummary: Equatable {
+        public var states: [Field: FieldState]
     }
 
-    enum FieldState: Equatable {
+    public enum FieldState: Equatable {
         case empty
         case value(Value)
         case mixed
     }
 
-    struct Proposal: Equatable {
-        var assignments: [Field: Value?] = [:]
-        var replacements: [FindReplace] = []
-        var numberFromFilename = false
+    public struct Proposal: Equatable {
+        public var assignments: [Field: Value?] = [:]
+        public var replacements: [FindReplace] = []
+        public var numberFromFilename = false
 
-        static let empty = Proposal()
+        public static let empty = Proposal()
+
+        public init(assignments: [Field: Value?] = [:],
+                    replacements: [FindReplace] = [],
+                    numberFromFilename: Bool = false) {
+            self.assignments = assignments
+            self.replacements = replacements
+            self.numberFromFilename = numberFromFilename
+        }
     }
 
-    struct FindReplace: Equatable {
-        var field: Field
-        var find: String
-        var replacement: String
-        var caseSensitive: Bool = false
+    public struct FindReplace: Equatable {
+        public var field: Field
+        public var find: String
+        public var replacement: String
+        public var caseSensitive: Bool = false
     }
 
-    struct Change: Equatable {
-        var field: Field
-        var before: Value?
-        var after: Value?
+    public struct Change: Equatable {
+        public var field: Field
+        public var before: Value?
+        public var after: Value?
     }
 
-    struct Operation: Equatable {
-        var trackID: Int64
-        var localPath: String
-        var changes: [Change]
+    public struct Operation: Equatable {
+        public var trackID: Int64
+        public var localPath: String
+        public var changes: [Change]
     }
 
-    struct Plan: Equatable {
-        var operations: [Operation]
-        var undoOperations: [Operation]
-        var issues: [Issue]
+    public struct Plan: Equatable {
+        public var operations: [Operation]
+        public var undoOperations: [Operation]
+        public var issues: [Issue]
 
-        var canApply: Bool {
+        public var canApply: Bool {
             !operations.isEmpty && !issues.contains(where: \.isError)
         }
 
-        var isNoOp: Bool {
+        public var isNoOp: Bool {
             operations.isEmpty && issues.isEmpty
         }
     }
 
-    enum Issue: Equatable {
+    public enum Issue: Equatable {
         case readOnly(trackID: Int64, reason: String)
         case blankTitle(trackID: Int64)
         case invalidInteger(trackID: Int64, field: Field, value: Int)
@@ -172,7 +180,7 @@ enum TagEdit {
         case nonTextFindReplace(field: Field)
         case missingFilenameNumber(trackID: Int64)
 
-        var isError: Bool {
+        public var isError: Bool {
             switch self {
             case .missingFilenameNumber:
                 return false
@@ -182,7 +190,7 @@ enum TagEdit {
             }
         }
 
-        var message: String {
+        public var message: String {
             switch self {
             case .readOnly(_, let reason):
                 return reason
@@ -202,7 +210,7 @@ enum TagEdit {
         }
     }
 
-    static func editableTrack(from row: TrackRow) -> EditableTrack {
+    public static func editableTrack(from row: TrackRow) -> EditableTrack {
         EditableTrack(
             id: row.id,
             tags: Tags(
@@ -219,7 +227,7 @@ enum TagEdit {
             writeAccess: writeAccess(for: row.asset))
     }
 
-    static func summary(for selection: [EditableTrack]) -> SelectionSummary {
+    public static func summary(for selection: [EditableTrack]) -> SelectionSummary {
         var states: [Field: FieldState] = [:]
         for field in Field.allCases {
             let values = selection.map { normalized($0.tags.value(for: field), field: field).value }
@@ -235,7 +243,7 @@ enum TagEdit {
         return SelectionSummary(states: states)
     }
 
-    static func diff(from before: Tags, to after: Tags) -> [Change] {
+    public static func diff(from before: Tags, to after: Tags) -> [Change] {
         Field.allCases.compactMap { field in
             let oldValue = normalized(before.value(for: field), field: field).value
             let newValue = normalized(after.value(for: field), field: field).value
@@ -244,7 +252,7 @@ enum TagEdit {
         }
     }
 
-    static func makePlan(selection: [EditableTrack], proposal: Proposal) -> Plan {
+    public static func makePlan(selection: [EditableTrack], proposal: Proposal) -> Plan {
         var issues = validateProposal(proposal)
         var operations: [Operation] = []
         var undoOperations: [Operation] = []
@@ -276,7 +284,7 @@ enum TagEdit {
         return Plan(operations: operations, undoOperations: undoOperations, issues: issues)
     }
 
-    static func leadingTrackNumber(in filename: String) -> Int? {
+    public static func leadingTrackNumber(in filename: String) -> Int? {
         let lastComponent = (filename as NSString).lastPathComponent
         let stem = (lastComponent as NSString).deletingPathExtension
         let trimmed = stem.trimmingCharacters(in: .whitespacesAndNewlines)

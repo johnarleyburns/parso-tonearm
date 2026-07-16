@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// T2.1 — Ogg demux + OpusHead parsing over real fixtures.
 final class OggPageReaderTests: XCTestCase {

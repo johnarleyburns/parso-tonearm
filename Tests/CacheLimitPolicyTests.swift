@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 final class CacheLimitPolicyTests: XCTestCase {
     private let mb: Int64 = 1024 * 1024

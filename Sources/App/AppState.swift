@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import TonearmCore
 
 enum AppTab: Int, CaseIterable {
     case listen, playlists, library, sources, settings
@@ -42,7 +43,7 @@ final class AppState: ObservableObject {
     @AppStorage("prefetchDepth") var prefetchDepth = 2
     @AppStorage("artworkLookup") var artworkLookup = true
     @AppStorage("didOnboard") var didOnboard = false
-    @AppStorage("showLiveActivity") var showLiveActivity = false
+    @AppStorage("showLiveActivity") var showLiveActivity = true
 
     init(store: LibraryStore = .shared) {
         self.store = store
@@ -51,8 +52,11 @@ final class AppState: ObservableObject {
     func bootstrap() async {
         await fixLegacySourceTitles()
         await ArtworkService.shared.migrateCacheIfNeeded()
-        await reload()
         applySettingsToPlayer()
+        // Restore the queue BEFORE the first publish so a Live Activity that
+        // survived a force-quit is adopted (updated) instead of ended.
+        await AudioPlayer.shared.restorePersistedQueue()
+        await reload()
         await CacheStore.shared.garbageCollectStalePartials()
         Task { await warmLocalSourceArtwork() }
     }
@@ -225,13 +229,10 @@ final class AppState: ObservableObject {
     }
 
     func requestAddRemoteLibrary() {
-        switch RemoteLibraryAccessPolicy.decision(
-            for: .openAddFlow,
-            isPro: ProGating.isEnabled(.remoteLibraries)
-        ) {
-        case .allow:
+        switch RemoteLibraryGate.entryPointDecision(isPro: ProGating.isEnabled(.remoteLibraries)) {
+        case .openSheet:
             showAddRemoteLibrary = true
-        case .requiresPro:
+        case .showPaywall:
             showProPaywall = true
         }
     }
@@ -439,15 +440,7 @@ final class AppState: ObservableObject {
     }
 
     private func requireRemoteLibrary(_ action: RemoteLibraryAction) throws {
-        switch RemoteLibraryAccessPolicy.decision(
-            for: action,
-            isPro: ProGating.isEnabled(.remoteLibraries)
-        ) {
-        case .allow:
-            return
-        case .requiresPro(let feature):
-            throw ProFeatureAccessError.requiresPro(feature)
-        }
+        try RemoteLibraryGate.require(action, isPro: ProGating.isEnabled(.remoteLibraries))
     }
 
     @discardableResult

@@ -1,19 +1,19 @@
 import Foundation
 
-enum IAResolvedURL: Equatable {
+public enum IAResolvedURL: Equatable {
     case item(identifier: String, filename: String?)
     case list(screenname: String, listId: String, slug: String?)
     case favorites(screenname: String)
     case collection(identifier: String)
 }
 
-enum IAURLError: Error, Equatable, LocalizedError {
+public enum IAURLError: Error, Equatable, LocalizedError {
     case wayback
     case notArchiveHost
     case unrecognized
     case empty
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .wayback: return "This is a Wayback Machine URL"
         case .notArchiveHost: return "Not an archive.org link"
@@ -24,10 +24,10 @@ enum IAURLError: Error, Equatable, LocalizedError {
 }
 
 /// FR-2.1 URL grammar parser. Pure, deterministic, exhaustively tested.
-enum URLGrammar {
-    static let allowedHosts: Set<String> = ["archive.org", "www.archive.org"]
+public enum URLGrammar {
+    public static let allowedHosts: Set<String> = ["archive.org", "www.archive.org"]
 
-    static func parse(_ raw: String) -> Result<IAResolvedURL, IAURLError> {
+    public static func parse(_ raw: String) -> Result<IAResolvedURL, IAURLError> {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .failure(.empty) }
 

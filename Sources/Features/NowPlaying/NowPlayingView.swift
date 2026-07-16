@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import PhotosUI
+import TonearmCore
 
 struct NowPlayingView: View {
     @EnvironmentObject var player: AudioPlayer

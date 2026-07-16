@@ -1,4 +1,5 @@
 import SwiftUI
+import TonearmCore
 
 struct GlassDock: View {
     @EnvironmentObject var appState: AppState

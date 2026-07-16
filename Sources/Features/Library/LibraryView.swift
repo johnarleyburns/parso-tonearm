@@ -1,4 +1,5 @@
 import SwiftUI
+import TonearmCore
 
 struct LibraryView: View {
     @EnvironmentObject var appState: AppState

@@ -1,20 +1,20 @@
 import Foundation
 import Security
 
-struct CredentialStore {
-    enum StoreError: Error, Equatable {
+public struct CredentialStore {
+    public enum StoreError: Error, Equatable {
         case keychainStatus(OSStatus)
     }
 
-    var service: String
-    var accessGroup: String?
+    public var service: String
+    public var accessGroup: String?
 
-    init(service: String = "guru.parso.tonearm.remote", accessGroup: String? = nil) {
+    public init(service: String = "guru.parso.tonearm.remote", accessGroup: String? = nil) {
         self.service = service
         self.accessGroup = accessGroup
     }
 
-    func read(account: String) throws -> Data? {
+    public func read(account: String) throws -> Data? {
         var query = baseQuery(account: account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -26,7 +26,7 @@ struct CredentialStore {
         return result as? Data
     }
 
-    func save(_ data: Data, account: String) throws {
+    public func save(_ data: Data, account: String) throws {
         let query = baseQuery(account: account)
         let update: [String: Any] = [
             kSecValueData as String: data
@@ -48,7 +48,7 @@ struct CredentialStore {
         }
     }
 
-    func delete(account: String) throws {
+    public func delete(account: String) throws {
         let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw StoreError.keychainStatus(status)

@@ -1,58 +1,62 @@
 import AppIntents
 import Foundation
 
-struct TonearmPlayPlaylistIntent: AppIntent {
-    static var title: LocalizedStringResource = "Play Playlist"
-    static var description = IntentDescription("Starts a Tonearm playlist.")
-    static var openAppWhenRun = true
+public struct TonearmPlayPlaylistIntent: AppIntent {
+    public init() {}
+    public static var title: LocalizedStringResource = "Play Playlist"
+    public static var description = IntentDescription("Starts a Tonearm playlist.")
+    public static var openAppWhenRun = true
 
     @Parameter(title: "Playlist")
-    var playlistName: String
+    public var playlistName: String
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    public func perform() async throws -> some IntentResult {
         try await TonearmIntentRunner.playPlaylist(named: playlistName)
         return .result()
     }
 }
 
-struct TonearmPlayArtistIntent: AppIntent {
-    static var title: LocalizedStringResource = "Play Artist"
-    static var description = IntentDescription("Starts all Tonearm tracks by an artist.")
-    static var openAppWhenRun = true
+public struct TonearmPlayArtistIntent: AppIntent {
+    public init() {}
+    public static var title: LocalizedStringResource = "Play Artist"
+    public static var description = IntentDescription("Starts all Tonearm tracks by an artist.")
+    public static var openAppWhenRun = true
 
     @Parameter(title: "Artist")
-    var artistName: String
+    public var artistName: String
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    public func perform() async throws -> some IntentResult {
         try await TonearmIntentRunner.playArtist(named: artistName)
         return .result()
     }
 }
 
-struct TonearmResumeIntent: AppIntent {
-    static var title: LocalizedStringResource = "Resume Tonearm"
-    static var description = IntentDescription("Resumes Tonearm playback.")
-    static var openAppWhenRun = true
+public struct TonearmResumeIntent: AppIntent {
+    public init() {}
+    public static var title: LocalizedStringResource = "Resume Tonearm"
+    public static var description = IntentDescription("Resumes Tonearm playback.")
+    public static var openAppWhenRun = true
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    public func perform() async throws -> some IntentResult {
         try await TonearmIntentRunner.run(.resume)
         return .result()
     }
 }
 
-struct TonearmSleepTimerIntent: AppIntent {
-    static var title: LocalizedStringResource = "Set Sleep Timer"
-    static var description = IntentDescription("Sets a Tonearm sleep timer in minutes.")
-    static var openAppWhenRun = true
+public struct TonearmSleepTimerIntent: AppIntent {
+    public init() {}
+    public static var title: LocalizedStringResource = "Set Sleep Timer"
+    public static var description = IntentDescription("Sets a Tonearm sleep timer in minutes.")
+    public static var openAppWhenRun = true
 
     @Parameter(title: "Minutes", default: 30)
-    var minutes: Int
+    public var minutes: Int
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    public func perform() async throws -> some IntentResult {
         switch IntentResolver.resolveSleepTimer(minutes: minutes) {
         case .command(let command):
             try await TonearmIntentRunner.run(command)
@@ -63,16 +67,17 @@ struct TonearmSleepTimerIntent: AppIntent {
     }
 }
 
-struct TonearmAddSourceIntent: AppIntent {
-    static var title: LocalizedStringResource = "Add Archive Source"
-    static var description = IntentDescription("Adds an archive.org source to Tonearm.")
-    static var openAppWhenRun = true
+public struct TonearmAddSourceIntent: AppIntent {
+    public init() {}
+    public static var title: LocalizedStringResource = "Add Archive Source"
+    public static var description = IntentDescription("Adds an archive.org source to Tonearm.")
+    public static var openAppWhenRun = true
 
     @Parameter(title: "URL")
-    var rawURL: String
+    public var rawURL: String
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    public func perform() async throws -> some IntentResult {
         switch IntentResolver.resolveAddSource(rawURL: rawURL) {
         case .command(let command):
             try await TonearmIntentRunner.run(command)
@@ -83,10 +88,10 @@ struct TonearmAddSourceIntent: AppIntent {
     }
 }
 
-struct TonearmShortcutsProvider: AppShortcutsProvider {
-    static var shortcutTileColor: ShortcutTileColor = .teal
+public struct TonearmShortcutsProvider: AppShortcutsProvider {
+    public static var shortcutTileColor: ShortcutTileColor = .teal
 
-    static var appShortcuts: [AppShortcut] {
+    public static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: TonearmPlayPlaylistIntent(),
             phrases: [
@@ -136,8 +141,8 @@ struct TonearmShortcutsProvider: AppShortcutsProvider {
 }
 
 @MainActor
-enum TonearmIntentRunner {
-    static func playPlaylist(named name: String) async throws {
+public enum TonearmIntentRunner {
+    public static func playPlaylist(named name: String) async throws {
         let store = LibraryStore.shared
         let playlists = try await store.allPlaylists()
         let candidates = playlists.compactMap { playlist -> IntentResolver.PlaylistCandidate? in
@@ -153,7 +158,7 @@ enum TonearmIntentRunner {
         }
     }
 
-    static func playArtist(named name: String) async throws {
+    public static func playArtist(named name: String) async throws {
         let store = LibraryStore.shared
         let artists = try await store.allArtists()
         let candidates = artists.map { IntentResolver.ArtistCandidate(name: $0.name) }
@@ -166,7 +171,7 @@ enum TonearmIntentRunner {
         }
     }
 
-    static func run(_ command: IntentResolver.Command) async throws {
+    public static func run(_ command: IntentResolver.Command) async throws {
         try await run(command, playlists: nil)
     }
 
@@ -203,14 +208,14 @@ enum TonearmIntentRunner {
     }
 }
 
-struct TonearmIntentError: LocalizedError {
-    var errorDescription: String?
+public struct TonearmIntentError: LocalizedError {
+    public var errorDescription: String?
 
-    init(_ message: String) {
+    public init(_ message: String) {
         errorDescription = message
     }
 
-    init(_ failure: IntentResolver.Failure) {
+    public init(_ failure: IntentResolver.Failure) {
         errorDescription = failure.message
     }
 }

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// Locks down the FileSelectionPolicy rewrite against the real archive.org
 /// shapes that previously produced empty sources and Opus junk.

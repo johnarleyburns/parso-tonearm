@@ -1,16 +1,16 @@
 import CryptoKit
 import Foundation
 
-enum SubsonicAPI {
-    static let defaultVersion = "1.16.1"
-    static let defaultClient = "Tonearm"
+public enum SubsonicAPI {
+    public static let defaultVersion = "1.16.1"
+    public static let defaultClient = "Tonearm"
 
-    enum Format: String, Equatable {
+    public enum Format: String, Equatable {
         case json
         case xml
     }
 
-    enum Endpoint: Equatable {
+    public enum Endpoint: Equatable {
         case ping
         case getArtists
         case getIndexes
@@ -39,7 +39,7 @@ enum SubsonicAPI {
         }
     }
 
-    struct Auth: Equatable {
+    public struct Auth: Equatable {
         var username: String
         var password: String
         var salt: String
@@ -47,14 +47,14 @@ enum SubsonicAPI {
         var client: String = SubsonicAPI.defaultClient
     }
 
-    enum Error: Swift.Error, Equatable {
+    public enum Error: Swift.Error, Equatable {
         case invalidBaseURL
         case malformedResponse
         case missingField(String)
         case remote(code: Int, message: String)
     }
 
-    static func normalizeBaseURL(_ raw: String) throws -> URL {
+    public static func normalizeBaseURL(_ raw: String) throws -> URL {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw Error.invalidBaseURL }
         let withScheme = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
@@ -77,12 +77,12 @@ enum SubsonicAPI {
         return url
     }
 
-    static func token(password: String, salt: String) -> String {
+    public static func token(password: String, salt: String) -> String {
         let digest = Insecure.MD5.hash(data: Data((password + salt).utf8))
         return digest.map { String(format: "%02hhx", $0) }.joined()
     }
 
-    static func url(baseURL rawBaseURL: URL,
+    public static func url(baseURL rawBaseURL: URL,
                     endpoint: Endpoint,
                     auth: Auth,
                     format: Format = .json) throws -> URL {
@@ -105,11 +105,11 @@ enum SubsonicAPI {
         return url
     }
 
-    static func decodePing(_ data: Data, format: Format) throws {
+    public static func decodePing(_ data: Data, format: Format) throws {
         _ = try responseRoot(data, format: format)
     }
 
-    static func decodeArtists(_ data: Data, format: Format) throws -> [SubsonicArtist] {
+    public static func decodeArtists(_ data: Data, format: Format) throws -> [SubsonicArtist] {
         switch format {
         case .json:
             let root = try responseRoot(data, format: format).json
@@ -128,7 +128,7 @@ enum SubsonicAPI {
         }
     }
 
-    static func decodeArtist(_ data: Data, format: Format) throws -> SubsonicArtistDetail {
+    public static func decodeArtist(_ data: Data, format: Format) throws -> SubsonicArtistDetail {
         switch format {
         case .json:
             let root = try responseRoot(data, format: format).json
@@ -145,7 +145,7 @@ enum SubsonicAPI {
         }
     }
 
-    static func decodeAlbum(_ data: Data, format: Format) throws -> SubsonicAlbum {
+    public static func decodeAlbum(_ data: Data, format: Format) throws -> SubsonicAlbum {
         switch format {
         case .json:
             let root = try responseRoot(data, format: format).json
@@ -294,67 +294,67 @@ enum SubsonicAPI {
     }
 }
 
-struct SubsonicArtist: Equatable {
-    var id: String
-    var name: String
-    var albumCount: Int?
+public struct SubsonicArtist: Equatable {
+    public var id: String
+    public var name: String
+    public var albumCount: Int?
 }
 
-struct SubsonicArtistDetail: Equatable {
-    var id: String
-    var name: String
-    var albums: [SubsonicAlbumSummary]
+public struct SubsonicArtistDetail: Equatable {
+    public var id: String
+    public var name: String
+    public var albums: [SubsonicAlbumSummary]
 }
 
-struct SubsonicAlbumSummary: Equatable {
-    var id: String
-    var name: String
-    var artist: String?
-    var artistId: String?
-    var songCount: Int?
-    var year: Int?
-    var genre: String?
+public struct SubsonicAlbumSummary: Equatable {
+    public var id: String
+    public var name: String
+    public var artist: String?
+    public var artistId: String?
+    public var songCount: Int?
+    public var year: Int?
+    public var genre: String?
 }
 
-struct SubsonicAlbum: Equatable {
-    var id: String
-    var name: String
-    var artist: String?
-    var artistId: String?
-    var year: Int?
-    var genre: String?
-    var songs: [SubsonicSong]
+public struct SubsonicAlbum: Equatable {
+    public var id: String
+    public var name: String
+    public var artist: String?
+    public var artistId: String?
+    public var year: Int?
+    public var genre: String?
+    public var songs: [SubsonicSong]
 }
 
-struct SubsonicSong: Equatable {
-    var id: String
-    var title: String
-    var album: String?
-    var albumId: String?
-    var artist: String?
-    var artistId: String?
-    var track: Int?
-    var discNumber: Int?
-    var duration: Double?
-    var suffix: String?
-    var contentType: String?
-    var size: Int64?
-    var bitRate: Int?
-    var samplingRate: Int?
+public struct SubsonicSong: Equatable {
+    public var id: String
+    public var title: String
+    public var album: String?
+    public var albumId: String?
+    public var artist: String?
+    public var artistId: String?
+    public var track: Int?
+    public var discNumber: Int?
+    public var duration: Double?
+    public var suffix: String?
+    public var contentType: String?
+    public var size: Int64?
+    public var bitRate: Int?
+    public var samplingRate: Int?
 }
 
 private final class XMLCollector: NSObject, XMLParserDelegate {
-    var sawResponse = false
-    var status: String?
-    var error: XMLErrorPayload?
-    var artists: [SubsonicArtist] = []
-    var artistDetail: SubsonicArtistDetail?
-    var albumSummaries: [SubsonicAlbumSummary] = []
-    var album: SubsonicAlbum?
-    var songs: [SubsonicSong] = []
+    public var sawResponse = false
+    public var status: String?
+    public var error: XMLErrorPayload?
+    public var artists: [SubsonicArtist] = []
+    public var artistDetail: SubsonicArtistDetail?
+    public var albumSummaries: [SubsonicAlbumSummary] = []
+    public var album: SubsonicAlbum?
+    public var songs: [SubsonicSong] = []
     private var stack: [String] = []
 
-    func parser(_ parser: XMLParser,
+    public func parser(_ parser: XMLParser,
                 didStartElement elementName: String,
                 namespaceURI: String?,
                 qualifiedName qName: String?,
@@ -426,7 +426,7 @@ private final class XMLCollector: NSObject, XMLParserDelegate {
         stack.append(elementName)
     }
 
-    func parser(_ parser: XMLParser,
+    public func parser(_ parser: XMLParser,
                 didEndElement elementName: String,
                 namespaceURI: String?,
                 qualifiedName qName: String?) {
@@ -437,10 +437,10 @@ private final class XMLCollector: NSObject, XMLParserDelegate {
 }
 
 private struct XMLErrorPayload {
-    var code: Int
-    var message: String
+    public var code: Int
+    public var message: String
 
-    var dictionary: [String: Any] {
+    public var dictionary: [String: Any] {
         ["code": code, "message": message]
     }
 }

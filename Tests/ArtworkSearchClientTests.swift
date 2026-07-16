@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 final class ArtworkSearchClientTests: XCTestCase {
 

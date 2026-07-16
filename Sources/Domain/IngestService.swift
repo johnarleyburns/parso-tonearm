@@ -1,14 +1,13 @@
 import Foundation
 import AVFoundation
-import UIKit
 
-enum IngestError: LocalizedError {
+public enum IngestError: LocalizedError {
     case noAudioFiles
     case failedToInsertSource
     case failedToCreateBookmark
     case accessDenied
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .noAudioFiles: return "No audio files found in this folder"
         case .failedToInsertSource: return "Failed to create source in library"
@@ -20,17 +19,19 @@ enum IngestError: LocalizedError {
 
 /// FR-1 local ingestion: files and folders referenced in place via security-scoped
 /// bookmarks. Metadata via AVFoundation with filename fallback.
-struct IngestService {
-    static let audioExtensions: Set<String> = ["mp3", "m4a", "aac", "flac", "wav", "aif", "aiff", "caf"]
+public struct IngestService {
+    public static let audioExtensions: Set<String> = ["mp3", "m4a", "aac", "flac", "wav", "aif", "aiff", "caf"]
 
-    struct ScannedFile {
-        let url: URL
-        let relativeSection: String?
+    public struct ScannedFile {
+        public let url: URL
+        public let relativeSection: String?
     }
+
+    public init() {}
 
     // MARK: - Add individual files (FR-1.1)
 
-    func addFiles(_ urls: [URL], into store: LibraryStore) async {
+    public func addFiles(_ urls: [URL], into store: LibraryStore) async {
         guard !urls.isEmpty else { return }
         do {
             // Reuse a single persistent "Local Files" source rather than creating
@@ -67,7 +68,7 @@ struct IngestService {
     /// Appends new files into an existing source + its (first) album, keeping the
     /// folder playlist in sync. Used by folder-watch rescans so freshly
     /// dropped files join the same source rather than the generic "Local Files".
-    func addFiles(_ urls: [URL], toSourceId sid: Int64, into store: LibraryStore) async {
+    public func addFiles(_ urls: [URL], toSourceId sid: Int64, into store: LibraryStore) async {
         guard !urls.isEmpty else { return }
         do {
             let album = try await store.firstAlbumForSource(sid)
@@ -84,8 +85,8 @@ struct IngestService {
             print("addFiles(toSourceId:) error: \(error)")
         }
     }
-    func addFolder(_ folderURL: URL, includeSubfolders: Bool, keepOrder: Bool,
-                   watch: Bool, into store: LibraryStore) async throws {
+    public func addFolder(_ folderURL: URL, includeSubfolders: Bool, keepOrder: Bool,
+                          watch: Bool, into store: LibraryStore) async throws {
         let files = scanFolder(folderURL, includeSubfolders: includeSubfolders)
         guard !files.isEmpty else {
             print("[IngestService] addFolder: no audio files found in \(folderURL.lastPathComponent)")
@@ -122,7 +123,7 @@ struct IngestService {
         print("[IngestService] addFolder complete: \(ordered.count) tracks imported")
     }
 
-    func scanFolder(_ folderURL: URL, includeSubfolders: Bool) -> [ScannedFile] {
+    public func scanFolder(_ folderURL: URL, includeSubfolders: Bool) -> [ScannedFile] {
         let accessed = folderURL.startAccessingSecurityScopedResource()
         defer { if accessed { folderURL.stopAccessingSecurityScopedResource() } }
         if !accessed {

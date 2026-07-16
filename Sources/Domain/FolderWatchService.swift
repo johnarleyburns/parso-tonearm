@@ -1,26 +1,25 @@
 import Foundation
-import UIKit
 
 /// Folder watch: rescans watched folders when the app returns to the
 /// foreground and adds any new audio files to the library without a relaunch.
 /// Builds on the existing `Playlist.watch` + `folderBookmark` fields and the
 /// `IngestService` ingestion path.
-actor FolderWatchService {
-    static let shared = FolderWatchService()
+public actor FolderWatchService {
+    public static let shared = FolderWatchService()
 
     private var presenters: [FolderPresenter] = []
 
     /// Pure diff: audio files present on disk that are not already tracked. Keyed
     /// by resolved absolute path so re-adds and reorders don't duplicate. Exposed
     /// for unit testing without touching the database.
-    nonisolated static func newFiles(scanned: [URL], existing: Set<String>) -> [URL] {
+    public nonisolated static func newFiles(scanned: [URL], existing: Set<String>) -> [URL] {
         scanned.filter { !existing.contains($0.standardizedFileURL.path) }
     }
 
     /// Rescans every watched folder playlist and ingests new files into the same
     /// source. Returns the number of files added. Safe to call on foreground.
     @discardableResult
-    func rescanWatchedFolders(store: LibraryStore) async -> Int {
+    public func rescanWatchedFolders(store: LibraryStore) async -> Int {
         guard let playlists = try? await store.allPlaylists() else { return 0 }
         var added = 0
         for playlist in playlists where playlist.kind == .folder && playlist.watch {
@@ -53,7 +52,7 @@ actor FolderWatchService {
 
     /// Installs an `NSFilePresenter` per watched folder so the system notifies us
     /// of changes while active. Presenters are torn down on `stopPresenting`.
-    func startPresenting(store: LibraryStore, onChange: @escaping @Sendable () -> Void) async {
+    public func startPresenting(store: LibraryStore, onChange: @escaping @Sendable () -> Void) async {
         await stopPresenting()
         guard let playlists = try? await store.allPlaylists() else { return }
         for playlist in playlists where playlist.kind == .folder && playlist.watch {
@@ -65,7 +64,7 @@ actor FolderWatchService {
         }
     }
 
-    func stopPresenting() async {
+    public func stopPresenting() async {
         for presenter in presenters { NSFileCoordinator.removeFilePresenter(presenter) }
         presenters.removeAll()
     }

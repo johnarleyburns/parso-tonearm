@@ -26,9 +26,6 @@ jobs:
       - name: Accept Xcode License
         run: sudo xcodebuild -license accept
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
       - name: StoreKit import boundary guard
         run: |
           set -eo pipefail
@@ -50,8 +47,14 @@ jobs:
         run: |
           set -eo pipefail
           LEGACY_NAME="Platter""head"
+          PATHS=(Sources Tests UITests Resources project.yml README.md scripts .github)
+          for optional_path in TONEARM-requirements-design-v2.md TONEARM-audit-fixes-v2.1.md docs/opus-pro-unlock; do
+            if [ -e "$optional_path" ]; then
+              PATHS+=("$optional_path")
+            fi
+          done
           LOSER=$(grep -RIn "$LEGACY_NAME" \
-            Sources Tests UITests Resources project.yml README.md scripts TONEARM-requirements-design-v2.md TONEARM-audit-fixes-v2.1.md docs/opus-pro-unlock .github \
+            "${PATHS[@]}" \
             | grep -v "PROVISIONING_PROFILE_SPECIFIER" \
             || true)
           if [ -n "$LOSER" ]; then
@@ -61,33 +64,19 @@ jobs:
           fi
           echo "Product name guard OK"
 
-      - name: Generate Xcode project
-        run: xcodegen generate
-
       - name: Cache SPM
         uses: actions/cache@v4
         with:
           path: |
             ~/.swiftpm
             ~/Library/Developer/Xcode/DerivedData/*/SourcePackages
-          key: spm-${{ hashFiles('project.yml') }}
+          key: spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
           restore-keys: spm-
 
-      - name: Run Unit Tests
+      - name: Run Swift Package Tests
         run: |
           set -eo pipefail
-          xcodebuild test \
-            -project Tonearm.xcodeproj \
-            -scheme Tonearm \
-            -only-testing:TonearmTests \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-            -parallel-testing-enabled YES \
-            2>&1 | tee test.log
-          if ! grep -q "TEST SUCCEEDED" test.log; then
-            echo "Unit tests failed"
-            grep -E "Test.*failed|error:" test.log | head -20
-            exit 1
-          fi
+          swift test 2>&1 | tee test.log
 
       - name: Upload Test Log on Failure
         if: failure()
@@ -213,7 +202,7 @@ jobs:
           path: |
             ~/.swiftpm
             ~/Library/Developer/Xcode/DerivedData/*/SourcePackages
-          key: spm-${{ hashFiles('project.yml') }}
+          key: spm-${{ hashFiles('project.yml', 'Package.swift', 'Package.resolved') }}
           restore-keys: spm-
 
       - name: Compute Version

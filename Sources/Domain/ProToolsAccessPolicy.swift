@@ -1,6 +1,6 @@
 import Foundation
 
-enum ProTool: String, CaseIterable, Equatable {
+public enum ProTool: String, CaseIterable, Equatable {
     case smartPlaylist
     case tagEditor
     case duplicateDetection
@@ -9,7 +9,7 @@ enum ProTool: String, CaseIterable, Equatable {
     case convolution
     case bitPerfect
 
-    var feature: ProFeature {
+    public var feature: ProFeature {
         switch self {
         case .smartPlaylist:
             return .smartPlaylists
@@ -21,12 +21,12 @@ enum ProTool: String, CaseIterable, Equatable {
     }
 }
 
-enum ProToolsAccessPolicy {
-    static func decision(for tool: ProTool, isPro: Bool) -> ProGateDecision {
+public enum ProToolsAccessPolicy {
+    public static func decision(for tool: ProTool, isPro: Bool) -> ProGateDecision {
         isPro ? .allow : .requiresPro(tool.feature)
     }
 
-    static func decisionForToolsSurface(isPro: Bool) -> ProGateDecision {
+    public static func decisionForToolsSurface(isPro: Bool) -> ProGateDecision {
         isPro ? .allow : .requiresPro(.proAudioTools)
     }
 }

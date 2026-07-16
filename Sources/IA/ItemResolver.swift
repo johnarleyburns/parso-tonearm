@@ -1,25 +1,25 @@
 import Foundation
 
-struct IAFile: Decodable {
-    let name: String
-    let format: String?
-    let source: String?
-    let original: String?
-    let length: String?
-    let size: String?
-    let title: String?
-    let track: String?
-    let album: String?
-    let artist: String?
-    let creator: String?
-    let genre: String?
-    let composer: String?
-    let disc: String?
-    let year: String?
-    let bitrate: String?
-    let height: String?
+public struct IAFile: Decodable {
+    public let name: String
+    public let format: String?
+    public let source: String?
+    public let original: String?
+    public let length: String?
+    public let size: String?
+    public let title: String?
+    public let track: String?
+    public let album: String?
+    public let artist: String?
+    public let creator: String?
+    public let genre: String?
+    public let composer: String?
+    public let disc: String?
+    public let year: String?
+    public let bitrate: String?
+    public let height: String?
 
-    init(name: String, format: String?, source: String?, original: String?,
+    public init(name: String, format: String?, source: String?, original: String?,
          length: String?, size: String?, title: String?, track: String?,
          album: String?, artist: String?, bitrate: String?, height: String?,
          creator: String? = nil, genre: String? = nil, composer: String? = nil,
@@ -44,8 +44,8 @@ struct IAFile: Decodable {
     }
 }
 
-struct IAMetadataResponse: Decodable {
-    struct Meta: Decodable {
+public struct IAMetadataResponse: Decodable {
+    public struct Meta: Decodable {
         let identifier: String?
         let title: StringOrArray?
         let creator: StringOrArray?
@@ -57,25 +57,25 @@ struct IAMetadataResponse: Decodable {
         let subject: StringOrArray?
         let genre: StringOrArray?
     }
-    let metadata: Meta?
-    let files: [IAFile]?
-    let server: String?
-    let dir: String?
+    public let metadata: Meta?
+    public let files: [IAFile]?
+    public let server: String?
+    public let dir: String?
 }
 
 /// IA JSON sometimes returns strings or arrays for the same field.
-enum StringOrArray: Decodable {
+public enum StringOrArray: Decodable {
     case string(String)
     case array([String])
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let c = try decoder.singleValueContainer()
         if let s = try? c.decode(String.self) { self = .string(s) }
         else if let a = try? c.decode([String].self) { self = .array(a) }
         else { self = .string("") }
     }
 
-    var first: String? {
+    public var first: String? {
         switch self {
         case .string(let s): return s.isEmpty ? nil : s
         case .array(let a): return a.first
@@ -83,54 +83,54 @@ enum StringOrArray: Decodable {
     }
 }
 
-struct ResolvedItem {
-    let identifier: String
-    let title: String
-    let artist: String?
-    let genre: String?
-    let year: Int?
-    let licenseText: String?
-    let mediatype: String?
-    let tracks: [ResolvedTrack]
+public struct ResolvedItem {
+    public let identifier: String
+    public let title: String
+    public let artist: String?
+    public let genre: String?
+    public let year: Int?
+    public let licenseText: String?
+    public let mediatype: String?
+    public let tracks: [ResolvedTrack]
 }
 
-struct ResolvedTrack {
-    let title: String
-    let artist: String?
-    let albumTitle: String?
-    let albumArtist: String?
-    let genre: String?
-    let composer: String?
-    let trackNo: Int?
-    let discNo: Int?
-    let year: Int?
-    let durationSec: Double?
-    let codec: String?
-    let sampleRate: Int?
-    let bitDepthOrBitrate: String?
-    let rgTrackGain: Double?
-    let rgAlbumGain: Double?
-    let rgTrackPeak: Double?
-    let rgAlbumPeak: Double?
-    let sizeBytes: Int64?
-    let remoteURL: URL
-    let altFlacURL: URL?
+public struct ResolvedTrack {
+    public let title: String
+    public let artist: String?
+    public let albumTitle: String?
+    public let albumArtist: String?
+    public let genre: String?
+    public let composer: String?
+    public let trackNo: Int?
+    public let discNo: Int?
+    public let year: Int?
+    public let durationSec: Double?
+    public let codec: String?
+    public let sampleRate: Int?
+    public let bitDepthOrBitrate: String?
+    public let rgTrackGain: Double?
+    public let rgAlbumGain: Double?
+    public let rgTrackPeak: Double?
+    public let rgAlbumPeak: Double?
+    public let sizeBytes: Int64?
+    public let remoteURL: URL
+    public let altFlacURL: URL?
     /// Opus derivative for this logical track, if the item offers one. Never used
     /// for cold play (AVFoundation can't demux Ogg); the prefetcher fetches and
     /// remuxes it to CAF so the next play/repeat upgrades to Opus (T2.4).
-    let opusURL: URL?
+    public let opusURL: URL?
     /// True when the cold-play `remoteURL` is itself Opus (an Opus-only group);
     /// playback must remux-before-play rather than stream directly.
-    let requiresRemux: Bool
-    let unsupportedReason: String?
-    let sortKey: String
+    public let requiresRemux: Bool
+    public let unsupportedReason: String?
+    public let sortKey: String
 }
 
 /// FR-2.2 item resolution + FR-2.5 file-selection policy.
-struct ItemResolver {
-    var preferFLAC: Bool = true
+public struct ItemResolver {
+    public var preferFLAC: Bool = true
 
-    func resolve(identifier: String) async throws -> ResolvedItem {
+    public func resolve(identifier: String) async throws -> ResolvedItem {
         let url = URL(string: "https://archive.org/metadata/\(identifier)")!
         let data = try await IAClient.shared.data(from: url)
         let response = try JSONDecoder().decode(IAMetadataResponse.self, from: data)
@@ -158,8 +158,8 @@ struct ItemResolver {
     }
 }
 
-struct FileSelectionPolicy {
-    var preferFLAC: Bool
+public struct FileSelectionPolicy {
+    public var preferFLAC: Bool
 
     /// Formats streamable directly by AVFoundation on a cold tap.
     private static let coldPlayableExtensions: Set<String> = [
@@ -173,7 +173,7 @@ struct FileSelectionPolicy {
     private static let candidateExtensions: Set<String> =
         coldPlayableExtensions.union(["opus"])
 
-    func selectTracks(files: [IAFile], identifier: String, itemArtist: String?,
+    public func selectTracks(files: [IAFile], identifier: String, itemArtist: String?,
                       itemGenre: String? = nil, itemYear: Int? = nil) -> [ResolvedTrack] {
         // 1. Candidates by real audio extension (drops spectrograms/art/etc., but
         //    now keeps opus per D9).

@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Tonearm
+@testable import TonearmCore
 
 @MainActor
 final class QueueEditorTests: XCTestCase {

@@ -1,19 +1,19 @@
 import Foundation
 
-enum RemotePathPolicy {
-    static let defaultPageCap = CollectionResolver.memberCap
+public enum RemotePathPolicy {
+    public static let defaultPageCap = CollectionResolver.memberCap
 
-    static let audioExtensions: Set<String> = [
+    public static let audioExtensions: Set<String> = [
         "aac", "aif", "aiff", "alac", "caf", "flac", "m4a", "m4b",
         "mp3", "oga", "ogg", "opus", "wav"
     ]
 
-    struct NormalizedPath: Equatable {
+    public struct NormalizedPath: Equatable {
         var rawValue: String
         var segments: [String]
     }
 
-    enum Rejection: Error, Equatable {
+    public enum Rejection: Error, Equatable {
         case absolutePath
         case traversal
         case encodedSeparator
@@ -23,12 +23,12 @@ enum RemotePathPolicy {
         case pageCapExceeded(limit: Int)
     }
 
-    struct Page<T> {
+    public struct Page<T> {
         var items: [T]
         var capHit: Bool
     }
 
-    static func normalize(_ rawPath: String) throws -> NormalizedPath {
+    public static func normalize(_ rawPath: String) throws -> NormalizedPath {
         if rawPath.isEmpty {
             return NormalizedPath(rawValue: "", segments: [])
         }
@@ -68,18 +68,18 @@ enum RemotePathPolicy {
         return NormalizedPath(rawValue: segments.joined(separator: "/"), segments: segments)
     }
 
-    static func acceptsAudioFile(path: String) -> Bool {
+    public static func acceptsAudioFile(path: String) -> Bool {
         let ext = (path as NSString).pathExtension.lowercased()
         return audioExtensions.contains(ext)
     }
 
-    static func requireAudioFile(path: String) throws {
+    public static func requireAudioFile(path: String) throws {
         guard acceptsAudioFile(path: path) else {
             throw Rejection.nonAudioExtension
         }
     }
 
-    static func audioNodes(from nodes: [RemoteNode]) -> [RemoteNode] {
+    public static func audioNodes(from nodes: [RemoteNode]) -> [RemoteNode] {
         nodes.filter { node in
             switch node.kind {
             case .directory, .collection:
@@ -92,11 +92,11 @@ enum RemotePathPolicy {
         }
     }
 
-    static func cappedPage<T>(_ items: [T], limit: Int = defaultPageCap) -> Page<T> {
+    public static func cappedPage<T>(_ items: [T], limit: Int = defaultPageCap) -> Page<T> {
         Page(items: Array(items.prefix(limit)), capHit: items.count > limit)
     }
 
-    static func enforcePageCap<T>(_ items: [T], limit: Int = defaultPageCap) throws -> [T] {
+    public static func enforcePageCap<T>(_ items: [T], limit: Int = defaultPageCap) throws -> [T] {
         guard items.count <= limit else {
             throw Rejection.pageCapExceeded(limit: limit)
         }

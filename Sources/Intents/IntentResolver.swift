@@ -1,14 +1,14 @@
 import Foundation
 
-enum IntentResolver {
-    enum TargetKind: String, Equatable {
+public enum IntentResolver {
+    public enum TargetKind: String, Equatable {
         case playlist
         case artist
         case sourceURL
         case sleepTimer
     }
 
-    enum Failure: Equatable {
+    public enum Failure: Equatable {
         case emptyLibrary(TargetKind)
         case emptyParameter(TargetKind)
         case noMatch(kind: TargetKind, query: String)
@@ -17,13 +17,13 @@ enum IntentResolver {
         case invalidSleepTimerMinutes(Int)
     }
 
-    enum SleepTimerPlan: Equatable {
+    public enum SleepTimerPlan: Equatable {
         case minutes(Int)
         case endOfTrack
         case cancel
     }
 
-    enum Command: Equatable {
+    public enum Command: Equatable {
         case playPlaylist(id: Int64, title: String)
         case playArtist(name: String)
         case resume
@@ -31,17 +31,17 @@ enum IntentResolver {
         case addSource(rawURL: String)
     }
 
-    enum Resolution: Equatable {
+    public enum Resolution: Equatable {
         case command(Command)
         case failure(Failure)
     }
 
-    struct PlaylistCandidate: Equatable {
+    public struct PlaylistCandidate: Equatable {
         var id: Int64
         var title: String
     }
 
-    struct ArtistCandidate: Equatable {
+    public struct ArtistCandidate: Equatable {
         var name: String
     }
 
@@ -50,10 +50,10 @@ enum IntentResolver {
         var name: String
     }
 
-    static let minimumSleepMinutes = 1
-    static let maximumSleepMinutes = 8 * 60
+    public static let minimumSleepMinutes = 1
+    public static let maximumSleepMinutes = 8 * 60
 
-    static func resolvePlaylist(
+    public static func resolvePlaylist(
         named query: String,
         playlists: [PlaylistCandidate]
     ) -> Resolution {
@@ -69,7 +69,7 @@ enum IntentResolver {
         }
     }
 
-    static func resolveArtist(
+    public static func resolveArtist(
         named query: String,
         artists: [ArtistCandidate]
     ) -> Resolution {
@@ -82,26 +82,26 @@ enum IntentResolver {
         }
     }
 
-    static func resolveResume() -> Resolution {
+    public static func resolveResume() -> Resolution {
         .command(.resume)
     }
 
-    static func resolveSleepTimer(minutes: Int) -> Resolution {
+    public static func resolveSleepTimer(minutes: Int) -> Resolution {
         guard minutes >= minimumSleepMinutes, minutes <= maximumSleepMinutes else {
             return .failure(.invalidSleepTimerMinutes(minutes))
         }
         return .command(.setSleepTimer(.minutes(minutes)))
     }
 
-    static func resolveSleepTimerEndOfTrack() -> Resolution {
+    public static func resolveSleepTimerEndOfTrack() -> Resolution {
         .command(.setSleepTimer(.endOfTrack))
     }
 
-    static func resolveSleepTimerCancel() -> Resolution {
+    public static func resolveSleepTimerCancel() -> Resolution {
         .command(.setSleepTimer(.cancel))
     }
 
-    static func resolveAddSource(rawURL: String) -> Resolution {
+    public static func resolveAddSource(rawURL: String) -> Resolution {
         let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return .failure(.emptyParameter(.sourceURL))

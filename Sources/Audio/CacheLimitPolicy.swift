@@ -1,15 +1,15 @@
 import Foundation
 
-struct CacheLimitPolicy {
-    static let minimumBytes: Int64 = 100 * 1024 * 1024
+public struct CacheLimitPolicy {
+    public static let minimumBytes: Int64 = 100 * 1024 * 1024
 
-    struct Result: Equatable {
-        var requestedBytes: Int64
-        var allowedBytes: Int64
-        var reason: String?
+    public struct Result: Equatable {
+        public var requestedBytes: Int64
+        public var allowedBytes: Int64
+        public var reason: String?
     }
 
-    static func validate(requestedBytes: Int64, freeDiskBytes: Int64) -> Result {
+    public static func validate(requestedBytes: Int64, freeDiskBytes: Int64) -> Result {
         guard requestedBytes > 0 else {
             return Result(
                 requestedBytes: requestedBytes,

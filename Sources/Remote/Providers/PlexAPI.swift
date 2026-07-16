@@ -1,34 +1,34 @@
 import Foundation
 
-enum PlexAPI {
-    static let defaultClient = Client(
+public enum PlexAPI {
+    public static let defaultClient = Client(
         product: "Tonearm",
         version: "1.0",
         platform: "iOS",
         clientIdentifier: "tonearm-ios"
     )
 
-    struct Client: Equatable {
+    public struct Client: Equatable {
         var product: String
         var version: String
         var platform: String
         var clientIdentifier: String
     }
 
-    enum Endpoint: Equatable {
+    public enum Endpoint: Equatable {
         case sections
         case artists(sectionKey: String)
         case children(ratingKey: String)
         case metadata(ratingKey: String)
     }
 
-    enum Error: Swift.Error, Equatable {
+    public enum Error: Swift.Error, Equatable {
         case invalidBaseURL
         case malformedResponse
         case missingField(String)
     }
 
-    static func normalizeBaseURL(_ raw: String) throws -> URL {
+    public static func normalizeBaseURL(_ raw: String) throws -> URL {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw Error.invalidBaseURL }
         let withScheme = trimmed.contains("://") ? trimmed : "http://\(trimmed)"
@@ -51,7 +51,7 @@ enum PlexAPI {
         return url
     }
 
-    static func request(baseURL rawBaseURL: URL,
+    public static func request(baseURL rawBaseURL: URL,
                         endpoint: Endpoint,
                         token: String,
                         client: Client = defaultClient) throws -> URLRequest {
@@ -76,15 +76,15 @@ enum PlexAPI {
         return request
     }
 
-    static func decodeSections(_ data: Data) throws -> [PlexItem] {
+    public static func decodeSections(_ data: Data) throws -> [PlexItem] {
         try parse(data).items.filter { $0.kind == .section }
     }
 
-    static func decodeItems(_ data: Data) throws -> [PlexItem] {
+    public static func decodeItems(_ data: Data) throws -> [PlexItem] {
         try parse(data).items
     }
 
-    static func decodeTrackMetadata(_ data: Data) throws -> PlexItem {
+    public static func decodeTrackMetadata(_ data: Data) throws -> PlexItem {
         guard let track = try parse(data).items.first(where: { $0.kind == .track }) else {
             throw Error.missingField("Track")
         }
@@ -141,12 +141,12 @@ enum PlexAPI {
     }
 }
 
-struct PlexMediaContainer: Equatable {
-    var items: [PlexItem]
+public struct PlexMediaContainer: Equatable {
+    public var items: [PlexItem]
 }
 
-struct PlexItem: Equatable {
-    enum Kind: Equatable {
+public struct PlexItem: Equatable {
+    public enum Kind: Equatable {
         case section
         case artist
         case album
@@ -154,25 +154,25 @@ struct PlexItem: Equatable {
         case unknown(String)
     }
 
-    var ratingKey: String?
-    var key: String?
-    var title: String
-    var kind: Kind
-    var durationSec: Double?
-    var sizeBytes: Int64?
-    var partKey: String?
+    public var ratingKey: String?
+    public var key: String?
+    public var title: String
+    public var kind: Kind
+    public var durationSec: Double?
+    public var sizeBytes: Int64?
+    public var partKey: String?
 
-    var isMusicSection: Bool {
+    public var isMusicSection: Bool {
         kind == .section
     }
 }
 
 private final class PlexXMLCollector: NSObject, XMLParserDelegate {
-    var sawMediaContainer = false
-    var items: [PlexItem] = []
+    public var sawMediaContainer = false
+    public var items: [PlexItem] = []
     private var currentTrack: PlexItem?
 
-    func parser(_ parser: XMLParser,
+    public func parser(_ parser: XMLParser,
                 didStartElement elementName: String,
                 namespaceURI: String?,
                 qualifiedName qName: String?,
@@ -197,7 +197,7 @@ private final class PlexXMLCollector: NSObject, XMLParserDelegate {
         }
     }
 
-    func parser(_ parser: XMLParser,
+    public func parser(_ parser: XMLParser,
                 didEndElement elementName: String,
                 namespaceURI: String?,
                 qualifiedName qName: String?) {

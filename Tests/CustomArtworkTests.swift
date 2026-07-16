@@ -1,6 +1,6 @@
 import XCTest
 import GRDB
-@testable import Tonearm
+@testable import TonearmCore
 
 final class CustomArtworkTests: XCTestCase {
 

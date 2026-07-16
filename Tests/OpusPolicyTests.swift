@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// T2.4 — "Opus when ready" selection policy. Verifies that a mixed IA item
 /// exposes its Opus derivative for the prefetch/remux upgrade path while cold

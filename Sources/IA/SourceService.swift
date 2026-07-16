@@ -1,31 +1,35 @@
 import Foundation
 
-struct SourcePreview {
-    var kind: SourceKind
-    var title: String
-    var subtitle: String
-    var licenseText: String?
-    var licensePermitsStreaming: Bool
-    var memberCount: Int?
-    var totalCount: Int?
-    var capHit: Bool
-    var parsed: IAResolvedURL
-    var originalURL: String
-    var resolvedItem: ResolvedItem?
-    var members: [IAMember]
+public struct SourcePreview {
+    public var kind: SourceKind
+    public var title: String
+    public var subtitle: String
+    public var licenseText: String?
+    public var licensePermitsStreaming: Bool
+    public var memberCount: Int?
+    public var totalCount: Int?
+    public var capHit: Bool
+    public var parsed: IAResolvedURL
+    public var originalURL: String
+    public var resolvedItem: ResolvedItem?
+    public var members: [IAMember]
 }
 
 /// Orchestrates URLGrammar + resolvers. All IA network calls originate here and
 /// in the resolvers under IA/ (Invariant checks reference this boundary).
-struct SourceService {
-    var preferFLAC: Bool = true
+public struct SourceService {
+    public var preferFLAC: Bool = true
 
-    func preview(from raw: String) async throws -> SourcePreview {
+    public init(preferFLAC: Bool = true) {
+        self.preferFLAC = preferFLAC
+    }
+
+    public func preview(from raw: String) async throws -> SourcePreview {
         try await IARemoteLibraryProvider(preferFLAC: preferFLAC).preview(from: raw)
     }
 
     /// Turns a slug/identifier into a human-readable title: dashes→spaces, title-case each word.
-    static func prettify(_ slug: String) -> String {
+    public static func prettify(_ slug: String) -> String {
         slug.replacingOccurrences(of: "-", with: " ")
             .split(separator: " ")
             .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
@@ -34,7 +38,7 @@ struct SourceService {
 
     /// Persists the source and, for items, its tracks. Members resolve lazily elsewhere.
     @discardableResult
-    func add(preview: SourcePreview, followUpdates: Bool, store: LibraryStore) async throws -> Source {
+    public func add(preview: SourcePreview, followUpdates: Bool, store: LibraryStore) async throws -> Source {
         var source = Source(id: nil, kind: preview.kind,
                             iaIdentifier: identifier(for: preview.parsed),
                             originalURL: preview.originalURL, title: preview.title,

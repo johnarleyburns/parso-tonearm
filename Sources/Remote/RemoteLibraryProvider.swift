@@ -1,21 +1,21 @@
 import Foundation
 
-struct RemoteNode: Identifiable, Codable, Equatable, Hashable {
-    enum Kind: String, Codable {
+public struct RemoteNode: Identifiable, Codable, Equatable, Hashable {
+    public enum Kind: String, Codable {
         case directory
         case audio
         case item
         case collection
     }
 
-    var id: String
-    var title: String
-    var path: String
-    var kind: Kind
-    var sizeBytes: Int64?
-    var durationSec: Double?
+    public var id: String
+    public var title: String
+    public var path: String
+    public var kind: Kind
+    public var sizeBytes: Int64?
+    public var durationSec: Double?
 
-    init(id: String,
+    public init(id: String,
          title: String,
          path: String,
          kind: Kind,
@@ -30,13 +30,13 @@ struct RemoteNode: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-struct ResolvedAsset: Codable, Equatable {
-    var url: URL
-    var headers: [String: String]
-    var supportsByteRanges: Bool
-    var sizeBytes: Int64?
+public struct ResolvedAsset: Codable, Equatable {
+    public var url: URL
+    public var headers: [String: String]
+    public var supportsByteRanges: Bool
+    public var sizeBytes: Int64?
 
-    init(url: URL,
+    public init(url: URL,
          headers: [String: String] = [:],
          supportsByteRanges: Bool = true,
          sizeBytes: Int64? = nil) {
@@ -47,7 +47,7 @@ struct ResolvedAsset: Codable, Equatable {
     }
 }
 
-protocol RemoteLibraryProvider {
+public protocol RemoteLibraryProvider {
     var sourceKind: SourceKind { get }
 
     func browse(path: String) async throws -> [RemoteNode]

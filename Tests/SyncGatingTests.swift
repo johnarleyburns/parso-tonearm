@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// C7 — engine gating: no-ops without Pro / toggle / iCloud account; downgrade
 /// or toggle-off stops the engine but never deletes local data. Pure logic.

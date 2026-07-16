@@ -1,37 +1,37 @@
 import Foundation
 
-enum LibraryBrowseMode: String, CaseIterable, Identifiable {
+public enum LibraryBrowseMode: String, CaseIterable, Identifiable {
     case artists = "Artists"
     case albums = "Albums"
     case songs = "Songs"
     case genres = "Genres"
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 }
 
-enum LibraryBrowse {
-    struct Section: Identifiable, Equatable {
-        var indexTitle: String
-        var entries: [Entry]
-        var id: String { indexTitle }
+public enum LibraryBrowse {
+    public struct Section: Identifiable, Equatable {
+        public var indexTitle: String
+        public var entries: [Entry]
+        public var id: String { indexTitle }
     }
 
-    struct Entry: Identifiable, Equatable, Hashable {
-        enum Kind: String {
+    public struct Entry: Identifiable, Equatable, Hashable {
+        public enum Kind: String {
             case artist
             case album
             case song
             case genre
         }
 
-        var id: String
-        var kind: Kind
-        var title: String
-        var subtitle: String?
-        var rows: [TrackRow]
-        var indexTitle: String
+        public var id: String
+        public var kind: Kind
+        public var title: String
+        public var subtitle: String?
+        public var rows: [TrackRow]
+        public var indexTitle: String
 
-        static func == (lhs: Entry, rhs: Entry) -> Bool {
+        public static func == (lhs: Entry, rhs: Entry) -> Bool {
             lhs.id == rhs.id
                 && lhs.kind == rhs.kind
                 && lhs.title == rhs.title
@@ -40,12 +40,12 @@ enum LibraryBrowse {
                 && lhs.indexTitle == rhs.indexTitle
         }
 
-        func hash(into hasher: inout Hasher) {
+        public func hash(into hasher: inout Hasher) {
             hasher.combine(id)
         }
     }
 
-    static func sections(for mode: LibraryBrowseMode, rows: [TrackRow]) -> [Section] {
+    public static func sections(for mode: LibraryBrowseMode, rows: [TrackRow]) -> [Section] {
         switch mode {
         case .artists: return artistSections(rows)
         case .albums: return albumSections(rows)
@@ -54,7 +54,7 @@ enum LibraryBrowse {
         }
     }
 
-    static func indexTitle(for value: String) -> String {
+    public static func indexTitle(for value: String) -> String {
         let folded = value
             .folding(options: [.diacriticInsensitive, .caseInsensitive],
                      locale: Locale(identifier: "en_US_POSIX"))

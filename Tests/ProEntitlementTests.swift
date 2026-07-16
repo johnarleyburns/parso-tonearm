@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// T3.1 — entitlement lifecycle: verified construction, offline cached read,
 /// revocation clears, and the private-init invariant (only verified construction).

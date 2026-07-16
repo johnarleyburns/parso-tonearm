@@ -1,4 +1,5 @@
 import SwiftUI
+import TonearmCore
 
 @main
 struct TonearmApp: App {
@@ -11,10 +12,8 @@ struct TonearmApp: App {
             UserDefaults.standard.set(true, forKey: "didOnboard")
         }
         ProStore.shared.start()
+        AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
         TonearmPlaybackCommands.handler = AudioPlayer.shared
-        if #available(iOS 16.2, *) {
-            NowPlayingLiveActivityController.shared.endAll()
-        }
     }
 
     var body: some Scene {

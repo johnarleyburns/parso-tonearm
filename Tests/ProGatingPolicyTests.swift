@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Tonearm
+@testable import TonearmCore
 
 @MainActor
 final class ProGatingPolicyTests: XCTestCase {
@@ -53,50 +53,33 @@ final class ProGatingPolicyTests: XCTestCase {
         XCTAssertEqual(ProToolsAccessPolicy.decision(for: .crossfeed, isPro: true), .allow)
     }
 
-    func testAddRemoteLibraryEntryPointPresentsPaywallWhenNotPro() throws {
-        let appState = AppState(store: try LibraryStore(inMemory: true))
-
-        appState.requestAddRemoteLibrary()
-
-        XCTAssertTrue(appState.showProPaywall)
-        XCTAssertFalse(appState.showAddRemoteLibrary)
-    }
-
-    func testAddRemoteLibraryEntryPointOpensSheetWhenPro() throws {
-        ProEntitlement.persist(ProEntitlement.verified(transactionID: 42, purchaseDate: Date()))
-        let appState = AppState(store: try LibraryStore(inMemory: true))
-
-        appState.requestAddRemoteLibrary()
-
-        XCTAssertFalse(appState.showProPaywall)
-        XCTAssertTrue(appState.showAddRemoteLibrary)
-    }
-
-    func testAppStateRemoteMethodsGateBeforeProviderWork() async throws {
-        let appState = AppState(store: try LibraryStore(inMemory: true))
-        let source = Source(
-            id: 1,
-            kind: .webDAV,
-            iaIdentifier: "alice",
-            originalURL: "https://dav.example.com",
-            title: "DAV",
-            addedAt: Date(),
-            lastResolvedAt: nil,
-            followUpdates: false,
-            licenseText: nil,
-            memberCapHit: false
+    func testAddRemoteLibraryEntryPointPresentsPaywallWhenNotPro() {
+        XCTAssertEqual(
+            RemoteLibraryGate.entryPointDecision(isPro: false),
+            .showPaywall
         )
+    }
 
+    func testAddRemoteLibraryEntryPointOpensSheetWhenPro() {
+        ProEntitlement.persist(ProEntitlement.verified(transactionID: 42, purchaseDate: Date()))
+
+        XCTAssertEqual(
+            RemoteLibraryGate.entryPointDecision(isPro: ProGating.isEnabled(.remoteLibraries)),
+            .openSheet
+        )
+    }
+
+    func testRemoteGateThrowsBeforeProviderWork() {
         do {
-            _ = try await appState.browseRemote(source: source, path: "")
-            XCTFail("Expected browseRemote to require Pro")
+            try RemoteLibraryGate.require(.browse(.webDAV), isPro: false)
+            XCTFail("Expected browse to require Pro")
         } catch {
             XCTAssertEqual(error as? ProFeatureAccessError, .requiresPro(.remoteLibraries))
         }
 
         do {
-            try await appState.addSubsonicServer(url: "not a url", username: "alice", password: "secret")
-            XCTFail("Expected addSubsonicServer to require Pro before URL validation")
+            try RemoteLibraryGate.require(.connect(.subsonic), isPro: false)
+            XCTFail("Expected connect to require Pro")
         } catch {
             XCTAssertEqual(error as? ProFeatureAccessError, .requiresPro(.remoteLibraries))
         }

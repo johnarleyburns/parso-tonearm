@@ -1,22 +1,20 @@
 import Foundation
 import AVFoundation
-import MediaPlayer
 import Combine
-import UIKit
 import Network
 
-enum RepeatMode: String, CaseIterable {
+public enum RepeatMode: String, CaseIterable {
     case off, all, one
 }
 
-enum QueueSource: Equatable {
+public enum QueueSource: Equatable {
     case source(Source)
     case playlist(Playlist)
     case library
     case ambient
     case none
 
-    var label: String {
+    public var label: String {
         switch self {
         case .source(let s): return "From Source: \(s.title)"
         case .playlist(let p): return "From Playlist: \(p.title)"
@@ -28,15 +26,16 @@ enum QueueSource: Equatable {
 }
 
 @MainActor
-final class AudioPlayer: ObservableObject {
-    static let shared = AudioPlayer()
+public final class AudioPlayer: ObservableObject {
+    public static let shared = AudioPlayer()
 
-    @Published private(set) var queue: [TrackRow] = []
-    @Published private(set) var index: Int = 0
-    @Published private(set) var isPlaying = false
-    @Published private(set) var currentTime: Double = 0
-    @Published private(set) var duration: Double = 0
-    @Published var shuffle = false {
+    @Published public private(set) var queue: [TrackRow] = []
+    @Published public private(set) var index: Int = 0
+    @Published public private(set) var isPlaying = false
+    @Published public private(set) var isStalled = false
+    @Published public private(set) var currentTime: Double = 0
+    @Published public private(set) var duration: Double = 0
+    @Published public var shuffle = false {
         didSet {
             guard shuffle != oldValue else { return }
             if shuffle {
@@ -46,39 +45,40 @@ final class AudioPlayer: ObservableObject {
             }
         }
     }
-    @Published var repeatMode: RepeatMode = .off
-    @Published private(set) var cacheState: CacheGlyphState = .none
-    @Published private(set) var cachePercent: Int = 0
-    @Published private(set) var cachedFraction: Double = 0
-    @Published private(set) var isAmbient = false
-    @Published private(set) var ambientChannelId: String?
-    @Published private(set) var pathIsExpensive = false
-    @Published var networkSkipMessage: String?
-    @Published var queueSource: QueueSource = .none
+    @Published public var repeatMode: RepeatMode = .off
+    @Published public private(set) var cacheState: CacheGlyphState = .none
+    @Published public private(set) var cachePercent: Int = 0
+    @Published public private(set) var cachedFraction: Double = 0
+    @Published public private(set) var isAmbient = false
+    @Published public private(set) var ambientChannelId: String?
+    @Published public private(set) var pathIsExpensive = false
+    @Published public var networkSkipMessage: String?
+    @Published public var queueSource: QueueSource = .none
 
-    var streamOnCellular = true
-    var prefetchDepth = 2
-    var preferFLAC = false
-    var replayGainMode: ReplayGain.Mode = .track
-    var replayGainPreampDB: Double = 0
-    var replayGainPreventClipping = true
-    var crossfadeSeconds: Double = 0 {
+    public var streamOnCellular = true
+    public var prefetchDepth = 2
+    public var preferFLAC = false
+    public var replayGainMode: ReplayGain.Mode = .track
+    public var replayGainPreampDB: Double = 0
+    public var replayGainPreventClipping = true
+    public var crossfadeSeconds: Double = 0 {
         didSet {
             if normalizedCrossfadeSeconds == 0 {
                 cancelCrossfade(resetVolume: true)
             }
         }
     }
-    var crossfadeCurve: CrossfadeCurve = .equalPower
-    var sleepAtEndOfTrack = false
-    @Published private(set) var sleepTimerEndsAt: Date?
+    public var crossfadeCurve: CrossfadeCurve = .equalPower
+    public var sleepAtEndOfTrack = false
+    @Published public private(set) var sleepTimerEndsAt: Date?
 
     private var player = AVPlayer()
     private var loopPlayer: AVQueuePlayer?
     private var audioLooper: AVPlayerLooper?
     private var timeObserver: Any?
     private var itemEndObserver: NSObjectProtocol?
-    private var routeChangeObserver: NSObjectProtocol?
+    private var timeControlCancellable: AnyCancellable?
+    private var restoreTask: Task<Void, Never>?
     private var loaders: [CachingResourceLoader] = []
     private let loaderQueue = DispatchQueue(label: "guru.parso.tonearm.loaders")
     private var stallModel = StallModel()
@@ -105,7 +105,17 @@ final class AudioPlayer: ObservableObject {
     private let pathMonitorQueue = DispatchQueue(label: "guru.parso.tonearm.network")
     private var sleepTimerTask: Task<Void, Never>?
 
-    var currentTrack: TrackRow? {
+    /// The platform seam. Defaults to a no-op so the queue/shuffle/repeat logic is
+    /// host-testable; the app installs `SystemPlaybackBridge` via
+    /// `attachPlatformBridge(_:)` at launch.
+    private var bridge: PlaybackPlatformBridge = NoopPlaybackBridge()
+
+    /// The observed playback truth: playing AND not stalled/buffering. Drives the
+    /// Live Activity's self-advancing progress bar so it freezes at the real
+    /// position during stalls, interruptions, and pauses.
+    public var isAdvancing: Bool { isPlaying && !isStalled }
+
+    public var currentTrack: TrackRow? {
         if isAmbient, let channelId = ambientChannelId {
             return BuiltInContentProvider.allTrackRows.first {
                 $0.asset?.relPath?.contains(channelId) == true
@@ -115,23 +125,43 @@ final class AudioPlayer: ObservableObject {
         return queue[index]
     }
 
-    var upNextTracks: [TrackRow] {
+    public var upNextTracks: [TrackRow] {
         if isAmbient { return [] }
         guard index < queue.count - 1 else { return [] }
         return Array(queue.dropFirst(index + 1))
     }
 
     private init() {
-        configureSession()
-        setupRemoteCommands()
         addPeriodicObserver()
-        observeRouteChanges()
+        observeTimeControlStatus()
         observeNetworkPath()
+    }
+
+    /// Installs the real platform bridge and starts the iOS-only integrations
+    /// (audio session, remote commands, route/interruption observation). Called
+    /// once at app launch; never called under `swift test`, which keeps the
+    /// no-op bridge.
+    public func attachPlatformBridge(_ bridge: PlaybackPlatformBridge) {
+        self.bridge = bridge
+        bridge.configureSession()
+        bridge.setupRemoteCommands(
+            resume: { [weak self] in self?.resume() },
+            pause: { [weak self] in self?.pause() },
+            next: { [weak self] in self?.next() },
+            previous: { [weak self] in self?.previous() },
+            seek: { [weak self] seconds in self?.seek(to: seconds) })
+        bridge.startObservers(
+            routeShouldPause: { [weak self] in
+                guard let self, self.isPlaying else { return }
+                self.pause()
+            },
+            interruptionPause: { [weak self] in self?.pausePlayback() },
+            interruptionResume: { [weak self] in self?.resumePlayback() })
     }
 
     // MARK: - Public control
 
-    func play(tracks: [TrackRow], startAt start: Int, source: QueueSource = .none) {
+    public func play(tracks: [TrackRow], startAt start: Int, source: QueueSource = .none) {
         shutdownLoopPlayer()
         unshuffledQueue = []
         queueSource = source
@@ -141,17 +171,17 @@ final class AudioPlayer: ObservableObject {
         loadCurrent(autoplay: true)
     }
 
-    func playSingle(_ track: TrackRow) {
+    public func playSingle(_ track: TrackRow) {
         play(tracks: [track], startAt: 0)
     }
 
-    func moveQueueItems(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+    public func moveQueueItems(fromOffsets offsets: IndexSet, toOffset destination: Int) {
         guard !isAmbient, offsets.count == 1, let source = offsets.first else { return }
         let target = destination > source ? destination - 1 : destination
         moveQueueItem(from: source, to: target)
     }
 
-    func moveQueueItem(from source: Int, to destination: Int) {
+    public func moveQueueItem(from source: Int, to destination: Int) {
         guard !isAmbient else { return }
         let edited = QueueEditor.move(
             from: source,
@@ -160,7 +190,7 @@ final class AudioPlayer: ObservableObject {
         applyQueueEdit(edited, reloadCurrent: false, autoplay: isPlaying)
     }
 
-    func removeFromQueue(atOffsets offsets: IndexSet) {
+    public func removeFromQueue(atOffsets offsets: IndexSet) {
         guard !isAmbient, !offsets.isEmpty else { return }
         var state = QueueEditor.State(queue: queue, currentIndex: index)
         var removedCurrent = false
@@ -172,11 +202,11 @@ final class AudioPlayer: ObservableObject {
         applyQueueEdit(state, reloadCurrent: removedCurrent, autoplay: isPlaying)
     }
 
-    func removeFromQueue(at position: Int) {
+    public func removeFromQueue(at position: Int) {
         removeFromQueue(atOffsets: IndexSet(integer: position))
     }
 
-    func insertNext(_ row: TrackRow) {
+    public func insertNext(_ row: TrackRow) {
         guard !isAmbient else { return }
         let wasEmpty = queue.isEmpty
         let edited = QueueEditor.insertNext(
@@ -185,7 +215,7 @@ final class AudioPlayer: ObservableObject {
         applyQueueEdit(edited, reloadCurrent: wasEmpty, autoplay: false)
     }
 
-    func appendToQueue(_ row: TrackRow) {
+    public func appendToQueue(_ row: TrackRow) {
         guard !isAmbient else { return }
         let wasEmpty = queue.isEmpty
         let edited = QueueEditor.append(
@@ -194,7 +224,7 @@ final class AudioPlayer: ObservableObject {
         applyQueueEdit(edited, reloadCurrent: wasEmpty, autoplay: false)
     }
 
-    func togglePlayPause() {
+    public func togglePlayPause() {
         if isAmbient {
             if isPlaying { loopPlayer?.pause() } else { loopPlayer?.play() }
             isPlaying.toggle()
@@ -206,7 +236,7 @@ final class AudioPlayer: ObservableObject {
         updateNowPlaying()
     }
 
-    func resumePlayback() {
+    public func resumePlayback() {
         guard !isPlaying else {
             updateNowPlaying()
             return
@@ -220,7 +250,7 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
-    func pausePlayback() {
+    public func pausePlayback() {
         guard isPlaying else {
             updateNowPlaying()
             return
@@ -234,7 +264,7 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
-    func applySleepTimer(_ plan: IntentResolver.SleepTimerPlan, now: Date = Date()) {
+    public func applySleepTimer(_ plan: IntentResolver.SleepTimerPlan, now: Date = Date()) {
         sleepTimerTask?.cancel()
         sleepTimerTask = nil
         sleepTimerEndsAt = nil
@@ -263,7 +293,7 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
-    func next() {
+    public func next() {
         if isAmbient { nextAmbientTrack(); return }
         guard !queue.isEmpty else { return }
         if repeatMode == .one { seek(to: 0); player.play(); return }
@@ -277,7 +307,7 @@ final class AudioPlayer: ObservableObject {
         loadCurrent(autoplay: true)
     }
 
-    func previous() {
+    public func previous() {
         if isAmbient { previousAmbientTrack(); return }
         guard !queue.isEmpty else { return }
         if currentTime > 3 { seek(to: 0); return }
@@ -285,13 +315,14 @@ final class AudioPlayer: ObservableObject {
         loadCurrent(autoplay: true)
     }
 
-    func seek(to seconds: Double) {
+    public func seek(to seconds: Double) {
         guard !isAmbient else { return }
         let time = CMTime(seconds: seconds, preferredTimescale: 600)
         player.seek(to: time)
         currentTime = seconds
         updateNowPlayingTime()
-        WidgetSnapshotPublisher.publish(player: self)
+        persistPlaybackState()
+        bridge.publishSnapshot(self)
     }
 
     private func applyQueueEdit(_ edited: QueueEditor.State<TrackRow>,
@@ -339,8 +370,8 @@ final class AudioPlayer: ObservableObject {
         cachedFraction = 0
         queueSource = .none
         applySleepTimer(.cancel)
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-        WidgetSnapshotPublisher.publishEmpty()
+        PlaybackStateStore.clear()
+        bridge.clearNowPlaying()
     }
 
     // MARK: - Loading
@@ -404,7 +435,7 @@ final class AudioPlayer: ObservableObject {
         updateNowPlaying()
         prefetchNext()
         preloadNextItem()
-        if let trackId = row.track.id {
+        if autoplay, let trackId = row.track.id {
             Task { try? await LibraryStore.shared.recordPlay(trackId: trackId) }
         }
     }
@@ -626,6 +657,7 @@ final class AudioPlayer: ObservableObject {
             oldPlayer.removeTimeObserver(observer)
             timeObserver = nil
         }
+        timeControlCancellable = nil
 
         oldPlayer.pause()
         oldPlayer.replaceCurrentItem(with: nil)
@@ -654,6 +686,7 @@ final class AudioPlayer: ObservableObject {
             observeEnd(of: item)
         }
         addPeriodicObserver()
+        observeTimeControlStatus()
         updateNowPlaying()
         prefetchNext()
         preloadNextItem()
@@ -722,12 +755,12 @@ final class AudioPlayer: ObservableObject {
 
     /// Live-updates EQ gains on the currently playing item without interrupting
     /// playback (engage/disengage is glitch-free). Call from the EQ settings UI.
-    func updateEQ(gains: [Double], enabled: Bool) {
+    public func updateEQ(gains: [Double], enabled: Bool) {
         let settings = EQSettings(bands: gains.map(Float.init), enabled: enabled, activePresetID: nil)
         updateEQ(settings: settings)
     }
 
-    func updateEQ(settings: EQSettings) {
+    public func updateEQ(settings: EQSettings) {
         let store = EQSettingsStore(presets: EQSettingsPersistence.allPresets())
         let normalized = store.normalized(settings)
         EQSettingsPersistence.save(normalized)
@@ -737,7 +770,7 @@ final class AudioPlayer: ObservableObject {
 
     /// Pushes the current Pro Audio settings into the live tap (from the Pro Tools
     /// audio sliders). Mirrors `updateEQ(settings:)`.
-    func updateProAudio(_ settings: ProAudioSettings) {
+    public func updateProAudio(_ settings: ProAudioSettings) {
         ProAudioSettingsPersistence.save(settings)
         let eqSettings = EQSettingsPersistence.load()
         let store = EQSettingsStore(presets: EQSettingsPersistence.allPresets())
@@ -773,13 +806,13 @@ final class AudioPlayer: ObservableObject {
     }
 
     /// The hardware output sample rate the audio session is currently running at.
-    var hardwareSampleRate: Double {
-        AVAudioSession.sharedInstance().sampleRate
+    public var hardwareSampleRate: Double {
+        bridge.sampleRate
     }
 
     /// The nominal sample rate of the currently loaded source audio track, or 0
     /// when unknown (e.g. nothing playing yet).
-    var currentSourceSampleRate: Double {
+    public var currentSourceSampleRate: Double {
         guard let track = player.currentItem?.tracks.first(where: {
             $0.assetTrack?.mediaType == .audio
         }), let assetTrack = track.assetTrack else { return 0 }
@@ -794,7 +827,7 @@ final class AudioPlayer: ObservableObject {
 
     /// Honest bit-perfect plan for the current state: derived from the REAL
     /// hardware/source rates and the live ReplayGain, never from view `@State`.
-    func bitPerfectPlan(for settings: ProAudioSettings) -> BitPerfectOutputPlan {
+    public func bitPerfectPlan(for settings: ProAudioSettings) -> BitPerfectOutputPlan {
         let replayGain = currentTrack.map { replayGainValue(for: $0.track) } ?? 1
         return settings.bitPerfectPlan(
             hardwareSampleRate: hardwareSampleRate,
@@ -891,9 +924,7 @@ final class AudioPlayer: ObservableObject {
             }
             // Cache the artwork alongside its music so prefetched tracks are
             // fully available offline, not just their audio bytes.
-            Task.detached(priority: .background) {
-                _ = await ArtworkService.shared.artwork(forTrackRow: row)
-            }
+            bridge.prefetchArtwork(for: row)
         }
     }
 
@@ -945,6 +976,44 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
+    /// Observes the player's true playback state (Fix 1). `timeControlStatus` is
+    /// the ground truth: manual `isPlaying` flips can't see buffering stalls on
+    /// remote streams, which made the self-advancing Live Activity bar sprint
+    /// ahead while audio was actually frozen. Re-subscribed after crossfade swaps
+    /// the player instance.
+    private func observeTimeControlStatus() {
+        timeControlCancellable = player.publisher(for: \.timeControlStatus)
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.handleTimeControlChange(self.player.timeControlStatus)
+                }
+            }
+    }
+
+    private func handleTimeControlChange(_ status: AVPlayer.TimeControlStatus) {
+        guard !isAmbient else { return }
+        let wasAdvancing = isAdvancing
+        let wasPlaying = isPlaying
+        switch status {
+        case .playing:
+            isPlaying = true
+            isStalled = false
+        case .waitingToPlayAtSpecifiedRate:
+            isStalled = true
+        case .paused:
+            if crossfadePlayer == nil {
+                isPlaying = false
+            }
+            isStalled = false
+        @unknown default:
+            break
+        }
+        if isAdvancing != wasAdvancing || isPlaying != wasPlaying {
+            updateNowPlaying()
+        }
+    }
+
     private func refreshCacheState() {
         guard let asset = currentTrack?.asset, asset.kind == .remote,
               let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else {
@@ -970,38 +1039,6 @@ final class AudioPlayer: ObservableObject {
 
     // MARK: - Session / Remote
 
-    private func configureSession() {
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .default)
-        try? session.setActive(true)
-    }
-
-    private func observeRouteChanges() {
-        routeChangeObserver = NotificationCenter.default.addObserver(
-            forName: AVAudioSession.routeChangeNotification,
-            object: nil, queue: .main
-        ) { [weak self] notification in
-            Task { @MainActor [weak self] in
-                guard let self, self.isPlaying else { return }
-                guard let reasonRaw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
-                      let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw) else { return }
-                let prevKey = AVAudioSessionRouteChangePreviousRouteKey
-                let prevRoute = notification.userInfo?[prevKey] as? AVAudioSessionRouteDescription
-                let prevHadExternal = prevRoute?.outputs.contains(where: { $0.portType != .builtInSpeaker }) == true
-
-                switch reason {
-                case .oldDeviceUnavailable:
-                    if prevHadExternal { self.pause() }
-                case .routeConfigurationChange:
-                    let currentOutputs = AVAudioSession.sharedInstance().currentRoute.outputs
-                    let isBuiltInOnly = currentOutputs.allSatisfy { $0.portType == .builtInSpeaker }
-                    if isBuiltInOnly && prevHadExternal { self.pause() }
-                default: break
-                }
-            }
-        }
-    }
-
     private func observeNetworkPath() {
         pathMonitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
@@ -1011,64 +1048,88 @@ final class AudioPlayer: ObservableObject {
         pathMonitor.start(queue: pathMonitorQueue)
     }
 
-    private func setupRemoteCommands() {
-        let c = MPRemoteCommandCenter.shared()
-        c.playCommand.addTarget { [weak self] _ in self?.resume(); return .success }
-        c.pauseCommand.addTarget { [weak self] _ in self?.pause(); return .success }
-        c.nextTrackCommand.addTarget { [weak self] _ in self?.next(); return .success }
-        c.previousTrackCommand.addTarget { [weak self] _ in self?.previous(); return .success }
-        c.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let e = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            self?.seek(to: e.positionTime)
-            return .success
-        }
-    }
-
     private func resume() { player.play(); isPlaying = true; updateNowPlaying() }
     private func pause() { player.pause(); isPlaying = false; updateNowPlaying() }
 
     private func updateNowPlaying() {
-        guard let row = currentTrack else {
-            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-            WidgetSnapshotPublisher.publishEmpty()
+        guard currentTrack != nil else {
+            PlaybackStateStore.clear()
+            bridge.clearNowPlaying()
             return
         }
-        var info: [String: Any] = [
-            MPMediaItemPropertyTitle: row.track.title,
-            MPMediaItemPropertyArtist: row.album?.artist ?? "archive.org",
-            MPMediaItemPropertyPlaybackDuration: isAmbient ? 0 : duration,
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: isAmbient ? 0 : currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
-        ]
-        info[MPMediaItemPropertyAlbumTitle] = row.album?.title
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-        WidgetSnapshotPublisher.publish(player: self)
-
-        Task {
-            if let image = await ArtworkService.shared.artwork(forTrackRow: row) {
-                let art = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-                current[MPMediaItemPropertyArtwork] = art
-                MPNowPlayingInfoCenter.default().nowPlayingInfo = current
-
-                if let artworkID = row.album?.artworkId ?? row.source?.iaIdentifier {
-                    WidgetArtworkStore.save(image: image, for: artworkID)
-                    WidgetSnapshotPublisher.publish(player: self)
-                }
-            }
-        }
+        persistPlaybackState()
+        bridge.refreshNowPlaying(self)
     }
 
     private func updateNowPlayingTime() {
-        var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
-        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        bridge.refreshNowPlayingTime(self)
+    }
+
+    // MARK: - Queue persistence (Fix 2)
+
+    /// Persists the queue/position to the App Group on the same discrete events
+    /// that publish now-playing info, so an intent-launched suspended app can
+    /// rebuild the player instead of no-oping on an empty queue.
+    private func persistPlaybackState() {
+        guard !isAmbient else { return }
+        var ids: [Int64] = []
+        var currentIndex = 0
+        for (position, row) in queue.enumerated() {
+            guard let id = row.track.id, id > 0 else { continue }
+            if position == index { currentIndex = ids.count }
+            ids.append(id)
+        }
+        guard !ids.isEmpty else {
+            PlaybackStateStore.clear()
+            return
+        }
+        PlaybackStateStore.save(PlaybackStateSnapshot(
+            trackIDs: ids,
+            currentIndex: currentIndex,
+            elapsed: currentTime,
+            isPlaying: isPlaying,
+            savedAt: Date()
+        ))
+    }
+
+    /// Rebuilds the queue from the persisted state (paused, no autoplay) when the
+    /// player is empty — the self-healing path for Live Activity intents that
+    /// launch a suspended app, and for normal app launches. Runs at most once per
+    /// process; concurrent callers await the same restore.
+    public func restorePersistedQueue() async {
+        if let restoreTask {
+            await restoreTask.value
+            return
+        }
+        let task = Task { await performQueueRestore() }
+        restoreTask = task
+        await task.value
+    }
+
+    private func performQueueRestore() async {
+        guard queue.isEmpty, !isAmbient else { return }
+        guard let saved = PlaybackStateStore.load(), !saved.trackIDs.isEmpty else { return }
+
+        var rows: [TrackRow] = []
+        var startIndex = 0
+        for (position, id) in saved.trackIDs.enumerated() {
+            guard let row = try? await LibraryStore.shared.trackRow(id: id) else { continue }
+            if position == saved.currentIndex { startIndex = rows.count }
+            rows.append(row)
+        }
+        guard !rows.isEmpty, queue.isEmpty, !isAmbient else { return }
+
+        queue = rows
+        index = min(startIndex, rows.count - 1)
+        loadCurrent(autoplay: false)
+        if saved.elapsed > 0 {
+            seek(to: saved.elapsed)
+        }
     }
 
     // MARK: - Built-in / Ambient
 
-    func playAmbient(channelId: String) {
+    public func playAmbient(channelId: String) {
         guard let url = BuiltInContentProvider.bundledAudioURL(forChannelId: channelId) else { return }
         cancelCrossfade(resetVolume: true)
         shutdownLoopPlayer()
@@ -1103,7 +1164,7 @@ final class AudioPlayer: ObservableObject {
         updateNowPlaying()
     }
 
-    func nextAmbientTrack() {
+    public func nextAmbientTrack() {
         guard isAmbient, let currentId = ambientChannelId else { return }
         let allIds = BuiltInContentProvider.tracks.map { $0.channelId }
         guard let idx = allIds.firstIndex(of: currentId) else { return }
@@ -1111,7 +1172,7 @@ final class AudioPlayer: ObservableObject {
         playAmbient(channelId: allIds[nextIdx])
     }
 
-    func previousAmbientTrack() {
+    public func previousAmbientTrack() {
         guard isAmbient, let currentId = ambientChannelId else { return }
         let allIds = BuiltInContentProvider.tracks.map { $0.channelId }
         guard let idx = allIds.firstIndex(of: currentId) else { return }
@@ -1183,7 +1244,7 @@ final class AudioPlayer: ObservableObject {
         preloadNextItem()
     }
 
-    func cycleRepeatMode() {
+    public func cycleRepeatMode() {
         repeatMode = switch repeatMode {
         case .off: .all
         case .all: .one
@@ -1191,11 +1252,12 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
-    func toggleShuffle() {
+    public func toggleShuffle() {
         shuffle.toggle()
     }
 }
 
 extension AudioPlayer: TonearmPlaybackCommanding {
-    func toggle() { togglePlayPause() }
+    public func toggle() { togglePlayPause() }
+    public func ensureReady() async { await restorePersistedQueue() }
 }

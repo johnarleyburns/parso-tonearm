@@ -1,18 +1,18 @@
 import Foundation
 
-struct AmbientTrack {
-    let channelId: String
-    let title: String
-    let artist: String
-    let freesoundId: String
+public struct AmbientTrack {
+    public let channelId: String
+    public let title: String
+    public let artist: String
+    public let freesoundId: String
 }
 
-enum BuiltInContentProvider {
-    static let ambientPlaylistId: Int64 = -1
-    static let ambientPlaylistTitle = "Ambient"
-    static let ambientSourceId: Int64 = -1
+public enum BuiltInContentProvider {
+    public static let ambientPlaylistId: Int64 = -1
+    public static let ambientPlaylistTitle = "Ambient"
+    public static let ambientSourceId: Int64 = -1
 
-    static let tracks: [AmbientTrack] = [
+    public static let tracks: [AmbientTrack] = [
         AmbientTrack(channelId: "ambient-rain",
                      title: "Rainy Day",
                      artist: "speakwithanimals",
@@ -27,11 +27,11 @@ enum BuiltInContentProvider {
                      freesoundId: "443869"),
     ]
 
-    static var allTrackRows: [TrackRow] {
+    public static var allTrackRows: [TrackRow] {
         tracks.map { row(for: $0) }
     }
 
-    static func row(for ambient: AmbientTrack) -> TrackRow {
+    public static func row(for ambient: AmbientTrack) -> TrackRow {
         let track = Track(id: nil, albumId: nil, sourceId: ambientSourceId,
                           title: ambient.title, trackNo: nil, discNo: nil,
                           durationSec: 0, codec: "WAV", sampleRate: 44100,
@@ -53,31 +53,53 @@ enum BuiltInContentProvider {
         return TrackRow(track: track, album: album, source: source, asset: asset)
     }
 
-    static func bundledAudioName(for channelId: String) -> String? {
+    public static func bundledAudioName(for channelId: String) -> String? {
         for ext in ["wav", "caf", "aiff", "m4a", "aac", "mp3"] {
             let name = "\(channelId).\(ext)"
-            if Bundle.main.url(forResource: channelId, withExtension: ext) != nil {
+            if resourceURL(for: channelId, withExtension: ext) != nil {
                 return name
             }
         }
         return nil
     }
 
-    static func bundledAudioURL(forChannelId id: String) -> URL? {
+    public static func bundledAudioURL(forChannelId id: String) -> URL? {
         for ext in ["wav", "caf", "aiff", "m4a", "aac", "mp3"] {
-            if let url = Bundle.main.url(forResource: id, withExtension: ext) {
+            if let url = resourceURL(for: id, withExtension: ext) {
                 return url
             }
         }
         return nil
     }
 
-    static func bundledVideoURL(forChannelId id: String) -> URL? {
+    public static func bundledVideoURL(forChannelId id: String) -> URL? {
         for ext in ["mp4", "mov", "m4v"] {
-            if let url = Bundle.main.url(forResource: id, withExtension: ext) {
+            if let url = resourceURL(for: id, withExtension: ext) {
                 return url
             }
         }
         return nil
+    }
+
+    private static func resourceURL(for name: String, withExtension ext: String) -> URL? {
+        for bundle in resourceBundles {
+            if let url = bundle.url(forResource: name, withExtension: ext) {
+                return url
+            }
+            for subdirectory in ["Audio", "Video"] {
+                if let url = bundle.url(forResource: name, withExtension: ext, subdirectory: subdirectory) {
+                    return url
+                }
+            }
+        }
+        return nil
+    }
+
+    private static var resourceBundles: [Bundle] {
+        #if SWIFT_PACKAGE
+        return [Bundle.module, .main]
+        #else
+        return [.main]
+        #endif
     }
 }

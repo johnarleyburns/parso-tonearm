@@ -1,6 +1,7 @@
 import ActivityKit
 import Foundation
 import WidgetKit
+import TonearmCore
 
 @MainActor
 enum WidgetSnapshotPublisher {
@@ -55,7 +56,7 @@ enum WidgetSnapshotPublisher {
     private static func playbackInput(from player: AudioPlayer) -> WidgetSnapshotBuilder.PlaybackInput {
         WidgetSnapshotBuilder.PlaybackInput(
             track: player.currentTrack.map(WidgetSnapshotBuilder.TrackInput.init(row:)),
-            isPlaying: player.isPlaying,
+            isPlaying: player.isAdvancing,
             elapsed: player.currentTime,
             duration: player.duration
         )
@@ -92,17 +93,51 @@ extension WidgetSnapshotBuilder.TrackInput {
 final class NowPlayingLiveActivityController {
     static let shared = NowPlayingLiveActivityController()
 
+    /// Latest pending work, coalesced. All ActivityKit reconciliation runs on a
+    /// single serial worker so at most one `request()` is ever in flight — two
+    /// near-simultaneous publishes can no longer both observe "no matching
+    /// activity" and create duplicate cards.
+    private enum Command {
+        case publish(WidgetSnapshot)
+        case endAll
+    }
+
+    private var pending: Command?
+    private var worker: Task<Void, Never>?
+
     private init() {}
 
     func publish(_ snapshot: WidgetSnapshot) {
-        let enabled = UserDefaults.standard.object(forKey: "showLiveActivity") as? Bool ?? false
-        guard ActivityAuthorizationInfo().areActivitiesEnabled, enabled else {
-            endAll()
-            return
-        }
+        pending = .publish(snapshot)
+        startWorkerIfNeeded()
+    }
 
-        guard let state = TonearmNowPlayingAttributes.ContentState(snapshot: snapshot) else {
-            endAll()
+    func endAll() {
+        pending = .endAll
+        startWorkerIfNeeded()
+    }
+
+    private func startWorkerIfNeeded() {
+        guard worker == nil else { return }
+        worker = Task {
+            while let command = pending {
+                pending = nil
+                switch command {
+                case .publish(let snapshot):
+                    await reconcile(snapshot)
+                case .endAll:
+                    await endAllActivities()
+                }
+            }
+            worker = nil
+        }
+    }
+
+    private func reconcile(_ snapshot: WidgetSnapshot) async {
+        let enabled = UserDefaults.standard.object(forKey: "showLiveActivity") as? Bool ?? true
+        guard ActivityAuthorizationInfo().areActivitiesEnabled, enabled,
+              let state = TonearmNowPlayingAttributes.ContentState(snapshot: snapshot) else {
+            await endAllActivities()
             return
         }
 
@@ -113,37 +148,35 @@ final class NowPlayingLiveActivityController {
             relevanceScore: state.isPlaying ? 1.0 : 0.5
         )
 
-        Task {
-            let activities = Activity<TonearmNowPlayingAttributes>.activities
-            let matching = activities.first { activity in
-                activity.attributes.trackID == attributes.trackID
-            }
+        let activities = Activity<TonearmNowPlayingAttributes>.activities
+        let matching = activities.first { activity in
+            activity.attributes.trackID == attributes.trackID
+        }
 
-            for activity in activities where activity.id != matching?.id {
-                await activity.end(nil, dismissalPolicy: .immediate)
-            }
+        for activity in activities where activity.id != matching?.id {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
 
-            if let matching {
-                await matching.update(content)
-            } else if state.isPlaying {
-                do {
-                    _ = try Activity<TonearmNowPlayingAttributes>.request(
-                        attributes: attributes,
-                        content: content,
-                        pushType: nil
-                    )
-                } catch {
-                    print("NowPlayingLiveActivity: failed to request activity: \(error)")
-                }
+        if let matching {
+            await matching.update(content)
+        } else {
+            // Start whenever there is content — playing or paused — so a paused
+            // track keeps its card instead of never creating one.
+            do {
+                _ = try Activity<TonearmNowPlayingAttributes>.request(
+                    attributes: attributes,
+                    content: content,
+                    pushType: nil
+                )
+            } catch {
+                print("NowPlayingLiveActivity: failed to request activity: \(error)")
             }
         }
     }
 
-    func endAll() {
-        Task {
-            for activity in Activity<TonearmNowPlayingAttributes>.activities {
-                await activity.end(nil, dismissalPolicy: .immediate)
-            }
+    private func endAllActivities() async {
+        for activity in Activity<TonearmNowPlayingAttributes>.activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
         }
     }
 }

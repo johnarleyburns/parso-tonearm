@@ -1,19 +1,19 @@
 import Foundation
 
-struct PinPolicy {
-    struct Item: Equatable {
+public struct PinPolicy {
+    public struct Item: Equatable {
         var key: String
         var bytes: Int64
         var lastAccessedAt: Date
         var isPinned: Bool
     }
 
-    enum Availability: Equatable {
+    public enum Availability: Equatable {
         case active
         case inactiveRequiresPro
     }
 
-    struct EvictionPlan: Equatable {
+    public struct EvictionPlan: Equatable {
         var evictKeys: [String]
         var protectedKeys: Set<String>
         var bytesAfterEviction: Int64
@@ -22,7 +22,7 @@ struct PinPolicy {
         var availability: Availability
     }
 
-    static func evictionPlan(items: [Item],
+    public static func evictionPlan(items: [Item],
                              cacheLimitBytes: Int64,
                              proEnabled: Bool,
                              protectedKeys: Set<String> = []) -> EvictionPlan {
@@ -66,7 +66,7 @@ struct PinPolicy {
         )
     }
 
-    static func setPinned(_ pinned: Bool, key: String, in items: [Item]) -> [Item] {
+    public static func setPinned(_ pinned: Bool, key: String, in items: [Item]) -> [Item] {
         items.map { item in
             guard item.key == key else { return item }
             return Item(

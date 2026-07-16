@@ -3,19 +3,19 @@ import AVFoundation
 import UniformTypeIdentifiers
 import CryptoKit
 
-final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
-    static let scheme = "tonearm-cache"
+public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
+    public static let scheme = "tonearm-cache"
 
     private let originalURL: URL
     private let headers: [String: String]
-    let cacheKey: String
+    public let cacheKey: String
     private var resolvedURL: URL?
     private let stateLock = NSLock()
     private var inFlight: [Task<Void, Never>] = []
     private var didShutdown = false
     private var fileHandle: FileHandle?
 
-    init(originalURL: URL, headers: [String: String] = [:]) {
+    public init(originalURL: URL, headers: [String: String] = [:]) {
         self.originalURL = originalURL
         self.headers = headers
         self.cacheKey = CachingResourceLoader.key(for: originalURL)
@@ -35,7 +35,7 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
         return URLSession(configuration: cfg)
     }()
 
-    func shutdown() {
+    public func shutdown() {
         stateLock.lock()
         didShutdown = true
         let tasks = inFlight
@@ -49,7 +49,7 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
     /// resource loader at background priority, without involving AVFoundation. The
     /// loader must not be shut down; callers should retain a reference until warm
     /// completes or is cancelled via `shutdown()`.
-    func warm(upTo bytes: Int64) {
+    public func warm(upTo bytes: Int64) {
         let key = cacheKey
         let url = originalURL
         let hdrs = headers
@@ -86,19 +86,19 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
         }
     }
 
-    static func key(for url: URL) -> String {
+    public static func key(for url: URL) -> String {
         let digest = SHA256.hash(data: Data(url.absoluteString.utf8))
         let hex = digest.compactMap { String(format: "%02x", $0) }.joined()
         return hex + "-" + (url.lastPathComponent as NSString).pathExtension.lowercased()
     }
 
-    static func cacheURL(for remote: URL) -> URL {
+    public static func cacheURL(for remote: URL) -> URL {
         var comps = URLComponents(url: remote, resolvingAgainstBaseURL: false)!
         comps.scheme = scheme
         return comps.url ?? remote
     }
 
-    func resourceLoader(_ resourceLoader: AVAssetResourceLoader,
+    public func resourceLoader(_ resourceLoader: AVAssetResourceLoader,
                         shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest) -> Bool {
         stateLock.lock()
         guard !didShutdown else { stateLock.unlock(); return false }
@@ -111,7 +111,7 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
         return true
     }
 
-    func resourceLoader(_ resourceLoader: AVAssetResourceLoader,
+    public func resourceLoader(_ resourceLoader: AVAssetResourceLoader,
                         didCancel loadingRequest: AVAssetResourceLoadingRequest) { }
 
     private func handle(_ request: AVAssetResourceLoadingRequest) async {
@@ -142,7 +142,7 @@ final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
     /// Maps a remote audio URL to a UTI for AVFoundation. Uses the path extension
     /// only, so IA download URLs carrying a query string (e.g. `?cnt=…`) still map
     /// correctly — `pathExtension` ignores the query component.
-    static func contentType(for url: URL) -> String {
+    public static func contentType(for url: URL) -> String {
         let ext = url.pathExtension.lowercased()
         switch ext {
         case "flac": return "org.xiph.flac"

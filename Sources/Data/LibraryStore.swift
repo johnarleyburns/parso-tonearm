@@ -1,27 +1,44 @@
 import Foundation
 import GRDB
 
-struct TrackRow: Identifiable, Equatable {
-    var track: Track
-    var album: Album?
-    var source: Source?
-    var asset: Asset?
-    var artist: Artist? = nil
-    var id: Int64 { track.id ?? -1 }
+public struct TrackRow: Identifiable, Equatable {
+    public var track: Track
+    public var album: Album?
+    public var source: Source?
+    public var asset: Asset?
+    public var artist: Artist? = nil
+    public var id: Int64 { track.id ?? -1 }
+
+    public init(track: Track,
+                album: Album?,
+                source: Source?,
+                asset: Asset?,
+                artist: Artist? = nil) {
+        self.track = track
+        self.album = album
+        self.source = source
+        self.asset = asset
+        self.artist = artist
+    }
 }
 
-struct PlaylistTrackRow: Identifiable, Equatable {
-    var item: PlaylistItem
-    var row: TrackRow
-    var id: Int64 { item.id ?? -1 }
+public struct PlaylistTrackRow: Identifiable, Equatable {
+    public var item: PlaylistItem
+    public var row: TrackRow
+    public var id: Int64 { item.id ?? -1 }
+
+    public init(item: PlaylistItem, row: TrackRow) {
+        self.item = item
+        self.row = row
+    }
 }
 
-actor LibraryStore {
-    static let shared = try! LibraryStore()
+public actor LibraryStore {
+    public static let shared = try! LibraryStore()
 
-    let dbQueue: DatabaseQueue
+    public let dbQueue: DatabaseQueue
 
-    init(inMemory: Bool = false) throws {
+    public init(inMemory: Bool = false) throws {
         if inMemory {
             dbQueue = try DatabaseQueue()
         } else {
@@ -41,7 +58,7 @@ actor LibraryStore {
     // MARK: - Sources
 
     @discardableResult
-    func insertSource(_ source: Source) throws -> Source {
+    public func insertSource(_ source: Source) throws -> Source {
         try dbQueue.write { db in
             var s = source
             try s.insert(db)
@@ -49,19 +66,19 @@ actor LibraryStore {
         }
     }
 
-    func allSources() throws -> [Source] {
+    public func allSources() throws -> [Source] {
         try dbQueue.read { db in
             try Source.order(Column("addedAt").desc).fetchAll(db)
         }
     }
 
-    func firstSource(title: String, kind: SourceKind) throws -> Source? {
+    public func firstSource(title: String, kind: SourceKind) throws -> Source? {
         try dbQueue.read { db in
             try Source.filter(Column("title") == title && Column("kind") == kind.rawValue).fetchOne(db)
         }
     }
 
-    func firstAlbum(sourceId: Int64, title: String) throws -> Album? {
+    public func firstAlbum(sourceId: Int64, title: String) throws -> Album? {
         try dbQueue.read { db in
             try Album.filter(Column("sourceId") == sourceId && Column("title") == title).fetchOne(db)
         }
@@ -69,7 +86,7 @@ actor LibraryStore {
 
     /// First album belonging to a source (by insertion order). Used by folder-watch
     /// rescans to append new tracks into the folder's existing album.
-    func firstAlbumForSource(_ sourceId: Int64) throws -> Album? {
+    public func firstAlbumForSource(_ sourceId: Int64) throws -> Album? {
         try dbQueue.read { db in
             try Album.filter(Column("sourceId") == sourceId).order(Column("id")).fetchOne(db)
         }
@@ -78,7 +95,7 @@ actor LibraryStore {
     /// The folder playlist whose title matches a source's title, if any. Folder
     /// imports create both a `.local` source and a `.folder` playlist sharing the
     /// folder name; this reconnects them for watch rescans.
-    func folderPlaylist(matchingSourceId sourceId: Int64) throws -> Playlist? {
+    public func folderPlaylist(matchingSourceId sourceId: Int64) throws -> Playlist? {
         try dbQueue.read { db in
             guard let source = try Source.fetchOne(db, key: sourceId) else { return nil }
             return try Playlist
@@ -88,7 +105,7 @@ actor LibraryStore {
     }
 
     /// Representative per-item IA identifier for a source (first album's artworkId).
-    func firstArtworkId(forSource sourceId: Int64) throws -> String? {
+    public func firstArtworkId(forSource sourceId: Int64) throws -> String? {
         try dbQueue.read { db in
             let album = try Album.filter(Column("sourceId") == sourceId)
                 .order(Column("id"))
@@ -100,7 +117,7 @@ actor LibraryStore {
 
     /// Candidate per-item IA identifiers for a source, in album order. Used to
     /// pick a representative cover that isn't an IA placeholder.
-    func artworkIds(forSource sourceId: Int64, limit: Int = 40) throws -> [String] {
+    public func artworkIds(forSource sourceId: Int64, limit: Int = 40) throws -> [String] {
         try dbQueue.read { db in
             let albums = try Album.filter(Column("sourceId") == sourceId)
                 .order(Column("id"))
@@ -112,7 +129,7 @@ actor LibraryStore {
         }
     }
 
-    func deleteSource(id: Int64) throws {
+    public func deleteSource(id: Int64) throws {
         _ = try dbQueue.write { db in
             try Source.deleteOne(db, key: id)
         }
@@ -120,14 +137,14 @@ actor LibraryStore {
 
     // MARK: - Custom Artwork
 
-    func customArtworkId(for trackId: Int64) throws -> String? {
+    public func customArtworkId(for trackId: Int64) throws -> String? {
         try dbQueue.read { db in
             try Row.fetchOne(db, sql: "SELECT artworkId FROM custom_artwork WHERE trackId = ?",
                              arguments: [trackId])?["artworkId"]
         }
     }
 
-    func setCustomArtwork(trackId: Int64, artworkId: String) throws {
+    public func setCustomArtwork(trackId: Int64, artworkId: String) throws {
         try dbQueue.write { db in
             try db.execute(sql: """
                 INSERT INTO custom_artwork (trackId, artworkId) VALUES (?, ?)
@@ -136,7 +153,7 @@ actor LibraryStore {
         }
     }
 
-    func deleteCustomArtwork(trackId: Int64) throws {
+    public func deleteCustomArtwork(trackId: Int64) throws {
         try dbQueue.write { db in
             try db.execute(sql: "DELETE FROM custom_artwork WHERE trackId = ?",
                            arguments: [trackId])
@@ -145,7 +162,7 @@ actor LibraryStore {
 
     /// All custom artwork IDs for a source (used to delete files before the
     /// source cascade removes the DB rows).
-    func customArtworkIds(forSource sourceId: Int64) throws -> [String] {
+    public func customArtworkIds(forSource sourceId: Int64) throws -> [String] {
         try dbQueue.read { db in
             let rows = try Row.fetchAll(db, sql: """
                 SELECT ca.artworkId FROM custom_artwork ca
@@ -156,27 +173,27 @@ actor LibraryStore {
         }
     }
 
-    func allCustomArtworkIds() throws -> [String] {
+    public func allCustomArtworkIds() throws -> [String] {
         try dbQueue.read { db in
             let rows = try Row.fetchAll(db, sql: "SELECT artworkId FROM custom_artwork")
             return rows.compactMap { $0["artworkId"] }
         }
     }
 
-    func clearAllCustomArtwork() throws {
+    public func clearAllCustomArtwork() throws {
         try dbQueue.write { db in
             try db.execute(sql: "DELETE FROM custom_artwork")
         }
     }
 
-    func touchSourceResolved(id: Int64) throws {
+    public func touchSourceResolved(id: Int64) throws {
         try dbQueue.write { db in
             try db.execute(sql: "UPDATE source SET lastResolvedAt = ? WHERE id = ?",
                            arguments: [Date(), id])
         }
     }
 
-    func updateSourceTitle(id: Int64, title: String) throws {
+    public func updateSourceTitle(id: Int64, title: String) throws {
         try dbQueue.write { db in
             try db.execute(sql: "UPDATE source SET title = ? WHERE id = ?",
                            arguments: [title, id])
@@ -185,7 +202,7 @@ actor LibraryStore {
 
     /// Persists which track's embedded artwork represents a source, so the
     /// chosen cover is remembered across launches.
-    func setSourceArtworkTrack(id: Int64, trackId: Int64?) throws {
+    public func setSourceArtworkTrack(id: Int64, trackId: Int64?) throws {
         try dbQueue.write { db in
             try db.execute(sql: "UPDATE source SET artworkTrackId = ? WHERE id = ?",
                            arguments: [trackId, id])
@@ -193,7 +210,7 @@ actor LibraryStore {
     }
 
     /// First track (by sort order) of a source, hydrated with album/asset.
-    func firstTrackRow(forSource sourceId: Int64) throws -> TrackRow? {
+    public func firstTrackRow(forSource sourceId: Int64) throws -> TrackRow? {
         try dbQueue.read { db in
             guard let track = try Track.filter(Column("sourceId") == sourceId)
                 .order(Column("sortKey")).fetchOne(db) else { return nil }
@@ -204,7 +221,7 @@ actor LibraryStore {
     // MARK: - Albums / Tracks / Assets
 
     @discardableResult
-    func insertAlbum(_ album: Album) throws -> Album {
+    public func insertAlbum(_ album: Album) throws -> Album {
         try dbQueue.write { db in
             var a = album
             try a.insert(db)
@@ -213,7 +230,7 @@ actor LibraryStore {
     }
 
     @discardableResult
-    func insertArtist(_ artist: Artist) throws -> Artist {
+    public func insertArtist(_ artist: Artist) throws -> Artist {
         try dbQueue.write { db in
             var a = artist
             try a.insert(db)
@@ -221,13 +238,13 @@ actor LibraryStore {
         }
     }
 
-    func allArtists() throws -> [Artist] {
+    public func allArtists() throws -> [Artist] {
         try dbQueue.read { db in
             try Artist.order(Column("sortName"), Column("name")).fetchAll(db)
         }
     }
 
-    func albums(forArtist artistName: String) throws -> [Album] {
+    public func albums(forArtist artistName: String) throws -> [Album] {
         try dbQueue.read { db in
             try Album.fetchAll(db, sql: """
                 SELECT album.* FROM album
@@ -240,7 +257,7 @@ actor LibraryStore {
         }
     }
 
-    func tracks(forArtist artistName: String) throws -> [TrackRow] {
+    public func tracks(forArtist artistName: String) throws -> [TrackRow] {
         try dbQueue.read { db in
             let tracks = try Track.fetchAll(db, sql: """
                 SELECT track.* FROM track
@@ -257,7 +274,7 @@ actor LibraryStore {
         }
     }
 
-    func allGenres() throws -> [String] {
+    public func allGenres() throws -> [String] {
         try dbQueue.read { db in
             let rows = try Row.fetchAll(db, sql: """
                 SELECT genre FROM (
@@ -275,7 +292,7 @@ actor LibraryStore {
         }
     }
 
-    func findOrCreateArtist(name: String, sortName: String) throws -> Artist {
+    public func findOrCreateArtist(name: String, sortName: String) throws -> Artist {
         try dbQueue.write { db in
             if let existing = try Artist.fetchOne(
                 db,
@@ -290,7 +307,7 @@ actor LibraryStore {
         }
     }
 
-    func fillAlbumMetadataIfEmpty(
+    public func fillAlbumMetadataIfEmpty(
         id: Int64,
         artistId: Int64?,
         albumArtist: String?,
@@ -320,7 +337,7 @@ actor LibraryStore {
     }
 
     @discardableResult
-    func insertTrack(_ track: Track) throws -> Track {
+    public func insertTrack(_ track: Track) throws -> Track {
         try dbQueue.write { db in
             var t = track
             try t.insert(db)
@@ -330,7 +347,7 @@ actor LibraryStore {
     }
 
     @discardableResult
-    func insertAsset(_ asset: Asset) throws -> Asset {
+    public func insertAsset(_ asset: Asset) throws -> Asset {
         try dbQueue.write { db in
             var a = asset
             try a.insert(db)
@@ -339,7 +356,7 @@ actor LibraryStore {
         }
     }
 
-    func tracks(forSource sourceId: Int64) throws -> [TrackRow] {
+    public func tracks(forSource sourceId: Int64) throws -> [TrackRow] {
         try dbQueue.read { db in
             let tracks = try Track.filter(Column("sourceId") == sourceId)
                 .order(Column("sortKey"))
@@ -348,14 +365,14 @@ actor LibraryStore {
         }
     }
 
-    func allTrackRows() throws -> [TrackRow] {
+    public func allTrackRows() throws -> [TrackRow] {
         try dbQueue.read { db in
             let tracks = try Track.order(Column("sortKey")).fetchAll(db)
             return try tracks.map { try self.hydrate($0, db: db) }
         }
     }
 
-    func smartPlaylistRows(_ playlist: SmartPlaylist) throws -> [TrackRow] {
+    public func smartPlaylistRows(_ playlist: SmartPlaylist) throws -> [TrackRow] {
         let query = playlist.compiledQuery()
         return try dbQueue.read { db in
             let tracks = try Track.fetchAll(db, sql: query.sql, arguments: query.arguments)
@@ -364,7 +381,7 @@ actor LibraryStore {
     }
 
     @discardableResult
-    func applyTagEditPlan(_ plan: TagEdit.Plan) throws -> Int {
+    public func applyTagEditPlan(_ plan: TagEdit.Plan) throws -> Int {
         guard plan.canApply else { return 0 }
         return try dbQueue.write { db in
             var applied = 0
@@ -438,7 +455,7 @@ actor LibraryStore {
         }
     }
 
-    func trackRow(id: Int64) throws -> TrackRow? {
+    public func trackRow(id: Int64) throws -> TrackRow? {
         try dbQueue.read { db in
             guard let t = try Track.fetchOne(db, key: id) else { return nil }
             return try self.hydrate(t, db: db)
@@ -535,7 +552,7 @@ actor LibraryStore {
 
     // MARK: - Search (FTS5)
 
-    func search(_ query: String) throws -> [TrackRow] {
+    public func search(_ query: String) throws -> [TrackRow] {
         guard let expression = SearchQueryBuilder.matchExpression(for: query) else { return [] }
         return try dbQueue.read { db in
             let sql = """
@@ -553,7 +570,7 @@ actor LibraryStore {
     // MARK: - Playlists
 
     @discardableResult
-    func insertPlaylist(_ playlist: Playlist) throws -> Playlist {
+    public func insertPlaylist(_ playlist: Playlist) throws -> Playlist {
         try dbQueue.write { db in
             var p = playlist
             try p.insert(db)
@@ -561,13 +578,13 @@ actor LibraryStore {
         }
     }
 
-    func allPlaylists() throws -> [Playlist] {
+    public func allPlaylists() throws -> [Playlist] {
         try dbQueue.read { db in
             try Playlist.order(Column("title")).fetchAll(db)
         }
     }
 
-    func renamePlaylist(id: Int64, title: String) throws {
+    public func renamePlaylist(id: Int64, title: String) throws {
         try dbQueue.write { db in
             let existing = try Playlist.fetchOne(db, key: id)
             try db.execute(sql: "UPDATE playlist SET title = ? WHERE id = ?", arguments: [title, id])
@@ -582,11 +599,11 @@ actor LibraryStore {
         }
     }
 
-    func deletePlaylist(id: Int64) throws {
+    public func deletePlaylist(id: Int64) throws {
         _ = try dbQueue.write { db in try Playlist.deleteOne(db, key: id) }
     }
 
-    func addToPlaylist(playlistId: Int64, trackId: Int64, sectionTitle: String? = nil) throws {
+    public func addToPlaylist(playlistId: Int64, trackId: Int64, sectionTitle: String? = nil) throws {
         try dbQueue.write { db in
             let count = try PlaylistItem.filter(Column("playlistId") == playlistId).fetchCount(db)
             var item = PlaylistItem(id: nil, playlistId: playlistId, position: count,
@@ -595,11 +612,11 @@ actor LibraryStore {
         }
     }
 
-    func playlistItems(playlistId: Int64) throws -> [TrackRow] {
+    public func playlistItems(playlistId: Int64) throws -> [TrackRow] {
         try playlistTrackRows(playlistId: playlistId).map(\.row)
     }
 
-    func playlistTrackRows(playlistId: Int64) throws -> [PlaylistTrackRow] {
+    public func playlistTrackRows(playlistId: Int64) throws -> [PlaylistTrackRow] {
         try dbQueue.read { db in
             let items = try playlistItemRecords(playlistId: playlistId, db: db)
             return try items.compactMap { item -> PlaylistTrackRow? in
@@ -609,7 +626,7 @@ actor LibraryStore {
         }
     }
 
-    func reorderPlaylist(id playlistId: Int64, from source: Int, to destination: Int) throws {
+    public func reorderPlaylist(id playlistId: Int64, from source: Int, to destination: Int) throws {
         try dbQueue.write { db in
             let original = try playlistItemRecords(playlistId: playlistId, db: db)
             let edited = PlaylistEditor.move(original, from: source, to: destination)
@@ -617,7 +634,7 @@ actor LibraryStore {
         }
     }
 
-    func reorderPlaylist(id playlistId: Int64, fromOffsets offsets: IndexSet, toOffset destination: Int) throws {
+    public func reorderPlaylist(id playlistId: Int64, fromOffsets offsets: IndexSet, toOffset destination: Int) throws {
         try dbQueue.write { db in
             let original = try playlistItemRecords(playlistId: playlistId, db: db)
             let edited = PlaylistEditor.move(original, fromOffsets: offsets, toOffset: destination)
@@ -625,7 +642,7 @@ actor LibraryStore {
         }
     }
 
-    func removeFromPlaylist(playlistId: Int64, at index: Int) throws {
+    public func removeFromPlaylist(playlistId: Int64, at index: Int) throws {
         try dbQueue.write { db in
             let original = try playlistItemRecords(playlistId: playlistId, db: db)
             let edited = PlaylistEditor.remove(original, at: index)
@@ -633,7 +650,7 @@ actor LibraryStore {
         }
     }
 
-    func removeFromPlaylist(playlistId: Int64, atOffsets offsets: IndexSet) throws {
+    public func removeFromPlaylist(playlistId: Int64, atOffsets offsets: IndexSet) throws {
         try dbQueue.write { db in
             let original = try playlistItemRecords(playlistId: playlistId, db: db)
             let edited = PlaylistEditor.remove(original, atOffsets: offsets)
@@ -643,7 +660,7 @@ actor LibraryStore {
 
     /// Creates a manual playlist from an ordered list of track ids.
     @discardableResult
-    func createManualPlaylist(title: String, trackIds: [Int64]) throws -> Playlist {
+    public func createManualPlaylist(title: String, trackIds: [Int64]) throws -> Playlist {
         try dbQueue.write { db in
             var pl = Playlist(id: nil, title: title, kind: .manual, folderBookmark: nil, watch: false)
             try pl.insert(db)
@@ -684,7 +701,7 @@ actor LibraryStore {
 
     // MARK: - Listening history (TF7)
 
-    func recordPlay(trackId: Int64) throws {
+    public func recordPlay(trackId: Int64) throws {
         try dbQueue.write { db in
             var event = PlayEvent(id: nil, trackId: trackId, playedAt: Date())
             try event.insert(db)
@@ -692,7 +709,7 @@ actor LibraryStore {
     }
 
     /// Distinct tracks ordered by most-recently played, capped at `limit`.
-    func recentlyPlayedRows(limit: Int = 12) throws -> [TrackRow] {
+    public func recentlyPlayedRows(limit: Int = 12) throws -> [TrackRow] {
         try dbQueue.read { db in
             let sql = """
             SELECT track.* FROM track
@@ -709,14 +726,14 @@ actor LibraryStore {
 
     // MARK: - Favorites (TF7)
 
-    func favoriteTrackIds() throws -> Set<Int64> {
+    public func favoriteTrackIds() throws -> Set<Int64> {
         try dbQueue.read { db in
             let favs = try Favorite.fetchAll(db)
             return Set(favs.map { $0.trackId })
         }
     }
 
-    func setFavorite(trackId: Int64, _ isFavorite: Bool) throws {
+    public func setFavorite(trackId: Int64, _ isFavorite: Bool) throws {
         try dbQueue.write { db in
             if isFavorite {
                 if try Favorite.filter(Column("trackId") == trackId).fetchCount(db) == 0 {
@@ -729,7 +746,7 @@ actor LibraryStore {
         }
     }
 
-    func favoriteRows() throws -> [TrackRow] {
+    public func favoriteRows() throws -> [TrackRow] {
         try dbQueue.read { db in
             // Most-recently-played first; favorites never played fall back to
             // recency of favoriting.
@@ -747,7 +764,7 @@ actor LibraryStore {
     }
 
     /// Most-recently-added library tracks (by insertion order).
-    func recentlyAddedRows(limit: Int = 12) throws -> [TrackRow] {
+    public func recentlyAddedRows(limit: Int = 12) throws -> [TrackRow] {
         try dbQueue.read { db in
             let tracks = try Track.order(Column("id").desc).limit(limit).fetchAll(db)
             return try tracks.map { try self.hydrate($0, db: db) }
@@ -756,13 +773,13 @@ actor LibraryStore {
 
     // MARK: - Cache entries
 
-    func cacheEntry(assetId: Int64) throws -> CacheEntry? {
+    public func cacheEntry(assetId: Int64) throws -> CacheEntry? {
         try dbQueue.read { db in
             try CacheEntry.filter(Column("assetId") == assetId).fetchOne(db)
         }
     }
 
-    func upsertCacheEntry(_ entry: CacheEntry) throws {
+    public func upsertCacheEntry(_ entry: CacheEntry) throws {
         try dbQueue.write { db in
             var e = entry
             if let existing = try CacheEntry.filter(Column("assetId") == entry.assetId).fetchOne(db) {
@@ -774,15 +791,15 @@ actor LibraryStore {
         }
     }
 
-    func allCacheEntries() throws -> [CacheEntry] {
+    public func allCacheEntries() throws -> [CacheEntry] {
         try dbQueue.read { db in try CacheEntry.fetchAll(db) }
     }
 
-    func deleteCacheEntry(id: Int64) throws {
+    public func deleteCacheEntry(id: Int64) throws {
         _ = try dbQueue.write { db in try CacheEntry.deleteOne(db, key: id) }
     }
 
-    func clearAllCacheEntries() throws {
+    public func clearAllCacheEntries() throws {
         _ = try dbQueue.write { db in try CacheEntry.deleteAll(db) }
     }
 
@@ -791,31 +808,31 @@ actor LibraryStore {
     /// All rows of every synced table, for a full push snapshot. Raw domain
     /// values carry their `syncID`; parent references are resolved via the
     /// `syncID` lookups below so cross-device identity is stable (C2/C3).
-    func allAlbums() throws -> [Album] {
+    public func allAlbums() throws -> [Album] {
         try dbQueue.read { db in try Album.fetchAll(db) }
     }
 
-    func allTracks() throws -> [Track] {
+    public func allTracks() throws -> [Track] {
         try dbQueue.read { db in try Track.fetchAll(db) }
     }
 
-    func allAssets() throws -> [Asset] {
+    public func allAssets() throws -> [Asset] {
         try dbQueue.read { db in try Asset.fetchAll(db) }
     }
 
-    func allPlaylistItems() throws -> [PlaylistItem] {
+    public func allPlaylistItems() throws -> [PlaylistItem] {
         try dbQueue.read { db in try PlaylistItem.fetchAll(db) }
     }
 
-    func allFavorites() throws -> [Favorite] {
+    public func allFavorites() throws -> [Favorite] {
         try dbQueue.read { db in try Favorite.fetchAll(db) }
     }
 
-    func allPlayEvents() throws -> [PlayEvent] {
+    public func allPlayEvents() throws -> [PlayEvent] {
         try dbQueue.read { db in try PlayEvent.fetchAll(db) }
     }
 
-    func allCustomArtworkRecords() throws -> [CustomArtworkRecord] {
+    public func allCustomArtworkRecords() throws -> [CustomArtworkRecord] {
         try dbQueue.read { db in
             let rows = try Row.fetchAll(db, sql: "SELECT syncID, artworkId FROM custom_artwork WHERE syncID IS NOT NULL")
             return rows.compactMap { row in
@@ -826,7 +843,7 @@ actor LibraryStore {
     }
 
     /// Looks up a table's `syncID` for a given local `Int64` PK (parent ref).
-    func syncID(table: String, id: Int64) throws -> String? {
+    public func syncID(table: String, id: Int64) throws -> String? {
         try dbQueue.read { db in
             try Row.fetchOne(db, sql: "SELECT syncID FROM \(table) WHERE id = ?",
                              arguments: [id])?["syncID"]
@@ -834,7 +851,7 @@ actor LibraryStore {
     }
 
     /// Resolves a `syncID` back to a local `Int64` PK (used to re-link pulled rows).
-    func localID(table: String, syncID: String) throws -> Int64? {
+    public func localID(table: String, syncID: String) throws -> Int64? {
         try dbQueue.read { db in
             try Row.fetchOne(db, sql: "SELECT id FROM \(table) WHERE syncID = ?",
                              arguments: [syncID])?["id"]

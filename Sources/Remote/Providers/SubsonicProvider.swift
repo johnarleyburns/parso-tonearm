@@ -1,35 +1,47 @@
 import Foundation
 
-struct SubsonicServerPolicy {
-    static func normalizeBaseURL(_ raw: String) throws -> URL {
+public struct SubsonicServerPolicy {
+    public static func normalizeBaseURL(_ raw: String) throws -> URL {
         try SubsonicAPI.normalizeBaseURL(raw)
     }
 
-    static func canSubmit(url: String, username: String, password: String) -> Bool {
+    public static func canSubmit(url: String, username: String, password: String) -> Bool {
         (try? normalizeBaseURL(url)) != nil
             && !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !password.isEmpty
     }
 
-    static func displayName(baseURL: URL) -> String {
+    public static func displayName(baseURL: URL) -> String {
         baseURL.host ?? baseURL.absoluteString
     }
 
-    static func credentialAccount(sourceID: Int64) -> String {
+    public static func credentialAccount(sourceID: Int64) -> String {
         "subsonic:\(sourceID)"
     }
 }
 
-struct SubsonicProvider: RemoteLibraryProvider {
-    var baseURL: URL
-    var username: String
-    var password: String
-    var session: URLSession = .shared
-    var format: SubsonicAPI.Format = .json
+public struct SubsonicProvider: RemoteLibraryProvider {
+    public var baseURL: URL
+    public var username: String
+    public var password: String
+    public var session: URLSession = .shared
+    public var format: SubsonicAPI.Format = .json
 
-    var sourceKind: SourceKind { .subsonic }
+    public var sourceKind: SourceKind { .subsonic }
 
-    func browse(path rawPath: String) async throws -> [RemoteNode] {
+    public init(baseURL: URL,
+                username: String,
+                password: String,
+                session: URLSession = .shared,
+                format: SubsonicAPI.Format = .json) {
+        self.baseURL = baseURL
+        self.username = username
+        self.password = password
+        self.session = session
+        self.format = format
+    }
+
+    public func browse(path rawPath: String) async throws -> [RemoteNode] {
         let path = try RemotePathPolicy.normalize(rawPath)
         let segments = path.segments
         switch segments.count {
@@ -77,7 +89,7 @@ struct SubsonicProvider: RemoteLibraryProvider {
         }
     }
 
-    func resolve(node: RemoteNode) async throws -> ResolvedAsset {
+    public func resolve(node: RemoteNode) async throws -> ResolvedAsset {
         guard node.kind == .audio,
               let songID = node.path.split(separator: "/").dropFirst().first.map(String.init) else {
             throw URLError(.badURL)
@@ -91,12 +103,12 @@ struct SubsonicProvider: RemoteLibraryProvider {
         return ResolvedAsset(url: url, headers: [:], supportsByteRanges: true, sizeBytes: node.sizeBytes)
     }
 
-    func refresh() async throws {
+    public func refresh() async throws {
         let data = try await data(for: .ping)
         try SubsonicAPI.decodePing(data, format: format)
     }
 
-    static func from(source: Source,
+    public static func from(source: Source,
                      credentialStore: CredentialStore = CredentialStore()) throws -> SubsonicProvider {
         guard source.kind == .subsonic,
               let sourceID = source.id,

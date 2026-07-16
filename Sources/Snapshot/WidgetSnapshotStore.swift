@@ -1,10 +1,10 @@
 import Foundation
 
-enum WidgetSnapshotStore {
-    static let appGroupIdentifier = "group.guru.parso.tonearm"
+public enum WidgetSnapshotStore {
+    public static let appGroupIdentifier = "group.guru.parso.tonearm"
     private static let snapshotKey = "guru.parso.tonearm.widget.snapshot.v1"
 
-    static func load(now: Date = Date()) -> WidgetSnapshot {
+    public static func load(now: Date = Date()) -> WidgetSnapshot {
         guard
             let defaults = sharedDefaults(),
             let data = defaults.data(forKey: snapshotKey),
@@ -15,7 +15,7 @@ enum WidgetSnapshotStore {
         return snapshot
     }
 
-    static func save(_ snapshot: WidgetSnapshot) {
+    public static func save(_ snapshot: WidgetSnapshot) {
         guard
             let defaults = sharedDefaults(),
             let data = try? JSONEncoder().encode(snapshot)

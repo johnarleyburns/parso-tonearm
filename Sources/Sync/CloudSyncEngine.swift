@@ -12,10 +12,10 @@ import os
 /// deleting local data.
 @available(iOS 17.0, *)
 @MainActor
-final class CloudSyncEngine: NSObject {
-    static let shared = CloudSyncEngine()
+public final class CloudSyncEngine: NSObject {
+    public static let shared = CloudSyncEngine()
 
-    static let containerID = "iCloud.guru.parso.tonearm"
+    public static let containerID = "iCloud.guru.parso.tonearm"
     private static let zoneName = "TonearmLibrary"
     private static let stateKey = "sync.icloud.engineState"
 
@@ -25,9 +25,9 @@ final class CloudSyncEngine: NSObject {
     private var engine: CKSyncEngine?
     private let store: LibraryStore
 
-    private(set) var lastHint: String?
+    public private(set) var lastHint: String?
 
-    init(store: LibraryStore = .shared) {
+    public init(store: LibraryStore = .shared) {
         self.container = CKContainer(identifier: Self.containerID)
         self.zoneID = CKRecordZone.ID(zoneName: Self.zoneName, ownerName: CKCurrentUserDefaultName)
         self.store = store
@@ -38,7 +38,7 @@ final class CloudSyncEngine: NSObject {
 
     /// Starts or stops the engine to match current gating. Safe to call on
     /// launch, on foreground, and whenever Pro / the toggle changes.
-    func reconcile() async {
+    public func reconcile() async {
         let account = await accountStatus()
         let isPro = ProFeature.isEnabled(.icloudSync)
         let toggle = SyncGating.isEnabled
@@ -63,12 +63,12 @@ final class CloudSyncEngine: NSObject {
     }
 
     /// Stops the engine, leaving local data intact (C5 — never bulk-delete).
-    func stop() {
+    public func stop() {
         engine = nil
     }
 
     /// Triggers a fetch + send pass (launch / foreground / manual).
-    func syncNow() async {
+    public func syncNow() async {
         guard let engine else { return }
         do {
             try await engine.fetchChanges()
@@ -79,7 +79,7 @@ final class CloudSyncEngine: NSObject {
     }
 
     /// Enqueues local writes for the engine to push (called after DB mutations).
-    func enqueue(recordIDs: [CKRecord.ID]) {
+    public func enqueue(recordIDs: [CKRecord.ID]) {
         engine?.state.add(pendingRecordZoneChanges: recordIDs.map { .saveRecord($0) })
     }
 
@@ -115,7 +115,7 @@ final class CloudSyncEngine: NSObject {
 
 @available(iOS 17.0, *)
 extension CloudSyncEngine: CKSyncEngineDelegate {
-    func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
+    public func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
         switch event {
         case .stateUpdate(let update):
             saveState(update.stateSerialization)
@@ -128,7 +128,7 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
         }
     }
 
-    func nextRecordZoneChangeBatch(
+    public func nextRecordZoneChangeBatch(
         _ context: CKSyncEngine.SendChangesContext,
         syncEngine: CKSyncEngine
     ) async -> CKSyncEngine.RecordZoneChangeBatch? {

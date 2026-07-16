@@ -1,4 +1,5 @@
 import SwiftUI
+import TonearmCore
 
 struct SourceDetailView: View {
     let source: Source

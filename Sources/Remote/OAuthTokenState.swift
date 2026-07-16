@@ -1,12 +1,12 @@
 import Foundation
 
-struct OAuthCredential: Equatable, Codable {
-    var accessToken: String
-    var refreshToken: String?
-    var issuedAt: Date
-    var expiresAt: Date?
+public struct OAuthCredential: Equatable, Codable {
+    public var accessToken: String
+    public var refreshToken: String?
+    public var issuedAt: Date
+    public var expiresAt: Date?
 
-    init(accessToken: String,
+    public init(accessToken: String,
          refreshToken: String? = nil,
          issuedAt: Date,
          expiresAt: Date? = nil) {
@@ -17,12 +17,12 @@ struct OAuthCredential: Equatable, Codable {
     }
 }
 
-struct OAuthTokenState: Equatable, Codable {
-    var credential: OAuthCredential?
-    var refreshInFlight: Bool
-    var revoked: Bool
+public struct OAuthTokenState: Equatable, Codable {
+    public var credential: OAuthCredential?
+    public var refreshInFlight: Bool
+    public var revoked: Bool
 
-    init(credential: OAuthCredential? = nil,
+    public init(credential: OAuthCredential? = nil,
          refreshInFlight: Bool = false,
          revoked: Bool = false) {
         self.credential = credential
@@ -31,7 +31,7 @@ struct OAuthTokenState: Equatable, Codable {
     }
 }
 
-enum OAuthTokenStatus: Equatable {
+public enum OAuthTokenStatus: Equatable {
     case missing
     case revoked
     case valid(accessToken: String)
@@ -41,7 +41,7 @@ enum OAuthTokenStatus: Equatable {
     case offline(refreshRequired: Bool)
 }
 
-enum OAuthRefreshAction: Equatable {
+public enum OAuthRefreshAction: Equatable {
     case none
     case startRefresh(refreshToken: String)
     case waitForInFlight
@@ -49,7 +49,7 @@ enum OAuthRefreshAction: Equatable {
     case requireReauthorization
 }
 
-enum OAuthTokenEvent: Equatable {
+public enum OAuthTokenEvent: Equatable {
     case received(OAuthCredential)
     case refreshStarted
     case refreshSucceeded(OAuthCredential)
@@ -58,17 +58,17 @@ enum OAuthTokenEvent: Equatable {
     case signedOut
 }
 
-enum OAuthRefreshFailure: Equatable {
+public enum OAuthRefreshFailure: Equatable {
     case offline
     case transient
     case revoked
 }
 
-enum OAuthTokenStateMachine {
-    static let defaultClockSkew: TimeInterval = 60
-    static let defaultRefreshWindow: TimeInterval = 300
+public enum OAuthTokenStateMachine {
+    public static let defaultClockSkew: TimeInterval = 60
+    public static let defaultRefreshWindow: TimeInterval = 300
 
-    static func status(_ state: OAuthTokenState,
+    public static func status(_ state: OAuthTokenState,
                        now: Date,
                        networkAvailable: Bool = true,
                        clockSkew: TimeInterval = defaultClockSkew,
@@ -96,7 +96,7 @@ enum OAuthTokenStateMachine {
         return .valid(accessToken: credential.accessToken)
     }
 
-    static func refreshAction(for state: OAuthTokenState,
+    public static func refreshAction(for state: OAuthTokenState,
                               now: Date,
                               networkAvailable: Bool = true,
                               clockSkew: TimeInterval = defaultClockSkew,
@@ -124,7 +124,7 @@ enum OAuthTokenStateMachine {
         }
     }
 
-    static func reduce(_ state: OAuthTokenState, event: OAuthTokenEvent) -> OAuthTokenState {
+    public static func reduce(_ state: OAuthTokenState, event: OAuthTokenEvent) -> OAuthTokenState {
         var next = state
         switch event {
         case .received(let credential), .refreshSucceeded(let credential):

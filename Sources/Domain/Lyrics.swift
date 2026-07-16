@@ -1,18 +1,18 @@
 import Foundation
 
-struct SyncedLyrics: Equatable {
-    struct Line: Equatable, Identifiable {
-        var id: Int
+public struct SyncedLyrics: Equatable {
+    public struct Line: Equatable, Identifiable {
+        public var id: Int
         var time: TimeInterval
         var text: String
     }
 
-    var metadata: [String: String]
-    var offset: TimeInterval
-    var lines: [Line]
-    var untimedLines: [String]
+    public var metadata: [String: String]
+    public var offset: TimeInterval
+    public var lines: [Line]
+    public var untimedLines: [String]
 
-    func currentLine(at time: TimeInterval) -> Line? {
+    public func currentLine(at time: TimeInterval) -> Line? {
         guard !lines.isEmpty else { return nil }
 
         var lowerBound = 0
@@ -31,8 +31,8 @@ struct SyncedLyrics: Equatable {
     }
 }
 
-enum LRCParser {
-    static func parse(_ raw: String) -> SyncedLyrics {
+public enum LRCParser {
+    public static func parse(_ raw: String) -> SyncedLyrics {
         struct Entry {
             var time: TimeInterval
             var order: Int
@@ -154,16 +154,16 @@ enum LRCParser {
     }
 }
 
-enum LyricsLookupPolicy {
-    static let defaultOptIn = false
-    static let privacyStatement = "Lyrics lookup is off until you turn it on. When enabled, Tonearm sends track title, artist, album, and duration to LRCLIB."
+public enum LyricsLookupPolicy {
+    public static let defaultOptIn = false
+    public static let privacyStatement = "Lyrics lookup is off until you turn it on. When enabled, Tonearm sends track title, artist, album, and duration to LRCLIB."
 
-    enum Decision: Equatable {
+    public enum Decision: Equatable {
         case allowed(provider: String)
         case blocked(reason: String)
     }
 
-    static func decision(isOptedIn: Bool, provider: String = "LRCLIB") -> Decision {
+    public static func decision(isOptedIn: Bool, provider: String = "LRCLIB") -> Decision {
         guard isOptedIn else {
             return .blocked(reason: "Lyrics lookup is off.")
         }

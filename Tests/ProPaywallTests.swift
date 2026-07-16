@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// Paywall view-model state (no snapshot infra exists, so assert state instead
 /// of pixels).

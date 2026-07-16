@@ -4,37 +4,37 @@ import Foundation
 /// demuxes it (OggPageReader) and writes a sibling `.caf` (CAFOpusWriter) that
 /// AVFoundation can play natively (D1). On failure/cancel it leaves no partial
 /// `.caf` and never surfaces a user-visible error — only a local counter (T2.3).
-actor OpusRemuxer {
-    static let shared = OpusRemuxer()
+public actor OpusRemuxer {
+    public static let shared = OpusRemuxer()
 
     /// Cache keys currently being remuxed, to avoid duplicate work.
     private var inProgress: Set<String> = []
     /// Keys whose remux failed this session; playback falls back per policy.
     private var unavailable: Set<String> = []
     /// Local-only counters (no telemetry). Exposed for tests/diagnostics.
-    private(set) var successCount = 0
-    private(set) var failureCount = 0
+    public private(set) var successCount = 0
+    public private(set) var failureCount = 0
 
-    enum RemuxError: Error, Equatable {
+    public enum RemuxError: Error, Equatable {
         case alreadyUnavailable
         case cancelled
         case emptyOutput
     }
 
     /// CAF sibling path for an Opus cache key: same directory, `.caf` extension.
-    nonisolated static func cafURL(forOpusFile opusURL: URL) -> URL {
+    public nonisolated static func cafURL(forOpusFile opusURL: URL) -> URL {
         opusURL.deletingPathExtension().appendingPathExtension("caf")
     }
 
-    func isUnavailable(_ key: String) -> Bool { unavailable.contains(key) }
+    public func isUnavailable(_ key: String) -> Bool { unavailable.contains(key) }
 
-    func markUnavailable(_ key: String) { unavailable.insert(key) }
+    public func markUnavailable(_ key: String) { unavailable.insert(key) }
 
     /// Remuxes the `.opus` file at `sourceURL` to a sibling `.caf`. Returns the
     /// CAF URL on success. Deletes the raw `.opus` on success (the CAF becomes the
     /// cached artifact); deletes any partial `.caf` on failure/cancel.
     @discardableResult
-    func remux(opusFileURL sourceURL: URL, cacheKey: String,
+    public func remux(opusFileURL sourceURL: URL, cacheKey: String,
                deleteSourceOnSuccess: Bool = true) async throws -> URL {
         if unavailable.contains(cacheKey) { throw RemuxError.alreadyUnavailable }
         let cafURL = Self.cafURL(forOpusFile: sourceURL)

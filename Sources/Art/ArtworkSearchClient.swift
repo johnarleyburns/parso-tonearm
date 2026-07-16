@@ -1,33 +1,33 @@
 import Foundation
 
 /// iTunes Search API response models (subset we use).
-struct ITunesResponse: Decodable {
-    let results: [ITunesResult]
+public struct ITunesResponse: Decodable {
+    public let results: [ITunesResult]
 }
 
-struct ITunesResult: Decodable, Equatable {
-    let wrapperType: String?
-    let collectionType: String?
-    let artistName: String?
-    let collectionName: String?
-    let trackName: String?
-    let artworkUrl100: String?
-    let trackCount: Int?
+public struct ITunesResult: Decodable, Equatable {
+    public let wrapperType: String?
+    public let collectionType: String?
+    public let artistName: String?
+    public let collectionName: String?
+    public let trackName: String?
+    public let artworkUrl100: String?
+    public let trackCount: Int?
 }
 
 /// The chosen artwork plus whether the match is strong enough to remember.
-struct ArtworkMatch: Equatable {
-    let artworkURL: URL
+public struct ArtworkMatch: Equatable {
+    public let artworkURL: URL
     /// Strong matches (artist AND album/track align) may be persisted as the
     /// source's remembered representative; weak matches are shown but provisional.
-    let isStrong: Bool
+    public let isStrong: Bool
 }
 
-enum ArtworkSearchError: Error, LocalizedError {
+public enum ArtworkSearchError: Error, LocalizedError {
     case disallowedHost(String)
     case badResponse
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .disallowedHost(let h): return "Refusing to contact non-allowlisted host: \(h)"
         case .badResponse: return "Unexpected response from artwork search"
@@ -38,13 +38,13 @@ enum ArtworkSearchError: Error, LocalizedError {
 /// Looks up missing album/track artwork via Apple's iTunes Search API. This is the
 /// ONLY sanctioned non-archive.org network egress in the app; it keeps its own host
 /// allowlist so the archive.org-only guarantee for `IAClient` is unaffected.
-actor ArtworkSearchClient {
-    static let shared = ArtworkSearchClient()
+public actor ArtworkSearchClient {
+    public static let shared = ArtworkSearchClient()
 
     private let session: URLSession
     private let userAgent: String
 
-    init(session: URLSession? = nil) {
+    public init(session: URLSession? = nil) {
         if let session {
             self.session = session
         } else {
@@ -59,7 +59,7 @@ actor ArtworkSearchClient {
 
     // MARK: - Host allowlist (mirrors IAClient posture, distinct hosts)
 
-    static func isAllowedHost(_ host: String) -> Bool {
+    public static func isAllowedHost(_ host: String) -> Bool {
         let h = host.lowercased()
         return h == "itunes.apple.com"
             || h == "mzstatic.com" || h.hasSuffix(".mzstatic.com")
@@ -69,7 +69,7 @@ actor ArtworkSearchClient {
 
     /// Resolves artwork for the given (optionally tagged) metadata, applying the
     /// fuzzy query chain and confidence gate. Returns nil when nothing clears the floor.
-    func artwork(artist: String?, album: String?, trackTitle: String?) async -> ArtworkMatch? {
+    public func artwork(artist: String?, album: String?, trackTitle: String?) async -> ArtworkMatch? {
         let effArtist: String?
         let effTitle: String?
         let cleanedTerm: String
@@ -156,7 +156,7 @@ actor ArtworkSearchClient {
     }
 
     /// Downloads image bytes for a resolved artwork URL, enforcing the allowlist.
-    func imageData(from url: URL) async throws -> Data {
+    public func imageData(from url: URL) async throws -> Data {
         guard let host = url.host, Self.isAllowedHost(host) else {
             throw ArtworkSearchError.disallowedHost(url.host ?? "unknown")
         }
@@ -171,7 +171,7 @@ actor ArtworkSearchClient {
 
     // MARK: - URL building
 
-    static func searchURL(term: String, entity: String, attribute: String? = nil,
+    public static func searchURL(term: String, entity: String, attribute: String? = nil,
                           limit: Int = 5) -> URL? {
         var comps = URLComponents(string: "https://itunes.apple.com/search")
         var items = [
@@ -186,7 +186,7 @@ actor ArtworkSearchClient {
     }
 
     /// Upscales an `artworkUrl100` (…/100x100bb.jpg) to a larger square.
-    static func upscaledArtworkURL(_ raw: String, size: Int = 600) -> URL? {
+    public static func upscaledArtworkURL(_ raw: String, size: Int = 600) -> URL? {
         let replaced = raw.replacingOccurrences(of: "100x100bb", with: "\(size)x\(size)bb")
         return URL(string: replaced)
     }
@@ -195,7 +195,7 @@ actor ArtworkSearchClient {
 
     /// Chooses the best result requiring artist-token alignment. Title/collection
     /// matches alone never qualify. Returns nil when nothing clears the floor.
-    static func bestMatch(from results: [ITunesResult], queryArtist: String,
+    public static func bestMatch(from results: [ITunesResult], queryArtist: String,
                           queryTitle: String?) -> ArtworkMatch? {
         var best: (score: Double, strong: Bool, url: URL)?
 

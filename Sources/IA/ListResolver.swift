@@ -1,18 +1,18 @@
 import Foundation
 
-struct ListResolver {
-    struct Strategy {
+public struct ListResolver {
+    public struct Strategy {
         let name: String
         let run: (String, String) async throws -> [IAMember]
     }
 
-    var strategies: [Strategy] = [
+    public var strategies: [Strategy] = [
         Strategy(name: "users-list", run: ListResolver.usersListAPI),
         Strategy(name: "json-members", run: ListResolver.jsonMembers),
         Strategy(name: "html-scrape", run: ListResolver.htmlMembers)
     ]
 
-    func resolve(screenname: String, listId: String) async throws -> [IAMember] {
+    public func resolve(screenname: String, listId: String) async throws -> [IAMember] {
         var lastError: Error = IANetworkError.badResponse
         for strategy in strategies {
             do {
@@ -59,7 +59,7 @@ struct ListResolver {
 
     /// Parses the several JSON shapes archive.org uses for list members.
     /// Deterministic and pure so it can be unit-tested without the network.
-    static func parseMembers(from data: Data) -> [IAMember] {
+    public static func parseMembers(from data: Data) -> [IAMember] {
         struct MembersResponse: Decodable {
             struct Member: Decodable { let identifier: String?; let title: String? }
             let members: [Member]?
@@ -106,7 +106,7 @@ struct ListResolver {
     }
 
     /// Deterministic extraction of unique /details/{identifier} member links.
-    static func extractDetailIdentifiers(from html: String, limit: Int = 500) -> [IAMember] {
+    public static func extractDetailIdentifiers(from html: String, limit: Int = 500) -> [IAMember] {
         var seen = Set<String>()
         var members: [IAMember] = []
         let pattern = #"/details/([A-Za-z0-9][A-Za-z0-9._-]+)"#

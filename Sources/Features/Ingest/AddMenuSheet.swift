@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import TonearmCore
 
 struct AddMenuSheet: View {
     @EnvironmentObject var appState: AppState

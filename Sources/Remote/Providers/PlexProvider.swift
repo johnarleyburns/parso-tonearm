@@ -1,33 +1,43 @@
 import Foundation
 
-struct PlexServerPolicy {
-    static func normalizeBaseURL(_ raw: String) throws -> URL {
+public struct PlexServerPolicy {
+    public static func normalizeBaseURL(_ raw: String) throws -> URL {
         try PlexAPI.normalizeBaseURL(raw)
     }
 
-    static func canSubmit(url: String, token: String) -> Bool {
+    public static func canSubmit(url: String, token: String) -> Bool {
         (try? normalizeBaseURL(url)) != nil
             && !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    static func displayName(baseURL: URL) -> String {
+    public static func displayName(baseURL: URL) -> String {
         baseURL.host ?? baseURL.absoluteString
     }
 
-    static func credentialAccount(sourceID: Int64) -> String {
+    public static func credentialAccount(sourceID: Int64) -> String {
         "plex:\(sourceID)"
     }
 }
 
-struct PlexProvider: RemoteLibraryProvider {
-    var baseURL: URL
-    var token: String
-    var session: URLSession = .shared
-    var client: PlexAPI.Client = PlexAPI.defaultClient
+public struct PlexProvider: RemoteLibraryProvider {
+    public var baseURL: URL
+    public var token: String
+    public var session: URLSession = .shared
+    public var client: PlexAPI.Client = PlexAPI.defaultClient
 
-    var sourceKind: SourceKind { .plex }
+    public var sourceKind: SourceKind { .plex }
 
-    func browse(path rawPath: String) async throws -> [RemoteNode] {
+    public init(baseURL: URL,
+                token: String,
+                session: URLSession = .shared,
+                client: PlexAPI.Client = PlexAPI.defaultClient) {
+        self.baseURL = baseURL
+        self.token = token
+        self.session = session
+        self.client = client
+    }
+
+    public func browse(path rawPath: String) async throws -> [RemoteNode] {
         let path = try RemotePathPolicy.normalize(rawPath)
         switch path.segments.count {
         case 0:
@@ -86,7 +96,7 @@ struct PlexProvider: RemoteLibraryProvider {
         }
     }
 
-    func resolve(node: RemoteNode) async throws -> ResolvedAsset {
+    public func resolve(node: RemoteNode) async throws -> ResolvedAsset {
         guard node.kind == .audio,
               let ratingKey = node.path.split(separator: "/").dropFirst().first.map(String.init) else {
             throw URLError(.badURL)
@@ -102,11 +112,11 @@ struct PlexProvider: RemoteLibraryProvider {
         )
     }
 
-    func refresh() async throws {
+    public func refresh() async throws {
         _ = try await plexItems(for: .sections)
     }
 
-    static func from(source: Source,
+    public static func from(source: Source,
                      credentialStore: CredentialStore = CredentialStore()) throws -> PlexProvider {
         guard source.kind == .plex,
               let sourceID = source.id,

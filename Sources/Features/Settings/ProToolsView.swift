@@ -1,4 +1,5 @@
 import SwiftUI
+import TonearmCore
 
 private enum ProToolsTab: String, CaseIterable, Identifiable {
     case playlists = "Playlists"

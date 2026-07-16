@@ -1,11 +1,11 @@
 import Foundation
 
-enum RemoteLibraryProviderFactory {
-    static func supports(_ kind: SourceKind) -> Bool {
+public enum RemoteLibraryProviderFactory {
+    public static func supports(_ kind: SourceKind) -> Bool {
         RemoteLibraryAccessPolicy.isRemoteLibrary(kind)
     }
 
-    static func provider(for source: Source,
+    public static func provider(for source: Source,
                          credentialStore: CredentialStore = CredentialStore()) throws -> any RemoteLibraryProvider {
         switch source.kind {
         case .subsonic:
@@ -25,7 +25,7 @@ enum RemoteLibraryProviderFactory {
         }
     }
 
-    static func credentialAccounts(for sourceID: Int64, kind: SourceKind) -> [String] {
+    public static func credentialAccounts(for sourceID: Int64, kind: SourceKind) -> [String] {
         switch kind {
         case .subsonic:
             return [SubsonicServerPolicy.credentialAccount(sourceID: sourceID)]

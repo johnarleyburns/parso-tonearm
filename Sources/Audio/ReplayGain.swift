@@ -1,13 +1,13 @@
 import Foundation
 
-enum ReplayGain {
-    enum Mode: Equatable {
+public enum ReplayGain {
+    public enum Mode: Equatable {
         case off
         case track
         case album
     }
 
-    struct Tags: Equatable {
+    public struct Tags: Equatable {
         var trackGainDB: Double?
         var albumGainDB: Double?
         var trackPeak: Double?
@@ -16,7 +16,7 @@ enum ReplayGain {
         static let empty = Tags()
     }
 
-    struct TagItem: Equatable {
+    public struct TagItem: Equatable {
         var key: String?
         var commonKey: String?
         var identifier: String?
@@ -25,7 +25,7 @@ enum ReplayGain {
         var dataValue: Data?
     }
 
-    static func parse(items: [TagItem]) -> Tags {
+    public static func parse(items: [TagItem]) -> Tags {
         var tags = Tags()
         for item in items {
             guard let field = field(for: item),
@@ -44,7 +44,7 @@ enum ReplayGain {
         return tags
     }
 
-    static func appliedGain(
+    public static func appliedGain(
         mode: Mode,
         tags: Tags,
         preampDB: Double = 0,
@@ -74,11 +74,11 @@ enum ReplayGain {
         return gain.isFinite && gain > 0 ? gain : 1
     }
 
-    static func parseGainDB(_ raw: String?) -> Double? {
+    public static func parseGainDB(_ raw: String?) -> Double? {
         number(in: raw)
     }
 
-    static func parsePeak(_ raw: String?) -> Double? {
+    public static func parsePeak(_ raw: String?) -> Double? {
         guard let value = number(in: raw), value.isFinite, value > 0 else { return nil }
         return value
     }
@@ -152,7 +152,7 @@ enum ReplayGain {
     }
 }
 
-extension Track {
+public extension Track {
     var replayGainTags: ReplayGain.Tags {
         ReplayGain.Tags(trackGainDB: rgTrackGain,
                         albumGainDB: rgAlbumGain,

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// Pins the free/paid split so later phases can't silently gate a free feature.
 final class FreeTierRegistryTests: XCTestCase {

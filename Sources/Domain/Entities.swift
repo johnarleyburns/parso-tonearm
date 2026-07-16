@@ -1,6 +1,6 @@
 import Foundation
 
-enum SourceKind: String, Codable, CaseIterable {
+public enum SourceKind: String, Codable, CaseIterable {
     case local
     case iaItem
     case iaList
@@ -17,41 +17,69 @@ enum SourceKind: String, Codable, CaseIterable {
     case pCloud
 }
 
-enum AssetKind: String, Codable {
+public enum AssetKind: String, Codable {
     case localRef
     case managedCopy
     case remote
     case builtIn
 }
 
-enum PlaylistKind: String, Codable {
+public enum PlaylistKind: String, Codable {
     case manual
     case folder
 }
 
-struct Source: Identifiable, Equatable, Codable, Hashable {
-    var id: Int64?
-    var kind: SourceKind
-    var iaIdentifier: String?
-    var originalURL: String?
-    var title: String
-    var addedAt: Date
-    var lastResolvedAt: Date?
-    var followUpdates: Bool
-    var licenseText: String?
-    var memberCapHit: Bool
+public struct Source: Identifiable, Equatable, Codable, Hashable {
+    public var id: Int64?
+    public var kind: SourceKind
+    public var iaIdentifier: String?
+    public var originalURL: String?
+    public var title: String
+    public var addedAt: Date
+    public var lastResolvedAt: Date?
+    public var followUpdates: Bool
+    public var licenseText: String?
+    public var memberCapHit: Bool
     /// For `.local` sources: distinguishes a folder import (true) from the
     /// "Local Files" bucket (false). Drives the no-artwork fallback icon.
-    var localIsFolder: Bool = false
+    public var localIsFolder: Bool = false
     /// Remembers which track's embedded artwork represents this source, so the
     /// representative cover is cached and stable across launches.
-    var artworkTrackId: Int64? = nil
+    public var artworkTrackId: Int64? = nil
     /// Stable cross-device identity for iCloud sync (schema v7). Local `Int64`
     /// PKs remain the internal FK join key; `syncID` names the CloudKit record.
-    var syncID: String? = nil
+    public var syncID: String? = nil
+
+    public init(id: Int64?,
+                kind: SourceKind,
+                iaIdentifier: String?,
+                originalURL: String?,
+                title: String,
+                addedAt: Date,
+                lastResolvedAt: Date?,
+                followUpdates: Bool,
+                licenseText: String?,
+                memberCapHit: Bool,
+                localIsFolder: Bool = false,
+                artworkTrackId: Int64? = nil,
+                syncID: String? = nil) {
+        self.id = id
+        self.kind = kind
+        self.iaIdentifier = iaIdentifier
+        self.originalURL = originalURL
+        self.title = title
+        self.addedAt = addedAt
+        self.lastResolvedAt = lastResolvedAt
+        self.followUpdates = followUpdates
+        self.licenseText = licenseText
+        self.memberCapHit = memberCapHit
+        self.localIsFolder = localIsFolder
+        self.artworkTrackId = artworkTrackId
+        self.syncID = syncID
+    }
 
     /// SF Symbol shown over the gradient when no real artwork resolves.
-    var fallbackIcon: String {
+    public var fallbackIcon: String {
         switch kind {
         case .local:
             return localIsFolder ? "folder.fill" : "music.note.list"
@@ -67,71 +95,161 @@ struct Source: Identifiable, Equatable, Codable, Hashable {
     }
 }
 
-struct Album: Identifiable, Equatable, Codable {
-    var id: Int64?
-    var sourceId: Int64
-    var title: String
-    var artist: String?
-    var artistId: Int64? = nil
-    var albumArtist: String? = nil
-    var genre: String? = nil
-    var year: Int?
-    var artworkId: String?
-    var syncID: String? = nil
+public struct Album: Identifiable, Equatable, Codable {
+    public var id: Int64?
+    public var sourceId: Int64
+    public var title: String
+    public var artist: String?
+    public var artistId: Int64? = nil
+    public var albumArtist: String? = nil
+    public var genre: String? = nil
+    public var year: Int?
+    public var artworkId: String?
+    public var syncID: String? = nil
+
+    public init(id: Int64?,
+                sourceId: Int64,
+                title: String,
+                artist: String?,
+                artistId: Int64? = nil,
+                albumArtist: String? = nil,
+                genre: String? = nil,
+                year: Int? = nil,
+                artworkId: String? = nil,
+                syncID: String? = nil) {
+        self.id = id
+        self.sourceId = sourceId
+        self.title = title
+        self.artist = artist
+        self.artistId = artistId
+        self.albumArtist = albumArtist
+        self.genre = genre
+        self.year = year
+        self.artworkId = artworkId
+        self.syncID = syncID
+    }
 }
 
-struct Artist: Identifiable, Equatable, Codable, Hashable {
-    var id: Int64?
-    var name: String
-    var sortName: String
-    var syncID: String? = nil
+public struct Artist: Identifiable, Equatable, Codable, Hashable {
+    public var id: Int64?
+    public var name: String
+    public var sortName: String
+    public var syncID: String? = nil
 }
 
-struct Track: Identifiable, Equatable, Codable {
-    var id: Int64?
-    var albumId: Int64?
-    var sourceId: Int64
-    var title: String
-    var trackNo: Int?
-    var discNo: Int?
-    var durationSec: Double?
-    var codec: String?
-    var sampleRate: Int?
-    var bitDepthOrBitrate: String?
-    var sortKey: String
-    var genre: String? = nil
-    var composer: String? = nil
-    var artistId: Int64? = nil
-    var rgTrackGain: Double? = nil
-    var rgAlbumGain: Double? = nil
-    var rgTrackPeak: Double? = nil
-    var rgAlbumPeak: Double? = nil
-    var syncID: String? = nil
+public struct Track: Identifiable, Equatable, Codable {
+    public var id: Int64?
+    public var albumId: Int64?
+    public var sourceId: Int64
+    public var title: String
+    public var trackNo: Int?
+    public var discNo: Int?
+    public var durationSec: Double?
+    public var codec: String?
+    public var sampleRate: Int?
+    public var bitDepthOrBitrate: String?
+    public var sortKey: String
+    public var genre: String? = nil
+    public var composer: String? = nil
+    public var artistId: Int64? = nil
+    public var rgTrackGain: Double? = nil
+    public var rgAlbumGain: Double? = nil
+    public var rgTrackPeak: Double? = nil
+    public var rgAlbumPeak: Double? = nil
+    public var syncID: String? = nil
+
+    public init(id: Int64?,
+                albumId: Int64?,
+                sourceId: Int64,
+                title: String,
+                trackNo: Int?,
+                discNo: Int?,
+                durationSec: Double?,
+                codec: String?,
+                sampleRate: Int?,
+                bitDepthOrBitrate: String?,
+                sortKey: String,
+                genre: String? = nil,
+                composer: String? = nil,
+                artistId: Int64? = nil,
+                rgTrackGain: Double? = nil,
+                rgAlbumGain: Double? = nil,
+                rgTrackPeak: Double? = nil,
+                rgAlbumPeak: Double? = nil,
+                syncID: String? = nil) {
+        self.id = id
+        self.albumId = albumId
+        self.sourceId = sourceId
+        self.title = title
+        self.trackNo = trackNo
+        self.discNo = discNo
+        self.durationSec = durationSec
+        self.codec = codec
+        self.sampleRate = sampleRate
+        self.bitDepthOrBitrate = bitDepthOrBitrate
+        self.sortKey = sortKey
+        self.genre = genre
+        self.composer = composer
+        self.artistId = artistId
+        self.rgTrackGain = rgTrackGain
+        self.rgAlbumGain = rgAlbumGain
+        self.rgTrackPeak = rgTrackPeak
+        self.rgAlbumPeak = rgAlbumPeak
+        self.syncID = syncID
+    }
 }
 
-struct Asset: Identifiable, Equatable, Codable {
-    var id: Int64?
-    var trackId: Int64
-    var kind: AssetKind
-    var bookmark: Data?
-    var relPath: String?
-    var remoteURL: String?
-    var altRemoteURL: String?
+public struct Asset: Identifiable, Equatable, Codable {
+    public var id: Int64?
+    public var trackId: Int64
+    public var kind: AssetKind
+    public var bookmark: Data?
+    public var relPath: String?
+    public var remoteURL: String?
+    public var altRemoteURL: String?
     /// Opus derivative URL for this track, if the IA item offers one. Fetched and
     /// remuxed to CAF by the prefetcher so the next play upgrades to Opus (T2.4).
-    var opusRemoteURL: String? = nil
-    var sizeBytes: Int64?
-    var unsupportedReason: String?
+    public var opusRemoteURL: String? = nil
+    public var sizeBytes: Int64?
+    public var unsupportedReason: String?
     /// Set on a device where the asset's local file can't be resolved after an
     /// iCloud pull (the device-specific bookmark doesn't cross devices). The
     /// track shows greyed / "not on this device" until re-imported (C4).
-    var needsReimport: Bool = false
-    var syncID: String? = nil
+    public var needsReimport: Bool = false
+    public var syncID: String? = nil
     /// Runtime-only headers for browsed remote-library queue rows. Not persisted:
     /// credentials remain in the Keychain/provider layer.
-    var transientRemoteHeaders: [String: String] = [:]
+    public var transientRemoteHeaders: [String: String] = [:]
 
-    enum CodingKeys: String, CodingKey {
+    public init(id: Int64?,
+                trackId: Int64,
+                kind: AssetKind,
+                bookmark: Data?,
+                relPath: String?,
+                remoteURL: String?,
+                altRemoteURL: String?,
+                opusRemoteURL: String? = nil,
+                sizeBytes: Int64?,
+                unsupportedReason: String?,
+                needsReimport: Bool = false,
+                syncID: String? = nil,
+                transientRemoteHeaders: [String: String] = [:]) {
+        self.id = id
+        self.trackId = trackId
+        self.kind = kind
+        self.bookmark = bookmark
+        self.relPath = relPath
+        self.remoteURL = remoteURL
+        self.altRemoteURL = altRemoteURL
+        self.opusRemoteURL = opusRemoteURL
+        self.sizeBytes = sizeBytes
+        self.unsupportedReason = unsupportedReason
+        self.needsReimport = needsReimport
+        self.syncID = syncID
+        self.transientRemoteHeaders = transientRemoteHeaders
+    }
+
+    public enum CodingKeys: String, CodingKey {
         case id
         case trackId
         case kind
@@ -147,45 +265,59 @@ struct Asset: Identifiable, Equatable, Codable {
     }
 }
 
-struct CacheEntry: Identifiable, Equatable, Codable {
-    var id: Int64?
-    var assetId: Int64
-    var relPath: String
-    var totalBytes: Int64?
-    var byteRanges: Data
-    var complete: Bool
-    var lastAccessedAt: Date
-    var createdAt: Date
+public struct CacheEntry: Identifiable, Equatable, Codable {
+    public var id: Int64?
+    public var assetId: Int64
+    public var relPath: String
+    public var totalBytes: Int64?
+    public var byteRanges: Data
+    public var complete: Bool
+    public var lastAccessedAt: Date
+    public var createdAt: Date
 }
 
-struct Playlist: Identifiable, Equatable, Codable, Hashable {
-    var id: Int64?
-    var title: String
-    var kind: PlaylistKind
-    var folderBookmark: Data?
-    var watch: Bool
-    var syncID: String? = nil
+public struct Playlist: Identifiable, Equatable, Codable, Hashable {
+    public var id: Int64?
+    public var title: String
+    public var kind: PlaylistKind
+    public var folderBookmark: Data?
+    public var watch: Bool
+    public var syncID: String? = nil
+
+    public init(id: Int64?,
+                title: String,
+                kind: PlaylistKind,
+                folderBookmark: Data?,
+                watch: Bool,
+                syncID: String? = nil) {
+        self.id = id
+        self.title = title
+        self.kind = kind
+        self.folderBookmark = folderBookmark
+        self.watch = watch
+        self.syncID = syncID
+    }
 }
 
-struct PlaylistItem: Identifiable, Equatable, Codable {
-    var id: Int64?
-    var playlistId: Int64
-    var position: Int
-    var trackId: Int64
-    var sectionTitle: String?
-    var syncID: String? = nil
+public struct PlaylistItem: Identifiable, Equatable, Codable {
+    public var id: Int64?
+    public var playlistId: Int64
+    public var position: Int
+    public var trackId: Int64
+    public var sectionTitle: String?
+    public var syncID: String? = nil
 }
 
-struct PlayEvent: Identifiable, Equatable, Codable {
-    var id: Int64?
-    var trackId: Int64
-    var playedAt: Date
-    var syncID: String? = nil
+public struct PlayEvent: Identifiable, Equatable, Codable {
+    public var id: Int64?
+    public var trackId: Int64
+    public var playedAt: Date
+    public var syncID: String? = nil
 }
 
-struct Favorite: Identifiable, Equatable, Codable {
-    var id: Int64?
-    var trackId: Int64
-    var favoritedAt: Date
-    var syncID: String? = nil
+public struct Favorite: Identifiable, Equatable, Codable {
+    public var id: Int64?
+    public var trackId: Int64
+    public var favoritedAt: Date
+    public var syncID: String? = nil
 }

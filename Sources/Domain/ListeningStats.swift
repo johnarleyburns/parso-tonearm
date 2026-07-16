@@ -1,20 +1,20 @@
 import Foundation
 
-enum ListeningStats {
-    struct Summary: Equatable {
-        var totalPlayCount: Int
-        var totalListeningTime: TimeInterval
-        var currentStreakDays: Int
-        var longestStreakDays: Int
-        var topTracks: [TrackRank]
-        var topArtists: [NameRank]
-        var topAlbums: [NameRank]
-        var dailyRollups: [PeriodRollup]
-        var monthlyRollups: [PeriodRollup]
-        var yearlyRollups: [PeriodRollup]
-        var yearInReview: YearInReview
+public enum ListeningStats {
+    public struct Summary: Equatable {
+        public var totalPlayCount: Int
+        public var totalListeningTime: TimeInterval
+        public var currentStreakDays: Int
+        public var longestStreakDays: Int
+        public var topTracks: [TrackRank]
+        public var topArtists: [NameRank]
+        public var topAlbums: [NameRank]
+        public var dailyRollups: [PeriodRollup]
+        public var monthlyRollups: [PeriodRollup]
+        public var yearlyRollups: [PeriodRollup]
+        public var yearInReview: YearInReview
 
-        static let empty = Summary(
+        public static let empty = Summary(
             totalPlayCount: 0,
             totalListeningTime: 0,
             currentStreakDays: 0,
@@ -29,37 +29,37 @@ enum ListeningStats {
                                        topArtist: nil, topTrack: nil, shareText: ""))
     }
 
-    struct TrackRank: Equatable, Identifiable {
-        var row: TrackRow
-        var playCount: Int
-        var listeningTime: TimeInterval
-        var id: Int64 { row.id }
+    public struct TrackRank: Equatable, Identifiable {
+        public var row: TrackRow
+        public var playCount: Int
+        public var listeningTime: TimeInterval
+        public var id: Int64 { row.id }
     }
 
-    struct NameRank: Equatable, Identifiable {
-        var name: String
-        var playCount: Int
-        var listeningTime: TimeInterval
-        var id: String { name }
+    public struct NameRank: Equatable, Identifiable {
+        public var name: String
+        public var playCount: Int
+        public var listeningTime: TimeInterval
+        public var id: String { name }
     }
 
-    struct PeriodRollup: Equatable, Identifiable {
-        var start: Date
-        var playCount: Int
-        var listeningTime: TimeInterval
-        var id: Date { start }
+    public struct PeriodRollup: Equatable, Identifiable {
+        public var start: Date
+        public var playCount: Int
+        public var listeningTime: TimeInterval
+        public var id: Date { start }
     }
 
-    struct YearInReview: Equatable {
-        var year: Int
-        var playCount: Int
-        var listeningTime: TimeInterval
-        var topArtist: String?
-        var topTrack: String?
-        var shareText: String
+    public struct YearInReview: Equatable {
+        public var year: Int
+        public var playCount: Int
+        public var listeningTime: TimeInterval
+        public var topArtist: String?
+        public var topTrack: String?
+        public var shareText: String
     }
 
-    static func summarize(
+    public static func summarize(
         events: [PlayEvent],
         tracks: [TrackRow],
         calendar: Calendar = .current,
@@ -311,7 +311,7 @@ enum ListeningStats {
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 
-    static func durationText(_ duration: TimeInterval) -> String {
+    public static func durationText(_ duration: TimeInterval) -> String {
         let minutes = max(0, Int(duration.rounded()) / 60)
         if minutes < 60 { return "\(minutes)m" }
         let hours = minutes / 60

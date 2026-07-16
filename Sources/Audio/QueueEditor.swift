@@ -1,7 +1,7 @@
 import Foundation
 
-enum QueueEditor {
-    struct State<Element> {
+public enum QueueEditor {
+    public struct State<Element> {
         var queue: [Element]
         var currentIndex: Int
 
@@ -11,7 +11,7 @@ enum QueueEditor {
         }
     }
 
-    static func move<Element>(from source: Int, to destination: Int, in state: State<Element>) -> State<Element> {
+    public static func move<Element>(from source: Int, to destination: Int, in state: State<Element>) -> State<Element> {
         var state = state.normalized
         guard state.queue.indices.contains(source), state.queue.count > 1 else { return state }
         let target = min(max(destination, 0), state.queue.count - 1)
@@ -31,7 +31,7 @@ enum QueueEditor {
         return state.normalized
     }
 
-    static func remove<Element>(at index: Int, in state: State<Element>) -> State<Element> {
+    public static func remove<Element>(at index: Int, in state: State<Element>) -> State<Element> {
         var state = state.normalized
         guard state.queue.indices.contains(index) else { return state }
         state.queue.remove(at: index)
@@ -45,7 +45,7 @@ enum QueueEditor {
         return state.normalized
     }
 
-    static func insertNext<Element>(_ element: Element, in state: State<Element>) -> State<Element> {
+    public static func insertNext<Element>(_ element: Element, in state: State<Element>) -> State<Element> {
         var state = state.normalized
         guard !state.queue.isEmpty else { return State(queue: [element], currentIndex: 0) }
         let insertionIndex = min(state.currentIndex + 1, state.queue.count)
@@ -53,7 +53,7 @@ enum QueueEditor {
         return state.normalized
     }
 
-    static func append<Element>(_ element: Element, in state: State<Element>) -> State<Element> {
+    public static func append<Element>(_ element: Element, in state: State<Element>) -> State<Element> {
         var state = state.normalized
         state.queue.append(element)
         if state.queue.count == 1 { state.currentIndex = 0 }

@@ -1,6 +1,6 @@
 import XCTest
 import AVFoundation
-@testable import Tonearm
+@testable import TonearmCore
 
 /// T2.2 — CAF output opens via AVAudioFile; decoded frame count matches the
 /// granule-derived count; priming frames equal the OpusHead pre-skip.

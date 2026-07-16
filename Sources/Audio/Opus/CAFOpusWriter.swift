@@ -7,14 +7,14 @@ import AudioToolbox
 /// CAF stores Opus at a fixed 48 kHz sample rate. The mandatory `pakt` (packet
 /// table) chunk carries priming/remainder frame counts so the decoder trims the
 /// encoder pre-skip (start click) and the trailing padding (gap) — see `01 §C`.
-enum CAFOpusWriter {
+public enum CAFOpusWriter {
 
-    enum WriterError: Error { case noPackets }
+    public enum WriterError: Error { case noPackets }
 
-    static let sampleRate: Double = 48000
+    public static let sampleRate: Double = 48000
 
     /// Builds the complete CAF file bytes for the given demuxed Opus stream.
-    static func makeCAF(from stream: OggOpusStream) throws -> Data {
+    public static func makeCAF(from stream: OggOpusStream) throws -> Data {
         guard !stream.audioPackets.isEmpty else { throw WriterError.noPackets }
 
         var out = Data()
@@ -29,7 +29,7 @@ enum CAFOpusWriter {
     }
 
     /// Convenience: demux + write in one step.
-    static func makeCAF(fromOgg data: Data) throws -> Data {
+    public static func makeCAF(fromOgg data: Data) throws -> Data {
         try makeCAF(from: try OggPageReader.parse(data))
     }
 

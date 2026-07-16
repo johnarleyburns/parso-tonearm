@@ -8,10 +8,10 @@ import CloudKit
 /// Record names are the row's `syncID` (a UUID string, schema `v7`); parent
 /// references are carried as the parent's `syncID` so identity survives across
 /// devices where local `Int64` PKs differ.
-enum RecordMapping {
+public enum RecordMapping {
 
     /// The CloudKit record types synced by `CloudSyncEngine`, one per data category.
-    enum RecordType: String, CaseIterable {
+    public enum RecordType: String, CaseIterable {
         case source     = "Source"
         case album      = "Album"
         case track      = "Track"
@@ -25,18 +25,18 @@ enum RecordMapping {
     }
 
     /// The single fixed record name for the per-account settings singleton.
-    static let appSettingsRecordName = "app-settings"
+    public static let appSettingsRecordName = "app-settings"
 
     // MARK: - Record ID helpers
 
-    static func recordID(type: RecordType, syncID: String,
+    public static func recordID(type: RecordType, syncID: String,
                          zoneID: CKRecordZone.ID) -> CKRecord.ID {
         CKRecord.ID(recordName: "\(type.rawValue)-\(syncID)", zoneID: zoneID)
     }
 
     // MARK: - Source
 
-    static func record(from source: Source, zoneID: CKRecordZone.ID) -> CKRecord {
+    public static func record(from source: Source, zoneID: CKRecordZone.ID) -> CKRecord {
         let syncID = source.syncID ?? UUID().uuidString
         let record = CKRecord(recordType: RecordType.source.rawValue,
                               recordID: recordID(type: .source, syncID: syncID, zoneID: zoneID))
@@ -54,7 +54,7 @@ enum RecordMapping {
         return record
     }
 
-    static func source(from record: CKRecord) -> Source? {
+    public static func source(from record: CKRecord) -> Source? {
         guard let syncID = record["syncID"] as? String,
               let kindRaw = record["kind"] as? String,
               let kind = SourceKind(rawValue: kindRaw),
@@ -76,7 +76,7 @@ enum RecordMapping {
 
     // MARK: - Album
 
-    static func record(from album: Album, sourceSyncID: String?,
+    public static func record(from album: Album, sourceSyncID: String?,
                        zoneID: CKRecordZone.ID) -> CKRecord {
         let syncID = album.syncID ?? UUID().uuidString
         let record = CKRecord(recordType: RecordType.album.rawValue,
@@ -91,7 +91,7 @@ enum RecordMapping {
     }
 
     /// Returns the decoded album plus its parent `sourceSyncID` (for re-linking).
-    static func album(from record: CKRecord) -> (album: Album, sourceSyncID: String?)? {
+    public static func album(from record: CKRecord) -> (album: Album, sourceSyncID: String?)? {
         guard let syncID = record["syncID"] as? String,
               let title = record["title"] as? String else { return nil }
         let album = Album(id: nil, sourceId: 0, title: title,
@@ -104,7 +104,7 @@ enum RecordMapping {
 
     // MARK: - Track
 
-    static func record(from track: Track, sourceSyncID: String?, albumSyncID: String?,
+    public static func record(from track: Track, sourceSyncID: String?, albumSyncID: String?,
                        zoneID: CKRecordZone.ID) -> CKRecord {
         let syncID = track.syncID ?? UUID().uuidString
         let record = CKRecord(recordType: RecordType.track.rawValue,
@@ -127,7 +127,7 @@ enum RecordMapping {
         return record
     }
 
-    static func track(from record: CKRecord)
+    public static func track(from record: CKRecord)
         -> (track: Track, sourceSyncID: String?, albumSyncID: String?)? {
         guard let syncID = record["syncID"] as? String,
               let title = record["title"] as? String,
@@ -153,7 +153,7 @@ enum RecordMapping {
     /// Local device-specific `bookmark` blobs are intentionally **omitted** (C4):
     /// they don't resolve on other devices. Pulled assets are marked
     /// `needsReimport` where no local file exists.
-    static func record(from asset: Asset, trackSyncID: String?,
+    public static func record(from asset: Asset, trackSyncID: String?,
                        zoneID: CKRecordZone.ID) -> CKRecord {
         let syncID = asset.syncID ?? UUID().uuidString
         let record = CKRecord(recordType: RecordType.asset.rawValue,
@@ -171,7 +171,7 @@ enum RecordMapping {
         return record
     }
 
-    static func asset(from record: CKRecord) -> (asset: Asset, trackSyncID: String?)? {
+    public static func asset(from record: CKRecord) -> (asset: Asset, trackSyncID: String?)? {
         guard let syncID = record["syncID"] as? String,
               let kindRaw = record["kind"] as? String,
               let kind = AssetKind(rawValue: kindRaw) else { return nil }
@@ -194,7 +194,7 @@ enum RecordMapping {
 
     // MARK: - Playlist
 
-    static func record(from playlist: Playlist, zoneID: CKRecordZone.ID) -> CKRecord {
+    public static func record(from playlist: Playlist, zoneID: CKRecordZone.ID) -> CKRecord {
         let syncID = playlist.syncID ?? UUID().uuidString
         let record = CKRecord(recordType: RecordType.playlist.rawValue,
                               recordID: recordID(type: .playlist, syncID: syncID, zoneID: zoneID))
@@ -206,7 +206,7 @@ enum RecordMapping {
         return record
     }
 
-    static func playlist(from record: CKRecord) -> Playlist? {
+    public static func playlist(from record: CKRecord) -> Playlist? {
         guard let syncID = record["syncID"] as? String,
               let title = record["title"] as? String,
               let kindRaw = record["kind"] as? String,
@@ -217,7 +217,7 @@ enum RecordMapping {
 
     // MARK: - PlaylistItem
 
-    static func record(from item: PlaylistItem, playlistSyncID: String?,
+    public static func record(from item: PlaylistItem, playlistSyncID: String?,
                        trackSyncID: String?, zoneID: CKRecordZone.ID) -> CKRecord {
         let syncID = item.syncID ?? UUID().uuidString
         let record = CKRecord(recordType: RecordType.playlistItem.rawValue,
@@ -230,7 +230,7 @@ enum RecordMapping {
         return record
     }
 
-    static func playlistItem(from record: CKRecord)
+    public static func playlistItem(from record: CKRecord)
         -> (item: PlaylistItem, playlistSyncID: String?, trackSyncID: String?)? {
         guard let syncID = record["syncID"] as? String,
               let position = record["position"] as? Int else { return nil }
@@ -242,7 +242,7 @@ enum RecordMapping {
 
     // MARK: - Favorite
 
-    static func record(from favorite: Favorite, trackSyncID: String?,
+    public static func record(from favorite: Favorite, trackSyncID: String?,
                        zoneID: CKRecordZone.ID) -> CKRecord {
         let syncID = favorite.syncID ?? UUID().uuidString
         let record = CKRecord(recordType: RecordType.favorite.rawValue,
@@ -253,7 +253,7 @@ enum RecordMapping {
         return record
     }
 
-    static func favorite(from record: CKRecord) -> (favorite: Favorite, trackSyncID: String?)? {
+    public static func favorite(from record: CKRecord) -> (favorite: Favorite, trackSyncID: String?)? {
         guard let syncID = record["syncID"] as? String,
               let favoritedAt = record["favoritedAt"] as? Date else { return nil }
         let favorite = Favorite(id: nil, trackId: 0, favoritedAt: favoritedAt, syncID: syncID)
@@ -262,7 +262,7 @@ enum RecordMapping {
 
     // MARK: - PlayEvent
 
-    static func record(from event: PlayEvent, trackSyncID: String?,
+    public static func record(from event: PlayEvent, trackSyncID: String?,
                        zoneID: CKRecordZone.ID) -> CKRecord {
         let syncID = event.syncID ?? UUID().uuidString
         let record = CKRecord(recordType: RecordType.playEvent.rawValue,
@@ -273,7 +273,7 @@ enum RecordMapping {
         return record
     }
 
-    static func playEvent(from record: CKRecord) -> (event: PlayEvent, trackSyncID: String?)? {
+    public static func playEvent(from record: CKRecord) -> (event: PlayEvent, trackSyncID: String?)? {
         guard let syncID = record["syncID"] as? String,
               let playedAt = record["playedAt"] as? Date else { return nil }
         let event = PlayEvent(id: nil, trackId: 0, playedAt: playedAt, syncID: syncID)
@@ -284,7 +284,7 @@ enum RecordMapping {
 
     /// The image file is carried as a `CKAsset`; on pull it is written into
     /// `Application Support/Tonearm/Artwork` keyed by `artworkId` (C3).
-    static func record(from artwork: CustomArtworkRecord, trackSyncID: String?,
+    public static func record(from artwork: CustomArtworkRecord, trackSyncID: String?,
                        fileURL: URL?, zoneID: CKRecordZone.ID) -> CKRecord {
         let syncID = artwork.syncID
         let record = CKRecord(recordType: RecordType.customArtwork.rawValue,
@@ -296,7 +296,7 @@ enum RecordMapping {
         return record
     }
 
-    static func customArtwork(from record: CKRecord)
+    public static func customArtwork(from record: CKRecord)
         -> (artwork: CustomArtworkRecord, trackSyncID: String?, imageURL: URL?)? {
         guard let syncID = record["syncID"] as? String,
               let artworkId = record["artworkId"] as? String else { return nil }
@@ -307,7 +307,7 @@ enum RecordMapping {
 
     // MARK: - AppSettings (EQ + synced prefs)
 
-    static func record(from settings: SyncedSettings, zoneID: CKRecordZone.ID) -> CKRecord {
+    public static func record(from settings: SyncedSettings, zoneID: CKRecordZone.ID) -> CKRecord {
         let record = CKRecord(recordType: RecordType.appSettings.rawValue,
                               recordID: CKRecord.ID(recordName: appSettingsRecordName, zoneID: zoneID))
         record["eqEnabled"] = (settings.eqEnabled ? 1 : 0) as CKRecordValue
@@ -322,7 +322,7 @@ enum RecordMapping {
         return record
     }
 
-    static func syncedSettings(from record: CKRecord) -> SyncedSettings? {
+    public static func syncedSettings(from record: CKRecord) -> SyncedSettings? {
         guard record.recordType == RecordType.appSettings.rawValue else { return nil }
         var presets: [EQPreset] = []
         if let data = record["userPresets"] as? Data,
@@ -342,19 +342,19 @@ enum RecordMapping {
 
 /// Lightweight value for the `custom_artwork` table (which has no domain struct):
 /// carries the stable `syncID` plus the on-disk `artworkId` filename.
-struct CustomArtworkRecord: Equatable {
-    var syncID: String
-    var artworkId: String
-    var trackSyncID: String? = nil
+public struct CustomArtworkRecord: Equatable {
+    public var syncID: String
+    public var artworkId: String
+    public var trackSyncID: String? = nil
 }
 
 /// The synced slice of app settings/EQ state (CloudKit-backed, not KVS — B2/C3).
-struct SyncedSettings: Equatable {
-    var eqEnabled: Bool
-    var eqGains: [Double]
-    var userPresets: [EQPreset]
-    var preferFLAC: Bool
-    var prefetchDepth: Int
-    var streamOnCellular: Bool
-    var artworkLookup: Bool
+public struct SyncedSettings: Equatable {
+    public var eqEnabled: Bool
+    public var eqGains: [Double]
+    public var userPresets: [EQPreset]
+    public var preferFLAC: Bool
+    public var prefetchDepth: Int
+    public var streamOnCellular: Bool
+    public var artworkLookup: Bool
 }

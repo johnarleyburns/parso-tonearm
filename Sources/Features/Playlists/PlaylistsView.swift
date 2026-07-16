@@ -1,4 +1,5 @@
 import SwiftUI
+import TonearmCore
 
 struct PlaylistsView: View {
     @EnvironmentObject var appState: AppState
