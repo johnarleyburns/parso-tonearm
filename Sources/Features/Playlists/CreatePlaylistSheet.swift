@@ -1,4 +1,5 @@
 import SwiftUI
+import TonearmCore
 
 /// TF6: minimal create sheet — a name field plus an optional multi-select from a
 /// single long list of every track in the library.

@@ -20,6 +20,10 @@ public struct SourcePreview {
 public struct SourceService {
     public var preferFLAC: Bool = true
 
+    public init(preferFLAC: Bool = true) {
+        self.preferFLAC = preferFLAC
+    }
+
     public func preview(from raw: String) async throws -> SourcePreview {
         try await IARemoteLibraryProvider(preferFLAC: preferFLAC).preview(from: raw)
     }

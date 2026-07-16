@@ -37,6 +37,11 @@ public struct WebDAVServerPolicy {
 public struct WebDAVCredential: Codable, Equatable {
     public var username: String
     public var password: String
+
+    public init(username: String, password: String) {
+        self.username = username
+        self.password = password
+    }
 }
 
 public struct WebDAVProvider: RemoteLibraryProvider {
@@ -46,6 +51,16 @@ public struct WebDAVProvider: RemoteLibraryProvider {
     public var session: URLSession = .shared
 
     public var sourceKind: SourceKind { .webDAV }
+
+    public init(baseURL: URL,
+                username: String,
+                password: String,
+                session: URLSession = .shared) {
+        self.baseURL = baseURL
+        self.username = username
+        self.password = password
+        self.session = session
+    }
 
     public func browse(path rawPath: String) async throws -> [RemoteNode] {
         _ = try RemotePathPolicy.normalize(rawPath)

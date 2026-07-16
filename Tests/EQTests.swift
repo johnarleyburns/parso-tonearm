@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// T4.1 — EQ DSP: bit-transparent bypass (offline render null test), flat is a
 /// no-op, and non-flat curves actually change the signal.

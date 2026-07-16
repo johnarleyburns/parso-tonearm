@@ -1,4 +1,5 @@
 import SwiftUI
+import TonearmCore
 
 struct OnboardingSourceOption: Identifiable {
     let id = UUID()

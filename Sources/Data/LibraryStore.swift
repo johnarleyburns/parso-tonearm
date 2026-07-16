@@ -8,12 +8,29 @@ public struct TrackRow: Identifiable, Equatable {
     public var asset: Asset?
     public var artist: Artist? = nil
     public var id: Int64 { track.id ?? -1 }
+
+    public init(track: Track,
+                album: Album?,
+                source: Source?,
+                asset: Asset?,
+                artist: Artist? = nil) {
+        self.track = track
+        self.album = album
+        self.source = source
+        self.asset = asset
+        self.artist = artist
+    }
 }
 
 public struct PlaylistTrackRow: Identifiable, Equatable {
     public var item: PlaylistItem
     public var row: TrackRow
     public var id: Int64 { item.id ?? -1 }
+
+    public init(item: PlaylistItem, row: TrackRow) {
+        self.item = item
+        self.row = row
+    }
 }
 
 public actor LibraryStore {

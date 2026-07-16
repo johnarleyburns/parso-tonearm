@@ -1,4 +1,5 @@
 import SwiftUI
+import TonearmCore
 
 struct AmbientPlaylistView: View {
     @EnvironmentObject var player: AudioPlayer

@@ -27,6 +27,10 @@ public struct EQSettingsStore {
 
     public var presets: [EQPreset] = EQPreset.builtIns
 
+    public init(presets: [EQPreset] = EQPreset.builtIns) {
+        self.presets = presets
+    }
+
     public func normalized(_ settings: EQSettings) -> EQSettings {
         var bands = Array(settings.bands.prefix(EQEngine.bandCount))
         if bands.count < EQEngine.bandCount {

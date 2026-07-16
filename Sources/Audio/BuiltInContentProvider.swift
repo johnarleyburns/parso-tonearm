@@ -56,7 +56,7 @@ public enum BuiltInContentProvider {
     public static func bundledAudioName(for channelId: String) -> String? {
         for ext in ["wav", "caf", "aiff", "m4a", "aac", "mp3"] {
             let name = "\(channelId).\(ext)"
-            if Bundle.main.url(forResource: channelId, withExtension: ext) != nil {
+            if resourceURL(for: channelId, withExtension: ext) != nil {
                 return name
             }
         }
@@ -65,7 +65,7 @@ public enum BuiltInContentProvider {
 
     public static func bundledAudioURL(forChannelId id: String) -> URL? {
         for ext in ["wav", "caf", "aiff", "m4a", "aac", "mp3"] {
-            if let url = Bundle.main.url(forResource: id, withExtension: ext) {
+            if let url = resourceURL(for: id, withExtension: ext) {
                 return url
             }
         }
@@ -74,10 +74,32 @@ public enum BuiltInContentProvider {
 
     public static func bundledVideoURL(forChannelId id: String) -> URL? {
         for ext in ["mp4", "mov", "m4v"] {
-            if let url = Bundle.main.url(forResource: id, withExtension: ext) {
+            if let url = resourceURL(for: id, withExtension: ext) {
                 return url
             }
         }
         return nil
+    }
+
+    private static func resourceURL(for name: String, withExtension ext: String) -> URL? {
+        for bundle in resourceBundles {
+            if let url = bundle.url(forResource: name, withExtension: ext) {
+                return url
+            }
+            for subdirectory in ["Audio", "Video"] {
+                if let url = bundle.url(forResource: name, withExtension: ext, subdirectory: subdirectory) {
+                    return url
+                }
+            }
+        }
+        return nil
+    }
+
+    private static var resourceBundles: [Bundle] {
+        #if SWIFT_PACKAGE
+        return [Bundle.module, .main]
+        #else
+        return [.main]
+        #endif
     }
 }

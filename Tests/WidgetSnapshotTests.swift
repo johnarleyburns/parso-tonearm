@@ -1,6 +1,6 @@
 import UIKit
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 final class WidgetSnapshotTests: XCTestCase {
     func testNothingPlayingBuildsEmptySnapshot() {

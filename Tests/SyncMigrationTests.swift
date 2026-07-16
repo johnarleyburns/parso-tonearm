@@ -1,6 +1,6 @@
 import XCTest
 import GRDB
-@testable import Tonearm
+@testable import TonearmCore
 
 /// C7 — schema `v7` adds a UUID `syncID` to every synced table and backfills
 /// existing rows so cross-device identity is stable. Also adds `needsReimport`

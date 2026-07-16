@@ -95,19 +95,43 @@ public enum WidgetSnapshotBuilder {
     public static let maxDisplayCharacters = 96
 
     public struct TrackInput: Equatable {
-        var id: Int64?
-        var title: String
-        var artist: String?
-        var albumTitle: String?
-        var duration: Double?
-        var artworkID: String?
+        public var id: Int64?
+        public var title: String
+        public var artist: String?
+        public var albumTitle: String?
+        public var duration: Double?
+        public var artworkID: String?
+
+        public init(id: Int64?,
+                    title: String,
+                    artist: String?,
+                    albumTitle: String?,
+                    duration: Double?,
+                    artworkID: String?) {
+            self.id = id
+            self.title = title
+            self.artist = artist
+            self.albumTitle = albumTitle
+            self.duration = duration
+            self.artworkID = artworkID
+        }
     }
 
     public struct PlaybackInput: Equatable {
-        var track: TrackInput?
-        var isPlaying: Bool
-        var elapsed: Double
-        var duration: Double
+        public var track: TrackInput?
+        public var isPlaying: Bool
+        public var elapsed: Double
+        public var duration: Double
+
+        public init(track: TrackInput?,
+                    isPlaying: Bool,
+                    elapsed: Double,
+                    duration: Double) {
+            self.track = track
+            self.isPlaying = isPlaying
+            self.elapsed = elapsed
+            self.duration = duration
+        }
     }
 
     public static func build(

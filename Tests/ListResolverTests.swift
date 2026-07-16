@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// TF2: list & collection resolution must work; these lock down the member
 /// parsing that previously errored.

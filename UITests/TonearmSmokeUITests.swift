@@ -1,8 +1,5 @@
 import XCTest
 
-/// Launch-crash smoke regression: proves the app opens without trapping during
-/// `LibraryStore.shared` init (see the v7 syncID backfill fix). Deeper
-/// navigation stays covered by `TonearmUITests`.
 final class TonearmSmokeUITests: XCTestCase {
     var app: XCUIApplication!
 
@@ -17,12 +14,27 @@ final class TonearmSmokeUITests: XCTestCase {
         app = nil
     }
 
-    func testAppLaunchesWithoutCrashing() throws {
+    func testAppBootsAndVisitsAllTabs() throws {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10),
                       "App should reach the foreground without crashing")
 
-        let listenButton = app.buttons["Listen"]
-        XCTAssertTrue(listenButton.waitForExistence(timeout: 10),
-                      "Listen tab button should be visible after a clean launch")
+        let tabs: [(button: String, anchor: String)] = [
+            ("Listen", "Listen"),
+            ("Playlists", "Playlists"),
+            ("Library", "Library"),
+            ("Sources", "Sources"),
+            ("Settings", "Settings"),
+        ]
+
+        for tab in tabs {
+            let button = app.buttons[tab.button]
+            XCTAssertTrue(button.waitForExistence(timeout: 15),
+                          "\(tab.button) tab button should be visible")
+            button.tap()
+
+            let anchor = app.staticTexts[tab.anchor]
+            XCTAssertTrue(anchor.waitForExistence(timeout: 10),
+                          "\(tab.anchor) tab should render a stable title")
+        }
     }
 }

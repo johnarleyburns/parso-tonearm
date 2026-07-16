@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// C7 — conflict-resolution rules: last-writer-wins for scalar records, additive
 /// merge for play history, and deletion tombstones. All pure (no CloudKit).

@@ -29,6 +29,18 @@ public struct SubsonicProvider: RemoteLibraryProvider {
 
     public var sourceKind: SourceKind { .subsonic }
 
+    public init(baseURL: URL,
+                username: String,
+                password: String,
+                session: URLSession = .shared,
+                format: SubsonicAPI.Format = .json) {
+        self.baseURL = baseURL
+        self.username = username
+        self.password = password
+        self.session = session
+        self.format = format
+    }
+
     public func browse(path rawPath: String) async throws -> [RemoteNode] {
         let path = try RemotePathPolicy.normalize(rawPath)
         let segments = path.segments

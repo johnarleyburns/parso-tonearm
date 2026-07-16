@@ -4,9 +4,9 @@ public struct CacheLimitPolicy {
     public static let minimumBytes: Int64 = 100 * 1024 * 1024
 
     public struct Result: Equatable {
-        var requestedBytes: Int64
-        var allowedBytes: Int64
-        var reason: String?
+        public var requestedBytes: Int64
+        public var allowedBytes: Int64
+        public var reason: String?
     }
 
     public static func validate(requestedBytes: Int64, freeDiskBytes: Int64) -> Result {

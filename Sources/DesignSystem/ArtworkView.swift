@@ -1,4 +1,5 @@
 import SwiftUI
+import TonearmCore
 
 /// Global signal that lets any `ArtworkView` re-resolve its artwork after a
 /// track's art changes (e.g. the user attaches custom artwork), without each

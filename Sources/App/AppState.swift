@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import TonearmCore
 
 enum AppTab: Int, CaseIterable {
     case listen, playlists, library, sources, settings
@@ -228,13 +229,10 @@ final class AppState: ObservableObject {
     }
 
     func requestAddRemoteLibrary() {
-        switch RemoteLibraryAccessPolicy.decision(
-            for: .openAddFlow,
-            isPro: ProGating.isEnabled(.remoteLibraries)
-        ) {
-        case .allow:
+        switch RemoteLibraryGate.entryPointDecision(isPro: ProGating.isEnabled(.remoteLibraries)) {
+        case .openSheet:
             showAddRemoteLibrary = true
-        case .requiresPro:
+        case .showPaywall:
             showProPaywall = true
         }
     }
@@ -442,15 +440,7 @@ final class AppState: ObservableObject {
     }
 
     private func requireRemoteLibrary(_ action: RemoteLibraryAction) throws {
-        switch RemoteLibraryAccessPolicy.decision(
-            for: action,
-            isPro: ProGating.isEnabled(.remoteLibraries)
-        ) {
-        case .allow:
-            return
-        case .requiresPro(let feature):
-            throw ProFeatureAccessError.requiresPro(feature)
-        }
+        try RemoteLibraryGate.require(action, isPro: ProGating.isEnabled(.remoteLibraries))
     }
 
     @discardableResult

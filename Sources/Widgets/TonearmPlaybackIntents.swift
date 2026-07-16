@@ -1,5 +1,6 @@
 import AppIntents
 import Foundation
+import TonearmCore
 
 @available(iOS 17.0, *)
 struct TonearmTogglePlaybackIntent: AudioPlaybackIntent, LiveActivityIntent {

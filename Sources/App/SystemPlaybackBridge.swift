@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import MediaPlayer
 import UIKit
+import TonearmCore
 
 /// The app-side implementation of `PlaybackPlatformBridge`: owns every iOS-only
 /// integration `AudioPlayer` used to hold inline — the audio session,

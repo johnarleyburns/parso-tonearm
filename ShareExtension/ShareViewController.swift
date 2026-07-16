@@ -1,5 +1,6 @@
 import UIKit
 import UniformTypeIdentifiers
+import TonearmCore
 
 final class ShareViewController: UIViewController {
     private let messageLabel = UILabel()

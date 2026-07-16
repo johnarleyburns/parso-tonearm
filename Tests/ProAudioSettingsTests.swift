@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// W1 — Pro Audio: the settings value drives the DSP, the DSP nulls when
 /// transparent and audibly changes the signal when a stage is active, and the

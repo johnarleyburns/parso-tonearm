@@ -7,7 +7,7 @@ public enum CloudDriveAPI {
         case oneDrive
         case pCloud
 
-        init?(sourceKind: SourceKind) {
+        public init?(sourceKind: SourceKind) {
             switch sourceKind {
             case .dropbox: self = .dropbox
             case .googleDrive: self = .googleDrive
@@ -17,7 +17,7 @@ public enum CloudDriveAPI {
             }
         }
 
-        var sourceKind: SourceKind {
+        public var sourceKind: SourceKind {
             switch self {
             case .dropbox: return .dropbox
             case .googleDrive: return .googleDrive

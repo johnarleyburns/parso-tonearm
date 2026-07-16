@@ -29,6 +29,18 @@ public struct JellyfinProvider: RemoteLibraryProvider {
 
     public var sourceKind: SourceKind { .jellyfin }
 
+    public init(baseURL: URL,
+                userID: String,
+                accessToken: String,
+                session: URLSession = .shared,
+                client: JellyfinAPI.Client = JellyfinAPI.defaultClient) {
+        self.baseURL = baseURL
+        self.userID = userID
+        self.accessToken = accessToken
+        self.session = session
+        self.client = client
+    }
+
     public func browse(path rawPath: String) async throws -> [RemoteNode] {
         let path = try RemotePathPolicy.normalize(rawPath)
         switch path.segments.count {

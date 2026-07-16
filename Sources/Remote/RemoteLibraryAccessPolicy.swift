@@ -33,3 +33,28 @@ public enum RemoteLibraryAccessPolicy {
         }
     }
 }
+
+public enum RemoteLibraryEntryPointDecision: Equatable {
+    case openSheet
+    case showPaywall
+}
+
+public enum RemoteLibraryGate {
+    public static func entryPointDecision(isPro: Bool) -> RemoteLibraryEntryPointDecision {
+        switch RemoteLibraryAccessPolicy.decision(for: .openAddFlow, isPro: isPro) {
+        case .allow:
+            return .openSheet
+        case .requiresPro:
+            return .showPaywall
+        }
+    }
+
+    public static func require(_ action: RemoteLibraryAction, isPro: Bool) throws {
+        switch RemoteLibraryAccessPolicy.decision(for: action, isPro: isPro) {
+        case .allow:
+            return
+        case .requiresPro(let feature):
+            throw ProFeatureAccessError.requiresPro(feature)
+        }
+    }
+}

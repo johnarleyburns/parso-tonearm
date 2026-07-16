@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 /// T3.6 — folder watch: a new file appears without relaunch (simulated rescan),
 /// and the watched-folder diff excludes already-tracked files.

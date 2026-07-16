@@ -16,13 +16,45 @@ let package = Package(
             dependencies: [
                 .product(name: "GRDB", package: "GRDB.swift")
             ],
-            path: "Sources",
+            path: ".",
             exclude: [
-                "App",
-                "DesignSystem",
-                "Features",
-                "Widgets",
-                "Media"
+                ".github",
+                "ExportOptions.plist",
+                "LICENSE",
+                "Package.resolved",
+                "README.md",
+                "ShareExtension",
+                "Sources/App",
+                "Sources/DesignSystem",
+                "Sources/Features",
+                "Sources/Media",
+                "Sources/Widgets",
+                "TONEARM-TEST-ARCHITECTURE.md",
+                "Tests",
+                "Tonearm.xcodeproj",
+                "UITests",
+                "WidgetsExtension",
+                "project.yml",
+                "scripts",
+                "Resources/Assets.xcassets",
+                "Resources/Tonearm.storekit"
+            ],
+            sources: [
+                "Sources/Art",
+                "Sources/Audio",
+                "Sources/Data",
+                "Sources/Domain",
+                "Sources/IA",
+                "Sources/Intents",
+                "Sources/Pro",
+                "Sources/Remote",
+                "Sources/Share",
+                "Sources/Snapshot",
+                "Sources/Sync"
+            ],
+            resources: [
+                .copy("Resources/Audio"),
+                .copy("Resources/Video")
             ],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
@@ -33,6 +65,7 @@ let package = Package(
             exclude: [
                 // Not host-runnable: these touch UIImage / WidgetKit / the app's
                 // Bundle.main Info.plist, which don't exist under `swift test`.
+                "BackgroundAddTests.swift",
                 "SpectrogramDetectorTests.swift",
                 "WidgetSnapshotTests.swift",
                 "PlatformSupportTests.swift"

@@ -11,13 +11,13 @@ public enum LibraryBrowseMode: String, CaseIterable, Identifiable {
 
 public enum LibraryBrowse {
     public struct Section: Identifiable, Equatable {
-        var indexTitle: String
-        var entries: [Entry]
+        public var indexTitle: String
+        public var entries: [Entry]
         public var id: String { indexTitle }
     }
 
     public struct Entry: Identifiable, Equatable, Hashable {
-        enum Kind: String {
+        public enum Kind: String {
             case artist
             case album
             case song
@@ -25,11 +25,11 @@ public enum LibraryBrowse {
         }
 
         public var id: String
-        var kind: Kind
-        var title: String
-        var subtitle: String?
-        var rows: [TrackRow]
-        var indexTitle: String
+        public var kind: Kind
+        public var title: String
+        public var subtitle: String?
+        public var rows: [TrackRow]
+        public var indexTitle: String
 
         public static func == (lhs: Entry, rhs: Entry) -> Bool {
             lhs.id == rhs.id

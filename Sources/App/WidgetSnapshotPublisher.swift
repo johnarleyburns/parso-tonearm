@@ -1,6 +1,7 @@
 import ActivityKit
 import Foundation
 import WidgetKit
+import TonearmCore
 
 @MainActor
 enum WidgetSnapshotPublisher {

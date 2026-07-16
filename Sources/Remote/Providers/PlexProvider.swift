@@ -27,6 +27,16 @@ public struct PlexProvider: RemoteLibraryProvider {
 
     public var sourceKind: SourceKind { .plex }
 
+    public init(baseURL: URL,
+                token: String,
+                session: URLSession = .shared,
+                client: PlexAPI.Client = PlexAPI.defaultClient) {
+        self.baseURL = baseURL
+        self.token = token
+        self.session = session
+        self.client = client
+    }
+
     public func browse(path rawPath: String) async throws -> [RemoteNode] {
         let path = try RemotePathPolicy.normalize(rawPath)
         switch path.segments.count {

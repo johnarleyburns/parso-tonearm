@@ -1,4 +1,5 @@
 import SwiftUI
+import TonearmCore
 
 struct EQView: View {
     @EnvironmentObject private var player: AudioPlayer

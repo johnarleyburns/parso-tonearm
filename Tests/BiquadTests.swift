@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Tonearm
+@testable import TonearmCore
 
 final class BiquadTests: XCTestCase {
     func testCoefficientVectorsAgainstKnownCookbookReferences() {

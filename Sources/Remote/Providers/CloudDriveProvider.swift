@@ -22,6 +22,14 @@ public struct CloudDriveProvider: RemoteLibraryProvider {
 
     public var sourceKind: SourceKind { provider.sourceKind }
 
+    public init(provider: CloudDriveAPI.Provider,
+                accessToken: String,
+                session: URLSession = .shared) {
+        self.provider = provider
+        self.accessToken = accessToken
+        self.session = session
+    }
+
     public func browse(path rawPath: String) async throws -> [RemoteNode] {
         let path = try RemotePathPolicy.normalize(rawPath)
         let containerID: String?

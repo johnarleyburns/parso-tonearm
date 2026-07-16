@@ -7,9 +7,8 @@ options:
   groupSortPosition: top
 
 packages:
-  GRDB:
-    url: https://github.com/groue/GRDB.swift
-    from: "7.0.0"
+  TonearmCore:
+    path: .
 
 settings:
   base:
@@ -27,9 +26,22 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+        excludes:
+          - "Art/**"
+          - "Audio/**"
+          - "Data/**"
+          - "Domain/**"
+          - "IA/**"
+          - "Intents/**"
+          - "Pro/**"
+          - "Remote/**"
+          - "Share/**"
+          - "Snapshot/**"
+          - "Sync/**"
+          - "Widgets/**"
       - path: Resources
     dependencies:
-      - package: GRDB
+      - package: TonearmCore
       - target: TonearmShareExtension
         embed: true
       - target: TonearmWidgetsExtension
@@ -92,8 +104,8 @@ targets:
     platform: iOS
     sources:
       - path: ShareExtension
-      - path: Sources/Share
-      - path: Sources/IA/URLGrammar.swift
+    dependencies:
+      - package: TonearmCore
     info:
       path: ShareExtension/Info.plist
       properties:
@@ -129,6 +141,8 @@ targets:
     sources:
       - path: WidgetsExtension
       - path: Sources/Widgets
+    dependencies:
+      - package: TonearmCore
     info:
       path: WidgetsExtension/Info.plist
       properties:
@@ -154,24 +168,6 @@ targets:
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "Platterhead Widgets Profile"
 
-  TonearmTests:
-    type: bundle.unit-test
-    platform: iOS
-    sources:
-      - path: Tests
-        excludes:
-          - "Fixtures/**"
-      - path: Tests/Fixtures
-        type: folder
-        buildPhase: resources
-    dependencies:
-      - target: Tonearm
-      - package: GRDB
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: guru.parso.tonearm.tests
-        GENERATE_INFOPLIST_FILE: "YES"
-
   TonearmUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -192,7 +188,6 @@ schemes:
         Tonearm: all
         TonearmShareExtension: all
         TonearmWidgetsExtension: all
-        TonearmTests: [test]
         TonearmUITests: [test]
     run:
       config: Debug
@@ -201,6 +196,5 @@ schemes:
       config: Debug
       storeKitConfiguration: Resources/Tonearm.storekit
       targets:
-        - TonearmTests
         - TonearmUITests
       gatherCoverageData: false

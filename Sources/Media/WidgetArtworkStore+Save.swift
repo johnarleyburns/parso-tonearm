@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import TonearmCore
 
 /// The UIKit half of `WidgetArtworkStore`: downscales and JPEG-encodes the now-
 /// playing artwork into the shared App Group directory. Kept app-side so Core

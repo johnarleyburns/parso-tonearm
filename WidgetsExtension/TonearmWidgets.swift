@@ -2,6 +2,7 @@ import ActivityKit
 import AppIntents
 import SwiftUI
 import WidgetKit
+import TonearmCore
 
 private enum TonearmWidgetURL {
     static let nowPlaying = URL(string: "tonearm://now-playing")!

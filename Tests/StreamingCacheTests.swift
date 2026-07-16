@@ -1,6 +1,6 @@
 import XCTest
 import UniformTypeIdentifiers
-@testable import Tonearm
+@testable import TonearmCore
 
 final class StreamingCacheTests: XCTestCase {
 

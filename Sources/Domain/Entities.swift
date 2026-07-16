@@ -50,6 +50,34 @@ public struct Source: Identifiable, Equatable, Codable, Hashable {
     /// PKs remain the internal FK join key; `syncID` names the CloudKit record.
     public var syncID: String? = nil
 
+    public init(id: Int64?,
+                kind: SourceKind,
+                iaIdentifier: String?,
+                originalURL: String?,
+                title: String,
+                addedAt: Date,
+                lastResolvedAt: Date?,
+                followUpdates: Bool,
+                licenseText: String?,
+                memberCapHit: Bool,
+                localIsFolder: Bool = false,
+                artworkTrackId: Int64? = nil,
+                syncID: String? = nil) {
+        self.id = id
+        self.kind = kind
+        self.iaIdentifier = iaIdentifier
+        self.originalURL = originalURL
+        self.title = title
+        self.addedAt = addedAt
+        self.lastResolvedAt = lastResolvedAt
+        self.followUpdates = followUpdates
+        self.licenseText = licenseText
+        self.memberCapHit = memberCapHit
+        self.localIsFolder = localIsFolder
+        self.artworkTrackId = artworkTrackId
+        self.syncID = syncID
+    }
+
     /// SF Symbol shown over the gradient when no real artwork resolves.
     public var fallbackIcon: String {
         switch kind {
@@ -78,6 +106,28 @@ public struct Album: Identifiable, Equatable, Codable {
     public var year: Int?
     public var artworkId: String?
     public var syncID: String? = nil
+
+    public init(id: Int64?,
+                sourceId: Int64,
+                title: String,
+                artist: String?,
+                artistId: Int64? = nil,
+                albumArtist: String? = nil,
+                genre: String? = nil,
+                year: Int? = nil,
+                artworkId: String? = nil,
+                syncID: String? = nil) {
+        self.id = id
+        self.sourceId = sourceId
+        self.title = title
+        self.artist = artist
+        self.artistId = artistId
+        self.albumArtist = albumArtist
+        self.genre = genre
+        self.year = year
+        self.artworkId = artworkId
+        self.syncID = syncID
+    }
 }
 
 public struct Artist: Identifiable, Equatable, Codable, Hashable {
@@ -107,6 +157,46 @@ public struct Track: Identifiable, Equatable, Codable {
     public var rgTrackPeak: Double? = nil
     public var rgAlbumPeak: Double? = nil
     public var syncID: String? = nil
+
+    public init(id: Int64?,
+                albumId: Int64?,
+                sourceId: Int64,
+                title: String,
+                trackNo: Int?,
+                discNo: Int?,
+                durationSec: Double?,
+                codec: String?,
+                sampleRate: Int?,
+                bitDepthOrBitrate: String?,
+                sortKey: String,
+                genre: String? = nil,
+                composer: String? = nil,
+                artistId: Int64? = nil,
+                rgTrackGain: Double? = nil,
+                rgAlbumGain: Double? = nil,
+                rgTrackPeak: Double? = nil,
+                rgAlbumPeak: Double? = nil,
+                syncID: String? = nil) {
+        self.id = id
+        self.albumId = albumId
+        self.sourceId = sourceId
+        self.title = title
+        self.trackNo = trackNo
+        self.discNo = discNo
+        self.durationSec = durationSec
+        self.codec = codec
+        self.sampleRate = sampleRate
+        self.bitDepthOrBitrate = bitDepthOrBitrate
+        self.sortKey = sortKey
+        self.genre = genre
+        self.composer = composer
+        self.artistId = artistId
+        self.rgTrackGain = rgTrackGain
+        self.rgAlbumGain = rgAlbumGain
+        self.rgTrackPeak = rgTrackPeak
+        self.rgAlbumPeak = rgAlbumPeak
+        self.syncID = syncID
+    }
 }
 
 public struct Asset: Identifiable, Equatable, Codable {
@@ -130,6 +220,34 @@ public struct Asset: Identifiable, Equatable, Codable {
     /// Runtime-only headers for browsed remote-library queue rows. Not persisted:
     /// credentials remain in the Keychain/provider layer.
     public var transientRemoteHeaders: [String: String] = [:]
+
+    public init(id: Int64?,
+                trackId: Int64,
+                kind: AssetKind,
+                bookmark: Data?,
+                relPath: String?,
+                remoteURL: String?,
+                altRemoteURL: String?,
+                opusRemoteURL: String? = nil,
+                sizeBytes: Int64?,
+                unsupportedReason: String?,
+                needsReimport: Bool = false,
+                syncID: String? = nil,
+                transientRemoteHeaders: [String: String] = [:]) {
+        self.id = id
+        self.trackId = trackId
+        self.kind = kind
+        self.bookmark = bookmark
+        self.relPath = relPath
+        self.remoteURL = remoteURL
+        self.altRemoteURL = altRemoteURL
+        self.opusRemoteURL = opusRemoteURL
+        self.sizeBytes = sizeBytes
+        self.unsupportedReason = unsupportedReason
+        self.needsReimport = needsReimport
+        self.syncID = syncID
+        self.transientRemoteHeaders = transientRemoteHeaders
+    }
 
     public enum CodingKeys: String, CodingKey {
         case id
@@ -165,6 +283,20 @@ public struct Playlist: Identifiable, Equatable, Codable, Hashable {
     public var folderBookmark: Data?
     public var watch: Bool
     public var syncID: String? = nil
+
+    public init(id: Int64?,
+                title: String,
+                kind: PlaylistKind,
+                folderBookmark: Data?,
+                watch: Bool,
+                syncID: String? = nil) {
+        self.id = id
+        self.title = title
+        self.kind = kind
+        self.folderBookmark = folderBookmark
+        self.watch = watch
+        self.syncID = syncID
+    }
 }
 
 public struct PlaylistItem: Identifiable, Equatable, Codable {

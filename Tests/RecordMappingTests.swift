@@ -1,6 +1,6 @@
 import XCTest
 import CloudKit
-@testable import Tonearm
+@testable import TonearmCore
 
 /// C7 — pure round-trips between GRDB domain rows and `CKRecord`s. No networked
 /// CloudKit; asserts parent-ref integrity via `syncID` and local-bookmark omission.

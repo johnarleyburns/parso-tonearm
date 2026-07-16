@@ -1,5 +1,5 @@
 import XCTest
-@testable import Tonearm
+@testable import TonearmCore
 
 @MainActor
 final class ShuffleRepeatTests: XCTestCase {

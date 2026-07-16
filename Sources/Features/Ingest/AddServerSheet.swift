@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import TonearmCore
 
 private enum RemoteConnectKind: String, CaseIterable, Identifiable {
     case subsonic

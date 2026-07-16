@@ -3,21 +3,21 @@ import Foundation
 public enum TagEdit {
     public struct EditableTrack: Equatable, Identifiable {
         public var id: Int64
-        var tags: Tags
-        var filename: String?
-        var writeAccess: WriteAccess
+        public var tags: Tags
+        public var filename: String?
+        public var writeAccess: WriteAccess
     }
 
     public struct Tags: Equatable {
-        var title: String?
-        var artist: String?
-        var albumTitle: String?
-        var albumArtist: String?
-        var genre: String?
-        var composer: String?
-        var trackNumber: Int?
-        var discNumber: Int?
-        var year: Int?
+        public var title: String?
+        public var artist: String?
+        public var albumTitle: String?
+        public var albumArtist: String?
+        public var genre: String?
+        public var composer: String?
+        public var trackNumber: Int?
+        public var discNumber: Int?
+        public var year: Int?
 
         func value(for field: Field) -> Value? {
             switch field {
@@ -59,7 +59,7 @@ public enum TagEdit {
         case discNumber
         case year
 
-        var kind: FieldKind {
+        public var kind: FieldKind {
             switch self {
             case .title, .artist, .albumTitle, .albumArtist, .genre, .composer:
                 return .text
@@ -78,14 +78,14 @@ public enum TagEdit {
         case text(String)
         case integer(Int)
 
-        var textValue: String? {
+        public var textValue: String? {
             switch self {
             case .text(let value): return value
             case .integer: return nil
             }
         }
 
-        var integerValue: Int? {
+        public var integerValue: Int? {
             switch self {
             case .text(let value): return Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
             case .integer(let value): return value
@@ -97,14 +97,14 @@ public enum TagEdit {
         case localFile(path: String)
         case readOnly(reason: String)
 
-        var localPath: String? {
+        public var localPath: String? {
             switch self {
             case .localFile(let path): return path
             case .readOnly: return nil
             }
         }
 
-        var readOnlyReason: String? {
+        public var readOnlyReason: String? {
             switch self {
             case .localFile: return nil
             case .readOnly(let reason): return reason
@@ -113,7 +113,7 @@ public enum TagEdit {
     }
 
     public struct SelectionSummary: Equatable {
-        var states: [Field: FieldState]
+        public var states: [Field: FieldState]
     }
 
     public enum FieldState: Equatable {
@@ -123,42 +123,50 @@ public enum TagEdit {
     }
 
     public struct Proposal: Equatable {
-        var assignments: [Field: Value?] = [:]
-        var replacements: [FindReplace] = []
-        var numberFromFilename = false
+        public var assignments: [Field: Value?] = [:]
+        public var replacements: [FindReplace] = []
+        public var numberFromFilename = false
 
-        static let empty = Proposal()
+        public static let empty = Proposal()
+
+        public init(assignments: [Field: Value?] = [:],
+                    replacements: [FindReplace] = [],
+                    numberFromFilename: Bool = false) {
+            self.assignments = assignments
+            self.replacements = replacements
+            self.numberFromFilename = numberFromFilename
+        }
     }
 
     public struct FindReplace: Equatable {
-        var field: Field
-        var find: String
-        var replacement: String
-        var caseSensitive: Bool = false
+        public var field: Field
+        public var find: String
+        public var replacement: String
+        public var caseSensitive: Bool = false
     }
 
     public struct Change: Equatable {
-        var field: Field
-        var before: Value?
-        var after: Value?
+        public var field: Field
+        public var before: Value?
+        public var after: Value?
     }
 
     public struct Operation: Equatable {
-        var trackID: Int64
-        var localPath: String
-        var changes: [Change]
+        public var trackID: Int64
+        public var localPath: String
+        public var changes: [Change]
     }
 
     public struct Plan: Equatable {
-        var operations: [Operation]
-        var undoOperations: [Operation]
-        var issues: [Issue]
+        public var operations: [Operation]
+        public var undoOperations: [Operation]
+        public var issues: [Issue]
 
-        var canApply: Bool {
+        public var canApply: Bool {
             !operations.isEmpty && !issues.contains(where: \.isError)
         }
 
-        var isNoOp: Bool {
+        public var isNoOp: Bool {
             operations.isEmpty && issues.isEmpty
         }
     }
@@ -172,7 +180,7 @@ public enum TagEdit {
         case nonTextFindReplace(field: Field)
         case missingFilenameNumber(trackID: Int64)
 
-        var isError: Bool {
+        public var isError: Bool {
             switch self {
             case .missingFilenameNumber:
                 return false
@@ -182,7 +190,7 @@ public enum TagEdit {
             }
         }
 
-        var message: String {
+        public var message: String {
             switch self {
             case .readOnly(_, let reason):
                 return reason

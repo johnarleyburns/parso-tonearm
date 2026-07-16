@@ -16,26 +16,26 @@ public enum DuplicateDetection {
         var sizeBytes: Int64 { fingerprint.sizeBytes }
         var sampleHash: String { fingerprint.sampleHash }
 
-        init(id: String, sizeBytes: Int64, sampleHash: String) {
+        public init(id: String, sizeBytes: Int64, sampleHash: String) {
             self.id = id
             self.fingerprint = Fingerprint(sizeBytes: sizeBytes, sampleHash: sampleHash)
         }
 
-        init(id: String, bytes: Data) {
+        public init(id: String, bytes: Data) {
             self.id = id
             self.fingerprint = DuplicateDetection.fingerprint(bytes: bytes)
         }
 
-        init(id: String, bytes: [UInt8]) {
+        public init(id: String, bytes: [UInt8]) {
             self.init(id: id, bytes: Data(bytes))
         }
     }
 
     public struct Group: Equatable {
-        var fingerprint: Fingerprint
-        var candidates: [Candidate]
+        public var fingerprint: Fingerprint
+        public var candidates: [Candidate]
 
-        var ids: [String] {
+        public var ids: [String] {
             candidates.map(\.id)
         }
     }

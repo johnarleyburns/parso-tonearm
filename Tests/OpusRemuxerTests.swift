@@ -1,6 +1,6 @@
 import XCTest
 import AVFoundation
-@testable import Tonearm
+@testable import TonearmCore
 
 /// T2.3 — corrupted-fixture fallback; cancellation leaves no partial CAF;
 /// CAF byte count reflected in cache accounting.

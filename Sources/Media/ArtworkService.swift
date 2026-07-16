@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import AVFoundation
+import TonearmCore
 
 actor ArtworkService {
     static let shared = ArtworkService()
