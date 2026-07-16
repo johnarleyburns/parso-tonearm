@@ -19,6 +19,11 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "18.0"
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
     GENERATE_INFOPLIST_FILE: "NO"
+    TONEARM_DROPBOX_CLIENT_ID: ""
+    TONEARM_GOOGLE_DRIVE_CLIENT_ID: ""
+    TONEARM_ONEDRIVE_CLIENT_ID: ""
+    TONEARM_PCLOUD_CLIENT_ID: ""
+    TONEARM_PCLOUD_CLIENT_SECRET: ""
 
 targets:
   Tonearm:
@@ -61,7 +66,6 @@ targets:
         UIBackgroundModes:
           - audio
           - remote-notification
-        NSSupportsLiveActivities: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -81,6 +85,13 @@ targets:
               NSIncludesSubdomains: true
               NSExceptionAllowsInsecureHTTPLoads: false
         ITSAppUsesNonExemptEncryption: false
+        TonearmOAuthClientIDs:
+          dropbox: "$(TONEARM_DROPBOX_CLIENT_ID)"
+          googleDrive: "$(TONEARM_GOOGLE_DRIVE_CLIENT_ID)"
+          oneDrive: "$(TONEARM_ONEDRIVE_CLIENT_ID)"
+          pCloud: "$(TONEARM_PCLOUD_CLIENT_ID)"
+        TonearmOAuthClientSecrets:
+          pCloud: "$(TONEARM_PCLOUD_CLIENT_SECRET)"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: guru.parso.tonearm

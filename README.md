@@ -1,5 +1,7 @@
 # Tonearm
 
+[![iOS Build & TestFlight](https://github.com/johnarleyburns/parso-tonearm/actions/workflows/ios.yml/badge.svg)](https://github.com/johnarleyburns/parso-tonearm/actions/workflows/ios.yml)
+
 A privacy-first music player for people who own their music.
 
 Local files, referenced in place — never copied, never uploaded. Plus stream-only playback
@@ -37,9 +39,10 @@ zero telemetry, no account.
 
 ### Tonearm Pro — $9.99, one time
 
-1. **Remote Libraries** — your music wherever it lives: Subsonic/Navidrome, Jellyfin, Plex,
-   WebDAV, SMB, Dropbox, Google Drive, OneDrive, pCloud. Streamed through the same
-   transparent cache as everything else, so it goes offline by itself.
+1. **Remote Libraries** — your music wherever it lives. Guided connectors: Dropbox,
+   Google Drive, OneDrive, pCloud, Subsonic/Navidrome, WebDAV, Jellyfin. Advanced
+   connectors: Plex and SMB. Streamed through the same transparent cache as everything
+   else, so it goes offline by itself.
 2. **iCloud Sync** — library, playlists, favorites, play history, artwork and EQ presets
    across your devices. Your iCloud, your data, off by default.
 3. **iPad + Mac** — same purchase, every device.
@@ -54,12 +57,52 @@ is GPLv3, you can always build Pro from source instead.
 
 - **CarPlay** — *planned, pending Apple's entitlement approval.* It will ship **free** once
   approved. It is deliberately absent from the paid feature list until it is real.
-- **Remote Libraries**, provider by provider — Subsonic/Navidrome first, then WebDAV/SMB,
-  Jellyfin, Plex, and the cloud drives.
+- **Remote Libraries** — OAuth polish, provider-specific troubleshooting, and broader
+  integration coverage.
 - **iPad and Mac** apps.
 
-The full analysis and the phased build plan live in
-[`docs/redesign/01-agentic-build-plan.md`](docs/redesign/01-agentic-build-plan.md).
+The remote connector OAuth handoff plan lives in
+[`docs/plans/remote-oauth-connectors-handoff.md`](docs/plans/remote-oauth-connectors-handoff.md).
+
+## Remote library connectors
+
+Remote libraries are a Pro feature, but they still follow Tonearm's privacy rule: Tonearm
+talks only to services you explicitly connect, stores credentials in Keychain, and never
+routes your music through a Tonearm server.
+
+| Connector | Tier | Sign-in | Setup |
+| --- | --- | --- | --- |
+| Dropbox | Guided | OAuth + PKCE | Sign in, approve read-only file access, browse folders. |
+| Google Drive | Guided | OAuth + PKCE | Sign in with Drive readonly access, browse folders. |
+| OneDrive | Guided | OAuth + PKCE | Sign in with Microsoft `Files.Read`, browse folders. |
+| pCloud | Guided | OAuth | Sign in, then Tonearm uses the correct pCloud API host. |
+| Subsonic/Navidrome | Guided | URL + username/password | Enter your server URL and account credentials. |
+| WebDAV | Guided | URL + username/password | Use a WebDAV endpoint for Nextcloud, ownCloud, rclone, or a NAS. |
+| Jellyfin | Guided | URL + username/password | Enter the Jellyfin URL and an account with music-library access. |
+| Plex | Advanced | URL + Plex token | Enter the direct Plex server URL and account token. |
+| SMB | Advanced | iOS Files folder grant | Connect SMB in Files first, then choose the shared folder in Tonearm. |
+
+Cloud OAuth requires provider client IDs in app builds. Configure these Xcode build settings
+before using the production sign-in buttons:
+
+- `TONEARM_DROPBOX_CLIENT_ID`
+- `TONEARM_GOOGLE_DRIVE_CLIENT_ID`
+- `TONEARM_ONEDRIVE_CLIENT_ID`
+- `TONEARM_PCLOUD_CLIENT_ID`
+- `TONEARM_PCLOUD_CLIENT_SECRET` when your pCloud app requires it
+
+Register the `tonearm://oauth/<provider>` redirect for each OAuth app, where `<provider>` is
+`dropbox`, `googleDrive`, `oneDrive`, or `pCloud`.
+
+Integration tests use a local fake server instead of real provider credentials:
+
+```sh
+make test-integration
+```
+
+That target starts `docker-compose.remote-test.yml`, sets
+`TONEARM_REMOTE_INTEGRATION_BASE_URL`, runs `RemoteIntegrationTests`, and tears the server
+down.
 
 ## Building
 

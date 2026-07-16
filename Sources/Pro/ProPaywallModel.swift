@@ -36,7 +36,7 @@ public final class ProPaywallModel: ObservableObject {
 
     public let features: [Feature] = [
         Feature(title: "Remote Libraries",
-                detail: "Subsonic, WebDAV, Jellyfin, Plex and cloud drives",
+                detail: RemoteConnectorCatalog.proDisplayList,
                 features: [.remoteLibraries],
                 entryPoint: "Settings > Sources"),
         Feature(title: "iCloud Sync",

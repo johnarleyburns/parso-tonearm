@@ -110,9 +110,9 @@ public final class AudioPlayer: ObservableObject {
     /// `attachPlatformBridge(_:)` at launch.
     private var bridge: PlaybackPlatformBridge = NoopPlaybackBridge()
 
-    /// The observed playback truth: playing AND not stalled/buffering. Drives the
-    /// Live Activity's self-advancing progress bar so it freezes at the real
-    /// position during stalls, interruptions, and pauses.
+    /// The observed playback truth: playing AND not stalled/buffering. Drives
+    /// advancing playback surfaces so they freeze at the real position during
+    /// stalls, interruptions, and pauses.
     public var isAdvancing: Bool { isPlaying && !isStalled }
 
     public var currentTrack: TrackRow? {
@@ -978,8 +978,8 @@ public final class AudioPlayer: ObservableObject {
 
     /// Observes the player's true playback state (Fix 1). `timeControlStatus` is
     /// the ground truth: manual `isPlaying` flips can't see buffering stalls on
-    /// remote streams, which made the self-advancing Live Activity bar sprint
-    /// ahead while audio was actually frozen. Re-subscribed after crossfade swaps
+    /// remote streams, which made self-advancing progress sprint ahead while
+    /// audio was actually frozen. Re-subscribed after crossfade swaps
     /// the player instance.
     private func observeTimeControlStatus() {
         timeControlCancellable = player.publisher(for: \.timeControlStatus)
@@ -1093,9 +1093,8 @@ public final class AudioPlayer: ObservableObject {
     }
 
     /// Rebuilds the queue from the persisted state (paused, no autoplay) when the
-    /// player is empty — the self-healing path for Live Activity intents that
-    /// launch a suspended app, and for normal app launches. Runs at most once per
-    /// process; concurrent callers await the same restore.
+    /// player is empty. Runs at most once per process; concurrent callers await
+    /// the same restore.
     public func restorePersistedQueue() async {
         if let restoreTask {
             await restoreTask.value
@@ -1255,9 +1254,4 @@ public final class AudioPlayer: ObservableObject {
     public func toggleShuffle() {
         shuffle.toggle()
     }
-}
-
-extension AudioPlayer: TonearmPlaybackCommanding {
-    public func toggle() { togglePlayPause() }
-    public func ensureReady() async { await restorePersistedQueue() }
 }

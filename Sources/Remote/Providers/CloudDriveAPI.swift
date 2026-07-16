@@ -1,7 +1,7 @@
 import Foundation
 
 public enum CloudDriveAPI {
-    public enum Provider: String, CaseIterable, Equatable {
+    public enum Provider: String, CaseIterable, Equatable, Codable {
         case dropbox
         case googleDrive
         case oneDrive
@@ -27,6 +27,27 @@ public enum CloudDriveAPI {
         }
     }
 
+    public struct Environment: Equatable, Codable {
+        public var baseURL: URL
+
+        public init(baseURL: URL) {
+            self.baseURL = baseURL
+        }
+
+        public static func production(provider: Provider) -> Environment {
+            switch provider {
+            case .dropbox:
+                return Environment(baseURL: URL(string: "https://api.dropboxapi.com")!)
+            case .googleDrive:
+                return Environment(baseURL: URL(string: "https://www.googleapis.com")!)
+            case .oneDrive:
+                return Environment(baseURL: URL(string: "https://graph.microsoft.com")!)
+            case .pCloud:
+                return Environment(baseURL: URL(string: "https://api.pcloud.com")!)
+            }
+        }
+    }
+
     public enum Endpoint: Equatable {
         case list(containerID: String?)
         case resolveFile(id: String, path: String?)
@@ -40,10 +61,15 @@ public enum CloudDriveAPI {
 
     public static func request(provider: Provider,
                         endpoint: Endpoint,
-                        accessToken: String) throws -> URLRequest {
+                        accessToken: String,
+                        environment: Environment? = nil) throws -> URLRequest {
+        let environment = environment ?? .production(provider: provider)
         switch (provider, endpoint) {
         case (.dropbox, .list(let containerID)):
-            var request = URLRequest(url: URL(string: "https://api.dropboxapi.com/2/files/list_folder")!)
+            var request = URLRequest(url: environment.baseURL
+                .appendingPathComponent("2", isDirectory: true)
+                .appendingPathComponent("files", isDirectory: true)
+                .appendingPathComponent("list_folder"))
             request.httpMethod = "POST"
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -55,7 +81,10 @@ public enum CloudDriveAPI {
             return request
 
         case (.dropbox, .resolveFile(let id, let path)):
-            var request = URLRequest(url: URL(string: "https://api.dropboxapi.com/2/files/get_temporary_link")!)
+            var request = URLRequest(url: environment.baseURL
+                .appendingPathComponent("2", isDirectory: true)
+                .appendingPathComponent("files", isDirectory: true)
+                .appendingPathComponent("get_temporary_link"))
             request.httpMethod = "POST"
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -63,7 +92,10 @@ public enum CloudDriveAPI {
             return request
 
         case (.googleDrive, .list(let containerID)):
-            var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files")!
+            var components = URLComponents(url: environment.baseURL
+                .appendingPathComponent("drive", isDirectory: true)
+                .appendingPathComponent("v3", isDirectory: true)
+                .appendingPathComponent("files"), resolvingAgainstBaseURL: false)!
             let parent = containerID ?? "root"
             components.queryItems = [
                 URLQueryItem(name: "q", value: "'\(parent)' in parents and trashed = false"),
@@ -77,7 +109,11 @@ public enum CloudDriveAPI {
             return request
 
         case (.googleDrive, .resolveFile(let id, _)):
-            var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files/\(pathComponent(id))")!
+            var components = URLComponents(url: environment.baseURL
+                .appendingPathComponent("drive", isDirectory: true)
+                .appendingPathComponent("v3", isDirectory: true)
+                .appendingPathComponent("files", isDirectory: true)
+                .appendingPathComponent(id), resolvingAgainstBaseURL: false)!
             components.queryItems = [
                 URLQueryItem(name: "alt", value: "media"),
                 URLQueryItem(name: "supportsAllDrives", value: "true"),
@@ -87,18 +123,36 @@ public enum CloudDriveAPI {
             return request
 
         case (.oneDrive, .list(let containerID)):
-            let path = containerID.map { "items/\(pathComponent($0))/children" } ?? "root/children"
-            var request = URLRequest(url: URL(string: "https://graph.microsoft.com/v1.0/me/drive/\(path)")!)
+            let root = environment.baseURL
+                .appendingPathComponent("v1.0", isDirectory: true)
+                .appendingPathComponent("me", isDirectory: true)
+                .appendingPathComponent("drive", isDirectory: true)
+            let url = if let containerID {
+                root.appendingPathComponent("items", isDirectory: true)
+                    .appendingPathComponent(containerID, isDirectory: true)
+                    .appendingPathComponent("children")
+            } else {
+                root.appendingPathComponent("root", isDirectory: true)
+                    .appendingPathComponent("children")
+            }
+            var request = URLRequest(url: url)
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             return request
 
         case (.oneDrive, .resolveFile(let id, _)):
-            var request = URLRequest(url: URL(string: "https://graph.microsoft.com/v1.0/me/drive/items/\(pathComponent(id))/content")!)
+            var request = URLRequest(url: environment.baseURL
+                .appendingPathComponent("v1.0", isDirectory: true)
+                .appendingPathComponent("me", isDirectory: true)
+                .appendingPathComponent("drive", isDirectory: true)
+                .appendingPathComponent("items", isDirectory: true)
+                .appendingPathComponent(id, isDirectory: true)
+                .appendingPathComponent("content"))
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             return request
 
         case (.pCloud, .list(let containerID)):
-            var components = URLComponents(string: "https://api.pcloud.com/listfolder")!
+            var components = URLComponents(url: environment.baseURL.appendingPathComponent("listfolder"),
+                                           resolvingAgainstBaseURL: false)!
             let value = containerID ?? "/"
             let key = value.allSatisfy(\.isNumber) ? "folderid" : "path"
             components.queryItems = [URLQueryItem(name: key, value: value)]
@@ -107,7 +161,8 @@ public enum CloudDriveAPI {
             return request
 
         case (.pCloud, .resolveFile(let id, let path)):
-            var components = URLComponents(string: "https://api.pcloud.com/getfilelink")!
+            var components = URLComponents(url: environment.baseURL.appendingPathComponent("getfilelink"),
+                                           resolvingAgainstBaseURL: false)!
             if let path {
                 components.queryItems = [URLQueryItem(name: "path", value: path)]
             } else {

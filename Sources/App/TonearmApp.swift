@@ -13,7 +13,6 @@ struct TonearmApp: App {
         }
         ProStore.shared.start()
         AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
-        TonearmPlaybackCommands.handler = AudioPlayer.shared
     }
 
     var body: some Scene {

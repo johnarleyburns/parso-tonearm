@@ -2,7 +2,7 @@ import Foundation
 
 /// Keeps `AudioPlayer` host-compilable. All iOS-only platform I/O — AVAudioSession
 /// configuration/observation, `MPNowPlayingInfoCenter`, `MPRemoteCommandCenter`,
-/// artwork decoding (UIImage), and Live Activity / widget publishing — lives
+/// artwork decoding (UIImage), and widget publishing — lives
 /// behind this seam. The app injects `SystemPlaybackBridge`; `swift test` gets the
 /// no-op default so the playback *logic* is exercised on the macOS host.
 @MainActor
@@ -29,14 +29,14 @@ public protocol PlaybackPlatformBridge: AnyObject {
         interruptionResume: @escaping () -> Void)
 
     /// Full now-playing refresh: title/artist/duration, async artwork, and the
-    /// Live Activity / widget snapshot publish.
+    /// widget snapshot publish.
     func refreshNowPlaying(_ player: AudioPlayer)
 
     /// Elapsed-time / playback-rate refresh of the system now-playing info only.
     func refreshNowPlayingTime(_ player: AudioPlayer)
 
-    /// Re-publishes the Live Activity / widget snapshot without rebuilding
-    /// now-playing info (used after a seek).
+    /// Re-publishes the widget snapshot without rebuilding now-playing info
+    /// (used after a seek).
     func publishSnapshot(_ player: AudioPlayer)
 
     /// Clears system now-playing info and publishes the empty snapshot.

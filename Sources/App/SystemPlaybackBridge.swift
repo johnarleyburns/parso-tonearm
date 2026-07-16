@@ -6,8 +6,8 @@ import TonearmCore
 
 /// The app-side implementation of `PlaybackPlatformBridge`: owns every iOS-only
 /// integration `AudioPlayer` used to hold inline — the audio session,
-/// `MPNowPlayingInfoCenter`, `MPRemoteCommandCenter`, artwork decoding, and the
-/// Live Activity / widget publishing. `AudioPlayer` keeps the byte-for-byte
+/// `MPNowPlayingInfoCenter`, `MPRemoteCommandCenter`, artwork decoding, and
+/// widget publishing. `AudioPlayer` keeps the byte-for-byte
 /// playback logic; this class keeps the platform reasoning.
 @MainActor
 final class SystemPlaybackBridge: PlaybackPlatformBridge {

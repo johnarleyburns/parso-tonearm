@@ -2,104 +2,12 @@ import SwiftUI
 import UniformTypeIdentifiers
 import TonearmCore
 
-private enum RemoteConnectKind: String, CaseIterable, Identifiable {
-    case subsonic
-    case webDAV
-    case smb
-    case jellyfin
-    case plex
-    case dropbox
-    case googleDrive
-    case oneDrive
-    case pCloud
-
-    var id: String { rawValue }
-
-    var sourceKind: SourceKind {
-        switch self {
-        case .subsonic: return .subsonic
-        case .webDAV: return .webDAV
-        case .smb: return .smb
-        case .jellyfin: return .jellyfin
-        case .plex: return .plex
-        case .dropbox: return .dropbox
-        case .googleDrive: return .googleDrive
-        case .oneDrive: return .oneDrive
-        case .pCloud: return .pCloud
-        }
-    }
-
-    var cloudProvider: CloudDriveAPI.Provider? {
-        CloudDriveAPI.Provider(sourceKind: sourceKind)
-    }
-
-    var title: String {
-        switch self {
-        case .subsonic: return "Subsonic"
-        case .webDAV: return "WebDAV"
-        case .smb: return "SMB"
-        case .jellyfin: return "Jellyfin"
-        case .plex: return "Plex"
-        case .dropbox: return "Dropbox"
-        case .googleDrive: return "Google Drive"
-        case .oneDrive: return "OneDrive"
-        case .pCloud: return "pCloud"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .subsonic: return "Subsonic or Navidrome"
-        case .webDAV: return "Nextcloud, ownCloud, rclone"
-        case .smb: return "Folder shared through Files"
-        case .jellyfin: return "Music library server"
-        case .plex: return "Plex music section"
-        case .dropbox, .googleDrive, .oneDrive, .pCloud: return "OAuth access token"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .smb, .webDAV, .dropbox, .googleDrive, .oneDrive, .pCloud:
-            return "externaldrive.connected.to.line.below"
-        default:
-            return "server.rack"
-        }
-    }
-
-    var needsURL: Bool {
-        switch self {
-        case .subsonic, .webDAV, .jellyfin, .plex:
-            return true
-        case .smb, .dropbox, .googleDrive, .oneDrive, .pCloud:
-            return false
-        }
-    }
-
-    var needsUsernamePassword: Bool {
-        switch self {
-        case .subsonic, .webDAV, .jellyfin:
-            return true
-        case .smb, .plex, .dropbox, .googleDrive, .oneDrive, .pCloud:
-            return false
-        }
-    }
-
-    var needsToken: Bool {
-        switch self {
-        case .plex, .dropbox, .googleDrive, .oneDrive, .pCloud:
-            return true
-        case .subsonic, .webDAV, .smb, .jellyfin:
-            return false
-        }
-    }
-}
-
 struct AddServerSheet: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var oauthCoordinator = OAuthSignInCoordinator()
 
-    @State private var kind: RemoteConnectKind = .subsonic
+    @State private var kind: SourceKind = .subsonic
     @State private var urlText = ""
     @State private var username = ""
     @State private var password = ""
@@ -107,17 +15,19 @@ struct AddServerSheet: View {
     @State private var error: String?
     @State private var isConnecting = false
     @State private var showSMBPicker = false
+    @State private var showGuide = false
 
     var body: some View {
         VStack(spacing: 0) {
             Capsule().fill(Color.white.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
             Text("Add Remote Library")
                 .font(.system(size: 19, weight: .bold)).padding(.top, 12)
-            Text(kind.subtitle)
+            Text(connector.subtitle)
                 .font(.system(size: 12.5)).foregroundStyle(Palette.ink2)
                 .multilineTextAlignment(.center).padding(.top, 5)
 
             providerPicker.padding(.top, 16)
+            guideButton.padding(.top, 10)
             fields.padding(.top, 16)
 
             if let error {
@@ -137,7 +47,7 @@ struct AddServerSheet: View {
                 } label: {
                     Group {
                         if isConnecting { ProgressView().tint(.black) }
-                        else { actionLabel(title: "Connect \(kind.title)", icon: "checkmark") }
+                        else { actionLabel(title: actionTitle, icon: connector.authKind == .oauth ? "person.crop.circle.badge.checkmark" : "checkmark") }
                     }
                 }
                 .disabled(!canSubmit || isConnecting)
@@ -153,26 +63,37 @@ struct AddServerSheet: View {
         .presentationDetents([.height(560)])
         .presentationBackground(.ultraThinMaterial)
         .onChange(of: kind) { _, _ in error = nil }
+        .sheet(isPresented: $showGuide) {
+            RemoteConnectorGuideView(guide: connector.guide)
+        }
         .fileImporter(isPresented: $showSMBPicker, allowedContentTypes: [.folder]) { result in
             guard case .success(let url) = result else { return }
             Task { await connectSMB(url) }
         }
     }
 
+    private var connector: RemoteConnector {
+        RemoteConnectorCatalog.connector(for: kind) ?? RemoteConnectorCatalog.all[0]
+    }
+
     private var providerPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(RemoteConnectKind.allCases) { option in
-                    Button { kind = option } label: {
+                ForEach(RemoteConnectorCatalog.all) { option in
+                    Button { kind = option.sourceKind } label: {
                         HStack(spacing: 6) {
                             Image(systemName: option.icon)
                             Text(option.title)
+                            if option.tier == .advanced {
+                                Image(systemName: "wrench.and.screwdriver")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
                         }
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(option == kind ? Color(hex: 0x221503) : Palette.ink2)
+                        .foregroundStyle(option.sourceKind == kind ? Color(hex: 0x221503) : Palette.ink2)
                         .padding(.horizontal, 11)
                         .frame(height: 34)
-                        .background(option == kind ? Palette.brass : Color.white.opacity(0.08),
+                        .background(option.sourceKind == kind ? Palette.brass : Color.white.opacity(0.08),
                                     in: Capsule())
                     }
                     .buttonStyle(.plain)
@@ -181,25 +102,60 @@ struct AddServerSheet: View {
         }
     }
 
+    private var guideButton: some View {
+        Button { showGuide = true } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "questionmark.circle")
+                Text("How To: \(connector.title)")
+                Spacer()
+                Text(connector.tier.title)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(connector.tier == .advanced ? Palette.brass : Palette.ink3)
+            }
+            .font(.system(size: 12.5, weight: .semibold))
+            .foregroundStyle(Palette.ink2)
+            .padding(.horizontal, 13)
+            .frame(height: 38)
+            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+    }
+
     private var fields: some View {
         VStack(spacing: 10) {
-            if kind.needsURL {
+            if needsURL {
                 textField(label: "SERVER URL",
                           prompt: kind == .plex ? "https://plex.example.com:32400" : "https://music.example.com",
                           text: $urlText,
                           keyboardType: .URL)
             }
-            if kind.needsUsernamePassword {
+            if needsUsernamePassword {
                 textField(label: "USERNAME",
                           prompt: "user",
                           text: $username,
                           keyboardType: .default)
                 secureField(label: "PASSWORD", prompt: "password", text: $password)
             }
-            if kind.needsToken {
-                secureField(label: kind == .plex ? "PLEX TOKEN" : "ACCESS TOKEN",
+            if needsToken {
+                secureField(label: "PLEX TOKEN",
                             prompt: "token",
                             text: $token)
+            }
+            if connector.authKind == .oauth {
+                HStack(spacing: 10) {
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                        .font(.system(size: 15)).foregroundStyle(Palette.brass)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Sign in with \(connector.title)")
+                            .font(.system(size: 13.5))
+                        Text("Tonearm requests read-only access for browsing and streaming.")
+                            .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12)))
             }
             if kind == .smb {
                 HStack(spacing: 10) {
@@ -276,9 +232,11 @@ struct AddServerSheet: View {
         case .plex:
             return PlexServerPolicy.canSubmit(url: urlText, token: token)
         case .dropbox, .googleDrive, .oneDrive, .pCloud:
-            return !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return true
         case .smb:
             return true
+        default:
+            return false
         }
     }
 
@@ -287,10 +245,32 @@ struct AddServerSheet: View {
         case .smb:
             return "Folder access is stored as a security-scoped bookmark. Files are not copied."
         case .dropbox, .googleDrive, .oneDrive, .pCloud:
-            return "Tokens are stored in the Keychain. Tonearm lists audio files and resolves streams only on demand."
+            return "OAuth tokens are stored in the Keychain. Tonearm lists audio files and resolves streams only on demand."
         default:
             return "Credentials are stored in the Keychain. Tonearm requests a stream URL only when you play."
         }
+    }
+
+    private var actionTitle: String {
+        connector.authKind == .oauth ? "Sign In to \(connector.title)" : "Connect \(connector.title)"
+    }
+
+    private var needsURL: Bool {
+        switch kind {
+        case .subsonic, .webDAV, .jellyfin, .plex: return true
+        default: return false
+        }
+    }
+
+    private var needsUsernamePassword: Bool {
+        switch kind {
+        case .subsonic, .webDAV, .jellyfin: return true
+        default: return false
+        }
+    }
+
+    private var needsToken: Bool {
+        kind == .plex
     }
 
     private func connect() async {
@@ -308,10 +288,14 @@ struct AddServerSheet: View {
             case .plex:
                 try await appState.addPlexServer(url: urlText, token: token)
             case .dropbox, .googleDrive, .oneDrive, .pCloud:
-                if let cloudProvider = kind.cloudProvider {
-                    try await appState.addCloudDrive(provider: cloudProvider, accessToken: token)
+                if let cloudProvider = CloudDriveAPI.Provider(sourceKind: kind) {
+                    let config = try OAuthClientConfiguration.config(for: cloudProvider)
+                    let oauthToken = try await oauthCoordinator.signIn(config: config)
+                    try await appState.addCloudDrive(provider: cloudProvider, oauthToken: oauthToken)
                 }
             case .smb:
+                return
+            default:
                 return
             }
             dismiss()

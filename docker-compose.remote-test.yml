@@ -1,0 +1,16 @@
+services:
+  remote-test-server:
+    image: python:3.12-slim
+    working_dir: /srv
+    command: ["python", "/srv/server.py"]
+    environment:
+      PORT: "18089"
+    ports:
+      - "18089:18089"
+    volumes:
+      - ./Tests/Support/RemoteFakeServer:/srv:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18089/health', timeout=2).read()"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

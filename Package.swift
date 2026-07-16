@@ -19,8 +19,11 @@ let package = Package(
             path: ".",
             exclude: [
                 ".github",
+                "docs",
+                "docker-compose.remote-test.yml",
                 "ExportOptions.plist",
                 "LICENSE",
+                "Makefile",
                 "Package.resolved",
                 "README.md",
                 "ShareExtension",
@@ -68,7 +71,8 @@ let package = Package(
                 "BackgroundAddTests.swift",
                 "SpectrogramDetectorTests.swift",
                 "WidgetSnapshotTests.swift",
-                "PlatformSupportTests.swift"
+                "PlatformSupportTests.swift",
+                "Support"
             ],
             resources: [.copy("Fixtures")]
         )

@@ -1,8 +1,8 @@
 import Foundation
 
 /// The persisted now-playing state: enough to rebuild the play queue (paused, at
-/// the saved position) after the app is suspended or relaunched, so Live Activity
-/// intent buttons always have a player to act on (Fix 2).
+/// the saved position) after the app is suspended or relaunched, so playback
+/// resumes from the last known queue.
 public struct PlaybackStateSnapshot: Codable, Equatable {
     public var trackIDs: [Int64]
     public var currentIndex: Int

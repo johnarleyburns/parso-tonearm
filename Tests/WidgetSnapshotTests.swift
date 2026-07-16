@@ -257,7 +257,7 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(track.artworkFilename, saved)
     }
 
-    func testPausedTrackProducesStartableContentState() throws {
+    func testPausedTrackPreservesWidgetProgress() throws {
         let now = Date(timeIntervalSince1970: 1_700)
 
         let snapshot = WidgetSnapshotBuilder.build(
@@ -270,13 +270,13 @@ final class WidgetSnapshotTests: XCTestCase {
             recentlyPlayed: [],
             now: now
         )
-        let state = try XCTUnwrap(TonearmNowPlayingAttributes.ContentState(snapshot: snapshot))
+        let nowPlaying = try XCTUnwrap(snapshot.nowPlaying)
 
-        XCTAssertFalse(state.isPlaying)
-        XCTAssertEqual(state.title, "Paused Track")
-        XCTAssertEqual(state.progress, 0.4, accuracy: 0.001)
-        XCTAssertEqual(state.elapsed, 40)
-        XCTAssertEqual(state.duration, 100)
+        XCTAssertFalse(nowPlaying.isPlaying)
+        XCTAssertEqual(nowPlaying.track.title, "Paused Track")
+        XCTAssertEqual(nowPlaying.progress, 0.4, accuracy: 0.001)
+        XCTAssertEqual(nowPlaying.elapsed, 40)
+        XCTAssertEqual(nowPlaying.duration, 100)
     }
 
     func testStalledSnapshotFreezesAtTruePosition() throws {
@@ -295,18 +295,15 @@ final class WidgetSnapshotTests: XCTestCase {
             now: now
         )
         let nowPlaying = try XCTUnwrap(snapshot.nowPlaying)
-        let state = try XCTUnwrap(TonearmNowPlayingAttributes.ContentState(snapshot: snapshot))
 
         XCTAssertFalse(nowPlaying.isPlaying)
         XCTAssertEqual(nowPlaying.progress, 0.25, accuracy: 0.001)
-        XCTAssertFalse(state.isPlaying)
-        XCTAssertEqual(state.progress, 0.25, accuracy: 0.001)
     }
 
-    func testEmptySnapshotProducesNoContentState() {
+    func testEmptySnapshotHasNoNowPlayingTrack() {
         let snapshot = WidgetSnapshot.empty(now: Date(timeIntervalSince1970: 1_900))
 
-        XCTAssertNil(TonearmNowPlayingAttributes.ContentState(snapshot: snapshot))
+        XCTAssertNil(snapshot.nowPlaying)
     }
 
     func testPlaybackStateStoreRoundTripsQueueIndexAndTime() throws {

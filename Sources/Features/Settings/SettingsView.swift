@@ -181,10 +181,6 @@ struct SettingsView: View {
             settingToggle("Look up missing artwork",
                           "Ask Apple's iTunes Search for covers your files lack",
                           $appState.artworkLookup)
-            Divider().overlay(Palette.hairline)
-            settingToggle("Show Live Activity",
-                          "Display a now-playing card on the lock screen",
-                          $appState.showLiveActivity)
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
@@ -192,14 +188,6 @@ struct SettingsView: View {
         .onChange(of: appState.preferFLAC) { _, _ in appState.applySettingsToPlayer() }
         .onChange(of: appState.prefetchDepth) { _, _ in appState.applySettingsToPlayer() }
         .onChange(of: appState.artworkLookup) { _, _ in appState.applySettingsToPlayer() }
-        .onChange(of: appState.showLiveActivity) { _, enabled in
-            guard #available(iOS 16.2, *) else { return }
-            if enabled {
-                WidgetSnapshotPublisher.publish(player: AudioPlayer.shared)
-            } else {
-                NowPlayingLiveActivityController.shared.endAll()
-            }
-        }
     }
 
     private var prefetchControl: some View {
@@ -459,7 +447,7 @@ struct PrivacyView: View {
                     privacyPoint("No accounts", "There is no sign-in and no server that belongs to Tonearm.")
                     privacyPoint("Optional iCloud sync", "A Pro feature, off by default. When you turn it on, your library, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Tonearm server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
                     privacyPoint("No ads, no analytics", "No tracking of any kind. OAuth tokens are used only for services you explicitly connect.")
-                    privacyPoint("Network contact", "archive.org for sources you added by URL, Apple's iTunes Search for missing cover art, and remote-library providers you add yourself: Subsonic/Navidrome, Jellyfin, Plex, WebDAV, SMB, Dropbox, Google Drive, OneDrive, or pCloud. Lyrics lookup and scrobbling stay off until you enable them; then Tonearm talks only to LRCLIB, Last.fm, or ListenBrainz for those features.")
+                    privacyPoint("Network contact", "archive.org for sources you added by URL, Apple's iTunes Search for missing cover art, and remote-library providers you add yourself: \(RemoteConnectorCatalog.proDisplayList). Lyrics lookup and scrobbling stay off until you enable them; then Tonearm talks only to LRCLIB, Last.fm, or ListenBrainz for those features.")
                     privacyPoint("Your files stay yours", "Local music is referenced in place by secure bookmark and never uploaded.")
                     privacyPoint("The cache is temporary", "Streamed audio is kept in an LRU cache so recently played music works offline. It is evicted automatically and can be cleared anytime.")
                 }

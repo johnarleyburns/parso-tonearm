@@ -19,7 +19,7 @@ struct AddMenuSheet: View {
                 }
                 Divider().overlay(Palette.hairline)
                 MenuItem(icon: "server.rack", title: "Add Remote Library",
-                         subtitle: "Subsonic, WebDAV, SMB, Jellyfin, Plex, or cloud") {
+                         subtitle: "Subsonic, WebDAV, SMB, Jellyfin, Plex, Dropbox, Google Drive, OneDrive, pCloud") {
                     appState.pendingImport = nil
                     appState.showAddMenu = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {

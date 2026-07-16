@@ -43,7 +43,6 @@ final class AppState: ObservableObject {
     @AppStorage("prefetchDepth") var prefetchDepth = 2
     @AppStorage("artworkLookup") var artworkLookup = true
     @AppStorage("didOnboard") var didOnboard = false
-    @AppStorage("showLiveActivity") var showLiveActivity = true
 
     init(store: LibraryStore = .shared) {
         self.store = store
@@ -53,8 +52,7 @@ final class AppState: ObservableObject {
         await fixLegacySourceTitles()
         await ArtworkService.shared.migrateCacheIfNeeded()
         applySettingsToPlayer()
-        // Restore the queue BEFORE the first publish so a Live Activity that
-        // survived a force-quit is adopted (updated) instead of ended.
+        // Restore the queue before the first widget/native now-playing publish.
         await AudioPlayer.shared.restorePersistedQueue()
         await reload()
         await CacheStore.shared.garbageCollectStalePartials()
@@ -342,6 +340,26 @@ final class AppState: ObservableObject {
             originalURL: nil,
             iaIdentifier: nil,
             credential: Data(token.utf8),
+            credentialAccount: { sourceID in
+                CloudDriveServerPolicy.credentialAccount(sourceID: sourceID, provider: cloudProvider)
+            }
+        )
+    }
+
+    func addCloudDrive(provider cloudProvider: CloudDriveAPI.Provider, oauthToken token: OAuthToken) async throws {
+        try requireRemoteLibrary(.connect(cloudProvider.sourceKind))
+        let provider = CloudDriveProvider(
+            provider: cloudProvider,
+            accessProvider: OAuthCloudDriveAccessProvider(token: token)
+        )
+        try await provider.refresh()
+
+        try await insertRemoteSource(
+            kind: cloudProvider.sourceKind,
+            title: CloudDriveServerPolicy.displayName(provider: cloudProvider),
+            originalURL: nil,
+            iaIdentifier: token.accountLabel,
+            credential: try JSONEncoder().encode(token),
             credentialAccount: { sourceID in
                 CloudDriveServerPolicy.credentialAccount(sourceID: sourceID, provider: cloudProvider)
             }
