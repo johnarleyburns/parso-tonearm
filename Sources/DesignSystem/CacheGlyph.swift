@@ -1,19 +1,5 @@
 import SwiftUI
 
-enum CacheGlyphState: Equatable {
-    case none
-    case filling(Double)
-    case cached
-
-    var voiceOver: String {
-        switch self {
-        case .none: return "not cached"
-        case .filling(let p): return "caching, \(Int((p * 100).rounded())) percent"
-        case .cached: return "cached"
-        }
-    }
-}
-
 struct CacheGlyph: View {
     let state: CacheGlyphState
 

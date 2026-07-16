@@ -1,21 +1,21 @@
 import Foundation
 
-enum JellyfinAPI {
-    static let defaultClient = Client(
+public enum JellyfinAPI {
+    public static let defaultClient = Client(
         name: "Tonearm",
         device: "iPhone",
         deviceID: "tonearm-ios",
         version: "1.0"
     )
 
-    struct Client: Equatable {
+    public struct Client: Equatable {
         var name: String
         var device: String
         var deviceID: String
         var version: String
     }
 
-    enum Endpoint: Equatable {
+    public enum Endpoint: Equatable {
         case authenticate(username: String, password: String)
         case albumArtists(userID: String)
         case albums(userID: String, artistID: String)
@@ -32,13 +32,13 @@ enum JellyfinAPI {
         }
     }
 
-    enum Error: Swift.Error, Equatable {
+    public enum Error: Swift.Error, Equatable {
         case invalidBaseURL
         case malformedResponse
         case missingField(String)
     }
 
-    static func normalizeBaseURL(_ raw: String) throws -> URL {
+    public static func normalizeBaseURL(_ raw: String) throws -> URL {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw Error.invalidBaseURL }
         let withScheme = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
@@ -61,7 +61,7 @@ enum JellyfinAPI {
         return url
     }
 
-    static func authorizationHeader(client: Client = defaultClient, token: String? = nil) -> String {
+    public static func authorizationHeader(client: Client = defaultClient, token: String? = nil) -> String {
         var parts = [
             #"MediaBrowser Client="\#(headerEscaped(client.name))""#,
             #"Device="\#(headerEscaped(client.device))""#,
@@ -74,7 +74,7 @@ enum JellyfinAPI {
         return parts.joined(separator: ", ")
     }
 
-    static func request(baseURL rawBaseURL: URL,
+    public static func request(baseURL rawBaseURL: URL,
                         endpoint: Endpoint,
                         token: String? = nil,
                         client: Client = defaultClient) throws -> URLRequest {
@@ -105,7 +105,7 @@ enum JellyfinAPI {
         return request
     }
 
-    static func decodeAuthentication(_ data: Data) throws -> JellyfinAuthentication {
+    public static func decodeAuthentication(_ data: Data) throws -> JellyfinAuthentication {
         guard let object = try jsonObject(data) as? [String: Any] else {
             throw Error.malformedResponse
         }
@@ -119,7 +119,7 @@ enum JellyfinAPI {
         return JellyfinAuthentication(accessToken: token, userID: userID, username: username, serverID: serverID)
     }
 
-    static func decodeItems(_ data: Data) throws -> JellyfinItemPage {
+    public static func decodeItems(_ data: Data) throws -> JellyfinItemPage {
         guard let object = try jsonObject(data) as? [String: Any] else {
             throw Error.malformedResponse
         }
@@ -276,21 +276,21 @@ enum JellyfinAPI {
     }
 }
 
-struct JellyfinAuthentication: Equatable {
-    var accessToken: String
-    var userID: String
-    var username: String?
-    var serverID: String?
+public struct JellyfinAuthentication: Equatable {
+    public var accessToken: String
+    public var userID: String
+    public var username: String?
+    public var serverID: String?
 }
 
-struct JellyfinItemPage: Equatable {
-    var items: [JellyfinItem]
-    var totalRecordCount: Int
-    var startIndex: Int
+public struct JellyfinItemPage: Equatable {
+    public var items: [JellyfinItem]
+    public var totalRecordCount: Int
+    public var startIndex: Int
 }
 
-struct JellyfinItem: Equatable {
-    enum ItemType: Equatable {
+public struct JellyfinItem: Equatable {
+    public enum ItemType: Equatable {
         case artist
         case album
         case audio
@@ -298,16 +298,16 @@ struct JellyfinItem: Equatable {
         case unknown(String)
     }
 
-    var id: String
-    var name: String
-    var type: ItemType
-    var album: String?
-    var albumArtist: String?
-    var artists: [String]
-    var productionYear: Int?
-    var indexNumber: Int?
-    var parentIndexNumber: Int?
-    var durationSec: Double?
-    var sizeBytes: Int64?
-    var container: String?
+    public var id: String
+    public var name: String
+    public var type: ItemType
+    public var album: String?
+    public var albumArtist: String?
+    public var artists: [String]
+    public var productionYear: Int?
+    public var indexNumber: Int?
+    public var parentIndexNumber: Int?
+    public var durationSec: Double?
+    public var sizeBytes: Int64?
+    public var container: String?
 }

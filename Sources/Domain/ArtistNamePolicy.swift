@@ -1,13 +1,13 @@
 import Foundation
 
-struct ArtistNamePolicy {
-    struct Attribution: Equatable {
+public struct ArtistNamePolicy {
+    public struct Attribution: Equatable {
         var albumArtist: String?
         var trackArtists: [String]
         var isCompilation: Bool
     }
 
-    static let canonicalVariousArtists = "Various Artists"
+    public static let canonicalVariousArtists = "Various Artists"
 
     private static let articles: Set<String> = [
         "a", "an", "the",
@@ -17,7 +17,7 @@ struct ArtistNamePolicy {
         "der", "die", "das", "den",
     ]
 
-    static func normalize(_ raw: String?) -> String? {
+    public static func normalize(_ raw: String?) -> String? {
         guard var value = raw else { return nil }
         value = value.replacingOccurrences(of: "\u{00a0}", with: " ")
         value =
@@ -31,7 +31,7 @@ struct ArtistNamePolicy {
         return isVariousArtists(value) ? canonicalVariousArtists : value
     }
 
-    static func sortName(for raw: String) -> String {
+    public static func sortName(for raw: String) -> String {
         guard let normalized = normalize(raw) else { return "" }
         let folded = normalized.folding(
             options: [.diacriticInsensitive],
@@ -49,7 +49,7 @@ struct ArtistNamePolicy {
         return parts.joined(separator: " ")
     }
 
-    static func splitArtists(_ raw: String?) -> [String] {
+    public static func splitArtists(_ raw: String?) -> [String] {
         guard let normalized = normalize(raw) else { return [] }
         if isVariousArtists(normalized) { return [canonicalVariousArtists] }
 
@@ -72,11 +72,11 @@ struct ArtistNamePolicy {
         return result
     }
 
-    static func artistNames(from raw: String?) -> [String] {
+    public static func artistNames(from raw: String?) -> [String] {
         splitArtists(raw)
     }
 
-    static func attribution(
+    public static func attribution(
         albumArtist rawAlbumArtist: String?, trackArtist rawTrackArtist: String?
     )
         -> Attribution
@@ -99,7 +99,7 @@ struct ArtistNamePolicy {
             isCompilation: compilation)
     }
 
-    static func isVariousArtists(_ raw: String?) -> Bool {
+    public static func isVariousArtists(_ raw: String?) -> Bool {
         guard
             let value = raw?
                 .folding(
@@ -125,7 +125,7 @@ struct ArtistNamePolicy {
             || compact == "variousartists"
     }
 
-    static func identityKey(for raw: String) -> String {
+    public static func identityKey(for raw: String) -> String {
         (normalize(raw) ?? raw)
             .folding(
                 options: [.diacriticInsensitive, .caseInsensitive],

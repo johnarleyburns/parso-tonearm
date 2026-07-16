@@ -13,7 +13,7 @@ import os
 /// `os_unfair_lock`. The audio thread picks the pending kernel up with
 /// `os_unfair_lock_trylock` (and keeps using the previous one if the trylock
 /// fails), then processes without holding any lock.
-final class EQAudioTap {
+public final class EQAudioTap {
 
     private final class Storage {
         /// Owned and mutated only on the audio thread (except `reset` in prepare).
@@ -52,12 +52,12 @@ final class EQAudioTap {
     private let storage: Storage
     private var currentReplayGain: Double
 
-    init(kernel: ProAudioKernel) {
+    public init(kernel: ProAudioKernel) {
         self.storage = Storage(kernel: kernel)
         self.currentReplayGain = kernel.replayGain
     }
 
-    convenience init(engine: EQEngine,
+    public convenience init(engine: EQEngine,
                      settings: ProAudioSettings = .default,
                      replayGain: Double = 1,
                      sampleRate: Double = ProAudioSettings.convolutionSampleRate) {
@@ -72,7 +72,7 @@ final class EQAudioTap {
 
     /// Updates the processing state live (from the settings sliders). Compiles the
     /// new kernel here on the caller's (main) thread, then publishes it.
-    func update(gains: [Double],
+    public func update(gains: [Double],
                 bypassed: Bool,
                 settings: ProAudioSettings,
                 replayGain: Double = 1,
@@ -89,7 +89,7 @@ final class EQAudioTap {
 
     /// Builds an `AVAudioMix` carrying this tap for the given item's first audio
     /// track. Returns nil if the asset exposes no audio track yet.
-    func makeAudioMix(for item: AVPlayerItem) async -> AVAudioMix? {
+    public func makeAudioMix(for item: AVPlayerItem) async -> AVAudioMix? {
         guard let track = try? await item.asset.loadTracks(withMediaType: .audio).first else {
             return nil
         }

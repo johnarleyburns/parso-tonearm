@@ -6,10 +6,10 @@ import Foundation
 ///
 /// The verified result is mirrored into UserDefaults so the app keeps Pro while
 /// offline (airplane mode). `ProStore` refreshes it from `Transaction`.
-struct ProEntitlement: Equatable {
+public struct ProEntitlement: Equatable {
     /// The verified original transaction id. Set only by verified construction.
-    let transactionID: UInt64
-    let purchaseDate: Date
+    public let transactionID: UInt64
+    public let purchaseDate: Date
 
     /// Private init — the only constructor is the verification factory below, so
     /// an entitlement cannot be forged from arbitrary state.
@@ -18,7 +18,7 @@ struct ProEntitlement: Equatable {
         self.purchaseDate = purchaseDate
     }
 
-    static let productID = "guru.parso.tonearm.pro"
+    public static let productID = "guru.parso.tonearm.pro"
 
     // MARK: - Persistence keys
 
@@ -31,7 +31,7 @@ struct ProEntitlement: Equatable {
     /// Builds an entitlement from a StoreKit-verified transaction's fields. This
     /// is intentionally the *only* way (besides the persisted cache) to obtain an
     /// instance; `ProStore` calls it after checking `VerificationResult`.
-    static func verified(transactionID: UInt64, purchaseDate: Date) -> ProEntitlement {
+    public static func verified(transactionID: UInt64, purchaseDate: Date) -> ProEntitlement {
         ProEntitlement(transactionID: transactionID, purchaseDate: purchaseDate)
     }
 
@@ -39,12 +39,12 @@ struct ProEntitlement: Equatable {
 
     /// Whether the persisted verification cache marks Pro active. Reading this is
     /// how gates stay unlocked across launches and in airplane mode.
-    static var isActive: Bool {
+    public static var isActive: Bool {
         UserDefaults.standard.bool(forKey: activeKey)
     }
 
     /// The cached entitlement, if active.
-    static var current: ProEntitlement? {
+    public static var current: ProEntitlement? {
         let defaults = UserDefaults.standard
         guard defaults.bool(forKey: activeKey) else { return nil }
         let txID = UInt64(defaults.string(forKey: txIDKey) ?? "") ?? 0
@@ -53,7 +53,7 @@ struct ProEntitlement: Equatable {
     }
 
     /// Persists a verified entitlement so gates unlock across launches / offline.
-    static func persist(_ entitlement: ProEntitlement) {
+    public static func persist(_ entitlement: ProEntitlement) {
         let defaults = UserDefaults.standard
         defaults.set(true, forKey: activeKey)
         defaults.set(String(entitlement.transactionID), forKey: txIDKey)
@@ -61,7 +61,7 @@ struct ProEntitlement: Equatable {
     }
 
     /// Clears the cached entitlement (revocation / refund / test teardown).
-    static func clear() {
+    public static func clear() {
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: activeKey)
         defaults.removeObject(forKey: txIDKey)

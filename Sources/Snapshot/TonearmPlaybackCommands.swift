@@ -4,7 +4,7 @@ import Foundation
 /// Core so `AudioPlayer` can conform (the app wires `handler = .shared`), while
 /// the `AppIntents` structs that call these stay in the app/extension target.
 @MainActor
-protocol TonearmPlaybackCommanding {
+public protocol TonearmPlaybackCommanding {
     func toggle()
     func next()
     func previous()
@@ -14,6 +14,6 @@ protocol TonearmPlaybackCommanding {
 }
 
 @MainActor
-enum TonearmPlaybackCommands {
-    static var handler: (any TonearmPlaybackCommanding)?
+public enum TonearmPlaybackCommands {
+    public static var handler: (any TonearmPlaybackCommanding)?
 }

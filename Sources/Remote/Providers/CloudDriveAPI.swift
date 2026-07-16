@@ -1,7 +1,7 @@
 import Foundation
 
-enum CloudDriveAPI {
-    enum Provider: String, CaseIterable, Equatable {
+public enum CloudDriveAPI {
+    public enum Provider: String, CaseIterable, Equatable {
         case dropbox
         case googleDrive
         case oneDrive
@@ -27,18 +27,18 @@ enum CloudDriveAPI {
         }
     }
 
-    enum Endpoint: Equatable {
+    public enum Endpoint: Equatable {
         case list(containerID: String?)
         case resolveFile(id: String, path: String?)
     }
 
-    enum Error: Swift.Error, Equatable {
+    public enum Error: Swift.Error, Equatable {
         case malformedResponse
         case missingField(String)
         case unsupportedProvider
     }
 
-    static func request(provider: Provider,
+    public static func request(provider: Provider,
                         endpoint: Endpoint,
                         accessToken: String) throws -> URLRequest {
         switch (provider, endpoint) {
@@ -119,7 +119,7 @@ enum CloudDriveAPI {
         }
     }
 
-    static func decodeListing(provider: Provider, data: Data) throws -> [CloudDriveItem] {
+    public static func decodeListing(provider: Provider, data: Data) throws -> [CloudDriveItem] {
         let object = try jsonObject(data)
         switch provider {
         case .dropbox:
@@ -151,7 +151,7 @@ enum CloudDriveAPI {
         }
     }
 
-    static func decodeResolvedAsset(provider: Provider,
+    public static func decodeResolvedAsset(provider: Provider,
                                     data: Data,
                                     fallbackSize: Int64? = nil) throws -> ResolvedAsset {
         let object = try jsonObject(data)
@@ -291,21 +291,21 @@ enum CloudDriveAPI {
     }
 }
 
-struct CloudDriveItem: Equatable {
-    enum Kind: Equatable {
+public struct CloudDriveItem: Equatable {
+    public enum Kind: Equatable {
         case folder
         case file
     }
 
-    var id: String
-    var name: String
-    var path: String
-    var kind: Kind
-    var sizeBytes: Int64?
-    var contentType: String?
-    var temporaryURL: URL?
+    public var id: String
+    public var name: String
+    public var path: String
+    public var kind: Kind
+    public var sizeBytes: Int64?
+    public var contentType: String?
+    public var temporaryURL: URL?
 
-    var isAudio: Bool {
+    public var isAudio: Bool {
         if let contentType, contentType.lowercased().hasPrefix("audio/") {
             return true
         }

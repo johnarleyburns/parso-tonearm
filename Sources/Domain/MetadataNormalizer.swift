@@ -1,26 +1,26 @@
 import Foundation
 
-struct TrackMetadata: Equatable {
-    var title: String?
-    var artist: String?
-    var albumTitle: String?
-    var albumArtist: String?
-    var genre: String?
-    var composer: String?
-    var trackNo: Int?
-    var discNo: Int?
-    var year: Int?
-    var durationSec: Double?
-    var sampleRate: Int?
-    var bitDepthOrBitrate: String?
-    var rgTrackGain: Double?
-    var rgAlbumGain: Double?
-    var rgTrackPeak: Double?
-    var rgAlbumPeak: Double?
+public struct TrackMetadata: Equatable {
+    public var title: String?
+    public var artist: String?
+    public var albumTitle: String?
+    public var albumArtist: String?
+    public var genre: String?
+    public var composer: String?
+    public var trackNo: Int?
+    public var discNo: Int?
+    public var year: Int?
+    public var durationSec: Double?
+    public var sampleRate: Int?
+    public var bitDepthOrBitrate: String?
+    public var rgTrackGain: Double?
+    public var rgAlbumGain: Double?
+    public var rgTrackPeak: Double?
+    public var rgAlbumPeak: Double?
 }
 
-struct MetadataNormalizer {
-    struct Item: Equatable {
+public struct MetadataNormalizer {
+    public struct Item: Equatable {
         var key: String?
         var commonKey: String?
         var identifier: String?
@@ -30,7 +30,7 @@ struct MetadataNormalizer {
         var dataValue: Data?
     }
 
-    struct FieldBag: Equatable {
+    public struct FieldBag: Equatable {
         var title: [String] = []
         var artist: [String] = []
         var albumTitle: [String] = []
@@ -66,7 +66,7 @@ struct MetadataNormalizer {
         var order: Int
     }
 
-    static func normalize(items: [Item], fallbackFilename: String) -> TrackMetadata {
+    public static func normalize(items: [Item], fallbackFilename: String) -> TrackMetadata {
         var candidates: [Field: [Candidate]] = [:]
 
         for (order, item) in items.enumerated() {
@@ -89,7 +89,7 @@ struct MetadataNormalizer {
         return metadata
     }
 
-    static func normalize(fields: FieldBag, fallbackFilename: String) -> TrackMetadata {
+    public static func normalize(fields: FieldBag, fallbackFilename: String) -> TrackMetadata {
         var candidates: [Field: [Candidate]] = [:]
 
         func add(_ field: Field, _ values: [String]) {

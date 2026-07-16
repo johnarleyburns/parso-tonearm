@@ -6,12 +6,12 @@ import StoreKit
 /// guard (T3.2) enforces the boundary. All verification funnels through here into
 /// the evidence-gated `ProEntitlement`.
 @MainActor
-final class ProStore: ObservableObject {
-    static let shared = ProStore()
+public final class ProStore: ObservableObject {
+    public static let shared = ProStore()
 
-    @Published private(set) var isPro: Bool = ProEntitlement.isActive
-    @Published private(set) var product: Product?
-    @Published private(set) var purchasing = false
+    @Published public private(set) var isPro: Bool = ProEntitlement.isActive
+    @Published public private(set) var product: Product?
+    @Published public private(set) var purchasing = false
 
     private var updatesTask: Task<Void, Never>?
 
@@ -19,7 +19,7 @@ final class ProStore: ObservableObject {
 
     /// Begins observing transaction updates and refreshes current entitlements.
     /// Call once at launch.
-    func start() {
+    public func start() {
         updatesTask?.cancel()
         updatesTask = Task { [weak self] in
             for await update in Transaction.updates {
@@ -30,12 +30,12 @@ final class ProStore: ObservableObject {
         Task { await loadProduct() }
     }
 
-    func loadProduct() async {
+    public func loadProduct() async {
         product = try? await Product.products(for: [ProEntitlement.productID]).first
     }
 
     /// Re-checks `Transaction.currentEntitlements` and syncs the cached flag.
-    func refreshEntitlements() async {
+    public func refreshEntitlements() async {
         var found = false
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result,
@@ -54,7 +54,7 @@ final class ProStore: ObservableObject {
 
     /// Initiates a purchase of Tonearm Pro. Returns true on verified success.
     @discardableResult
-    func purchase() async -> Bool {
+    public func purchase() async -> Bool {
         var resolved = product
         if resolved == nil {
             resolved = try? await Product.products(for: [ProEntitlement.productID]).first
@@ -78,7 +78,7 @@ final class ProStore: ObservableObject {
     }
 
     /// Restores prior purchases (App Store account sync), then refreshes.
-    func restore() async {
+    public func restore() async {
         try? await AppStore.sync()
         await refreshEntitlements()
     }
@@ -107,7 +107,7 @@ final class ProStore: ObservableObject {
     }
 
     /// Formatted one-time price for display, falling back to the mockup price.
-    var displayPrice: String {
+    public var displayPrice: String {
         product?.displayPrice ?? "$9.99"
     }
 }

@@ -1,13 +1,13 @@
 import Foundation
 
-enum RemoteLibraryAction: Equatable {
+public enum RemoteLibraryAction: Equatable {
     case openAddFlow
     case connect(SourceKind)
     case browse(SourceKind)
     case resolve(SourceKind)
 }
-enum RemoteLibraryAccessPolicy {
-    static let productSourceKinds: [SourceKind] = [
+public enum RemoteLibraryAccessPolicy {
+    public static let productSourceKinds: [SourceKind] = [
         .subsonic,
         .webDAV,
         .smb,
@@ -19,11 +19,11 @@ enum RemoteLibraryAccessPolicy {
         .pCloud,
     ]
 
-    static func isRemoteLibrary(_ kind: SourceKind) -> Bool {
+    public static func isRemoteLibrary(_ kind: SourceKind) -> Bool {
         productSourceKinds.contains(kind)
     }
 
-    static func decision(for action: RemoteLibraryAction, isPro: Bool) -> ProGateDecision {
+    public static func decision(for action: RemoteLibraryAction, isPro: Bool) -> ProGateDecision {
         switch action {
         case .openAddFlow:
             return isPro ? .allow : .requiresPro(.remoteLibraries)

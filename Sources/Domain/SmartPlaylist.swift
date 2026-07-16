@@ -1,12 +1,12 @@
 import Foundation
 import GRDB
 
-struct SmartPlaylist: Equatable, Codable {
-    var root: SmartPlaylistRuleGroup
-    var sort: Sort
-    var limit: Int?
+public struct SmartPlaylist: Equatable, Codable {
+    public var root: SmartPlaylistRuleGroup
+    public var sort: Sort
+    public var limit: Int?
 
-    init(root: SmartPlaylistRuleGroup = SmartPlaylistRuleGroup(),
+    public init(root: SmartPlaylistRuleGroup = SmartPlaylistRuleGroup(),
          sort: Sort = Sort(field: .title, direction: .ascending),
          limit: Int? = nil) {
         self.root = root
@@ -14,7 +14,7 @@ struct SmartPlaylist: Equatable, Codable {
         self.limit = limit
     }
 
-    func evaluate(rows: [TrackRow]) -> [TrackRow] {
+    public func evaluate(rows: [TrackRow]) -> [TrackRow] {
         var matches = rows.filter { root.matches($0, isRoot: true) }
         matches.sort { sort.orders($0, before: $1) }
         if let limit {
@@ -23,7 +23,7 @@ struct SmartPlaylist: Equatable, Codable {
         return matches
     }
 
-    func compiledQuery() -> SmartPlaylistQuery {
+    public func compiledQuery() -> SmartPlaylistQuery {
         var builder = SmartPlaylistSQLBuilder()
         let whereClause = root.sql(isRoot: true, builder: &builder)
         let sortSQL = sort.sql()
@@ -48,11 +48,16 @@ struct SmartPlaylist: Equatable, Codable {
         return SmartPlaylistQuery(sql: sql, arguments: builder.arguments)
     }
 
-    struct Sort: Equatable, Codable {
-        var field: SmartPlaylistField
-        var direction: Direction
+    public struct Sort: Equatable, Codable {
+        public var field: SmartPlaylistField
+        public var direction: Direction
 
-        enum Direction: String, Codable, CaseIterable {
+        public init(field: SmartPlaylistField, direction: Direction) {
+            self.field = field
+            self.direction = direction
+        }
+
+        public enum Direction: String, Codable, CaseIterable {
             case ascending
             case descending
         }
@@ -110,17 +115,17 @@ struct SmartPlaylist: Equatable, Codable {
     }
 }
 
-struct SmartPlaylistRuleGroup: Equatable, Codable {
-    var conjunction: SmartPlaylistConjunction
-    var predicates: [SmartPlaylistPredicate]
+public struct SmartPlaylistRuleGroup: Equatable, Codable {
+    public var conjunction: SmartPlaylistConjunction
+    public var predicates: [SmartPlaylistPredicate]
 
-    init(conjunction: SmartPlaylistConjunction = .all,
+    public init(conjunction: SmartPlaylistConjunction = .all,
          predicates: [SmartPlaylistPredicate] = []) {
         self.conjunction = conjunction
         self.predicates = predicates
     }
 
-    func matches(_ row: TrackRow, isRoot: Bool = false) -> Bool {
+    public func matches(_ row: TrackRow, isRoot: Bool = false) -> Bool {
         guard !predicates.isEmpty else { return isRoot || conjunction == .all }
         switch conjunction {
         case .all:
@@ -130,7 +135,7 @@ struct SmartPlaylistRuleGroup: Equatable, Codable {
         }
     }
 
-    func sql(isRoot: Bool = false, builder: inout SmartPlaylistSQLBuilder) -> String {
+    public func sql(isRoot: Bool = false, builder: inout SmartPlaylistSQLBuilder) -> String {
         guard !predicates.isEmpty else { return isRoot || conjunction == .all ? "1 = 1" : "0 = 1" }
         let separator = conjunction == .all ? " AND " : " OR "
         return predicates
@@ -139,23 +144,23 @@ struct SmartPlaylistRuleGroup: Equatable, Codable {
     }
 }
 
-enum SmartPlaylistConjunction: String, Codable, CaseIterable {
+public enum SmartPlaylistConjunction: String, Codable, CaseIterable {
     case all
     case any
 }
 
-indirect enum SmartPlaylistPredicate: Equatable, Codable {
+public indirect enum SmartPlaylistPredicate: Equatable, Codable {
     case rule(SmartPlaylistRule)
     case group(SmartPlaylistRuleGroup)
 
-    func matches(_ row: TrackRow) -> Bool {
+    public func matches(_ row: TrackRow) -> Bool {
         switch self {
         case .rule(let rule): return rule.matches(row)
         case .group(let group): return group.matches(row)
         }
     }
 
-    func sql(builder: inout SmartPlaylistSQLBuilder) -> String {
+    public func sql(builder: inout SmartPlaylistSQLBuilder) -> String {
         switch self {
         case .rule(let rule): return rule.sql(builder: &builder)
         case .group(let group): return group.sql(builder: &builder)
@@ -163,13 +168,13 @@ indirect enum SmartPlaylistPredicate: Equatable, Codable {
     }
 }
 
-struct SmartPlaylistRule: Equatable, Codable {
-    var field: SmartPlaylistField
-    var op: SmartPlaylistOperator
-    var value: SmartPlaylistValue?
-    var upperValue: SmartPlaylistValue?
+public struct SmartPlaylistRule: Equatable, Codable {
+    public var field: SmartPlaylistField
+    public var op: SmartPlaylistOperator
+    public var value: SmartPlaylistValue?
+    public var upperValue: SmartPlaylistValue?
 
-    init(field: SmartPlaylistField,
+    public init(field: SmartPlaylistField,
          op: SmartPlaylistOperator,
          value: SmartPlaylistValue? = nil,
          upperValue: SmartPlaylistValue? = nil) {
@@ -179,7 +184,7 @@ struct SmartPlaylistRule: Equatable, Codable {
         self.upperValue = upperValue
     }
 
-    func matches(_ row: TrackRow) -> Bool {
+    public func matches(_ row: TrackRow) -> Bool {
         let fieldValue = field.value(in: row)
         switch op {
         case .contains:
@@ -220,7 +225,7 @@ struct SmartPlaylistRule: Equatable, Codable {
         }
     }
 
-    func sql(builder: inout SmartPlaylistSQLBuilder) -> String {
+    public func sql(builder: inout SmartPlaylistSQLBuilder) -> String {
         let fieldSQL = field.sql
         switch op {
         case .contains:
@@ -328,7 +333,7 @@ struct SmartPlaylistRule: Equatable, Codable {
     }
 }
 
-enum SmartPlaylistOperator: String, Codable, CaseIterable {
+public enum SmartPlaylistOperator: String, Codable, CaseIterable {
     case contains
     case notContains
     case equals
@@ -344,11 +349,11 @@ enum SmartPlaylistOperator: String, Codable, CaseIterable {
     case isNotEmpty
 }
 
-enum SmartPlaylistValue: Equatable, Codable {
+public enum SmartPlaylistValue: Equatable, Codable {
     case text(String)
     case number(Double)
 
-    var textValue: String {
+    public var textValue: String {
         switch self {
         case .text(let value):
             return value
@@ -357,7 +362,7 @@ enum SmartPlaylistValue: Equatable, Codable {
         }
     }
 
-    var numberValue: Double? {
+    public var numberValue: Double? {
         switch self {
         case .text(let value):
             return Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -367,7 +372,7 @@ enum SmartPlaylistValue: Equatable, Codable {
     }
 }
 
-enum SmartPlaylistField: String, Codable, CaseIterable {
+public enum SmartPlaylistField: String, Codable, CaseIterable {
     case title
     case artist
     case album
@@ -387,7 +392,7 @@ enum SmartPlaylistField: String, Codable, CaseIterable {
     case replayGain
     case dateAdded
 
-    var kind: SmartPlaylistFieldKind {
+    public var kind: SmartPlaylistFieldKind {
         switch self {
         case .title, .artist, .album, .genre, .composer, .codec, .sourceTitle,
              .sourceKind, .assetKind, .assetLocation:
@@ -398,7 +403,7 @@ enum SmartPlaylistField: String, Codable, CaseIterable {
         }
     }
 
-    func value(in row: TrackRow) -> SmartPlaylistFieldValue {
+    public func value(in row: TrackRow) -> SmartPlaylistFieldValue {
         switch self {
         case .title:
             return .text(row.track.title)
@@ -443,7 +448,7 @@ enum SmartPlaylistField: String, Codable, CaseIterable {
         }
     }
 
-    var sql: SmartPlaylistFieldSQL {
+    public var sql: SmartPlaylistFieldSQL {
         switch self {
         case .title:
             return SmartPlaylistFieldSQL(expression: "track.title", kind: kind)
@@ -493,30 +498,30 @@ enum SmartPlaylistField: String, Codable, CaseIterable {
     }
 }
 
-enum SmartPlaylistFieldKind {
+public enum SmartPlaylistFieldKind {
     case text
     case number
 }
 
-struct SmartPlaylistQuery {
-    var sql: String
-    var arguments: StatementArguments
+public struct SmartPlaylistQuery {
+    public var sql: String
+    public var arguments: StatementArguments
 }
 
-struct SmartPlaylistFieldSQL {
-    var expression: String
-    var kind: SmartPlaylistFieldKind
+public struct SmartPlaylistFieldSQL {
+    public var expression: String
+    public var kind: SmartPlaylistFieldKind
 
-    var textExpression: String {
+    public var textExpression: String {
         "LOWER(COALESCE(CAST(\(expression) AS TEXT), ''))"
     }
 
-    var numericExpression: String {
+    public var numericExpression: String {
         kind == .number ? expression : "CAST(\(expression) AS REAL)"
     }
 }
 
-struct SmartPlaylistFieldValue: Equatable {
+public struct SmartPlaylistFieldValue: Equatable {
     private var storage: Storage
 
     private enum Storage: Equatable {
@@ -524,15 +529,15 @@ struct SmartPlaylistFieldValue: Equatable {
         case number(Double?)
     }
 
-    static func text(_ value: String?) -> SmartPlaylistFieldValue {
+    public static func text(_ value: String?) -> SmartPlaylistFieldValue {
         SmartPlaylistFieldValue(storage: .text(value))
     }
 
-    static func number(_ value: Double?) -> SmartPlaylistFieldValue {
+    public static func number(_ value: Double?) -> SmartPlaylistFieldValue {
         SmartPlaylistFieldValue(storage: .number(value))
     }
 
-    var isEmpty: Bool {
+    public var isEmpty: Bool {
         switch storage {
         case .text(let value):
             return value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
@@ -541,7 +546,7 @@ struct SmartPlaylistFieldValue: Equatable {
         }
     }
 
-    var textValue: String {
+    public var textValue: String {
         switch storage {
         case .text(let value):
             return value ?? ""
@@ -550,13 +555,13 @@ struct SmartPlaylistFieldValue: Equatable {
         }
     }
 
-    var normalizedText: String {
+    public var normalizedText: String {
         textValue
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
     }
 
-    var numberValue: Double? {
+    public var numberValue: Double? {
         switch storage {
         case .text:
             return nil
@@ -565,7 +570,7 @@ struct SmartPlaylistFieldValue: Equatable {
         }
     }
 
-    static func formatNumber(_ value: Double) -> String {
+    public static func formatNumber(_ value: Double) -> String {
         if value.rounded() == value {
             return String(Int64(value))
         }
@@ -573,10 +578,10 @@ struct SmartPlaylistFieldValue: Equatable {
     }
 }
 
-struct SmartPlaylistSQLBuilder {
-    private(set) var arguments = StatementArguments()
+public struct SmartPlaylistSQLBuilder {
+    public private(set) var arguments = StatementArguments()
 
-    mutating func bind(_ value: (any DatabaseValueConvertible)?) -> String {
+    public mutating func bind(_ value: (any DatabaseValueConvertible)?) -> String {
         _ = arguments.append(contentsOf: StatementArguments([value]))
         return "?"
     }

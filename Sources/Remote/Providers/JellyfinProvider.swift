@@ -1,35 +1,35 @@
 import Foundation
 
-struct JellyfinServerPolicy {
-    static func normalizeBaseURL(_ raw: String) throws -> URL {
+public struct JellyfinServerPolicy {
+    public static func normalizeBaseURL(_ raw: String) throws -> URL {
         try JellyfinAPI.normalizeBaseURL(raw)
     }
 
-    static func canSubmit(url: String, username: String, password: String) -> Bool {
+    public static func canSubmit(url: String, username: String, password: String) -> Bool {
         (try? normalizeBaseURL(url)) != nil
             && !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !password.isEmpty
     }
 
-    static func displayName(baseURL: URL) -> String {
+    public static func displayName(baseURL: URL) -> String {
         baseURL.host ?? baseURL.absoluteString
     }
 
-    static func credentialAccount(sourceID: Int64) -> String {
+    public static func credentialAccount(sourceID: Int64) -> String {
         "jellyfin:\(sourceID)"
     }
 }
 
-struct JellyfinProvider: RemoteLibraryProvider {
-    var baseURL: URL
-    var userID: String
-    var accessToken: String
-    var session: URLSession = .shared
-    var client: JellyfinAPI.Client = JellyfinAPI.defaultClient
+public struct JellyfinProvider: RemoteLibraryProvider {
+    public var baseURL: URL
+    public var userID: String
+    public var accessToken: String
+    public var session: URLSession = .shared
+    public var client: JellyfinAPI.Client = JellyfinAPI.defaultClient
 
-    var sourceKind: SourceKind { .jellyfin }
+    public var sourceKind: SourceKind { .jellyfin }
 
-    func browse(path rawPath: String) async throws -> [RemoteNode] {
+    public func browse(path rawPath: String) async throws -> [RemoteNode] {
         let path = try RemotePathPolicy.normalize(rawPath)
         switch path.segments.count {
         case 0:
@@ -73,7 +73,7 @@ struct JellyfinProvider: RemoteLibraryProvider {
         }
     }
 
-    func resolve(node: RemoteNode) async throws -> ResolvedAsset {
+    public func resolve(node: RemoteNode) async throws -> ResolvedAsset {
         guard node.kind == .audio,
               let itemID = node.path.split(separator: "/").dropFirst().first.map(String.init) else {
             throw URLError(.badURL)
@@ -92,11 +92,11 @@ struct JellyfinProvider: RemoteLibraryProvider {
         )
     }
 
-    func refresh() async throws {
+    public func refresh() async throws {
         _ = try await itemPage(for: .albumArtists(userID: userID))
     }
 
-    static func from(source: Source,
+    public static func from(source: Source,
                      credentialStore: CredentialStore = CredentialStore()) throws -> JellyfinProvider {
         guard source.kind == .jellyfin,
               let sourceID = source.id,

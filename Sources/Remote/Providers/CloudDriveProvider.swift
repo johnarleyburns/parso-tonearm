@@ -1,11 +1,11 @@
 import Foundation
 
-struct CloudDriveServerPolicy {
-    static func credentialAccount(sourceID: Int64, provider: CloudDriveAPI.Provider) -> String {
+public struct CloudDriveServerPolicy {
+    public static func credentialAccount(sourceID: Int64, provider: CloudDriveAPI.Provider) -> String {
         "\(provider.rawValue):\(sourceID)"
     }
 
-    static func displayName(provider: CloudDriveAPI.Provider) -> String {
+    public static func displayName(provider: CloudDriveAPI.Provider) -> String {
         switch provider {
         case .dropbox: return "Dropbox"
         case .googleDrive: return "Google Drive"
@@ -15,14 +15,14 @@ struct CloudDriveServerPolicy {
     }
 }
 
-struct CloudDriveProvider: RemoteLibraryProvider {
-    var provider: CloudDriveAPI.Provider
-    var accessToken: String
-    var session: URLSession = .shared
+public struct CloudDriveProvider: RemoteLibraryProvider {
+    public var provider: CloudDriveAPI.Provider
+    public var accessToken: String
+    public var session: URLSession = .shared
 
-    var sourceKind: SourceKind { provider.sourceKind }
+    public var sourceKind: SourceKind { provider.sourceKind }
 
-    func browse(path rawPath: String) async throws -> [RemoteNode] {
+    public func browse(path rawPath: String) async throws -> [RemoteNode] {
         let path = try RemotePathPolicy.normalize(rawPath)
         let containerID: String?
         switch path.segments.count {
@@ -47,7 +47,7 @@ struct CloudDriveProvider: RemoteLibraryProvider {
         return page.items.compactMap(remoteNode)
     }
 
-    func resolve(node: RemoteNode) async throws -> ResolvedAsset {
+    public func resolve(node: RemoteNode) async throws -> ResolvedAsset {
         guard node.kind == .audio,
               let fileID = node.path.split(separator: "/").dropFirst().first.map(String.init) else {
             throw URLError(.badURL)
@@ -81,11 +81,11 @@ struct CloudDriveProvider: RemoteLibraryProvider {
         }
     }
 
-    func refresh() async throws {
+    public func refresh() async throws {
         _ = try await browse(path: "")
     }
 
-    static func from(source: Source,
+    public static func from(source: Source,
                      credentialStore: CredentialStore = CredentialStore()) throws -> CloudDriveProvider {
         guard let sourceID = source.id,
               let provider = CloudDriveAPI.Provider(sourceKind: source.kind),

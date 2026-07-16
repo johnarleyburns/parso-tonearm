@@ -1,32 +1,32 @@
 import Foundation
 
-struct WebDAVDirectoryListing: Equatable {
-    var path: String
-    var entries: [WebDAVEntry]
+public struct WebDAVDirectoryListing: Equatable {
+    public var path: String
+    public var entries: [WebDAVEntry]
 
-    var playableEntries: [WebDAVEntry] {
+    public var playableEntries: [WebDAVEntry] {
         entries.filter { entry in
             entry.kind == .directory || entry.isAudio
         }
     }
 }
 
-struct WebDAVEntry: Identifiable, Equatable {
-    enum Kind: Equatable {
+public struct WebDAVEntry: Identifiable, Equatable {
+    public enum Kind: Equatable {
         case directory
         case file
     }
 
-    var id: String { href }
-    var href: String
-    var relativePath: String
-    var name: String
-    var kind: Kind
-    var contentLength: Int64?
-    var contentType: String?
-    var lastModified: String?
+    public var id: String { href }
+    public var href: String
+    public var relativePath: String
+    public var name: String
+    public var kind: Kind
+    public var contentLength: Int64?
+    public var contentType: String?
+    public var lastModified: String?
 
-    var isAudio: Bool {
+    public var isAudio: Bool {
         if let contentType, contentType.lowercased().hasPrefix("audio/") {
             return true
         }
@@ -34,12 +34,12 @@ struct WebDAVEntry: Identifiable, Equatable {
     }
 }
 
-enum WebDAVParser {
-    enum ParserError: Error, Equatable {
+public enum WebDAVParser {
+    public enum ParserError: Error, Equatable {
         case malformedXML
     }
 
-    static func parse(_ data: Data, basePath: String) throws -> WebDAVDirectoryListing {
+    public static func parse(_ data: Data, basePath: String) throws -> WebDAVDirectoryListing {
         let collector = WebDAVXMLCollector()
         let parser = XMLParser(data: data)
         parser.delegate = collector
@@ -96,26 +96,26 @@ enum WebDAVParser {
 }
 
 private struct WebDAVResponse {
-    var href = ""
-    var displayName: String?
-    var contentLength: Int64?
-    var contentType: String?
-    var lastModified: String?
-    var isCollection = false
-    var statuses: [String] = []
+    public var href = ""
+    public var displayName: String?
+    public var contentLength: Int64?
+    public var contentType: String?
+    public var lastModified: String?
+    public var isCollection = false
+    public var statuses: [String] = []
 
-    var isSuccessful: Bool {
+    public var isSuccessful: Bool {
         statuses.isEmpty || statuses.contains { $0.contains(" 200 ") || $0.hasSuffix(" 200 OK") }
     }
 }
 
 private final class WebDAVXMLCollector: NSObject, XMLParserDelegate {
-    var responses: [WebDAVResponse] = []
+    public var responses: [WebDAVResponse] = []
     private var current: WebDAVResponse?
     private var stack: [String] = []
     private var text = ""
 
-    func parser(_ parser: XMLParser,
+    public func parser(_ parser: XMLParser,
                 didStartElement elementName: String,
                 namespaceURI: String?,
                 qualifiedName qName: String?,
@@ -130,11 +130,11 @@ private final class WebDAVXMLCollector: NSObject, XMLParserDelegate {
         text = ""
     }
 
-    func parser(_ parser: XMLParser, foundCharacters string: String) {
+    public func parser(_ parser: XMLParser, foundCharacters string: String) {
         text += string
     }
 
-    func parser(_ parser: XMLParser,
+    public func parser(_ parser: XMLParser,
                 didEndElement elementName: String,
                 namespaceURI: String?,
                 qualifiedName qName: String?) {

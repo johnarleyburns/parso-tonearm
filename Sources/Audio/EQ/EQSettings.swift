@@ -1,12 +1,12 @@
 import Foundation
 
 /// User-facing EQ state. This is a pure value: no UI frameworks, no I/O.
-struct EQSettings: Equatable, Codable {
-    var bands: [Float]
-    var enabled: Bool
-    var activePresetID: String?
+public struct EQSettings: Equatable, Codable {
+    public var bands: [Float]
+    public var enabled: Bool
+    public var activePresetID: String?
 
-    static let flat = EQSettings(
+    public static let flat = EQSettings(
         bands: Array(repeating: 0, count: EQEngine.bandCount),
         enabled: false,
         activePresetID: EQPreset.flat.id
@@ -15,19 +15,19 @@ struct EQSettings: Equatable, Codable {
 
 /// Pure EQ policy: clamping, preset resolution, modified detection, and payload
 /// serialization for persistence.
-struct EQSettingsStore {
-    static let minGain: Float = -12
-    static let maxGain: Float = 12
+public struct EQSettingsStore {
+    public static let minGain: Float = -12
+    public static let maxGain: Float = 12
 
-    struct Payload: Equatable, Codable {
+    public struct Payload: Equatable, Codable {
         var bands: [Float]
         var enabled: Bool
         var activePresetID: String?
     }
 
-    var presets: [EQPreset] = EQPreset.builtIns
+    public var presets: [EQPreset] = EQPreset.builtIns
 
-    func normalized(_ settings: EQSettings) -> EQSettings {
+    public func normalized(_ settings: EQSettings) -> EQSettings {
         var bands = Array(settings.bands.prefix(EQEngine.bandCount))
         if bands.count < EQEngine.bandCount {
             bands.append(contentsOf: Array(repeating: 0, count: EQEngine.bandCount - bands.count))
@@ -36,7 +36,7 @@ struct EQSettingsStore {
         return EQSettings(bands: bands, enabled: settings.enabled, activePresetID: settings.activePresetID)
     }
 
-    func bands(forPresetID presetID: String?) -> [Float] {
+    public func bands(forPresetID presetID: String?) -> [Float] {
         guard let presetID,
               let preset = presets.first(where: { $0.id == presetID }) else {
             return EQPreset.flat.floatGains
@@ -44,7 +44,7 @@ struct EQSettingsStore {
         return normalized(EQSettings(bands: preset.floatGains, enabled: true, activePresetID: preset.id)).bands
     }
 
-    func applyingPreset(id presetID: String, to settings: EQSettings) -> EQSettings {
+    public func applyingPreset(id presetID: String, to settings: EQSettings) -> EQSettings {
         let resolvedID = presets.contains(where: { $0.id == presetID }) ? presetID : EQPreset.flat.id
         return normalized(EQSettings(
             bands: bands(forPresetID: resolvedID),
@@ -53,23 +53,23 @@ struct EQSettingsStore {
         ))
     }
 
-    func updatingBand(at index: Int, to gain: Float, in settings: EQSettings) -> EQSettings {
+    public func updatingBand(at index: Int, to gain: Float, in settings: EQSettings) -> EQSettings {
         var next = normalized(settings)
         guard next.bands.indices.contains(index) else { return next }
         next.bands[index] = min(Self.maxGain, max(Self.minGain, gain))
         return next
     }
 
-    func isModifiedFromPreset(_ settings: EQSettings) -> Bool {
+    public func isModifiedFromPreset(_ settings: EQSettings) -> Bool {
         guard let presetID = settings.activePresetID else { return false }
         return normalized(settings).bands != bands(forPresetID: presetID)
     }
 
-    func effectiveBands(for settings: EQSettings) -> [Float] {
+    public func effectiveBands(for settings: EQSettings) -> [Float] {
         settings.enabled ? normalized(settings).bands : EQPreset.flat.floatGains
     }
 
-    func payload(for settings: EQSettings) -> Payload {
+    public func payload(for settings: EQSettings) -> Payload {
         let normalized = normalized(settings)
         return Payload(
             bands: normalized.bands,
@@ -78,7 +78,7 @@ struct EQSettingsStore {
         )
     }
 
-    func settings(from payload: Payload?) -> EQSettings {
+    public func settings(from payload: Payload?) -> EQSettings {
         guard let payload else { return .flat }
         return normalized(EQSettings(
             bands: payload.bands,
@@ -87,11 +87,11 @@ struct EQSettingsStore {
         ))
     }
 
-    func encodedPayload(for settings: EQSettings) -> Data? {
+    public func encodedPayload(for settings: EQSettings) -> Data? {
         try? JSONEncoder().encode(payload(for: settings))
     }
 
-    func settings(fromEncodedPayload data: Data?) -> EQSettings {
+    public func settings(fromEncodedPayload data: Data?) -> EQSettings {
         guard let data,
               let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
             return .flat
@@ -99,7 +99,7 @@ struct EQSettingsStore {
         return settings(from: payload)
     }
 
-    func userPreset(named name: String, settings: EQSettings) -> EQPreset? {
+    public func userPreset(named name: String, settings: EQSettings) -> EQPreset? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return EQPreset(name: trimmed, gains: normalized(settings).bands.map(Double.init), isBuiltIn: false)
@@ -108,13 +108,13 @@ struct EQSettingsStore {
 
 /// Thin UserDefaults adapter for EQ state. Persistence stays here; product rules
 /// stay in `EQSettingsStore`.
-enum EQSettingsPersistence {
+public enum EQSettingsPersistence {
     private static let settingsKey = "eq.settings.payload"
     private static let legacyEnabledKey = "eq.enabled"
     private static let legacyGainsKey = "eq.gains"
     private static let userPresetsKey = "eq.userPresets"
 
-    static func load(defaults: UserDefaults = .standard) -> EQSettings {
+    public static func load(defaults: UserDefaults = .standard) -> EQSettings {
         let store = EQSettingsStore(presets: allPresets(defaults: defaults))
         if let data = defaults.data(forKey: settingsKey) {
             return store.settings(fromEncodedPayload: data)
@@ -129,12 +129,12 @@ enum EQSettingsPersistence {
         return .flat
     }
 
-    static func save(_ settings: EQSettings, defaults: UserDefaults = .standard) {
+    public static func save(_ settings: EQSettings, defaults: UserDefaults = .standard) {
         let store = EQSettingsStore(presets: allPresets(defaults: defaults))
         defaults.set(store.encodedPayload(for: settings), forKey: settingsKey)
     }
 
-    static func userPresets(defaults: UserDefaults = .standard) -> [EQPreset] {
+    public static func userPresets(defaults: UserDefaults = .standard) -> [EQPreset] {
         guard let data = defaults.data(forKey: userPresetsKey),
               let presets = try? JSONDecoder().decode([EQPreset].self, from: data) else {
             return []
@@ -142,11 +142,11 @@ enum EQSettingsPersistence {
         return presets
     }
 
-    static func allPresets(defaults: UserDefaults = .standard) -> [EQPreset] {
+    public static func allPresets(defaults: UserDefaults = .standard) -> [EQPreset] {
         EQPreset.builtIns + userPresets(defaults: defaults)
     }
 
-    static func saveUserPreset(_ preset: EQPreset, defaults: UserDefaults = .standard) {
+    public static func saveUserPreset(_ preset: EQPreset, defaults: UserDefaults = .standard) {
         var presets = userPresets(defaults: defaults)
         presets.removeAll { $0.id == preset.id }
         presets.append(preset)

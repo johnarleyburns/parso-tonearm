@@ -1,7 +1,7 @@
 import Foundation
 
-enum ListeningStats {
-    struct Summary: Equatable {
+public enum ListeningStats {
+    public struct Summary: Equatable {
         var totalPlayCount: Int
         var totalListeningTime: TimeInterval
         var currentStreakDays: Int
@@ -29,28 +29,28 @@ enum ListeningStats {
                                        topArtist: nil, topTrack: nil, shareText: ""))
     }
 
-    struct TrackRank: Equatable, Identifiable {
+    public struct TrackRank: Equatable, Identifiable {
         var row: TrackRow
         var playCount: Int
         var listeningTime: TimeInterval
-        var id: Int64 { row.id }
+        public var id: Int64 { row.id }
     }
 
-    struct NameRank: Equatable, Identifiable {
+    public struct NameRank: Equatable, Identifiable {
         var name: String
         var playCount: Int
         var listeningTime: TimeInterval
-        var id: String { name }
+        public var id: String { name }
     }
 
-    struct PeriodRollup: Equatable, Identifiable {
+    public struct PeriodRollup: Equatable, Identifiable {
         var start: Date
         var playCount: Int
         var listeningTime: TimeInterval
-        var id: Date { start }
+        public var id: Date { start }
     }
 
-    struct YearInReview: Equatable {
+    public struct YearInReview: Equatable {
         var year: Int
         var playCount: Int
         var listeningTime: TimeInterval
@@ -59,7 +59,7 @@ enum ListeningStats {
         var shareText: String
     }
 
-    static func summarize(
+    public static func summarize(
         events: [PlayEvent],
         tracks: [TrackRow],
         calendar: Calendar = .current,
@@ -311,7 +311,7 @@ enum ListeningStats {
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 
-    static func durationText(_ duration: TimeInterval) -> String {
+    public static func durationText(_ duration: TimeInterval) -> String {
         let minutes = max(0, Int(duration.rounded()) / 60)
         if minutes < 60 { return "\(minutes)m" }
         let hours = minutes / 60

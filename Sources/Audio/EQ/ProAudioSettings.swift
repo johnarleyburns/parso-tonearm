@@ -5,19 +5,19 @@ import Foundation
 /// DSP (`ProAudioKernel`) and the paywall status label (`BitPerfectOutputPlan`) are
 /// both derived from this single source of truth so the sliders actually drive the
 /// audio instead of a status string.
-struct ProAudioSettings: Equatable, Codable {
+public struct ProAudioSettings: Equatable, Codable {
     /// Parametric EQ cascade applied after the 10-band graphic EQ.
-    var parametricBands: [ParametricEQBand]
+    public var parametricBands: [ParametricEQBand]
     /// Symmetric crossfeed amount in dB (the mixed-in opposite channel level).
-    var crossfeedDB: Double
-    var crossfeedEnabled: Bool
+    public var crossfeedDB: Double
+    public var crossfeedEnabled: Bool
     /// Number of taps for the (box-filter) convolution stage. 0 == off.
-    var convolutionTaps: Int
+    public var convolutionTaps: Int
     /// Whether the user has requested bit-perfect output. Honoured only when every
     /// stage is transparent and the hardware rate matches the source.
-    var bitPerfectRequested: Bool
+    public var bitPerfectRequested: Bool
 
-    static let `default` = ProAudioSettings(
+    public static let `default` = ProAudioSettings(
         parametricBands: [],
         crossfeedDB: -12,
         crossfeedEnabled: false,
@@ -25,18 +25,18 @@ struct ProAudioSettings: Equatable, Codable {
         bitPerfectRequested: true
     )
 
-    static let convolutionSampleRate: Double = 48_000
-    static let maxConvolutionTaps = 1_024
+    public static let convolutionSampleRate: Double = 48_000
+    public static let maxConvolutionTaps = 1_024
 
     /// A normalized box-filter impulse response of `convolutionTaps` taps. A crude
     /// but audible low-pass so moving the control provably changes the sound.
-    var convolutionImpulseResponse: [Double] {
+    public var convolutionImpulseResponse: [Double] {
         guard convolutionTaps > 0 else { return [] }
         let count = min(convolutionTaps, Self.maxConvolutionTaps)
         return Array(repeating: 1.0 / Double(count), count: count)
     }
 
-    func convolutionPlan() -> ConvolutionPlan {
+    public func convolutionPlan() -> ConvolutionPlan {
         ConvolutionPlan.make(
             impulseResponse: convolutionImpulseResponse,
             maxTaps: min(convolutionTaps, Self.maxConvolutionTaps),
@@ -45,16 +45,16 @@ struct ProAudioSettings: Equatable, Codable {
         )
     }
 
-    var crossfeedMatrix: CrossfeedMatrix {
+    public var crossfeedMatrix: CrossfeedMatrix {
         crossfeedEnabled ? CrossfeedMatrix.symmetric(crossfeedDB: crossfeedDB) : .identity
     }
 
-    func eqCascade(sampleRate: Double = ProAudioSettings.convolutionSampleRate) -> ParametricEQCascade {
+    public func eqCascade(sampleRate: Double = ProAudioSettings.convolutionSampleRate) -> ParametricEQCascade {
         ParametricEQCascade(bands: parametricBands, sampleRate: sampleRate)
     }
 
     /// True when every stage passes samples through unchanged.
-    var isTransparent: Bool {
+    public var isTransparent: Bool {
         eqCascade().isTransparent
             && crossfeedMatrix.isTransparent
             && convolutionPlan().isTransparent
@@ -62,7 +62,7 @@ struct ProAudioSettings: Equatable, Codable {
 
     /// Builds the paywall-facing plan from the REAL hardware/source rates, never
     /// from view `@State`.
-    func bitPerfectPlan(hardwareSampleRate: Double,
+    public func bitPerfectPlan(hardwareSampleRate: Double,
                         sourceSampleRate: Double,
                         replayGainActive: Bool) -> BitPerfectOutputPlan {
         let matches = sourceSampleRate <= 0
@@ -80,10 +80,10 @@ struct ProAudioSettings: Equatable, Codable {
 
 /// Thin UserDefaults adapter for Pro Audio state. Persistence stays here; product
 /// rules stay in the pure `ProAudioSettings` value.
-enum ProAudioSettingsPersistence {
+public enum ProAudioSettingsPersistence {
     private static let settingsKey = "proaudio.settings.payload"
 
-    static func load(defaults: UserDefaults = .standard) -> ProAudioSettings {
+    public static func load(defaults: UserDefaults = .standard) -> ProAudioSettings {
         guard let data = defaults.data(forKey: settingsKey),
               let settings = try? JSONDecoder().decode(ProAudioSettings.self, from: data) else {
             return .default
@@ -91,7 +91,7 @@ enum ProAudioSettingsPersistence {
         return settings
     }
 
-    static func save(_ settings: ProAudioSettings, defaults: UserDefaults = .standard) {
+    public static func save(_ settings: ProAudioSettings, defaults: UserDefaults = .standard) {
         guard let data = try? JSONEncoder().encode(settings) else { return }
         defaults.set(data, forKey: settingsKey)
     }
@@ -105,19 +105,19 @@ enum ProAudioSettingsPersistence {
 /// Signal chain (canonical order):
 /// 10-band EQ -> parametric cascade -> convolution -> crossfeed -> ReplayGain.
 /// ReplayGain stays last so a fully-transparent chain nulls bit-exactly.
-struct ProAudioKernel {
+public struct ProAudioKernel {
     private var eq: EQEngine
     private var parametric: [Biquad]
     private let convTaps: [Double]
     private var convHistory: [[Double]]
     private var convIndex: [Int]
     private let crossfeed: CrossfeedMatrix
-    var replayGain: Double
+    public var replayGain: Double
 
     /// True when nothing in the chain (including ReplayGain) alters the signal.
-    let isTransparent: Bool
+    public let isTransparent: Bool
 
-    init(eqGains: [Double],
+    public init(eqGains: [Double],
          eqBypassed: Bool,
          settings: ProAudioSettings,
          replayGain: Double,
@@ -147,7 +147,7 @@ struct ProAudioKernel {
             && replayGain == 1
     }
 
-    mutating func reset() {
+    public mutating func reset() {
         eq.reset()
         for i in parametric.indices { parametric[i].reset() }
         for c in convHistory.indices {
@@ -184,7 +184,7 @@ struct ProAudioKernel {
 
     /// Processes a stereo (or mono, when `stereo == false`) frame. Bit-exact
     /// passthrough when transparent.
-    mutating func processStereo(left: Double, right: Double, stereo: Bool) -> (left: Double, right: Double) {
+    public mutating func processStereo(left: Double, right: Double, stereo: Bool) -> (left: Double, right: Double) {
         guard !isTransparent else { return (left, right) }
         var l = perChannel(left, channel: 0)
         var r = stereo ? perChannel(right, channel: 1) : right
@@ -201,7 +201,7 @@ struct ProAudioKernel {
     }
 
     /// Offline stereo render for tests.
-    mutating func renderStereo(_ frames: [(Double, Double)]) -> [(Double, Double)] {
+    public mutating func renderStereo(_ frames: [(Double, Double)]) -> [(Double, Double)] {
         frames.map { frame in
             let out = processStereo(left: frame.0, right: frame.1, stereo: true)
             return (out.left, out.right)

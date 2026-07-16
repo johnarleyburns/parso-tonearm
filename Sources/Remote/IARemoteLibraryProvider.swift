@@ -1,11 +1,11 @@
 import Foundation
 
-struct IARemoteLibraryProvider: RemoteLibraryProvider {
-    var preferFLAC: Bool = true
+public struct IARemoteLibraryProvider: RemoteLibraryProvider {
+    public var preferFLAC: Bool = true
 
-    var sourceKind: SourceKind { .iaItem }
+    public var sourceKind: SourceKind { .iaItem }
 
-    func browse(path raw: String) async throws -> [RemoteNode] {
+    public func browse(path raw: String) async throws -> [RemoteNode] {
         let preview = try await preview(from: raw)
         if let item = preview.resolvedItem {
             return item.tracks.map { track in
@@ -29,16 +29,16 @@ struct IARemoteLibraryProvider: RemoteLibraryProvider {
         }
     }
 
-    func resolve(node: RemoteNode) async throws -> ResolvedAsset {
+    public func resolve(node: RemoteNode) async throws -> ResolvedAsset {
         guard let url = URL(string: node.path), url.scheme != nil else {
             throw URLError(.badURL)
         }
         return ResolvedAsset(url: url, headers: [:], supportsByteRanges: true, sizeBytes: node.sizeBytes)
     }
 
-    func refresh() async throws {}
+    public func refresh() async throws {}
 
-    func preview(from raw: String) async throws -> SourcePreview {
+    public func preview(from raw: String) async throws -> SourcePreview {
         let parsed = try URLGrammar.parse(raw).get()
         switch parsed {
         case .item(let identifier, _):

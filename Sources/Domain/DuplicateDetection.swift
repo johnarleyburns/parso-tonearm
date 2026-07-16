@@ -1,16 +1,16 @@
 import CryptoKit
 import Foundation
 
-enum DuplicateDetection {
-    static let sampleByteCount = 128 * 1_024
+public enum DuplicateDetection {
+    public static let sampleByteCount = 128 * 1_024
 
-    struct Fingerprint: Hashable, Equatable {
+    public struct Fingerprint: Hashable, Equatable {
         var sizeBytes: Int64
         var sampleHash: String
     }
 
-    struct Candidate: Identifiable, Equatable {
-        var id: String
+    public struct Candidate: Identifiable, Equatable {
+        public var id: String
         var fingerprint: Fingerprint
 
         var sizeBytes: Int64 { fingerprint.sizeBytes }
@@ -31,7 +31,7 @@ enum DuplicateDetection {
         }
     }
 
-    struct Group: Equatable {
+    public struct Group: Equatable {
         var fingerprint: Fingerprint
         var candidates: [Candidate]
 
@@ -40,7 +40,7 @@ enum DuplicateDetection {
         }
     }
 
-    static func groups(from candidates: [Candidate]) -> [Group] {
+    public static func groups(from candidates: [Candidate]) -> [Group] {
         struct Bucket {
             var firstIndex: Int
             var candidates: [Candidate]
@@ -68,21 +68,21 @@ enum DuplicateDetection {
         }
     }
 
-    static func fingerprint(bytes: Data) -> Fingerprint {
+    public static func fingerprint(bytes: Data) -> Fingerprint {
         Fingerprint(
             sizeBytes: Int64(bytes.count),
             sampleHash: hashSample(bytes: bytes)
         )
     }
 
-    static func fingerprint(sizeBytes: Int64, firstBytes: Data, lastBytes: Data) -> Fingerprint {
+    public static func fingerprint(sizeBytes: Int64, firstBytes: Data, lastBytes: Data) -> Fingerprint {
         Fingerprint(
             sizeBytes: sizeBytes,
             sampleHash: hashSample(firstBytes: firstBytes, lastBytes: lastBytes)
         )
     }
 
-    static func sample(bytes: Data) -> Data {
+    public static func sample(bytes: Data) -> Data {
         let firstBytes = bytes.prefix(sampleByteCount)
         let lastBytes = bytes.suffix(sampleByteCount)
         var sample = Data()

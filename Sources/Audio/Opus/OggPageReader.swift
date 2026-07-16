@@ -1,6 +1,6 @@
 import Foundation
 
-enum OggOpusError: Error, Equatable {
+public enum OggOpusError: Error, Equatable {
     case notOgg
     case notOpus
     case chainedStream
@@ -9,38 +9,38 @@ enum OggOpusError: Error, Equatable {
 }
 
 /// Parsed header fields from the `OpusHead` identification packet (RFC 7845 §5.1).
-struct OpusHead: Equatable {
-    let channelCount: Int
+public struct OpusHead: Equatable {
+    public let channelCount: Int
     /// Samples (at 48 kHz) to discard from the decoded output start. Maps to the
     /// CAF `pakt` priming frames — this guards the start-click trap.
-    let preSkip: Int
+    public let preSkip: Int
     /// Original input sample rate (informational only; Opus always decodes at 48 kHz).
-    let inputSampleRate: Int
-    let outputGain: Int
-    let channelMappingFamily: Int
+    public let inputSampleRate: Int
+    public let outputGain: Int
+    public let channelMappingFamily: Int
 }
 
 /// Result of demuxing an Ogg-encapsulated Opus stream into raw Opus packets plus
 /// the metadata the CAF writer needs. The reader reassembles packets across page
 /// boundaries (255-lacing continuation) and rejects chained streams (multiple BOS).
-struct OggOpusStream: Equatable {
-    let head: OpusHead
+public struct OggOpusStream: Equatable {
+    public let head: OpusHead
     /// Raw Opus audio packets, in order, ready to be concatenated into a CAF
     /// `data` chunk. Excludes the two header packets (OpusHead, OpusTags).
-    let audioPackets: [Data]
+    public let audioPackets: [Data]
     /// Granule position of the final page — total 48 kHz samples of decodable
     /// output including pre-skip.
-    let finalGranule: Int64
+    public let finalGranule: Int64
     /// Sum of every audio packet's decoded sample count at 48 kHz. Used with
     /// `finalGranule` to derive the CAF `pakt` remainder frames (trailing gap).
-    let decodedSampleCount: Int64
+    public let decodedSampleCount: Int64
 }
 
 /// Parses Ogg pages (RFC 3533) carrying an Opus logical stream (RFC 7845).
-enum OggPageReader {
+public enum OggPageReader {
     private static let capturePattern: [UInt8] = Array("OggS".utf8)
 
-    struct Page {
+    public struct Page {
         let headerType: UInt8
         let granulePosition: Int64
         let serialNumber: UInt32
@@ -51,7 +51,7 @@ enum OggPageReader {
         var isContinuation: Bool { headerType & 0x01 != 0 }
     }
 
-    static func parse(_ data: Data) throws -> OggOpusStream {
+    public static func parse(_ data: Data) throws -> OggOpusStream {
         let bytes = [UInt8](data)
         var offset = 0
         var pages: [Page] = []
@@ -133,7 +133,7 @@ enum OggPageReader {
                              finalGranule: finalGranule, decodedSampleCount: decoded)
     }
 
-    static func parseOpusHead(_ packet: Data) throws -> OpusHead {
+    public static func parseOpusHead(_ packet: Data) throws -> OpusHead {
         let b = [UInt8](packet)
         guard b.count >= 19 else { throw OggOpusError.notOpus }
         guard Array(b[0..<8]) == Array("OpusHead".utf8) else { throw OggOpusError.notOpus }
@@ -163,7 +163,7 @@ enum OggPageReader {
     ]
 
     /// Decoded sample count (at 48 kHz) for one Opus packet, from its TOC byte.
-    static func packetSampleCount(_ packet: Data) -> Int {
+    public static func packetSampleCount(_ packet: Data) -> Int {
         guard let toc = packet.first else { return 0 }
         let config = Int(toc >> 3)
         let frameSize = frameSizeByConfig[min(config, frameSizeByConfig.count - 1)]

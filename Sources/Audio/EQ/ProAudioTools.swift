@@ -1,6 +1,6 @@
 import Foundation
 
-enum BiquadFilterType: String, CaseIterable, Equatable, Codable {
+public enum BiquadFilterType: String, CaseIterable, Equatable, Codable {
     case peaking
     case lowShelf
     case highShelf
@@ -8,7 +8,7 @@ enum BiquadFilterType: String, CaseIterable, Equatable, Codable {
     case highPass
     case notch
 
-    var usesGain: Bool {
+    public var usesGain: Bool {
         switch self {
         case .peaking, .lowShelf, .highShelf:
             return true
@@ -18,16 +18,16 @@ enum BiquadFilterType: String, CaseIterable, Equatable, Codable {
     }
 }
 
-struct BiquadCoefficients: Equatable {
-    var b0: Double
-    var b1: Double
-    var b2: Double
-    var a1: Double
-    var a2: Double
+public struct BiquadCoefficients: Equatable {
+    public var b0: Double
+    public var b1: Double
+    public var b2: Double
+    public var a1: Double
+    public var a2: Double
 
-    static let identity = BiquadCoefficients(b0: 1, b1: 0, b2: 0, a1: 0, a2: 0)
+    public static let identity = BiquadCoefficients(b0: 1, b1: 0, b2: 0, a1: 0, a2: 0)
 
-    static func make(type: BiquadFilterType,
+    public static func make(type: BiquadFilterType,
                      frequency: Double,
                      gainDB: Double = 0,
                      q: Double,
@@ -56,17 +56,17 @@ struct BiquadCoefficients: Equatable {
         }
     }
 
-    var isIdentity: Bool {
+    public var isIdentity: Bool {
         self == .identity
     }
 
-    var isStable: Bool {
+    public var isStable: Bool {
         abs(a2) < 1
             && 1 + a1 + a2 > 0
             && 1 - a1 + a2 > 0
     }
 
-    func magnitude(at frequency: Double, sampleRate: Double) -> Double {
+    public func magnitude(at frequency: Double, sampleRate: Double) -> Double {
         guard sampleRate > 0, frequency.isFinite else { return 0 }
         let omega = 2 * Double.pi * frequency / sampleRate
         let z1r = cos(omega)
@@ -174,7 +174,7 @@ struct BiquadCoefficients: Equatable {
     }
 }
 
-extension Biquad {
+public extension Biquad {
     init(coefficients: BiquadCoefficients) {
         self.init()
         b0 = coefficients.b0
@@ -189,15 +189,15 @@ extension Biquad {
     }
 }
 
-struct ParametricEQBand: Equatable, Identifiable, Codable {
-    var id: String
-    var type: BiquadFilterType
-    var frequency: Double
-    var gainDB: Double
-    var q: Double
-    var isEnabled: Bool
+public struct ParametricEQBand: Equatable, Identifiable, Codable {
+    public var id: String
+    public var type: BiquadFilterType
+    public var frequency: Double
+    public var gainDB: Double
+    public var q: Double
+    public var isEnabled: Bool
 
-    init(id: String = UUID().uuidString,
+    public init(id: String = UUID().uuidString,
          type: BiquadFilterType,
          frequency: Double,
          gainDB: Double = 0,
@@ -211,7 +211,7 @@ struct ParametricEQBand: Equatable, Identifiable, Codable {
         self.isEnabled = isEnabled
     }
 
-    func coefficients(sampleRate: Double) -> BiquadCoefficients {
+    public func coefficients(sampleRate: Double) -> BiquadCoefficients {
         guard isEnabled else { return .identity }
         return BiquadCoefficients.make(
             type: type,
@@ -222,34 +222,34 @@ struct ParametricEQBand: Equatable, Identifiable, Codable {
     }
 }
 
-struct ParametricEQCascade: Equatable {
-    var bands: [ParametricEQBand]
-    var sampleRate: Double
+public struct ParametricEQCascade: Equatable {
+    public var bands: [ParametricEQBand]
+    public var sampleRate: Double
 
-    var coefficients: [BiquadCoefficients] {
+    public var coefficients: [BiquadCoefficients] {
         bands
             .map { $0.coefficients(sampleRate: sampleRate) }
             .filter { !$0.isIdentity }
     }
 
-    var isTransparent: Bool {
+    public var isTransparent: Bool {
         coefficients.isEmpty
     }
 
-    var isStable: Bool {
+    public var isStable: Bool {
         coefficients.allSatisfy(\.isStable)
     }
 }
 
-struct CrossfeedMatrix: Equatable {
-    var leftToLeft: Double
-    var leftToRight: Double
-    var rightToLeft: Double
-    var rightToRight: Double
+public struct CrossfeedMatrix: Equatable {
+    public var leftToLeft: Double
+    public var leftToRight: Double
+    public var rightToLeft: Double
+    public var rightToRight: Double
 
-    static let identity = CrossfeedMatrix(leftToLeft: 1, leftToRight: 0, rightToLeft: 0, rightToRight: 1)
+    public static let identity = CrossfeedMatrix(leftToLeft: 1, leftToRight: 0, rightToLeft: 0, rightToRight: 1)
 
-    static func symmetric(crossfeedDB: Double) -> CrossfeedMatrix {
+    public static func symmetric(crossfeedDB: Double) -> CrossfeedMatrix {
         guard crossfeedDB.isFinite else { return .identity }
         let cross = min(max(pow(10, crossfeedDB / 20), 0), 1)
         guard cross > 0 else { return .identity }
@@ -258,11 +258,11 @@ struct CrossfeedMatrix: Equatable {
                                rightToLeft: cross, rightToRight: direct)
     }
 
-    var isTransparent: Bool {
+    public var isTransparent: Bool {
         self == .identity
     }
 
-    func apply(left: Double, right: Double) -> (left: Double, right: Double) {
+    public func apply(left: Double, right: Double) -> (left: Double, right: Double) {
         (
             left: leftToLeft * left + rightToLeft * right,
             right: leftToRight * left + rightToRight * right
@@ -270,14 +270,14 @@ struct CrossfeedMatrix: Equatable {
     }
 }
 
-struct ConvolutionPlan: Equatable {
-    var taps: [Double]
-    var blockSize: Int
-    var latencyFrames: Int
+public struct ConvolutionPlan: Equatable {
+    public var taps: [Double]
+    public var blockSize: Int
+    public var latencyFrames: Int
 
-    static let identity = ConvolutionPlan(taps: [], blockSize: 0, latencyFrames: 0)
+    public static let identity = ConvolutionPlan(taps: [], blockSize: 0, latencyFrames: 0)
 
-    static func make(impulseResponse: [Double],
+    public static func make(impulseResponse: [Double],
                      maxTaps: Int,
                      blockSize: Int,
                      normalize: Bool) -> ConvolutionPlan {
@@ -296,14 +296,14 @@ struct ConvolutionPlan: Equatable {
             latencyFrames: max(0, (taps.count - 1) / 2))
     }
 
-    var isTransparent: Bool {
+    public var isTransparent: Bool {
         guard let first = taps.first else { return true }
         return first == 1 && taps.dropFirst().allSatisfy { $0 == 0 }
     }
 }
 
-struct BitPerfectOutputPlan: Equatable {
-    enum Blocker: Equatable {
+public struct BitPerfectOutputPlan: Equatable {
+    public enum Blocker: Equatable {
         case sampleRateMismatch
         case parametricEQ
         case crossfeed
@@ -311,14 +311,14 @@ struct BitPerfectOutputPlan: Equatable {
         case replayGain
     }
 
-    var requested: Bool
-    var sampleRateMatchesHardware: Bool
-    var eqCascade: ParametricEQCascade
-    var crossfeed: CrossfeedMatrix
-    var convolution: ConvolutionPlan
-    var replayGainEnabled: Bool
+    public var requested: Bool
+    public var sampleRateMatchesHardware: Bool
+    public var eqCascade: ParametricEQCascade
+    public var crossfeed: CrossfeedMatrix
+    public var convolution: ConvolutionPlan
+    public var replayGainEnabled: Bool
 
-    var blockers: [Blocker] {
+    public var blockers: [Blocker] {
         var values: [Blocker] = []
         if !sampleRateMatchesHardware { values.append(.sampleRateMismatch) }
         if !eqCascade.isTransparent { values.append(.parametricEQ) }
@@ -328,21 +328,21 @@ struct BitPerfectOutputPlan: Equatable {
         return values
     }
 
-    var canUseBitPerfect: Bool {
+    public var canUseBitPerfect: Bool {
         requested && blockers.isEmpty
     }
 }
 
 private struct PreparedBiquadInput {
-    var type: BiquadFilterType
-    var frequency: Double
-    var gainDB: Double
-    var q: Double
-    var sampleRate: Double
-    var w0: Double
-    var cosw0: Double
+    public var type: BiquadFilterType
+    public var frequency: Double
+    public var gainDB: Double
+    public var q: Double
+    public var sampleRate: Double
+    public var w0: Double
+    public var cosw0: Double
 
-    init(type: BiquadFilterType,
+    public init(type: BiquadFilterType,
          frequency: Double,
          gainDB: Double,
          q: Double,
@@ -362,10 +362,10 @@ private struct PreparedBiquadInput {
 }
 
 private struct Complex {
-    var real: Double
-    var imaginary: Double
+    public var real: Double
+    public var imaginary: Double
 
-    var magnitude: Double {
+    public var magnitude: Double {
         sqrt(real * real + imaginary * imaginary)
     }
 }

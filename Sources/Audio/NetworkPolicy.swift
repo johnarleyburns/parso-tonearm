@@ -1,18 +1,18 @@
 import Foundation
 
-enum PlaybackDecision: Equatable {
+public enum PlaybackDecision: Equatable {
     case play
     case skipWiFiOnly
     case playFromCache
 }
 
-struct NetworkPolicy {
-    enum AssetKind: Equatable {
+public struct NetworkPolicy {
+    public enum AssetKind: Equatable {
         case local
         case remote
     }
 
-    static func decide(assetKind: AssetKind,
+    public static func decide(assetKind: AssetKind,
                        isCached: Bool,
                        pathIsExpensive: Bool,
                        streamOnCellular: Bool) -> PlaybackDecision {
@@ -22,7 +22,7 @@ struct NetworkPolicy {
         return .play
     }
 
-    static func nextPlayableIndex(after currentIndex: Int,
+    public static func nextPlayableIndex(after currentIndex: Int,
                                   count: Int,
                                   repeatAll: Bool,
                                   decisionAt: (Int) -> PlaybackDecision) -> Int? {

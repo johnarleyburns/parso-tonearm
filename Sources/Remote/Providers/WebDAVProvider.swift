@@ -1,7 +1,7 @@
 import Foundation
 
-struct WebDAVServerPolicy {
-    static func normalizeBaseURL(_ raw: String) throws -> URL {
+public struct WebDAVServerPolicy {
+    public static func normalizeBaseURL(_ raw: String) throws -> URL {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw URLError(.badURL) }
         let withScheme = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
@@ -14,40 +14,40 @@ struct WebDAVServerPolicy {
         return url
     }
 
-    static func canSubmit(url: String, username: String, password: String) -> Bool {
+    public static func canSubmit(url: String, username: String, password: String) -> Bool {
         (try? normalizeBaseURL(url)) != nil
             && !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !password.isEmpty
     }
 
-    static func displayName(baseURL: URL) -> String {
+    public static func displayName(baseURL: URL) -> String {
         baseURL.host ?? baseURL.absoluteString
     }
 
-    static func credentialAccount(sourceID: Int64) -> String {
+    public static func credentialAccount(sourceID: Int64) -> String {
         "webdav:\(sourceID)"
     }
 
-    static func authorizationHeader(username: String, password: String) -> String {
+    public static func authorizationHeader(username: String, password: String) -> String {
         let token = Data("\(username):\(password)".utf8).base64EncodedString()
         return "Basic \(token)"
     }
 }
 
-struct WebDAVCredential: Codable, Equatable {
-    var username: String
-    var password: String
+public struct WebDAVCredential: Codable, Equatable {
+    public var username: String
+    public var password: String
 }
 
-struct WebDAVProvider: RemoteLibraryProvider {
-    var baseURL: URL
-    var username: String
-    var password: String
-    var session: URLSession = .shared
+public struct WebDAVProvider: RemoteLibraryProvider {
+    public var baseURL: URL
+    public var username: String
+    public var password: String
+    public var session: URLSession = .shared
 
-    var sourceKind: SourceKind { .webDAV }
+    public var sourceKind: SourceKind { .webDAV }
 
-    func browse(path rawPath: String) async throws -> [RemoteNode] {
+    public func browse(path rawPath: String) async throws -> [RemoteNode] {
         _ = try RemotePathPolicy.normalize(rawPath)
         let url = url(for: rawPath)
         var request = URLRequest(url: url)
@@ -84,7 +84,7 @@ struct WebDAVProvider: RemoteLibraryProvider {
         }
     }
 
-    func resolve(node: RemoteNode) async throws -> ResolvedAsset {
+    public func resolve(node: RemoteNode) async throws -> ResolvedAsset {
         guard node.kind == .audio else { throw URLError(.badURL) }
         return ResolvedAsset(
             url: url(for: node.path),
@@ -94,11 +94,11 @@ struct WebDAVProvider: RemoteLibraryProvider {
         )
     }
 
-    func refresh() async throws {
+    public func refresh() async throws {
         _ = try await browse(path: "")
     }
 
-    static func from(source: Source,
+    public static func from(source: Source,
                      credentialStore: CredentialStore = CredentialStore()) throws -> WebDAVProvider {
         guard source.kind == .webDAV,
               let sourceID = source.id,

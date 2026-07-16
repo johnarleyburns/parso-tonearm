@@ -1,19 +1,19 @@
 import Foundation
 
-struct IAMember: Equatable {
-    let identifier: String
-    let title: String?
-    let mediatype: String?
+public struct IAMember: Equatable {
+    public let identifier: String
+    public let title: String?
+    public let mediatype: String?
 }
 
 /// FR-2.4 collection & favorites resolution via the scrape API.
 /// NOTE (Invariant #1): `scrape?q=` is confined to this file. This is member
 /// enumeration of a user-supplied collection, never a search query UI.
-struct CollectionResolver {
-    static let memberCap = 500
+public struct CollectionResolver {
+    public static let memberCap = 500
     private static let audioMediatypes: Set<String> = ["audio", "etree"]
 
-    struct Page: Decodable {
+    public struct Page: Decodable {
         struct Doc: Decodable {
             let identifier: String
             let title: StringOrArray?
@@ -25,11 +25,11 @@ struct CollectionResolver {
     }
 
     /// Returns members (capped) and the true total count.
-    func resolve(collection identifier: String) async throws -> (members: [IAMember], total: Int, capHit: Bool) {
+    public func resolve(collection identifier: String) async throws -> (members: [IAMember], total: Int, capHit: Bool) {
         try await resolve(query: "collection:\(identifier)")
     }
 
-    func resolveFavorites(screenname: String) async throws -> (members: [IAMember], total: Int, capHit: Bool) {
+    public func resolveFavorites(screenname: String) async throws -> (members: [IAMember], total: Int, capHit: Bool) {
         // Favorites are a fav-* collection.
         try await resolve(query: "collection:fav-\(screenname)")
     }

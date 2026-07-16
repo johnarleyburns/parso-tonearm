@@ -1,10 +1,10 @@
 import Foundation
 
-struct SearchQueryBuilder {
-    static let maxTerms = 32
-    static let maxScalarsPerTerm = 64
+public struct SearchQueryBuilder {
+    public static let maxTerms = 32
+    public static let maxScalarsPerTerm = 64
 
-    static func matchExpression(for input: String) -> String? {
+    public static func matchExpression(for input: String) -> String? {
         let terms = tokenize(input)
         guard !terms.isEmpty else { return nil }
         return terms
@@ -13,7 +13,7 @@ struct SearchQueryBuilder {
             .joined(separator: " ")
     }
 
-    static func tokenize(_ input: String) -> [String] {
+    public static func tokenize(_ input: String) -> [String] {
         var terms: [String] = []
         var current = ""
 

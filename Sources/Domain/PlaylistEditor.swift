@@ -1,7 +1,7 @@
 import Foundation
 
-enum PlaylistEditor {
-    static func normalized(_ items: [PlaylistItem]) -> [PlaylistItem] {
+public enum PlaylistEditor {
+    public static func normalized(_ items: [PlaylistItem]) -> [PlaylistItem] {
         renumber(
             items.enumerated().sorted { lhs, rhs in
                 if lhs.element.position != rhs.element.position {
@@ -16,7 +16,7 @@ enum PlaylistEditor {
             }.map(\.element))
     }
 
-    static func move(_ items: [PlaylistItem], from source: Int, to destination: Int) -> [PlaylistItem] {
+    public static func move(_ items: [PlaylistItem], from source: Int, to destination: Int) -> [PlaylistItem] {
         var ordered = normalized(items)
         guard ordered.indices.contains(source), ordered.count > 1 else { return ordered }
         let target = min(max(destination, 0), ordered.count - 1)
@@ -27,7 +27,7 @@ enum PlaylistEditor {
         return renumber(ordered)
     }
 
-    static func move(
+    public static func move(
         _ items: [PlaylistItem],
         fromOffsets offsets: IndexSet,
         toOffset destination: Int
@@ -47,14 +47,14 @@ enum PlaylistEditor {
         return renumber(ordered)
     }
 
-    static func remove(_ items: [PlaylistItem], at index: Int) -> [PlaylistItem] {
+    public static func remove(_ items: [PlaylistItem], at index: Int) -> [PlaylistItem] {
         var ordered = normalized(items)
         guard ordered.indices.contains(index) else { return ordered }
         ordered.remove(at: index)
         return renumber(ordered)
     }
 
-    static func remove(_ items: [PlaylistItem], atOffsets offsets: IndexSet) -> [PlaylistItem] {
+    public static func remove(_ items: [PlaylistItem], atOffsets offsets: IndexSet) -> [PlaylistItem] {
         var ordered = normalized(items)
         for index in offsets.filter({ ordered.indices.contains($0) }).sorted(by: >) {
             ordered.remove(at: index)

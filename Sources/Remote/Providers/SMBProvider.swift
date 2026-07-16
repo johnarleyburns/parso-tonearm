@@ -1,12 +1,12 @@
 import Foundation
 
-struct SMBFolderPolicy {
-    static func displayName(rootURL: URL) -> String {
+public struct SMBFolderPolicy {
+    public static func displayName(rootURL: URL) -> String {
         let name = rootURL.lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
         return name.isEmpty ? "SMB Library" : name
     }
 
-    static func credentialAccount(sourceID: Int64) -> String {
+    public static func credentialAccount(sourceID: Int64) -> String {
         "smb:\(sourceID)"
     }
 }
@@ -14,13 +14,13 @@ struct SMBFolderPolicy {
 /// SMB access is mediated by iOS Files. Users connect an SMB server in Files and
 /// grant Tonearm a security-scoped folder bookmark; the provider then browses the
 /// folder tree like any other remote library without importing or copying audio.
-struct SMBProvider: RemoteLibraryProvider {
-    var rootBookmark: Data
-    var fileManager: FileManager = .default
+public struct SMBProvider: RemoteLibraryProvider {
+    public var rootBookmark: Data
+    public var fileManager: FileManager = .default
 
-    var sourceKind: SourceKind { .smb }
+    public var sourceKind: SourceKind { .smb }
 
-    func browse(path rawPath: String) async throws -> [RemoteNode] {
+    public func browse(path rawPath: String) async throws -> [RemoteNode] {
         let path = try RemotePathPolicy.normalize(rawPath)
         return try withRootAccess { root in
             let folder = url(for: path.segments, under: root)
@@ -56,7 +56,7 @@ struct SMBProvider: RemoteLibraryProvider {
         }
     }
 
-    func resolve(node: RemoteNode) async throws -> ResolvedAsset {
+    public func resolve(node: RemoteNode) async throws -> ResolvedAsset {
         guard node.kind == .audio else { throw URLError(.badURL) }
         let path = try RemotePathPolicy.normalize(node.path)
         return try withRootAccess { root in
@@ -69,11 +69,11 @@ struct SMBProvider: RemoteLibraryProvider {
         }
     }
 
-    func refresh() async throws {
+    public func refresh() async throws {
         _ = try await browse(path: "")
     }
 
-    static func from(source: Source,
+    public static func from(source: Source,
                      credentialStore: CredentialStore = CredentialStore()) throws -> SMBProvider {
         guard source.kind == .smb,
               let sourceID = source.id,

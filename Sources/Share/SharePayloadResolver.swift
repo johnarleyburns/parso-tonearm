@@ -1,13 +1,13 @@
 import Foundation
 
-enum SharePayloadResolver {
-    enum Payload: Equatable {
+public enum SharePayloadResolver {
+    public enum Payload: Equatable {
         case url(URL)
         case text(String)
         case attributedText(String)
     }
 
-    static func archiveURL(from payloads: [Payload]) -> String? {
+    public static func archiveURL(from payloads: [Payload]) -> String? {
         for payload in payloads {
             for candidate in candidates(from: payload) {
                 if case .success = URLGrammar.parse(candidate) {
@@ -64,7 +64,7 @@ enum SharePayloadResolver {
     }
 }
 
-enum TonearmDeepLink: Equatable {
+public enum TonearmDeepLink: Equatable {
     case addSource(String)
     case nowPlaying
     case resumePlayback
@@ -73,7 +73,7 @@ enum TonearmDeepLink: Equatable {
     case nextTrack
     case previousTrack
 
-    static let scheme = "tonearm"
+    public static let scheme = "tonearm"
     private static let addSourceHost = "add-source"
     private static let nowPlayingHost = "now-playing"
     private static let resumeHost = "resume"
@@ -82,7 +82,7 @@ enum TonearmDeepLink: Equatable {
     private static let nextTrackHost = "next"
     private static let previousTrackHost = "previous"
 
-    static func url(for action: TonearmDeepLink) -> URL? {
+    public static func url(for action: TonearmDeepLink) -> URL? {
         var components = URLComponents()
         components.scheme = scheme
         switch action {
@@ -109,7 +109,7 @@ enum TonearmDeepLink: Equatable {
         return components.url
     }
 
-    static func parse(_ url: URL) -> TonearmDeepLink? {
+    public static func parse(_ url: URL) -> TonearmDeepLink? {
         guard url.scheme?.lowercased() == scheme,
               let host = url.host?.lowercased() else {
             return nil

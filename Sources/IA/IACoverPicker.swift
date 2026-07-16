@@ -8,7 +8,7 @@ import Foundation
 /// an `original` image; auto-generated waveform/spectrogram derivatives and the
 /// `__ia_thumb.jpg` colored-waveform thumbnail are rejected unless the thumbnail
 /// is the item's only (genuine, embedded) art.
-enum IACoverPicker {
+public enum IACoverPicker {
 
     private static let imageExtensions: Set<String> = [
         "jpg", "jpeg", "png", "gif", "tif", "tiff", "jp2"
@@ -27,7 +27,7 @@ enum IACoverPicker {
 
     /// Returns the filename of the best genuine cover image, or nil if the item
     /// only has auto-generated waveform/spectrogram/thumbnail art.
-    static func pickCoverFilename(files: [IAFile]) -> String? {
+    public static func pickCoverFilename(files: [IAFile]) -> String? {
         let images = files.filter(isImage)
 
         // 1. IA's designated cover.

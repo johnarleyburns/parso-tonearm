@@ -2,51 +2,51 @@ import Foundation
 import GRDB
 
 extension Source: FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "source"
-    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+    public static let databaseTableName = "source"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
 extension Album: FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "album"
-    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+    public static let databaseTableName = "album"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
 extension Artist: FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "artist"
-    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+    public static let databaseTableName = "artist"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
 extension Track: FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "track"
-    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+    public static let databaseTableName = "track"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
 extension Asset: FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "asset"
-    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+    public static let databaseTableName = "asset"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
 extension CacheEntry: FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "cache_entry"
-    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+    public static let databaseTableName = "cache_entry"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
 extension Playlist: FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "playlist"
-    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+    public static let databaseTableName = "playlist"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
 extension PlaylistItem: FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "playlist_item"
-    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+    public static let databaseTableName = "playlist_item"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
 extension PlayEvent: FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "play_history"
-    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+    public static let databaseTableName = "play_history"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
 extension Favorite: FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "favorite"
-    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+    public static let databaseTableName = "favorite"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }

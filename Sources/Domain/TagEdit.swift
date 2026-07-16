@@ -1,14 +1,14 @@
 import Foundation
 
-enum TagEdit {
-    struct EditableTrack: Equatable, Identifiable {
-        var id: Int64
+public enum TagEdit {
+    public struct EditableTrack: Equatable, Identifiable {
+        public var id: Int64
         var tags: Tags
         var filename: String?
         var writeAccess: WriteAccess
     }
 
-    struct Tags: Equatable {
+    public struct Tags: Equatable {
         var title: String?
         var artist: String?
         var albumTitle: String?
@@ -48,7 +48,7 @@ enum TagEdit {
         }
     }
 
-    enum Field: String, CaseIterable, Equatable {
+    public enum Field: String, CaseIterable, Equatable {
         case title
         case artist
         case albumTitle
@@ -69,12 +69,12 @@ enum TagEdit {
         }
     }
 
-    enum FieldKind {
+    public enum FieldKind {
         case text
         case integer
     }
 
-    enum Value: Equatable {
+    public enum Value: Equatable {
         case text(String)
         case integer(Int)
 
@@ -93,7 +93,7 @@ enum TagEdit {
         }
     }
 
-    enum WriteAccess: Equatable {
+    public enum WriteAccess: Equatable {
         case localFile(path: String)
         case readOnly(reason: String)
 
@@ -112,17 +112,17 @@ enum TagEdit {
         }
     }
 
-    struct SelectionSummary: Equatable {
+    public struct SelectionSummary: Equatable {
         var states: [Field: FieldState]
     }
 
-    enum FieldState: Equatable {
+    public enum FieldState: Equatable {
         case empty
         case value(Value)
         case mixed
     }
 
-    struct Proposal: Equatable {
+    public struct Proposal: Equatable {
         var assignments: [Field: Value?] = [:]
         var replacements: [FindReplace] = []
         var numberFromFilename = false
@@ -130,26 +130,26 @@ enum TagEdit {
         static let empty = Proposal()
     }
 
-    struct FindReplace: Equatable {
+    public struct FindReplace: Equatable {
         var field: Field
         var find: String
         var replacement: String
         var caseSensitive: Bool = false
     }
 
-    struct Change: Equatable {
+    public struct Change: Equatable {
         var field: Field
         var before: Value?
         var after: Value?
     }
 
-    struct Operation: Equatable {
+    public struct Operation: Equatable {
         var trackID: Int64
         var localPath: String
         var changes: [Change]
     }
 
-    struct Plan: Equatable {
+    public struct Plan: Equatable {
         var operations: [Operation]
         var undoOperations: [Operation]
         var issues: [Issue]
@@ -163,7 +163,7 @@ enum TagEdit {
         }
     }
 
-    enum Issue: Equatable {
+    public enum Issue: Equatable {
         case readOnly(trackID: Int64, reason: String)
         case blankTitle(trackID: Int64)
         case invalidInteger(trackID: Int64, field: Field, value: Int)
@@ -202,7 +202,7 @@ enum TagEdit {
         }
     }
 
-    static func editableTrack(from row: TrackRow) -> EditableTrack {
+    public static func editableTrack(from row: TrackRow) -> EditableTrack {
         EditableTrack(
             id: row.id,
             tags: Tags(
@@ -219,7 +219,7 @@ enum TagEdit {
             writeAccess: writeAccess(for: row.asset))
     }
 
-    static func summary(for selection: [EditableTrack]) -> SelectionSummary {
+    public static func summary(for selection: [EditableTrack]) -> SelectionSummary {
         var states: [Field: FieldState] = [:]
         for field in Field.allCases {
             let values = selection.map { normalized($0.tags.value(for: field), field: field).value }
@@ -235,7 +235,7 @@ enum TagEdit {
         return SelectionSummary(states: states)
     }
 
-    static func diff(from before: Tags, to after: Tags) -> [Change] {
+    public static func diff(from before: Tags, to after: Tags) -> [Change] {
         Field.allCases.compactMap { field in
             let oldValue = normalized(before.value(for: field), field: field).value
             let newValue = normalized(after.value(for: field), field: field).value
@@ -244,7 +244,7 @@ enum TagEdit {
         }
     }
 
-    static func makePlan(selection: [EditableTrack], proposal: Proposal) -> Plan {
+    public static func makePlan(selection: [EditableTrack], proposal: Proposal) -> Plan {
         var issues = validateProposal(proposal)
         var operations: [Operation] = []
         var undoOperations: [Operation] = []
@@ -276,7 +276,7 @@ enum TagEdit {
         return Plan(operations: operations, undoOperations: undoOperations, issues: issues)
     }
 
-    static func leadingTrackNumber(in filename: String) -> Int? {
+    public static func leadingTrackNumber(in filename: String) -> Int? {
         let lastComponent = (filename as NSString).lastPathComponent
         let stem = (lastComponent as NSString).deletingPathExtension
         let trimmed = stem.trimmingCharacters(in: .whitespacesAndNewlines)

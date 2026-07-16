@@ -1,12 +1,12 @@
 import Foundation
 import GRDB
 
-enum Schema {
+public enum Schema {
     private static let migrationOrder = [
         "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11"
     ]
 
-    static func migrator(upTo target: String? = nil) -> DatabaseMigrator {
+    public static func migrator(upTo target: String? = nil) -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
         #if DEBUG
         migrator.eraseDatabaseOnSchemaChange = true

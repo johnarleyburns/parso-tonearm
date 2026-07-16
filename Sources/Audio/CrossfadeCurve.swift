@@ -1,16 +1,16 @@
 import Foundation
 
-enum CrossfadeCurve: String, CaseIterable, Codable, Equatable {
+public enum CrossfadeCurve: String, CaseIterable, Codable, Equatable {
     case equalPower
     case linear
 
-    struct Gains: Equatable {
+    public struct Gains: Equatable {
         var outgoing: Double
         var incoming: Double
         var active: Bool
     }
 
-    struct AlbumContinuity: Equatable {
+    public struct AlbumContinuity: Equatable {
         var albumID: Int64?
         var sourceID: Int64?
         var albumTitle: String?
@@ -33,7 +33,7 @@ enum CrossfadeCurve: String, CaseIterable, Codable, Equatable {
         }
     }
 
-    static func gains(position: TimeInterval,
+    public static func gains(position: TimeInterval,
                       duration: TimeInterval,
                       fadeSeconds: TimeInterval,
                       curve: CrossfadeCurve) -> Gains {
@@ -66,7 +66,7 @@ enum CrossfadeCurve: String, CaseIterable, Codable, Equatable {
         }
     }
 
-    static func suppressesForGaplessAlbum(current: AlbumContinuity,
+    public static func suppressesForGaplessAlbum(current: AlbumContinuity,
                                           next: AlbumContinuity) -> Bool {
         guard sameAlbum(current, next) else { return false }
 
@@ -126,7 +126,7 @@ enum CrossfadeCurve: String, CaseIterable, Codable, Equatable {
     }
 }
 
-extension CrossfadeCurve.AlbumContinuity {
+public extension CrossfadeCurve.AlbumContinuity {
     init(row: TrackRow) {
         self.init(albumID: row.album?.id ?? row.track.albumId,
                   sourceID: row.track.sourceId,

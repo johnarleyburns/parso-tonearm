@@ -3,18 +3,18 @@ import AVFoundation
 import Combine
 import Network
 
-enum RepeatMode: String, CaseIterable {
+public enum RepeatMode: String, CaseIterable {
     case off, all, one
 }
 
-enum QueueSource: Equatable {
+public enum QueueSource: Equatable {
     case source(Source)
     case playlist(Playlist)
     case library
     case ambient
     case none
 
-    var label: String {
+    public var label: String {
         switch self {
         case .source(let s): return "From Source: \(s.title)"
         case .playlist(let p): return "From Playlist: \(p.title)"
@@ -26,16 +26,16 @@ enum QueueSource: Equatable {
 }
 
 @MainActor
-final class AudioPlayer: ObservableObject {
-    static let shared = AudioPlayer()
+public final class AudioPlayer: ObservableObject {
+    public static let shared = AudioPlayer()
 
-    @Published private(set) var queue: [TrackRow] = []
-    @Published private(set) var index: Int = 0
-    @Published private(set) var isPlaying = false
-    @Published private(set) var isStalled = false
-    @Published private(set) var currentTime: Double = 0
-    @Published private(set) var duration: Double = 0
-    @Published var shuffle = false {
+    @Published public private(set) var queue: [TrackRow] = []
+    @Published public private(set) var index: Int = 0
+    @Published public private(set) var isPlaying = false
+    @Published public private(set) var isStalled = false
+    @Published public private(set) var currentTime: Double = 0
+    @Published public private(set) var duration: Double = 0
+    @Published public var shuffle = false {
         didSet {
             guard shuffle != oldValue else { return }
             if shuffle {
@@ -45,32 +45,32 @@ final class AudioPlayer: ObservableObject {
             }
         }
     }
-    @Published var repeatMode: RepeatMode = .off
-    @Published private(set) var cacheState: CacheGlyphState = .none
-    @Published private(set) var cachePercent: Int = 0
-    @Published private(set) var cachedFraction: Double = 0
-    @Published private(set) var isAmbient = false
-    @Published private(set) var ambientChannelId: String?
-    @Published private(set) var pathIsExpensive = false
-    @Published var networkSkipMessage: String?
-    @Published var queueSource: QueueSource = .none
+    @Published public var repeatMode: RepeatMode = .off
+    @Published public private(set) var cacheState: CacheGlyphState = .none
+    @Published public private(set) var cachePercent: Int = 0
+    @Published public private(set) var cachedFraction: Double = 0
+    @Published public private(set) var isAmbient = false
+    @Published public private(set) var ambientChannelId: String?
+    @Published public private(set) var pathIsExpensive = false
+    @Published public var networkSkipMessage: String?
+    @Published public var queueSource: QueueSource = .none
 
-    var streamOnCellular = true
-    var prefetchDepth = 2
-    var preferFLAC = false
-    var replayGainMode: ReplayGain.Mode = .track
-    var replayGainPreampDB: Double = 0
-    var replayGainPreventClipping = true
-    var crossfadeSeconds: Double = 0 {
+    public var streamOnCellular = true
+    public var prefetchDepth = 2
+    public var preferFLAC = false
+    public var replayGainMode: ReplayGain.Mode = .track
+    public var replayGainPreampDB: Double = 0
+    public var replayGainPreventClipping = true
+    public var crossfadeSeconds: Double = 0 {
         didSet {
             if normalizedCrossfadeSeconds == 0 {
                 cancelCrossfade(resetVolume: true)
             }
         }
     }
-    var crossfadeCurve: CrossfadeCurve = .equalPower
-    var sleepAtEndOfTrack = false
-    @Published private(set) var sleepTimerEndsAt: Date?
+    public var crossfadeCurve: CrossfadeCurve = .equalPower
+    public var sleepAtEndOfTrack = false
+    @Published public private(set) var sleepTimerEndsAt: Date?
 
     private var player = AVPlayer()
     private var loopPlayer: AVQueuePlayer?
@@ -113,9 +113,9 @@ final class AudioPlayer: ObservableObject {
     /// The observed playback truth: playing AND not stalled/buffering. Drives the
     /// Live Activity's self-advancing progress bar so it freezes at the real
     /// position during stalls, interruptions, and pauses.
-    var isAdvancing: Bool { isPlaying && !isStalled }
+    public var isAdvancing: Bool { isPlaying && !isStalled }
 
-    var currentTrack: TrackRow? {
+    public var currentTrack: TrackRow? {
         if isAmbient, let channelId = ambientChannelId {
             return BuiltInContentProvider.allTrackRows.first {
                 $0.asset?.relPath?.contains(channelId) == true
@@ -125,7 +125,7 @@ final class AudioPlayer: ObservableObject {
         return queue[index]
     }
 
-    var upNextTracks: [TrackRow] {
+    public var upNextTracks: [TrackRow] {
         if isAmbient { return [] }
         guard index < queue.count - 1 else { return [] }
         return Array(queue.dropFirst(index + 1))
@@ -161,7 +161,7 @@ final class AudioPlayer: ObservableObject {
 
     // MARK: - Public control
 
-    func play(tracks: [TrackRow], startAt start: Int, source: QueueSource = .none) {
+    public func play(tracks: [TrackRow], startAt start: Int, source: QueueSource = .none) {
         shutdownLoopPlayer()
         unshuffledQueue = []
         queueSource = source
@@ -171,17 +171,17 @@ final class AudioPlayer: ObservableObject {
         loadCurrent(autoplay: true)
     }
 
-    func playSingle(_ track: TrackRow) {
+    public func playSingle(_ track: TrackRow) {
         play(tracks: [track], startAt: 0)
     }
 
-    func moveQueueItems(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+    public func moveQueueItems(fromOffsets offsets: IndexSet, toOffset destination: Int) {
         guard !isAmbient, offsets.count == 1, let source = offsets.first else { return }
         let target = destination > source ? destination - 1 : destination
         moveQueueItem(from: source, to: target)
     }
 
-    func moveQueueItem(from source: Int, to destination: Int) {
+    public func moveQueueItem(from source: Int, to destination: Int) {
         guard !isAmbient else { return }
         let edited = QueueEditor.move(
             from: source,
@@ -190,7 +190,7 @@ final class AudioPlayer: ObservableObject {
         applyQueueEdit(edited, reloadCurrent: false, autoplay: isPlaying)
     }
 
-    func removeFromQueue(atOffsets offsets: IndexSet) {
+    public func removeFromQueue(atOffsets offsets: IndexSet) {
         guard !isAmbient, !offsets.isEmpty else { return }
         var state = QueueEditor.State(queue: queue, currentIndex: index)
         var removedCurrent = false
@@ -202,11 +202,11 @@ final class AudioPlayer: ObservableObject {
         applyQueueEdit(state, reloadCurrent: removedCurrent, autoplay: isPlaying)
     }
 
-    func removeFromQueue(at position: Int) {
+    public func removeFromQueue(at position: Int) {
         removeFromQueue(atOffsets: IndexSet(integer: position))
     }
 
-    func insertNext(_ row: TrackRow) {
+    public func insertNext(_ row: TrackRow) {
         guard !isAmbient else { return }
         let wasEmpty = queue.isEmpty
         let edited = QueueEditor.insertNext(
@@ -215,7 +215,7 @@ final class AudioPlayer: ObservableObject {
         applyQueueEdit(edited, reloadCurrent: wasEmpty, autoplay: false)
     }
 
-    func appendToQueue(_ row: TrackRow) {
+    public func appendToQueue(_ row: TrackRow) {
         guard !isAmbient else { return }
         let wasEmpty = queue.isEmpty
         let edited = QueueEditor.append(
@@ -224,7 +224,7 @@ final class AudioPlayer: ObservableObject {
         applyQueueEdit(edited, reloadCurrent: wasEmpty, autoplay: false)
     }
 
-    func togglePlayPause() {
+    public func togglePlayPause() {
         if isAmbient {
             if isPlaying { loopPlayer?.pause() } else { loopPlayer?.play() }
             isPlaying.toggle()
@@ -236,7 +236,7 @@ final class AudioPlayer: ObservableObject {
         updateNowPlaying()
     }
 
-    func resumePlayback() {
+    public func resumePlayback() {
         guard !isPlaying else {
             updateNowPlaying()
             return
@@ -250,7 +250,7 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
-    func pausePlayback() {
+    public func pausePlayback() {
         guard isPlaying else {
             updateNowPlaying()
             return
@@ -264,7 +264,7 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
-    func applySleepTimer(_ plan: IntentResolver.SleepTimerPlan, now: Date = Date()) {
+    public func applySleepTimer(_ plan: IntentResolver.SleepTimerPlan, now: Date = Date()) {
         sleepTimerTask?.cancel()
         sleepTimerTask = nil
         sleepTimerEndsAt = nil
@@ -293,7 +293,7 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
-    func next() {
+    public func next() {
         if isAmbient { nextAmbientTrack(); return }
         guard !queue.isEmpty else { return }
         if repeatMode == .one { seek(to: 0); player.play(); return }
@@ -307,7 +307,7 @@ final class AudioPlayer: ObservableObject {
         loadCurrent(autoplay: true)
     }
 
-    func previous() {
+    public func previous() {
         if isAmbient { previousAmbientTrack(); return }
         guard !queue.isEmpty else { return }
         if currentTime > 3 { seek(to: 0); return }
@@ -315,7 +315,7 @@ final class AudioPlayer: ObservableObject {
         loadCurrent(autoplay: true)
     }
 
-    func seek(to seconds: Double) {
+    public func seek(to seconds: Double) {
         guard !isAmbient else { return }
         let time = CMTime(seconds: seconds, preferredTimescale: 600)
         player.seek(to: time)
@@ -755,12 +755,12 @@ final class AudioPlayer: ObservableObject {
 
     /// Live-updates EQ gains on the currently playing item without interrupting
     /// playback (engage/disengage is glitch-free). Call from the EQ settings UI.
-    func updateEQ(gains: [Double], enabled: Bool) {
+    public func updateEQ(gains: [Double], enabled: Bool) {
         let settings = EQSettings(bands: gains.map(Float.init), enabled: enabled, activePresetID: nil)
         updateEQ(settings: settings)
     }
 
-    func updateEQ(settings: EQSettings) {
+    public func updateEQ(settings: EQSettings) {
         let store = EQSettingsStore(presets: EQSettingsPersistence.allPresets())
         let normalized = store.normalized(settings)
         EQSettingsPersistence.save(normalized)
@@ -770,7 +770,7 @@ final class AudioPlayer: ObservableObject {
 
     /// Pushes the current Pro Audio settings into the live tap (from the Pro Tools
     /// audio sliders). Mirrors `updateEQ(settings:)`.
-    func updateProAudio(_ settings: ProAudioSettings) {
+    public func updateProAudio(_ settings: ProAudioSettings) {
         ProAudioSettingsPersistence.save(settings)
         let eqSettings = EQSettingsPersistence.load()
         let store = EQSettingsStore(presets: EQSettingsPersistence.allPresets())
@@ -806,13 +806,13 @@ final class AudioPlayer: ObservableObject {
     }
 
     /// The hardware output sample rate the audio session is currently running at.
-    var hardwareSampleRate: Double {
+    public var hardwareSampleRate: Double {
         bridge.sampleRate
     }
 
     /// The nominal sample rate of the currently loaded source audio track, or 0
     /// when unknown (e.g. nothing playing yet).
-    var currentSourceSampleRate: Double {
+    public var currentSourceSampleRate: Double {
         guard let track = player.currentItem?.tracks.first(where: {
             $0.assetTrack?.mediaType == .audio
         }), let assetTrack = track.assetTrack else { return 0 }
@@ -827,7 +827,7 @@ final class AudioPlayer: ObservableObject {
 
     /// Honest bit-perfect plan for the current state: derived from the REAL
     /// hardware/source rates and the live ReplayGain, never from view `@State`.
-    func bitPerfectPlan(for settings: ProAudioSettings) -> BitPerfectOutputPlan {
+    public func bitPerfectPlan(for settings: ProAudioSettings) -> BitPerfectOutputPlan {
         let replayGain = currentTrack.map { replayGainValue(for: $0.track) } ?? 1
         return settings.bitPerfectPlan(
             hardwareSampleRate: hardwareSampleRate,
@@ -1096,7 +1096,7 @@ final class AudioPlayer: ObservableObject {
     /// player is empty — the self-healing path for Live Activity intents that
     /// launch a suspended app, and for normal app launches. Runs at most once per
     /// process; concurrent callers await the same restore.
-    func restorePersistedQueue() async {
+    public func restorePersistedQueue() async {
         if let restoreTask {
             await restoreTask.value
             return
@@ -1129,7 +1129,7 @@ final class AudioPlayer: ObservableObject {
 
     // MARK: - Built-in / Ambient
 
-    func playAmbient(channelId: String) {
+    public func playAmbient(channelId: String) {
         guard let url = BuiltInContentProvider.bundledAudioURL(forChannelId: channelId) else { return }
         cancelCrossfade(resetVolume: true)
         shutdownLoopPlayer()
@@ -1164,7 +1164,7 @@ final class AudioPlayer: ObservableObject {
         updateNowPlaying()
     }
 
-    func nextAmbientTrack() {
+    public func nextAmbientTrack() {
         guard isAmbient, let currentId = ambientChannelId else { return }
         let allIds = BuiltInContentProvider.tracks.map { $0.channelId }
         guard let idx = allIds.firstIndex(of: currentId) else { return }
@@ -1172,7 +1172,7 @@ final class AudioPlayer: ObservableObject {
         playAmbient(channelId: allIds[nextIdx])
     }
 
-    func previousAmbientTrack() {
+    public func previousAmbientTrack() {
         guard isAmbient, let currentId = ambientChannelId else { return }
         let allIds = BuiltInContentProvider.tracks.map { $0.channelId }
         guard let idx = allIds.firstIndex(of: currentId) else { return }
@@ -1244,7 +1244,7 @@ final class AudioPlayer: ObservableObject {
         preloadNextItem()
     }
 
-    func cycleRepeatMode() {
+    public func cycleRepeatMode() {
         repeatMode = switch repeatMode {
         case .off: .all
         case .all: .one
@@ -1252,12 +1252,12 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
-    func toggleShuffle() {
+    public func toggleShuffle() {
         shuffle.toggle()
     }
 }
 
 extension AudioPlayer: TonearmPlaybackCommanding {
-    func toggle() { togglePlayPause() }
-    func ensureReady() async { await restorePersistedQueue() }
+    public func toggle() { togglePlayPause() }
+    public func ensureReady() async { await restorePersistedQueue() }
 }
