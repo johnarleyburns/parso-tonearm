@@ -38,7 +38,6 @@ targets:
           - "Share/**"
           - "Snapshot/**"
           - "Sync/**"
-          - "Widgets/**"
       - path: Resources
     dependencies:
       - package: TonearmCore
