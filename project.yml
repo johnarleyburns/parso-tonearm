@@ -150,7 +150,6 @@ targets:
     platform: iOS
     sources:
       - path: WidgetsExtension
-      - path: Sources/Widgets
     dependencies:
       - package: TonearmCore
     info:
