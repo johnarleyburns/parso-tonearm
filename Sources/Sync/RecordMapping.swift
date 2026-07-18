@@ -350,8 +350,8 @@ public enum RecordMapping {
         let record = CKRecord(recordType: RecordType.playbackState.rawValue,
                               recordID: CKRecord.ID(
                                 recordName: playbackStateRecordName, zoneID: zoneID))
-        record["trackSyncIDs"] = (snapshot.trackSyncIDs ?? []) as CKRecordValue
-        record["trackIDs"] = snapshot.trackIDs.map { $0 as CKRecordValue } as CKRecordValue
+        record["trackSyncIDsJson"] = (try? JSONEncoder().encode(snapshot.trackSyncIDs ?? [])) as CKRecordValue?
+        record["trackIDsJson"] = (try? JSONEncoder().encode(snapshot.trackIDs)) as CKRecordValue?
         record["currentIndex"] = snapshot.currentIndex as CKRecordValue
         record["elapsed"] = snapshot.elapsed as CKRecordValue
         record["isPlaying"] = (snapshot.isPlaying ? 1 : 0) as CKRecordValue
@@ -361,12 +361,18 @@ public enum RecordMapping {
 
     public static func playbackState(from record: CKRecord) -> PlaybackStateSnapshot? {
         guard record.recordType == RecordType.playbackState.rawValue,
-              let trackIDs = record["trackIDs"] as? [Int64],
+              let trackIDsData = record["trackIDsJson"] as? Data,
+              let trackIDs = try? JSONDecoder().decode([Int64].self, from: trackIDsData),
               let currentIndex = record["currentIndex"] as? Int,
               let elapsed = record["elapsed"] as? Double,
               let savedAt = record["savedAt"] as? Date
         else { return nil }
-        let trackSyncIDs = record["trackSyncIDs"] as? [String]
+        let trackSyncIDs: [String?]?
+        if let syncData = record["trackSyncIDsJson"] as? Data {
+            trackSyncIDs = try? JSONDecoder().decode([String?].self, from: syncData)
+        } else {
+            trackSyncIDs = nil
+        }
         return PlaybackStateSnapshot(
             trackIDs: trackIDs,
             trackSyncIDs: trackSyncIDs,

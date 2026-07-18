@@ -120,6 +120,23 @@ final class PlaybackStateStoreTests: XCTestCase {
         XCTAssertNotNil(snapshot, "Non-ambient persist must write a snapshot")
     }
 
+    // MARK: - v1 payload decodes after v2 struct change
+
+    func testV1PayloadDecodesAfterV2StructChange() throws {
+        // A v1 payload (no trackSyncIDs field) must decode successfully with the
+        // v2 struct, yielding trackSyncIDs = nil.
+        let v1JSON = """
+        {"trackIDs":[1,2],"currentIndex":0,"elapsed":42,"isPlaying":true,"savedAt":978307200}
+        """.data(using: .utf8)!
+
+        let snapshot = try JSONDecoder().decode(PlaybackStateSnapshot.self, from: v1JSON)
+        XCTAssertEqual(snapshot.trackIDs, [1, 2])
+        XCTAssertNil(snapshot.trackSyncIDs,
+            "v1 payload must decode with trackSyncIDs=nil")
+        XCTAssertEqual(snapshot.elapsed, 42, accuracy: 0.01)
+        XCTAssertTrue(snapshot.isPlaying)
+    }
+
     // MARK: - Helpers
 
     private func resetForTest(_ player: AudioPlayer) {
