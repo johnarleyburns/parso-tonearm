@@ -81,7 +81,8 @@ public final class AudioPlayer: ObservableObject {
     private var restoreTask: Task<Void, Never>?
     private var isRestoring = false
     private var pendingRestoreSeek: Double?
-    private var lastPersistAt: Date = .distantPast
+    /// Injectable persistence funnel: tests can swap in fakes/spies.
+    internal var persistor = PlaybackPositionPersistor()
     private var loaders: [CachingResourceLoader] = []
     private let loaderQueue = DispatchQueue(label: "guru.parso.tonearm.loaders")
     private var stallModel = StallModel()
@@ -1127,11 +1128,11 @@ public final class AudioPlayer: ObservableObject {
         ))
     }
 
-    /// Single persistence funnel. Builds a snapshot, runs it through the write
-    /// admission policy, then saves to the composite store.
+    /// Single persistence funnel. Builds a snapshot, then delegates to the
+    /// injectable `persistor` (admission policy + composite store).
     internal func persist(reason: PlaybackWriteReason) {
         guard !isAmbient else { return }
-        guard !isRestoring else { return }  // F5: suppress during restore
+        guard !isRestoring else { return }
 
         var ids: [Int64] = []
         var syncIDs: [String?] = []
@@ -1144,9 +1145,7 @@ public final class AudioPlayer: ObservableObject {
         }
 
         if ids.isEmpty {
-            let existing = PlaybackStateStore.load()
-            guard PlaybackWritePolicy.admits(candidate: nil, existing: existing, reason: reason) else { return }
-            PlaybackStateStore.clear()
+            persistor.save(candidate: nil, reason: reason)
             return
         }
 
@@ -1159,18 +1158,14 @@ public final class AudioPlayer: ObservableObject {
             savedAt: Date()
         )
 
-        let existing = PlaybackStateStore.load()
-        guard PlaybackWritePolicy.admits(candidate: candidate, existing: existing, reason: reason) else { return }
-
-        PlaybackStateStore.save(candidate)
-        lastPersistAt = Date()
+        persistor.save(candidate: candidate, reason: reason)
     }
 
     /// Called from the periodic tick while advancing. Throttled to ≥1 write/s.
     internal func persistTick() {
         guard isAdvancing else { return }
         let now = Date()
-        guard now.timeIntervalSince(lastPersistAt) >= 1.0 else { return }
+        guard now.timeIntervalSince(persistor.lastPersistAt) >= 1.0 else { return }
         persist(reason: .tick)
     }
 
@@ -1212,7 +1207,7 @@ public final class AudioPlayer: ObservableObject {
 
     internal func performQueueRestore() async {
         guard queue.isEmpty, !isAmbient else { return }
-        guard let saved = PlaybackStateStore.load(), !saved.trackIDs.isEmpty else { return }
+        guard let saved = await persistor.loadBest(), !saved.trackIDs.isEmpty else { return }
 
         let plan = await QueueRestorePlanner.plan(
             saved: saved,

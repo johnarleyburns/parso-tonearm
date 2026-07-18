@@ -270,6 +270,41 @@ final class PlaybackPositionLossTests: XCTestCase {
             "elapsed must be 0 when saved current track is missing")
     }
 
+    // MARK: - Test 7: Snapshot survives reinstall (Loss #4) — F8 proof
+
+    func testSnapshotSurvivesReinstall() async throws {
+        let fakeCloud = FakePlaybackCloudBackend()
+        let persistor = PlaybackPositionPersistor(cloudBackend: fakeCloud)
+
+        let snapshot = PlaybackStateSnapshot(
+            trackIDs: [77], trackSyncIDs: ["cloud-sync-id-777"],
+            currentIndex: 0, elapsed: 55.5, isPlaying: false, savedAt: Date())
+
+        // Save through persistor: admission + composite store (file + defaults + cloud).
+        persistor.save(candidate: snapshot, reason: .userSeek)
+
+        // Simulate uninstall: wipe file + defaults tiers.
+        PlaybackStateStore.clear()
+        if let url = PlaybackStateFileStore.fileURL() {
+            try? FileManager.default.removeItem(at: url)
+        }
+
+        // Cloud tier must retain the snapshot.
+        let cloudSnapshot = await fakeCloud.load()
+        XCTAssertNotNil(cloudSnapshot, "cloud tier must retain snapshot after local wipe")
+        let cs = try XCTUnwrap(cloudSnapshot)
+        XCTAssertEqual(cs.elapsed, 55.5, accuracy: 0.01,
+            "cloud snapshot must match saved elapsed")
+        XCTAssertEqual(cs.trackSyncIDs, ["cloud-sync-id-777"],
+            "identity must be by syncID after reinstall")
+
+        // loadBest from persistor returns cloud snapshot when local tiers are gone.
+        let loaded = await persistor.loadBest()
+        XCTAssertNotNil(loaded, "loadBest must return snapshot from cloud when local is wiped")
+        XCTAssertEqual(loaded?.trackSyncIDs, ["cloud-sync-id-777"],
+            "syncID identity must survive reinstall")
+    }
+
     // MARK: - Test 8: Snapshot stores stable track identity (F1)
 
     func testSnapshotStoresStableTrackIdentity() throws {

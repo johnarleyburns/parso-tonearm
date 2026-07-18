@@ -22,6 +22,7 @@ public enum RecordMapping {
         case playEvent  = "PlayEvent"
         case customArtwork = "CustomArtwork"
         case appSettings = "AppSettings"
+        case playbackState = "PlaybackState"
     }
 
     /// The single fixed record name for the per-account settings singleton.
@@ -337,6 +338,43 @@ public enum RecordMapping {
             prefetchDepth: record["prefetchDepth"] as? Int ?? 1,
             streamOnCellular: (record["streamOnCellular"] as? Int ?? 1) != 0,
             artworkLookup: (record["artworkLookup"] as? Int ?? 1) != 0)
+    }
+
+    // MARK: - PlaybackState (G6 reinstall durability)
+
+    /// The single fixed record name for the per-account playback state singleton.
+    public static let playbackStateRecordName = "playback-state"
+
+    public static func record(from snapshot: PlaybackStateSnapshot,
+                       zoneID: CKRecordZone.ID) -> CKRecord {
+        let record = CKRecord(recordType: RecordType.playbackState.rawValue,
+                              recordID: CKRecord.ID(
+                                recordName: playbackStateRecordName, zoneID: zoneID))
+        record["trackSyncIDs"] = (snapshot.trackSyncIDs ?? []) as CKRecordValue
+        record["trackIDs"] = snapshot.trackIDs.map { $0 as CKRecordValue } as CKRecordValue
+        record["currentIndex"] = snapshot.currentIndex as CKRecordValue
+        record["elapsed"] = snapshot.elapsed as CKRecordValue
+        record["isPlaying"] = (snapshot.isPlaying ? 1 : 0) as CKRecordValue
+        record["savedAt"] = snapshot.savedAt as CKRecordValue
+        return record
+    }
+
+    public static func playbackState(from record: CKRecord) -> PlaybackStateSnapshot? {
+        guard record.recordType == RecordType.playbackState.rawValue,
+              let trackIDs = record["trackIDs"] as? [Int64],
+              let currentIndex = record["currentIndex"] as? Int,
+              let elapsed = record["elapsed"] as? Double,
+              let savedAt = record["savedAt"] as? Date
+        else { return nil }
+        let trackSyncIDs = record["trackSyncIDs"] as? [String]
+        return PlaybackStateSnapshot(
+            trackIDs: trackIDs,
+            trackSyncIDs: trackSyncIDs,
+            currentIndex: currentIndex,
+            elapsed: elapsed,
+            isPlaying: (record["isPlaying"] as? Int ?? 0) != 0,
+            savedAt: savedAt
+        )
     }
 }
 

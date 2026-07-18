@@ -13,6 +13,7 @@ struct TonearmApp: App {
         }
         ProStore.shared.start()
         AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
+        AudioPlayer.shared.persistor.cloudBackend = CloudPlaybackBackend()
     }
 
     var body: some Scene {
@@ -28,6 +29,7 @@ struct TonearmApp: App {
                 .task {
                     if #available(iOS 17.0, *) {
                         await CloudSyncEngine.shared.reconcile()
+                        await AudioPlayer.shared.restorePersistedQueue()
                     }
                 }
         }
@@ -39,7 +41,7 @@ struct TonearmApp: App {
                     if added > 0 { await appState.reload() }
                 }
                 if #available(iOS 17.0, *) {
-                    Task { await CloudSyncEngine.shared.reconcile() }
+                    Task { await CloudSyncEngine.shared.reconcile(); await AudioPlayer.shared.restorePersistedQueue() }
                 }
             case .background, .inactive:
                 AudioPlayer.shared.persistNow()
