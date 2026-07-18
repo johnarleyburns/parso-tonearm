@@ -462,6 +462,17 @@ public actor LibraryStore {
         }
     }
 
+    /// Resolves a track by its stable `syncID` (used after reinstall+CloudKit
+    /// resync when rowids have changed — G6).
+    public func trackRow(syncID: String) throws -> TrackRow? {
+        try dbQueue.read { db in
+            guard let t = try Track.filter(Column("syncID") == syncID).fetchOne(db) else {
+                return nil
+            }
+            return try self.hydrate(t, db: db)
+        }
+    }
+
     private func hydrate(_ track: Track, db: Database) throws -> TrackRow {
         var album: Album?
         if let albumId = track.albumId {

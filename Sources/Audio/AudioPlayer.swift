@@ -79,6 +79,9 @@ public final class AudioPlayer: ObservableObject {
     private var itemEndObserver: NSObjectProtocol?
     private var timeControlCancellable: AnyCancellable?
     private var restoreTask: Task<Void, Never>?
+    private var isRestoring = false
+    private var pendingRestoreSeek: Double?
+    private var lastPersistAt: Date = .distantPast
     private var loaders: [CachingResourceLoader] = []
     private let loaderQueue = DispatchQueue(label: "guru.parso.tonearm.loaders")
     private var stallModel = StallModel()
@@ -317,11 +320,12 @@ public final class AudioPlayer: ObservableObject {
 
     public func seek(to seconds: Double) {
         guard !isAmbient else { return }
+        pendingRestoreSeek = nil  // user-initiated seek cancels restore confirmation
         let time = CMTime(seconds: seconds, preferredTimescale: 600)
         player.seek(to: time)
         currentTime = seconds
         updateNowPlayingTime()
-        persistPlaybackState()
+        persist(reason: .userSeek)
         bridge.publishSnapshot(self)
     }
 
@@ -370,7 +374,7 @@ public final class AudioPlayer: ObservableObject {
         cachedFraction = 0
         queueSource = .none
         applySleepTimer(.cancel)
-        PlaybackStateStore.clear()
+        persist(reason: .userClear)
         bridge.clearNowPlaying()
     }
 
@@ -972,6 +976,27 @@ public final class AudioPlayer: ObservableObject {
                 }
                 self.refreshCacheState()
                 self.updateNowPlayingTime()
+
+                // F3: persist on tick (throttled to ≥1 write/s inside persistTick)
+                // F5: seek confirmation for restore
+                if let target = self.pendingRestoreSeek {
+                    let pos = time.seconds
+                    if self.player.currentItem?.status == .readyToPlay,
+                       abs(pos - target) > 2 {
+                        // Re-issue the seek
+                        let cmTime = CMTime(seconds: target, preferredTimescale: 600)
+                        await self.player.seek(to: cmTime,
+                                         toleranceBefore: .zero,
+                                         toleranceAfter: .zero)
+                    } else if abs(pos - target) <= 2 {
+                        self.pendingRestoreSeek = nil
+                        self.persist(reason: .restoreCommit)
+                    }
+                    // While pending, report target for persistence purposes
+                    self.currentTime = target
+                }
+
+                self.persistTick()
             }
         }
     }
@@ -1053,11 +1078,10 @@ public final class AudioPlayer: ObservableObject {
 
     private func updateNowPlaying() {
         guard currentTrack != nil else {
-            PlaybackStateStore.clear()
             bridge.clearNowPlaying()
             return
         }
-        persistPlaybackState()
+        persist(reason: .transportEvent)
         bridge.refreshNowPlaying(self)
     }
 
@@ -1073,11 +1097,13 @@ public final class AudioPlayer: ObservableObject {
     internal func persistPlaybackState() {
         guard !isAmbient else { return }
         var ids: [Int64] = []
+        var syncIDs: [String?] = []
         var currentIndex = 0
         for (position, row) in queue.enumerated() {
             guard let id = row.track.id, id > 0 else { continue }
             if position == index { currentIndex = ids.count }
             ids.append(id)
+            syncIDs.append(row.track.syncID)
         }
         guard !ids.isEmpty else {
             PlaybackStateStore.clear()
@@ -1085,11 +1111,59 @@ public final class AudioPlayer: ObservableObject {
         }
         PlaybackStateStore.save(PlaybackStateSnapshot(
             trackIDs: ids,
+            trackSyncIDs: syncIDs,
             currentIndex: currentIndex,
             elapsed: currentTime,
             isPlaying: isPlaying,
             savedAt: Date()
         ))
+    }
+
+    /// Single persistence funnel. Builds a snapshot, runs it through the write
+    /// admission policy, then saves to the composite store.
+    internal func persist(reason: PlaybackWriteReason) {
+        guard !isAmbient else { return }
+        guard !isRestoring else { return }  // F5: suppress during restore
+
+        var ids: [Int64] = []
+        var syncIDs: [String?] = []
+        var currentIndex = 0
+        for (position, row) in queue.enumerated() {
+            guard let id = row.track.id, id > 0 else { continue }
+            if position == index { currentIndex = ids.count }
+            ids.append(id)
+            syncIDs.append(row.track.syncID)
+        }
+
+        if ids.isEmpty {
+            let existing = PlaybackStateStore.load()
+            guard PlaybackWritePolicy.admits(candidate: nil, existing: existing, reason: reason) else { return }
+            PlaybackStateStore.clear()
+            return
+        }
+
+        let candidate = PlaybackStateSnapshot(
+            trackIDs: ids,
+            trackSyncIDs: syncIDs,
+            currentIndex: currentIndex,
+            elapsed: currentTime,
+            isPlaying: isPlaying,
+            savedAt: Date()
+        )
+
+        let existing = PlaybackStateStore.load()
+        guard PlaybackWritePolicy.admits(candidate: candidate, existing: existing, reason: reason) else { return }
+
+        PlaybackStateStore.save(candidate)
+        lastPersistAt = Date()
+    }
+
+    /// Called from the periodic tick while advancing. Throttled to ≥1 write/s.
+    internal func persistTick() {
+        guard isAdvancing else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastPersistAt) >= 1.0 else { return }
+        persist(reason: .tick)
     }
 
     /// Rebuilds the queue from the persisted state (paused, no autoplay) when the
@@ -1107,6 +1181,7 @@ public final class AudioPlayer: ObservableObject {
 
     /// Resets the once-per-process restore guard so tests can re-run
     /// `restorePersistedQueue()` without restarting the process.
+    /// Also clears the restore task so the next call can retry (F5 retry).
     internal func resetRestoreForTesting() {
         restoreTask = nil
     }
@@ -1115,20 +1190,39 @@ public final class AudioPlayer: ObservableObject {
         guard queue.isEmpty, !isAmbient else { return }
         guard let saved = PlaybackStateStore.load(), !saved.trackIDs.isEmpty else { return }
 
-        var rows: [TrackRow] = []
-        var startIndex = 0
-        for (position, id) in saved.trackIDs.enumerated() {
-            guard let row = try? await LibraryStore.shared.trackRow(id: id) else { continue }
-            if position == saved.currentIndex { startIndex = rows.count }
-            rows.append(row)
-        }
-        guard !rows.isEmpty, queue.isEmpty, !isAmbient else { return }
+        let plan = await QueueRestorePlanner.plan(
+            saved: saved,
+            resolveByID: { id in try? await LibraryStore.shared.trackRow(id: id) },
+            resolveBySyncID: { syncID in try? await LibraryStore.shared.trackRow(syncID: syncID) }
+        )
 
-        queue = rows
-        index = min(startIndex, rows.count - 1)
+        guard let plan, !plan.rows.isEmpty, queue.isEmpty, !isAmbient else {
+            // Retry: if nothing was restored, allow a second attempt later
+            // (needed for post-CloudKit-reconcile second attempt, F8).
+            restoreTask = nil
+            return
+        }
+
+        isRestoring = true
+        pendingRestoreSeek = nil
+
+        queue = plan.rows
+        index = plan.startIndex
         loadCurrent(autoplay: false)
-        if saved.elapsed > 0 {
-            seek(to: saved.elapsed)
+
+        // Set currentTime to the seek target immediately so persist during the
+        // seek window is accurate. Seek with zero tolerance for precision.
+        currentTime = plan.seekTo
+        if plan.seekTo > 0 {
+            let cmTime = CMTime(seconds: plan.seekTo, preferredTimescale: 600)
+            await player.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero)
+            pendingRestoreSeek = plan.seekTo
+        }
+
+        isRestoring = false
+
+        if pendingRestoreSeek == nil {
+            persist(reason: .restoreCommit)
         }
     }
 

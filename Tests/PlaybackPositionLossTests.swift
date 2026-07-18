@@ -181,10 +181,8 @@ final class PlaybackPositionLossTests: XCTestCase {
 
         AudioPlayer.shared.resumePlayback()
 
-        XCTExpectFailure("Loss #2: resume on empty queue clears snapshot; fixed by F4", strict: true) {
-            let snap = PlaybackStateStore.load(defaults: suite)
-            XCTAssertNotNil(snap, "snapshot must survive resume on empty queue")
-        }
+        let snap = PlaybackStateStore.load(defaults: suite)
+        XCTAssertNotNil(snap, "snapshot must survive resume on empty queue")
     }
 
     func testPauseOnEmptyQueuePreservesSnapshot() throws {
@@ -198,10 +196,8 @@ final class PlaybackPositionLossTests: XCTestCase {
 
         AudioPlayer.shared.pausePlayback()
 
-        XCTExpectFailure("Loss #2: pause on empty queue clears snapshot; fixed by F4", strict: true) {
-            let snap = PlaybackStateStore.load(defaults: suite)
-            XCTAssertNotNil(snap, "snapshot must survive pause on empty queue")
-        }
+        let snap = PlaybackStateStore.load(defaults: suite)
+        XCTAssertNotNil(snap, "snapshot must survive pause on empty queue")
     }
 
     func testTogglePlayPauseOnEmptyQueuePreservesSnapshot() throws {
@@ -215,10 +211,8 @@ final class PlaybackPositionLossTests: XCTestCase {
 
         AudioPlayer.shared.togglePlayPause()
 
-        XCTExpectFailure("Loss #2: toggle on empty queue clears snapshot; fixed by F4", strict: true) {
-            let snap = PlaybackStateStore.load(defaults: suite)
-            XCTAssertNotNil(snap, "snapshot must survive toggle on empty queue")
-        }
+        let snap = PlaybackStateStore.load(defaults: suite)
+        XCTAssertNotNil(snap, "snapshot must survive toggle on empty queue")
     }
 
     // MARK: - Test 5: Restore never writes regressed elapsed (Loss #3)
@@ -249,10 +243,8 @@ final class PlaybackPositionLossTests: XCTestCase {
             $0.trackIDs == [trackId] && $0.elapsed < 190
         }
 
-        XCTExpectFailure("Loss #3: restore writes elapsed=0 before seeking; fixed by F5", strict: true) {
-            XCTAssertTrue(regressed.isEmpty,
-                "restore must not write regressed elapsed; found \(regressed.map(\.elapsed))")
-        }
+        XCTAssertTrue(regressed.isEmpty,
+            "restore must not write regressed elapsed; found \(regressed.map(\.elapsed))")
     }
 
     // MARK: - Test 6: Restore with missing current track (Loss #5)
@@ -274,10 +266,40 @@ final class PlaybackPositionLossTests: XCTestCase {
         player.resetRestoreForTesting()
         await player.restorePersistedQueue()
 
-        XCTExpectFailure("Loss #5: missing current track still seeks to old elapsed; fixed by F5", strict: true) {
-            XCTAssertEqual(player.currentTime, 0, accuracy: 0.01,
-                "elapsed must be 0 when saved current track is missing")
-        }
+        XCTAssertEqual(player.currentTime, 0, accuracy: 0.01,
+            "elapsed must be 0 when saved current track is missing")
+    }
+
+    // MARK: - Test 8: Snapshot stores stable track identity (F1)
+
+    func testSnapshotStoresStableTrackIdentity() throws {
+        let suite = try ephemeralSuite()
+        PlaybackStateStore.defaultsProvider = { suite }
+
+        let player = AudioPlayer.shared
+        resetPlayer(player)
+
+        let row = TrackRow(
+            track: Track(id: 99, albumId: nil, sourceId: 1,
+                         title: "SyncID Track", trackNo: 1, discNo: nil,
+                         durationSec: 120, codec: "MP3", sampleRate: nil,
+                         bitDepthOrBitrate: nil, sortKey: "SyncID",
+                         syncID: "sync-test-abc-123"),
+            album: nil, source: nil, asset: Asset(id: 99, trackId: 99, kind: .remote,
+                                                   bookmark: nil, relPath: nil,
+                                                   remoteURL: "https://example.com/t.mp3",
+                                                   altRemoteURL: nil, sizeBytes: nil,
+                                                   unsupportedReason: nil))
+
+        player.play(tracks: [row], startAt: 0)
+
+        // Direct persist so trackSyncIDs are populated
+        player.persistPlaybackState()
+
+        let snapshot = PlaybackStateStore.load(defaults: suite)
+        XCTAssertNotNil(snapshot, "snapshot must be saved")
+        XCTAssertEqual(snapshot?.trackSyncIDs, ["sync-test-abc-123"],
+            "trackSyncIDs must be populated from the queued track's syncID")
     }
 }
 
