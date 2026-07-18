@@ -3,6 +3,7 @@ import TonearmCore
 
 struct RootView: View {    @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
+    @State private var showSplash = !ProcessInfo.processInfo.arguments.contains("UI_TESTING")
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -20,6 +21,11 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
 
             GlassDock()
                 .padding(.bottom, 8)
+
+            if showSplash && appState.didOnboard {
+                AnimatedSplashView(isPresented: $showSplash)
+                    .zIndex(10)
+            }
 
             if let title = appState.backgroundTitle {
                 backgroundBanner(title)
@@ -129,7 +135,10 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
                         .foregroundStyle(Palette.danger)
                 } else {
                     ProgressView()
-                        .tint(Palette.brass)
+        .tint(Palette.brass)
+        .onAppear {
+            if !appState.didOnboard { showSplash = false }
+        }
                 }
                 Text(appState.backgroundDone ? "Added \"\(title)\""
                      : appState.backgroundFailed ? "Failed to add \"\(title)\""

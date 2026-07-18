@@ -82,7 +82,7 @@ public final class AudioPlayer: ObservableObject {
     private var isRestoring = false
     private var pendingRestoreSeek: Double?
     /// Injectable persistence funnel: tests can swap in fakes/spies.
-    internal var persistor = PlaybackPositionPersistor()
+    public var persistor = PlaybackPositionPersistor()
     private var loaders: [CachingResourceLoader] = []
     private let loaderQueue = DispatchQueue(label: "guru.parso.tonearm.loaders")
     private var stallModel = StallModel()
