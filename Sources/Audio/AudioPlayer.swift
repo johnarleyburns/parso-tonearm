@@ -1070,7 +1070,7 @@ public final class AudioPlayer: ObservableObject {
     /// Persists the queue/position to the App Group on the same discrete events
     /// that publish now-playing info, so an intent-launched suspended app can
     /// rebuild the player instead of no-oping on an empty queue.
-    private func persistPlaybackState() {
+    internal func persistPlaybackState() {
         guard !isAmbient else { return }
         var ids: [Int64] = []
         var currentIndex = 0
@@ -1105,7 +1105,13 @@ public final class AudioPlayer: ObservableObject {
         await task.value
     }
 
-    private func performQueueRestore() async {
+    /// Resets the once-per-process restore guard so tests can re-run
+    /// `restorePersistedQueue()` without restarting the process.
+    internal func resetRestoreForTesting() {
+        restoreTask = nil
+    }
+
+    internal func performQueueRestore() async {
         guard queue.isEmpty, !isAmbient else { return }
         guard let saved = PlaybackStateStore.load(), !saved.trackIDs.isEmpty else { return }
 

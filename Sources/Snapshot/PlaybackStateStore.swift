@@ -14,7 +14,12 @@ public struct PlaybackStateSnapshot: Codable, Equatable {
 public enum PlaybackStateStore {
     private static let stateKey = "guru.parso.tonearm.playback.state.v1"
 
-    public static func load(defaults: UserDefaults? = sharedDefaults()) -> PlaybackStateSnapshot? {
+    /// Injectable defaults provider so tests can point the singleton
+    /// `AudioPlayer` at an ephemeral suite and spy on writes.
+    public static var defaultsProvider: () -> UserDefaults? = { sharedDefaults() }
+
+    public static func load(defaults: UserDefaults? = nil) -> PlaybackStateSnapshot? {
+        let defaults = defaults ?? defaultsProvider()
         guard
             let defaults,
             let data = defaults.data(forKey: stateKey),
@@ -25,7 +30,8 @@ public enum PlaybackStateStore {
         return snapshot
     }
 
-    public static func save(_ snapshot: PlaybackStateSnapshot, defaults: UserDefaults? = sharedDefaults()) {
+    public static func save(_ snapshot: PlaybackStateSnapshot, defaults: UserDefaults? = nil) {
+        let defaults = defaults ?? defaultsProvider()
         guard
             let defaults,
             let data = try? JSONEncoder().encode(snapshot)
@@ -35,7 +41,8 @@ public enum PlaybackStateStore {
         defaults.set(data, forKey: stateKey)
     }
 
-    public static func clear(defaults: UserDefaults? = sharedDefaults()) {
+    public static func clear(defaults: UserDefaults? = nil) {
+        let defaults = defaults ?? defaultsProvider()
         defaults?.removeObject(forKey: stateKey)
     }
 
