@@ -194,7 +194,7 @@ public enum TonearmIntentRunner {
             AudioPlayer.shared.play(tracks: rows, startAt: 0, source: .library)
 
         case .resume:
-            AudioPlayer.shared.resumePlayback()
+            await AudioPlayer.shared.withRestoredQueue { AudioPlayer.shared.resumePlayback() }
 
         case .setSleepTimer(let plan):
             AudioPlayer.shared.applySleepTimer(plan)

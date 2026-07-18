@@ -571,15 +571,15 @@ final class AppState: ObservableObject {
         case .nowPlaying:
             showNowPlaying = AudioPlayer.shared.currentTrack != nil
         case .resumePlayback:
-            AudioPlayer.shared.resumePlayback()
+            await AudioPlayer.shared.withRestoredQueue { AudioPlayer.shared.resumePlayback() }
         case .pausePlayback:
-            AudioPlayer.shared.pausePlayback()
+            await AudioPlayer.shared.withRestoredQueue { AudioPlayer.shared.pausePlayback() }
         case .togglePlayback:
-            AudioPlayer.shared.togglePlayPause()
+            await AudioPlayer.shared.withRestoredQueue { AudioPlayer.shared.togglePlayPause() }
         case .nextTrack:
-            AudioPlayer.shared.next()
+            await AudioPlayer.shared.withRestoredQueue { AudioPlayer.shared.next() }
         case .previousTrack:
-            AudioPlayer.shared.previous()
+            await AudioPlayer.shared.withRestoredQueue { AudioPlayer.shared.previous() }
         }
     }
 

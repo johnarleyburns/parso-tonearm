@@ -148,10 +148,18 @@ public final class AudioPlayer: ObservableObject {
         self.bridge = bridge
         bridge.configureSession()
         bridge.setupRemoteCommands(
-            resume: { [weak self] in self?.resume() },
-            pause: { [weak self] in self?.pause() },
-            next: { [weak self] in self?.next() },
-            previous: { [weak self] in self?.previous() },
+            resume: { [weak self] in
+                Task { @MainActor [weak self] in await self?.withRestoredQueue { self?.resume() } }
+            },
+            pause: { [weak self] in
+                Task { @MainActor [weak self] in await self?.withRestoredQueue { self?.pause() } }
+            },
+            next: { [weak self] in
+                Task { @MainActor [weak self] in await self?.withRestoredQueue { self?.next() } }
+            },
+            previous: { [weak self] in
+                Task { @MainActor [weak self] in await self?.withRestoredQueue { self?.previous() } }
+            },
             seek: { [weak self] seconds in self?.seek(to: seconds) })
         bridge.startObservers(
             routeShouldPause: { [weak self] in
@@ -1164,6 +1172,22 @@ public final class AudioPlayer: ObservableObject {
         let now = Date()
         guard now.timeIntervalSince(lastPersistAt) >= 1.0 else { return }
         persist(reason: .tick)
+    }
+
+    /// Exact, unthrottled persist for lifecycle events (app background /
+    /// inactive). Admission still applies (G3: tick/background may not regress).
+    public func persistNow() {
+        persist(reason: .background)
+    }
+
+    /// Guarantees the persisted queue is restored before executing `action`, so
+    /// cold-launch control surfaces (Siri intents, deep links, lock-screen
+    /// commands) work from an empty-player state (F6).
+    public func withRestoredQueue(_ action: @MainActor () -> Void) async {
+        if queue.isEmpty, !isAmbient {
+            await restorePersistedQueue()
+        }
+        action()
     }
 
     /// Rebuilds the queue from the persisted state (paused, no autoplay) when the

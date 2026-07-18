@@ -32,7 +32,8 @@ struct TonearmApp: App {
                 }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
+            switch phase {
+            case .active:
                 Task {
                     let added = await FolderWatchService.shared.rescanWatchedFolders(store: appState.store)
                     if added > 0 { await appState.reload() }
@@ -40,6 +41,10 @@ struct TonearmApp: App {
                 if #available(iOS 17.0, *) {
                     Task { await CloudSyncEngine.shared.reconcile() }
                 }
+            case .background, .inactive:
+                AudioPlayer.shared.persistNow()
+            default:
+                break
             }
         }
     }
