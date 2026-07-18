@@ -388,7 +388,7 @@ public struct OAuthTokenClient {
         )
         let request = try config.refreshRequest(refreshToken: refreshToken)
         let (data, response) = try await session.data(for: request)
-        try validate(response)
+        try validateRefresh(response)
         let refreshed = try OAuthTokenResponse.decode(data)
         return OAuthToken(
             provider: token.provider,
@@ -409,6 +409,17 @@ public struct OAuthTokenClient {
         guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
             throw URLError(.userAuthenticationRequired)
         }
+    }
+
+    private func validateRefresh(_ response: URLResponse) throws {
+        guard let http = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        if (200 ..< 300).contains(http.statusCode) { return }
+        if (400 ..< 500).contains(http.statusCode) {
+            throw OAuthError.refreshRequired
+        }
+        throw URLError(.badServerResponse)
     }
 }
 

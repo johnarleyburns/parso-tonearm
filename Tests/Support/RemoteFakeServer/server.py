@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
+import base64
 import json
 import os
 
@@ -32,24 +33,38 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"error": "dropbox uses post"}, status=405)
 
         if path.startswith("/googleDrive/drive/v3/files"):
+            if not self.require_cloud_auth("googleDrive"):
+                return
             return self.google_drive(path, query)
 
         if path.startswith("/oneDrive/v1.0/me/drive"):
+            if not self.require_cloud_auth("oneDrive"):
+                return
             return self.one_drive(path)
 
         if path.startswith("/pCloud/listfolder"):
+            if not self.require_cloud_auth("pCloud"):
+                return
             return self.pcloud_list(query)
 
         if path.startswith("/pCloud/getfilelink"):
+            if not self.require_cloud_auth("pCloud"):
+                return
             return self.send_json({"result": 0, "hosts": [self.headers.get("Host", "127.0.0.1:18089")], "path": "/pCloud/audio/test.flac"})
 
         if path.startswith("/subsonic/rest/"):
+            if not self.require_subsonic_auth(query):
+                return
             return self.subsonic(path)
 
         if path.startswith("/jellyfin/"):
+            if not self.require_jellyfin_auth():
+                return
             return self.jellyfin(path)
 
         if path.startswith("/plex/"):
+            if not self.require_plex_auth():
+                return
             return self.plex(path)
 
         return self.send_json({"error": "not found", "path": path}, status=404)
@@ -64,6 +79,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.oauth_token(provider, body)
 
         if path.startswith("/dropbox/2/files/list_folder"):
+            if not self.require_cloud_auth("dropbox"):
+                return
             return self.send_json({
                 "entries": [
                     {".tag": "folder", "id": "id:albums", "name": "Albums", "path_lower": "/albums"},
@@ -72,6 +89,8 @@ class Handler(BaseHTTPRequestHandler):
             })
 
         if path.startswith("/dropbox/2/files/get_temporary_link"):
+            if not self.require_cloud_auth("dropbox"):
+                return
             host = self.headers.get("Host", "127.0.0.1:18089")
             return self.send_json({
                 "metadata": {".tag": "file", "id": "id:track", "name": "Track.flac", "size": len(AUDIO_BYTES)},
@@ -79,6 +98,8 @@ class Handler(BaseHTTPRequestHandler):
             })
 
         if path == "/jellyfin/Users/AuthenticateByName":
+            if not self.require_jellyfin_client_auth():
+                return
             return self.send_json({
                 "AccessToken": "jellyfin-token",
                 "ServerId": "server-1",
@@ -91,6 +112,8 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if not parsed.path.startswith("/webdav"):
             return self.send_json({"error": "not found"}, status=404)
+        if not self.require_webdav_auth():
+            return
         body = """<?xml version="1.0" encoding="utf-8"?>
 <d:multistatus xmlns:d="DAV:">
   <d:response>
@@ -115,6 +138,15 @@ class Handler(BaseHTTPRequestHandler):
     def oauth_token(self, provider, body):
         form = parse_qs(body.decode("utf-8"))
         grant = form.get("grant_type", ["authorization_code"])[0]
+
+        if grant == "refresh_token":
+            refresh_token = form.get("refresh_token", [""])[0]
+            if refresh_token != f"{provider}-refresh":
+                return self.send_json(
+                    {"error": "invalid_grant", "error_description": "invalid refresh token"},
+                    status=400,
+                )
+
         suffix = "refreshed" if grant == "refresh_token" else "initial"
         response = {
             "access_token": f"{provider}-access-{suffix}",
@@ -128,6 +160,49 @@ class Handler(BaseHTTPRequestHandler):
             response.pop("expires_in")
             response["uid"] = 123
         return self.send_json(response)
+
+    def require_cloud_auth(self, provider):
+        auth = self.headers.get("Authorization", "")
+        expected = f"Bearer {provider}-access-"
+        if expected not in auth:
+            return self.send_json({"error": "unauthorized"}, status=401)
+        return True
+
+    def require_subsonic_auth(self, query):
+        u = query.get("u", [""])[0]
+        t = query.get("t", [""])[0]
+        s = query.get("s", [""])[0]
+        if u != "alice" or not t or not s:
+            return self.send_json(
+                {"subsonic-response": {"status": "failed", "error": {"code": 40, "message": "Wrong username or password"}}},
+                status=401,
+            )
+        return True
+
+    def require_jellyfin_auth(self):
+        header = self.headers.get("X-Emby-Authorization", "")
+        if 'Token="jellyfin-token"' not in header:
+            return self.send_json({"error": "unauthorized"}, status=401)
+        return True
+
+    def require_jellyfin_client_auth(self):
+        header = self.headers.get("X-Emby-Authorization", "")
+        if not header.startswith("MediaBrowser Client="):
+            return self.send_json({"error": "unauthorized"}, status=401)
+        return True
+
+    def require_plex_auth(self):
+        token = self.headers.get("X-Plex-Token", "")
+        if token != "plex-token":
+            return self.send_json({"error": "unauthorized"}, status=401)
+        return True
+
+    def require_webdav_auth(self):
+        auth = self.headers.get("Authorization", "")
+        expected = base64.b64encode(b"alice:secret").decode("utf-8")
+        if auth != f"Basic {expected}":
+            return self.send_json({"error": "unauthorized"}, status=401)
+        return True
 
     def google_drive(self, path, query):
         if path.rstrip("/").endswith("/files"):

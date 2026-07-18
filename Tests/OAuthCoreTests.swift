@@ -101,4 +101,30 @@ final class OAuthCoreTests: XCTestCase {
         XCTAssertEqual(try store.read(provider: .dropbox, sourceID: 42), token)
         try credentialStore.delete(account: CloudDriveServerPolicy.credentialAccount(sourceID: 42, provider: .dropbox))
     }
+
+    func testCloudProviderScopesAreReadOnlyForDropboxGoogleDriveAndOneDrive() throws {
+        let providers: [(CloudDriveAPI.Provider, [String])] = [
+            (.dropbox, ["files.metadata.read", "files.content.read"]),
+            (.googleDrive, ["https://www.googleapis.com/auth/drive.readonly"]),
+            (.oneDrive, ["offline_access", "Files.Read"]),
+        ]
+        for (provider, expectedScopes) in providers {
+            let config = try OAuthProviderConfig.cloudDrive(
+                provider: provider,
+                clientID: "client-\(provider.rawValue)",
+                redirectURI: URL(string: "tonearm://oauth/\(provider.rawValue)")!
+            )
+            XCTAssertEqual(config.scopes, expectedScopes, "\(provider.rawValue) scopes should be read-only")
+            XCTAssertFalse(config.scopes.contains(where: { $0.lowercased().contains("write") || $0.lowercased().contains("modify") || $0.lowercased().contains("delete") || $0.lowercased().contains("manage") }), "\(provider.rawValue) should not request write scopes")
+        }
+    }
+
+    func testPCloudDoesNotRequestScopes() throws {
+        let config = try OAuthProviderConfig.cloudDrive(
+            provider: .pCloud,
+            clientID: "pcloud-client",
+            redirectURI: URL(string: "tonearm://oauth/pCloud")!
+        )
+        XCTAssertEqual(config.scopes, [])
+    }
 }

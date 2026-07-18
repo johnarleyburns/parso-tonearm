@@ -44,6 +44,8 @@ final class CloudDriveAPITests: XCTestCase {
         XCTAssertEqual(root.url?.absoluteString, "https://graph.microsoft.com/v1.0/me/drive/root/children")
         XCTAssertEqual(child.url?.absoluteString, "https://graph.microsoft.com/v1.0/me/drive/items/folder%201/children")
         XCTAssertEqual(content.url?.absoluteString, "https://graph.microsoft.com/v1.0/me/drive/items/file%201/content")
+        XCTAssertEqual(root.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+        XCTAssertEqual(content.value(forHTTPHeaderField: "Authorization"), "Bearer token")
     }
 
     func testPCloudRequestsUseBearerAuthAndFolderIDs() throws {

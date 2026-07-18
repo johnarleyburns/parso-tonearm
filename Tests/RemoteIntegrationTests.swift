@@ -49,6 +49,54 @@ final class RemoteIntegrationTests: XCTestCase {
     func testServerBackendsBrowseAndResolveAgainstLocalServer() async throws {
         let baseURL = try integrationBaseURL()
 
+        // Verify that bad auth is rejected for non-cloud backends.
+        let badSubsonic = SubsonicProvider(
+            baseURL: baseURL.appendingPathComponent("subsonic"),
+            username: "evil",
+            password: "wrong"
+        )
+        do {
+            _ = try await badSubsonic.refresh()
+            XCTFail("Bad subsonic credentials should be rejected")
+        } catch {
+            XCTAssertNotNil(error as? URLError)
+        }
+
+        let badWebDAV = WebDAVProvider(
+            baseURL: baseURL.appendingPathComponent("webdav"),
+            username: "evil",
+            password: "wrong"
+        )
+        do {
+            _ = try await badWebDAV.refresh()
+            XCTFail("Bad webdav credentials should be rejected")
+        } catch {
+            XCTAssertNotNil(error as? URLError)
+        }
+
+        let badJellyfin = JellyfinProvider(
+            baseURL: baseURL.appendingPathComponent("jellyfin"),
+            userID: "user-1",
+            accessToken: "wrong-token"
+        )
+        do {
+            _ = try await badJellyfin.refresh()
+            XCTFail("Bad jellyfin token should be rejected")
+        } catch {
+            XCTAssertNotNil(error as? URLError)
+        }
+
+        let badPlex = PlexProvider(
+            baseURL: baseURL.appendingPathComponent("plex"),
+            token: "wrong-plex-token"
+        )
+        do {
+            _ = try await badPlex.refresh()
+            XCTFail("Bad plex token should be rejected")
+        } catch {
+            XCTAssertNotNil(error as? URLError)
+        }
+
         let subsonic = SubsonicProvider(
             baseURL: baseURL.appendingPathComponent("subsonic"),
             username: "alice",
@@ -124,6 +172,73 @@ final class RemoteIntegrationTests: XCTestCase {
 
         XCTAssertEqual(resolved.url.lastPathComponent, "Track.flac")
         XCTAssertFalse(resolved.supportsByteRanges)
+    }
+
+    func testCloudOAuthReconnectRequiredOnInvalidRefreshToken() async throws {
+        let baseURL = try integrationBaseURL()
+        let provider = CloudDriveAPI.Provider.dropbox
+        let token = OAuthToken(
+            provider: provider,
+            accessToken: "stale",
+            refreshToken: "bogus-refresh",
+            issuedAt: Date(timeIntervalSince1970: 1),
+            expiresAt: Date(timeIntervalSince1970: 2),
+            accountLabel: nil,
+            clientID: "client-\(provider.rawValue)",
+            tokenEndpoint: url(baseURL, "oauth", provider.rawValue, "token"),
+            apiEnvironment: CloudDriveAPI.Environment(baseURL: baseURL.appendingPathComponent(provider.rawValue))
+        )
+        let accessProvider = OAuthCloudDriveAccessProvider(token: token)
+        do {
+            _ = try await accessProvider.access()
+            XCTFail("Refresh with bogus token should throw")
+        } catch let error as OAuthError {
+            XCTAssertEqual(error, .refreshRequired)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testCloudOAuthReconnectRequiredWithoutRefreshToken() async throws {
+        let baseURL = try integrationBaseURL()
+        let provider = CloudDriveAPI.Provider.googleDrive
+        let token = OAuthToken(
+            provider: provider,
+            accessToken: "stale",
+            refreshToken: nil,
+            issuedAt: Date(timeIntervalSince1970: 1),
+            expiresAt: Date(timeIntervalSince1970: 2),
+            accountLabel: nil,
+            clientID: "client-\(provider.rawValue)",
+            tokenEndpoint: url(baseURL, "oauth", provider.rawValue, "token"),
+            apiEnvironment: CloudDriveAPI.Environment(baseURL: baseURL.appendingPathComponent(provider.rawValue))
+        )
+        let accessProvider = OAuthCloudDriveAccessProvider(token: token)
+        do {
+            _ = try await accessProvider.access()
+            XCTFail("Refresh without refresh token should throw")
+        } catch let error as OAuthError {
+            XCTAssertEqual(error, .refreshRequired)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testCloudDriveBrowseRejectedWithBadAccessToken() async throws {
+        let baseURL = try integrationBaseURL()
+        let provider = CloudDriveAPI.Provider.oneDrive
+        let remote = CloudDriveProvider(
+            provider: provider,
+            accessToken: "bad-access-token",
+            session: .shared,
+            environment: CloudDriveAPI.Environment(baseURL: baseURL.appendingPathComponent(provider.rawValue))
+        )
+        do {
+            _ = try await remote.browse(path: "")
+            XCTFail("Browse with bad token should throw")
+        } catch {
+            XCTAssertNotNil(error as? URLError)
+        }
     }
 
     private func integrationBaseURL() throws -> URL {
