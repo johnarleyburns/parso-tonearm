@@ -15,19 +15,19 @@ there when you're offline. There is no download button, because you don't need o
 
 ---
 
-## Redesign: the free/Pro line
+## The free/Pro line
 
 Tonearm's Pro tier originally gated *conveniences* — cache size, prefetch depth, folder
-watch. Those are taxes on your own disk and your own phone, and we've removed them. They
-are free, permanently, and a CI test (`Tests/FreeTierRegistryTests.swift`) fails the build
-if anyone ever tries to re-gate them.
+watch, iCloud sync, audio tools, smart playlists, and tag editing. Those are taxes on your
+own disk and your own phone, and we've removed them. They are free, permanently, and a CI
+test (`Tests/FreeTierRegistryTests.swift`) fails the build if anyone ever tries to re-gate
+them.
 
 The new line is simple:
 
-> **Free — a complete player.** Everything about *your files, on this device.*
+> **Free — a complete player.** Everything you can do *with your music, on your own devices.*
 >
-> **Pro — reach and mastery.** Your music *wherever it lives*, on *every device you own*,
-> with the tools to master it.
+> **Pro — reach.** Your music *wherever else it lives*. Remote libraries only.
 
 ### Free, forever
 
@@ -35,19 +35,15 @@ All formats (FLAC, Opus, ALAC, MP3, AAC, WAV/AIFF) · gapless · 10-band EQ · R
 crossfade · unlimited cache, any size · any prefetch depth · folder watch · full library
 browse by artist, album and genre · queue and playlist editing · archive.org sources ·
 local import · widgets, Shortcuts, share extension · listening stats · scrobbling · lyrics ·
-zero telemetry, no account.
+iCloud Sync (library, playlists, favorites, artwork, presets) · parametric EQ · crossfeed ·
+convolution · bit-perfect output · smart playlists · tag editor · bulk edits ·
+duplicate detection · zero telemetry, no account.
 
-### Tonearm Pro — $9.99, one time
+### Remote Libraries — $7.99, one time
 
-1. **Remote Libraries** — your music wherever it lives. Guided connectors: Dropbox,
-   Google Drive, OneDrive, pCloud, Subsonic/Navidrome, WebDAV, Jellyfin. Advanced
-   connectors: Plex and SMB. Streamed through the same transparent cache as everything
-   else, so it goes offline by itself.
-2. **iCloud Sync** — library, playlists, favorites, play history, artwork and EQ presets
-   across your devices. Your iCloud, your data, off by default.
-3. **iPad + Mac** — same purchase, every device.
-4. **Pro Audio & Library Tools** — parametric EQ, crossfeed, convolution, bit-perfect
-   output; smart playlists; tag editor; bulk edits; duplicate detection.
+Connect to your music wherever it lives. All 9 providers: Dropbox, Google Drive, OneDrive,
+pCloud, Subsonic/Navidrome, WebDAV, Jellyfin, Plex and SMB. Streamed through the same
+transparent cache as everything else, so it goes offline by itself.
 
 **One price. Forever.** No subscription, no account, no telemetry — while VOX charges
 $49.99/year and Flacbox puts ads in its free tier. Family Sharing is on. And because Tonearm

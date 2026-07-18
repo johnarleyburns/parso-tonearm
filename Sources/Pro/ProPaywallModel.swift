@@ -36,21 +36,9 @@ public final class ProPaywallModel: ObservableObject {
 
     public let features: [Feature] = [
         Feature(title: "Remote Libraries",
-                detail: RemoteConnectorCatalog.proDisplayList,
+                detail: "Connect to all 9 providers: \(RemoteConnectorCatalog.proDisplayList)",
                 features: [.remoteLibraries],
-                entryPoint: "Settings > Sources"),
-        Feature(title: "iCloud Sync",
-                detail: "library, playlists, favorites, history, artwork and EQ presets",
-                features: [.icloudSync],
-                entryPoint: "Settings > iCloud Sync"),
-        Feature(title: "iPad + Mac",
-                detail: "same purchase on every device",
-                features: [],
-                entryPoint: "Universal purchase"),
-        Feature(title: "Pro Audio & Library Tools",
-                detail: "parametric EQ, crossfeed, convolution, smart playlists, tag editor and duplicate detection",
-                features: [.proAudioTools, .smartPlaylists, .tagEditor],
-                entryPoint: "Settings > Tools")
+                entryPoint: "Settings > Sources")
     ]
 
     public func refresh() {

@@ -1,7 +1,7 @@
 import SwiftUI
 import TonearmCore
 
-/// Pro unlock sheet (mockup screen 3). Presented ONLY from gated touchpoints —
+/// Pro unlock sheet. Presented ONLY from gated touchpoints —
 /// never on launch, never interrupting playback.
 struct ProPaywallView: View {
     @Environment(\.dismiss) private var dismiss
@@ -17,7 +17,7 @@ struct ProPaywallView: View {
                     .font(.system(size: 11, weight: .semibold)).kerning(2)
                     .foregroundStyle(Palette.brass)
                     .padding(.top, 22)
-                Text("Tonearm Pro")
+                Text("Remote Libraries")
                     .font(.system(size: 24, weight: .heavy))
                     .padding(.top, 8)
                 Text("\(model.displayPrice) · no subscription, no account")
@@ -36,7 +36,7 @@ struct ProPaywallView: View {
                 } label: {
                     Group {
                         if model.purchasing { ProgressView().tint(.black) }
-                        else { Text(model.isPro ? "Purchased" : "Unlock Pro") }
+                        else { Text(model.isPro ? "Purchased" : "Unlock Remote Libraries") }
                     }
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(Color(hex: 0x101214))
@@ -56,7 +56,7 @@ struct ProPaywallView: View {
                 .tint(Palette.ink2)
                 .padding(.top, 12)
 
-                Text("FLAC · Opus · gapless · EQ · cache · Archive sources · zero telemetry:\nfree for everyone, always.")
+                Text("Everything else is free, forever: FLAC · Opus · gapless · EQ · iCloud sync · parametric EQ · smart playlists · tag editor · duplicate detection · Archive sources · zero telemetry.")
                     .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                     .multilineTextAlignment(.center)
                     .padding(.top, 16)

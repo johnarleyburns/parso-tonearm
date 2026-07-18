@@ -16,15 +16,22 @@ final class ProPaywallTests: XCTestCase {
         super.tearDown()
     }
 
-    func testPresentsFourFeaturesInTruthfulOrder() {
+    func testPresentsOneFeature() {
         let model = ProPaywallModel()
-        XCTAssertEqual(model.features.count, 4)
+        XCTAssertEqual(model.features.count, 1)
         XCTAssertEqual(model.features.map { $0.title }, [
-            "Remote Libraries",
-            "iCloud Sync",
-            "iPad + Mac",
-            "Pro Audio & Library Tools"
+            "Remote Libraries"
         ])
+    }
+
+    func testRemoteLibrariesFeatureContainsAllConnectors() {
+        let model = ProPaywallModel()
+        let detail = model.features[0].detail
+        for kind in RemoteLibraryAccessPolicy.productSourceKinds {
+            let connectorName = RemoteConnectorCatalog.displayName(kind)
+            XCTAssertTrue(detail.contains(connectorName),
+                          "Paywall must list '\(connectorName)' but detail was '\(detail)'")
+        }
     }
 
     func testNoFeatureCarriesComingSoonFlag() {
@@ -37,11 +44,9 @@ final class ProPaywallTests: XCTestCase {
 
     func testEveryProFeatureIsAdvertisedWithReachableEntryPoint() {
         let model = ProPaywallModel()
-        let advertised = Set(model.features.flatMap(\.features))
-        XCTAssertEqual(advertised, Set(ProFeature.allCases))
-        for feature in model.features {
-            XCTAssertFalse(feature.entryPoint.isEmpty)
-        }
+        // The sole feature uses the only ProFeature case.
+        XCTAssertEqual(model.features.first?.features, [.remoteLibraries])
+        XCTAssertEqual(model.features.first?.entryPoint, "Settings > Sources")
     }
 
     func testNoCarPlayRow() {

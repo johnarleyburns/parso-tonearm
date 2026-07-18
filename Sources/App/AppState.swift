@@ -463,7 +463,6 @@ final class AppState: ObservableObject {
 
     @discardableResult
     func createSmartPlaylistSnapshot(title rawTitle: String, playlist: SmartPlaylist) async throws -> Playlist {
-        try requireTool(.smartPlaylist)
         let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         let rows = try await store.smartPlaylistRows(playlist)
         let trackIDs = rows.compactMap(\.track.id)
@@ -478,7 +477,6 @@ final class AppState: ObservableObject {
 
     @discardableResult
     func applyTagEdit(trackIDs: Set<Int64>, proposal: TagEdit.Proposal) async throws -> Int {
-        try requireTool(.tagEditor)
         let rows = try await store.allTrackRows()
         let selection = rows
             .filter { row in row.track.id.map(trackIDs.contains) ?? false }
@@ -492,7 +490,6 @@ final class AppState: ObservableObject {
     }
 
     func duplicateGroups(limit: Int = 200) async throws -> [DuplicateDetection.Group] {
-        try requireTool(.duplicateDetection)
         let rows = try await store.allTrackRows()
         var candidates: [DuplicateDetection.Candidate] = []
         for row in rows.prefix(limit) {
@@ -501,15 +498,6 @@ final class AppState: ObservableObject {
             candidates.append(DuplicateDetection.Candidate(id: "\(trackID): \(row.track.title)", bytes: data))
         }
         return DuplicateDetection.groups(from: candidates)
-    }
-
-    private func requireTool(_ tool: ProTool) throws {
-        switch ProToolsAccessPolicy.decision(for: tool, isPro: ProGating.isEnabled(tool.feature)) {
-        case .allow:
-            return
-        case .requiresPro(let feature):
-            throw ProFeatureAccessError.requiresPro(feature)
-        }
     }
 
     private func localAudioBytes(for row: TrackRow) -> Data? {

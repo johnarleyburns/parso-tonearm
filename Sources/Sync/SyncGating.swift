@@ -23,15 +23,14 @@ public enum SyncGating {
         case temporarilyUnavailable
     }
 
-    /// The engine runs only when Pro is active, the user opted in, and an iCloud
-    /// account is available (C5). Any missing condition is a graceful no-op.
-    public static func shouldRun(isPro: Bool, toggleOn: Bool, account: AccountStatus) -> Bool {
-        isPro && toggleOn && account == .available
+    /// The engine runs when the user opted in and an iCloud account is available.
+    /// iCloud sync is free for all users.
+    public static func shouldRun(toggleOn: Bool, account: AccountStatus) -> Bool {
+        toggleOn && account == .available
     }
 
     /// Human-facing reason the engine isn't running (nil when it should run).
-    public static func inactiveHint(isPro: Bool, toggleOn: Bool, account: AccountStatus) -> String? {
-        if !isPro { return "iCloud sync is a Pro feature." }
+    public static func inactiveHint(toggleOn: Bool, account: AccountStatus) -> String? {
         if !toggleOn { return "iCloud sync is off." }
         switch account {
         case .available: return nil
@@ -42,9 +41,9 @@ public enum SyncGating {
         }
     }
 
-    /// On downgrade or toggle-off the engine stops but **never** deletes local
+    /// On toggle-off the engine stops but **never** deletes local
     /// data — mirrors the cache "lazy, never bulk-delete" rule (C5).
-    public static func shouldStopButKeepData(isPro: Bool, toggleOn: Bool) -> Bool {
-        !isPro || !toggleOn
+    public static func shouldStopButKeepData(toggleOn: Bool) -> Bool {
+        !toggleOn
     }
 }

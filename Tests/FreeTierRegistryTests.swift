@@ -7,11 +7,7 @@ final class FreeTierRegistryTests: XCTestCase {
     func testProFeatureCasesAreExactlyThePaidCapabilities() {
         let actual = Set(ProFeature.allCases.map { $0.rawValue })
         let expected: Set<String> = [
-            "remoteLibraries",
-            "icloudSync",
-            "proAudioTools",
-            "smartPlaylists",
-            "tagEditor"
+            "remoteLibraries"
         ]
         XCTAssertEqual(actual, expected)
     }
@@ -38,7 +34,17 @@ final class FreeTierRegistryTests: XCTestCase {
             "playlistEditing",
             "iaSources",
             "localImport",
-            "privacy"
+            "privacy",
+            "icloudSync",
+            "ipadMac",
+            "proAudioTools",
+            "smartPlaylists",
+            "tagEditor",
+            "duplicateDetection",
+            "parametricEQ",
+            "crossfeed",
+            "convolution",
+            "bitPerfect"
         ]
         let gated = Set(ProFeature.allCases.map { $0.rawValue.lowercased() })
         for capability in freeCapabilities {
@@ -48,6 +54,6 @@ final class FreeTierRegistryTests: XCTestCase {
     }
 
     func testGatedCountIsStable() {
-        XCTAssertEqual(ProFeature.allCases.count, 5)
+        XCTAssertEqual(ProFeature.allCases.count, 1)
     }
 }

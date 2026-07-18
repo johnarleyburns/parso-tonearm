@@ -46,13 +46,6 @@ final class ProGatingPolicyTests: XCTestCase {
         XCTAssertEqual(RemoteLibraryAccessPolicy.decision(for: .browse(.local), isPro: false), .allow)
     }
 
-    func testToolsPolicyMapsToolsToPaidFeatures() {
-        XCTAssertEqual(ProToolsAccessPolicy.decision(for: .smartPlaylist, isPro: false), .requiresPro(.smartPlaylists))
-        XCTAssertEqual(ProToolsAccessPolicy.decision(for: .tagEditor, isPro: false), .requiresPro(.tagEditor))
-        XCTAssertEqual(ProToolsAccessPolicy.decision(for: .parametricEQ, isPro: false), .requiresPro(.proAudioTools))
-        XCTAssertEqual(ProToolsAccessPolicy.decision(for: .crossfeed, isPro: true), .allow)
-    }
-
     func testAddRemoteLibraryEntryPointPresentsPaywallWhenNotPro() {
         XCTAssertEqual(
             RemoteLibraryGate.entryPointDecision(isPro: false),

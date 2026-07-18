@@ -1,8 +1,9 @@
 import XCTest
 @testable import TonearmCore
 
-/// C7 — engine gating: no-ops without Pro / toggle / iCloud account; downgrade
-/// or toggle-off stops the engine but never deletes local data. Pure logic.
+/// C7 — engine gating: no-ops without toggle / iCloud account; toggle-off
+/// stops the engine but never deletes local data. Pure logic.
+/// iCloud sync is free for all users.
 final class SyncGatingTests: XCTestCase {
 
     override func tearDown() {
@@ -10,36 +11,29 @@ final class SyncGatingTests: XCTestCase {
         super.tearDown()
     }
 
-    func testRunsOnlyWithProToggleAndAccount() {
-        XCTAssertTrue(SyncGating.shouldRun(isPro: true, toggleOn: true, account: .available))
-    }
-
-    func testNoOpWithoutPro() {
-        XCTAssertFalse(SyncGating.shouldRun(isPro: false, toggleOn: true, account: .available))
-        XCTAssertEqual(SyncGating.inactiveHint(isPro: false, toggleOn: true, account: .available),
-                       "iCloud sync is a Pro feature.")
+    func testRunsOnlyWithToggleAndAccount() {
+        XCTAssertTrue(SyncGating.shouldRun(toggleOn: true, account: .available))
     }
 
     func testNoOpWithoutToggle() {
-        XCTAssertFalse(SyncGating.shouldRun(isPro: true, toggleOn: false, account: .available))
-        XCTAssertEqual(SyncGating.inactiveHint(isPro: true, toggleOn: false, account: .available),
+        XCTAssertFalse(SyncGating.shouldRun(toggleOn: false, account: .available))
+        XCTAssertEqual(SyncGating.inactiveHint(toggleOn: false, account: .available),
                        "iCloud sync is off.")
     }
 
     func testNoOpWithoutAccount() {
-        XCTAssertFalse(SyncGating.shouldRun(isPro: true, toggleOn: true, account: .noAccount))
-        XCTAssertEqual(SyncGating.inactiveHint(isPro: true, toggleOn: true, account: .noAccount),
+        XCTAssertFalse(SyncGating.shouldRun(toggleOn: true, account: .noAccount))
+        XCTAssertEqual(SyncGating.inactiveHint(toggleOn: true, account: .noAccount),
                        "Sign in to iCloud to sync.")
     }
 
     func testHintNilWhenRunning() {
-        XCTAssertNil(SyncGating.inactiveHint(isPro: true, toggleOn: true, account: .available))
+        XCTAssertNil(SyncGating.inactiveHint(toggleOn: true, account: .available))
     }
 
-    func testDowngradeStopsButKeepsData() {
-        XCTAssertTrue(SyncGating.shouldStopButKeepData(isPro: false, toggleOn: true))
-        XCTAssertTrue(SyncGating.shouldStopButKeepData(isPro: true, toggleOn: false))
-        XCTAssertFalse(SyncGating.shouldStopButKeepData(isPro: true, toggleOn: true))
+    func testToggleOffStopsButKeepsData() {
+        XCTAssertTrue(SyncGating.shouldStopButKeepData(toggleOn: false))
+        XCTAssertFalse(SyncGating.shouldStopButKeepData(toggleOn: true))
     }
 
     func testToggleDefaultsOff() {

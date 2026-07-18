@@ -7,9 +7,9 @@ import os
 /// all DB↔record mapping and merge/gating decisions live in the pure, unit-tested
 /// `RecordMapping`, `SyncMerge`, and `SyncGating` helpers.
 ///
-/// Only starts when Pro **and** the toggle are on **and** an iCloud account is
-/// available (`SyncGating.shouldRun`). On downgrade / toggle-off it stops without
-/// deleting local data.
+/// Only starts when the toggle is on **and** an iCloud account is
+/// available (`SyncGating.shouldRun`). On toggle-off it stops without
+/// deleting local data. iCloud sync is free for all users.
 @available(iOS 17.0, *)
 @MainActor
 public final class CloudSyncEngine: NSObject {
@@ -37,14 +37,13 @@ public final class CloudSyncEngine: NSObject {
     // MARK: - Lifecycle & gating (C5)
 
     /// Starts or stops the engine to match current gating. Safe to call on
-    /// launch, on foreground, and whenever Pro / the toggle changes.
+    /// launch, on foreground, and whenever the toggle changes.
     public func reconcile() async {
         let account = await accountStatus()
-        let isPro = ProFeature.isEnabled(.icloudSync)
         let toggle = SyncGating.isEnabled
-        lastHint = SyncGating.inactiveHint(isPro: isPro, toggleOn: toggle, account: account)
+        lastHint = SyncGating.inactiveHint(toggleOn: toggle, account: account)
 
-        guard SyncGating.shouldRun(isPro: isPro, toggleOn: toggle, account: account) else {
+        guard SyncGating.shouldRun(toggleOn: toggle, account: account) else {
             stop()
             return
         }

@@ -5,18 +5,18 @@
   ],
   "products" : [
     {
-      "displayPrice" : "9.99",
+      "displayPrice" : "7.99",
       "familyShareable" : true,
       "internalID" : "A0000001",
       "localizations" : [
         {
-          "description" : "A one-time unlock for reach and mastery: Remote Libraries, iCloud Sync, iPad + Mac, and Pro Audio & Library Tools. FLAC, Opus, gapless, EQ, cache, folder watch, archive.org sources, local import, and privacy stay free for everyone.",
-          "displayName" : "Tonearm Pro",
+          "description" : "One-time purchase to connect all remote libraries: Subsonic, Navidrome, WebDAV, Jellyfin, Plex, Dropbox, Google Drive, OneDrive, pCloud, SMB. Everything else — local playback, iCloud sync, parametric EQ, smart playlists, tag editor, duplicate detection — is free for everyone, permanently.",
+          "displayName" : "Remote Libraries",
           "locale" : "en_US"
         }
       ],
       "productID" : "guru.parso.tonearm.pro",
-      "referenceName" : "Tonearm Pro",
+      "referenceName" : "Remote Libraries",
       "type" : "NonConsumable"
     }
   ],

@@ -227,20 +227,13 @@ struct SettingsView: View {
         .buttonStyle(.plain)
     }
 
-    /// iCloud sync (Pro, C1/C5). Off by default; a locked tap presents the paywall.
-    /// The engine only runs when Pro + toggle + an iCloud account are present.
+    /// iCloud sync — free for all users. Off by default; the engine runs when
+    /// the toggle is on and an iCloud account is available.
     private var syncCard: some View {
-        let isPro = ProFeature.isEnabled(.icloudSync)
-        return VStack(spacing: 0) {
+        VStack(spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 5) {
-                        Text("iCloud Sync").font(.system(size: 13.5))
-                        if !isPro {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 8, weight: .bold)).foregroundStyle(Palette.brass)
-                        }
-                    }
+                    Text("iCloud Sync").font(.system(size: 13.5))
                     Text("Library, playlists & settings across your devices, using your own iCloud")
                         .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                 }
@@ -248,10 +241,6 @@ struct SettingsView: View {
                 Toggle("", isOn: Binding(
                     get: { icloudSync },
                     set: { newValue in
-                        if !isPro {
-                            showPaywall = true
-                            return
-                        }
                         icloudSync = newValue
                         SyncGating.isEnabled = newValue
                         if #available(iOS 17.0, *) {
@@ -268,25 +257,11 @@ struct SettingsView: View {
     }
 
     private var toolsCard: some View {
-        let isPro = ProEntitlement.isActive
-        return Button {
-            switch ProToolsAccessPolicy.decisionForToolsSurface(isPro: isPro) {
-            case .allow:
-                showTools = true
-            case .requiresPro:
-                showPaywall = true
-            }
-        } label: {
+        Button { showTools = true } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 5) {
-                        Text("Tools").font(.system(size: 13.5))
-                        if !isPro {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 8, weight: .bold)).foregroundStyle(Palette.brass)
-                        }
-                    }
-                    Text("Smart playlists, tags, duplicates and Pro audio policy")
+                    Text("Tools").font(.system(size: 13.5))
+                    Text("Smart playlists, tags, duplicates, parametric EQ and more")
                         .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                 }
                 Spacer()
@@ -374,7 +349,7 @@ struct SettingsView: View {
     private var aboutCard: some View {
         VStack(spacing: 0) {
             Button { showPaywall = true } label: {
-                aboutRow("Tonearm Pro", "Remote libraries, sync, iPad + Mac")
+                aboutRow("Tonearm Pro", "Connect remote libraries: Subsonic, Dropbox, etc.")
             }
             .buttonStyle(.plain)
             Divider().overlay(Palette.hairline)
@@ -445,7 +420,7 @@ struct PrivacyView: View {
                     Text("Tonearm collects nothing.")
                         .font(.system(size: 20, weight: .bold))
                     privacyPoint("No accounts", "There is no sign-in and no server that belongs to Tonearm.")
-                    privacyPoint("Optional iCloud sync", "A Pro feature, off by default. When you turn it on, your library, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Tonearm server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
+                    privacyPoint("Optional iCloud sync", "Free for everyone, off by default. When you turn it on, your library, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Tonearm server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
                     privacyPoint("No ads, no analytics", "No tracking of any kind. OAuth tokens are used only for services you explicitly connect.")
                     privacyPoint("Network contact", "archive.org for sources you added by URL, Apple's iTunes Search for missing cover art, and remote-library providers you add yourself: \(RemoteConnectorCatalog.proDisplayList). Lyrics lookup and scrobbling stay off until you enable them; then Tonearm talks only to LRCLIB, Last.fm, or ListenBrainz for those features.")
                     privacyPoint("Your files stay yours", "Local music is referenced in place by secure bookmark and never uploaded.")

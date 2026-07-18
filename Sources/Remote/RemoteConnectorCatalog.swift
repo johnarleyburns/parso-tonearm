@@ -193,6 +193,10 @@ public enum RemoteConnectorCatalog {
         all.map(\.proDisplayName).joined(separator: ", ")
     }
 
+    public static func displayName(_ kind: SourceKind) -> String {
+        connector(for: kind)?.proDisplayName ?? kind.rawValue
+    }
+
     public static func connector(for kind: SourceKind) -> RemoteConnector? {
         all.first { $0.sourceKind == kind }
     }
