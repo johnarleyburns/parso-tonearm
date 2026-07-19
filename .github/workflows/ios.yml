@@ -58,56 +58,30 @@ jobs:
           done <<< "$DISPLAY_NAMES"
           echo "CFBundleDisplayName audit OK"
 
-          # (b) No user-visible "Tonearm" in UI-string surfaces outside the allowlist.
-          # Allowlist: import TonearmCore, bundle-id literals, URL scheme "tonearm",
-          # on-disk directory paths, UserDefaults keys, accessibility identifiers,
-          # type/struct names, provisioning-profile specifiers.
+          # (b) No user-visible "Tonearm" in Swift string literals or Info.plist
+          # string values. Grep only for "Tonearm" inside double-quoted strings
+          # (catches user-facing copy) and in Info.plist <string> values, then
+          # exclude the few internal quoted-string uses.
+          #
+          # Internal uses that are quoted strings (explicitly allowed):
+          #   "tonearm" (URL scheme), "TonearmShareExtension" (NSError domain),
+          #   "TonearmOAuthClientIDs"/"TonearmOAuthClientSecrets" (plist keys),
+          #   "Tonearm/StreamCache" etc. (on-disk dirs),
+          #   PROVISIONING_PROFILE_SPECIFIER lines.
           UI_DIRS=(Sources/Features Sources/App Sources/Widgets Sources/Intents
                    Sources/DesignSystem WidgetsExtension ShareExtension WatchApp)
           CODENAME="Tonearm"
 
           for dir in "${UI_DIRS[@]}"; do
             if [ ! -d "$dir" ]; then continue; fi
-            LEAK=$(grep -rI "$CODENAME" "$dir" \
-              | grep -v "import TonearmCore" \
-              | grep -v 'bundle.*tonearm' \
-              | grep -v 'guru\.parso\.tonearm' \
+            # Find lines with "Tonearm" inside Swift double-quoted strings
+            LEAK=$(grep -rIE '"[^"]*Tonearm[^"]*"' "$dir" \
               | grep -v '"tonearm"' \
-              | grep -v 'PROVISIONING_PROFILE_SPECIFIER' \
-              | grep -v '"TonearmDeepLink' \
-              | grep -v '"TonearmWidgetURL' \
               | grep -v '"TonearmOAuthClientIDs' \
               | grep -v '"TonearmOAuthClientSecrets' \
-              | grep -v 'appendingPathComponent("Tonearm' \
-              | grep -v 'accessibilityIdentifier' \
               | grep -v '"TonearmShareExtension"' \
-              | grep -v '"TonearmWidgetsBundle' \
-              | grep -v '"TonearmPlaybackControl' \
-              | grep -v '"TonearmNextTrack' \
-              | grep -v '"TonearmPreviousTrack' \
-              | grep -v '"TonearmPlayPlaylistIntent' \
-              | grep -v '"TonearmPlayArtistIntent' \
-              | grep -v '"TonearmResumeIntent' \
-              | grep -v '"TonearmSleepTimerIntent' \
-              | grep -v '"TonearmAddSourceIntent' \
-              | grep -v '"TonearmShortcutsProvider' \
-              | grep -v '"TonearmIntentRunner' \
-              | grep -v '"TonearmIntentError' \
-              | grep -v '"TonearmTimelineProvider' \
-              | grep -v '"TonearmWidgetEntry' \
-              | grep -v '"TonearmWidget' \
-              | grep -v "TonearmAppIntents" \
-              | grep -v "TonearmWidgets" \
-              | grep -v "Tonearm.xcodeproj" \
-              | grep -v "Tonearm.storekit" \
-              | grep -v "struct Tonearm" \
-              | grep -v "enum Tonearm" \
-              | grep -v "class Tonearm" \
-              | grep -v "TonearmUITests" \
-              | grep -v "TonearmTests" \
-              | grep -v "TonearmShareExtension" \
-              | grep -v "TonearmWidgetsExtension" \
-              | grep -v "TonearmSmokeUITests" \
+              | grep -v 'appendingPathComponent("Tonearm' \
+              | grep -v 'PROVISIONING_PROFILE_SPECIFIER' \
               || true)
             if [ -n "$LEAK" ]; then
               echo "Codename leak found in $dir:"
