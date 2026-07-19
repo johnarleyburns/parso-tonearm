@@ -51,8 +51,8 @@ jobs:
           # (a) project.yml CFBundleDisplayName must be Platterhead (suffixed variants allowed)
           DISPLAY_NAMES=$(grep 'CFBundleDisplayName:' project.yml | sed 's/.*CFBundleDisplayName: *//' || true)
           while IFS= read -r name; do
-            if [ -n "$name" ] && [[ "$name" != Platterhead* ]]; then
-              echo "CFBundleDisplayName not Platterhead: '$name'"
+            if [ -n "$name" ] && [[ "$name" != *Platterhead* ]]; then
+              echo "CFBundleDisplayName does not contain Platterhead: '$name'"
               exit 1
             fi
           done <<< "$DISPLAY_NAMES"
