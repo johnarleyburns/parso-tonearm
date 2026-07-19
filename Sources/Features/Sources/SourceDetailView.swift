@@ -14,6 +14,9 @@ struct SourceDetailView: View {
     @State private var remoteBackStack: [String] = []
     @State private var remoteError: String?
     @State private var isLoadingRemote = false
+    @State private var showRename = false
+    @State private var renameText = ""
+    @State private var showCredentialEdit = false
 
     var body: some View {
         ScrollView {
@@ -21,6 +24,9 @@ struct SourceDetailView: View {
                 navRow
                 hero
                 content
+                if isRemoteLibrary {
+                    remoteManagementSection
+                }
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 160)
@@ -338,6 +344,90 @@ struct SourceDetailView: View {
 
     private var remoteProviderName: String {
         RemoteConnectorCatalog.connector(for: source.kind)?.title ?? "Remote"
+    }
+
+    private var remoteManagementSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Library Settings")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Palette.ink3)
+                .padding(.top, 24)
+                .padding(.bottom, 10)
+
+            VStack(spacing: 0) {
+                managementRow(label: "Provider", value: remoteProviderName)
+                Divider().overlay(Palette.hairline)
+
+                if let url = source.originalURL {
+                    managementRow(label: "URL", value: url)
+                    Divider().overlay(Palette.hairline)
+                }
+
+                if let account = appState.remoteAccountLabel(for: source) {
+                    managementRow(label: "Account", value: account)
+                    Divider().overlay(Palette.hairline)
+                }
+
+                if let status = appState.remoteCredentialStatus(for: source) {
+                    managementRow(label: "Credentials", value: status)
+                    Divider().overlay(Palette.hairline)
+                }
+
+                Button {
+                    renameText = source.title
+                    showRename = true
+                } label: {
+                    managementRow(label: "Display Name", value: source.title, chevron: true)
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(Palette.hairline)
+
+                Button {
+                    showCredentialEdit = true
+                } label: {
+                    managementRow(label: "Update Credentials", value: "Change password or token", chevron: true)
+                }
+                .buttonStyle(.plain)
+            }
+            .glassSurface(cornerRadius: 14)
+        }
+        .alert("Rename Library", isPresented: $showRename) {
+            TextField("Name", text: $renameText)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                if !renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Task { await appState.renameSource(source, title: renameText) }
+                }
+            }
+        }
+        .alert("Update Credentials", isPresented: $showCredentialEdit) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("To update credentials, remove and re-add this library.")
+        }
+    }
+
+    private func managementRow(label: String, value: String, chevron: Bool = false) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Palette.ink3)
+            Spacer()
+            Text(value)
+                .font(.system(size: 12, weight: .regular, design: label == "URL" ? .monospaced : .default))
+                .foregroundStyle(Palette.ink2)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if chevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.ink3)
+                    .padding(.leading, 4)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .contentShape(Rectangle())
     }
 }
 

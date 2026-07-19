@@ -443,6 +443,56 @@ final class AppState: ObservableObject {
         return try await remoteProvider(for: source).browse(path: path)
     }
 
+    func renameSource(_ source: Source, title: String) async {
+        guard let id = source.id else { return }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        try? await store.updateSourceTitle(id: id, title: trimmed)
+        await reload()
+    }
+
+    func remoteAccountLabel(for source: Source) -> String? {
+        switch source.kind {
+        case .subsonic, .webDAV, .jellyfin:
+            return source.iaIdentifier
+        case .plex:
+            return "Token saved"
+        case .dropbox, .googleDrive, .oneDrive, .pCloud:
+            return source.iaIdentifier
+        case .smb:
+            return "Folder bookmark saved"
+        case .iaItem, .iaList, .iaCollection, .iaFavorites:
+            if let id = source.id,
+               let _ = try? CredentialStore().read(account: "ia-private:\(id)") {
+                return "Credentials saved"
+            }
+            return source.originalURL
+        default:
+            return nil
+        }
+    }
+
+    func remoteCredentialStatus(for source: Source) -> String? {
+        switch source.kind {
+        case .subsonic, .webDAV, .jellyfin:
+            return "Password saved"
+        case .plex:
+            return "Token saved"
+        case .dropbox, .googleDrive, .oneDrive, .pCloud:
+            return "OAuth token saved"
+        case .smb:
+            return "Bookmark saved"
+        case .iaItem, .iaList, .iaCollection, .iaFavorites:
+            if let id = source.id,
+               let _ = try? CredentialStore().read(account: "ia-private:\(id)") {
+                return "Password saved"
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
     func remoteTrackRows(source: Source, nodes: [RemoteNode]) async throws -> [TrackRow] {
         try requireRemoteLibrary(.resolve(source.kind))
         let provider = try remoteProvider(for: source)
