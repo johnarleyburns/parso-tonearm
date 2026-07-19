@@ -67,7 +67,7 @@ struct ProPaywallView: View {
                 .tint(Palette.ink2)
                 .padding(.top, 12)
 
-                Text("Everything else is free, forever: FLAC · Opus · gapless · EQ · iCloud sync · parametric EQ · smart playlists · tag editor · duplicate detection · Archive libraries · zero telemetry.")
+                Text("Everything else is free, forever: FLAC · Opus · gapless · EQ · iCloud sync · parametric EQ · smart playlists · tag editor · duplicate detection · zero telemetry.")
                     .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                     .multilineTextAlignment(.center)
                     .padding(.top, 16)
