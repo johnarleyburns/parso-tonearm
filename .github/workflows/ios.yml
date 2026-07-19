@@ -276,7 +276,7 @@ jobs:
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath ./build/Tonearm.xcarchive \
-            ARCHS=arm64 \
+            ARCHS="arm64 arm64_32" \
             MARKETING_VERSION="$MKT_VERSION" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             IPHONEOS_DEPLOYMENT_TARGET=18.0 \

@@ -30,6 +30,8 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 </dict>
