@@ -131,6 +131,7 @@ jobs:
           LEGACY_PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
           SHARE_EXTENSION_PROVISIONING_PROFILE_BASE64: ${{ secrets.SHARE_EXTENSION_PROVISIONING_PROFILE_BASE64 }}
           WIDGETS_EXTENSION_PROVISIONING_PROFILE_BASE64: ${{ secrets.WIDGETS_EXTENSION_PROVISIONING_PROFILE_BASE64 }}
+          WATCH_PROVISIONING_PROFILE_BASE64: ${{ secrets.WATCH_PROVISIONING_PROFILE_BASE64 }}
         run: |
           set -eo pipefail
           missing=()
@@ -150,6 +151,7 @@ jobs:
           require_secret TEAM_ID TEAM_ID
           require_secret SHARE_EXTENSION_PROVISIONING_PROFILE_BASE64 SHARE_EXTENSION_PROVISIONING_PROFILE_BASE64
           require_secret WIDGETS_EXTENSION_PROVISIONING_PROFILE_BASE64 WIDGETS_EXTENSION_PROVISIONING_PROFILE_BASE64
+          require_secret WATCH_PROVISIONING_PROFILE_BASE64 WATCH_PROVISIONING_PROFILE_BASE64
 
           if [ -z "$APP_PROVISIONING_PROFILE_BASE64$LEGACY_PROVISIONING_PROFILE_BASE64" ]; then
             missing+=("APP_PROVISIONING_PROFILE_BASE64 or legacy PROVISIONING_PROFILE_BASE64")
@@ -248,6 +250,7 @@ jobs:
           LEGACY_PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
           SHARE_EXTENSION_PROVISIONING_PROFILE_BASE64: ${{ secrets.SHARE_EXTENSION_PROVISIONING_PROFILE_BASE64 }}
           WIDGETS_EXTENSION_PROVISIONING_PROFILE_BASE64: ${{ secrets.WIDGETS_EXTENSION_PROVISIONING_PROFILE_BASE64 }}
+          WATCH_PROVISIONING_PROFILE_BASE64: ${{ secrets.WATCH_PROVISIONING_PROFILE_BASE64 }}
         run: |
           set -eo pipefail
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
@@ -258,6 +261,8 @@ jobs:
             -o "$HOME/Library/MobileDevice/Provisioning Profiles/Parso_Tonearm_Share_Extension.mobileprovision"
           printf '%s' "$WIDGETS_EXTENSION_PROVISIONING_PROFILE_BASE64" | base64 --decode \
             -o "$HOME/Library/MobileDevice/Provisioning Profiles/Parso_Tonearm_Widgets_Extension.mobileprovision"
+          printf '%s' "$WATCH_PROVISIONING_PROFILE_BASE64" | base64 --decode \
+            -o "$HOME/Library/MobileDevice/Provisioning Profiles/Parso_Tonearm_Watch_App_Store.mobileprovision"
 
       - name: Archive
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'

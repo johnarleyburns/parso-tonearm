@@ -108,7 +108,7 @@ public actor CacheStore {
 
     /// Sibling CAF URL for a remuxed Opus key.
     public func cafURL(for key: String) -> URL {
-        OpusRemuxer.cafURL(forOpusFile: fileURL(for: key))
+        fileURL(for: key).deletingPathExtension().appendingPathExtension("caf")
     }
 
     /// True when a playable remuxed CAF exists on disk for this key.
@@ -152,7 +152,9 @@ public actor CacheStore {
         persistMeta(key)
         // Trigger Opus→CAF remux the moment an `.opus` key completes (T2.3).
         if m.complete && !wasComplete && Self.isOpusKey(key) {
+#if !os(watchOS)
             triggerOpusRemux(for: key)
+#endif
         }
         await evictToFit(protecting: key)
     }
@@ -175,6 +177,7 @@ public actor CacheStore {
     /// Kicks off a background remux of a completed `.opus` cache file to a sibling
     /// `.caf`, updating cache accounting on success. Fire-and-forget; failures are
     /// swallowed (the remuxer marks the key unavailable for playback fallback).
+#if !os(watchOS)
     private func triggerOpusRemux(for key: String) {
         let opusURL = fileURL(for: key)
         Task.detached(priority: .utility) {
@@ -183,6 +186,7 @@ public actor CacheStore {
             await CacheStore.shared.recordCAFBytes(size ?? 0, for: key)
         }
     }
+#endif
 
     public func touch(_ key: String) {
         guard var m = metas[key] else { return }
@@ -307,7 +311,7 @@ public extension CacheStore {
     }
 
     nonisolated static func completeCacheExists(for remote: URL) -> Bool {
-        let key = CachingResourceLoader.key(for: remote)
+        let key = CacheKeyGenerator.key(for: remote)
         let metaURL = cacheMetaDirectory.appendingPathComponent("\(key).json")
         guard let data = try? Data(contentsOf: metaURL),
               let meta = try? JSONDecoder().decode(Meta.self, from: data),
@@ -319,7 +323,7 @@ public extension CacheStore {
 
     /// On-disk CAF sibling for a remote Opus URL, whether or not it exists yet.
     nonisolated static func cafURL(forRemoteOpus url: URL) -> URL {
-        let key = CachingResourceLoader.key(for: url)
-        return OpusRemuxer.cafURL(forOpusFile: fileURL(for: key))
+        let key = CacheKeyGenerator.key(for: url)
+        return fileURL(for: key).deletingPathExtension().appendingPathExtension("caf")
     }
 }

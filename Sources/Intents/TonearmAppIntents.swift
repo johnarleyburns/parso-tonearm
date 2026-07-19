@@ -1,3 +1,4 @@
+#if !os(watchOS)
 import AppIntents
 import Foundation
 
@@ -253,3 +254,4 @@ private extension IntentResolver.TargetKind {
         }
     }
 }
+#endif

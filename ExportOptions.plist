@@ -18,6 +18,8 @@
 		<string>Platterhead Share Extension Profile</string>
 		<key>guru.parso.tonearm.widgets</key>
 		<string>Platterhead Widgets Profile</string>
+		<key>guru.parso.tonearm.watchkitapp</key>
+		<string>Platterhead Watch App Store</string>
 	</dict>
 	<key>stripSwiftSymbols</key>
 	<true/>

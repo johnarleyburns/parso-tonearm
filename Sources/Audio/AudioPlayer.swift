@@ -1,11 +1,8 @@
+#if !os(watchOS)
 import Foundation
 import AVFoundation
 import Combine
 import Network
-
-public enum RepeatMode: String, CaseIterable {
-    case off, all, one
-}
 
 public enum QueueSource: Equatable {
     case source(Source)
@@ -471,7 +468,7 @@ public final class AudioPlayer: ObservableObject {
             if !asset.transientRemoteSupportsByteRanges {
                 return (directRemoteItem(url: remote, headers: asset.transientRemoteHeaders), nil)
             }
-            let cacheURL = CachingResourceLoader.cacheURL(for: remote)
+            let cacheURL = CacheKeyGenerator.cacheURL(for: remote)
             let avAsset = AVURLAsset(url: cacheURL)
             let loader = CachingResourceLoader(originalURL: remote, headers: asset.transientRemoteHeaders)
             avAsset.resourceLoader.setDelegate(loader, queue: loaderQueue)
@@ -909,7 +906,7 @@ public final class AudioPlayer: ObservableObject {
            asset.transientRemoteSupportsByteRanges,
            let urlString = remoteURLString(for: asset),
            let remote = URL(string: urlString) {
-            keys.insert(CachingResourceLoader.key(for: remote))
+            keys.insert(CacheKeyGenerator.key(for: remote))
         }
         for loader in prefetchLoaders.values {
             keys.insert(loader.cacheKey)
@@ -956,10 +953,11 @@ public final class AudioPlayer: ObservableObject {
     /// Downloads a complete Opus derivative into the stream cache and remuxes it
     /// to a sibling CAF. Skips work when a CAF already exists or the key was
     /// already marked unavailable. Fire-and-forget; failures fall back silently.
+#if !os(watchOS)
     private func prefetchOpusAndRemux(_ opusURL: URL) {
         let caf = CacheStore.cafURL(forRemoteOpus: opusURL)
         guard !FileManager.default.fileExists(atPath: caf.path) else { return }
-        let key = CachingResourceLoader.key(for: opusURL)
+        let key = CacheKeyGenerator.key(for: opusURL)
         Task.detached(priority: .background) {
             if await OpusRemuxer.shared.isUnavailable(key) { return }
             let dest = CacheStore.fileURL(for: key)
@@ -978,6 +976,7 @@ public final class AudioPlayer: ObservableObject {
             }
         }
     }
+#endif
 
     // MARK: - Observers
 
@@ -1075,7 +1074,7 @@ public final class AudioPlayer: ObservableObject {
             }
             return
         }
-        let key = CachingResourceLoader.key(for: remote)
+        let key = CacheKeyGenerator.key(for: remote)
         Task {
             let state = await CacheStore.shared.state(for: key)
             let map = await CacheStore.shared.rangeMap(for: key)
@@ -1393,3 +1392,4 @@ public final class AudioPlayer: ObservableObject {
         shuffle.toggle()
     }
 }
+#endif

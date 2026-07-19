@@ -1,3 +1,4 @@
+#if !os(watchOS)
 import Foundation
 import AudioToolbox
 
@@ -166,3 +167,4 @@ public enum CAFOpusWriter {
         return Data(bytes.reversed())
     }
 }
+#endif

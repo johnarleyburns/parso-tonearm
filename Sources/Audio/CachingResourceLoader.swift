@@ -1,3 +1,4 @@
+#if !os(watchOS)
 import Foundation
 import AVFoundation
 import UniformTypeIdentifiers
@@ -19,7 +20,7 @@ public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegat
     public init(originalURL: URL, headers: [String: String] = [:]) {
         self.originalURL = originalURL
         self.headers = headers
-        self.cacheKey = CachingResourceLoader.key(for: originalURL)
+        self.cacheKey = CacheKeyGenerator.key(for: originalURL)
         super.init()
     }
 
@@ -339,3 +340,4 @@ public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegat
         stateLock.unlock()
     }
 }
+#endif
