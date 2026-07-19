@@ -22,7 +22,7 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>WKCompanionAppBundleIdentifier</key>
 	<string>guru.parso.tonearm</string>
-	<key>WKWatchKitApp</key>
+	<key>WKApplication</key>
 	<true/>
 	<key>WKRunsIndependentlyOfCompanionApp</key>
 	<true/>
