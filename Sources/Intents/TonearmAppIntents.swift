@@ -4,7 +4,7 @@ import Foundation
 public struct TonearmPlayPlaylistIntent: AppIntent {
     public init() {}
     public static var title: LocalizedStringResource = "Play Playlist"
-    public static var description = IntentDescription("Starts a Tonearm playlist.")
+    public static var description = IntentDescription("Starts a Platterhead playlist.")
     public static var openAppWhenRun = true
 
     @Parameter(title: "Playlist")
@@ -20,7 +20,7 @@ public struct TonearmPlayPlaylistIntent: AppIntent {
 public struct TonearmPlayArtistIntent: AppIntent {
     public init() {}
     public static var title: LocalizedStringResource = "Play Artist"
-    public static var description = IntentDescription("Starts all Tonearm tracks by an artist.")
+    public static var description = IntentDescription("Starts all Platterhead tracks by an artist.")
     public static var openAppWhenRun = true
 
     @Parameter(title: "Artist")
@@ -35,8 +35,8 @@ public struct TonearmPlayArtistIntent: AppIntent {
 
 public struct TonearmResumeIntent: AppIntent {
     public init() {}
-    public static var title: LocalizedStringResource = "Resume Tonearm"
-    public static var description = IntentDescription("Resumes Tonearm playback.")
+    public static var title: LocalizedStringResource = "Resume Platterhead"
+    public static var description = IntentDescription("Resumes Platterhead playback.")
     public static var openAppWhenRun = true
 
     @MainActor
@@ -49,7 +49,7 @@ public struct TonearmResumeIntent: AppIntent {
 public struct TonearmSleepTimerIntent: AppIntent {
     public init() {}
     public static var title: LocalizedStringResource = "Set Sleep Timer"
-    public static var description = IntentDescription("Sets a Tonearm sleep timer in minutes.")
+    public static var description = IntentDescription("Sets a Platterhead sleep timer in minutes.")
     public static var openAppWhenRun = true
 
     @Parameter(title: "Minutes", default: 30)
@@ -70,7 +70,7 @@ public struct TonearmSleepTimerIntent: AppIntent {
 public struct TonearmAddSourceIntent: AppIntent {
     public init() {}
     public static var title: LocalizedStringResource = "Add Archive Source"
-    public static var description = IntentDescription("Adds an archive.org library to Tonearm.")
+    public static var description = IntentDescription("Adds an archive.org library to Platterhead.")
     public static var openAppWhenRun = true
 
     @Parameter(title: "URL")
@@ -96,7 +96,7 @@ public struct TonearmShortcutsProvider: AppShortcutsProvider {
             intent: TonearmPlayPlaylistIntent(),
             phrases: [
                 "Play a playlist in \(.applicationName)",
-                "Start a Tonearm playlist in \(.applicationName)"
+                "Start a Platterhead playlist in \(.applicationName)"
             ],
             shortTitle: "Play Playlist",
             systemImageName: "music.note.list"
@@ -114,7 +114,7 @@ public struct TonearmShortcutsProvider: AppShortcutsProvider {
             intent: TonearmResumeIntent(),
             phrases: [
                 "Resume \(.applicationName)",
-                "Resume Tonearm in \(.applicationName)"
+                "Resume Platterhead in \(.applicationName)"
             ],
             shortTitle: "Resume",
             systemImageName: "play.fill"
@@ -123,7 +123,7 @@ public struct TonearmShortcutsProvider: AppShortcutsProvider {
             intent: TonearmSleepTimerIntent(),
             phrases: [
                 "Set a sleep timer in \(.applicationName)",
-                "Start a Tonearm sleep timer in \(.applicationName)"
+                "Start a Platterhead sleep timer in \(.applicationName)"
             ],
             shortTitle: "Sleep Timer",
             systemImageName: "moon.zzz"
@@ -224,7 +224,7 @@ private extension IntentResolver.Failure {
     var message: String {
         switch self {
         case .emptyLibrary(let kind):
-            return "Tonearm has no \(kind.displayName) to match."
+            return "Platterhead has no \(kind.displayName) to match."
         case .emptyParameter(let kind):
             return "Enter a \(kind.displayName) value."
         case .noMatch(let kind, let query):

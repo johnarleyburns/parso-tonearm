@@ -36,7 +36,7 @@ struct OnboardingView: View {
     ]
 
     private let intros: [(icon: String, title: String, body: String)] = [
-        ("music.note.house.fill", "Welcome to Tonearm",
+        ("music.note.house.fill", "Welcome to Platterhead",
          "A calm player for public-domain and Creative Commons music streamed from the Internet Archive — and your own local files."),
         ("cloud.fill", "Add libraries",
          "Paste any archive.org item, list, favorites page, or collection. Every track lands in Music instantly. Nothing is downloaded until you press play."),
@@ -115,7 +115,7 @@ struct OnboardingView: View {
             Text("Add your own music")
                 .font(.system(size: 24, weight: .heavy)).kerning(-0.5)
                 .multilineTextAlignment(.center)
-            Text("Import a local folder or individual files.\nThey stay where they are — Tonearm reads them in place.")
+            Text("Import a local folder or individual files.\nThey stay where they are — Platterhead reads them in place.")
                 .font(.system(size: 14)).foregroundStyle(Palette.ink2)
                 .multilineTextAlignment(.center).padding(.horizontal, 30)
 

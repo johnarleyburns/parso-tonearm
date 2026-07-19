@@ -13,7 +13,7 @@ final class ShareViewController: UIViewController {
 
     private func configureView() {
         view.backgroundColor = UIColor(red: 0.06, green: 0.055, blue: 0.05, alpha: 1)
-        messageLabel.text = "Opening Tonearm..."
+        messageLabel.text = "Opening Platterhead..."
         messageLabel.textColor = .white
         messageLabel.font = .preferredFont(forTextStyle: .headline)
         messageLabel.textAlignment = .center

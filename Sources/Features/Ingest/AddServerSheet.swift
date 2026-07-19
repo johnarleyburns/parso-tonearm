@@ -169,7 +169,7 @@ struct AddServerSheet: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Sign in with \(connector.title)")
                             .font(.system(size: 13.5))
-                        Text("Tonearm requests read-only access for browsing and streaming.")
+                        Text("Platterhead requests read-only access for browsing and streaming.")
                             .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                     }
                     Spacer()
@@ -185,7 +185,7 @@ struct AddServerSheet: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Choose a shared music folder")
                             .font(.system(size: 13.5))
-                        Text("Tonearm saves folder access and streams files in place.")
+                        Text("Platterhead saves folder access and streams files in place.")
                             .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                     }
                     Spacer()
@@ -267,18 +267,18 @@ struct AddServerSheet: View {
 
     private var footerText: String {
         if isIAPublicList {
-            return "Tonearm streams this music directly from archive.org. Nothing is stored permanently."
+            return "Platterhead streams this music directly from archive.org. Nothing is stored permanently."
         }
         if isIAPrivateList {
-            return "Credentials are stored locally in Apple Keychain. Tonearm uses them only to access your private list."
+            return "Credentials are stored locally in Apple Keychain. Platterhead uses them only to access your private list."
         }
         switch connectorKind {
         case .smb:
             return "Folder access is stored as a security-scoped bookmark. Files are not copied."
         case .dropbox, .googleDrive, .oneDrive, .pCloud:
-            return "OAuth tokens are stored locally in Apple Keychain. Tonearm lists audio files and resolves streams only on demand."
+            return "OAuth tokens are stored locally in Apple Keychain. Platterhead lists audio files and resolves streams only on demand."
         default:
-            return "Credentials are stored locally in Apple Keychain. Tonearm requests a stream URL only when you play."
+            return "Credentials are stored locally in Apple Keychain. Platterhead requests a stream URL only when you play."
         }
     }
 

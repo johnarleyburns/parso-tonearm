@@ -32,7 +32,7 @@ jobs:
           # `import StoreKit` is permitted ONLY under Sources/Pro/ and the paywall
           # view. Any other occurrence in Sources/ leaks the StoreKit dependency
           # past the Pro boundary (Ground rule #2) and fails the build.
-          LEAKS=$(grep -rln "import StoreKit" Sources \
+          LEAKS=$(grep -rln "import StoreKit" Sources WatchApp \
             | grep -v "^Sources/Pro/" \
             | grep -v "^Sources/Features/Settings/ProPaywallView.swift" \
             || true)
@@ -43,26 +43,79 @@ jobs:
           fi
           echo "StoreKit import boundary OK"
 
-      - name: Product name guard
+      - name: Codename-leak guard
         run: |
+
           set -eo pipefail
-          LEGACY_NAME="Platter""head"
-          PATHS=(Sources Tests UITests Resources project.yml README.md scripts .github)
-          for optional_path in TONEARM-requirements-design-v2.md TONEARM-audit-fixes-v2.1.md docs/opus-pro-unlock; do
-            if [ -e "$optional_path" ]; then
-              PATHS+=("$optional_path")
+
+          # (a) project.yml CFBundleDisplayName must be Platterhead (suffixed variants allowed)
+          DISPLAY_NAMES=$(grep 'CFBundleDisplayName:' project.yml | sed 's/.*CFBundleDisplayName: *//' || true)
+          while IFS= read -r name; do
+            if [ -n "$name" ] && [[ "$name" != Platterhead* ]]; then
+              echo "CFBundleDisplayName not Platterhead: '$name'"
+              exit 1
+            fi
+          done <<< "$DISPLAY_NAMES"
+          echo "CFBundleDisplayName audit OK"
+
+          # (b) No user-visible "Tonearm" in UI-string surfaces outside the allowlist.
+          # Allowlist: import TonearmCore, bundle-id literals, URL scheme "tonearm",
+          # on-disk directory paths, UserDefaults keys, accessibility identifiers,
+          # type/struct names, provisioning-profile specifiers.
+          UI_DIRS=(Sources/Features Sources/App Sources/Widgets Sources/Intents
+                   Sources/DesignSystem WidgetsExtension ShareExtension WatchApp)
+          CODENAME="Tonearm"
+
+          for dir in "${UI_DIRS[@]}"; do
+            if [ ! -d "$dir" ]; then continue; fi
+            LEAK=$(grep -rI "$CODENAME" "$dir" \
+              | grep -v "import TonearmCore" \
+              | grep -v 'bundle.*tonearm' \
+              | grep -v 'guru\.parso\.tonearm' \
+              | grep -v '"tonearm"' \
+              | grep -v 'PROVISIONING_PROFILE_SPECIFIER' \
+              | grep -v '"TonearmDeepLink' \
+              | grep -v '"TonearmWidgetURL' \
+              | grep -v '"TonearmOAuthClientIDs' \
+              | grep -v '"TonearmOAuthClientSecrets' \
+              | grep -v 'appendingPathComponent("Tonearm' \
+              | grep -v 'accessibilityIdentifier' \
+              | grep -v '"TonearmShareExtension"' \
+              | grep -v '"TonearmWidgetsBundle' \
+              | grep -v '"TonearmPlaybackControl' \
+              | grep -v '"TonearmNextTrack' \
+              | grep -v '"TonearmPreviousTrack' \
+              | grep -v '"TonearmPlayPlaylistIntent' \
+              | grep -v '"TonearmPlayArtistIntent' \
+              | grep -v '"TonearmResumeIntent' \
+              | grep -v '"TonearmSleepTimerIntent' \
+              | grep -v '"TonearmAddSourceIntent' \
+              | grep -v '"TonearmShortcutsProvider' \
+              | grep -v '"TonearmIntentRunner' \
+              | grep -v '"TonearmIntentError' \
+              | grep -v '"TonearmTimelineProvider' \
+              | grep -v '"TonearmWidgetEntry' \
+              | grep -v '"TonearmWidget' \
+              | grep -v "TonearmAppIntents" \
+              | grep -v "TonearmWidgets" \
+              | grep -v "Tonearm.xcodeproj" \
+              | grep -v "Tonearm.storekit" \
+              | grep -v "struct Tonearm" \
+              | grep -v "enum Tonearm" \
+              | grep -v "class Tonearm" \
+              | grep -v "TonearmUITests" \
+              | grep -v "TonearmTests" \
+              | grep -v "TonearmShareExtension" \
+              | grep -v "TonearmWidgetsExtension" \
+              | grep -v "TonearmSmokeUITests" \
+              || true)
+            if [ -n "$LEAK" ]; then
+              echo "Codename leak found in $dir:"
+              echo "$LEAK"
+              exit 1
             fi
           done
-          LOSER=$(grep -RIn "$LEGACY_NAME" \
-            "${PATHS[@]}" \
-            | grep -v "PROVISIONING_PROFILE_SPECIFIER" \
-            || true)
-          if [ -n "$LOSER" ]; then
-            echo "Legacy product name found:"
-            echo "$LOSER"
-            exit 1
-          fi
-          echo "Product name guard OK"
+          echo "Codename-leak guard OK"
 
       - name: Cache SPM
         uses: actions/cache@v4
