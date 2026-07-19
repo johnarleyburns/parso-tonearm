@@ -34,9 +34,9 @@ public final class ProPaywallModel: ObservableObject {
         }
     }
 
-    public let features: [Feature] = [
+    public lazy var features: [Feature] = [
         Feature(title: "Remote Libraries",
-                detail: "Connect to all 9 providers: \(RemoteConnectorCatalog.proDisplayList)",
+                detail: "Connect to all \(RemoteConnectorCatalog.productSourceKinds.count) providers: \(RemoteConnectorCatalog.proDisplayList)",
                 features: [.remoteLibraries],
                 entryPoint: "Settings > Libraries")
     ]

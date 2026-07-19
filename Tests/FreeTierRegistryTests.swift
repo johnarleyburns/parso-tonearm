@@ -32,7 +32,6 @@ final class FreeTierRegistryTests: XCTestCase {
             "libraryBrowse",
             "queueEditing",
             "playlistEditing",
-            "iaSources",
             "localImport",
             "privacy",
             "icloudSync",

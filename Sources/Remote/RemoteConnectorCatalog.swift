@@ -17,6 +17,7 @@ public enum RemoteConnectorAuthKind: String, Codable, Equatable {
     case usernamePassword
     case token
     case folderPicker
+    case urlOnly
 }
 
 public struct RemoteConnectorGuide: Equatable, Codable {
@@ -40,8 +41,9 @@ public struct RemoteConnectorGuide: Equatable, Codable {
 }
 
 public struct RemoteConnector: Identifiable, Equatable, Codable {
-    public var id: SourceKind { sourceKind }
+    public var id: String { connectorID ?? sourceKind.rawValue }
     public var sourceKind: SourceKind
+    public var connectorID: String?
     public var title: String
     public var proDisplayName: String
     public var subtitle: String
@@ -51,6 +53,7 @@ public struct RemoteConnector: Identifiable, Equatable, Codable {
     public var guide: RemoteConnectorGuide
 
     public init(sourceKind: SourceKind,
+                connectorID: String? = nil,
                 title: String,
                 proDisplayName: String? = nil,
                 subtitle: String,
@@ -59,6 +62,7 @@ public struct RemoteConnector: Identifiable, Equatable, Codable {
                 icon: String,
                 guide: RemoteConnectorGuide) {
         self.sourceKind = sourceKind
+        self.connectorID = connectorID
         self.title = title
         self.proDisplayName = proDisplayName ?? title
         self.subtitle = subtitle
@@ -71,6 +75,40 @@ public struct RemoteConnector: Identifiable, Equatable, Codable {
 
 public enum RemoteConnectorCatalog {
     public static let all: [RemoteConnector] = [
+        RemoteConnector(
+            sourceKind: .iaList,
+            connectorID: "iaPublicList",
+            title: "archive.org",
+            proDisplayName: "archive.org (public lists, items, collections)",
+            subtitle: "Public list, item, or collection — URL only",
+            tier: .guided,
+            authKind: .urlOnly,
+            icon: "link",
+            guide: guide(
+                "Add archive.org Library",
+                prerequisites: "An archive.org URL: item, public user list, favorites page, or collection.",
+                steps: "Paste the URL. Tonearm resolves the metadata and streams audio files in place.",
+                troubleshooting: "Collections are capped at 100 members. Favorites pages and public lists should resolve within a few seconds. If a URL does not resolve, confirm the item or list is public.",
+                privacy: "No credentials needed for public lists. Tonearm streams audio only from the URLs you add."
+            )
+        ),
+        RemoteConnector(
+            sourceKind: .iaList,
+            connectorID: "iaPrivateList",
+            title: "archive.org (Private List)",
+            proDisplayName: "archive.org (private lists)",
+            subtitle: "Private list — URL, username, and password",
+            tier: .guided,
+            authKind: .usernamePassword,
+            icon: "lock.doc",
+            guide: guide(
+                "Add archive.org Private List",
+                prerequisites: "An archive.org private list URL and the archive.org username/password that can access it.",
+                steps: "Enter the list URL, archive.org username, and password. Tonearm validates access before saving.",
+                troubleshooting: "Private lists require the correct archive.org account credentials. If access is denied, confirm the username and password and that the account has access to the list.",
+                privacy: "Credentials are stored locally in Apple Keychain. Tonearm sends credentials only to archive.org when resolving the list."
+            )
+        ),
         RemoteConnector(
             sourceKind: .subsonic,
             title: "Subsonic",
@@ -186,11 +224,21 @@ public enum RemoteConnectorCatalog {
     ]
 
     public static var productSourceKinds: [SourceKind] {
-        all.map(\.sourceKind)
+        let allKinds = all.map(\.sourceKind)
+        // Deduplicate while preserving order
+        var seen = Set<String>()
+        return allKinds.filter { seen.insert($0.rawValue).inserted }
     }
 
     public static var proDisplayList: String {
-        all.map(\.proDisplayName).joined(separator: ", ")
+        // Deduplicate proDisplayNames
+        var seen = Set<String>()
+        let unique = all.compactMap { connector -> String? in
+            let name = connector.proDisplayName
+            guard seen.insert(name).inserted else { return nil }
+            return name
+        }
+        return unique.joined(separator: ", ")
     }
 
     public static func displayName(_ kind: SourceKind) -> String {
@@ -199,6 +247,10 @@ public enum RemoteConnectorCatalog {
 
     public static func connector(for kind: SourceKind) -> RemoteConnector? {
         all.first { $0.sourceKind == kind }
+    }
+
+    public static func connector(byID id: String) -> RemoteConnector? {
+        all.first { $0.id == id }
     }
 
     public static func requireConnector(for kind: SourceKind) throws -> RemoteConnector {

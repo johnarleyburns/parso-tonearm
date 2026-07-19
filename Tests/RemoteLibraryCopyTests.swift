@@ -4,7 +4,8 @@ import XCTest
 @MainActor
 final class RemoteLibraryCopyTests: XCTestCase {
     func testCredentialCopyUsesLocalAppleKeychainLanguage() {
-        for connector in RemoteConnectorCatalog.all where connector.authKind != .folderPicker {
+        for connector in RemoteConnectorCatalog.all
+            where connector.authKind != .folderPicker && connector.authKind != .urlOnly {
             let privacy = connector.guide.sections
                 .first { $0.title == "Privacy" }?
                 .body ?? ""

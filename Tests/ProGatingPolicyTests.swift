@@ -40,9 +40,9 @@ final class ProGatingPolicyTests: XCTestCase {
         }
     }
 
-    func testArchiveSourcesAreNotRemoteLibraryProFeatures() {
-        XCTAssertEqual(RemoteLibraryAccessPolicy.decision(for: .browse(.iaItem), isPro: false), .allow)
-        XCTAssertEqual(RemoteLibraryAccessPolicy.decision(for: .browse(.iaCollection), isPro: false), .allow)
+    func testArchiveSourcesRequirePro() {
+        XCTAssertEqual(RemoteLibraryAccessPolicy.decision(for: .browse(.iaItem), isPro: false), .requiresPro(.remoteLibraries))
+        XCTAssertEqual(RemoteLibraryAccessPolicy.decision(for: .browse(.iaCollection), isPro: false), .requiresPro(.remoteLibraries))
         XCTAssertEqual(RemoteLibraryAccessPolicy.decision(for: .browse(.local), isPro: false), .allow)
     }
 

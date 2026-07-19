@@ -10,7 +10,15 @@ public enum RemoteLibraryAccessPolicy {
     public static let productSourceKinds: [SourceKind] = RemoteConnectorCatalog.productSourceKinds
 
     public static func isRemoteLibrary(_ kind: SourceKind) -> Bool {
-        productSourceKinds.contains(kind)
+        if isArchiveKind(kind) { return true }
+        return productSourceKinds.contains(kind)
+    }
+
+    private static func isArchiveKind(_ kind: SourceKind) -> Bool {
+        switch kind {
+        case .iaItem, .iaList, .iaCollection, .iaFavorites: return true
+        default: return false
+        }
     }
 
     public static func decision(for action: RemoteLibraryAction, isPro: Bool) -> ProGateDecision {

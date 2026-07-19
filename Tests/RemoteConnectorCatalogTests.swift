@@ -4,8 +4,9 @@ import XCTest
 
 @MainActor
 final class RemoteConnectorCatalogTests: XCTestCase {
-    func testCatalogListsExactlyTheNineSupportedRemoteConnectors() {
+    func testCatalogListsExactlyTheSupportedRemoteConnectors() {
         XCTAssertEqual(RemoteConnectorCatalog.productSourceKinds, [
+            .iaList,
             .subsonic,
             .webDAV,
             .smb,
@@ -22,7 +23,7 @@ final class RemoteConnectorCatalogTests: XCTestCase {
         let guided = Set(RemoteConnectorCatalog.all.filter { $0.tier == .guided }.map(\.sourceKind))
         let advanced = Set(RemoteConnectorCatalog.all.filter { $0.tier == .advanced }.map(\.sourceKind))
 
-        XCTAssertEqual(guided, Set([.dropbox, .googleDrive, .oneDrive, .pCloud, .subsonic, .webDAV, .jellyfin]))
+        XCTAssertEqual(guided, Set([.dropbox, .googleDrive, .oneDrive, .pCloud, .subsonic, .webDAV, .jellyfin, .iaList]))
         XCTAssertEqual(advanced, Set([.plex, .smb]))
     }
 

@@ -8,7 +8,7 @@ struct AddServerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var oauthCoordinator = OAuthSignInCoordinator()
 
-    @State private var kind: SourceKind = .subsonic
+    @State private var selectedConnectorID: String = RemoteConnectorCatalog.all.first?.id ?? ""
     @State private var urlText = ""
     @State private var username = ""
     @State private var password = ""
@@ -38,7 +38,7 @@ struct AddServerSheet: View {
 
             Spacer(minLength: 12)
 
-            if kind == .smb {
+            if connectorKind == .smb {
                 Button { showSMBPicker = true } label: {
                     actionLabel(title: "Choose Folder", icon: "folder.badge.plus")
                 }
@@ -48,7 +48,7 @@ struct AddServerSheet: View {
                 } label: {
                     Group {
                         if isConnecting { ProgressView().tint(.black) }
-                        else { actionLabel(title: actionTitle, icon: connector.authKind == .oauth ? "person.crop.circle.badge.checkmark" : "checkmark") }
+                        else { actionLabel(title: actionTitle, icon: authKind == .oauth ? "person.crop.circle.badge.checkmark" : "checkmark") }
                     }
                 }
                 .disabled(!canSubmit || isConnecting)
@@ -63,7 +63,7 @@ struct AddServerSheet: View {
         .foregroundStyle(Palette.ink)
         .presentationDetents([.height(560)])
         .presentationBackground(.ultraThinMaterial)
-        .onChange(of: kind) { _, _ in error = nil }
+        .onChange(of: selectedConnectorID) { _, _ in error = nil }
         .sheet(isPresented: $showGuide) {
             RemoteConnectorGuideView(guide: connector.guide)
         }
@@ -74,14 +74,34 @@ struct AddServerSheet: View {
     }
 
     private var connector: RemoteConnector {
-        RemoteConnectorCatalog.connector(for: kind) ?? RemoteConnectorCatalog.all[0]
+        RemoteConnectorCatalog.connector(byID: selectedConnectorID) ?? RemoteConnectorCatalog.all[0]
+    }
+
+    private var connectorKind: SourceKind {
+        connector.sourceKind
+    }
+
+    private var authKind: RemoteConnectorAuthKind {
+        connector.authKind
+    }
+
+    private var isIAPublicList: Bool {
+        connector.connectorID == "iaPublicList"
+    }
+
+    private var isIAPrivateList: Bool {
+        connector.connectorID == "iaPrivateList"
+    }
+
+    private var isIAConnector: Bool {
+        isIAPublicList || isIAPrivateList
     }
 
     private var providerPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(RemoteConnectorCatalog.all) { option in
-                    Button { kind = option.sourceKind } label: {
+                    Button { selectedConnectorID = option.id } label: {
                         HStack(spacing: 6) {
                             Image(systemName: option.icon)
                             Text(option.title)
@@ -91,10 +111,10 @@ struct AddServerSheet: View {
                             }
                         }
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(option.sourceKind == kind ? Color(hex: 0x221503) : Palette.ink2)
+                        .foregroundStyle(option.id == selectedConnectorID ? Color(hex: 0x221503) : Palette.ink2)
                         .padding(.horizontal, 11)
                         .frame(height: 34)
-                        .background(option.sourceKind == kind ? Palette.brass : Color.white.opacity(0.08),
+                        .background(option.id == selectedConnectorID ? Palette.brass : Color.white.opacity(0.08),
                                     in: Capsule())
                     }
                     .buttonStyle(.plain)
@@ -125,14 +145,14 @@ struct AddServerSheet: View {
     private var fields: some View {
         VStack(spacing: 10) {
             if needsURL {
-                textField(label: "SERVER URL",
-                          prompt: kind == .plex ? "https://plex.example.com:32400" : "https://music.example.com",
+                textField(label: isIAConnector ? "ARCHIVE.ORG URL" : "SERVER URL",
+                          prompt: isIAConnector ? "https://archive.org/details/…" : connectorKind == .plex ? "https://plex.example.com:32400" : "https://music.example.com",
                           text: $urlText,
                           keyboardType: .URL)
             }
             if needsUsernamePassword {
                 textField(label: "USERNAME",
-                          prompt: "user",
+                          prompt: isIAConnector ? "archive.org username" : "user",
                           text: $username,
                           keyboardType: .default)
                 secureField(label: "PASSWORD", prompt: "password", text: $password)
@@ -142,7 +162,7 @@ struct AddServerSheet: View {
                             prompt: "token",
                             text: $token)
             }
-            if connector.authKind == .oauth {
+            if authKind == .oauth {
                 HStack(spacing: 10) {
                     Image(systemName: "person.crop.circle.badge.checkmark")
                         .font(.system(size: 15)).foregroundStyle(Palette.brass)
@@ -158,7 +178,7 @@ struct AddServerSheet: View {
                 .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12)))
             }
-            if kind == .smb {
+            if connectorKind == .smb {
                 HStack(spacing: 10) {
                     Image(systemName: "folder")
                         .font(.system(size: 15)).foregroundStyle(Palette.brass)
@@ -221,7 +241,16 @@ struct AddServerSheet: View {
     }
 
     private var canSubmit: Bool {
-        switch kind {
+        if isIAPublicList {
+            let trimmed = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !trimmed.isEmpty && trimmed.count > 12
+        }
+        if isIAPrivateList {
+            let trimmedURL = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedUser = username.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !trimmedURL.isEmpty && !trimmedUser.isEmpty && !password.isEmpty
+        }
+        switch connectorKind {
         case .subsonic:
             return SubsonicServerPolicy.canSubmit(url: urlText, username: username, password: password)
         case .webDAV:
@@ -240,7 +269,13 @@ struct AddServerSheet: View {
     }
 
     private var footerText: String {
-        switch kind {
+        if isIAPublicList {
+            return "Tonearm streams this music directly from archive.org. Nothing is stored permanently."
+        }
+        if isIAPrivateList {
+            return "Credentials are stored locally in Apple Keychain. Tonearm uses them only to access your private list."
+        }
+        switch connectorKind {
         case .smb:
             return "Folder access is stored as a security-scoped bookmark. Files are not copied."
         case .dropbox, .googleDrive, .oneDrive, .pCloud:
@@ -251,25 +286,28 @@ struct AddServerSheet: View {
     }
 
     private var actionTitle: String {
-        connector.authKind == .oauth ? "Sign In to \(connector.title)" : "Connect \(connector.title)"
+        if authKind == .oauth { return "Sign In to \(connector.title)" }
+        if isIAConnector { return "Add archive.org Library" }
+        return "Connect \(connector.title)"
     }
 
     private var needsURL: Bool {
-        switch kind {
+        switch connectorKind {
         case .subsonic, .webDAV, .jellyfin, .plex: return true
-        default: return false
+        default: return isIAConnector
         }
     }
 
     private var needsUsernamePassword: Bool {
-        switch kind {
+        if isIAPrivateList { return true }
+        switch connectorKind {
         case .subsonic, .webDAV, .jellyfin: return true
         default: return false
         }
     }
 
     private var needsToken: Bool {
-        kind == .plex
+        connectorKind == .plex
     }
 
     private func connect() async {
@@ -277,25 +315,29 @@ struct AddServerSheet: View {
         isConnecting = true
         defer { isConnecting = false }
         do {
-            switch kind {
-            case .subsonic:
-                try await appState.addSubsonicServer(url: urlText, username: username, password: password)
-            case .webDAV:
-                try await appState.addWebDAVServer(url: urlText, username: username, password: password)
-            case .jellyfin:
-                try await appState.addJellyfinServer(url: urlText, username: username, password: password)
-            case .plex:
-                try await appState.addPlexServer(url: urlText, token: token)
-            case .dropbox, .googleDrive, .oneDrive, .pCloud:
-                if let cloudProvider = CloudDriveAPI.Provider(sourceKind: kind) {
-                    let config = try OAuthClientConfiguration.config(for: cloudProvider)
-                    let oauthToken = try await oauthCoordinator.signIn(config: config)
-                    try await appState.addCloudDrive(provider: cloudProvider, oauthToken: oauthToken)
+            if isIAConnector {
+                try await appState.addIASource(url: urlText, username: isIAPrivateList ? username : nil, password: isIAPrivateList ? password : nil)
+            } else {
+                switch connectorKind {
+                case .subsonic:
+                    try await appState.addSubsonicServer(url: urlText, username: username, password: password)
+                case .webDAV:
+                    try await appState.addWebDAVServer(url: urlText, username: username, password: password)
+                case .jellyfin:
+                    try await appState.addJellyfinServer(url: urlText, username: username, password: password)
+                case .plex:
+                    try await appState.addPlexServer(url: urlText, token: token)
+                case .dropbox, .googleDrive, .oneDrive, .pCloud:
+                    if let cloudProvider = CloudDriveAPI.Provider(sourceKind: connectorKind) {
+                        let config = try OAuthClientConfiguration.config(for: cloudProvider)
+                        let oauthToken = try await oauthCoordinator.signIn(config: config)
+                        try await appState.addCloudDrive(provider: cloudProvider, oauthToken: oauthToken)
+                    }
+                case .smb:
+                    return
+                default:
+                    return
                 }
-            case .smb:
-                return
-            default:
-                return
             }
             dismiss()
         } catch {

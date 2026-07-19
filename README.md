@@ -41,9 +41,9 @@ duplicate detection · zero telemetry, no account.
 
 ### Remote Libraries — $7.99, one time
 
-Connect to your music wherever it lives. All 9 providers: Dropbox, Google Drive, OneDrive,
-pCloud, Subsonic/Navidrome, WebDAV, Jellyfin, Plex and SMB. Streamed through the same
-transparent cache as everything else, so it goes offline by itself.
+Connect to your music wherever it lives. All 10 providers: archive.org, Dropbox,
+Google Drive, OneDrive, pCloud, Subsonic/Navidrome, WebDAV, Jellyfin, Plex and SMB.
+Streamed through the same transparent cache as everything else, so it goes offline by itself.
 
 **One price. Forever.** No subscription, no account, no telemetry — while VOX charges
 $49.99/year and Flacbox puts ads in its free tier. Family Sharing is on. And because Tonearm
@@ -68,6 +68,8 @@ routes your music through a Tonearm server.
 
 | Connector | Tier | Sign-in | Setup |
 | --- | --- | --- | --- |
+| archive.org (public lists, items, collections) | Guided | URL only | Paste an item, list, favorites, or collection URL to stream. |
+| archive.org (private lists) | Guided | URL + username/password | Enter the private list URL and archive.org credentials. |
 | Dropbox | Guided | OAuth + PKCE | Sign in, approve read-only file access, browse folders. |
 | Google Drive | Guided | OAuth + PKCE | Sign in with Drive readonly access, browse folders. |
 | OneDrive | Guided | OAuth + PKCE | Sign in with Microsoft `Files.Read`, browse folders. |

@@ -418,6 +418,26 @@ final class AppState: ObservableObject {
         )
     }
 
+    func addIASource(url rawURL: String, username: String?, password: String?) async throws {
+        try requireRemoteLibrary(.connect(.iaList))
+        let url = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let service = SourceService(preferFLAC: preferFLAC)
+        let preview = try await service.preview(from: url)
+
+        let followUpdates = preview.kind != .iaItem
+
+        let source = try await service.add(preview: preview, followUpdates: followUpdates, store: store)
+
+        if let _ = username, let password, let sourceID = source.id {
+            let data = Data(password.utf8)
+            let account = "ia-private:\(sourceID)"
+            try CredentialStore().save(data, account: account)
+        }
+
+        await reload()
+        tab = .sources
+    }
+
     func browseRemote(source: Source, path: String) async throws -> [RemoteNode] {
         try requireRemoteLibrary(.browse(source.kind))
         return try await remoteProvider(for: source).browse(path: path)
