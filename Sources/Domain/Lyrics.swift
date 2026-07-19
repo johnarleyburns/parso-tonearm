@@ -156,7 +156,7 @@ public enum LRCParser {
 
 public enum LyricsLookupPolicy {
     public static let defaultOptIn = false
-    public static let privacyStatement = "Lyrics lookup is off until you turn it on. When enabled, Tonearm sends track title, artist, album, and duration to LRCLIB."
+    public static let privacyStatement = "Lyrics lookup is off until you turn it on. When enabled, Platterhead sends track title, artist, album, and duration to LRCLIB."
 
     public enum Decision: Equatable {
         case allowed(provider: String)

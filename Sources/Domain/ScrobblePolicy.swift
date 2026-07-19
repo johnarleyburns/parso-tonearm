@@ -4,7 +4,7 @@ public enum ScrobblePolicy {
     public static let minimumTrackDuration: TimeInterval = 30
     public static let fourMinuteThreshold: TimeInterval = 240
     public static let defaultOptIn = false
-    public static let privacyStatement = "Scrobbling is off until you connect Last.fm or ListenBrainz. When enabled, Tonearm sends the track title, artist, album, duration, and play time to the service you choose."
+    public static let privacyStatement = "Scrobbling is off until you connect Last.fm or ListenBrainz. When enabled, Platterhead sends the track title, artist, album, duration, and play time to the service you choose."
 
     public enum Provider: String, CaseIterable, Hashable {
         case lastFM = "Last.fm"

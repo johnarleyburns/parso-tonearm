@@ -281,7 +281,7 @@ public enum ListeningStats {
         topTrack: String?
     ) -> String {
         var lines = [
-            "Tonearm \(year)",
+            "Platterhead \(year)",
             "\(playCount) plays",
             durationText(listeningTime),
         ]

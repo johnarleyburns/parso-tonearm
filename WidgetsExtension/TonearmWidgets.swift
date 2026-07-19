@@ -25,7 +25,7 @@ struct TonearmTimelineProvider: TimelineProvider {
                     track: .init(
                         id: 1,
                         title: "Nocturne in E-flat major",
-                        artist: "Tonearm",
+                        artist: "Platterhead",
                         albumTitle: "Recently Played",
                         duration: 262,
                         artworkID: nil
@@ -70,7 +70,7 @@ struct NowPlayingWidget: Widget {
                 .widgetURL(TonearmWidgetURL.nowPlaying)
         }
         .configurationDisplayName("Now Playing")
-        .description("Shows the current Tonearm track.")
+        .description("Shows the current Platterhead track.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
     }
 }
@@ -85,7 +85,7 @@ struct RecentlyPlayedWidget: Widget {
                 .widgetURL(TonearmWidgetURL.nowPlaying)
         }
         .configurationDisplayName("Recently Played")
-        .description("Shows recent Tonearm tracks.")
+        .description("Shows recent Platterhead tracks.")
         .supportedFamilies([.systemMedium, .systemLarge, .accessoryRectangular])
     }
 }
@@ -105,7 +105,7 @@ private struct NowPlayingWidgetView: View {
         } else if family == .accessoryRectangular {
             accessoryEmpty("Nothing Playing")
         } else {
-            EmptyWidgetView(title: "Nothing Playing", subtitle: "Open Tonearm")
+            EmptyWidgetView(title: "Nothing Playing", subtitle: "Open Platterhead")
         }
     }
 
@@ -187,7 +187,7 @@ private struct RecentlyPlayedWidgetView: View {
             if family == .accessoryRectangular {
                 accessoryEmpty("No History Yet")
             } else {
-                EmptyWidgetView(title: "No History Yet", subtitle: "Play something in Tonearm")
+                EmptyWidgetView(title: "No History Yet", subtitle: "Play something in Platterhead")
             }
         } else if family == .accessoryRectangular {
             accessory(rows[0])
@@ -317,8 +317,8 @@ struct TonearmPlaybackControl: ControlWidget {
             }
             .tint(.green)
         }
-        .displayName("Tonearm Play/Pause")
-        .description("Toggle Tonearm playback.")
+        .displayName("Platterhead Play/Pause")
+        .description("Toggle Platterhead playback.")
     }
 }
 
@@ -331,8 +331,8 @@ struct TonearmNextTrackControl: ControlWidget {
             }
             .tint(.green)
         }
-        .displayName("Tonearm Next")
-        .description("Skip to the next Tonearm track.")
+        .displayName("Platterhead Next")
+        .description("Skip to the next Platterhead track.")
     }
 }
 
@@ -345,8 +345,8 @@ struct TonearmPreviousTrackControl: ControlWidget {
             }
             .tint(.green)
         }
-        .displayName("Tonearm Previous")
-        .description("Return to the previous Tonearm track.")
+        .displayName("Platterhead Previous")
+        .description("Return to the previous Platterhead track.")
     }
 }
 

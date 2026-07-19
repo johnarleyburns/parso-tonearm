@@ -11,7 +11,7 @@ public enum ProFeatureAccessError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .requiresPro:
-            return "Tonearm Pro is required for this feature."
+            return "Platterhead Pro is required for this feature."
         }
     }
 }

@@ -349,13 +349,13 @@ struct SettingsView: View {
     private var aboutCard: some View {
         VStack(spacing: 0) {
             Button { showPaywall = true } label: {
-                aboutRow("Tonearm Pro", "Connect remote libraries: Subsonic, Dropbox, etc.")
+                aboutRow("Platterhead Pro", "Connect remote libraries: Subsonic, Dropbox, etc.")
             }
             .buttonStyle(.plain)
             Divider().overlay(Palette.hairline)
             aboutRow("Licenses", "GPLv3 + third-party")
             Divider().overlay(Palette.hairline)
-            aboutRow("About", "Tonearm 0.1 — you bring the records")
+            aboutRow("About", "Platterhead 0.1 — you bring the records")
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
@@ -417,12 +417,12 @@ struct PrivacyView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Tonearm collects nothing.")
+                    Text("Platterhead collects nothing.")
                         .font(.system(size: 20, weight: .bold))
-                    privacyPoint("No accounts", "There is no sign-in and no server that belongs to Tonearm.")
-                    privacyPoint("Optional iCloud sync", "Free for everyone, off by default. When you turn it on, your Music, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Tonearm server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
+                    privacyPoint("No accounts", "There is no sign-in and no server that belongs to Platterhead.")
+                    privacyPoint("Optional iCloud sync", "Free for everyone, off by default. When you turn it on, your Music, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Platterhead server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
                     privacyPoint("No ads, no analytics", "No tracking of any kind. OAuth tokens are used only for services you explicitly connect.")
-                    privacyPoint("Network contact", "archive.org for libraries you added by URL (public items, lists, and collections require only the URL; private lists require your archive.org username/password stored locally in Keychain), Apple's iTunes Search for missing cover art, and remote-library providers you add yourself: \(RemoteConnectorCatalog.proDisplayList). Lyrics lookup and scrobbling stay off until you enable them; then Tonearm talks only to LRCLIB, Last.fm, or ListenBrainz for those features.")
+                    privacyPoint("Network contact", "archive.org for libraries you added by URL (public items, lists, and collections require only the URL; private lists require your archive.org username/password stored locally in Keychain), Apple's iTunes Search for missing cover art, and remote-library providers you add yourself: \(RemoteConnectorCatalog.proDisplayList). Lyrics lookup and scrobbling stay off until you enable them; then Platterhead talks only to LRCLIB, Last.fm, or ListenBrainz for those features.")
                     privacyPoint("Your files stay yours", "Local music is referenced in place by secure bookmark and never uploaded.")
                     privacyPoint("The cache is temporary", "Streamed audio is kept in an LRU cache so recently played music works offline. It is evicted automatically and can be cleared anytime.")
                 }

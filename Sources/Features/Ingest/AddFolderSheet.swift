@@ -62,7 +62,7 @@ struct AddFolderSheet: View {
                 Text(err).font(.system(size: 11.5)).foregroundStyle(Palette.danger).padding(.top, 8)
             }
 
-            Text("Files stay where they are — Tonearm keeps a secure\nbookmark and reads them in place.")
+            Text("Files stay where they are — Platterhead keeps a secure\nbookmark and reads them in place.")
                 .font(.system(size: 10.5)).foregroundStyle(Palette.ink3)
                 .multilineTextAlignment(.center).padding(.top, 11)
         }

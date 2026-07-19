@@ -26,7 +26,7 @@ struct AnimatedSplashView: View {
                 PeriodicTileView(
                     atomicNumber: "78",
                     symbol: "Pt",
-                    name: "Tonearm",
+                    name: "Platterhead",
                     atomicWeight: "195.08"
                 )
                 .scaleEffect(tileScale)
@@ -38,7 +38,7 @@ struct AnimatedSplashView: View {
                     .scaleEffect(scale)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Tonearm. A privacy-first music player for people who own their music.")
+            .accessibilityLabel("Platterhead. A privacy-first music player for people who own their music.")
         }
         .opacity(opacity)
         .onAppear {
