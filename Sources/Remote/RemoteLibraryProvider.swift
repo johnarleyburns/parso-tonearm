@@ -139,3 +139,35 @@ public protocol RemoteLibraryProvider {
     func resolve(node: RemoteNode) async throws -> ResolvedAsset
     func refresh() async throws
 }
+
+public struct RemoteLibraryStats: Equatable {
+    public var artistCount: Int?
+    public var albumCount: Int?
+    public var folderCount: Int?
+    public var trackCount: Int?
+    public var totalBytes: Int64?
+
+    public init(artistCount: Int? = nil,
+                albumCount: Int? = nil,
+                folderCount: Int? = nil,
+                trackCount: Int? = nil,
+                totalBytes: Int64? = nil) {
+        self.artistCount = artistCount
+        self.albumCount = albumCount
+        self.folderCount = folderCount
+        self.trackCount = trackCount
+        self.totalBytes = totalBytes
+    }
+
+    public var formattedSummary: String {
+        var parts: [String] = []
+        if let c = trackCount { parts.append("\(c) tracks") }
+        if let c = albumCount { parts.append("\(c) albums") }
+        if let c = artistCount { parts.append("\(c) artists") }
+        if let c = folderCount { parts.append("\(c) folders") }
+        if let b = totalBytes, b > 0 {
+            parts.append(ByteCountFormatter.string(fromByteCount: b, countStyle: .file))
+        }
+        return parts.isEmpty ? "No stats available" : parts.joined(separator: " · ")
+    }
+}

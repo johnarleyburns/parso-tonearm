@@ -218,4 +218,33 @@ public struct SubsonicProvider: RemoteLibraryProvider {
         let allowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/\\"))
         return raw.addingPercentEncoding(withAllowedCharacters: allowed) ?? raw
     }
+
+    public func gatherStats() async throws -> RemoteLibraryStats {
+        let artists = try await browseArtists()
+        var albumCount = 0
+        var trackCount = 0
+        var totalSize: Int64 = 0
+
+        for artist in artists {
+            let artistData = try await data(for: .getArtist(id: artist.id))
+            let detail = try SubsonicAPI.decodeArtist(artistData, format: format)
+            albumCount += detail.albums.count
+
+            for albumSummary in detail.albums {
+                let albumData = try await data(for: .getAlbum(id: albumSummary.id))
+                let album = try SubsonicAPI.decodeAlbum(albumData, format: format)
+                trackCount += album.songs.count
+                for song in album.songs {
+                    if let size = song.size { totalSize += size }
+                }
+            }
+        }
+
+        return RemoteLibraryStats(
+            artistCount: artists.count,
+            albumCount: albumCount,
+            trackCount: trackCount,
+            totalBytes: totalSize > 0 ? totalSize : nil
+        )
+    }
 }

@@ -493,6 +493,28 @@ final class AppState: ObservableObject {
         }
     }
 
+    func remoteStats(for source: Source) async -> RemoteLibraryStats? {
+        guard let sourceID = source.id else { return nil }
+        switch source.kind {
+        case .subsonic:
+            let provider = try? SubsonicProvider.from(source: source)
+            return try? await provider?.gatherStats()
+        case .iaItem, .iaList, .iaCollection, .iaFavorites:
+            let tracks = (try? await store.tracks(forSource: sourceID)) ?? []
+            let totalBytes = tracks.compactMap { $0.asset?.sizeBytes }.reduce(0, +)
+            let uniqueAlbums = Set(tracks.compactMap { $0.album?.id })
+            let uniqueArtists = Set(tracks.compactMap { $0.artist?.id })
+            return RemoteLibraryStats(
+                artistCount: uniqueArtists.isEmpty ? nil : uniqueArtists.count,
+                albumCount: uniqueAlbums.isEmpty ? nil : uniqueAlbums.count,
+                trackCount: tracks.count,
+                totalBytes: totalBytes > 0 ? totalBytes : nil
+            )
+        default:
+            return nil
+        }
+    }
+
     func remoteTrackRows(source: Source, nodes: [RemoteNode]) async throws -> [TrackRow] {
         try requireRemoteLibrary(.resolve(source.kind))
         let provider = try remoteProvider(for: source)

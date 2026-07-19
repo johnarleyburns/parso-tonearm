@@ -17,6 +17,9 @@ struct SourceDetailView: View {
     @State private var showRename = false
     @State private var renameText = ""
     @State private var showCredentialEdit = false
+    @State private var stats: RemoteLibraryStats?
+    @State private var isLoadingStats = false
+    @State private var statsError: String?
 
     var body: some View {
         ScrollView {
@@ -36,6 +39,10 @@ struct SourceDetailView: View {
         .navigationBarBackButtonHidden()
         .task {
             await load()
+        }
+        .task(id: source.id) {
+            guard isRemoteLibrary else { return }
+            await loadStats()
         }
     }
 
@@ -325,6 +332,17 @@ struct SourceDetailView: View {
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 
+    private func loadStats() async {
+        isLoadingStats = true
+        statsError = nil
+        defer { isLoadingStats = false }
+        if let result = await appState.remoteStats(for: source) {
+            stats = result
+        } else {
+            statsError = "Stats unavailable"
+        }
+    }
+
     private var isRemoteLibrary: Bool {
         RemoteLibraryAccessPolicy.isRemoteLibrary(source.kind)
     }
@@ -372,6 +390,30 @@ struct SourceDetailView: View {
                     managementRow(label: "Credentials", value: status)
                     Divider().overlay(Palette.hairline)
                 }
+
+                Button {
+                    Task { await loadStats() }
+                } label: {
+                    Group {
+                        if isLoadingStats {
+                            HStack {
+                                Text("Stats")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(Palette.ink3)
+                                Spacer()
+                                ProgressView().tint(Palette.brass).scaleEffect(0.7)
+                            }
+                        } else if let _ = statsError {
+                            managementRow(label: "Stats", value: "Tap to retry", chevron: false)
+                        } else if let s = stats {
+                            managementRow(label: "Stats", value: s.formattedSummary, chevron: false)
+                        } else {
+                            managementRow(label: "Stats", value: "Tap to load", chevron: false)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(Palette.hairline)
 
                 Button {
                     renameText = source.title
