@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import TonearmCore
 
 struct AddSourceSheet: View {
@@ -68,11 +69,8 @@ struct AddSourceSheet: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("URL").font(.system(size: 10, weight: .semibold)).kerning(1)
                 .foregroundStyle(Palette.ink3)
-            TextField("", text: $urlText, prompt: Text("https://archive.org/details/…").foregroundStyle(Palette.ink3),
-                      axis: .vertical)
-                .font(.system(size: 12.5, design: .monospaced))
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-                .keyboardType(.URL)
+            PasteCapableTextField(text: $urlText, prompt: "https://archive.org/details/…", isSecure: false, keyboardType: .URL)
+                .frame(height: 28)
                 .onChange(of: urlText) { _, _ in
                     Task { await resolve() }
                 }

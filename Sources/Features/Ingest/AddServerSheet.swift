@@ -205,7 +205,7 @@ struct AddServerSheet: View {
             Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
                 .foregroundStyle(Palette.ink3)
             PasteCapableTextField(text: text, prompt: prompt, isSecure: false, keyboardType: keyboardType)
-                .frame(height: 20)
+                .frame(height: 28)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
         .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
@@ -217,7 +217,7 @@ struct AddServerSheet: View {
             Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
                 .foregroundStyle(Palette.ink3)
             PasteCapableTextField(text: text, prompt: prompt, isSecure: true, keyboardType: .default)
-                .frame(height: 20)
+                .frame(height: 28)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
         .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
@@ -360,15 +360,15 @@ struct AddServerSheet: View {
     }
 }
 
-private struct PasteCapableTextField: UIViewRepresentable {
+struct PasteCapableTextField: UIViewRepresentable {
     @Binding var text: String
     var prompt: String
     var isSecure: Bool
     var keyboardType: UIKeyboardType
 
-    func makeUIView(context: Context) -> UITextField {
-        let textField = UITextField()
-        textField.delegate = context.coordinator
+    func makeUIView(context: Context) -> PasteEnabledTextField {
+        let textField = PasteEnabledTextField()
+        textField.pasteCoordinator = context.coordinator
         textField.isSecureTextEntry = isSecure
         textField.textContentType = isSecure ? .password : nil
         textField.autocorrectionType = .no
@@ -379,16 +379,17 @@ private struct PasteCapableTextField: UIViewRepresentable {
         textField.tintColor = UIColor(Color(hex: 0xEEB35B))
         textField.addTarget(
             context.coordinator,
-            action: #selector(Coordinator.textDidChange(_:)),
+            action: #selector(Coordinator.textDidChange),
             for: .editingChanged
         )
         return textField
     }
 
-    func updateUIView(_ textField: UITextField, context: Context) {
+    func updateUIView(_ textField: PasteEnabledTextField, context: Context) {
         if textField.text != text {
             textField.text = text
         }
+        textField.pasteCoordinator = context.coordinator
         textField.attributedPlaceholder = NSAttributedString(
             string: prompt,
             attributes: [.foregroundColor: UIColor.white.withAlphaComponent(0.35)]
@@ -399,7 +400,7 @@ private struct PasteCapableTextField: UIViewRepresentable {
         Coordinator(text: $text)
     }
 
-    final class Coordinator: NSObject, UITextFieldDelegate {
+    final class Coordinator: NSObject {
         @Binding var text: String
 
         init(text: Binding<String>) {
@@ -408,6 +409,36 @@ private struct PasteCapableTextField: UIViewRepresentable {
 
         @objc func textDidChange(_ textField: UITextField) {
             text = textField.text ?? ""
+        }
+    }
+}
+
+final class PasteEnabledTextField: UITextField {
+    weak var pasteCoordinator: PasteCapableTextField.Coordinator?
+
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(paste(_:)) || action == #selector(copy(_:)) || action == #selector(cut(_:)) || action == #selector(selectAll(_:)) || action == #selector(select(_:)) {
+            return true
+        }
+        return super.canPerformAction(action, withSender: sender)
+    }
+
+    override func paste(_ sender: Any?) {
+        guard let string = UIPasteboard.general.string else { return }
+        // Insert at cursor position or replace selection
+        if let range = selectedTextRange {
+            replace(range, withText: string)
+        } else {
+            text = (text ?? "") + string
+        }
+        sendActions(for: .editingChanged)
+        pasteCoordinator?.textDidChange(self)
+    }
+
+    override func copy(_ sender: Any?) {
+        guard let range = selectedTextRange else { return }
+        if let text = text(in: range) {
+            UIPasteboard.general.string = text
         }
     }
 }
