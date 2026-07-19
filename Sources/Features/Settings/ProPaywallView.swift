@@ -10,7 +10,7 @@ struct ProPaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var model = ProPaywallModel()
 
-    /// GPL "build Pro from source" link (Ground: Tonearm is GPL-3.0).
+    /// GPL "build Pro from source" link (Ground: Platterhead is GPL-3.0).
     private let repoURL = URL(string: "https://github.com/anomalyco/parso-tonearm")!
 
     var body: some View {
