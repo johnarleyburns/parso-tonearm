@@ -9,7 +9,7 @@ struct AddMenuSheet: View {
         VStack(spacing: 0) {
             Spacer()
             VStack(spacing: 0) {
-                MenuItem(icon: "link", title: "Add Archive.org Collection/List",
+                MenuItem(icon: "link", title: "Add archive.org Library",
                          subtitle: "Item, playlist, favorites, or collection") {
                     appState.pendingImport = nil
                     appState.showAddMenu = false
@@ -19,7 +19,8 @@ struct AddMenuSheet: View {
                 }
                 Divider().overlay(Palette.hairline)
                 MenuItem(icon: "server.rack", title: "Add Remote Library",
-                         subtitle: RemoteConnectorCatalog.proDisplayList) {
+                         subtitle: RemoteConnectorCatalog.proDisplayList,
+                         locked: !ProGating.isEnabled(.remoteLibraries)) {
                     appState.pendingImport = nil
                     appState.showAddMenu = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
@@ -55,12 +56,13 @@ private struct MenuItem: View {
     let icon: String
     let title: String
     let subtitle: String
+    var locked = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: icon)
+                Image(systemName: locked ? "lock.fill" : icon)
                     .font(.system(size: 17)).foregroundStyle(Palette.brass)
                     .frame(width: 22)
                 VStack(alignment: .leading, spacing: 1) {
@@ -74,7 +76,7 @@ private struct MenuItem: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
+        .accessibilityLabel(locked ? "\(title), requires Pro" : title)
         .accessibilityIdentifier(title)
     }
 }

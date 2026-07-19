@@ -87,7 +87,8 @@ public struct PlexProvider: RemoteLibraryProvider {
                     path: "track/\(pathComponent(ratingKey))",
                     kind: .audio,
                     sizeBytes: item.sizeBytes,
-                    durationSec: item.durationSec
+                    durationSec: item.durationSec,
+                    metadata: metadata(for: item)
                 )
             }
 
@@ -108,7 +109,8 @@ public struct PlexProvider: RemoteLibraryProvider {
             url: url(forPlexKey: partKey),
             headers: authHeaders(),
             supportsByteRanges: true,
-            sizeBytes: track.sizeBytes ?? node.sizeBytes
+            sizeBytes: track.sizeBytes ?? node.sizeBytes,
+            metadata: node.metadata?.merged(overriding: metadata(for: track)) ?? metadata(for: track)
         )
     }
 
@@ -161,6 +163,37 @@ public struct PlexProvider: RemoteLibraryProvider {
             return absolute
         }
         return baseURL.appendingPathComponent(key.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+    }
+
+    private func metadata(for item: PlexItem) -> RemoteTrackMetadata {
+        RemoteTrackMetadata(
+            title: item.title,
+            artist: item.artistTitle,
+            album: item.albumTitle,
+            albumArtist: item.artistTitle,
+            trackNumber: item.index,
+            discNumber: item.parentIndex,
+            durationSec: item.durationSec,
+            codec: item.container?.uppercased(),
+            sampleRate: nil,
+            bitRateKbps: nil,
+            genre: nil,
+            artwork: artwork(for: item)
+        )
+    }
+
+    private func artwork(for item: PlexItem) -> RemoteArtwork? {
+        guard let thumb = item.thumb, !thumb.isEmpty else { return nil }
+        return RemoteArtwork(
+            id: stableArtworkID(remoteID: thumb),
+            url: url(forPlexKey: thumb),
+            headers: authHeaders()
+        )
+    }
+
+    private func stableArtworkID(remoteID: String) -> String {
+        let host = baseURL.host ?? baseURL.absoluteString
+        return "plex:\(host):\(remoteID)"
     }
 
     private func pathComponent(_ raw: String) -> String {

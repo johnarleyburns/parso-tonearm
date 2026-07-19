@@ -4,6 +4,9 @@ import TonearmCore
 /// Pro unlock sheet. Presented ONLY from gated touchpoints —
 /// never on launch, never interrupting playback.
 struct ProPaywallView: View {
+    var entryPoint: ProPaywallEntryPoint = .generic
+    var onProCompletion: (() -> Void)? = nil
+
     @Environment(\.dismiss) private var dismiss
     @StateObject private var model = ProPaywallModel()
 
@@ -32,7 +35,10 @@ struct ProPaywallView: View {
                 .padding(.horizontal, 4)
 
                 Button {
-                    Task { await model.purchase() }
+                    Task {
+                        let didBecomePro = await model.purchase()
+                        await completeIfNeeded(didBecomePro)
+                    }
                 } label: {
                     Group {
                         if model.purchasing { ProgressView().tint(.black) }
@@ -47,7 +53,12 @@ struct ProPaywallView: View {
                 .padding(.top, 14)
 
                 HStack(spacing: 4) {
-                    Button("Restore Purchase") { Task { await model.restore() } }
+                    Button("Restore Purchase") {
+                        Task {
+                            let didBecomePro = await model.restore()
+                            await completeIfNeeded(didBecomePro)
+                        }
+                    }
                         .font(.system(size: 12))
                     Text("·").foregroundStyle(Palette.ink3)
                     Link("build Pro from source", destination: repoURL)
@@ -56,7 +67,7 @@ struct ProPaywallView: View {
                 .tint(Palette.ink2)
                 .padding(.top, 12)
 
-                Text("Everything else is free, forever: FLAC · Opus · gapless · EQ · iCloud sync · parametric EQ · smart playlists · tag editor · duplicate detection · Archive sources · zero telemetry.")
+                Text("Everything else is free, forever: FLAC · Opus · gapless · EQ · iCloud sync · parametric EQ · smart playlists · tag editor · duplicate detection · Archive libraries · zero telemetry.")
                     .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                     .multilineTextAlignment(.center)
                     .padding(.top, 16)
@@ -89,5 +100,18 @@ struct ProPaywallView: View {
             Spacer()
         }
         .padding(.vertical, 6)
+    }
+
+    private func completeIfNeeded(_ didBecomePro: Bool) async {
+        switch AddRemoteLibraryProFlow.presentationAfterProCompletion(
+            entryPoint: entryPoint,
+            didBecomePro: didBecomePro
+        ) {
+        case .showAddRemoteLibraryCompletion:
+            onProCompletion?()
+            dismiss()
+        case .none:
+            break
+        }
     }
 }

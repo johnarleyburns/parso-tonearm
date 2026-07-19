@@ -175,7 +175,7 @@ public enum JellyfinAPI {
                 URLQueryItem(name: "AlbumArtistIds", value: artistID),
                 URLQueryItem(name: "SortBy", value: "ProductionYear,SortName"),
                 URLQueryItem(name: "SortOrder", value: "Ascending"),
-                URLQueryItem(name: "Fields", value: "Genres,DateCreated,MediaSources"),
+                URLQueryItem(name: "Fields", value: "Genres,DateCreated,MediaSources,ImageTags"),
             ]
         case .albumSongs(_, let albumID):
             return [
@@ -183,19 +183,44 @@ public enum JellyfinAPI {
                 URLQueryItem(name: "IncludeItemTypes", value: "Audio"),
                 URLQueryItem(name: "SortBy", value: "ParentIndexNumber,IndexNumber,SortName"),
                 URLQueryItem(name: "SortOrder", value: "Ascending"),
-                URLQueryItem(name: "Fields", value: "MediaSources,Genres,AudioInfo"),
+                URLQueryItem(name: "Fields", value: "MediaSources,Genres,AudioInfo,ImageTags"),
             ]
         }
+    }
+
+    public static func imageURL(baseURL rawBaseURL: URL, itemID: String, tag: String?) throws -> URL {
+        let baseURL = try normalizeBaseURL(rawBaseURL.absoluteString)
+        guard var components = URLComponents(
+            url: baseURL
+                .appendingPathComponent("Items", isDirectory: true)
+                .appendingPathComponent(itemID, isDirectory: true)
+                .appendingPathComponent("Images", isDirectory: true)
+                .appendingPathComponent("Primary"),
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw Error.invalidBaseURL
+        }
+        if let tag, !tag.isEmpty {
+            components.queryItems = [URLQueryItem(name: "tag", value: tag)]
+        }
+        guard let url = components.url else { throw Error.invalidBaseURL }
+        return url
     }
 
     private static func decodeItem(_ dict: [String: Any]) throws -> JellyfinItem {
         let id = try requiredString(dict["Id"], field: "Item.Id")
         let name = string(dict["Name"]) ?? id
         let mediaSources = (dict["MediaSources"] as? [[String: Any]]) ?? []
+        let primarySource = mediaSources.first ?? [:]
+        let audioStream = mediaSources.lazy
+            .flatMap { ($0["MediaStreams"] as? [[String: Any]]) ?? [] }
+            .first { string($0["Type"]) == "Audio" || string($0["Type"]) == nil }
+        let imageTags = dict["ImageTags"] as? [String: Any]
         return JellyfinItem(
             id: id,
             name: name,
             type: itemType(string(dict["Type"])),
+            albumID: string(dict["AlbumId"]),
             album: string(dict["Album"]),
             albumArtist: string(dict["AlbumArtist"]),
             artists: strings(dict["Artists"]),
@@ -204,7 +229,12 @@ public enum JellyfinAPI {
             parentIndexNumber: int(dict["ParentIndexNumber"]),
             durationSec: durationSeconds(dict["RunTimeTicks"]) ?? mediaSources.compactMap { durationSeconds($0["RunTimeTicks"]) }.first,
             sizeBytes: int64(dict["Size"]) ?? mediaSources.compactMap { int64($0["Size"]) }.first,
-            container: string(dict["Container"]) ?? mediaSources.compactMap { string($0["Container"]) }.first
+            container: string(dict["Container"]) ?? mediaSources.compactMap { string($0["Container"]) }.first,
+            codec: string(audioStream?["Codec"]) ?? string(primarySource["Container"]) ?? string(dict["Container"]),
+            sampleRate: int(audioStream?["SampleRate"]),
+            bitRate: int(audioStream?["BitRate"]),
+            primaryImageTag: string(imageTags?["Primary"]),
+            albumPrimaryImageTag: string(dict["AlbumPrimaryImageTag"])
         )
     }
 
@@ -301,6 +331,7 @@ public struct JellyfinItem: Equatable {
     public var id: String
     public var name: String
     public var type: ItemType
+    public var albumID: String? = nil
     public var album: String?
     public var albumArtist: String?
     public var artists: [String]
@@ -310,4 +341,9 @@ public struct JellyfinItem: Equatable {
     public var durationSec: Double?
     public var sizeBytes: Int64?
     public var container: String?
+    public var codec: String? = nil
+    public var sampleRate: Int? = nil
+    public var bitRate: Int? = nil
+    public var primaryImageTag: String? = nil
+    public var albumPrimaryImageTag: String? = nil
 }

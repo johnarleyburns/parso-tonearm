@@ -51,6 +51,50 @@ struct SearchField: View {
     }
 }
 
+struct AddRemoteLibraryButton: View {
+    @EnvironmentObject var appState: AppState
+    var compact = false
+
+    private var isLocked: Bool {
+        !ProGating.isEnabled(.remoteLibraries)
+    }
+
+    var body: some View {
+        Button {
+            appState.requestAddRemoteLibrary()
+        } label: {
+            HStack(spacing: 11) {
+                Image(systemName: isLocked ? "lock.fill" : "server.rack")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Palette.brass)
+                    .frame(width: compact ? 30 : 36, height: compact ? 30 : 36)
+                    .glassSurface(cornerRadius: compact ? 15 : 18)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Add Remote Library")
+                        .font(.system(size: compact ? 13 : 13.5, weight: .semibold))
+                        .foregroundStyle(Palette.ink)
+                    Text(RemoteConnectorCatalog.proDisplayList)
+                        .font(.system(size: compact ? 10.5 : 11))
+                        .foregroundStyle(Palette.ink3)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.ink3)
+            }
+            .padding(.horizontal, compact ? 12 : 14)
+            .padding(.vertical, compact ? 10 : 12)
+            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.1)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(isLocked ? "Add Remote Library, requires Pro" : "Add Remote Library")
+        .accessibilityIdentifier("Add Remote Library")
+    }
+}
+
 /// Renders a source's representative artwork: real cover art for IA sources,
 /// embedded art for local sources, falling back to a per-kind icon over the
 /// seed gradient when no artwork is available.

@@ -63,7 +63,14 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
             AddServerSheet()
         }
         .sheet(isPresented: $appState.showProPaywall) {
-            ProPaywallView()
+            ProPaywallView(entryPoint: appState.proPaywallEntryPoint) {
+                appState.handleProCompletion()
+            }
+        }
+        .sheet(isPresented: $appState.showAddRemoteLibraryProCompletion) {
+            AddRemoteLibraryProCompletionSheet()
+                .presentationDetents([.height(330)])
+                .presentationBackground(.ultraThinMaterial)
         }
         .sheet(item: $appState.pickedFolder) { url in
             AddFolderSheet(folderURL: url, folderBookmark: appState.pickedFolderBookmark)
@@ -181,4 +188,57 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
 
 extension URL: @retroactive Identifiable {
     public var id: String { absoluteString }
+}
+
+private struct AddRemoteLibraryProCompletionSheet: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Capsule().fill(Color.white.opacity(0.35))
+                .frame(width: 36, height: 5)
+                .padding(.top, 14)
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 38))
+                .foregroundStyle(Palette.ok)
+                .padding(.top, 22)
+            Text("You've Gone Pro")
+                .font(.system(size: 22, weight: .heavy))
+                .padding(.top, 12)
+            Text("Remote Libraries are unlocked for every supported provider.")
+                .font(.system(size: 13))
+                .foregroundStyle(Palette.ink2)
+                .multilineTextAlignment(.center)
+                .padding(.top, 6)
+            Spacer(minLength: 18)
+            Button {
+                appState.applyAddRemoteLibraryPostPurchaseAction(.addLibraryNow)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "server.rack")
+                    Text("Add Library Now")
+                }
+                .font(.system(size: 15.5, weight: .bold))
+                .foregroundStyle(Color(hex: 0x221503))
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+                .background(Palette.brass, in: Capsule())
+            }
+            .accessibilityLabel("Add Library Now")
+
+            Button {
+                appState.applyAddRemoteLibraryPostPurchaseAction(.maybeLater)
+            } label: {
+                Text("Maybe Later")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.ink3)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 42)
+            }
+            .accessibilityLabel("Maybe Later")
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 18)
+        .foregroundStyle(Palette.ink)
+    }
 }

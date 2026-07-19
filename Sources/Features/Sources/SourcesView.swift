@@ -8,13 +8,15 @@ struct SourcesView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    ScreenHeader(title: "Sources")
+                    ScreenHeader(title: "Libraries")
+                        .padding(.bottom, 12)
+                    AddRemoteLibraryButton()
                         .padding(.bottom, 12)
 
                     if appState.sources.isEmpty {
                         EmptyStateView(icon: "cloud",
-                                       title: "No sources yet",
-                                       message: "Paste an archive.org link — an item, public list, favorites page, or collection.")
+                                       title: "No libraries yet",
+                                       message: "Paste an archive.org link, add a local folder, or connect a remote library.")
                             .padding(.top, 60)
                     } else {
                         ForEach(appState.sources) { source in

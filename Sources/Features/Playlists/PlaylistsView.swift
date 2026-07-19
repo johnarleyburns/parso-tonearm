@@ -63,7 +63,7 @@ struct PlaylistsView: View {
                     if appState.playlists.isEmpty {
                         EmptyStateView(icon: "music.note.list",
                                        title: "Create a playlist",
-                                       message: "Tap + to create a playlist from your library, or add a local folder.")
+                                       message: "Tap + to create a playlist from Music, or add a local folder.")
                             .padding(.top, 24)
                             .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18))
                             .listRowBackground(Color.clear)

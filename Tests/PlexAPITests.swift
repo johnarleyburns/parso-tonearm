@@ -74,8 +74,10 @@ final class PlexAPITests: XCTestCase {
         let track = try PlexAPI.decodeTrackMetadata(data("""
         <MediaContainer size="1">
           <Track ratingKey="300" key="/library/metadata/300" title="Poa Alpina"
-                 type="track" duration="282000">
-            <Media id="400" duration="282000">
+                 type="track" duration="282000" grandparentTitle="Biosphere"
+                 parentTitle="Substrata" index="4" parentIndex="1"
+                 parentThumb="/library/metadata/200/thumb/1700000000">
+            <Media id="400" duration="282000" audioCodec="flac">
               <Part id="500" key="/library/parts/500/1700000000/file.flac"
                     size="98765" container="flac" />
             </Media>
@@ -88,6 +90,12 @@ final class PlexAPITests: XCTestCase {
         XCTAssertEqual(track.durationSec, 282)
         XCTAssertEqual(track.partKey, "/library/parts/500/1700000000/file.flac")
         XCTAssertEqual(track.sizeBytes, 98_765)
+        XCTAssertEqual(track.artistTitle, "Biosphere")
+        XCTAssertEqual(track.albumTitle, "Substrata")
+        XCTAssertEqual(track.index, 4)
+        XCTAssertEqual(track.parentIndex, 1)
+        XCTAssertEqual(track.container, "flac")
+        XCTAssertEqual(track.thumb, "/library/metadata/200/thumb/1700000000")
     }
 
     func testMalformedAndIncompleteResponsesThrow() {

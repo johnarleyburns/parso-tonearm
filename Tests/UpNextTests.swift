@@ -19,11 +19,11 @@ final class UpNextTests: XCTestCase {
                          addedAt: Date(), lastResolvedAt: nil,
                          followUpdates: false, licenseText: nil, memberCapHit: false)
         let source = QueueSource.source(src)
-        XCTAssertEqual(source.label, "From Source: Beethoven")
+        XCTAssertEqual(source.label, "From Library: Beethoven")
     }
 
     func testQueueSourceLibrary() {
-        XCTAssertEqual(QueueSource.library.label, "From Library")
+        XCTAssertEqual(QueueSource.library.label, "From Music")
     }
 
     func testQueueSourceAmbient() {

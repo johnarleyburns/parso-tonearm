@@ -32,10 +32,10 @@ The new line is simple:
 ### Free, forever
 
 All formats (FLAC, Opus, ALAC, MP3, AAC, WAV/AIFF) · gapless · 10-band EQ · ReplayGain ·
-crossfade · unlimited cache, any size · any prefetch depth · folder watch · full library
-browse by artist, album and genre · queue and playlist editing · archive.org sources ·
+crossfade · unlimited cache, any size · any prefetch depth · folder watch · full Music
+browse by artist, album and genre · queue and playlist editing · archive.org libraries ·
 local import · widgets, Shortcuts, share extension · listening stats · scrobbling · lyrics ·
-iCloud Sync (library, playlists, favorites, artwork, presets) · parametric EQ · crossfeed ·
+iCloud Sync (Music, playlists, favorites, artwork, presets) · parametric EQ · crossfeed ·
 convolution · bit-perfect output · smart playlists · tag editor · bulk edits ·
 duplicate detection · zero telemetry, no account.
 

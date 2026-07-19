@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tonearm Libraries Remote Browse</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0c0f;
+      --panel: #15171d;
+      --panel-2: #20252c;
+      --ink: #f2f4f6;
+      --muted: rgba(242, 244, 246, 0.62);
+      --faint: rgba(242, 244, 246, 0.36);
+      --line: rgba(255, 255, 255, 0.1);
+      --brass: #e3a44b;
+      --green: #58cf7d;
+      --red: #ff7466;
+      --blue: #7db6ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    .wrap {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .titlebar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 28px; line-height: 1.1; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 13px; color: var(--muted); font-weight: 700; }
+
+    .phone {
+      min-height: 720px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: linear-gradient(180deg, #111419 0%, #0b0c0f 100%);
+      padding: 16px;
+      overflow: hidden;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.38);
+      position: relative;
+    }
+
+    .status {
+      display: flex;
+      justify-content: space-between;
+      color: var(--faint);
+      font-size: 12px;
+      margin-bottom: 18px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 16px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .button {
+      border: 0;
+      border-radius: 8px;
+      min-height: 38px;
+      padding: 0 12px;
+      font-weight: 800;
+      color: #16120a;
+      background: var(--brass);
+      white-space: nowrap;
+    }
+
+    .icon-button {
+      width: 38px;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--ink);
+      font-weight: 900;
+    }
+
+    .list {
+      display: grid;
+    }
+
+    .row {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .row:last-child { border-bottom: 0; }
+    .row.active { background: rgba(227, 164, 75, 0.11); }
+
+    .art {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      flex: 0 0 auto;
+      background:
+        linear-gradient(135deg, rgba(227, 164, 75, 0.82), rgba(125, 182, 255, 0.78)),
+        #29313a;
+      display: grid;
+      place-items: center;
+      color: #12140f;
+      font-weight: 900;
+    }
+
+    .art.green {
+      background:
+        linear-gradient(135deg, rgba(88, 207, 125, 0.78), rgba(227, 164, 75, 0.82)),
+        #20252c;
+    }
+
+    .main {
+      min-width: 0;
+      display: grid;
+      gap: 3px;
+    }
+
+    .primary {
+      font-size: 14px;
+      font-weight: 750;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .secondary {
+      font-size: 12px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .album {
+      padding: 14px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .album-head {
+      display: grid;
+      grid-template-columns: 116px 1fr;
+      gap: 14px;
+      align-items: end;
+    }
+
+    .cover {
+      width: 116px;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      background:
+        radial-gradient(circle at 26% 22%, rgba(255,255,255,0.58), transparent 20%),
+        linear-gradient(135deg, #e3a44b, #4f8edb 48%, #15171d);
+      border: 1px solid rgba(255,255,255,0.18);
+    }
+
+    .album-meta {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .album-meta .title {
+      font-size: 24px;
+      font-weight: 850;
+      overflow-wrap: anywhere;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 4px;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      padding: 5px 8px;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .now-playing {
+      margin-top: 16px;
+      border: 1px solid rgba(227, 164, 75, 0.34);
+      border-radius: 8px;
+      padding: 14px;
+      background: rgba(227, 164, 75, 0.08);
+      display: grid;
+      gap: 14px;
+    }
+
+    .transport {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .transport .icon-button:nth-child(2) {
+      width: 48px;
+      height: 48px;
+      background: var(--brass);
+      color: #16120a;
+      border: 0;
+    }
+
+    .meter {
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+
+    .meter span {
+      display: block;
+      height: 100%;
+      width: 38%;
+      background: var(--brass);
+    }
+
+    .miniplayer {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      min-height: 64px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(21, 23, 29, 0.96);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px;
+    }
+
+    .miniplayer.hidden {
+      opacity: 0.28;
+      outline: 1px dashed rgba(255,255,255,0.18);
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+      margin-top: 14px;
+    }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .wrap { padding: 18px; }
+      .phone { min-height: 980px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="titlebar">
+      <h1>Libraries Remote Browse</h1>
+      <button class="button">Add Remote Library</button>
+    </div>
+
+    <section class="phone" aria-label="Libraries remote browse mockup">
+      <div class="status"><span>9:41</span><span>Pro</span></div>
+      <div class="layout">
+        <aside class="panel" aria-label="Libraries list">
+          <div class="panel-head">
+            <div>
+              <h2>Libraries</h2>
+              <h3>Connected providers</h3>
+            </div>
+            <button class="icon-button" title="Add Remote Library">+</button>
+          </div>
+          <div class="list">
+            <div class="row active">
+              <div class="art">S</div>
+              <div class="main">
+                <div class="primary">Navidrome Home</div>
+                <div class="secondary">Subsonic/Navidrome</div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="art green">J</div>
+              <div class="main">
+                <div class="primary">Living Room Server</div>
+                <div class="secondary">Jellyfin</div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="art">P</div>
+              <div class="main">
+                <div class="primary">Plex Music</div>
+                <div class="secondary">Plex</div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="art green">D</div>
+              <div class="main">
+                <div class="primary">Dropbox Archive</div>
+                <div class="secondary">Dropbox</div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section class="panel" aria-label="Remote album browse and playback">
+          <div class="panel-head">
+            <div>
+              <h2>Navidrome Home</h2>
+              <h3>Artists / The Comet Is Coming / Channel The Spirits</h3>
+            </div>
+            <button class="icon-button" title="Search">?</button>
+          </div>
+          <div class="album">
+            <div class="album-head">
+              <div class="cover" aria-label="Provider album artwork"></div>
+              <div class="album-meta">
+                <div class="secondary">Subsonic/Navidrome</div>
+                <div class="title">Channel The Spirits</div>
+                <div class="primary">The Comet Is Coming</div>
+                <div class="chips">
+                  <span class="chip">FLAC</span>
+                  <span class="chip">44.1 kHz</span>
+                  <span class="chip">Cached while playing</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="list" aria-label="Album tracks">
+              <div class="row active">
+                <div class="secondary">1</div>
+                <div class="main">
+                  <div class="primary">The Prophecy</div>
+                  <div class="secondary">The Comet Is Coming - Channel The Spirits</div>
+                </div>
+                <button class="icon-button" title="Play">&#9654;</button>
+              </div>
+              <div class="row">
+                <div class="secondary">2</div>
+                <div class="main">
+                  <div class="primary">Space Carnival</div>
+                  <div class="secondary">The Comet Is Coming - Channel The Spirits</div>
+                </div>
+                <button class="icon-button" title="Play">&#9654;</button>
+              </div>
+              <div class="row">
+                <div class="secondary">3</div>
+                <div class="main">
+                  <div class="primary">Journey Through The Asteroid Belt</div>
+                  <div class="secondary">The Comet Is Coming - Channel The Spirits</div>
+                </div>
+                <button class="icon-button" title="Play">&#9654;</button>
+              </div>
+            </div>
+
+            <div class="now-playing" aria-label="Now Playing expanded">
+              <div class="album-head">
+                <div class="cover" aria-label="Subsonic cover art"></div>
+                <div class="album-meta">
+                  <div class="secondary">Now Playing</div>
+                  <div class="title">The Prophecy</div>
+                  <div class="primary">The Comet Is Coming</div>
+                  <div class="secondary">Channel The Spirits - Subsonic/Navidrome</div>
+                </div>
+              </div>
+              <div class="meter"><span></span></div>
+              <div class="transport">
+                <button class="icon-button" title="Previous">Prev</button>
+                <button class="icon-button" title="Pause">Pause</button>
+                <button class="icon-button" title="Next">Next</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="legend" aria-label="Playback states">
+        <p>Collapsed state: MiniPlayer subtitle reads Subsonic/Navidrome, Jellyfin, Plex, or archive.org based on source kind.</p>
+        <p>Expanded state: MiniPlayer is hidden while Now Playing is visible.</p>
+      </div>
+
+      <div class="miniplayer hidden" aria-label="MiniPlayer hidden while Now Playing is open">
+        <div class="art">S</div>
+        <div class="main">
+          <div class="primary">The Prophecy</div>
+          <div class="secondary">Subsonic/Navidrome - caching...</div>
+        </div>
+        <button class="icon-button" title="Pause">Pause</button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

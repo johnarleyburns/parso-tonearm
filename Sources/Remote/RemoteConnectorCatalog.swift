@@ -84,7 +84,7 @@ public enum RemoteConnectorCatalog {
                 prerequisites: "A reachable Subsonic-compatible server URL, username, and password.",
                 steps: "Enter the server URL, username, and password. Tonearm pings the server, then browses artists, albums, and tracks through the Subsonic API.",
                 troubleshooting: "If connection fails, confirm the URL includes the correct path and port, HTTPS certificate trust is valid, and the account can stream music.",
-                privacy: "Credentials are stored in Keychain. Tonearm asks for stream URLs only when browsing or playing."
+                privacy: "Credentials are stored locally in Apple Keychain. Tonearm asks for stream URLs only when browsing or playing."
             )
         ),
         RemoteConnector(
@@ -99,7 +99,7 @@ public enum RemoteConnectorCatalog {
                 prerequisites: "A WebDAV HTTPS URL and an account or app password with read access to your music folder.",
                 steps: "Enter the WebDAV endpoint, username, and password. Tonearm lists folders with PROPFIND and streams audio files in place.",
                 troubleshooting: "Use an app password when your provider has two-factor authentication. Check that the URL points at the actual WebDAV root.",
-                privacy: "Credentials are stored in Keychain. Files are listed and streamed only from the server you add."
+                privacy: "Credentials are stored locally in Apple Keychain. Files are listed and streamed only from the server you add."
             )
         ),
         RemoteConnector(
@@ -129,7 +129,7 @@ public enum RemoteConnectorCatalog {
                 prerequisites: "A Jellyfin server URL and account with access to the music library.",
                 steps: "Enter the server URL, username, and password. Tonearm authenticates with Jellyfin and browses album artists, albums, and tracks.",
                 troubleshooting: "Check reverse proxy paths and HTTPS certificate trust if authentication works in a browser but not in Tonearm.",
-                privacy: "Tonearm stores the Jellyfin access token in Keychain and sends it only to the server you add."
+                privacy: "Tonearm stores the Jellyfin access token locally in Apple Keychain and sends it only to the server you add."
             )
         ),
         RemoteConnector(
@@ -144,7 +144,7 @@ public enum RemoteConnectorCatalog {
                 prerequisites: "A reachable Plex server URL and a Plex token for the account that can access the music library.",
                 steps: "Enter the Plex server URL and token. Tonearm browses music sections, artists, albums, and tracks through the Plex server API.",
                 troubleshooting: "If no music appears, confirm the token belongs to a user with library access and that the URL reaches the Plex Media Server directly.",
-                privacy: "The Plex token is stored in Keychain and sent only to the Plex server URL you add."
+                privacy: "The Plex token is stored locally in Apple Keychain and sent only to the Plex server URL you add."
             )
         ),
         RemoteConnector(
@@ -227,7 +227,7 @@ public enum RemoteConnectorCatalog {
             prerequisites: "A \(provider) account with music files stored in folders Tonearm can read.",
             steps: "Tap Sign In, approve \(permission), then choose music by browsing folders in Tonearm.",
             troubleshooting: "If sign-in does not return to Tonearm, confirm the OAuth redirect URL is registered for this app build and try again.",
-            privacy: "OAuth tokens are stored in Keychain. Tonearm requests file lists and stream URLs only from \(provider) when you browse or play."
+            privacy: "OAuth tokens are stored locally in Apple Keychain. Tonearm requests file lists and stream URLs only from \(provider) when you browse or play."
         )
     }
 }

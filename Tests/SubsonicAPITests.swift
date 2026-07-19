@@ -154,7 +154,7 @@ final class SubsonicAPITests: XCTestCase {
                   "albumId": "album-1", "artist": "A Winged Victory", "track": 1,
                   "discNumber": 1, "duration": 312, "suffix": "flac",
                   "contentType": "audio/flac", "size": 123456, "bitRate": 879,
-                  "samplingRate": 44100 }
+                  "samplingRate": 44100, "coverArt": "cover-1" }
               ]
             }
           }
@@ -165,6 +165,32 @@ final class SubsonicAPITests: XCTestCase {
         XCTAssertEqual(album.songs.first?.title, "Our Lord Debussy")
         XCTAssertEqual(album.songs.first?.duration, 312)
         XCTAssertEqual(album.songs.first?.size, 123_456)
+        XCTAssertEqual(album.songs.first?.coverArt, "cover-1")
+    }
+
+    func testCoverArtURLConstructionUsesAuthenticatedEndpoint() throws {
+        let baseURL = try SubsonicAPI.normalizeBaseURL("https://music.example.com")
+        let auth = SubsonicAPI.Auth(
+            username: "alice",
+            password: "password",
+            salt: "salt",
+            apiVersion: "1.16.1",
+            client: "TonearmTests"
+        )
+
+        let url = try SubsonicAPI.url(
+            baseURL: baseURL,
+            endpoint: .coverArt(id: "cover 1"),
+            auth: auth,
+            format: .json
+        )
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+
+        XCTAssertEqual(components.path, "/rest/getCoverArt.view")
+        XCTAssertEqual(query["id"], "cover 1")
+        XCTAssertEqual(query["u"], "alice")
+        XCTAssertEqual(query["t"], "b305cadbb3bce54f3aa59c64fec00dea")
     }
 
     func testDecodesXMLAlbumSongs() throws {

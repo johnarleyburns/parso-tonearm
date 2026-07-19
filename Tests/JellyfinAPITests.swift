@@ -84,11 +84,15 @@ final class JellyfinAPITests: XCTestCase {
           "Items": [
             { "Id": "artist-1", "Name": "Biosphere", "Type": "MusicArtist" },
             { "Id": "album-1", "Name": "Substrata", "Type": "MusicAlbum",
-              "AlbumArtist": "Biosphere", "ProductionYear": 1997 },
+              "AlbumArtist": "Biosphere", "ProductionYear": 1997,
+              "ImageTags": { "Primary": "album-tag" } },
             { "Id": "track-1", "Name": "Poa Alpina", "Type": "Audio",
-              "Album": "Substrata", "Artists": ["Biosphere"], "IndexNumber": 4,
+              "AlbumId": "album-1", "Album": "Substrata", "AlbumArtist": "Biosphere",
+              "Artists": ["Biosphere"], "IndexNumber": 4,
+              "AlbumPrimaryImageTag": "album-tag",
               "ParentIndexNumber": 1, "RunTimeTicks": 2820000000,
-              "MediaSources": [{ "Size": 98765, "Container": "flac" }] }
+              "MediaSources": [{ "Size": 98765, "Container": "flac",
+                "MediaStreams": [{ "Type": "Audio", "Codec": "flac", "SampleRate": 44100, "BitRate": 879000 }] }] }
           ],
           "TotalRecordCount": 3,
           "StartIndex": 0
@@ -101,6 +105,25 @@ final class JellyfinAPITests: XCTestCase {
         XCTAssertEqual(page.items[2].durationSec, 282)
         XCTAssertEqual(page.items[2].sizeBytes, 98_765)
         XCTAssertEqual(page.items[2].container, "flac")
+        XCTAssertEqual(page.items[2].albumID, "album-1")
+        XCTAssertEqual(page.items[2].albumArtist, "Biosphere")
+        XCTAssertEqual(page.items[2].codec, "flac")
+        XCTAssertEqual(page.items[2].sampleRate, 44_100)
+        XCTAssertEqual(page.items[2].bitRate, 879_000)
+        XCTAssertEqual(page.items[2].albumPrimaryImageTag, "album-tag")
+    }
+
+    func testImageURLUsesPrimaryImageEndpoint() throws {
+        let url = try JellyfinAPI.imageURL(
+            baseURL: try JellyfinAPI.normalizeBaseURL("https://media.example.com/jellyfin"),
+            itemID: "album-1",
+            tag: "tag-1"
+        )
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+
+        XCTAssertEqual(components.path, "/jellyfin/Items/album-1/Images/Primary")
+        XCTAssertEqual(query["tag"], "tag-1")
     }
 
     func testEmptyLibraryDecodesToEmptyPage() throws {

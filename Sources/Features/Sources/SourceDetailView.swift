@@ -38,7 +38,7 @@ struct SourceDetailView: View {
             remoteBrowser
         } else {
             localTrackList
-            Text("Streams from archive.org · played tracks stay in the cache\nand work offline until space is needed")
+                Text("Streams from archive.org · played tracks stay in the cache\nand work offline until space is needed")
                 .font(.system(size: 11))
                 .foregroundStyle(Palette.ink3)
                 .multilineTextAlignment(.center)
@@ -116,7 +116,7 @@ struct SourceDetailView: View {
             }
             Spacer()
             Menu {
-                Button("Remove Source", role: .destructive) {
+                Button("Remove Library", role: .destructive) {
                     Task { await appState.deleteSource(source); dismiss() }
                 }
             } label: {
@@ -289,7 +289,17 @@ struct SourceDetailView: View {
         case .collection:
             return "Album"
         case .audio:
-            return node.durationSec.map(durationString) ?? "Song"
+            var parts: [String] = []
+            if let artist = node.metadata?.artist ?? node.metadata?.albumArtist, !artist.isEmpty {
+                parts.append(artist)
+            }
+            if let album = node.metadata?.album, !album.isEmpty {
+                parts.append(album)
+            }
+            if let duration = node.metadata?.durationSec ?? node.durationSec {
+                parts.append(durationString(duration))
+            }
+            return parts.isEmpty ? "Song" : parts.joined(separator: " · ")
         case .item:
             return nil
         }

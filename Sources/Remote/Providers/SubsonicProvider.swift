@@ -74,13 +74,15 @@ public struct SubsonicProvider: RemoteLibraryProvider {
             let data = try await data(for: .getAlbum(id: albumID))
             let album = try SubsonicAPI.decodeAlbum(data, format: format)
             return album.songs.enumerated().map { index, song in
-                RemoteNode(
+                let metadata = metadata(for: song, album: album, fallbackTrackNumber: index + 1)
+                return RemoteNode(
                     id: "song:\(song.id)",
                     title: song.title,
                     path: "song/\(pathComponent(song.id))",
                     kind: .audio,
                     sizeBytes: song.size,
-                    durationSec: song.duration
+                    durationSec: song.duration,
+                    metadata: metadata
                 )
             }
 
@@ -100,7 +102,13 @@ public struct SubsonicProvider: RemoteLibraryProvider {
             auth: auth(),
             format: format
         )
-        return ResolvedAsset(url: url, headers: [:], supportsByteRanges: true, sizeBytes: node.sizeBytes)
+        return ResolvedAsset(
+            url: url,
+            headers: [:],
+            supportsByteRanges: true,
+            sizeBytes: node.sizeBytes,
+            metadata: node.metadata
+        )
     }
 
     public func refresh() async throws {
@@ -148,6 +156,55 @@ public struct SubsonicProvider: RemoteLibraryProvider {
 
     private func auth() -> SubsonicAPI.Auth {
         SubsonicAPI.Auth(username: username, password: password, salt: Self.randomSalt())
+    }
+
+    private func metadata(for song: SubsonicSong,
+                          album: SubsonicAlbum,
+                          fallbackTrackNumber: Int) -> RemoteTrackMetadata {
+        let coverArt = song.coverArt ?? album.coverArt
+        return RemoteTrackMetadata(
+            title: song.title,
+            artist: song.artist ?? album.artist,
+            album: song.album ?? album.name,
+            albumArtist: album.artist,
+            trackNumber: song.track ?? fallbackTrackNumber,
+            discNumber: song.discNumber,
+            durationSec: song.duration,
+            codec: codec(suffix: song.suffix, contentType: song.contentType),
+            sampleRate: song.samplingRate,
+            bitRateKbps: song.bitRate,
+            genre: album.genre,
+            artwork: coverArt.map(subsonicArtwork(id:))
+        )
+    }
+
+    private func subsonicArtwork(id coverArtID: String) -> RemoteArtwork {
+        let url = try? SubsonicAPI.url(
+            baseURL: baseURL,
+            endpoint: .coverArt(id: coverArtID),
+            auth: auth(),
+            format: format
+        )
+        return RemoteArtwork(
+            id: stableArtworkID(provider: "subsonic", remoteID: coverArtID),
+            url: url,
+            headers: [:]
+        )
+    }
+
+    private func codec(suffix: String?, contentType: String?) -> String? {
+        if let suffix, !suffix.isEmpty { return suffix.uppercased() }
+        guard let contentType else { return nil }
+        if contentType.localizedCaseInsensitiveContains("flac") { return "FLAC" }
+        if contentType.localizedCaseInsensitiveContains("mpeg") { return "MP3" }
+        if contentType.localizedCaseInsensitiveContains("aac") { return "AAC" }
+        if contentType.localizedCaseInsensitiveContains("wav") { return "WAV" }
+        return contentType.split(separator: "/").last.map { String($0).uppercased() }
+    }
+
+    private func stableArtworkID(provider: String, remoteID: String) -> String {
+        let host = baseURL.host ?? baseURL.absoluteString
+        return "\(provider):\(host):\(remoteID)"
     }
 
     private static func randomSalt() -> String {

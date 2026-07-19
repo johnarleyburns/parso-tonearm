@@ -220,6 +220,11 @@ public struct Asset: Identifiable, Equatable, Codable {
     /// Runtime-only headers for browsed remote-library queue rows. Not persisted:
     /// credentials remain in the Keychain/provider layer.
     public var transientRemoteHeaders: [String: String] = [:]
+    /// Runtime-only range capability from the provider resolution. Not persisted.
+    public var transientRemoteSupportsByteRanges: Bool = true
+    /// Runtime-only provider artwork reference for browsed remote-library rows.
+    /// Authenticated URLs and headers stay transient and are never written to DB.
+    public var transientArtwork: RemoteArtwork? = nil
 
     public init(id: Int64?,
                 trackId: Int64,
@@ -233,7 +238,9 @@ public struct Asset: Identifiable, Equatable, Codable {
                 unsupportedReason: String?,
                 needsReimport: Bool = false,
                 syncID: String? = nil,
-                transientRemoteHeaders: [String: String] = [:]) {
+                transientRemoteHeaders: [String: String] = [:],
+                transientRemoteSupportsByteRanges: Bool = true,
+                transientArtwork: RemoteArtwork? = nil) {
         self.id = id
         self.trackId = trackId
         self.kind = kind
@@ -247,6 +254,8 @@ public struct Asset: Identifiable, Equatable, Codable {
         self.needsReimport = needsReimport
         self.syncID = syncID
         self.transientRemoteHeaders = transientRemoteHeaders
+        self.transientRemoteSupportsByteRanges = transientRemoteSupportsByteRanges
+        self.transientArtwork = transientArtwork
     }
 
     public enum CodingKeys: String, CodingKey {

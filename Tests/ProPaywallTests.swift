@@ -46,7 +46,7 @@ final class ProPaywallTests: XCTestCase {
         let model = ProPaywallModel()
         // The sole feature uses the only ProFeature case.
         XCTAssertEqual(model.features.first?.features, [.remoteLibraries])
-        XCTAssertEqual(model.features.first?.entryPoint, "Settings > Sources")
+        XCTAssertEqual(model.features.first?.entryPoint, "Settings > Libraries")
     }
 
     func testNoCarPlayRow() {

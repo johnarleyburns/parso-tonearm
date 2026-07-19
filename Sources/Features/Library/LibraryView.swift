@@ -24,7 +24,7 @@ struct LibraryView: View {
                 ZStack(alignment: .trailing) {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
-                            ScreenHeader(title: "Library")
+                            ScreenHeader(title: "Music")
                             SearchField(text: $appState.searchText, placeholder: "Search all your music…")
                                 .padding(.top, 12)
                                 .padding(.bottom, 12)
@@ -32,7 +32,7 @@ struct LibraryView: View {
                                     Task { await appState.runSearch() }
                                 }
 
-                            Picker("Library View", selection: $mode) {
+                            Picker("Music View", selection: $mode) {
                                 ForEach(LibraryBrowseMode.allCases) { mode in
                                     Text(mode.rawValue).tag(mode)
                                 }
@@ -41,12 +41,18 @@ struct LibraryView: View {
                             .padding(.bottom, 16)
 
                             if rows.isEmpty {
-                                EmptyStateView(icon: "music.note",
-                                               title: appState.searchText.isEmpty ? "Your library is empty" : "No matches",
-                                               message: appState.searchText.isEmpty
-                                                    ? "Add a source or a local folder to fill your library."
-                                                    : "Nothing in your library matches that.")
-                                    .padding(.top, 60)
+                                VStack(spacing: 14) {
+                                    EmptyStateView(icon: "music.note",
+                                                   title: appState.searchText.isEmpty ? "Your music is empty" : "No matches",
+                                                   message: appState.searchText.isEmpty
+                                                        ? "Add an archive.org library, remote library, or local folder to fill Music."
+                                                        : "Nothing in Music matches that.")
+                                    if appState.searchText.isEmpty {
+                                        AddRemoteLibraryButton(compact: true)
+                                            .padding(.horizontal, 2)
+                                    }
+                                }
+                                .padding(.top, 60)
                             } else {
                                 ForEach(sections) { section in
                                     SectionHeader(title: section.indexTitle,

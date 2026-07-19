@@ -109,8 +109,32 @@ final class RemoteIntegrationTests: XCTestCase {
         let subsonicAlbum = try XCTUnwrap(subsonicAlbums.first)
         let subsonicTracks = try await subsonic.browse(path: subsonicAlbum.path)
         let subsonicTrack = try XCTUnwrap(subsonicTracks.first)
+        XCTAssertEqual(subsonicTrack.metadata?.artist, "Artist")
+        XCTAssertEqual(subsonicTrack.metadata?.album, "Album")
+        XCTAssertEqual(subsonicTrack.metadata?.trackNumber, 1)
+        XCTAssertEqual(subsonicTrack.metadata?.codec, "FLAC")
+        XCTAssertEqual(subsonicTrack.metadata?.sampleRate, 44_100)
+        XCTAssertEqual(subsonicTrack.metadata?.bitRateKbps, 900)
+        XCTAssertTrue(subsonicTrack.metadata?.artwork?.url?.absoluteString.contains("getCoverArt.view") == true)
         let subsonicAsset = try await subsonic.resolve(node: subsonicTrack)
         XCTAssertTrue(subsonicAsset.url.absoluteString.contains("stream.view"))
+        try await assertAudioRequest(subsonicAsset, expectedStatus: 206)
+        try await assertArtworkRequest(subsonicTrack.metadata?.artwork)
+
+        let subsonicNonRange = SubsonicProvider(
+            baseURL: baseURL.appendingPathComponent("subsonic-nonrange"),
+            username: "alice",
+            password: "secret"
+        )
+        try await subsonicNonRange.refresh()
+        let nonRangeArtists = try await subsonicNonRange.browse(path: "")
+        let nonRangeArtist = try XCTUnwrap(nonRangeArtists.first)
+        let nonRangeAlbums = try await subsonicNonRange.browse(path: nonRangeArtist.path)
+        let nonRangeAlbum = try XCTUnwrap(nonRangeAlbums.first)
+        let nonRangeTracks = try await subsonicNonRange.browse(path: nonRangeAlbum.path)
+        let nonRangeTrack = try XCTUnwrap(nonRangeTracks.first)
+        let nonRangeAsset = try await subsonicNonRange.resolve(node: nonRangeTrack)
+        try await assertAudioRequest(nonRangeAsset, expectedStatus: 200)
 
         let webDAV = WebDAVProvider(
             baseURL: baseURL.appendingPathComponent("webdav"),
@@ -135,8 +159,17 @@ final class RemoteIntegrationTests: XCTestCase {
         let jellyfinAlbum = try XCTUnwrap(jellyfinAlbums.first)
         let jellyfinTracks = try await jellyfin.browse(path: jellyfinAlbum.path)
         let jellyfinTrack = try XCTUnwrap(jellyfinTracks.first)
+        XCTAssertEqual(jellyfinTrack.metadata?.artist, "Artist")
+        XCTAssertEqual(jellyfinTrack.metadata?.album, "Album")
+        XCTAssertEqual(jellyfinTrack.metadata?.trackNumber, 1)
+        XCTAssertEqual(jellyfinTrack.metadata?.codec, "FLAC")
+        XCTAssertEqual(jellyfinTrack.metadata?.sampleRate, 44_100)
+        XCTAssertEqual(jellyfinTrack.metadata?.bitRateKbps, 900)
         let jellyfinAsset = try await jellyfin.resolve(node: jellyfinTrack)
         XCTAssertTrue(jellyfinAsset.url.absoluteString.contains("/Audio/track-1/stream"))
+        XCTAssertNotNil(jellyfinAsset.headers["X-Emby-Authorization"])
+        try await assertAudioRequest(jellyfinAsset, expectedStatus: 206)
+        try await assertArtworkRequest(jellyfinTrack.metadata?.artwork)
 
         let plex = PlexProvider(
             baseURL: baseURL.appendingPathComponent("plex"),
@@ -151,8 +184,15 @@ final class RemoteIntegrationTests: XCTestCase {
         let plexAlbum = try XCTUnwrap(plexAlbums.first)
         let plexTracks = try await plex.browse(path: plexAlbum.path)
         let plexTrack = try XCTUnwrap(plexTracks.first)
+        XCTAssertEqual(plexTrack.metadata?.artist, "Artist")
+        XCTAssertEqual(plexTrack.metadata?.album, "Album")
+        XCTAssertEqual(plexTrack.metadata?.trackNumber, 1)
+        XCTAssertEqual(plexTrack.metadata?.codec, "FLAC")
         let plexAsset = try await plex.resolve(node: plexTrack)
         XCTAssertTrue(plexAsset.url.absoluteString.contains("/plex/audio/test.flac"))
+        XCTAssertNotNil(plexAsset.headers["X-Plex-Token"])
+        try await assertAudioRequest(plexAsset, expectedStatus: 206)
+        try await assertArtworkRequest(plexAsset.metadata?.artwork)
     }
 
     func testSMBFixtureBrowseAndResolveWithoutNetwork() async throws {
@@ -265,5 +305,49 @@ final class RemoteIntegrationTests: XCTestCase {
         components.reduce(baseURL) { partial, component in
             partial.appendingPathComponent(component)
         }
+    }
+
+    private func assertAudioRequest(_ asset: ResolvedAsset, expectedStatus: Int) async throws {
+        var request = URLRequest(url: asset.url)
+        for (field, value) in asset.headers {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
+        request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        let http = try XCTUnwrap(response as? HTTPURLResponse)
+        XCTAssertEqual(http.statusCode, expectedStatus)
+        if expectedStatus == 206 {
+            XCTAssertEqual(
+                RemoteStreamingResponsePolicy.probeResult(
+                    statusCode: http.statusCode,
+                    contentRange: http.value(forHTTPHeaderField: "Content-Range"),
+                    expectedContentLength: http.expectedContentLength
+                ),
+                .ranged(totalBytes: Int64("tonearm-remote-test-audio".utf8.count))
+            )
+        } else if expectedStatus == 200 {
+            XCTAssertEqual(
+                RemoteStreamingResponsePolicy.probeResult(
+                    statusCode: http.statusCode,
+                    contentRange: nil,
+                    expectedContentLength: http.expectedContentLength
+                ),
+                .fullBody(totalBytes: Int64("tonearm-remote-test-audio".utf8.count))
+            )
+        }
+    }
+
+    private func assertArtworkRequest(_ artwork: RemoteArtwork?) async throws {
+        let artwork = try XCTUnwrap(artwork)
+        let url = try XCTUnwrap(artwork.url)
+        var request = URLRequest(url: url)
+        for (field, value) in artwork.headers {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let http = try XCTUnwrap(response as? HTTPURLResponse)
+        XCTAssertEqual(http.statusCode, 200)
+        XCTAssertFalse(data.isEmpty)
     }
 }

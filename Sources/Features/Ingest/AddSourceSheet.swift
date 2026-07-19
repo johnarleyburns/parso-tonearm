@@ -15,7 +15,7 @@ struct AddSourceSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Capsule().fill(Color.white.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
-            Text("Add archive.org Source")
+            Text("Add archive.org Library")
                 .font(.system(size: 19, weight: .bold)).padding(.top, 12)
             Text("Paste a link to an item, a public list or\nfavorites page, or a collection.")
                 .font(.system(size: 12.5)).foregroundStyle(Palette.ink2)
@@ -41,8 +41,8 @@ struct AddSourceSheet: View {
                 Task { await add() }
             } label: {
                 Group {
-                    if isAdding { ProgressView().tint(.black) }
-                    else { Text("Add to Library") }
+                        if isAdding { ProgressView().tint(.black) }
+                        else { Text("Add to Music") }
                 }
                 .font(.system(size: 15.5, weight: .bold))
                 .foregroundStyle(Color(hex: 0x221503))

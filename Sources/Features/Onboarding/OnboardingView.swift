@@ -38,8 +38,8 @@ struct OnboardingView: View {
     private let intros: [(icon: String, title: String, body: String)] = [
         ("music.note.house.fill", "Welcome to Tonearm",
          "A calm player for public-domain and Creative Commons music streamed from the Internet Archive — and your own local files."),
-        ("cloud.fill", "Add sources",
-         "Paste any archive.org item, list, favorites page, or collection. Every track lands in your Library instantly. Nothing is downloaded until you press play."),
+        ("cloud.fill", "Add libraries",
+         "Paste any archive.org item, list, favorites page, or collection. Every track lands in Music instantly. Nothing is downloaded until you press play."),
         ("play.circle.fill", "Listen & keep",
          "Played tracks are cached so they work offline until space is needed. Build playlists, favorite what you love, and jump back in anytime. Check out the built-in Ambient playlist with continuous rain, ocean, and flowing water sounds for focus, relaxation, or sleep.")
     ]
@@ -149,7 +149,7 @@ struct OnboardingView: View {
 
     private var sourcesPage: some View {
         VStack(spacing: 0) {
-            Text("Start your library")
+            Text("Start your Music")
                 .font(.system(size: 24, weight: .heavy)).kerning(-0.5)
                 .padding(.top, 40)
             Text("These are verified public-domain / CC0 recordings.\nWe’ll add the ones you keep checked.")

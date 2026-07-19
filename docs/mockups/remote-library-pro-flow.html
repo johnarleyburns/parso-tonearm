@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tonearm Remote Library Pro Flow</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0c0f;
+      --panel: #15171d;
+      --panel-2: #1d2229;
+      --ink: #f2f4f6;
+      --muted: rgba(242, 244, 246, 0.62);
+      --faint: rgba(242, 244, 246, 0.34);
+      --line: rgba(255, 255, 255, 0.1);
+      --brass: #e3a44b;
+      --green: #57cf7a;
+      --blue: #77aaff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    .canvas {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 { font-size: 28px; line-height: 1.1; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 14px; color: var(--muted); font-weight: 650; }
+
+    .pill {
+      border: 1px solid var(--line);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .phone {
+      min-height: 660px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: linear-gradient(180deg, #101216 0%, #0b0c0f 100%);
+      padding: 16px;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.38);
+      overflow: hidden;
+    }
+
+    .status {
+      display: flex;
+      justify-content: space-between;
+      color: var(--faint);
+      font-size: 12px;
+      margin-bottom: 18px;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 20px 0;
+    }
+
+    .tab {
+      min-height: 54px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .tab.active {
+      color: var(--ink);
+      border-color: rgba(227, 164, 75, 0.56);
+      background: rgba(227, 164, 75, 0.12);
+    }
+
+    .section {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 58px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+    }
+
+    .row.locked {
+      border-color: rgba(227, 164, 75, 0.42);
+      background: rgba(227, 164, 75, 0.1);
+    }
+
+    .row-main {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .row-title {
+      font-size: 15px;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .row-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      overflow-wrap: anywhere;
+    }
+
+    .icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      background: var(--panel-2);
+      color: var(--brass);
+      font-weight: 800;
+    }
+
+    .button {
+      border: 0;
+      border-radius: 8px;
+      min-height: 46px;
+      padding: 0 14px;
+      font-weight: 800;
+      color: #16120a;
+      background: var(--brass);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .button.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    .paywall {
+      margin-top: 70px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .price {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      border: 1px solid rgba(227, 164, 75, 0.32);
+      border-radius: 8px;
+      padding: 16px;
+      background: rgba(227, 164, 75, 0.1);
+    }
+
+    .price strong { font-size: 34px; }
+
+    .providers {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .provider {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      padding: 6px 8px;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .complete {
+      margin-top: 105px;
+      display: grid;
+      gap: 18px;
+      text-align: center;
+    }
+
+    .check {
+      width: 74px;
+      height: 74px;
+      margin: 0 auto;
+      border-radius: 50%;
+      background: rgba(87, 207, 122, 0.13);
+      color: var(--green);
+      border: 1px solid rgba(87, 207, 122, 0.45);
+      display: grid;
+      place-items: center;
+      font-size: 38px;
+      font-weight: 900;
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .caption {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+      .phone { min-height: 560px; }
+      .canvas { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="canvas">
+    <div class="titlebar">
+      <h1>Remote Library Pro Flow</h1>
+      <div class="pill">Free entry -> Pro -> Add Library</div>
+    </div>
+
+    <section class="grid" aria-label="Remote Library Pro flow screens">
+      <article class="phone" aria-label="Libraries screen with locked Add Remote Library">
+        <div class="status"><span>9:41</span><span>Free</span></div>
+        <h2>Libraries</h2>
+        <div class="tabs" aria-hidden="true">
+          <div class="tab">Listen</div>
+          <div class="tab">Music</div>
+          <div class="tab active">Libraries</div>
+          <div class="tab">Settings</div>
+        </div>
+        <div class="section">
+          <div class="row">
+            <div class="icon">+</div>
+            <div class="row-main">
+              <div class="row-title">Add archive.org Library</div>
+              <div class="row-subtitle">Paste an item, list, or collection URL</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="icon">F</div>
+            <div class="row-main">
+              <div class="row-title">Add Local Folder</div>
+              <div class="row-subtitle">Reference files in place</div>
+            </div>
+          </div>
+          <div class="row locked">
+            <div class="icon" aria-label="locked">&#128274;</div>
+            <div class="row-main">
+              <div class="row-title">Add Remote Library</div>
+              <div class="row-subtitle">Dropbox, Subsonic, Jellyfin, Plex, SMB, and more</div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phone" aria-label="Remote Libraries Pro paywall">
+        <div class="status"><span>9:41</span><span>Pro</span></div>
+        <div class="paywall">
+          <div>
+            <h2>Remote Libraries</h2>
+            <p class="caption">Reach your music wherever else it lives.</p>
+          </div>
+          <div class="price">
+            <div>
+              <h3>One-time unlock</h3>
+              <strong>$7.99</strong>
+            </div>
+            <span class="pill">Family Sharing</span>
+          </div>
+          <div class="providers">
+            <span class="provider">Dropbox</span>
+            <span class="provider">Google Drive</span>
+            <span class="provider">OneDrive</span>
+            <span class="provider">pCloud</span>
+            <span class="provider">Subsonic</span>
+            <span class="provider">WebDAV</span>
+            <span class="provider">Jellyfin</span>
+            <span class="provider">Plex</span>
+            <span class="provider">SMB</span>
+          </div>
+          <button class="button">Unlock Remote Libraries</button>
+          <button class="button secondary">Restore Purchase</button>
+          <p class="caption">Credentials stay local in Apple Keychain. Tonearm does not route your music through a Tonearm server.</p>
+        </div>
+      </article>
+
+      <article class="phone" aria-label="Post-purchase Add Remote Library completion">
+        <div class="status"><span>9:41</span><span>Pro Active</span></div>
+        <div class="complete">
+          <div class="check">&#10003;</div>
+          <div>
+            <h2>You've Gone Pro</h2>
+            <p class="caption">Remote Libraries are unlocked for every supported provider.</p>
+          </div>
+          <div class="actions">
+            <button class="button">Add Library Now</button>
+            <button class="button secondary">Maybe Later</button>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

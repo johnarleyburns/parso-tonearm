@@ -100,7 +100,7 @@ final class SystemPlaybackBridge: PlaybackPlatformBridge {
         }
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: row.track.title,
-            MPMediaItemPropertyArtist: row.album?.artist ?? "archive.org",
+            MPMediaItemPropertyArtist: row.album?.artist ?? row.artist?.name ?? PlaybackDisplayPolicy.providerName(for: row.source),
             MPMediaItemPropertyPlaybackDuration: player.isAmbient ? 0 : player.duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: player.isAmbient ? 0 : player.currentTime,
             MPNowPlayingInfoPropertyPlaybackRate: player.isAdvancing ? 1.0 : 0.0

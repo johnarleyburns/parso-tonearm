@@ -110,7 +110,7 @@ private struct QueueRow: View {
                     .font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(.white)
                     .lineLimit(1)
-                Text(row.album?.artist ?? "")
+                Text(row.album?.artist ?? row.artist?.name ?? "")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.white.opacity(0.45))
                     .lineLimit(1)

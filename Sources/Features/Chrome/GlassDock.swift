@@ -7,7 +7,7 @@ struct GlassDock: View {
 
     var body: some View {
         VStack(spacing: 9) {
-            if player.currentTrack != nil {
+            if player.currentTrack != nil && !appState.showNowPlaying {
                 MiniPlayer()
                     .onTapGesture { appState.showNowPlaying = true }
             }
@@ -53,22 +53,12 @@ struct MiniPlayer: View {
 
     private var subtitle: String {
         guard let row = player.currentTrack else { return "" }
-        var parts: [String] = []
-        if player.shuffle { parts.append("Shuffled") }
-        if player.repeatMode == .one { parts.append("Repeat 1") }
-        else if player.repeatMode == .all { parts.append("Repeat All") }
-        let base: String = {
-            if row.asset?.kind == .remote {
-                switch player.cacheState {
-                case .cached: return "archive.org · cached"
-                case .filling: return "archive.org · caching…"
-                case .none: return "archive.org"
-                }
-            }
-            return row.album?.artist ?? "On Device"
-        }()
-        parts.append(base)
-        return parts.joined(separator: " · ")
+        return PlaybackDisplayPolicy.miniPlayerSubtitle(
+            row: row,
+            cacheState: player.cacheState,
+            shuffle: player.shuffle,
+            repeatMode: player.repeatMode
+        )
     }
 }
 
@@ -78,8 +68,8 @@ struct TabBar: View {
     private let items: [(AppTab, String, String)] = [
         (.listen, "play.circle.fill", "Listen"),
         (.playlists, "music.note.list", "Playlists"),
-        (.library, "square.grid.2x2.fill", "Library"),
-        (.sources, "cloud.fill", "Sources"),
+        (.library, "square.grid.2x2.fill", "Music"),
+        (.sources, "cloud.fill", "Libraries"),
         (.settings, "gearshape.fill", "Settings")
     ]
 

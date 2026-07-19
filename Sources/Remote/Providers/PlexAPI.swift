@@ -161,6 +161,12 @@ public struct PlexItem: Equatable {
     public var durationSec: Double?
     public var sizeBytes: Int64?
     public var partKey: String?
+    public var artistTitle: String? = nil
+    public var albumTitle: String? = nil
+    public var index: Int? = nil
+    public var parentIndex: Int? = nil
+    public var container: String? = nil
+    public var thumb: String? = nil
 
     public var isMusicSection: Bool {
         kind == .section
@@ -184,6 +190,12 @@ private final class PlexXMLCollector: NSObject, XMLParserDelegate {
             items.append(Self.item(from: attributeDict, elementName: elementName))
         case "Track":
             currentTrack = Self.item(from: attributeDict, elementName: elementName)
+        case "Media":
+            guard var track = currentTrack else { return }
+            track.container = track.container
+                ?? attributeDict["audioCodec"]
+                ?? attributeDict["container"]
+            currentTrack = track
         case "Part":
             guard currentTrack != nil else { return }
             if currentTrack?.partKey == nil {
@@ -191,6 +203,9 @@ private final class PlexXMLCollector: NSObject, XMLParserDelegate {
             }
             if currentTrack?.sizeBytes == nil {
                 currentTrack?.sizeBytes = attributeDict["size"].flatMap(Int64.init)
+            }
+            if currentTrack?.container == nil {
+                currentTrack?.container = attributeDict["container"]
             }
         default:
             break
@@ -226,7 +241,13 @@ private final class PlexXMLCollector: NSObject, XMLParserDelegate {
             kind: kind,
             durationSec: attributes["duration"].flatMap(Double.init).map { $0 / 1000 },
             sizeBytes: attributes["size"].flatMap(Int64.init),
-            partKey: nil
+            partKey: nil,
+            artistTitle: attributes["grandparentTitle"],
+            albumTitle: attributes["parentTitle"],
+            index: attributes["index"].flatMap(Int.init),
+            parentIndex: attributes["parentIndex"].flatMap(Int.init),
+            container: attributes["audioCodec"] ?? attributes["container"],
+            thumb: attributes["thumb"] ?? attributes["parentThumb"] ?? attributes["grandparentThumb"]
         )
     }
 }

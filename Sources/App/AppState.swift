@@ -30,6 +30,8 @@ final class AppState: ObservableObject {
     @Published var showAddSource = false
     @Published var showAddRemoteLibrary = false
     @Published var showProPaywall = false
+    @Published var proPaywallEntryPoint: ProPaywallEntryPoint = .generic
+    @Published var showAddRemoteLibraryProCompletion = false
     @Published var showCreatePlaylist = false
     @Published var backgroundTitle: String?
     @Published var backgroundDone = false
@@ -229,9 +231,44 @@ final class AppState: ObservableObject {
     func requestAddRemoteLibrary() {
         switch RemoteLibraryGate.entryPointDecision(isPro: ProGating.isEnabled(.remoteLibraries)) {
         case .openSheet:
+            tab = .sources
             showAddRemoteLibrary = true
         case .showPaywall:
+            proPaywallEntryPoint = .addRemoteLibrary
             showProPaywall = true
+        }
+    }
+
+    func requestGenericProPaywall() {
+        proPaywallEntryPoint = .generic
+        showProPaywall = true
+    }
+
+    func handleProCompletion() {
+        switch AddRemoteLibraryProFlow.presentationAfterProCompletion(
+            entryPoint: proPaywallEntryPoint,
+            didBecomePro: ProGating.isEnabled(.remoteLibraries)
+        ) {
+        case .showAddRemoteLibraryCompletion:
+            showProPaywall = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                self.showAddRemoteLibraryProCompletion = true
+            }
+        case .none:
+            break
+        }
+    }
+
+    func applyAddRemoteLibraryPostPurchaseAction(_ action: RemoteLibraryPostPurchaseAction) {
+        let outcome = AddRemoteLibraryProFlow.outcome(for: action)
+        showAddRemoteLibraryProCompletion = false
+        if outcome.openLibrariesTab {
+            tab = .sources
+        }
+        if outcome.openAddServerSheet {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                self.showAddRemoteLibrary = true
+            }
         }
     }
 
@@ -392,33 +429,7 @@ final class AppState: ObservableObject {
         var rows: [TrackRow] = []
         for (index, node) in nodes.filter({ $0.kind == .audio }).enumerated() {
             let resolved = try await provider.resolve(node: node)
-            let trackID = -Int64(index + 1)
-            let track = Track(
-                id: trackID,
-                albumId: nil,
-                sourceId: source.id ?? 0,
-                title: node.title,
-                trackNo: index + 1,
-                discNo: nil,
-                durationSec: node.durationSec,
-                codec: nil,
-                sampleRate: nil,
-                bitDepthOrBitrate: nil,
-                sortKey: String(format: "%06d", index)
-            )
-            var asset = Asset(
-                id: nil,
-                trackId: trackID,
-                kind: resolved.url.isFileURL ? .localRef : .remote,
-                bookmark: resolved.url.isFileURL ? BookmarkVault.makeBookmark(for: resolved.url) : nil,
-                relPath: nil,
-                remoteURL: resolved.url.absoluteString,
-                altRemoteURL: nil,
-                sizeBytes: resolved.sizeBytes,
-                unsupportedReason: nil
-            )
-            asset.transientRemoteHeaders = resolved.headers
-            rows.append(TrackRow(track: track, album: nil, source: source, asset: asset))
+            rows.append(RemoteTrackRowFactory.row(source: source, node: node, resolved: resolved, index: index))
         }
         return rows
     }
@@ -644,7 +655,7 @@ final class AppState: ObservableObject {
 
     // MARK: - Onboarding (TF5, TF9)
 
-    /// Adds the given archive.org sources, persisting all of their tracks to the
+    /// Adds the given archive.org libraries, persisting all of their tracks to the
     /// library (never caching), then builds the "Classical Piano Sonatas"
     /// starter playlist from every track that was added.
     func completeOnboarding(sourceURLs: [String]) async {

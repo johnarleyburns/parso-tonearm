@@ -58,7 +58,10 @@ enum WidgetSnapshotPublisher {
 
 extension WidgetSnapshotBuilder.TrackInput {
     init(row: TrackRow) {
-        let artist = row.album?.albumArtist ?? row.album?.artist ?? row.source?.title
+        let artist = row.album?.albumArtist
+            ?? row.album?.artist
+            ?? row.artist?.name
+            ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : row.source?.title)
         self.init(
             id: row.track.id,
             title: row.track.title,

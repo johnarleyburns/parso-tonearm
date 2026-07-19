@@ -14,6 +14,7 @@ public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegat
     private var inFlight: [Task<Void, Never>] = []
     private var didShutdown = false
     private var fileHandle: FileHandle?
+    private var resolvedSupportsByteRanges = true
 
     public init(originalURL: URL, headers: [String: String] = [:]) {
         self.originalURL = originalURL
@@ -70,18 +71,30 @@ public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegat
             req.setValue(rangeHeader, forHTTPHeaderField: "Range")
             do {
                 let (body, response) = try await Self.session.data(for: req)
-                guard let http = response as? HTTPURLResponse, http.statusCode == 206 else { return }
-                guard let contentRange = http.value(forHTTPHeaderField: "Content-Range"),
-                      let startStr = contentRange.split(separator: " ").dropFirst().first?
-                        .split(separator: "-").first,
-                      let rangeStart = Int64(startStr),
-                      rangeStart == already else { return }
+                guard let http = response as? HTTPURLResponse else { return }
+                guard let response = RemoteStreamingResponsePolicy.dataResponse(
+                    statusCode: http.statusCode,
+                    contentRange: http.value(forHTTPHeaderField: "Content-Range"),
+                    expectedContentLength: http.expectedContentLength,
+                    cursor: already,
+                    knownTotalBytes: await CacheStore.shared.totalBytes(for: key) ?? 0
+                ) else { return }
+                if case .fullBody = response, already > 0 { return }
                 let fh = try FileHandle(forWritingTo: fileURL)
                 defer { try? fh.close() }
-                try fh.seek(toOffset: UInt64(already))
+                let writeOffset: Int64
+                switch response {
+                case .ranged(let rangeStart):
+                    guard rangeStart == already else { return }
+                    writeOffset = already
+                case .fullBody(let total):
+                    await CacheStore.shared.setContentLength(total, for: key)
+                    writeOffset = 0
+                }
+                try fh.seek(toOffset: UInt64(writeOffset))
                 try fh.write(contentsOf: body)
-                let end = already + Int64(body.count)
-                await CacheStore.shared.recordWrite(range: already..<end, for: key)
+                let end = writeOffset + Int64(body.count)
+                await CacheStore.shared.recordWrite(range: writeOffset..<end, for: key)
             } catch {}
         }
     }
@@ -121,7 +134,7 @@ public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegat
             guard !request.isCancelled else { return }
             if let info = request.contentInformationRequest {
                 info.contentLength = total
-                info.isByteRangeAccessSupported = true
+                info.isByteRangeAccessSupported = supportsByteRanges()
                 info.contentType = contentType()
             }
             if let dataRequest = request.dataRequest, !request.isCancelled {
@@ -167,20 +180,18 @@ public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegat
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
         let (_, response) = try await Self.session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        guard http.statusCode == 206 else { throw URLError(.badServerResponse) }
         self.resolvedURL = http.url ?? originalURL
-        let total = Self.totalLength(from: http)
+        guard let probe = RemoteStreamingResponsePolicy.probeResult(
+            statusCode: http.statusCode,
+            contentRange: http.value(forHTTPHeaderField: "Content-Range"),
+            expectedContentLength: http.expectedContentLength
+        ) else {
+            throw URLError(.badServerResponse)
+        }
+        setSupportsByteRanges(probe.supportsByteRanges)
+        let total = probe.totalBytes
         if total > 0 { await CacheStore.shared.setContentLength(total, for: cacheKey) }
         return total
-    }
-
-    private static func totalLength(from http: HTTPURLResponse) -> Int64 {
-        if let contentRange = http.value(forHTTPHeaderField: "Content-Range"),
-           let slash = contentRange.split(separator: "/").last, let total = Int64(slash) {
-            return total
-        }
-        if http.expectedContentLength > 0 { return http.expectedContentLength }
-        return 0
     }
 
     // MARK: - Progressive streaming serve
@@ -234,33 +245,32 @@ public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegat
             for (field, value) in headers {
                 req.setValue(value, forHTTPHeaderField: field)
             }
-            req.setValue(rangeHeader, forHTTPHeaderField: "Range")
+            if supportsByteRanges() {
+                req.setValue(rangeHeader, forHTTPHeaderField: "Range")
+            }
             let (bytes, response) = try await Self.session.bytes(for: req)
             guard let http = response as? HTTPURLResponse else {
                 throw URLError(.badServerResponse)
             }
-            switch http.statusCode {
-            case 206:
-                guard let contentRange = http.value(forHTTPHeaderField: "Content-Range"),
-                      let rangeStart = contentRange.split(separator: " ").dropFirst().first
-                        .flatMap({ $0.split(separator: "-").first }).flatMap({ Int64($0) }),
-                      rangeStart == cursor else {
-                    throw URLError(.badServerResponse)
-                }
-            case 200 where cursor == 0:
-                let cl = Int64(http.value(forHTTPHeaderField: "Content-Length") ?? "") ?? 0
-                guard cl > 0, let t = await CacheStore.shared.totalBytes(for: cacheKey), t > 0, cl == t else {
-                    throw URLError(.badServerResponse)
-                }
-            default:
+            let knownTotal = await CacheStore.shared.totalBytes(for: cacheKey) ?? total
+            guard let response = RemoteStreamingResponsePolicy.dataResponse(
+                statusCode: http.statusCode,
+                contentRange: http.value(forHTTPHeaderField: "Content-Range"),
+                expectedContentLength: http.expectedContentLength,
+                cursor: cursor,
+                knownTotalBytes: knownTotal
+            ) else {
                 throw URLError(.badServerResponse)
+            }
+            if case .fullBody(let fullBodyTotal) = response {
+                setSupportsByteRanges(false)
+                await CacheStore.shared.setContentLength(fullBodyTotal, for: cacheKey)
             }
 
             let chunkSize = 32 * 1024
             var buf: [UInt8] = []
             buf.reserveCapacity(chunkSize)
             var chunkRanges: [Range<Int64>] = []
-            let networkCursor = cursor
 
             for try await byte in bytes {
                 buf.append(byte)
@@ -314,5 +324,18 @@ public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegat
         guard let handle = fileHandle else { return }
         try? handle.seek(toOffset: UInt64(offset))
         try? handle.write(contentsOf: data)
+    }
+
+    private func supportsByteRanges() -> Bool {
+        stateLock.lock()
+        let value = resolvedSupportsByteRanges
+        stateLock.unlock()
+        return value
+    }
+
+    private func setSupportsByteRanges(_ value: Bool) {
+        stateLock.lock()
+        resolvedSupportsByteRanges = value
+        stateLock.unlock()
     }
 }

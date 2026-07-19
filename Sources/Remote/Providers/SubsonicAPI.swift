@@ -17,6 +17,7 @@ public enum SubsonicAPI {
         case getArtist(id: String)
         case getAlbum(id: String)
         case stream(id: String)
+        case coverArt(id: String)
 
         var method: String {
             switch self {
@@ -26,6 +27,7 @@ public enum SubsonicAPI {
             case .getArtist: return "getArtist.view"
             case .getAlbum: return "getAlbum.view"
             case .stream: return "stream.view"
+            case .coverArt: return "getCoverArt.view"
             }
         }
 
@@ -33,7 +35,7 @@ public enum SubsonicAPI {
             switch self {
             case .ping, .getArtists, .getIndexes:
                 return []
-            case .getArtist(let id), .getAlbum(let id), .stream(let id):
+            case .getArtist(let id), .getAlbum(let id), .stream(let id), .coverArt(let id):
                 return [URLQueryItem(name: "id", value: id)]
             }
         }
@@ -206,29 +208,31 @@ public enum SubsonicAPI {
 
     private static func decodeAlbumSummary(_ dict: [String: Any]) -> SubsonicAlbumSummary {
         let id = string(dict["id"]) ?? ""
-        return SubsonicAlbumSummary(
-            id: id,
-            name: string(dict["name"]) ?? id,
-            artist: string(dict["artist"]),
-            artistId: string(dict["artistId"]),
-            songCount: int(dict["songCount"]),
-            year: int(dict["year"]),
-            genre: string(dict["genre"])
-        )
-    }
+            return SubsonicAlbumSummary(
+                id: id,
+                name: string(dict["name"]) ?? id,
+                artist: string(dict["artist"]),
+                artistId: string(dict["artistId"]),
+                songCount: int(dict["songCount"]),
+                year: int(dict["year"]),
+                genre: string(dict["genre"]),
+                coverArt: string(dict["coverArt"])
+            )
+        }
 
     private static func decodeAlbumDetail(_ dict: [String: Any]) -> SubsonicAlbum {
         let id = string(dict["id"]) ?? ""
-        return SubsonicAlbum(
-            id: id,
-            name: string(dict["name"]) ?? id,
-            artist: string(dict["artist"]),
-            artistId: string(dict["artistId"]),
-            year: int(dict["year"]),
-            genre: string(dict["genre"]),
-            songs: []
-        )
-    }
+            return SubsonicAlbum(
+                id: id,
+                name: string(dict["name"]) ?? id,
+                artist: string(dict["artist"]),
+                artistId: string(dict["artistId"]),
+                year: int(dict["year"]),
+                genre: string(dict["genre"]),
+                coverArt: string(dict["coverArt"]),
+                songs: []
+            )
+        }
 
     private static func decodeSong(_ dict: [String: Any]) -> SubsonicSong {
         let id = string(dict["id"]) ?? ""
@@ -246,7 +250,8 @@ public enum SubsonicAPI {
             contentType: string(dict["contentType"]),
             size: int64(dict["size"]),
             bitRate: int(dict["bitRate"]),
-            samplingRate: int(dict["samplingRate"])
+            samplingRate: int(dict["samplingRate"]),
+            coverArt: string(dict["coverArt"])
         )
     }
 
@@ -314,6 +319,7 @@ public struct SubsonicAlbumSummary: Equatable {
     public var songCount: Int?
     public var year: Int?
     public var genre: String?
+    public var coverArt: String? = nil
 }
 
 public struct SubsonicAlbum: Equatable {
@@ -323,6 +329,7 @@ public struct SubsonicAlbum: Equatable {
     public var artistId: String?
     public var year: Int?
     public var genre: String?
+    public var coverArt: String? = nil
     public var songs: [SubsonicSong]
 }
 
@@ -341,6 +348,7 @@ public struct SubsonicSong: Equatable {
     public var size: Int64?
     public var bitRate: Int?
     public var samplingRate: Int?
+    public var coverArt: String? = nil
 }
 
 private final class XMLCollector: NSObject, XMLParserDelegate {
@@ -388,7 +396,8 @@ private final class XMLCollector: NSObject, XMLParserDelegate {
                 artistId: attributeDict["artistId"],
                 songCount: Int(attributeDict["songCount"] ?? ""),
                 year: Int(attributeDict["year"] ?? ""),
-                genre: attributeDict["genre"]
+                genre: attributeDict["genre"],
+                coverArt: attributeDict["coverArt"]
             )
             if stack.contains("artist") {
                 albumSummaries.append(summary)
@@ -400,6 +409,7 @@ private final class XMLCollector: NSObject, XMLParserDelegate {
                     artistId: summary.artistId,
                     year: summary.year,
                     genre: summary.genre,
+                    coverArt: summary.coverArt,
                     songs: []
                 )
             }
@@ -418,7 +428,8 @@ private final class XMLCollector: NSObject, XMLParserDelegate {
                 contentType: attributeDict["contentType"],
                 size: Int64(attributeDict["size"] ?? ""),
                 bitRate: Int(attributeDict["bitRate"] ?? ""),
-                samplingRate: Int(attributeDict["samplingRate"] ?? "")
+                samplingRate: Int(attributeDict["samplingRate"] ?? ""),
+                coverArt: attributeDict["coverArt"]
             ))
         default:
             break

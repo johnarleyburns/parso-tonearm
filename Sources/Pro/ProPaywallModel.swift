@@ -38,7 +38,7 @@ public final class ProPaywallModel: ObservableObject {
         Feature(title: "Remote Libraries",
                 detail: "Connect to all 9 providers: \(RemoteConnectorCatalog.proDisplayList)",
                 features: [.remoteLibraries],
-                entryPoint: "Settings > Sources")
+                entryPoint: "Settings > Libraries")
     ]
 
     public func refresh() {
@@ -46,15 +46,19 @@ public final class ProPaywallModel: ObservableObject {
         displayPrice = store.displayPrice
     }
 
-    public func purchase() async {
+    @discardableResult
+    public func purchase() async -> Bool {
         purchasing = true
-        _ = await store.purchase()
+        let success = await store.purchase()
         purchasing = false
         refresh()
+        return success && isPro
     }
 
-    public func restore() async {
+    @discardableResult
+    public func restore() async -> Bool {
         await store.restore()
         refresh()
+        return isPro
     }
 }

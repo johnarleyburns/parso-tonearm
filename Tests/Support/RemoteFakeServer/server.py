@@ -7,6 +7,9 @@ import os
 
 
 AUDIO_BYTES = b"tonearm-remote-test-audio"
+COVER_BYTES = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -26,7 +29,7 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/oauth/") and path.endswith("/authorize"):
             return self.authorize(path, query)
 
-        if path.endswith("/audio/test.flac") or path.endswith("/stream") or path.endswith("/content"):
+        if path.endswith("/audio/test.flac") and not path.startswith("/plex/"):
             return self.send_bytes(AUDIO_BYTES, "audio/flac")
 
         if path.startswith("/dropbox/"):
@@ -52,10 +55,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             return self.send_json({"result": 0, "hosts": [self.headers.get("Host", "127.0.0.1:18089")], "path": "/pCloud/audio/test.flac"})
 
-        if path.startswith("/subsonic/rest/"):
+        if path.startswith("/subsonic") and "/rest/" in path:
             if not self.require_subsonic_auth(query):
                 return
-            return self.subsonic(path)
+            mode = "range"
+            if path.startswith("/subsonic-nonrange/"):
+                mode = "nonrange"
+            return self.subsonic(path, mode)
 
         if path.startswith("/jellyfin/"):
             if not self.require_jellyfin_auth():
@@ -239,17 +245,19 @@ class Handler(BaseHTTPRequestHandler):
             }
         })
 
-    def subsonic(self, path):
+    def subsonic(self, path, mode):
         if path.endswith("/ping.view"):
             return self.send_json({"subsonic-response": {"status": "ok", "version": "1.16.1"}})
         if path.endswith("/getArtists.view") or path.endswith("/getIndexes.view"):
             return self.send_json({"subsonic-response": {"status": "ok", "artists": {"index": [{"artist": [{"id": "artist-1", "name": "Artist", "albumCount": 1}]}]}}})
         if path.endswith("/getArtist.view"):
-            return self.send_json({"subsonic-response": {"status": "ok", "artist": {"id": "artist-1", "name": "Artist", "album": [{"id": "album-1", "name": "Album", "artist": "Artist", "songCount": 1}]}}})
+            return self.send_json({"subsonic-response": {"status": "ok", "artist": {"id": "artist-1", "name": "Artist", "album": [{"id": "album-1", "name": "Album", "artist": "Artist", "songCount": 1, "coverArt": "cover-1"}]}}})
         if path.endswith("/getAlbum.view"):
-            return self.send_json({"subsonic-response": {"status": "ok", "album": {"id": "album-1", "name": "Album", "song": [{"id": "song-1", "title": "Track", "duration": 3, "size": len(AUDIO_BYTES), "suffix": "flac"}]}}})
+            return self.send_json({"subsonic-response": {"status": "ok", "album": {"id": "album-1", "name": "Album", "artist": "Artist", "genre": "Test", "coverArt": "cover-1", "song": [{"id": "song-1", "title": "Track", "album": "Album", "artist": "Artist", "track": 1, "duration": 3, "size": len(AUDIO_BYTES), "suffix": "flac", "contentType": "audio/flac", "bitRate": 900, "samplingRate": 44100, "coverArt": "cover-1"}]}}})
         if path.endswith("/stream.view"):
-            return self.send_bytes(AUDIO_BYTES, "audio/flac")
+            return self.send_audio(AUDIO_BYTES, "audio/flac", range_mode=(mode == "range"))
+        if path.endswith("/getCoverArt.view"):
+            return self.send_bytes(COVER_BYTES, "image/png")
         return self.send_json({"subsonic-response": {"status": "failed", "error": {"code": 0, "message": "not found"}}}, status=404)
 
     def jellyfin(self, path):
@@ -259,10 +267,12 @@ class Handler(BaseHTTPRequestHandler):
             parsed = urlparse(self.path)
             query = parse_qs(parsed.query)
             if query.get("IncludeItemTypes") == ["MusicAlbum"]:
-                return self.send_json({"Items": [{"Id": "album-1", "Name": "Album", "Type": "MusicAlbum"}]})
-            return self.send_json({"Items": [{"Id": "track-1", "Name": "Track", "Type": "Audio", "RunTimeTicks": 30000000, "Size": len(AUDIO_BYTES)}]})
+                return self.send_json({"Items": [{"Id": "album-1", "Name": "Album", "Type": "MusicAlbum", "AlbumArtist": "Artist", "ImageTags": {"Primary": "album-tag"}}]})
+            return self.send_json({"Items": [{"Id": "track-1", "Name": "Track", "Type": "Audio", "AlbumId": "album-1", "Album": "Album", "AlbumArtist": "Artist", "Artists": ["Artist"], "IndexNumber": 1, "ParentIndexNumber": 1, "AlbumPrimaryImageTag": "album-tag", "RunTimeTicks": 30000000, "Size": len(AUDIO_BYTES), "MediaSources": [{"Size": len(AUDIO_BYTES), "Container": "flac", "MediaStreams": [{"Type": "Audio", "Codec": "flac", "SampleRate": 44100, "BitRate": 900000}]}]}]})
         if path == "/jellyfin/Audio/track-1/stream":
-            return self.send_bytes(AUDIO_BYTES, "audio/flac")
+            return self.send_audio(AUDIO_BYTES, "audio/flac", range_mode=True)
+        if path == "/jellyfin/Items/album-1/Images/Primary":
+            return self.send_bytes(COVER_BYTES, "image/png")
         return self.send_json({"error": "not found"}, status=404)
 
     def plex(self, path):
@@ -273,9 +283,13 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/plex/library/metadata/artist-1/children":
             return self.send_xml('<MediaContainer><Directory ratingKey="album-1" title="Album" type="album"/></MediaContainer>')
         if path == "/plex/library/metadata/album-1/children":
-            return self.send_xml('<MediaContainer><Track ratingKey="track-1" title="Track" type="track" duration="3000"><Media><Part key="/plex/audio/test.flac" size="25"/></Media></Track></MediaContainer>')
+            return self.send_xml('<MediaContainer><Track ratingKey="track-1" title="Track" type="track" duration="3000" grandparentTitle="Artist" parentTitle="Album" index="1" parentIndex="1" parentThumb="/library/metadata/album-1/thumb/1"><Media audioCodec="flac"><Part key="/plex/audio/test.flac" size="25" container="flac"/></Media></Track></MediaContainer>')
         if path == "/plex/library/metadata/track-1":
-            return self.send_xml('<MediaContainer><Track ratingKey="track-1" title="Track" type="track" duration="3000"><Media><Part key="/plex/audio/test.flac" size="25"/></Media></Track></MediaContainer>')
+            return self.send_xml('<MediaContainer><Track ratingKey="track-1" title="Track" type="track" duration="3000" grandparentTitle="Artist" parentTitle="Album" index="1" parentIndex="1" parentThumb="/library/metadata/album-1/thumb/1"><Media audioCodec="flac"><Part key="/plex/audio/test.flac" size="25" container="flac"/></Media></Track></MediaContainer>')
+        if path == "/plex/library/metadata/album-1/thumb/1":
+            return self.send_bytes(COVER_BYTES, "image/png")
+        if path.endswith("/plex/audio/test.flac") or path.endswith("/audio/test.flac"):
+            return self.send_audio(AUDIO_BYTES, "audio/flac", range_mode=True)
         return self.send_json({"error": "not found"}, status=404)
 
     def send_json(self, value, status=200):
@@ -295,6 +309,30 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(value)))
         self.end_headers()
         self.wfile.write(value)
+
+    def send_audio(self, value, content_type, range_mode=True):
+        range_header = self.headers.get("Range", "")
+        if range_mode and range_header.startswith("bytes="):
+            raw = range_header.split("=", 1)[1]
+            start_text, _, end_text = raw.partition("-")
+            start = int(start_text or "0")
+            end = int(end_text) if end_text else len(value) - 1
+            end = min(end, len(value) - 1)
+            if start > end or start >= len(value):
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{len(value)}")
+                self.end_headers()
+                return
+            body = value[start : end + 1]
+            self.send_response(206)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Range", f"bytes {start}-{end}/{len(value)}")
+            self.send_header("Accept-Ranges", "bytes")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        return self.send_bytes(value, content_type)
 
 
 def main():

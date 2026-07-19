@@ -11,6 +11,9 @@ struct TonearmApp: App {
         if ProcessInfo.processInfo.arguments.contains("UI_TESTING") {
             UserDefaults.standard.set(true, forKey: "didOnboard")
         }
+        if ProcessInfo.processInfo.arguments.contains("UI_TESTING_RESET_PRO") {
+            ProEntitlement.clear()
+        }
         ProStore.shared.start()
         AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
         AudioPlayer.shared.persistor.cloudBackend = CloudPlaybackBackend()

@@ -159,12 +159,16 @@ actor ArtworkService {
             return (image, true)
         }
 
+        let isRemote = row.asset?.kind == .remote
+        if let asset = row.asset,
+           let result = await remoteProviderArtwork(asset: asset) {
+            return result
+        }
+
         // 1. IA identifier cover (strong).
         if let id = row.album?.artworkId, !id.isEmpty {
             if let image = await artwork(forIdentifier: id) { return (image, true) }
         }
-
-        let isRemote = row.asset?.kind == .remote
 
         // For IA tracks the album row carries real artist/title; for local files the
         // album is a placeholder ("Local Files"/folder), so ignore it and rely on
@@ -202,6 +206,36 @@ actor ArtworkService {
             return result
         }
         return nil
+    }
+
+    private func remoteProviderArtwork(asset: Asset) async -> (image: UIImage, persistable: Bool)? {
+        guard let artwork = asset.transientArtwork,
+              let url = artwork.url else { return nil }
+        let key = artwork.id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? artwork.id!
+            : "remote-artwork-\(url.absoluteString)"
+        if let cached = memCache.object(forKey: key as NSString) {
+            return cached === Self.notFoundSentinel ? nil : (cached, true)
+        }
+        if let image = readDiskCache(key: key) {
+            store(image, forKey: key as NSString)
+            return (image, true)
+        }
+
+        var request = URLRequest(url: url)
+        for (field, value) in artwork.headers {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode),
+              let image = UIImage(data: data) else {
+            memCache.setObject(Self.notFoundSentinel, forKey: key as NSString)
+            return nil
+        }
+        store(image, forKey: key as NSString)
+        writeDiskCache(image, key: key)
+        return (image, true)
     }
 
     /// External iTunes artwork lookup for a track, keyed and cached separately from

@@ -155,7 +155,7 @@ struct RecentCard: View {
                 .font(.system(size: 12.5, weight: .semibold))
                 .lineLimit(1)
                 .padding(.top, 7)
-            Text(row.album?.artist ?? (row.asset?.kind == .remote ? "archive.org" : "On device"))
+            Text(row.album?.artist ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : "On device"))
                 .font(.system(size: 11))
                 .foregroundStyle(Palette.ink3)
                 .lineLimit(1)

@@ -428,7 +428,7 @@ public enum TagEdit {
     private static func readOnlyReason(for kind: AssetKind?) -> String {
         switch kind {
         case .remote:
-            return "Remote sources are read-only. Copy the file onto this device to edit tags."
+            return "Remote libraries are read-only. Copy the file onto this device to edit tags."
         case .builtIn:
             return "Built-in tracks are read-only."
         case .localRef, .managedCopy:

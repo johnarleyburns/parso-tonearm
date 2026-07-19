@@ -70,7 +70,7 @@ public struct TonearmSleepTimerIntent: AppIntent {
 public struct TonearmAddSourceIntent: AppIntent {
     public init() {}
     public static var title: LocalizedStringResource = "Add Archive Source"
-    public static var description = IntentDescription("Adds an archive.org source to Tonearm.")
+    public static var description = IntentDescription("Adds an archive.org library to Tonearm.")
     public static var openAppWhenRun = true
 
     @Parameter(title: "URL")

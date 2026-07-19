@@ -16,9 +16,9 @@ public enum QueueSource: Equatable {
 
     public var label: String {
         switch self {
-        case .source(let s): return "From Source: \(s.title)"
+        case .source(let s): return "From Library: \(s.title)"
         case .playlist(let p): return "From Playlist: \(p.title)"
-        case .library: return "From Library"
+        case .library: return "From Music"
         case .ambient: return "Ambient"
         case .none: return ""
         }
@@ -468,6 +468,9 @@ public final class AudioPlayer: ObservableObject {
         }
 
         if asset.kind == .remote, let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) {
+            if !asset.transientRemoteSupportsByteRanges {
+                return (directRemoteItem(url: remote, headers: asset.transientRemoteHeaders), nil)
+            }
             let cacheURL = CachingResourceLoader.cacheURL(for: remote)
             let avAsset = AVURLAsset(url: cacheURL)
             let loader = CachingResourceLoader(originalURL: remote, headers: asset.transientRemoteHeaders)
@@ -481,6 +484,12 @@ public final class AudioPlayer: ObservableObject {
             return (AVPlayerItem(url: url), nil)
         }
         return nil
+    }
+
+    private func directRemoteItem(url: URL, headers: [String: String]) -> AVPlayerItem {
+        guard !headers.isEmpty else { return AVPlayerItem(url: url) }
+        let asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+        return AVPlayerItem(asset: asset)
     }
 
     private func networkAssetKind(for asset: Asset) -> NetworkPolicy.AssetKind {
@@ -498,6 +507,7 @@ public final class AudioPlayer: ObservableObject {
 
     private func isFullyCached(_ asset: Asset) -> Bool {
         guard asset.kind == .remote,
+              asset.transientRemoteSupportsByteRanges,
               let urlString = remoteURLString(for: asset),
               let remote = URL(string: urlString) else {
             return asset.kind != .remote
@@ -896,6 +906,7 @@ public final class AudioPlayer: ObservableObject {
     private func protectCacheKeys(for asset: Asset) {
         var keys: Set<String> = []
         if asset.kind == .remote,
+           asset.transientRemoteSupportsByteRanges,
            let urlString = remoteURLString(for: asset),
            let remote = URL(string: urlString) {
             keys.insert(CachingResourceLoader.key(for: remote))
@@ -922,6 +933,7 @@ public final class AudioPlayer: ObservableObject {
         for row in upcoming {
             guard let trackId = row.track.id,
                   let asset = row.asset, asset.kind == .remote,
+                  asset.transientRemoteSupportsByteRanges,
                   let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else { continue }
             guard playbackDecision(for: asset) != .skipWiFiOnly else { continue }
             if prefetchLoaders[trackId] != nil { continue }  // already prefetching
@@ -1050,10 +1062,17 @@ public final class AudioPlayer: ObservableObject {
 
     private func refreshCacheState() {
         guard let asset = currentTrack?.asset, asset.kind == .remote,
+              asset.transientRemoteSupportsByteRanges,
               let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else {
-            cacheState = .cached
-            cachePercent = 100
-            cachedFraction = 1
+            if currentTrack?.asset?.kind == .remote {
+                cacheState = .none
+                cachePercent = 0
+                cachedFraction = 0
+            } else {
+                cacheState = .cached
+                cachePercent = 100
+                cachedFraction = 1
+            }
             return
         }
         let key = CachingResourceLoader.key(for: remote)

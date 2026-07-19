@@ -41,7 +41,7 @@ struct CreatePlaylistSheet: View {
             }
             .padding(.top, 16).padding(.bottom, 8)
 
-            SearchField(text: $filter, placeholder: "Filter library…")
+            SearchField(text: $filter, placeholder: "Filter Music…")
                 .padding(.bottom, 10)
 
             List {

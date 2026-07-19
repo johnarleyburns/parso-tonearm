@@ -42,7 +42,7 @@ Implement in small commits/phases. Do not mix broad UI polish with protocol beha
 
 5. **How To guides**
    - Add reusable in-app guide model/view for connector setup.
-   - Place guide access in `AddServerSheet` for the currently selected connector and make it reusable from Settings/Sources later.
+   - Place guide access in `AddServerSheet` for the currently selected connector and make it reusable from Settings/Libraries later.
    - Each guide must include: prerequisites, exact fields/permissions Tonearm needs, setup steps, troubleshooting, privacy/storage notes.
    - Avoid marketing language in the guide; make it task-focused.
 

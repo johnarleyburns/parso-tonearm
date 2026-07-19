@@ -76,7 +76,8 @@ public struct JellyfinProvider: RemoteLibraryProvider {
                     path: "track/\(pathComponent(item.id))",
                     kind: .audio,
                     sizeBytes: item.sizeBytes,
-                    durationSec: item.durationSec
+                    durationSec: item.durationSec,
+                    metadata: metadata(for: item)
                 )
             }
 
@@ -100,7 +101,8 @@ public struct JellyfinProvider: RemoteLibraryProvider {
             url: try requestURL(request),
             headers: authHeaders(),
             supportsByteRanges: true,
-            sizeBytes: node.sizeBytes
+            sizeBytes: node.sizeBytes,
+            metadata: node.metadata
         )
     }
 
@@ -151,6 +153,45 @@ public struct JellyfinProvider: RemoteLibraryProvider {
     private func requestURL(_ request: URLRequest) throws -> URL {
         guard let url = request.url else { throw URLError(.badURL) }
         return url
+    }
+
+    private func metadata(for item: JellyfinItem) -> RemoteTrackMetadata {
+        RemoteTrackMetadata(
+            title: item.name,
+            artist: item.artists.first ?? item.albumArtist,
+            album: item.album,
+            albumArtist: item.albumArtist,
+            trackNumber: item.indexNumber,
+            discNumber: item.parentIndexNumber,
+            durationSec: item.durationSec,
+            codec: (item.codec ?? item.container)?.uppercased(),
+            sampleRate: item.sampleRate,
+            bitRateKbps: item.bitRate.map { max(1, $0 / 1000) },
+            genre: nil,
+            artwork: artwork(for: item)
+        )
+    }
+
+    private func artwork(for item: JellyfinItem) -> RemoteArtwork? {
+        let artworkItemID = item.albumID ?? item.id
+        let tag = item.albumPrimaryImageTag ?? item.primaryImageTag
+        guard tag?.isEmpty == false || artworkItemID != item.id || item.primaryImageTag != nil else {
+            return nil
+        }
+        let url = try? JellyfinAPI.imageURL(baseURL: baseURL, itemID: artworkItemID, tag: tag)
+        return RemoteArtwork(
+            id: stableArtworkID(remoteID: artworkItemID, tag: tag),
+            url: url,
+            headers: authHeaders()
+        )
+    }
+
+    private func stableArtworkID(remoteID: String, tag: String?) -> String {
+        let host = baseURL.host ?? baseURL.absoluteString
+        return ["jellyfin", host, remoteID, tag].compactMap { value in
+            guard let value, !value.isEmpty else { return nil }
+            return value
+        }.joined(separator: ":")
     }
 
     private func pathComponent(_ raw: String) -> String {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 import TonearmCore
 
@@ -198,10 +199,8 @@ struct AddServerSheet: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
                 .foregroundStyle(Palette.ink3)
-            SecureField("", text: text, prompt: Text(prompt).foregroundStyle(Palette.ink3))
-                .font(.system(size: 12.5, design: .monospaced))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+            PasteCapableSecureTextField(text: text, prompt: prompt)
+                .frame(height: 20)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
         .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
@@ -245,9 +244,9 @@ struct AddServerSheet: View {
         case .smb:
             return "Folder access is stored as a security-scoped bookmark. Files are not copied."
         case .dropbox, .googleDrive, .oneDrive, .pCloud:
-            return "OAuth tokens are stored in the Keychain. Tonearm lists audio files and resolves streams only on demand."
+            return "OAuth tokens are stored locally in Apple Keychain. Tonearm lists audio files and resolves streams only on demand."
         default:
-            return "Credentials are stored in the Keychain. Tonearm requests a stream URL only when you play."
+            return "Credentials are stored locally in Apple Keychain. Tonearm requests a stream URL only when you play."
         }
     }
 
@@ -318,6 +317,56 @@ struct AddServerSheet: View {
             dismiss()
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+}
+
+private struct PasteCapableSecureTextField: UIViewRepresentable {
+    @Binding var text: String
+    var prompt: String
+
+    func makeUIView(context: Context) -> UITextField {
+        let textField = UITextField()
+        textField.delegate = context.coordinator
+        textField.isSecureTextEntry = true
+        textField.textContentType = .password
+        textField.autocorrectionType = .no
+        textField.autocapitalizationType = .none
+        textField.keyboardType = .default
+        textField.font = .monospacedSystemFont(ofSize: 12.5, weight: .regular)
+        textField.textColor = UIColor.white.withAlphaComponent(0.92)
+        textField.tintColor = UIColor(Color(hex: 0xEEB35B))
+        textField.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.textDidChange(_:)),
+            for: .editingChanged
+        )
+        return textField
+    }
+
+    func updateUIView(_ textField: UITextField, context: Context) {
+        if textField.text != text {
+            textField.text = text
+        }
+        textField.attributedPlaceholder = NSAttributedString(
+            string: prompt,
+            attributes: [.foregroundColor: UIColor.white.withAlphaComponent(0.35)]
+        )
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        @Binding var text: String
+
+        init(text: Binding<String>) {
+            _text = text
+        }
+
+        @objc func textDidChange(_ textField: UITextField) {
+            text = textField.text ?? ""
         }
     }
 }

@@ -96,7 +96,7 @@ final class TagEditTests: XCTestCase {
             id: 2,
             tags: tags(title: "Remote"),
             filename: "remote.flac",
-            writeAccess: .readOnly(reason: "Remote sources are read-only. Copy the file onto this device to edit tags."))
+            writeAccess: .readOnly(reason: "Remote libraries are read-only. Copy the file onto this device to edit tags."))
         var proposal = TagEdit.Proposal()
         proposal.assignments[.genre] = .text("Folk")
 
@@ -108,10 +108,10 @@ final class TagEditTests: XCTestCase {
         XCTAssertEqual(plan.issues, [
             .readOnly(
                 trackID: 2,
-                reason: "Remote sources are read-only. Copy the file onto this device to edit tags.")
+                reason: "Remote libraries are read-only. Copy the file onto this device to edit tags.")
         ])
         XCTAssertEqual(plan.issues.first?.message,
-                       "Remote sources are read-only. Copy the file onto this device to edit tags.")
+                       "Remote libraries are read-only. Copy the file onto this device to edit tags.")
     }
 
     func testValidationRejectsBlankTitleInvalidNumbersAndBadReplaceRules() {
@@ -181,7 +181,7 @@ final class TagEditTests: XCTestCase {
         XCTAssertEqual(local.writeAccess, .localFile(path: "/Music/03 - Local.flac"))
         XCTAssertEqual(remote.filename, "remote.flac")
         XCTAssertEqual(remote.writeAccess, .readOnly(
-            reason: "Remote sources are read-only. Copy the file onto this device to edit tags."))
+            reason: "Remote libraries are read-only. Copy the file onto this device to edit tags."))
     }
 
     private func editableTrack(id: Int64,
