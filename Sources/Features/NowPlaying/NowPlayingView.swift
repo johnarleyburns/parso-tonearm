@@ -27,6 +27,7 @@ struct NowPlayingView: View {
                     seed: player.currentTrack?.album?.title ?? "np",
                     cornerRadius: 16
                 )
+                .frame(maxWidth: 360)
                 .aspectRatio(1, contentMode: .fit)
                 .shadow(color: .black.opacity(0.55), radius: 30, y: 16)
                 .padding(.top, 22)

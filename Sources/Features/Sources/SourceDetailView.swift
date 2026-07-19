@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import TonearmCore
 
 struct SourceDetailView: View {
@@ -91,7 +92,8 @@ struct SourceDetailView: View {
                         RemoteNodeRow(
                             icon: icon(for: node),
                             title: node.title,
-                            subtitle: subtitle(for: node)
+                            subtitle: subtitle(for: node),
+                            artwork: node.metadata?.artwork
                         )
                     }
                     .buttonStyle(.plain)
@@ -130,9 +132,16 @@ struct SourceDetailView: View {
 
     private var hero: some View {
         VStack(spacing: 0) {
-            SourceArtworkView(source: source, cornerRadius: 18)
-                .frame(width: 168, height: 168)
-                .shadow(color: .black.opacity(0.55), radius: 20, y: 12)
+            Group {
+                if isRemoteLibrary,
+                   let firstArtwork = remoteNodes.lazy.compactMap({ $0.metadata?.artwork }).first {
+                    RemoteArtworkImageView(artwork: firstArtwork, seed: source.title, cornerRadius: 18)
+                } else {
+                    SourceArtworkView(source: source, cornerRadius: 18)
+                }
+            }
+            .frame(width: 168, height: 168)
+            .shadow(color: .black.opacity(0.55), radius: 20, y: 12)
             Text(source.title)
                 .font(.system(size: 18, weight: .bold))
                 .multilineTextAlignment(.center)
@@ -336,14 +345,20 @@ private struct RemoteNodeRow: View {
     var icon: String
     var title: String
     var subtitle: String?
+    var artwork: RemoteArtwork?
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 15))
-                .foregroundStyle(Palette.brass)
-                .frame(width: 36, height: 36)
-                .glassSurface(cornerRadius: 18)
+            if let artwork {
+                RemoteArtworkImageView(artwork: artwork, seed: title, cornerRadius: 9)
+                    .frame(width: 36, height: 36)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Palette.brass)
+                    .frame(width: 36, height: 36)
+                    .glassSurface(cornerRadius: 18)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 13.5, weight: .medium)).lineLimit(1)
                 if let subtitle {
@@ -354,5 +369,56 @@ private struct RemoteNodeRow: View {
         }
         .padding(.vertical, 9)
         .contentShape(Rectangle())
+    }
+}
+
+private struct RemoteArtworkImageView: View {
+    let artwork: RemoteArtwork
+    let seed: String
+    let cornerRadius: CGFloat
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        ArtworkView(image: image, seed: seed, cornerRadius: cornerRadius)
+            .task(id: artwork.id ?? artwork.url?.absoluteString ?? seed) {
+                image = await RemoteArtworkCache.shared.load(artwork)
+            }
+    }
+}
+
+private actor RemoteArtworkCache {
+    static let shared = RemoteArtworkCache()
+
+    private var cache: [String: UIImage] = [:]
+    private var tasks: [String: Task<UIImage?, Never>] = [:]
+
+    func load(_ artwork: RemoteArtwork) async -> UIImage? {
+        let cacheKey = artwork.id ?? artwork.url?.absoluteString ?? ""
+        if let img = cache[cacheKey] { return img }
+        return await performFetch(artwork)
+    }
+
+    private func performFetch(_ artwork: RemoteArtwork) async -> UIImage? {
+        let cacheKey = artwork.id ?? artwork.url?.absoluteString ?? UUID().uuidString
+        if let existing = tasks[cacheKey] { return await existing.value }
+
+        let task = Task<UIImage?, Never> {
+            guard let url = artwork.url else { return nil }
+            var request = URLRequest(url: url)
+            for (key, value) in artwork.headers {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+            guard let (data, _) = try? await URLSession.shared.data(for: request),
+                  let img = UIImage(data: data) else { return nil }
+            return img
+        }
+        tasks[cacheKey] = task
+        let result = await task.value
+        if let img = result {
+            cache[cacheKey] = img
+        }
+        tasks[cacheKey] = nil
+        return result
     }
 }

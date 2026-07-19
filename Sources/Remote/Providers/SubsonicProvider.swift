@@ -61,11 +61,14 @@ public struct SubsonicProvider: RemoteLibraryProvider {
             let data = try await data(for: .getArtist(id: artistID))
             let artist = try SubsonicAPI.decodeArtist(data, format: format)
             return artist.albums.map { album in
-                RemoteNode(
+                let artwork = album.coverArt.map(subsonicArtwork(id:))
+                let metadata = artwork.map { RemoteTrackMetadata(artwork: $0) }
+                return RemoteNode(
                     id: "album:\(album.id)",
                     title: album.name,
                     path: "album/\(pathComponent(album.id))",
-                    kind: .collection
+                    kind: .collection,
+                    metadata: metadata
                 )
             }
 
