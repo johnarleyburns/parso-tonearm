@@ -1,3 +1,4 @@
+#if !os(watchOS)
 import Foundation
 
 /// Async, cancellable Ogg-Opus → CAF remux. Reads a completed `.opus` cache file,
@@ -75,3 +76,4 @@ public actor OpusRemuxer {
         }
     }
 }
+#endif

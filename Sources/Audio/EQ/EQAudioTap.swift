@@ -1,3 +1,4 @@
+#if !os(watchOS)
 import Foundation
 import AVFoundation
 import os
@@ -163,3 +164,4 @@ public final class EQAudioTap {
         return mix
     }
 }
+#endif

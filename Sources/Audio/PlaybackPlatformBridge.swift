@@ -1,3 +1,4 @@
+#if !os(watchOS)
 import Foundation
 
 /// Keeps `AudioPlayer` host-compilable. All iOS-only platform I/O — AVAudioSession
@@ -70,3 +71,4 @@ public final class NoopPlaybackBridge: PlaybackPlatformBridge {
     public func clearNowPlaying() {}
     public func prefetchArtwork(for row: TrackRow) {}
 }
+#endif
