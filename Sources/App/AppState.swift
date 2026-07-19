@@ -33,6 +33,8 @@ final class AppState: ObservableObject {
     @Published var proPaywallEntryPoint: ProPaywallEntryPoint = .generic
     @Published var showAddRemoteLibraryProCompletion = false
     @Published var showCreatePlaylist = false
+    @Published var offlineProgress: OfflineProgress?
+    @Published var offlineSourceID: Int64?
     @Published var backgroundTitle: String?
     @Published var backgroundDone = false
     @Published var backgroundFailed = false
@@ -515,6 +517,96 @@ final class AppState: ObservableObject {
         }
     }
 
+    func offlineEstimate(for source: Source) async -> (trackCount: Int, totalBytes: Int64, resolvedURLs: [URL: Int64])? {
+        guard let sourceID = source.id else { return nil }
+        switch source.kind {
+        case .subsonic:
+            guard let provider = try? SubsonicProvider.from(source: source) else { return nil }
+            let stats = try? await provider.gatherStats()
+            return stats.map { ($0.trackCount ?? 0, $0.totalBytes ?? 0, [:]) }
+        case .iaItem, .iaList, .iaCollection, .iaFavorites:
+            let tracks = (try? await store.tracks(forSource: sourceID)) ?? []
+            var urls: [URL: Int64] = [:]
+            var totalBytes: Int64 = 0
+            for track in tracks {
+                if let remoteStr = track.asset?.remoteURL,
+                   let url = URL(string: remoteStr) {
+                    let size = track.asset?.sizeBytes ?? 0
+                    urls[url] = size
+                    totalBytes += size
+                }
+            }
+            return (tracks.count, totalBytes, urls)
+        default:
+            return nil
+        }
+    }
+
+    func offlineDiskCheck(requiredBytes: Int64) -> (allowed: Bool, reason: String?) {
+        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        let available = (try? cacheDir.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))
+            .flatMap { $0.volumeAvailableCapacityForImportantUsage } ?? 0
+        let reserve = max(1_073_741_824, Int64(Double(available) * 0.10))
+        if requiredBytes + reserve > available {
+            return (false, "Not enough disk space. \(ByteCountFormatter.string(fromByteCount: requiredBytes, countStyle: .file)) needed, \(ByteCountFormatter.string(fromByteCount: available, countStyle: .file)) available.")
+        }
+        return (true, nil)
+    }
+
+    @discardableResult
+    func makeOffline(source: Source) async -> Bool {
+        guard let sourceID = source.id else { return false }
+        do {
+            try requireRemoteLibrary(.browse(source.kind))
+        } catch { return false }
+
+        guard let estimate = await offlineEstimate(for: source) else { return false }
+        let check = offlineDiskCheck(requiredBytes: estimate.totalBytes)
+        guard check.allowed else {
+            offlineProgress = OfflineProgress(sourceID: sourceID, completed: 0, total: estimate.trackCount, failed: false, message: check.reason)
+            return false
+        }
+
+        offlineSourceID = sourceID
+        offlineProgress = OfflineProgress(sourceID: sourceID, completed: 0, total: estimate.trackCount, failed: false, message: nil)
+
+        var completed = 0
+        for track in (try? await store.tracks(forSource: sourceID)) ?? [] {
+            guard offlineSourceID == sourceID else { break }
+            guard let remoteStr = track.asset?.remoteURL,
+                  let remoteURL = URL(string: remoteStr) else { continue }
+
+            let cacheKey = CachingResourceLoader.key(for: remoteURL)
+            let destURL = CacheStore.fileURL(for: cacheKey)
+
+            if !FileManager.default.fileExists(atPath: destURL.path) {
+                var request = URLRequest(url: remoteURL)
+                if let headers = track.asset?.transientRemoteHeaders {
+                    for (key, value) in headers {
+                        request.setValue(value, forHTTPHeaderField: key)
+                    }
+                }
+                if let (data, _) = try? await URLSession.shared.data(for: request) {
+                    try? data.write(to: destURL, options: .atomic)
+                    await CacheStore.shared.setContentLength(Int64(data.count), for: cacheKey)
+                }
+            }
+
+            await CacheStore.shared.setPinned(true, for: cacheKey)
+            completed += 1
+            offlineProgress = OfflineProgress(sourceID: sourceID, completed: completed, total: estimate.trackCount, failed: false, message: nil)
+        }
+
+        offlineSourceID = nil
+        return completed > 0
+    }
+
+    func cancelOffline() {
+        offlineSourceID = nil
+        offlineProgress = nil
+    }
+
     func remoteTrackRows(source: Source, nodes: [RemoteNode]) async throws -> [TrackRow] {
         try requireRemoteLibrary(.resolve(source.kind))
         let provider = try remoteProvider(for: source)
@@ -771,5 +863,21 @@ final class AppState: ObservableObject {
         }
         didOnboard = true
         await reload()
+    }
+}
+
+struct OfflineProgress: Equatable {
+    var sourceID: Int64
+    var completed: Int
+    var total: Int
+    var failed: Bool
+    var message: String?
+
+    var fraction: Double {
+        total > 0 ? Double(completed) / Double(total) : 0
+    }
+
+    var isDone: Bool {
+        completed >= total
     }
 }

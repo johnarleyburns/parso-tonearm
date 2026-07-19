@@ -415,6 +415,9 @@ struct SourceDetailView: View {
                 .buttonStyle(.plain)
                 Divider().overlay(Palette.hairline)
 
+                makeOfflineRow
+                Divider().overlay(Palette.hairline)
+
                 Button {
                     renameText = source.title
                     showRename = true
@@ -446,6 +449,71 @@ struct SourceDetailView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("To update credentials, remove and re-add this library.")
+        }
+    }
+
+    @ViewBuilder
+    private var makeOfflineRow: some View {
+        let isThisSource = source.id == appState.offlineSourceID
+        let progress = appState.offlineProgress
+
+        if let progress, isThisSource {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Make Offline")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Palette.ink3)
+                    Spacer()
+                    if progress.isDone {
+                        Text("✓ \(progress.completed) of \(progress.total)")
+                            .font(.system(size: 12)).foregroundStyle(Palette.ok)
+                    } else if let msg = progress.message {
+                        Text(msg)
+                            .font(.system(size: 11)).foregroundStyle(Palette.danger)
+                    } else {
+                        Text("\(progress.completed) / \(progress.total)")
+                            .font(.system(size: 12)).foregroundStyle(Palette.ink2)
+                            .monospacedDigit()
+                    }
+                }
+                if !progress.isDone {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.white.opacity(0.1))
+                            Capsule().fill(Palette.brass)
+                                .frame(width: geo.size.width * progress.fraction)
+                        }
+                    }
+                    .frame(height: 5)
+
+                    Button("Cancel") {
+                        appState.cancelOffline()
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.danger)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+        } else {
+            Button {
+                Task { await appState.makeOffline(source: source) }
+            } label: {
+                HStack {
+                    Text("Make Offline")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Palette.ink3)
+                    Spacer()
+                    Text("Download for offline playback")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Palette.ink2)
+                    Image(systemName: "arrow.down.circle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Palette.brass)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 14).padding(.vertical, 10)
         }
     }
 
