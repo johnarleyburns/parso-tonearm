@@ -417,28 +417,30 @@ final class PasteEnabledTextField: UITextField {
     weak var pasteCoordinator: PasteCapableTextField.Coordinator?
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-        if action == #selector(paste(_:)) || action == #selector(copy(_:)) || action == #selector(cut(_:)) || action == #selector(selectAll(_:)) || action == #selector(select(_:)) {
-            return true
+        if action == #selector(paste(_:)) {
+            // hasStrings/hasURLs check availability without reading the
+            // pasteboard, so no paste-permission prompt is triggered here.
+            let pasteboard = UIPasteboard.general
+            return pasteboard.hasStrings || pasteboard.hasURLs
         }
         return super.canPerformAction(action, withSender: sender)
     }
 
     override func paste(_ sender: Any?) {
-        guard let string = UIPasteboard.general.string else { return }
-        // Insert at cursor position or replace selection
-        if let range = selectedTextRange {
-            replace(range, withText: string)
-        } else {
-            text = (text ?? "") + string
+        let pasteboard = UIPasteboard.general
+        if pasteboard.hasStrings {
+            super.paste(sender)
+        } else if let url = pasteboard.url {
+            // URL-only pasteboard items (e.g. links copied from a share
+            // sheet) have no plain-text representation, so native paste
+            // would insert nothing.
+            if let range = selectedTextRange {
+                replace(range, withText: url.absoluteString)
+            } else {
+                text = (text ?? "") + url.absoluteString
+            }
+            sendActions(for: .editingChanged)
         }
-        sendActions(for: .editingChanged)
         pasteCoordinator?.textDidChange(self)
-    }
-
-    override func copy(_ sender: Any?) {
-        guard let range = selectedTextRange else { return }
-        if let text = text(in: range) {
-            UIPasteboard.general.string = text
-        }
     }
 }
