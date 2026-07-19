@@ -295,7 +295,6 @@ jobs:
           xcodebuild -exportArchive \
             -archivePath ./build/Tonearm.xcarchive \
             -exportPath ./output \
-            -allowProvisioningUpdates \
             -exportOptionsPlist ExportOptions.plist
 
       - name: Upload to TestFlight
