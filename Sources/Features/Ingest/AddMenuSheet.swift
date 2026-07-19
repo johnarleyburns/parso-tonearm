@@ -9,15 +9,6 @@ struct AddMenuSheet: View {
         VStack(spacing: 0) {
             Spacer()
             VStack(spacing: 0) {
-                MenuItem(icon: "link", title: "Add archive.org Library",
-                         subtitle: "Item, playlist, favorites, or collection") {
-                    appState.pendingImport = nil
-                    appState.showAddMenu = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        appState.showAddSource = true
-                    }
-                }
-                Divider().overlay(Palette.hairline)
                 MenuItem(icon: "server.rack", title: "Add Remote Library",
                          subtitle: RemoteConnectorCatalog.proDisplayList,
                          locked: !ProGating.isEnabled(.remoteLibraries)) {

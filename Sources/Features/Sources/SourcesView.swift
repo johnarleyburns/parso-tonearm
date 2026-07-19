@@ -10,8 +10,6 @@ struct SourcesView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     ScreenHeader(title: "Libraries")
                         .padding(.bottom, 12)
-                    AddRemoteLibraryButton()
-                        .padding(.bottom, 12)
 
                     if appState.sources.isEmpty {
                         EmptyStateView(icon: "cloud",
