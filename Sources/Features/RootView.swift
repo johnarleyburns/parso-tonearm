@@ -1,9 +1,12 @@
 import SwiftUI
+import PhotosUI
 import TonearmCore
 
-struct RootView: View {    @EnvironmentObject var appState: AppState
+struct RootView: View {
+    @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @State private var showSplash = !ProcessInfo.processInfo.arguments.contains("UI_TESTING")
+    @State private var artworkPickerItem: PhotosPickerItem?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -119,6 +122,23 @@ struct RootView: View {    @EnvironmentObject var appState: AppState
                 break
             }
             appState.pendingImport = nil
+        }
+        .photosPicker(isPresented: Binding(
+            get: { appState.artworkChangeTrackId != nil },
+            set: { if !$0 { appState.artworkChangeTrackId = nil } }),
+                      selection: $artworkPickerItem,
+                      matching: .images)
+        .onChange(of: artworkPickerItem) { _, item in
+            guard let item,
+                  let trackId = appState.artworkChangeTrackId else { return }
+            Task {
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                      let artworkId = await ArtworkStore.shared.store(data) else { return }
+                try? await appState.store.setCustomArtwork(trackId: trackId, artworkId: artworkId)
+                ArtworkInvalidation.shared.invalidate()
+                artworkPickerItem = nil
+                appState.artworkChangeTrackId = nil
+            }
         }
     }
 

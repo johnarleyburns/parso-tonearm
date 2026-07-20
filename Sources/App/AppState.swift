@@ -34,6 +34,7 @@ final class AppState: ObservableObject {
     @Published var proPaywallEntryPoint: ProPaywallEntryPoint = .generic
     @Published var showAddRemoteLibraryProCompletion = false
     @Published var showCreatePlaylist = false
+    @Published var artworkChangeTrackId: Int64?
     @Published var offlineProgress: OfflineProgress?
     @Published var offlineSourceID: Int64?
     @Published var backgroundTitle: String?

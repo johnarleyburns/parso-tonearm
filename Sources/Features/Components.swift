@@ -234,6 +234,12 @@ struct TrackContextMenu: ViewModifier {
             Button { player.appendToQueue(row) } label: {
                 Label("Add to Queue", systemImage: "text.badge.plus")
             }
+            Divider()
+            Button {
+                appState.artworkChangeTrackId = row.id
+            } label: {
+                Label("Change Artwork", systemImage: "photo.badge.plus")
+            }
             Button {
                 Task { await appState.toggleFavorite(row) }
             } label: {

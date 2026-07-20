@@ -7,12 +7,14 @@ struct NowPlayingView: View {
     @EnvironmentObject var player: AudioPlayer
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var invalidation = ArtworkInvalidation.shared
     @State private var scrubValue: Double = 0
     @State private var isScrubbing = false
     @State private var npArtwork: UIImage?
     @State private var showPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showEQ = false
+    @State private var showArtworkDeleteAlert = false
 
     var body: some View {
         ZStack {
@@ -37,14 +39,29 @@ struct NowPlayingView: View {
                         LoopingVideoView(url: videoURL, isPlaying: player.isPlaying)
                             .clipShape(RoundedRectangle(cornerRadius: 16))
                             .allowsHitTesting(false)
-                    } else if npArtwork == nil, !player.isAmbient, player.currentTrack != nil {
-                        noImageOverlay
+                    } else if !player.isAmbient, player.currentTrack != nil {
+                        artworkOverlay
                     }
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 16))
                 .onTapGesture {
-                    guard npArtwork == nil, !player.isAmbient, player.currentTrack != nil else { return }
+                    guard !player.isAmbient, player.currentTrack != nil else { return }
                     showPhotoPicker = true
+                }
+                .contextMenu {
+                    guard !player.isAmbient, player.currentTrack != nil else { return }
+                    Button {
+                        showPhotoPicker = true
+                    } label: {
+                        Label("Change Artwork", systemImage: "photo.badge.plus")
+                    }
+                    if npArtwork != nil {
+                        Button(role: .destructive) {
+                            showArtworkDeleteAlert = true
+                        } label: {
+                            Label("Remove Artwork", systemImage: "trash")
+                        }
+                    }
                 }
 
                 meta.padding(.top, 22)
@@ -66,6 +83,12 @@ struct NowPlayingView: View {
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
         .sheet(isPresented: $showEQ) { EQView() }
+        .onChange(of: invalidation.version) { _, _ in
+            Task {
+                guard let row = player.currentTrack else { return }
+                npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
+            }
+        }
         .onChange(of: selectedPhotoItem) { _, item in
             guard let item else { return }
             Task {
@@ -78,21 +101,55 @@ struct NowPlayingView: View {
                 selectedPhotoItem = nil
             }
         }
+        .alert("Remove Artwork", isPresented: $showArtworkDeleteAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove", role: .destructive) { deleteArtwork() }
+        } message: {
+            Text("This will remove the custom artwork for this track.")
+        }
     }
 
-    private var noImageOverlay: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "photo.badge.plus")
-                .font(.system(size: 28, weight: .light))
-            Text("No Image")
-                .font(.system(size: 13, weight: .medium))
-            Text("Add Artwork")
-                .font(.system(size: 11, weight: .semibold))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background(.ultraThinMaterial, in: Capsule())
+    private func deleteArtwork() {
+        guard let row = player.currentTrack else { return }
+        Task {
+            if let artworkId = try? appState.store.customArtworkId(for: row.id) {
+                await ArtworkStore.shared.delete(id: artworkId)
+            }
+            try? appState.store.deleteCustomArtwork(trackId: row.id)
+            npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
+            ArtworkInvalidation.shared.invalidate()
         }
-        .foregroundStyle(.white.opacity(0.55))
+    }
+
+    @ViewBuilder private var artworkOverlay: some View {
+        if npArtwork == nil {
+            VStack(spacing: 8) {
+                Image(systemName: "photo.badge.plus")
+                    .font(.system(size: 28, weight: .light))
+                Text("No Image")
+                    .font(.system(size: 13, weight: .medium))
+                Text("Add Artwork")
+                    .font(.system(size: 11, weight: .semibold))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+            .foregroundStyle(.white.opacity(0.55))
+        } else {
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Text("Tap to Change")
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .foregroundStyle(.white.opacity(0.55))
+                        .padding(10)
+                }
+            }
+        }
     }
 
     private var npBackground: some View {
