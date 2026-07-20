@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import TonearmCore
+import GRDB
 
 enum AppTab: Int, CaseIterable {
     case listen, playlists, library, sources, settings
@@ -41,6 +42,12 @@ final class AppState: ObservableObject {
     @Published var pickedFolder: URL?
     @Published var pickedFolderBookmark: Data?
     @Published var pendingImport: PendingImport?
+    // Watch
+    @Published var watchSessionState: WatchSessionDisplayState = .unsupported
+    @Published var showWatchSettings = false
+    @Published var watchTransferActiveCount: Int = 0
+    @Published var watchManifestKeys: Set<String> = []
+    @Published var watchTransferStates: [Int64: String] = [:]
     // Settings-backed values
     @AppStorage("streamOnCellular") var streamOnCellular = true
     @AppStorage("preferFLAC") var preferFLAC = false
@@ -56,11 +63,12 @@ final class AppState: ObservableObject {
         await fixLegacySourceTitles()
         await ArtworkService.shared.migrateCacheIfNeeded()
         applySettingsToPlayer()
-        // Restore the queue before the first widget/native now-playing publish.
         await AudioPlayer.shared.restorePersistedQueue()
         await reload()
         await CacheStore.shared.garbageCollectStalePartials()
         Task { await warmLocalSourceArtwork() }
+        await refreshWatchState()
+        await watchAdapter.activate()
     }
 
     /// Resolves and caches a representative cover for local sources that don't yet
@@ -840,6 +848,137 @@ final class AppState: ObservableObject {
         try? await store.deletePlaylist(id: id)
         await reload()
     }
+
+    // MARK: - Watch
+
+    func refreshWatchState() async {
+        let records = await loadManifestRecords()
+        watchManifestKeys = Set(records.map(\.trackKey))
+        watchSessionState = watchAdapter.displayState()
+        let transfers = await loadAllTransferRecords()
+        watchTransferActiveCount = transfers.filter {
+            $0.state == "queued" || $0.state == "sending"
+        }.count
+        watchTransferStates = Dictionary(uniqueKeysWithValues: transfers.map {
+            ($0.trackId, $0.state)
+        })
+    }
+
+    private func loadManifestRecords() async -> [WatchManifestRecord] {
+        (try? await store.dbQueue.read { db in
+            try WatchManifestRecord.fetchAll(db)
+        }) ?? []
+    }
+
+    private func loadActiveTransfers() async -> [WatchTransferRecord] {
+        (try? await store.dbQueue.read { db in
+            try WatchTransferRecord.filter(
+                Column("state") == "queued" || Column("state") == "sending"
+            ).fetchAll(db)
+        }) ?? []
+    }
+
+    private func loadAllTransferRecords() async -> [WatchTransferRecord] {
+        (try? await store.dbQueue.read { db in
+            try WatchTransferRecord.fetchAll(db)
+        }) ?? []
+    }
+
+    func watchGlyphState(for row: TrackRow) -> WatchGlyphState {
+        guard let trackId = row.track.id else { return .notOnWatch }
+        let key = WatchCatalog.key(for: trackId)
+        return watchGlyphState(forKey: key)
+    }
+
+    func watchGlyphState(forKey key: String) -> WatchGlyphState {
+        let trackId = Int64(key.dropFirst()) ?? -1
+        let transferState = watchTransferStates[trackId]
+        let hasTransferring = transferState == "queued" || transferState == "sending"
+        let hasFailed = transferState == "failed"
+        let onWatch = watchManifestKeys.contains(key)
+        if hasTransferring { return .transferring(progress: nil) }
+        if hasFailed { return .failed }
+        if onWatch { return .onWatch }
+        return .notOnWatch
+    }
+
+    func watchAggregateState(for rows: [TrackRow]) -> (WatchGlyphState, Double) {
+        let keys = rows.compactMap { $0.track.id.map(WatchCatalog.key(for:)) }
+        return watchAggregateState(forKeys: keys)
+    }
+
+    func watchAggregateState(forKeys keys: [String]) -> (WatchGlyphState, Double) {
+        guard !keys.isEmpty else { return (.notOnWatch, 0) }
+        let transferStateMap = Dictionary(uniqueKeysWithValues: watchTransferStates.map {
+            (WatchCatalog.key(for: $0.key), $0.value)
+        })
+        let errorMap: [String: String] = [:]
+        return WatchGlyph.aggregateState(
+            trackKeys: keys,
+            manifest: watchManifestKeys,
+            transferStates: transferStateMap.compactMapValues { WatchTransferState(rawValue: $0) },
+            errorTexts: errorMap)
+    }
+
+    func downloadToWatch(rows: [TrackRow]) async {
+        for row in rows {
+            guard let trackId = row.track.id else { continue }
+            let key = WatchCatalog.key(for: trackId)
+            try? await store.dbQueue.write { db in
+                try WatchTransferRecord.deleteAll(db)
+                var record = WatchTransferRecord(
+                    trackId: trackId, state: "queued",
+                    originKind: "single", originId: nil)
+                try record.insert(db)
+            }
+        }
+    }
+
+    func removeFromWatch(rows: [TrackRow]) async {
+        for row in rows {
+            guard let trackId = row.track.id else { continue }
+            let key = WatchCatalog.key(for: trackId)
+            try? await store.dbQueue.write { db in
+                try WatchManifestRecord.deleteOne(db, key: key)
+                try WatchTransferRecord.filter(Column("trackId") == trackId).deleteAll(db)
+            }
+        }
+        await refreshWatchState()
+    }
+
+    func downloadAllToWatch(playlistId: Int64) async {
+        guard let rows = try? await store.playlistTrackRows(playlistId: playlistId) else { return }
+        for ptr in rows {
+            guard let trackId = ptr.row.track.id else { continue }
+            let key = WatchCatalog.key(for: trackId)
+            if watchManifestKeys.contains(key) { continue }
+            try? await store.dbQueue.write { db in
+                var record = WatchTransferRecord(
+                    trackId: trackId, state: "queued",
+                    originKind: "playlist", originId: playlistId)
+                try record.insert(db)
+            }
+        }
+    }
+
+    func removeAllFromWatch() async {
+        try? await store.dbQueue.write { db in
+            try WatchManifestRecord.deleteAll(db)
+            try WatchTransferRecord.deleteAll(db)
+        }
+        await refreshWatchState()
+    }
+
+    func resendCatalogToWatch() async {
+        guard watchSessionState == .reachable else { return }
+        try? await watchAdapter.sendCatalogFromStore(store: store)
+    }
+
+    var watchAdapter: PhoneWatchSessionAdapter {
+        _watchAdapter
+    }
+    private let _watchAdapter = PhoneWatchSessionAdapter()
+
 
     func renamePlaylist(_ playlist: Playlist, title: String) async {
         guard let id = playlist.id else { return }

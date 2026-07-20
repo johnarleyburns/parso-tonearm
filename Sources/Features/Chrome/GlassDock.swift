@@ -11,9 +11,40 @@ struct GlassDock: View {
                 MiniPlayer()
                     .onTapGesture { appState.showNowPlaying = true }
             }
+            TransferPill()
             TabBar(selection: $appState.tab)
         }
         .padding(.horizontal, 12)
+    }
+}
+
+struct TransferPill: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        if appState.watchTransferActiveCount > 0 {
+            Button {
+                appState.showWatchSettings = true
+            } label: {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.65)
+                        .tint(Palette.brass)
+                    Text("\(appState.watchTransferActiveCount) transferring to Watch")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Palette.ink2)
+                    Spacer()
+                    Image(systemName: "applewatch")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Palette.brass)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Color.white.opacity(0.07), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.12)))
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 

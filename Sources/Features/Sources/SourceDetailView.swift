@@ -131,6 +131,22 @@ struct SourceDetailView: View {
             }
             Spacer()
             Menu {
+                Button {
+                    Task { await appState.download(rows: tracks) }
+                } label: {
+                    Label("Download All", systemImage: "arrow.down.circle")
+                }
+                Button {
+                    Task { await appState.downloadToWatch(rows: tracks) }
+                } label: {
+                    Label("Download All to Watch", systemImage: "applewatch")
+                }
+                Button {
+                    Task { await appState.removeFromWatch(rows: tracks) }
+                } label: {
+                    Label("Remove All from Watch", systemImage: "applewatch.slash")
+                }
+                Divider()
                 Button("Remove Library", role: .destructive) {
                     Task { await appState.deleteSource(source); dismiss() }
                 }

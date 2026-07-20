@@ -170,6 +170,10 @@ struct TrackRowView: View {
                     .foregroundStyle(appState.isFavorite(row) ? Color.red : Palette.ink3)
             }
             .buttonStyle(.plain)
+            let watchState = appState.watchGlyphState(for: row)
+            if watchState != .notOnWatch {
+                watchGlyph
+            }
             if showCacheGlyph, row.asset?.kind == .remote {
                 cacheGlyph
             }
@@ -194,6 +198,11 @@ struct TrackRowView: View {
     @ViewBuilder private var cacheGlyph: some View {
         let isCurrent = player.currentTrack?.id == row.id
         CacheGlyph(state: isCurrent ? player.cacheState : .none)
+    }
+
+    @ViewBuilder private var watchGlyph: some View {
+        let state = appState.watchGlyphState(for: row)
+        WatchGlyphView(state: state)
     }
 }
 
@@ -232,6 +241,34 @@ struct TrackContextMenu: ViewModifier {
                 Label(fav ? "Remove from Favorites" : "Add to Favorites",
                       systemImage: fav ? "heart.slash" : "heart")
             }
+            watchMenuItems
+        }
+    }
+
+    @ViewBuilder
+    private var watchMenuItems: some View {
+        let state = appState.watchGlyphState(for: row)
+        switch state {
+        case .notOnWatch:
+            Button {
+                Task { await appState.downloadToWatch(rows: [row]) }
+            } label: {
+                Label("Download to Watch", systemImage: "applewatch")
+            }
+        case .onWatch:
+            Button {
+                Task { await appState.removeFromWatch(rows: [row]) }
+            } label: {
+                Label("Remove from Watch", systemImage: "applewatch.slash")
+            }
+        case .failed:
+            Button {
+                Task { await appState.downloadToWatch(rows: [row]) }
+            } label: {
+                Label("Retry Download to Watch", systemImage: "applewatch.radiowaves.left.and.right")
+            }
+        case .transferring:
+            EmptyView()
         }
     }
 }

@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var customCacheLimitMB = ""
     @State private var customCacheLimitMessage: String?
     @State private var icloudSync = SyncGating.isEnabled
+    @State private var showWatchSettings = false
 
     private let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
@@ -34,6 +35,7 @@ struct SettingsView: View {
 
                 cacheCard
                 behaviorCard
+                watchCard
                 toolsCard
                 syncCard
                 clearCard
@@ -254,6 +256,28 @@ struct SettingsView: View {
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
+    }
+
+    private var watchCard: some View {
+        Button { showWatchSettings = true } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Apple Watch").font(.system(size: 13.5))
+                    Text("Download music for offline playback on your watch")
+                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                }
+                Spacer()
+                Image(systemName: "applewatch")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Palette.ink3)
+            }
+            .padding(15)
+            .glassSurface(cornerRadius: 18)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showWatchSettings) {
+            WatchSettingsView()
+        }
     }
 
     private var toolsCard: some View {

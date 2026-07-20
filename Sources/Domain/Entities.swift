@@ -95,7 +95,7 @@ public struct Source: Identifiable, Equatable, Codable, Hashable {
     }
 }
 
-public struct Album: Identifiable, Equatable, Codable {
+public struct Album: Identifiable, Equatable, Codable, Hashable {
     public var id: Int64?
     public var sourceId: Int64
     public var title: String
@@ -341,6 +341,8 @@ public struct WatchTransferRecord: Identifiable, Equatable, Codable {
     public var errorText: String?
     public var queuedAt: Date
     public var updatedAt: Date
+
+    public var trackKey: String { "t\(trackId)" }
 
     public init(id: Int64? = nil, trackId: Int64, state: String,
                 originKind: String, originId: Int64? = nil,

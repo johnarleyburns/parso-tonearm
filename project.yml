@@ -43,6 +43,8 @@ targets:
           - "Share/**"
           - "Snapshot/**"
           - "Sync/**"
+          - "WatchPlayback/**"
+          - "WatchSync/**"
       - path: Resources
     dependencies:
       - package: TonearmCore
@@ -218,6 +220,20 @@ targets:
         INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: true
         INFOPLIST_KEY_UIBackgroundModes: ["audio"]
 
+  WatchUITests:
+    type: bundle.ui-testing
+    platform: watchOS
+    sources:
+      - path: WatchUITests
+    dependencies:
+      - target: TonearmWatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: guru.parso.tonearm.watchkitapp.uitests
+        GENERATE_INFOPLIST_FILE: "YES"
+        WATCHOS_DEPLOYMENT_TARGET: "11.0"
+        TARGETED_DEVICE_FAMILY: 4
+
 schemes:
   Tonearm:
     build:
@@ -245,3 +261,6 @@ schemes:
       config: Debug
     test:
       config: Debug
+      targets:
+        - WatchUITests
+      gatherCoverageData: false

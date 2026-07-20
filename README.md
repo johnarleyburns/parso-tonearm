@@ -129,7 +129,24 @@ Sources/
   Pro/          StoreKit 2 entitlement (import StoreKit is CI-fenced to this dir)
   Sync/         CloudSyncEngine (CKSyncEngine) + pure mapping/merge/gating
   Features/     SwiftUI views — thin
+  WatchPlayback/ WatchPlayerEngine, position store, audio output protocol
+  WatchSync/     WatchCatalog, transfer queue, sync messages, library filter
+WatchApp/
+  Views/         SwiftUI views for watch (Now Playing, Up Next, browse, storage)
 ```
+
+## Apple Watch
+
+Platterhead includes a standalone watchOS 11 app (`guru.parso.tonearm.watchkitapp`) that
+plays downloaded music completely off-grid — no iPhone required.
+
+- **Sync**: Transfer music from iPhone over WatchConnectivity at track, album, or playlist
+  level. Manage transfers in Settings → Apple Watch.
+- **Playback**: Full transport (play/pause/next/prev), Up Next queue with tap-to-jump,
+  shuffle/repeat, Digital Crown volume, background audio, position persistence.
+- **Browse**: Playlists, albums, and alphabetical song list with on-watch content filtering
+  when untethered.
+- **Storage**: View and manage on-watch content with byte counts and per-item delete.
 
 ## License
 

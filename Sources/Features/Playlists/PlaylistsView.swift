@@ -110,6 +110,10 @@ struct PlaylistDetailView: View {
         return appState.playlists.first(where: { $0.id == id }) ?? playlist
     }
 
+    private var trackRows: [TrackRow] {
+        tracks.map(\.row)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
@@ -119,6 +123,28 @@ struct PlaylistDetailView: View {
                         .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
                 }
                 Spacer()
+                Menu {
+                    Button {
+                        Task { await appState.download(rows: trackRows) }
+                    } label: {
+                        Label("Download All", systemImage: "arrow.down.circle")
+                    }
+                    Button {
+                        Task { await appState.downloadAllToWatch(playlistId: currentPlaylist.id ?? -1) }
+                    } label: {
+                        Label("Download All to Watch", systemImage: "applewatch")
+                    }
+                    Button {
+                        Task { await appState.removeAllFromWatch() }
+                    } label: {
+                        Label("Remove All from Watch", systemImage: "applewatch.slash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 14)).foregroundStyle(Palette.brass)
+                        .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
+                }
+                .accessibilityLabel("More")
                 EditButton()
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Palette.brass)
