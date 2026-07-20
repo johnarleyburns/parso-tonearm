@@ -14,9 +14,13 @@ struct AnimatedSplashView: View {
 
     var body: some View {
         ZStack {
-            Palette.libraryBackground
+            Image("splash_screen")
+                .resizable()
+                .aspectRatio(contentMode: .fill)
 
-            RadialGradient(colors: [Palette.brass.opacity(0.16), .clear],
+            Color.black.opacity(0.35)
+
+            RadialGradient(colors: [Palette.brass.opacity(0.20), .clear],
                            center: UnitPoint(x: 0.28, y: 0.08),
                            startRadius: 0, endRadius: 640)
         }

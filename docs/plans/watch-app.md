@@ -559,9 +559,9 @@ added/run, CI run links, intentional deviations from this plan._
 
 - Phase 0: Secret set, watch simulators created (Watch-Small 42mm, Watch-Large 49mm). CI run: N/A (no code).
 - Phase 1: Rebrand complete — 19 files changed. project.yml CFBundleDisplayName → Platterhead. All user-visible "Tonearm" strings → "Platterhead" in Sources/Features, Sources/Intents, Sources/Domain, Sources/Pro, Sources/Remote, WidgetsExtension, ShareExtension. CI guard flipped: codename-leak guard greps only double-quoted string literals in UI dirs. CI run: [29702427790](https://github.com/johnarleyburns/parso-tonearm/actions/runs/29702427790) — both jobs green.
-- Phase 2: —
-- Phase 3: —
-- Phase 4: —
+- Phase 2: Completed. Package.swift: added `.watchOS(.v10)` (v11 requires PackageDescription 6.0 which would break Swift 5.10 target). project.yml: fixed WATCHOS_DEPLOYMENT_TARGET from "26.3" to "11.0". xcodegen regenerated. splash_screen.jpg moved to Resources/ and set as background in AnimatedSplashView. Git hooks added: pre-commit runs swift test, pre-push runs swift test + make test-integration. Fixed 4 pre-existing watch test failures (WatchGlyphState aggregateState empty case, WatchPlayerEngine handlePrevious logic, WatchTransferPlanner failed-without-error handling).
+- Phase 3: Pre-existing. Sources/WatchSync/ (7 files) and Sources/WatchPlayback/ (3 files) with 10 test files already implemented and passing (109 tests). Core sync protocol, player engine, position store, catalog, storage, glyph state, manifest, transfer queue, library filter all in place.
+- Phase 4: Completed. Schema migration v12 adds watchTransfer + watchManifest tables. Entities: WatchTransferRecord, WatchManifestRecord with GRDB FetchableRecord/MutablePersistableRecord conformances. WatchTransferController actor drives the queue with fileProvider seam. WatchSessionState display model (notInstalled/installedNotReachable/reachable/unsupported). download(rows:) generalization of makeOffline in AppState. Tests: MigrationV12Tests (4 tests), WatchSessionStateTests (3 tests). swift test: 681 tests, 0 failures.
 - Phase 5: —
 - Phase 6: —
 - Phase 7: —

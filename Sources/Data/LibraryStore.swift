@@ -868,4 +868,50 @@ public actor LibraryStore {
                              arguments: [syncID])?["id"]
         }
     }
+
+    // MARK: - Deletes
+
+    public func deleteTrack(id: Int64) throws {
+        _ = try dbQueue.write { db in try Track.deleteOne(db, key: id) }
+    }
+
+    public func deleteAlbum(id: Int64) throws {
+        _ = try dbQueue.write { db in try Album.deleteOne(db, key: id) }
+    }
+
+    public func deleteArtist(id: Int64) throws {
+        _ = try dbQueue.write { db in try Artist.deleteOne(db, key: id) }
+    }
+
+    // MARK: - Updates (single-row)
+
+    @discardableResult
+    public func updateTrack(_ track: Track) throws -> Track {
+        try dbQueue.write { db in
+            try track.update(db)
+            return track
+        }
+    }
+
+    @discardableResult
+    public func updateAlbum(_ album: Album) throws -> Album {
+        try dbQueue.write { db in
+            try album.update(db)
+            return album
+        }
+    }
+
+    // MARK: - SyncID lookup
+
+    public func trackBySyncID(_ syncID: String) throws -> Track? {
+        try dbQueue.read { db in
+            try Track.filter(Column("syncID") == syncID).fetchOne(db)
+        }
+    }
+
+    public func albumByTitle(_ title: String, sourceId: Int64) throws -> Album? {
+        try dbQueue.read { db in
+            try Album.filter(Column("title") == title && Column("sourceId") == sourceId).fetchOne(db)
+        }
+    }
 }

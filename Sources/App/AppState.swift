@@ -607,6 +607,33 @@ final class AppState: ObservableObject {
         offlineProgress = nil
     }
 
+    @discardableResult
+    func download(rows: [TrackRow]) async -> Int {
+        var downloaded = 0
+        let total = rows.count
+        for row in rows {
+            guard let remoteStr = row.asset?.remoteURL,
+                  let remoteURL = URL(string: remoteStr) else { continue }
+            let cacheKey = CachingResourceLoader.key(for: remoteURL)
+            let destURL = CacheStore.fileURL(for: cacheKey)
+            if !FileManager.default.fileExists(atPath: destURL.path) {
+                var request = URLRequest(url: remoteURL)
+                if let headers = row.asset?.transientRemoteHeaders {
+                    for (key, value) in headers {
+                        request.setValue(value, forHTTPHeaderField: key)
+                    }
+                }
+                if let (data, _) = try? await URLSession.shared.data(for: request) {
+                    try? data.write(to: destURL, options: .atomic)
+                    await CacheStore.shared.setContentLength(Int64(data.count), for: cacheKey)
+                }
+            }
+            await CacheStore.shared.setPinned(true, for: cacheKey)
+            downloaded += 1
+        }
+        return downloaded
+    }
+
     func remoteTrackRows(source: Source, nodes: [RemoteNode]) async throws -> [TrackRow] {
         try requireRemoteLibrary(.resolve(source.kind))
         let provider = try remoteProvider(for: source)

@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "TonearmCore",
-    platforms: [.iOS(.v17), .macOS(.v14)],
+    platforms: [.iOS(.v17), .macOS(.v14), .watchOS(.v10)],
     products: [
         .library(name: "TonearmCore", targets: ["TonearmCore"])
     ],
@@ -18,6 +18,7 @@ let package = Package(
             ],
             path: ".",
             exclude: [
+                ".build",
                 ".github",
                 "docs",
                 "docker-compose.remote-test.yml",
@@ -26,16 +27,19 @@ let package = Package(
                 "Makefile",
                 "Package.resolved",
                 "README.md",
+                "Resources/splash_screen.jpg",
                 "ShareExtension",
                 "Sources/App",
                 "Sources/DesignSystem",
                 "Sources/Features",
                 "Sources/Media",
                 "Sources/Widgets",
+                "splash_screen.jpg",
                 "TONEARM-TEST-ARCHITECTURE.md",
                 "Tests",
                 "Tonearm.xcodeproj",
                 "UITests",
+                "WatchApp",
                 "WidgetsExtension",
                 "project.yml",
                 "scripts",
@@ -53,7 +57,9 @@ let package = Package(
                 "Sources/Remote",
                 "Sources/Share",
                 "Sources/Snapshot",
-                "Sources/Sync"
+                "Sources/Sync",
+                "Sources/WatchPlayback",
+                "Sources/WatchSync"
             ],
             resources: [
                 .copy("Resources/Audio"),

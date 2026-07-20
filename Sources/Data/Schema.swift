@@ -3,7 +3,7 @@ import GRDB
 
 public enum Schema {
     private static let migrationOrder = [
-        "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11"
+        "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12"
     ]
 
     public static func migrator(upTo target: String? = nil) -> DatabaseMigrator {
@@ -347,6 +347,28 @@ public enum Schema {
             migrator.registerMigration("v11") { _ in
                 // SourceKind's remote provider cases are persisted in the existing
                 // source.kind text column; v11 records that model boundary.
+            }
+        }
+
+        if shouldRegister("v12", upTo: target) {
+            migrator.registerMigration("v12") { db in
+                try db.create(table: "watchTransfer") { t in
+                    t.autoIncrementedPrimaryKey("id")
+                    t.column("trackId", .integer).notNull().unique().references("track", onDelete: .cascade)
+                    t.column("state", .text).notNull()
+                    t.column("originKind", .text).notNull()
+                    t.column("originId", .integer)
+                    t.column("bytes", .integer)
+                    t.column("errorText", .text)
+                    t.column("queuedAt", .datetime).notNull()
+                    t.column("updatedAt", .datetime).notNull()
+                }
+                try db.create(table: "watchManifest") { t in
+                    t.column("trackKey", .text).primaryKey()
+                    t.column("bytes", .integer).notNull()
+                    t.column("pinned", .boolean).notNull()
+                    t.column("reportedAt", .datetime).notNull()
+                }
             }
         }
 

@@ -330,3 +330,45 @@ public struct Favorite: Identifiable, Equatable, Codable {
     public var favoritedAt: Date
     public var syncID: String? = nil
 }
+
+public struct WatchTransferRecord: Identifiable, Equatable, Codable {
+    public var id: Int64?
+    public var trackId: Int64
+    public var state: String
+    public var originKind: String
+    public var originId: Int64?
+    public var bytes: Int64?
+    public var errorText: String?
+    public var queuedAt: Date
+    public var updatedAt: Date
+
+    public init(id: Int64? = nil, trackId: Int64, state: String,
+                originKind: String, originId: Int64? = nil,
+                bytes: Int64? = nil, errorText: String? = nil,
+                queuedAt: Date = Date(), updatedAt: Date = Date()) {
+        self.id = id
+        self.trackId = trackId
+        self.state = state
+        self.originKind = originKind
+        self.originId = originId
+        self.bytes = bytes
+        self.errorText = errorText
+        self.queuedAt = queuedAt
+        self.updatedAt = updatedAt
+    }
+}
+
+public struct WatchManifestRecord: Equatable, Codable {
+    public var trackKey: String
+    public var bytes: Int64
+    public var pinned: Bool
+    public var reportedAt: Date
+
+    public init(trackKey: String, bytes: Int64, pinned: Bool,
+                reportedAt: Date = Date()) {
+        self.trackKey = trackKey
+        self.bytes = bytes
+        self.pinned = pinned
+        self.reportedAt = reportedAt
+    }
+}
