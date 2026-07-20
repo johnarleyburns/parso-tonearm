@@ -6,7 +6,6 @@ import XCTest
 final class RemoteConnectorCatalogTests: XCTestCase {
     func testCatalogListsExactlyTheSupportedRemoteConnectors() {
         XCTAssertEqual(RemoteConnectorCatalog.productSourceKinds, [
-            .iaList,
             .subsonic,
             .webDAV,
             .smb,
@@ -16,6 +15,14 @@ final class RemoteConnectorCatalogTests: XCTestCase {
             .googleDrive,
             .oneDrive,
             .pCloud,
+            .iaList,
+        ])
+    }
+
+    func testArchiveConnectorsAreLastInAddRemoteLibraryPickerOrder() {
+        XCTAssertEqual(Array(RemoteConnectorCatalog.all.map(\.id).suffix(2)), [
+            "iaPublicList",
+            "iaPrivateList",
         ])
     }
 

@@ -8,13 +8,22 @@ struct TonearmApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        if ProcessInfo.processInfo.arguments.contains("UI_TESTING") {
+        let launchArguments = ProcessInfo.processInfo.arguments
+        let isUITesting = launchArguments.contains("UI_TESTING")
+        let shouldSeedProForUITesting = isUITesting && launchArguments.contains("UI_TESTING_ENABLE_PRO")
+
+        if isUITesting {
             UserDefaults.standard.set(true, forKey: "didOnboard")
         }
-        if ProcessInfo.processInfo.arguments.contains("UI_TESTING_RESET_PRO") {
+        if shouldSeedProForUITesting {
+            ProEntitlement.persist(.verified(transactionID: 1, purchaseDate: Date(timeIntervalSince1970: 0)))
+        }
+        if launchArguments.contains("UI_TESTING_RESET_PRO") {
             ProEntitlement.clear()
         }
-        ProStore.shared.start()
+        if !shouldSeedProForUITesting {
+            ProStore.shared.start()
+        }
         AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
         AudioPlayer.shared.persistor.cloudBackend = CloudPlaybackBackend()
     }

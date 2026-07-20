@@ -204,7 +204,13 @@ struct AddServerSheet: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
                 .foregroundStyle(Palette.ink3)
-            PasteCapableTextField(text: text, prompt: prompt, isSecure: false, keyboardType: keyboardType)
+            PasteCapableTextField(
+                text: text,
+                prompt: prompt,
+                isSecure: false,
+                keyboardType: keyboardType,
+                accessibilityIdentifier: "Add Remote Library \(label)"
+            )
                 .frame(height: 28)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
@@ -216,7 +222,13 @@ struct AddServerSheet: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
                 .foregroundStyle(Palette.ink3)
-            PasteCapableTextField(text: text, prompt: prompt, isSecure: true, keyboardType: .default)
+            PasteCapableTextField(
+                text: text,
+                prompt: prompt,
+                isSecure: true,
+                keyboardType: .default,
+                accessibilityIdentifier: "Add Remote Library \(label)"
+            )
                 .frame(height: 28)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
@@ -365,6 +377,7 @@ struct PasteCapableTextField: UIViewRepresentable {
     var prompt: String
     var isSecure: Bool
     var keyboardType: UIKeyboardType
+    var accessibilityIdentifier: String? = nil
 
     func makeUIView(context: Context) -> PasteEnabledTextField {
         let textField = PasteEnabledTextField()
@@ -377,6 +390,7 @@ struct PasteCapableTextField: UIViewRepresentable {
         textField.font = .monospacedSystemFont(ofSize: 12.5, weight: .regular)
         textField.textColor = UIColor.white.withAlphaComponent(0.92)
         textField.tintColor = UIColor(Color(hex: 0xEEB35B))
+        textField.accessibilityIdentifier = accessibilityIdentifier
         textField.addTarget(
             context.coordinator,
             action: #selector(Coordinator.textDidChange),
@@ -390,6 +404,7 @@ struct PasteCapableTextField: UIViewRepresentable {
             textField.text = text
         }
         textField.pasteCoordinator = context.coordinator
+        textField.accessibilityIdentifier = accessibilityIdentifier
         textField.attributedPlaceholder = NSAttributedString(
             string: prompt,
             attributes: [.foregroundColor: UIColor.white.withAlphaComponent(0.35)]
@@ -428,19 +443,22 @@ final class PasteEnabledTextField: UITextField {
 
     override func paste(_ sender: Any?) {
         let pasteboard = UIPasteboard.general
-        if pasteboard.hasStrings {
+        let pastedText = pasteboard.string ?? pasteboard.url?.absoluteString
+
+        guard let pastedText, !pastedText.isEmpty else {
             super.paste(sender)
-        } else if let url = pasteboard.url {
-            // URL-only pasteboard items (e.g. links copied from a share
-            // sheet) have no plain-text representation, so native paste
-            // would insert nothing.
-            if let range = selectedTextRange {
-                replace(range, withText: url.absoluteString)
-            } else {
-                text = (text ?? "") + url.absoluteString
-            }
-            sendActions(for: .editingChanged)
+            pasteCoordinator?.textDidChange(self)
+            return
         }
+
+        if let range = selectedTextRange {
+            replace(range, withText: pastedText)
+        } else {
+            text = (text ?? "") + pastedText
+            let end = endOfDocument
+            selectedTextRange = textRange(from: end, to: end)
+        }
+        sendActions(for: .editingChanged)
         pasteCoordinator?.textDidChange(self)
     }
 }

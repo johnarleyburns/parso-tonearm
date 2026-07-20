@@ -76,40 +76,6 @@ public struct RemoteConnector: Identifiable, Equatable, Codable {
 public enum RemoteConnectorCatalog {
     public static let all: [RemoteConnector] = [
         RemoteConnector(
-            sourceKind: .iaList,
-            connectorID: "iaPublicList",
-            title: "archive.org",
-            proDisplayName: "archive.org (public lists, items, collections)",
-            subtitle: "Public list, item, or collection — URL only",
-            tier: .guided,
-            authKind: .urlOnly,
-            icon: "link",
-            guide: guide(
-                "Add archive.org Library",
-                prerequisites: "An archive.org URL: item, public user list, favorites page, or collection.",
-                steps: "Paste the URL. Platterhead resolves the metadata and streams audio files in place.",
-                troubleshooting: "Collections are capped at 100 members. Favorites pages and public lists should resolve within a few seconds. If a URL does not resolve, confirm the item or list is public.",
-                privacy: "No credentials needed for public lists. Platterhead streams audio only from the URLs you add."
-            )
-        ),
-        RemoteConnector(
-            sourceKind: .iaList,
-            connectorID: "iaPrivateList",
-            title: "archive.org (Private List)",
-            proDisplayName: "archive.org (private lists)",
-            subtitle: "Private list — URL, username, and password",
-            tier: .guided,
-            authKind: .usernamePassword,
-            icon: "lock.doc",
-            guide: guide(
-                "Add archive.org Private List",
-                prerequisites: "An archive.org private list URL and the archive.org username/password that can access it.",
-                steps: "Enter the list URL, archive.org username, and password. Platterhead validates access before saving.",
-                troubleshooting: "Private lists require the correct archive.org account credentials. If access is denied, confirm the username and password and that the account has access to the list.",
-                privacy: "Credentials are stored locally in Apple Keychain. Platterhead sends credentials only to archive.org when resolving the list."
-            )
-        ),
-        RemoteConnector(
             sourceKind: .subsonic,
             title: "Subsonic",
             proDisplayName: "Subsonic/Navidrome",
@@ -220,6 +186,40 @@ public enum RemoteConnectorCatalog {
             authKind: .oauth,
             icon: "externaldrive.connected.to.line.below",
             guide: cloudGuide("pCloud", permission: "pCloud file listing and download access")
+        ),
+        RemoteConnector(
+            sourceKind: .iaList,
+            connectorID: "iaPublicList",
+            title: "archive.org",
+            proDisplayName: "archive.org (public lists, items, collections)",
+            subtitle: "Public list, item, or collection — URL only",
+            tier: .guided,
+            authKind: .urlOnly,
+            icon: "link",
+            guide: guide(
+                "Add archive.org Library",
+                prerequisites: "An archive.org URL: item, public user list, favorites page, or collection.",
+                steps: "Paste the URL. Platterhead resolves the metadata and streams audio files in place.",
+                troubleshooting: "Collections are capped at 100 members. Favorites pages and public lists should resolve within a few seconds. If a URL does not resolve, confirm the item or list is public.",
+                privacy: "No credentials needed for public lists. Platterhead streams audio only from the URLs you add."
+            )
+        ),
+        RemoteConnector(
+            sourceKind: .iaList,
+            connectorID: "iaPrivateList",
+            title: "archive.org (Private List)",
+            proDisplayName: "archive.org (private lists)",
+            subtitle: "Private list — URL, username, and password",
+            tier: .guided,
+            authKind: .usernamePassword,
+            icon: "lock.doc",
+            guide: guide(
+                "Add archive.org Private List",
+                prerequisites: "An archive.org private list URL and the archive.org username/password that can access it.",
+                steps: "Enter the list URL, archive.org username, and password. Platterhead validates access before saving.",
+                troubleshooting: "Private lists require the correct archive.org account credentials. If access is denied, confirm the username and password and that the account has access to the list.",
+                privacy: "Credentials are stored locally in Apple Keychain. Platterhead sends credentials only to archive.org when resolving the list."
+            )
         ),
     ]
 
