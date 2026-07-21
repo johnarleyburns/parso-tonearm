@@ -324,6 +324,13 @@ public final class AudioPlayer: ObservableObject {
         loadCurrent(autoplay: true)
     }
 
+    public func skipToIndex(_ newIndex: Int) {
+        if isAmbient { return }
+        guard queue.indices.contains(newIndex), newIndex != index else { return }
+        index = newIndex
+        loadCurrent(autoplay: true)
+    }
+
     public func seek(to seconds: Double) {
         guard !isAmbient else { return }
         pendingRestoreSeek = nil  // user-initiated seek cancels restore confirmation

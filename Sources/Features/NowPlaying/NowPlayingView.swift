@@ -49,17 +49,18 @@ struct NowPlayingView: View {
                     showPhotoPicker = true
                 }
                 .contextMenu {
-                    guard !player.isAmbient, player.currentTrack != nil else { return }
-                    Button {
-                        showPhotoPicker = true
-                    } label: {
-                        Label("Change Artwork", systemImage: "photo.badge.plus")
-                    }
-                    if npArtwork != nil {
-                        Button(role: .destructive) {
-                            showArtworkDeleteAlert = true
+                    if !player.isAmbient, player.currentTrack != nil {
+                        Button {
+                            showPhotoPicker = true
                         } label: {
-                            Label("Remove Artwork", systemImage: "trash")
+                            Label("Change Artwork", systemImage: "photo.badge.plus")
+                        }
+                        if npArtwork != nil {
+                            Button(role: .destructive) {
+                                showArtworkDeleteAlert = true
+                            } label: {
+                                Label("Remove Artwork", systemImage: "trash")
+                            }
                         }
                     }
                 }
@@ -112,10 +113,10 @@ struct NowPlayingView: View {
     private func deleteArtwork() {
         guard let row = player.currentTrack else { return }
         Task {
-            if let artworkId = try? appState.store.customArtworkId(for: row.id) {
+            if let artworkId = try? await appState.store.customArtworkId(for: row.id) {
                 await ArtworkStore.shared.delete(id: artworkId)
             }
-            try? appState.store.deleteCustomArtwork(trackId: row.id)
+            try? await appState.store.deleteCustomArtwork(trackId: row.id)
             npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
             ArtworkInvalidation.shared.invalidate()
         }
@@ -294,6 +295,11 @@ struct NowPlayingView: View {
                     .background(.ultraThinMaterial, in: Circle())
             }
 
+            if let row = player.currentTrack {
+                phoneDownloadButton(for: row)
+                watchButton(for: row)
+            }
+
             Spacer()
 
             if let row = player.currentTrack,
@@ -324,6 +330,56 @@ struct NowPlayingView: View {
                     .frame(width: 36, height: 36)
                     .background(.ultraThinMaterial, in: Circle())
             }
+        }
+    }
+
+    @ViewBuilder
+    private func phoneDownloadButton(for row: TrackRow) -> some View {
+        let state = appState.phoneDownloadState(for: row)
+        Button {
+            switch state {
+            case .notDownloaded:
+                Task { await appState.download(rows: [row]) }
+            case .downloaded:
+                Task { await appState.removeDownloadFromPhone(rows: [row]) }
+            case .downloading:
+                break
+            }
+        } label: {
+            CacheGlyph(state: cacheGlyphState(from: state))
+        }
+        .buttonStyle(.plain)
+        .frame(width: 36, height: 36)
+        .background(.ultraThinMaterial, in: Circle())
+    }
+
+    @ViewBuilder
+    private func watchButton(for row: TrackRow) -> some View {
+        let state = appState.watchGlyphState(for: row)
+        Button {
+            switch state {
+            case .notOnWatch:
+                Task { await appState.downloadToWatch(rows: [row]) }
+            case .onWatch:
+                Task { await appState.removeFromWatch(rows: [row]) }
+            case .failed:
+                Task { await appState.downloadToWatch(rows: [row]) }
+            case .transferring:
+                break
+            }
+        } label: {
+            WatchGlyphView(state: state)
+        }
+        .buttonStyle(.plain)
+        .frame(width: 36, height: 36)
+        .background(.ultraThinMaterial, in: Circle())
+    }
+
+    private func cacheGlyphState(from state: PhoneDownloadState) -> CacheGlyphState {
+        switch state {
+        case .notDownloaded: return .none
+        case .downloaded: return .cached
+        case .downloading(let progress): return .filling(progress ?? 0.05)
         }
     }
 

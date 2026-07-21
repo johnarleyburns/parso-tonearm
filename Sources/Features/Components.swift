@@ -174,8 +174,8 @@ struct TrackRowView: View {
             if watchState != .notOnWatch {
                 watchGlyph
             }
-            if showCacheGlyph, row.asset?.kind == .remote {
-                cacheGlyph
+            if showCacheGlyph {
+                phoneDownloadGlyph
             }
         }
         .padding(.vertical, 9)
@@ -195,14 +195,16 @@ struct TrackRowView: View {
         return parts.joined(separator: " · ")
     }
 
-    @ViewBuilder private var cacheGlyph: some View {
-        let isCurrent = player.currentTrack?.id == row.id
-        CacheGlyph(state: isCurrent ? player.cacheState : .none)
-    }
-
     @ViewBuilder private var watchGlyph: some View {
         let state = appState.watchGlyphState(for: row)
         WatchGlyphView(state: state)
+    }
+
+    @ViewBuilder private var phoneDownloadGlyph: some View {
+        let state = appState.phoneDownloadState(for: row)
+        if state == .downloaded {
+            CacheGlyph(state: .cached)
+        }
     }
 }
 
@@ -240,6 +242,8 @@ struct TrackContextMenu: ViewModifier {
             } label: {
                 Label("Change Artwork", systemImage: "photo.badge.plus")
             }
+            phoneMenuItems
+            Divider()
             Button {
                 Task { await appState.toggleFavorite(row) }
             } label: {
@@ -274,6 +278,27 @@ struct TrackContextMenu: ViewModifier {
                 Label("Retry Download to Watch", systemImage: "applewatch.radiowaves.left.and.right")
             }
         case .transferring:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var phoneMenuItems: some View {
+        let state = appState.phoneDownloadState(for: row)
+        switch state {
+        case .notDownloaded:
+            Button {
+                Task { await appState.download(rows: [row]) }
+            } label: {
+                Label("Download to Phone", systemImage: "arrow.down.circle")
+            }
+        case .downloaded:
+            Button {
+                Task { await appState.removeDownloadFromPhone(rows: [row]) }
+            } label: {
+                Label("Remove from Phone", systemImage: "arrow.down.circle.fill")
+            }
+        case .downloading:
             EmptyView()
         }
     }

@@ -44,7 +44,8 @@ struct UpNextView: View {
                     ForEach(Array(player.queue.enumerated()), id: \.offset) { offset, row in
                         QueueRow(row: row,
                                  position: offset + 1,
-                                 isCurrent: offset == player.index)
+                                 isCurrent: offset == player.index,
+                                 queueIndex: offset)
                             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                             .listRowBackground(Color.clear)
                             .listRowSeparatorTint(.white.opacity(0.08))
@@ -85,6 +86,8 @@ private struct QueueRow: View {
     let row: TrackRow
     let position: Int
     let isCurrent: Bool
+    let queueIndex: Int
+    @EnvironmentObject var player: AudioPlayer
 
     var body: some View {
         HStack(spacing: 10) {
@@ -124,5 +127,8 @@ private struct QueueRow: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+        .onTapGesture {
+            player.skipToIndex(queueIndex)
+        }
     }
 }

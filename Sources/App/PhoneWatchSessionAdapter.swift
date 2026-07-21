@@ -10,6 +10,7 @@ final class PhoneWatchSessionAdapter: NSObject, WCSessionDelegate, WatchSessionW
     private let session: WCSession
     private var activationContinuation: CheckedContinuation<Bool, Never>?
     private var _catalogVersion: Int = 0
+    var onReachable: (() -> Void)?
 
     override init() {
         self.session = WCSession.default
@@ -83,7 +84,11 @@ final class PhoneWatchSessionAdapter: NSObject, WCSessionDelegate, WatchSessionW
         WCSession.default.activate()
     }
 
-    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {}
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        if session.isReachable {
+            Task { @MainActor in onReachable?() }
+        }
+    }
 
     nonisolated func session(_ session: WCSession,
                              didReceiveMessage message: [String: Any],

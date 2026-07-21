@@ -11,6 +11,28 @@ enum PendingImport: Equatable {
     case folder, files, smbFolder
 }
 
+// MARK: - Watch Transfer File Provider
+
+private func watchTrackId(from key: String) -> Int64? {
+    guard key.hasPrefix("t") else { return nil }
+    return Int64(key.dropFirst())
+}
+
+private func resolveLocalURL(for asset: Asset) -> URL? {
+    if let bookmark = asset.bookmark, let (url, _) = BookmarkVault.resolve(bookmark) {
+        return url
+    }
+    if let remote = asset.remoteURL.flatMap(URL.init(string:)), remote.isFileURL {
+        return remote
+    }
+    if let relPath = asset.relPath {
+        let base = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                appropriateFor: nil, create: false)
+        return base?.appendingPathComponent(relPath)
+    }
+    return nil
+}
+
 @MainActor
 final class AppState: ObservableObject {
     let store: LibraryStore
@@ -70,6 +92,7 @@ final class AppState: ObservableObject {
         Task { await warmLocalSourceArtwork() }
         await refreshWatchState()
         await watchAdapter.activate()
+        startWatchTransferTick()
     }
 
     /// Resolves and caches a representative cover for local sources that don't yet
@@ -643,6 +666,43 @@ final class AppState: ObservableObject {
         return downloaded
     }
 
+    func phoneDownloadState(for row: TrackRow) -> PhoneDownloadState {
+        guard let asset = row.asset else { return .notDownloaded }
+        if asset.kind == .localRef || asset.kind == .managedCopy || asset.kind == .builtIn {
+            return .downloaded
+        }
+        guard asset.kind == .remote,
+              let remoteStr = asset.remoteURL,
+              let remoteURL = URL(string: remoteStr) else { return .notDownloaded }
+        let cacheKey = CachingResourceLoader.key(for: remoteURL)
+        let metaURL = CacheStore.cacheMetaDirectory.appendingPathComponent("\(cacheKey).json")
+        guard let data = try? Data(contentsOf: metaURL),
+              let meta = try? JSONDecoder().decode(CacheStore.Meta.self, from: data) else {
+            return .notDownloaded
+        }
+        if meta.pinned == true || meta.complete {
+            let destURL = CacheStore.fileURL(for: cacheKey)
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                return .downloaded
+            }
+        }
+        if meta.cachedBytes > 0 {
+            let fraction = meta.totalBytes.map { $0 > 0 ? Double(meta.cachedBytes) / Double($0) : 0.05 } ?? 0.05
+            return .downloading(fraction)
+        }
+        return .notDownloaded
+    }
+
+    func removeDownloadFromPhone(rows: [TrackRow]) async {
+        for row in rows {
+            guard let asset = row.asset, asset.kind == .remote,
+                  let remoteStr = asset.remoteURL,
+                  let remoteURL = URL(string: remoteStr) else { continue }
+            let cacheKey = CachingResourceLoader.key(for: remoteURL)
+            await CacheStore.shared.setPinned(false, for: cacheKey)
+        }
+    }
+
     func remoteTrackRows(source: Source, nodes: [RemoteNode]) async throws -> [TrackRow] {
         try requireRemoteLibrary(.resolve(source.kind))
         let provider = try remoteProvider(for: source)
@@ -852,6 +912,58 @@ final class AppState: ObservableObject {
 
     // MARK: - Watch
 
+    private var tickTask: Task<Void, Never>?
+
+    private func startWatchTransferTick() {
+        tickTask?.cancel()
+        tickTask = Task {
+            while !Task.isCancelled {
+                await transferController.tick(sessionWriter: watchAdapter)
+                await refreshWatchState()
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+
+    private lazy var transferController: WatchTransferController = {
+        WatchTransferController(store: store, fileProvider: TransferFileProvider(store: store))
+    }()
+
+    private struct TransferFileProvider: WatchTransferFileProvider {
+        let store: LibraryStore
+
+        func localFileURL(for trackKey: String) async -> URL? {
+            guard let id = watchTrackId(from: trackKey),
+                  let row = try? await store.trackRow(id: id),
+                  let asset = row.asset else { return nil }
+            return resolveLocalURL(for: asset)
+        }
+
+        func downloadRemoteFile(for trackKey: String) async -> URL? {
+            guard let id = watchTrackId(from: trackKey),
+                  let row = try? await store.trackRow(id: id),
+                  let asset = row.asset,
+                  asset.kind == .remote,
+                  let remoteStr = asset.remoteURL,
+                  let remoteURL = URL(string: remoteStr) else { return nil }
+            let cacheKey = CachingResourceLoader.key(for: remoteURL)
+            let destURL = CacheStore.fileURL(for: cacheKey)
+            if FileManager.default.fileExists(atPath: destURL.path) { return destURL }
+            var request = URLRequest(url: remoteURL)
+            for (key, value) in asset.transientRemoteHeaders {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+            guard let (data, _) = try? await URLSession.shared.data(for: request) else { return nil }
+            try? data.write(to: destURL, options: .atomic)
+            await CacheStore.shared.setContentLength(Int64(data.count), for: cacheKey)
+            return destURL
+        }
+
+        func fileSize(for trackKey: String) -> Int64? {
+            nil
+        }
+    }
+
     func refreshWatchState() async {
         let records = await loadManifestRecords()
         watchManifestKeys = Set(records.map(\.trackKey))
@@ -922,49 +1034,38 @@ final class AppState: ObservableObject {
     }
 
     func downloadToWatch(rows: [TrackRow]) async {
-        for row in rows {
-            guard let trackId = row.track.id else { continue }
-            let key = WatchCatalog.key(for: trackId)
-            try? await store.dbQueue.write { db in
-                try WatchTransferRecord.deleteAll(db)
-                var record = WatchTransferRecord(
-                    trackId: trackId, state: "queued",
-                    originKind: "single", originId: nil)
-                try record.insert(db)
-            }
+        let keys = rows.compactMap { row -> String? in
+            guard let trackId = row.track.id else { return nil }
+            return WatchCatalog.key(for: trackId)
         }
+        await transferController.enqueue(keys: keys)
+        await refreshWatchState()
     }
 
     func removeFromWatch(rows: [TrackRow]) async {
-        for row in rows {
-            guard let trackId = row.track.id else { continue }
-            let key = WatchCatalog.key(for: trackId)
-            try? await store.dbQueue.write { db in
-                try WatchManifestRecord.deleteOne(db, key: key)
-                try WatchTransferRecord.filter(Column("trackId") == trackId).deleteAll(db)
-            }
+        let keys = rows.compactMap { row -> String? in
+            guard let trackId = row.track.id else { return nil }
+            return WatchCatalog.key(for: trackId)
         }
+        await transferController.removeKeysFromWatch(keys)
         await refreshWatchState()
     }
 
     func downloadAllToWatch(playlistId: Int64) async {
         guard let rows = try? await store.playlistTrackRows(playlistId: playlistId) else { return }
-        for ptr in rows {
-            guard let trackId = ptr.row.track.id else { continue }
+        let keys = rows.compactMap { ptr -> String? in
+            guard let trackId = ptr.row.track.id else { return nil }
             let key = WatchCatalog.key(for: trackId)
-            if watchManifestKeys.contains(key) { continue }
-            try? await store.dbQueue.write { db in
-                var record = WatchTransferRecord(
-                    trackId: trackId, state: "queued",
-                    originKind: "playlist", originId: playlistId)
-                try record.insert(db)
-            }
+            if watchManifestKeys.contains(key) { return nil }
+            return key
         }
+        await transferController.enqueue(keys: keys, origin: .playlist, originId: playlistId)
+        await refreshWatchState()
     }
 
     func removeAllFromWatch() async {
+        await transferController.removeAllFromWatch()
         try? await store.dbQueue.write { db in
-            try WatchManifestRecord.deleteAll(db)
             try WatchTransferRecord.deleteAll(db)
         }
         await refreshWatchState()
@@ -978,7 +1079,16 @@ final class AppState: ObservableObject {
     var watchAdapter: PhoneWatchSessionAdapter {
         _watchAdapter
     }
-    private let _watchAdapter = PhoneWatchSessionAdapter()
+    private let _watchAdapter: PhoneWatchSessionAdapter = {
+        let adapter = PhoneWatchSessionAdapter()
+        adapter.onReachable = { [weak adapter] in
+            guard let adapter else { return }
+            Task {
+                try? await adapter.sendCatalogFromStore(store: LibraryStore.shared)
+            }
+        }
+        return adapter
+    }()
 
 
     func renamePlaylist(_ playlist: Playlist, title: String) async {
