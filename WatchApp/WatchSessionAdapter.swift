@@ -29,10 +29,12 @@ final class WatchSessionAdapter: NSObject, WCSessionDelegate {
 
     // MARK: - WCSessionDelegate
 
-    func sendFetchRequest(trackKey: String) {
-        guard session.isReachable else { return }
+    @discardableResult
+    func sendFetchRequest(trackKey: String) -> Bool {
+        guard session.isReachable else { return false }
         session.sendMessage(["kind": WatchSyncMessageKind.fetchRequest.rawValue, "trackKey": trackKey],
                             replyHandler: nil) { _ in }
+        return true
     }
 
     func sendCancelFetch(trackKey: String) {

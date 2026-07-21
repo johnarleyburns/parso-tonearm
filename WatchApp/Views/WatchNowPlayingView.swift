@@ -3,6 +3,7 @@ import TonearmCore
 
 struct WatchNowPlayingView: View {
     @ObservedObject private var player = WatchPlayer.shared
+    @Environment(\.dismiss) private var dismiss
     @State private var showUpNext = false
     @State private var crownValue: Double = 0.5
 
@@ -13,7 +14,11 @@ struct WatchNowPlayingView: View {
                 WatchFetchOverlay(
                     trackTitle: player.fetchingTrackTitle,
                     progress: player.fetchProgress,
-                    onCancel: { player.cancelFetch() })
+                    phoneUnreachable: player.phoneUnreachable,
+                    onCancel: {
+                        player.cancelFetch()
+                        dismiss()
+                    })
             }
         }
         .navigationTitle("Now Playing")
@@ -24,6 +29,7 @@ struct WatchNowPlayingView: View {
                     player.currentTrack = nil
                     player.isPlaying = false
                     player.clearPosition()
+                    dismiss()
                 }
             }
         }

@@ -18,6 +18,8 @@ final class WatchPlayer: ObservableObject {
     @Published var showFetchOverlay = false
     @Published var fetchProgress: Double = 0
     @Published var fetchingTrackTitle = ""
+    @Published var navigationPath = NavigationPath()
+    @Published var phoneUnreachable = false
 
     private var engine = WatchPlayerEngine()
     private var output = AVPlayerOutput()
@@ -48,14 +50,26 @@ final class WatchPlayer: ObservableObject {
     func play(tracks: [TrackRow], startAt: Int) {
         guard !tracks.isEmpty else { return }
         queue = tracks
+        phoneUnreachable = false
         engine.setQueue(tracks.map { WatchCatalog.key(for: $0.track.id ?? -1) }, startIndex: startAt)
         let row = startAt < tracks.count ? tracks[startAt] : tracks[0]
         currentTrack = row
+        navigateToNowPlaying()
         guard let url = resolveURL(for: row) else {
             showFetchFor(row)
             return
         }
         handleCommand(.play)
+    }
+
+    func navigateToNowPlaying() {
+        navigationPath.append(WatchNav.nowPlaying)
+    }
+
+    func dismissNowPlaying() {
+        if !navigationPath.isEmpty {
+            navigationPath.removeLast()
+        }
     }
 
     func togglePlayPause() {
@@ -139,9 +153,13 @@ final class WatchPlayer: ObservableObject {
     private func showFetchFor(_ row: TrackRow) {
         fetchingTrackTitle = row.track.title
         fetchProgress = 0
+        phoneUnreachable = false
         showFetchOverlay = true
         let key = WatchCatalog.key(for: row.track.id ?? -1)
-        WatchSessionAdapter.shared.sendFetchRequest(trackKey: key)
+        let sent = WatchSessionAdapter.shared.sendFetchRequest(trackKey: key)
+        if !sent {
+            phoneUnreachable = true
+        }
     }
 
     func cancelFetch() {
@@ -150,6 +168,7 @@ final class WatchPlayer: ObservableObject {
         }
         showFetchOverlay = false
         fetchProgress = 0
+        phoneUnreachable = false
         if let track = currentTrack, resolveURL(for: track) != nil {
             handleCommand(.play)
         }

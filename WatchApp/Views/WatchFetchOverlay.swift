@@ -3,11 +3,12 @@ import SwiftUI
 struct WatchFetchOverlay: View {
     let trackTitle: String
     let progress: Double
+    let phoneUnreachable: Bool
     let onCancel: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("Fetching…")
+            Text(phoneUnreachable ? "Can't reach iPhone" : "Fetching…")
                 .font(.system(.headline, design: .default))
                 .fontWeight(.semibold)
 
@@ -17,9 +18,15 @@ struct WatchFetchOverlay: View {
                 .lineLimit(1)
                 .padding(.horizontal, 16)
 
-            ProgressView(value: max(0, min(1, progress)))
-                .tint(.accentColor)
-                .padding(.horizontal, 24)
+            if phoneUnreachable {
+                Text("Check your iPhone is nearby.")
+                    .font(.system(.caption2))
+                    .foregroundStyle(.secondary)
+            } else {
+                ProgressView(value: max(0, min(1, progress)))
+                    .tint(.accentColor)
+                    .padding(.horizontal, 24)
+            }
 
             Button(role: .destructive) {
                 onCancel()

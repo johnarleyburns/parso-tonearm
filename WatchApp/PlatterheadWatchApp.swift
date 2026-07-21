@@ -7,13 +7,15 @@ struct PlatterheadWatchApp: App {
     @State private var didSeed = false
     #endif
 
+    @ObservedObject private var player = WatchPlayer.shared
+
     init() {
         WatchSyncHandler.shared.setup()
     }
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
+            NavigationStack(path: $player.navigationPath) {
                 WatchRootView()
                     .navigationTitle("Platterhead")
                     .navigationDestination(for: WatchNav.self) { nav in
