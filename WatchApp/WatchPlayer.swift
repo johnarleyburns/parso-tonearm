@@ -150,6 +150,9 @@ final class WatchPlayer: ObservableObject {
         }
         showFetchOverlay = false
         fetchProgress = 0
+        if let track = currentTrack, resolveURL(for: track) != nil {
+            handleCommand(.play)
+        }
     }
 
     // MARK: - Queue rebind

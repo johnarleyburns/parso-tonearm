@@ -11,6 +11,8 @@ final class PhoneWatchSessionAdapter: NSObject, WCSessionDelegate, WatchSessionW
     private var activationContinuation: CheckedContinuation<Bool, Never>?
     private var _catalogVersion: Int = 0
     var onReachable: (() -> Void)?
+    var onFetchRequest: ((String) -> Void)?
+    var onCancelFetch: ((String) -> Void)?
 
     override init() {
         self.session = WCSession.default
@@ -114,7 +116,17 @@ final class PhoneWatchSessionAdapter: NSObject, WCSessionDelegate, WatchSessionW
             return
         }
         switch kind {
-        case .fetchRequest, .fetchCancel, .resendCatalog:
+        case .fetchRequest:
+            if let trackKey = message["trackKey"] as? String {
+                onFetchRequest?(trackKey)
+            }
+            replyHandler(["ack": true])
+        case .fetchCancel:
+            if let trackKey = message["trackKey"] as? String {
+                onCancelFetch?(trackKey)
+            }
+            replyHandler(["ack": true])
+        case .resendCatalog:
             replyHandler(["ack": true])
         case .manifestReport:
             Task { await ingestManifestReport(message) }

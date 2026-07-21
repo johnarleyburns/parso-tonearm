@@ -93,6 +93,20 @@ final class AppState: ObservableObject {
         await refreshWatchState()
         await watchAdapter.activate()
         startWatchTransferTick()
+        _watchAdapter.onReachable = { [weak adapter = _watchAdapter] in
+            guard let adapter else { return }
+            Task {
+                try? await adapter.sendCatalogFromStore(store: LibraryStore.shared)
+            }
+        }
+        _watchAdapter.onFetchRequest = { [weak self] trackKey in
+            guard let self else { return }
+            Task { await self.transferController.enqueue(keys: [trackKey]) }
+        }
+        _watchAdapter.onCancelFetch = { [weak self] trackKey in
+            guard let self else { return }
+            Task { await self.transferController.cancel(trackKey: trackKey) }
+        }
     }
 
     /// Resolves and caches a representative cover for local sources that don't yet
@@ -1079,16 +1093,7 @@ final class AppState: ObservableObject {
     var watchAdapter: PhoneWatchSessionAdapter {
         _watchAdapter
     }
-    private let _watchAdapter: PhoneWatchSessionAdapter = {
-        let adapter = PhoneWatchSessionAdapter()
-        adapter.onReachable = { [weak adapter] in
-            guard let adapter else { return }
-            Task {
-                try? await adapter.sendCatalogFromStore(store: LibraryStore.shared)
-            }
-        }
-        return adapter
-    }()
+    private let _watchAdapter: PhoneWatchSessionAdapter = PhoneWatchSessionAdapter()
 
 
     func renamePlaylist(_ playlist: Playlist, title: String) async {
