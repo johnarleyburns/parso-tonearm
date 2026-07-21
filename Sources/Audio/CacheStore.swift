@@ -7,18 +7,18 @@ public actor CacheStore {
     public static let shared = CacheStore()
 
     public struct Meta: Codable {
-        var totalBytes: Int64?
-        var cachedBytes: Int64
-        var complete: Bool
-        var lastAccessedAt: Date
-        var createdAt: Date
-        var rangeMap: ByteRangeMap
+        public var totalBytes: Int64?
+        public var cachedBytes: Int64
+        public var complete: Bool
+        public var lastAccessedAt: Date
+        public var createdAt: Date
+        public var rangeMap: ByteRangeMap
         /// Byte size of the remuxed Opus CAF sibling, if one exists. Counted in
         /// `totalCachedBytes()` so eviction accounts for the real on-disk artifact.
-        var cafBytes: Int64? = nil
+        public var cafBytes: Int64? = nil
         /// Pin state is persisted with cache metadata. `nil` decodes as unpinned
         /// for caches written before pinning existed.
-        var pinned: Bool? = nil
+        public var pinned: Bool? = nil
     }
 
     private let dir: URL
