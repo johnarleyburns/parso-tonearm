@@ -4,6 +4,7 @@ import TonearmCore
 struct WatchStorageView: View {
     @State private var entries: [WatchManifestRecord] = []
     @State private var showRemoveAllConfirm = false
+    @ObservedObject private var session = WatchSessionAdapter.shared
 
     var body: some View {
         List {
@@ -19,6 +20,18 @@ struct WatchStorageView: View {
                     Spacer()
                 }
                 .padding(.vertical, 4)
+            }
+
+            Section("iPhone") {
+                HStack(spacing: 6) {
+                    Image(systemName: session.isReachable ? "iphone.radiowaves.left.and.right" : "iphone.slash")
+                        .foregroundStyle(session.isReachable ? .green : .secondary)
+                    Text(session.isReachable ? "Connected" : "Not reachable")
+                        .font(.system(.body, design: .default))
+                    Spacer()
+                }
+                .accessibilityIdentifier("storage.phoneStatus")
+                .accessibilityValue(session.isReachable ? "connected" : "unreachable")
             }
 
             Section {

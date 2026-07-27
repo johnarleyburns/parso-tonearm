@@ -101,8 +101,10 @@ struct WatchAlbumDetailView: View {
                         Spacer()
                     }
                     .padding(.vertical, 10)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("album.playAll")
 
                 Button {
                     var shuffled = tracks
@@ -117,6 +119,7 @@ struct WatchAlbumDetailView: View {
                         Spacer()
                     }
                     .padding(.vertical, 10)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -126,6 +129,7 @@ struct WatchAlbumDetailView: View {
                     WatchPlayer.shared.play(tracks: tracks, startAt: idx)
                 } label: {
                     WatchTrackRow(row: row)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -159,6 +163,7 @@ struct WatchSongsView: View {
                             WatchPlayer.shared.play(tracks: tracks, startAt: idx)
                         } label: {
                             WatchTrackRow(row: row)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }

@@ -42,7 +42,7 @@ struct WatchPlaylistDetailView: View {
         List {
             if !tracks.isEmpty {
                 Button {
-                    var rows = tracks.map(\.row)
+                    let rows = tracks.map(\.row)
                     if !rows.isEmpty {
                         WatchPlayer.shared.play(tracks: rows, startAt: 0)
                     }
@@ -56,8 +56,10 @@ struct WatchPlaylistDetailView: View {
                         Spacer()
                     }
                     .padding(.vertical, 10)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("playlist.playAll")
 
                 Button {
                     var rows = tracks.map(\.row)
@@ -74,6 +76,7 @@ struct WatchPlaylistDetailView: View {
                         Spacer()
                     }
                     .padding(.vertical, 10)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -85,6 +88,7 @@ struct WatchPlaylistDetailView: View {
                     }
                 } label: {
                     WatchTrackRow(row: item.row)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }

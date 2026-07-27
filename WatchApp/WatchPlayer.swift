@@ -19,6 +19,11 @@ final class WatchPlayer: ObservableObject {
     @Published var fetchProgress: Double = 0
     @Published var fetchingTrackTitle = ""
     @Published var navigationPath = NavigationPath()
+    /// Drives presentation of Now Playing. A boolean-bound sheet is used instead
+    /// of a programmatic `NavigationPath` push because external mutations to a
+    /// `NavigationPath` binding do not reliably drive the stack on watchOS — the
+    /// symptom being "tap Play → nothing happens".
+    @Published var isShowingNowPlaying = false
     @Published var phoneUnreachable = false
 
     private var engine = WatchPlayerEngine()
@@ -63,13 +68,11 @@ final class WatchPlayer: ObservableObject {
     }
 
     func navigateToNowPlaying() {
-        navigationPath.append(WatchNav.nowPlaying)
+        isShowingNowPlaying = true
     }
 
     func dismissNowPlaying() {
-        if !navigationPath.isEmpty {
-            navigationPath.removeLast()
-        }
+        isShowingNowPlaying = false
     }
 
     func togglePlayPause() {
@@ -137,7 +140,19 @@ final class WatchPlayer: ObservableObject {
 
     // MARK: - URL resolution
 
+    /// The effective URL to play for a track: a downloaded local file wins,
+    /// otherwise a streamable remote URL, otherwise `nil` (the caller must fetch
+    /// the file from the paired iPhone). This is what lets the watch play both
+    /// downloaded *and* streaming tracks.
     private func resolveURL(for row: TrackRow) -> URL? {
+        WatchTrackResolver.playableURL(
+            localURL: localFileURL(for: row),
+            remoteURL: row.asset?.remoteURL,
+            altRemoteURL: row.asset?.altRemoteURL)
+    }
+
+    /// A file already downloaded to the watch for this track, if one exists.
+    private func localFileURL(for row: TrackRow) -> URL? {
         guard let relPath = row.asset?.relPath else { return nil }
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let url = appSupport.appendingPathComponent(relPath)

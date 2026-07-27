@@ -57,7 +57,9 @@ struct WatchRootView: View {
     @ViewBuilder
     private var nowPlayingChip: some View {
         if let track = WatchPlayer.shared.currentTrack {
-            NavigationLink(value: WatchNav.nowPlaying) {
+            Button {
+                WatchPlayer.shared.navigateToNowPlaying()
+            } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "music.note")
                         .font(.system(size: 16))
@@ -76,7 +78,9 @@ struct WatchRootView: View {
                         .font(.system(size: 12))
                 }
                 .padding(.vertical, 8)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .accessibilityIdentifier("root.nowPlaying")
         }
     }
@@ -99,7 +103,6 @@ enum WatchNav: Hashable {
     case albums
     case songs
     case storage
-    case nowPlaying
     case playlist(Playlist)
     case album(Album)
 }
