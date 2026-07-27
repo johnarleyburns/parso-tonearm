@@ -136,6 +136,10 @@ struct WatchNowPlayingView: View {
                     .font(.system(size: 32))
             }
             .accessibilityIdentifier("np.playpause")
+            // Exposes real transport state ("playing"/"paused") so the UI smoke
+            // test can confirm playback actually started, not just that the
+            // button is tappable.
+            .accessibilityValue(player.isPlaying ? "playing" : "paused")
 
             Button {
                 player.next()

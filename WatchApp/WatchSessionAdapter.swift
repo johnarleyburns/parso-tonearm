@@ -2,9 +2,14 @@ import Foundation
 import WatchConnectivity
 import TonearmCore
 
-final class WatchSessionAdapter: NSObject, WCSessionDelegate {
+final class WatchSessionAdapter: NSObject, WCSessionDelegate, ObservableObject {
     static let shared = WatchSessionAdapter()
     private let session: WCSession
+
+    /// Live connection state to the paired iPhone, published so the UI can show
+    /// whether the phone is currently reachable for fetches/streaming assistance.
+    @Published private(set) var isReachable = false
+    @Published private(set) var isActivated = false
 
     var onCatalogReceived: ((WatchCatalogSnapshot) -> Void)?
     var onAudioReceived: ((URL, WatchAudioMetadata) -> Void)?
@@ -27,6 +32,15 @@ final class WatchSessionAdapter: NSObject, WCSessionDelegate {
         session.activate()
     }
 
+    private func refreshConnectionState() {
+        let reachable = WCSession.isSupported() && session.isReachable
+        let activated = WCSession.isSupported() && session.activationState == .activated
+        Task { @MainActor in
+            self.isReachable = reachable
+            self.isActivated = activated
+        }
+    }
+
     // MARK: - WCSessionDelegate
 
     @discardableResult
@@ -45,7 +59,9 @@ final class WatchSessionAdapter: NSObject, WCSessionDelegate {
 
     func session(_ session: WCSession,
                  activationDidCompleteWith state: WCSessionActivationState,
-                 error: Error?) {}
+                 error: Error?) {
+        refreshConnectionState()
+    }
 
     func session(_ session: WCSession,
                  didReceive file: WCSessionFile) {
@@ -73,7 +89,9 @@ final class WatchSessionAdapter: NSObject, WCSessionDelegate {
         // Messages are handled by iPhone side
     }
 
-    func sessionReachabilityDidChange(_ session: WCSession) {}
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        refreshConnectionState()
+    }
 
     func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {}
 
