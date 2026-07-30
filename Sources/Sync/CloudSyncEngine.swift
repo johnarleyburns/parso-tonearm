@@ -1,4 +1,6 @@
 import Foundation
+
+#if !os(watchOS)
 import CloudKit
 import os
 
@@ -15,7 +17,7 @@ import os
 public final class CloudSyncEngine: NSObject {
     public static let shared = CloudSyncEngine()
 
-    public static let containerID = "iCloud.guru.parso.tonearm"
+    public nonisolated static let containerID = "iCloud.guru.parso.tonearm"
     private static let zoneName = "TonearmLibrary"
     private static let stateKey = "sync.icloud.engineState"
 
@@ -148,3 +150,4 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
         log.info("fetched \(changes.modifications.count) modifications, \(changes.deletions.count) deletions")
     }
 }
+#endif

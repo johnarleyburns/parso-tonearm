@@ -25,6 +25,10 @@ public struct ListResolver {
         throw lastError
     }
 
+    public func resolveAll(screenname: String) async throws -> [IAMember] {
+        try await Self.usersListsAPI(screenname)
+    }
+
     // Strategy 1: /services/users/@screenname/lists/listId (confirmed working).
     private static func usersListAPI(_ screenname: String, _ listId: String) async throws -> [IAMember] {
         let path = "https://archive.org/services/users/@\(screenname)/lists/\(listId)"
@@ -43,10 +47,19 @@ public struct ListResolver {
 
         guard let decoded = try? JSONDecoder().decode(ListResponse.self, from: data),
               let members = decoded.value?.members, !members.isEmpty else {
-            return try parseMembers(from: data)
+            return parseMembers(from: data)
         }
 
         return members.map { IAMember(identifier: $0.identifier, title: nil, mediatype: nil) }
+    }
+
+    // Current user profile "Lists" tab API. It returns every public list with
+    // inline members, so flatten it into one item stream for pasted tab URLs.
+    private static func usersListsAPI(_ screenname: String) async throws -> [IAMember] {
+        let path = "https://archive.org/services/users/@\(screenname)/lists"
+        guard let url = URL(string: path) else { return [] }
+        let data = try await IAClient.shared.data(from: url)
+        return uniquePreservingOrder(parseMembers(from: data))
     }
 
     // Strategy 2: legacy JSON API (may 404, kept as fallback).
@@ -92,6 +105,17 @@ public struct ListResolver {
                 }
                 if !members.isEmpty { return members }
             }
+            if let lists = obj["value"] as? [[String: Any]] {
+                let members = lists.flatMap { list -> [IAMember] in
+                    guard let memberList = list["members"] as? [[String: Any]] else { return [] }
+                    return memberList.compactMap { member -> IAMember? in
+                        guard let id = member["identifier"] as? String else { return nil }
+                        let title = member["title"] as? String
+                        return IAMember(identifier: id, title: title, mediatype: nil)
+                    }
+                }
+                if !members.isEmpty { return members }
+            }
         }
         return []
     }
@@ -122,5 +146,14 @@ public struct ListResolver {
             }
         }
         return members
+    }
+
+    private static func uniquePreservingOrder(_ values: [IAMember]) -> [IAMember] {
+        var seen = Set<String>()
+        var result: [IAMember] = []
+        for value in values where seen.insert(value.identifier).inserted {
+            result.append(value)
+        }
+        return result
     }
 }

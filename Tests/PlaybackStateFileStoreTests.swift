@@ -2,20 +2,24 @@ import XCTest
 @testable import TonearmCore
 
 final class PlaybackStateFileStoreTests: XCTestCase {
+    private var tempDir: URL?
 
-    override func setUp() {
-        if let url = PlaybackStateFileStore.fileURL() {
-            try? FileManager.default.removeItem(at: url)
-            try? FileManager.default.removeItem(at: url.appendingPathExtension("tmp"))
-        }
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tonearm-playback-state-\(UUID().uuidString)",
+                                    isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        tempDir = dir
+        PlaybackStateFileStore.fileURLOverride = dir.appendingPathComponent("playback-state.v2.json")
     }
 
-    override func tearDown() {
-        if let url = PlaybackStateFileStore.fileURL() {
-            try? FileManager.default.removeItem(at: url)
-            try? FileManager.default.removeItem(at: url.appendingPathExtension("tmp"))
+    override func tearDownWithError() throws {
+        PlaybackStateFileStore.fileURLOverride = nil
+        if let tempDir {
+            try? FileManager.default.removeItem(at: tempDir)
         }
-        super.tearDown()
+        try super.tearDownWithError()
     }
 
     func testRoundTrip() throws {

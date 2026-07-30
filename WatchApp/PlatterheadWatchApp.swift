@@ -19,7 +19,7 @@ struct PlatterheadWatchApp: App {
                     guard !didSeed else { return }
                     didSeed = true
                     if ProcessInfo.processInfo.arguments.contains("SEED_WATCH_FIXTURES") {
-                        WatchFixtureSeeder.seed()
+                        await WatchFixtureSeeder.seed()
                     }
                 }
             #endif

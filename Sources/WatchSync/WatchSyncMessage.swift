@@ -71,6 +71,7 @@ public struct WatchTrackDTO: Codable, Equatable {
     public var key: String
     public var title: String
     public var artist: String?
+    public var artistKey: String?
     public var albumKey: String?
     public var durationSec: Double?
     public var codec: String?
@@ -78,15 +79,21 @@ public struct WatchTrackDTO: Codable, Equatable {
     public var trackNo: Int?
     public var discNo: Int?
     public var sortKey: String
+    public var remoteURL: String?
+    public var altRemoteURL: String?
 
     public init(key: String, title: String, artist: String? = nil,
-                albumKey: String? = nil, durationSec: Double? = nil,
+                artistKey: String? = nil, albumKey: String? = nil,
+                durationSec: Double? = nil,
                 codec: String? = nil, sizeBytes: Int64? = nil,
                 trackNo: Int? = nil, discNo: Int? = nil,
-                sortKey: String) {
+                sortKey: String,
+                remoteURL: String? = nil,
+                altRemoteURL: String? = nil) {
         self.key = key
         self.title = title
         self.artist = artist
+        self.artistKey = artistKey
         self.albumKey = albumKey
         self.durationSec = durationSec
         self.codec = codec
@@ -94,6 +101,8 @@ public struct WatchTrackDTO: Codable, Equatable {
         self.trackNo = trackNo
         self.discNo = discNo
         self.sortKey = sortKey
+        self.remoteURL = remoteURL
+        self.altRemoteURL = altRemoteURL
     }
 }
 
@@ -101,14 +110,17 @@ public struct WatchAlbumDTO: Codable, Equatable {
     public var key: String
     public var title: String
     public var artist: String?
+    public var artistKey: String?
     public var artworkId: String?
     public var year: Int?
 
     public init(key: String, title: String, artist: String? = nil,
-                artworkId: String? = nil, year: Int? = nil) {
+                artistKey: String? = nil, artworkId: String? = nil,
+                year: Int? = nil) {
         self.key = key
         self.title = title
         self.artist = artist
+        self.artistKey = artistKey
         self.artworkId = artworkId
         self.year = year
     }

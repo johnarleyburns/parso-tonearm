@@ -72,8 +72,11 @@ struct WatchNowPlayingView: View {
 
                 HStack {
                     Text(WatchTimeFmt.mmss(player.elapsed))
+                        .accessibilityIdentifier("np.elapsed")
+                        .accessibilityValue(WatchTimeFmt.mmss(player.elapsed))
                     Spacer()
                     Text("-\(WatchTimeFmt.mmss(max(0, player.duration - player.elapsed)))")
+                        .accessibilityIdentifier("np.remaining")
                 }
                 .font(.system(.caption2))
                 .foregroundStyle(.secondary)

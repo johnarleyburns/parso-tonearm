@@ -10,10 +10,14 @@ import Foundation
 public enum PlaybackStateFileStore {
     private static let filename = "playback-state.v2.json"
     private static let tmpSuffix = ".tmp"
+    static var fileURLOverride: URL?
 
     // MARK: - Location
 
     public static func fileURL() -> URL? {
+        if let fileURLOverride {
+            return fileURLOverride
+        }
         if let container = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: WidgetSnapshotStore.appGroupIdentifier) {
             return container.appendingPathComponent(filename)

@@ -105,6 +105,7 @@ public struct SourceService {
         case .item(let id, _): return id
         case .collection(let id): return id
         case .favorites(let s): return "fav-\(s)"
+        case .lists(let s): return "lists-\(s)"
         case .list(_, let listId, _): return listId
         }
     }

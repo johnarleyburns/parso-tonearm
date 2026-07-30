@@ -3,6 +3,7 @@ import Foundation
 public enum IAResolvedURL: Equatable {
     case item(identifier: String, filename: String?)
     case list(screenname: String, listId: String, slug: String?)
+    case lists(screenname: String)
     case favorites(screenname: String)
     case collection(identifier: String)
 }
@@ -45,7 +46,8 @@ public enum URLGrammar {
             return .failure(.notArchiveHost)
         }
 
-        var segments = comps.path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        var segments = comps.path.split(separator: "/", omittingEmptySubsequences: true)
+            .map { String($0).removingPercentEncoding ?? String($0) }
         guard !segments.isEmpty else { return .failure(.unrecognized) }
 
         let first = segments.removeFirst()
@@ -70,7 +72,10 @@ public enum URLGrammar {
         if head.hasPrefix("@") {
             let screenname = String(head.dropFirst())
             guard !screenname.isEmpty else { return .failure(.unrecognized) }
-            guard segments.count >= 3, segments[1] == "lists" else { return .failure(.unrecognized) }
+            guard segments.count >= 2, segments[1] == "lists" else { return .failure(.unrecognized) }
+            if segments.count == 2 {
+                return .success(.lists(screenname: screenname))
+            }
             let listId = segments[2]
             guard !listId.isEmpty else { return .failure(.unrecognized) }
             let slug = segments.count >= 4 && !segments[3].isEmpty ? segments[3] : nil

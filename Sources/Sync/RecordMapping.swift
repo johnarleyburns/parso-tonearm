@@ -1,4 +1,6 @@
 import Foundation
+
+#if !os(watchOS)
 import CloudKit
 
 /// Pure, testable mappers between GRDB rows and `CKRecord`s. Kept free of any
@@ -383,6 +385,7 @@ public enum RecordMapping {
         )
     }
 }
+#endif
 
 /// Lightweight value for the `custom_artwork` table (which has no domain struct):
 /// carries the stable `syncID` plus the on-disk `artworkId` filename.

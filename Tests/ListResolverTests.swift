@@ -59,4 +59,15 @@ final class ListResolverTests: XCTestCase {
         XCTAssertEqual(page.total, 3)
         XCTAssertEqual(page.items?.count, 3)
     }
+
+    func testParsesCurrentUserListsShape() {
+        let json = """
+        {"success":true,"value":[
+          {"id":1,"list_name":"One","members":[{"identifier":"item-a"},{"identifier":"item-b"}]},
+          {"id":2,"list_name":"Two","members":[{"identifier":"item-c"}]}
+        ]}
+        """.data(using: .utf8)!
+        let members = ListResolver.parseMembers(from: json)
+        XCTAssertEqual(members.map(\.identifier), ["item-a", "item-b", "item-c"])
+    }
 }

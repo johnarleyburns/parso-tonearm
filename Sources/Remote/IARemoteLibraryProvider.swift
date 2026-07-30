@@ -68,6 +68,15 @@ public struct IARemoteLibraryProvider: RemoteLibraryProvider {
                 memberCount: members.count, totalCount: total, capHit: capHit,
                 parsed: parsed, originalURL: raw, resolvedItem: nil, members: members)
 
+        case .lists(let screenname):
+            let members = try await ListResolver().resolveAll(screenname: screenname)
+            return SourcePreview(
+                kind: .iaList, title: "Lists by @\(screenname)",
+                subtitle: "\(members.count) items · audio",
+                licenseText: nil, licensePermitsStreaming: true,
+                memberCount: members.count, totalCount: members.count, capHit: false,
+                parsed: parsed, originalURL: raw, resolvedItem: nil, members: members)
+
         case .list(let screenname, let listId, let slug):
             let members = try await ListResolver().resolve(screenname: screenname, listId: listId)
             let title = slug.map(SourceService.prettify) ?? "List by @\(screenname)"

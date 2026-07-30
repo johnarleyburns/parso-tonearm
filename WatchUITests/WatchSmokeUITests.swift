@@ -13,27 +13,16 @@ final class WatchSmokeUITests: XCTestCase {
 
     func testWatchAppBootsPlaysAndBrowses() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["UI_TESTING", "SEED_WATCH_FIXTURES"]
+        app.launchArguments = ["UI_TESTING", "SEED_WATCH_FIXTURES", "SEED_MUSOPEN_FIXTURES"]
         app.launch()
 
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
 
-        let rootPlaylists = app.buttons["root.playlists"]
-        XCTAssertTrue(rootPlaylists.waitForExistence(timeout: 10),
-                      "Root did not render the Playlists row")
-        rootPlaylists.tap()
-
-        let playlistRow = app.staticTexts["Built-in Playlist"]
-        XCTAssertTrue(playlistRow.waitForExistence(timeout: 10),
-                      "Seeded 'Built-in Playlist' never appeared")
-        playlistRow.tap()
-
-        // Tap "Play All" (not `buttons.firstMatch`, which resolves to the nav
-        // BackButton). The button appears once the playlist's tracks load.
-        let playAll = app.buttons["playlist.playAll"]
-        XCTAssertTrue(playAll.waitForExistence(timeout: 10),
-                      "'Play All' never appeared in the playlist detail")
-        playAll.tap()
+        playPlaylist(app,
+                     name: "Built-in Playlist",
+                     expectedTrack: nil,
+                     playlistTimeout: 10,
+                     requireElapsedAdvance: false)
 
         // Now Playing presents and playback starts from the seeded local WAV.
         // The play/pause button's accessibility value reflects the real
@@ -61,7 +50,23 @@ final class WatchSmokeUITests: XCTestCase {
         prevButton.tap()
 
         // Dismiss Now Playing (sheet) and return to the root list.
-        app.navigationBars.buttons.firstMatch.tap()
+        closeNowPlaying(app)
+        popToRoot(app)
+
+        playPlaylist(app,
+                     name: "Musopen Stream Smoke",
+                     expectedTrack: "Prelude Op. 28 no. 7",
+                     playlistTimeout: 60,
+                     requireElapsedAdvance: true)
+        closeNowPlaying(app)
+        popToRoot(app)
+
+        playPlaylist(app,
+                     name: "Musopen Download Smoke",
+                     expectedTrack: "Prelude Op. 28 no. 10",
+                     playlistTimeout: 90,
+                     requireElapsedAdvance: true)
+        closeNowPlaying(app)
         popToRoot(app)
 
         // Storage shows the live iPhone connection status.
@@ -71,6 +76,45 @@ final class WatchSmokeUITests: XCTestCase {
         let phoneStatus = app.staticTexts["storage.phoneStatus"]
         XCTAssertTrue(phoneStatus.waitForExistence(timeout: 5),
                       "Storage screen did not render the iPhone status")
+    }
+
+    private func playPlaylist(_ app: XCUIApplication,
+                              name: String,
+                              expectedTrack: String?,
+                              playlistTimeout: TimeInterval,
+                              requireElapsedAdvance: Bool) {
+        let rootPlaylists = app.buttons["root.playlists"]
+        XCTAssertTrue(rootPlaylists.waitForExistence(timeout: 10),
+                      "Root did not render the Playlists row")
+        rootPlaylists.tap()
+
+        let playlistRow = app.staticTexts[name]
+        XCTAssertTrue(playlistRow.waitForExistence(timeout: playlistTimeout),
+                      "Seeded '\(name)' never appeared")
+        playlistRow.tap()
+
+        let playAll = app.buttons["playlist.playAll"]
+        XCTAssertTrue(playAll.waitForExistence(timeout: 10),
+                      "'Play All' never appeared in \(name)")
+        playAll.tap()
+
+        let playPause = app.buttons["np.playpause"]
+        XCTAssertTrue(playPause.waitForExistence(timeout: 10),
+                      "Now Playing / play-pause control never appeared for \(name)")
+        XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 10),
+                      "Tapping Play All did not start playback for \(name)")
+        if let expectedTrack {
+            XCTAssertTrue(app.staticTexts[expectedTrack].waitForExistence(timeout: 10),
+                          "Now Playing did not show \(expectedTrack)")
+        }
+
+        if requireElapsedAdvance {
+            let elapsed = app.staticTexts["np.elapsed"]
+            XCTAssertTrue(elapsed.waitForExistence(timeout: 10),
+                          "Elapsed time label did not render for \(name)")
+            XCTAssertTrue(waitForElapsedAdvance(elapsed, timeout: 20),
+                          "Playback time did not advance for \(name)")
+        }
     }
 
     /// Polls an element's accessibility `value` until it matches, or times out.
@@ -83,6 +127,27 @@ final class WatchSmokeUITests: XCTestCase {
             usleep(200_000)
         }
         return (element.value as? String) == expected
+    }
+
+    private func waitForElapsedAdvance(_ element: XCUIElement,
+                                       timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let value = (element.value as? String) ?? element.label
+            if value != "0:00" && !value.isEmpty { return true }
+            usleep(200_000)
+        }
+        let value = (element.value as? String) ?? element.label
+        return value != "0:00" && !value.isEmpty
+    }
+
+    private func closeNowPlaying(_ app: XCUIApplication) {
+        let close = app.buttons["Close"]
+        if close.exists {
+            close.tap()
+        } else {
+            app.navigationBars.buttons.firstMatch.tap()
+        }
     }
 
     /// Taps the nav back button until the root list is showing.

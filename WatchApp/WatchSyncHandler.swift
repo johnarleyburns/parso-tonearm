@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import TonearmCore
 
 final class WatchSyncHandler {
@@ -35,15 +36,25 @@ final class WatchSyncHandler {
             let destDirURL = appSupport.appendingPathComponent(destDir)
             try? FileManager.default.createDirectory(at: destDirURL, withIntermediateDirectories: true)
             let destURL = destDirURL.appendingPathComponent(destName)
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                try? FileManager.default.removeItem(at: destURL)
+            }
             try? FileManager.default.copyItem(at: url, to: destURL)
             let relPath = "\(destDir)/\(destName)"
 
             if let track = try? await store.trackBySyncID(metadata.trackKey), let tid = track.id {
+                let existingAsset = try? await store.dbQueue.read { db in
+                    try Asset
+                        .filter(Column("trackId") == tid)
+                        .order(Column("id"))
+                        .fetchOne(db)
+                }
                 _ = try? await store.dbQueue.write { db in
                     try db.execute(sql: "DELETE FROM asset WHERE trackId = ?", arguments: [tid])
                     var asset = Asset(id: nil, trackId: tid, kind: .managedCopy,
                                       bookmark: nil, relPath: relPath,
-                                      remoteURL: nil, altRemoteURL: nil,
+                                      remoteURL: existingAsset?.remoteURL,
+                                      altRemoteURL: existingAsset?.altRemoteURL,
                                       sizeBytes: metadata.bytes, unsupportedReason: nil)
                     _ = try asset.insertAndFetch(db)
                 }

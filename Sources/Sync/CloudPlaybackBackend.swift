@@ -1,4 +1,6 @@
 import Foundation
+
+#if !os(watchOS)
 import CloudKit
 
 /// Production `PlaybackCloudBackend` that pushes/pulls a singleton
@@ -37,3 +39,4 @@ public final class CloudPlaybackBackend: PlaybackCloudBackend {
         }
     }
 }
+#endif

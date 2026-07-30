@@ -28,6 +28,16 @@ final class URLGrammarTests: XCTestCase {
                        .list(screenname: "user", listId: "99", slug: nil))
     }
 
+    func testListWithEncodedAtSign() {
+        XCTAssertEqual(try? URLGrammar.parse("https://archive.org/details/%40user/lists/99/favorites").get(),
+                       .list(screenname: "user", listId: "99", slug: "favorites"))
+    }
+
+    func testListsTab() {
+        XCTAssertEqual(try? URLGrammar.parse("https://archive.org/details/@user/lists").get(),
+                       .lists(screenname: "user"))
+    }
+
     func testFavorites() {
         XCTAssertEqual(try? URLGrammar.parse("archive.org/details/fav-jsmith").get(),
                        .favorites(screenname: "jsmith"))
@@ -128,7 +138,6 @@ final class URLGrammarTests: XCTestCase {
         assertFails("https://archive.org/search?query=bach", .unrecognized)
         assertFails("https://archive.org/details/", .unrecognized)
         assertFails("https://archive.org/details/@user", .unrecognized)
-        assertFails("https://archive.org/details/@user/lists", .unrecognized)
         assertFails("https://archive.org/details/@/lists/1", .unrecognized)
         assertFails("https://archive.org/details/fav-", .unrecognized)
         assertFails("https://archive.org/advancedsearch.php", .unrecognized)
