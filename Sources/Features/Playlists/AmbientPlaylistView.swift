@@ -89,5 +89,6 @@ struct AmbientPlaylistView: View {
             .glassSurface(cornerRadius: 18)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("ambient.track.\(ambient.channelId)")
     }
 }

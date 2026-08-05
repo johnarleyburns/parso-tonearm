@@ -1,24 +1,34 @@
-import UIKit
+import CoreGraphics
+import Foundation
 
-struct SpectrogramDetector {
+#if canImport(UIKit)
+import UIKit
+#endif
+
+public struct SpectrogramDetector {
     private let sampleSize: Int
     private let grayThreshold: Double
     private let entropyThreshold: Double
     private let channelTolerance: Int
 
-    init(sampleSize: Int = 20,
-         grayThreshold: Double = 0.85,
-         entropyThreshold: Double = 4.0,
-         channelTolerance: Int = 25) {
+    public init(sampleSize: Int = 20,
+                grayThreshold: Double = 0.85,
+                entropyThreshold: Double = 4.0,
+                channelTolerance: Int = 25) {
         self.sampleSize = sampleSize
         self.grayThreshold = grayThreshold
         self.entropyThreshold = entropyThreshold
         self.channelTolerance = channelTolerance
     }
 
-    func isSpectrogram(_ image: UIImage) -> Bool {
+    #if canImport(UIKit)
+    public func isSpectrogram(_ image: UIImage) -> Bool {
         guard let cgImage = image.cgImage else { return false }
+        return isSpectrogram(cgImage)
+    }
+    #endif
 
+    public func isSpectrogram(_ cgImage: CGImage) -> Bool {
         guard let context = CGContext(
             data: nil,
             width: sampleSize,
@@ -44,7 +54,7 @@ struct SpectrogramDetector {
     private func analyze(_ pixels: UnsafeMutablePointer<UInt8>, count: Int) -> (grayRatio: Double, entropy: Double) {
         var grayCount = 0
         var histogram = [Int](repeating: 0, count: 256)
-        let tol = channelTolerance
+        let tolerance = channelTolerance
 
         for i in 0..<count {
             let idx = i * 4
@@ -52,7 +62,9 @@ struct SpectrogramDetector {
             let g = Int(pixels[idx + 1])
             let b = Int(pixels[idx + 2])
 
-            if abs(r - g) < tol, abs(r - b) < tol, abs(g - b) < tol {
+            if abs(r - g) < tolerance,
+               abs(r - b) < tolerance,
+               abs(g - b) < tolerance {
                 grayCount += 1
             }
 
@@ -63,10 +75,10 @@ struct SpectrogramDetector {
         let grayRatio = Double(grayCount) / Double(count)
 
         var entropy: Double = 0
-        let pixelCountD = Double(count)
+        let pixelCount = Double(count)
         for bucket in histogram {
             guard bucket > 0 else { continue }
-            let p = Double(bucket) / pixelCountD
+            let p = Double(bucket) / pixelCount
             entropy -= p * log2(p)
         }
 

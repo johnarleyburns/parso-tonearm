@@ -11,7 +11,7 @@ final class WatchSmokeUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testWatchAppBootsPlaysAndBrowses() throws {
+    func testWatchSmokeBootsPlaysAndBrowses() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UI_TESTING", "SEED_WATCH_FIXTURES", "SEED_MUSOPEN_FIXTURES"]
         app.launch()

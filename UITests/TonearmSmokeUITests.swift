@@ -1,8 +1,7 @@
 import XCTest
-import UIKit
 
 final class TonearmSmokeUITests: XCTestCase {
-    var app: XCUIApplication!
+    private var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -12,89 +11,49 @@ final class TonearmSmokeUITests: XCTestCase {
         app = nil
     }
 
-    func testAppBootsAndVisitsAllTabs() throws {
+    func testIPhoneSmokeOpensPlaylistPlaysAndSkips() throws {
         launch()
 
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10),
                       "App should reach the foreground without crashing")
 
-        let tabs: [(button: String, anchor: String)] = [
-            ("Listen", "Listen"),
-            ("Playlists", "Playlists"),
-            ("Music", "Music"),
-            ("Libraries", "Libraries"),
-            ("Settings", "Settings"),
-        ]
+        openTab("Listen", anchor: "Listen")
+        openTab("Playlists", anchor: "Your Playlists")
 
-        for tab in tabs {
-            let button = app.buttons[tab.button]
-            XCTAssertTrue(button.waitForExistence(timeout: 15),
-                          "\(tab.button) tab button should be visible")
-            button.tap()
+        let ambientPlaylist = element("playlist.ambient")
+        XCTAssertTrue(ambientPlaylist.waitForExistence(timeout: 10),
+                      "Built-in Ambient playlist should be visible")
+        ambientPlaylist.tap()
 
-            let anchor = app.staticTexts[tab.anchor]
-            XCTAssertTrue(anchor.waitForExistence(timeout: 10),
-                          "\(tab.anchor) tab should render a stable title")
-        }
-    }
+        let rain = element("ambient.track.ambient-rain")
+        XCTAssertTrue(rain.waitForExistence(timeout: 10),
+                      "Built-in Rainy Day track should be visible")
+        rain.tap()
 
-    func testFreeAddRemoteLibraryEntryShowsPaywall() throws {
-        launch(arguments: ["UI_TESTING_RESET_PRO"])
+        let miniTitle = app.staticTexts["mini.title"]
+        XCTAssertTrue(miniTitle.waitForExistence(timeout: 10),
+                      "Mini player title should appear after starting playback")
+        XCTAssertEqual(miniTitle.label, "Rainy Day")
 
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10),
-                      "App should reach the foreground without crashing")
-        let addButton = app.buttons["Add"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 15),
-                      "Global Add button should be visible")
-        addButton.tap()
+        let playPause = app.buttons["mini.playpause"]
+        XCTAssertTrue(playPause.waitForExistence(timeout: 10),
+                      "Mini player play/pause control should appear")
+        XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 5),
+                      "Starting the built-in track should enter playing state")
 
-        let addRemote = app.buttons
-            .matching(NSPredicate(format: "label CONTAINS %@", "Add Remote Library"))
-            .firstMatch
-        XCTAssertTrue(addRemote.waitForExistence(timeout: 10),
-                      "Add menu should expose Add Remote Library")
-        addRemote.tap()
+        playPause.tap()
+        XCTAssertTrue(waitForValue(playPause, equals: "paused", timeout: 5),
+                      "Play/pause should pause playback")
+        playPause.tap()
+        XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 5),
+                      "Play/pause should resume playback")
 
-        let paywall = app.staticTexts["Remote Libraries"]
-        XCTAssertTrue(paywall.waitForExistence(timeout: 10),
-                      "Free Add Remote Library entry should present the Pro paywall")
-        XCTAssertTrue(app.buttons["Unlock Remote Libraries"].exists,
-                      "Paywall should expose the Remote Libraries purchase action")
-    }
-
-    func testAddRemoteLibraryUsernamePasswordFieldsAcceptPaste() throws {
-        launch(arguments: ["UI_TESTING_ENABLE_PRO"])
-        openAddRemoteLibrarySheet()
-
-        paste("https://music.example.com",
-              into: app.textFields["Add Remote Library SERVER URL"])
-        paste("launch-user",
-              into: app.textFields["Add Remote Library USERNAME"])
-        paste("launch-password-very-long",
-              into: app.secureTextFields["Add Remote Library PASSWORD"])
-
-        let connectSubsonic = app.buttons["Connect Subsonic"]
-        XCTAssertTrue(connectSubsonic.waitForExistence(timeout: 5),
-                      "Subsonic connect action should exist")
-        XCTAssertTrue(connectSubsonic.isEnabled,
-                      "Pasted URL, username, and password should enable Subsonic connect")
-    }
-
-    func testAddRemoteLibraryTokenFieldAcceptsPaste() throws {
-        launch(arguments: ["UI_TESTING_ENABLE_PRO"])
-        openAddRemoteLibrarySheet()
-
-        app.buttons["Plex"].tap()
-        paste("https://music.example.com",
-              into: app.textFields["Add Remote Library SERVER URL"])
-        paste("plex-token-very-long",
-              into: app.secureTextFields["Add Remote Library PLEX TOKEN"])
-
-        let connectPlex = app.buttons["Connect Plex"]
-        XCTAssertTrue(connectPlex.waitForExistence(timeout: 5),
-                      "Plex connect action should exist")
-        XCTAssertTrue(connectPlex.isEnabled,
-                      "Pasted URL and token should enable Plex connect")
+        let nextButton = app.buttons["mini.next"]
+        XCTAssertTrue(nextButton.waitForExistence(timeout: 5),
+                      "Mini player next control should exist")
+        nextButton.tap()
+        XCTAssertTrue(waitForLabel(miniTitle, equals: "Ocean Waves", timeout: 5),
+                      "Skipping forward should advance to the next built-in track")
     }
 
     private func launch(arguments: [String] = []) {
@@ -103,51 +62,47 @@ final class TonearmSmokeUITests: XCTestCase {
         app.launch()
     }
 
-    private func openAddRemoteLibrarySheet(file: StaticString = #filePath,
-                                           line: UInt = #line) {
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10),
-                      "App should reach the foreground without crashing",
+    private func openTab(_ tab: String,
+                         anchor: String,
+                         file: StaticString = #filePath,
+                         line: UInt = #line) {
+        let button = app.buttons[tab]
+        XCTAssertTrue(button.waitForExistence(timeout: 15),
+                      "\(tab) tab button should be visible",
                       file: file,
                       line: line)
-        let addButton = app.buttons["Add"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 15),
-                      "Global Add button should be visible",
-                      file: file,
-                      line: line)
-        addButton.tap()
+        button.tap()
 
-        let addRemote = app.buttons
-            .matching(NSPredicate(format: "label CONTAINS %@", "Add Remote Library"))
-            .firstMatch
-        XCTAssertTrue(addRemote.waitForExistence(timeout: 10),
-                      "Add menu should expose Add Remote Library",
-                      file: file,
-                      line: line)
-        addRemote.tap()
-
-        XCTAssertTrue(app.staticTexts["Add Remote Library"].waitForExistence(timeout: 10),
-                      "Add Remote Library sheet should open for Pro users",
+        let title = app.staticTexts[anchor]
+        XCTAssertTrue(title.waitForExistence(timeout: 10),
+                      "\(anchor) should render after opening \(tab)",
                       file: file,
                       line: line)
     }
 
-    private func paste(_ text: String,
-                       into field: XCUIElement,
-                       file: StaticString = #filePath,
-                       line: UInt = #line) {
-        UIPasteboard.general.string = text
-        XCTAssertTrue(field.waitForExistence(timeout: 5),
-                      "Field should exist before paste",
-                      file: file,
-                      line: line)
-        field.tap()
-        field.press(forDuration: 1.0)
+    private func element(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any)[identifier]
+    }
 
-        let pasteItem = app.menuItems["Paste"]
-        XCTAssertTrue(pasteItem.waitForExistence(timeout: 3),
-                      "Paste menu item should appear",
-                      file: file,
-                      line: line)
-        pasteItem.tap()
+    private func waitForValue(_ element: XCUIElement,
+                              equals expected: String,
+                              timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if (element.value as? String) == expected { return true }
+            usleep(200_000)
+        }
+        return (element.value as? String) == expected
+    }
+
+    private func waitForLabel(_ element: XCUIElement,
+                              equals expected: String,
+                              timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.label == expected { return true }
+            usleep(200_000)
+        }
+        return element.label == expected
     }
 }

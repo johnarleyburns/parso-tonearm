@@ -61,6 +61,7 @@ struct MiniPlayer: View {
                 Text(player.currentTrack?.track.title ?? "")
                     .font(.system(size: 12.5, weight: .semibold))
                     .lineLimit(1)
+                    .accessibilityIdentifier("mini.title")
                 Text(subtitle)
                     .font(.system(size: 10.5))
                     .foregroundStyle(Palette.ink3)
@@ -71,9 +72,14 @@ struct MiniPlayer: View {
                 Button { player.togglePlayPause() } label: {
                     Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                 }
+                .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
+                .accessibilityIdentifier("mini.playpause")
+                .accessibilityValue(player.isPlaying ? "playing" : "paused")
                 Button { player.next() } label: {
                     Image(systemName: "forward.fill")
                 }
+                .accessibilityLabel("Next Track")
+                .accessibilityIdentifier("mini.next")
             }
             .font(.system(size: 16))
             .foregroundStyle(Palette.ink)

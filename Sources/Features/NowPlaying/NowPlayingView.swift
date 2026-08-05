@@ -241,14 +241,21 @@ struct NowPlayingView: View {
                 Image(systemName: "backward.fill").font(.system(size: 20))
                     .frame(width: 52, height: 52).background(.ultraThinMaterial, in: Circle())
             }
+            .accessibilityLabel("Previous Track")
+            .accessibilityIdentifier("np.prev")
             Button { player.togglePlayPause() } label: {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 26))
                     .frame(width: 66, height: 66).background(.ultraThinMaterial, in: Circle())
             }
+            .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
+            .accessibilityIdentifier("np.playpause")
+            .accessibilityValue(player.isPlaying ? "playing" : "paused")
             Button { player.next() } label: {
                 Image(systemName: "forward.fill").font(.system(size: 20))
                     .frame(width: 52, height: 52).background(.ultraThinMaterial, in: Circle())
             }
+            .accessibilityLabel("Next Track")
+            .accessibilityIdentifier("np.next")
         }
         .foregroundStyle(.white)
     }

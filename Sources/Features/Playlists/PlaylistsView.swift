@@ -27,6 +27,7 @@ struct PlaylistsView: View {
                                       subtitle: "Built-in nature sounds for focus, relaxation, or sleep")
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("playlist.ambient")
                     .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18))
                     .listRowBackground(Color.clear)
 

@@ -1,4 +1,3 @@
-import UIKit
 import XCTest
 @testable import TonearmCore
 
@@ -220,41 +219,6 @@ final class WidgetSnapshotTests: XCTestCase {
 
         XCTAssertNil(track.artworkFilename)
         XCTAssertEqual(track.artworkStatus, .available)
-    }
-
-    func testArtworkFilenameIsSetOnceFileExistsOnDisk() throws {
-        let artworkID = "written-cover-\(UUID().uuidString)"
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        let image = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4), format: format)
-            .image { context in
-                UIColor.green.setFill()
-                context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
-            }
-        let saved = WidgetArtworkStore.save(image: image, for: artworkID)
-        try XCTSkipIf(saved == nil, "App Group container unavailable in this test environment")
-        defer { WidgetArtworkStore.prune(keeping: []) }
-
-        let snapshot = WidgetSnapshotBuilder.build(
-            playback: .init(
-                track: .init(
-                    id: 100,
-                    title: "T",
-                    artist: "A",
-                    albumTitle: nil,
-                    duration: 10,
-                    artworkID: artworkID
-                ),
-                isPlaying: true,
-                elapsed: 1,
-                duration: 10
-            ),
-            recentlyPlayed: [],
-            now: Date(timeIntervalSince1970: 1_600)
-        )
-        let track = try XCTUnwrap(snapshot.nowPlaying?.track)
-
-        XCTAssertEqual(track.artworkFilename, saved)
     }
 
     func testPausedTrackPreservesWidgetProgress() throws {

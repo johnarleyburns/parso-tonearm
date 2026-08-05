@@ -23,6 +23,7 @@ let package = Package(
                 "docs",
                 "docker-compose.remote-test.yml",
                 "ExportOptions.plist",
+                "IMPLEMENTATION_PLAN.md",
                 "LICENSE",
                 "Makefile",
                 "Package.resolved",
@@ -40,6 +41,7 @@ let package = Package(
                 "Tonearm.xcodeproj",
                 "UITests",
                 "WatchApp",
+                "WatchUITests",
                 "WidgetsExtension",
                 "project.yml",
                 "scripts",
@@ -72,12 +74,7 @@ let package = Package(
             dependencies: ["TonearmCore"],
             path: "Tests",
             exclude: [
-                // Not host-runnable: these touch UIImage / WidgetKit / the app's
-                // Bundle.main Info.plist, which don't exist under `swift test`.
-                "BackgroundAddTests.swift",
-                "SpectrogramDetectorTests.swift",
-                "WidgetSnapshotTests.swift",
-                "PlatformSupportTests.swift",
+                // Helper process used by optional integration smoke tests.
                 "Support"
             ],
             resources: [.copy("Fixtures")]
