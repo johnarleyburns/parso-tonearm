@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// The persisted now-playing state: enough to rebuild the play queue (paused, at
 /// the saved position) after the app is suspended or relaunched, so playback
@@ -24,7 +25,11 @@ public enum PlaybackStateStore {
 
     /// Injectable defaults provider so tests can point the singleton
     /// `AudioPlayer` at an ephemeral suite and spy on writes.
-    public static var defaultsProvider: () -> UserDefaults? = { sharedDefaults() }
+    private static let defaultsProviderState = Mutex<() -> UserDefaults?>({ sharedDefaults() })
+    public static var defaultsProvider: () -> UserDefaults? {
+        get { defaultsProviderState.withLock { $0 } }
+        set { defaultsProviderState.withLock { $0 = newValue } }
+    }
 
     public static func load(defaults: UserDefaults? = nil) -> PlaybackStateSnapshot? {
         let explicitDefaults = defaults  // explicitly passed arg

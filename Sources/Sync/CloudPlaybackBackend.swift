@@ -30,9 +30,10 @@ public final class CloudPlaybackBackend: PlaybackCloudBackend {
 
     public func save(_ snapshot: PlaybackStateSnapshot) {
         let record = RecordMapping.record(from: snapshot, zoneID: zoneID)
-        Task {
+        let database = container.privateCloudDatabase
+        Task { [database, record] in
             do {
-                _ = try await container.privateCloudDatabase.save(record)
+                _ = try await database.save(record)
             } catch {
                 // Fire-and-forget: reconcile catches up later.
             }

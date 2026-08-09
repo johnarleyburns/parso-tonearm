@@ -22,7 +22,7 @@ public struct TrackRow: Identifiable, Equatable, Sendable {
     }
 }
 
-public struct PlaylistTrackRow: Identifiable, Equatable {
+public struct PlaylistTrackRow: Identifiable, Equatable, Sendable {
     public var item: PlaylistItem
     public var row: TrackRow
     public var id: Int64 { item.id ?? -1 }
