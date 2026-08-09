@@ -52,9 +52,9 @@ git add -A && git commit -m "docs: go-live defect register, twin-deck spec, UI r
 
 ### 0.2 The session model
 
-**One session per PR, not per milestone.** Context degrades across a long session and the working
-agreement (§3) already cuts the work into PR-sized pieces. A fresh session per PR reads this file,
-reads the two or three spec sections its PR names, and does one thing.
+**One session per commit, not per milestone.** Context degrades across a long session and the working
+agreement (§3) already cuts the work into commit-sized tasks. A fresh session per task reads this file,
+reads the two or three spec sections that task names, and does one thing.
 
 `core.hooksPath` is set to `scripts/git-hooks`, so **every `git commit` runs the full local suite**
 — Swift tests *and* simulator UI smoke tests. Allow 5 minutes for a commit and 2 for a push, per
@@ -64,14 +64,14 @@ reads the two or three spec sections its PR names, and does one thing.
 
 M0 splits cleanly in two, and the split is worth using:
 
-| Track | PRs | Touches | Ships |
+| Track | Tasks | Touches | Ships |
 |---|---|---|---|
 | **A — go-live defects** | 0.6–0.11 (Part X) | `Sources/Features/NowPlaying`, `Sources/Features/Playlists`, `Sources/Remote/RemoteConnectorCatalog`, `Sources/Data/LibraryStore`, `UIRegressionTests/` | on its own, immediately |
 | **B — DJ foundations** | 0.1–0.5 (Appendix M.1) | `Sources/DJ/**` (new), `Package.swift`, `Sources/Pro/`, `Tests/` | with the same free update |
 
 The file sets are disjoint **except for the generated `Tonearm.xcodeproj/project.pbxproj`**, which
-both tracks touch whenever a file is added. Do not merge that file: re-run `xcodegen generate` on
-the merged tree and commit the result. That is the only expected conflict.
+both tracks touch whenever a file is added. Never hand-resolve that file: re-run `xcodegen generate` and commit the
+result. That is the only expected collision between the two tracks.
 
 **Run Track A first if you run them in series.** It is independently shippable, it is the go-live
 gate (§48.1), and it touches code users see today. Track B is invisible scaffolding until M1.
@@ -80,12 +80,12 @@ gate (§48.1), and it touches code users see today. Track B is invisible scaffol
 
 Paste one of these into a fresh session. Each is deliberately narrow.
 
-**Track A — first PR (the archive.org catalog fix, D-9):**
+**Track A — first task (the archive.org catalog fix, D-9):**
 
 > Read `docs/plans/tonearm-mvp-ios/HANDOFF.md` in full, then `CLAUDE.md`, then spec Part X §51.4
 > and §53 of `docs/plans/tonearm-mvp-ios/PLATTERHEAD_IOS_ARCHITECTURE.md`.
 >
-> Implement **PR 0.6 only**: re-key `RemoteConnectorCatalog` by `connectorID` so a connector can
+> Implement **Commit 0.6 only**: re-key `RemoteConnectorCatalog` by `connectorID` so a connector can
 > serve several `SourceKind`s, fixing D-9. §51.4 has the diagnosis — read it before you read the
 > code, then confirm it against the code rather than trusting it.
 >
@@ -94,14 +94,14 @@ Paste one of these into a fresh session. Each is deliberately narrow.
 > `UIRegressionTests/RemoteLibraryRegressionUITests.swift` and make it pass against "The Vapor
 > Vault" — the lane going green is what closes the defect (§53.6).
 >
-> Do not fix any other defect in this PR. Do not wire the regression suite into CI or a hook.
+> Do not fix any other defect in this commit. Do not wire the regression suite into CI or a hook.
 > Ask before pushing.
 
 **Track A — the Now Playing rebuild (D-1…D-6), after 0.6:**
 
 > Read `docs/plans/tonearm-mvp-ios/HANDOFF.md`, then spec §51.2 and §52.
 >
-> Implement **PR 0.8 only**: rebuild the Now Playing control layout per §52 — six primary
+> Implement **Commit 0.8 only**: rebuild the Now Playing control layout per §52 — six primary
 > controls, an overflow menu, shuffle and repeat moved beside the transport, no overlay on the
 > artwork, 44 pt minimum targets.
 >
@@ -113,12 +113,66 @@ Paste one of these into a fresh session. Each is deliberately narrow.
 > Fill in the `NowPlayingRegressionUITests` lanes as you go. Assert frames and hittability, not
 > just existence (§53.5). Commit on `main`; do not branch. Ask before pushing.
 
+**Track A — the whole defect register in one session (tasks 0.6–0.11).** Use this when you want the
+go-live blockers cleared in one run rather than six. It is a long session: the commit-per-task
+discipline below is what keeps it recoverable.
+
+> Read `docs/plans/tonearm-mvp-ios/HANDOFF.md` in full, then `CLAUDE.md`, then **Part X (§51–§54)**
+> of `docs/plans/tonearm-mvp-ios/PLATTERHEAD_IOS_ARCHITECTURE.md`.
+>
+> Your task is **Commits 0.6 through 0.11** — the go-live defect register, D-1…D-17. Appendix M.1 has
+> the sequence; §51 has the per-defect diagnoses.
+>
+> **Before you start, spike D-10** (Subsonic adds a library but plays nothing). It is the only
+> defect in the register with no diagnosis, and it is the one that can be deep. Spend up to an
+> hour against `https://demo.navidrome.org` (user `demo`, password `demo`) establishing *where*
+> playback fails — auth, URL construction, byte ranges, content type, or asset resolution. Write
+> what you find into §51.4 as a real diagnosis and **report it to me before writing any fix.** If
+> it looks structural rather than a small fix, stop and say so; that changes the plan.
+>
+> Then work the tasks in this order, one commit each:
+>
+> 1. **0.6** — re-key `RemoteConnectorCatalog` by `connectorID` so one connector can serve several
+>    `SourceKind`s (D-9, §51.4). Add a test asserting **every** `SourceKind` case resolves to at
+>    least one connector.
+> 2. **0.7** — folder-playlist identity by `sourceId` instead of title, with a migration that
+>    de-duplicates existing rows **without losing playlist membership** (D-7, §51.3). Schema and
+>    migration before views, per §3.
+> 3. **0.8** — Now Playing information architecture per **§52**: six primary controls, an overflow
+>    menu, shuffle and repeat beside the transport, no overlay on the artwork, 44 pt minimum
+>    targets (D-1…D-6).
+> 4. **0.9** — playlist detail toolbar `+ · Edit · …`, Rename under the overflow (D-8).
+> 5. **0.10** — the Subsonic fix you diagnosed, and Jellyfin empty-password (D-13). For D-13 the
+>    API layer already accepts an empty password; the block is expected to be UI-side validation.
+> 6. **0.11** — fill any remaining regression lanes, and migrate the values in
+>    `scripts/subsonic-test-env.local.sh` into the `[subsonic-local]` section of
+>    `.test-credentials`, then delete that script (§54.4).
+>
+> **For every task, in this order:** read the spec section it names → **verify the diagnosis against
+> the code before trusting it** (§51 was written from reading, not from reproducing; if a
+> diagnosis is wrong, say so and stop rather than fixing the wrong thing) → implement → fill in
+> that defect's UI regression lane so it asserts behaviour rather than existence (§53.5) → run
+> `make test-swift` and the relevant `make test-ui-regression LANES=…` → commit.
+>
+> **Commit on `main` after each task. Do not create a branch. Do not push** — ask me, because push
+> triggers CI and a TestFlight build. Allow 5 minutes per commit: the pre-commit hook runs the
+> full local suite including simulator tests.
+>
+> **Do not break these:** `scripts/verify-ui-smoke-tests.sh` requires exactly one test in
+> `UITests/` — the regression suite stays in its own target; the regression suite never goes into
+> CI or a git hook; `.test-credentials` is never committed and no credential appears in a test,
+> script, compose file or spec; Swift 6 strict concurrency with no suppression.
+>
+> **Report to me at three points:** after the D-10 spike, after 0.8 (the visible half is done),
+> and at the end with the full `make test-ui-regression` output. If any defect turns out to be
+> larger than §51 describes, stop at that point and tell me rather than absorbing it.
+
 **Track B — DJ foundations:**
 
 > Read `docs/plans/tonearm-mvp-ios/HANDOFF.md` in full, then §5 of that file, then spec §48.1 and
 > Appendix M.1.
 >
-> Implement **PR 0.1 only**: the `TonearmDJ` library product and the `CSQLiteVec` C target per
+> Implement **Commit 0.1 only**: the `TonearmDJ` library product and the `CSQLiteVec` C target per
 > §9.1, with empty module skeletons. The point is that the build graph exists and **no
 > `#if os(...)` guards the DJ target** (§4.6). Mind the SPM/`project.yml` duplication trap in §2.
 >
@@ -126,7 +180,7 @@ Paste one of these into a fresh session. Each is deliberately narrow.
 > Ask before pushing.
 
 **Any later milestone (M1–M6):** the protocol is §8 of this file. The prompt is the same shape:
-read this file, read `§48.<N>` and `Appendix M.<N+1>`, write the plan doc first, then one PR.
+read this file, read `§48.<N>` and `Appendix M.<N+1>`, write the plan doc first, then work it one commit at a time.
 
 ### 0.5 What the agent will hand back to you
 
@@ -135,7 +189,7 @@ Blocking items no agent can do — expect to be asked (§6.5, §54.5):
 - Create `guru.parso.tonearm.pro.dj` in App Store Connect; mark the old product unavailable.
 - A Plex claim token from `plex.tv/claim`, valid four minutes → `.test-credentials [plex]`.
 - OAuth app registrations for Dropbox, Google Drive, OneDrive, pCloud → `[cloud-oauth]`.
-- Approve every merge to `main`.
+- Approve every push (push is what builds TestFlight).
 
 ---
 
@@ -143,7 +197,7 @@ Blocking items no agent can do — expect to be asked (§6.5, §54.5):
 
 - **Work directly on `main`. Do not create a branch.** This is a deliberate choice by the repo
   owner: agents have repeatedly opened branches and left them unmerged, so the work went nowhere.
-  Commit to `main` as you go, in PR-sized commits (§3) — the discipline lives in the commit
+  Commit to `main` as you go, one commit per numbered task (§3) — the discipline lives in the commit
   granularity, not in the branch.
 - **Ask before you `git push`.** Pushing `main` is what triggers CI and a TestFlight build, so
   push is the approval gate that branching used to provide. Committing locally needs no
@@ -169,10 +223,10 @@ Blocking items no agent can do — expect to be asked (§6.5, §54.5):
   - *Codename-leak guard* — user-facing strings and `CFBundleDisplayName` say **Platterhead**.
     `Tonearm` survives only as an internal identifier (`TonearmCore`, `guru.parso.tonearm`,
     `tonearm-dj.sqlite`, target and repo names). Never in UI text.
-- **The user has no local device.** On-device testing means: merge to `main` + push → CI builds
-  a TestFlight build. So everything must actually compile.
+- **The user has no local device.** On-device testing means: push `main` → CI builds a
+  TestFlight build. So everything must actually compile.
   **Ask before pushing.** Committing on `main` needs no permission; pushing it does.
-- **No network calls outside the sanctioned paths.** A PR that appears to need a new network
+- **No network calls outside the sanctioned paths.** A change that appears to need a new network
   host is a design bug — escalate, don't add it (spec NFR-PRIV-1, §49.3).
 - **Commit trailer on every commit:** `Co-Authored-By: <your model> <noreply@anthropic.com>`.
 
@@ -196,13 +250,14 @@ pattern already used for the `TonearmCore` carve-out; copy it and verify with
 
 ## 3. Working agreement (spec §49.1, restated because it binds you)
 
-- **One PR per numbered sub-task**, never per milestone. Appendix M gives you the PR breakdown.
-- Every PR states which **FR/NFR IDs** it advances and which **acceptance tests** it makes green.
-- Pure logic lands with unit tests in the same PR. Shell/IO lands with an integration test or an
+- **One commit per numbered task**, never one per milestone. Appendix M gives you the breakdown.
+- Every **commit message** states which **FR/NFR IDs** it advances and which **acceptance tests** it
+  makes green.
+- Pure logic lands with unit tests in the same commit. Shell/IO lands with an integration test or an
   explicit note on why it cannot have one.
 - **Order within a milestone:** schema and migrations → pure algorithms with golden tests → façade
   and actor plumbing → view models against a fake façade → views last, against the mockup.
-- **Definition of done per PR:** tests green · acceptance IDs named · no new dependency without an
+- **Definition of done per commit:** tests green · acceptance IDs named · no new dependency without an
   Appendix Q entry · no new network host · mockup coverage contract (§40.6) still satisfied.
 
 ## 4. Non-negotiable invariants (spec §49.3)
@@ -225,9 +280,9 @@ pattern already used for the `TonearmCore` carve-out; copy it and verify with
 
 ## 5. TASK: Milestone M0 — foundations, entitlement & the free-tier flip
 
-**Spec:** §48.1 (goals and exit) · **Appendix M.1** (file manifest, PRs 0.1–0.11) · **Appendix T**
+**Spec:** §48.1 (goals and exit) · **Appendix M.1** (file manifest, tasks 0.1–0.11) · **Appendix T**
 (entitlement design, Founders grant, free-tier registry) · **Part X** (the go-live defect register,
-PRs 0.6–0.11, blocking).
+tasks 0.6–0.11, blocking).
 
 **Goal in one sentence:** make remote libraries free for everyone and land the entitlement
 plumbing for a future DJ purchase — *with no Pro feature behind it yet*.
@@ -262,24 +317,24 @@ exist *only* to gate remote libraries. Expect to delete the gate, not rewire it.
 `Tests/ProGatingPolicyTests.swift` and `Tests/ProPaywallTests.swift` need **rewriting**, not
 repointing — they assert the old product's behaviour.
 
-### 5.2 PR sequence
+### 5.2 Commit sequence
 
-**PR 0.1 — DJ modules compile with no platform gate.**
+**Commit 0.1 — DJ modules compile with no platform gate.**
 Add the `TonearmDJ` library product and the `CSQLiteVec` C target per §9.1. Empty module skeletons
 are fine; the point is that the build graph exists and **no `#if os(...)` guards the DJ target**
 (invariant 4.6). Exclude `Sources/DJ` from the app target's `project.yml` sources (§2 trap).
 Vendor `sqlite-vec.c`. Do *not* bundle any model weights — they are On-Demand Resources (§27.1a).
 
-**PR 0.2 — `dj_v2` schema and migrations.**
+**Commit 0.2 — `dj_v2` schema and migrations.**
 Spec §13–17. `DJSchema` migrator mirroring the existing `Schema` conventions (snake_case tables,
 camelCase columns), `tonearm-dj.sqlite` in Application Support, `vectors.i8` and all caches under
 `Caches/` with `isExcludedFromBackup = true` (§13.1 — this is a correctness requirement, not
 housekeeping). Record round-trip tests.
 
-**PR 0.3 — folder import and a bare library list.**
+**Commit 0.3 — folder import and a bare library list.**
 Reuse `BookmarkVault` and `FolderWatchService`. §41.2's screen, minimal.
 
-**PR 0.4 — retire `remoteLibraries`. ⭐ Shippable on its own.**
+**Commit 0.4 — retire `remoteLibraries`. ⭐ Shippable on its own.**
 - Delete the `remoteLibraries` case from `ProFeature` and every call site that gated on it.
   All ten providers become free (FR-LIB-7).
 - Rewrite `Tests/FreeTierRegistryTests.swift` per §6.2 below.
@@ -288,26 +343,26 @@ Reuse `BookmarkVault` and `FolderWatchService`. §41.2's screen, minimal.
 - **Do not delete the product from App Store Connect or the `.storekit` file.** Existing
   purchasers must keep a verifiable transaction — the Founders grant depends on it (§6.1).
 
-**PR 0.5 — `EntitlementStore`, `ProCapability`, Founders grant.**
+**Commit 0.5 — `EntitlementStore`, `ProCapability`, Founders grant.**
 Appendix T.2–T.4. StoreKit 2 `currentEntitlements`, offline-forever cache with no user identifier
 in it, a `Transaction.updates` observer started before the first view appears, and the Founders
 grant decision table (T.4) with a test per row (AT-STORE-4). **Ambiguity resolves toward granting.**
 No Pro capability is gated yet — the enum exists and `isPro` is observable, nothing more.
 
-**PRs 0.6–0.11 — the go-live defect register (spec Part X). Blocking.**
+**Tasks 0.6–0.11 — the go-live defect register (spec Part X). Blocking.**
 Seventeen defects in the *shipping player* — Now Playing layout, playlist identity, and the
 remote connectors — are an M0 exit gate, not a backlog. The reason is this milestone's own
 headline: it ships *"every remote provider is now free for everyone"*, and D-9 (archive.org
 returns `-1002` for collections, favourites, items and private lists) and D-10 (Subsonic adds a
 library that plays nothing) would put that headline over providers that do not work.
 
-**Appendix M.1 is the authoritative PR sequence** — it lists 0.6 through 0.11, with root causes
+**Appendix M.1 is the authoritative sequence** — it lists 0.6 through 0.11, with root causes
 already diagnosed in §51. Two are one-line causes with wider fixes, worth reading before you
 start: the connector catalog is keyed by `SourceKind` when connectors are 1-to-many with kinds
 (§51.4), and folder playlists are matched to their source by **title** rather than by identity
 (§51.3).
 
-Fill in each defect's UI regression lane in the same PR that fixes it — "the lane is green" is
+Fill in each defect's UI regression lane in the same commit that fixes it — "the lane is green" is
 what closes the defect (§53.6).
 
 ### 5.3 Exit criteria (verbatim from §48.1)
@@ -316,14 +371,14 @@ what closes the defect (§53.6).
 > it yet; the Part X defect register green, verified by `make test-ui-regression`.
 
 Plus: `make test-swift` green, app builds, `xcodegen generate` committed, both CI guards passing,
-`AT-FREE-*` and `AT-STORE-*` green. Then **ask the user** before merging to `main`.
+`AT-FREE-*` and `AT-STORE-*` green. Then **ask the user** before pushing.
 
 ---
 
 ## 6. Spec-vs-repo conflicts — resolve these the way stated
 
 The spec was written before its author read every file. These are the known divergences.
-**Repo reality wins.** If you find another, follow the same rule and note it in your PR.
+**Repo reality wins.** If you find another, follow the same rule and note it in the commit message.
 
 ### 6.1 Product identifiers — use the real ones
 
@@ -340,7 +395,7 @@ Appendix T.5 sketches a `Set<GuardedCapability>`. The actual test is **string-ba
 exactly `{"remoteLibraries"}`), plus a second test asserting a free-capability string list is
 never a `ProFeature` raw value. Keep that shape. M0 changes it to:
 
-- expected paid set → the new DJ capability (or **empty** through PR 0.4, since nothing is paid
+- expected paid set → the new DJ capability (or **empty** through commit 0.4, since nothing is paid
   yet — the honest intermediate state);
 - free list **gains** `remoteLibraries` and the ten provider strings, plus `semanticSearch`,
   `smartCrates`, `autoPlaylists`, `analysisStage1`, `analysisStage2`, `analysisReadout`,
@@ -363,7 +418,7 @@ gate is checked at intent boundaries in view models (T.3), which is also what ke
 
 The spec writes `Sources/DJ/...` paths. The repo's existing convention is domain-named folders
 directly under `Sources/` (`Audio/`, `Data/`, `Remote/`, `Pro/`, `Sync/`). Either is fine —
-**pick one in PR 0.1 and be consistent**; Appendix M's paths are indicative, not normative.
+**pick one in commit 0.1 and be consistent**; Appendix M's paths are indicative, not normative.
 
 ### 6.5 What only the user can do
 
@@ -372,7 +427,7 @@ You cannot do these. Surface them, don't work around them:
 - Create the `guru.parso.tonearm.pro.dj` non-consumable in **App Store Connect**, set the price
   (see `DJ_PLATFORM_STRATEGY.md` §5.2 — $39.99, launch at $24.99), and enable Family Sharing.
 - Mark `guru.parso.tonearm.pro` as no longer available for purchase (**not** deleted).
-- Approve any merge to `main`.
+- Approve any push to `main`.
 
 Until the ASC product exists, **develop against `Resources/Tonearm.storekit`** — add the DJ
 product there so `AT-STORE-*` runs locally without App Store Connect.
@@ -397,11 +452,11 @@ product there so `AT-STORE-*` runs locally without App Store Connect.
 
 Each milestone is a **fresh session**. The protocol:
 
-1. Read this file, then the spec's **`Appendix M.<N+1>`** for the file manifest and PR sequence,
+1. Read this file, then the spec's **`Appendix M.<N+1>`** for the file manifest and commit sequence,
    and **§48.<N+1>** for the goal and exit criteria.
 2. **Write the plan doc first** — Appendix M names it (`docs/plans/dj-phase-N-*.md`). Commit it
    before writing code; that is this repo's convention.
-3. Build it, one PR per numbered sub-task.
+3. Build it, one commit per numbered task.
 4. **Stop at every ship gate for user review.** M0, M2 (2.0 free), M3 (2.1 free), M4 (3.0 — Pro
    launch) and M6 (3.1) are releases, not checkpoints.
 
@@ -419,7 +474,7 @@ Milestone order and gates:
 
 ## 9. When to stop and ask
 
-- Any merge or push to `main`.
+- Any push to `main`.
 - A spec-vs-repo conflict not listed in §6 that changes an interface or an identifier.
 - Anything that would need a new network host, a new dependency, or a weakened CI guard.
 - A milestone exit gate you cannot meet — say so with the measurement, don't quietly relax it.

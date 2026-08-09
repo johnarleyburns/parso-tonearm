@@ -5360,16 +5360,16 @@ The milestone that makes a promise before it builds a feature.
 ## 49. Coding-agent execution guide
 
 This section tells an agentic coding tool how to build from this document in J's established
-plan-first workflow: committed markdown plans, small reviewable PRs, CI gates as the enforcement
+plan-first workflow: committed markdown plans, small reviewable commits, CI gates as the enforcement
 mechanism.
 
 ### 49.1 Working agreement
 
-- One PR per numbered subsection or per acceptance-test cluster, never per milestone.
-- Every PR states which FR/NFR IDs it advances and which acceptance tests it makes green.
-- Pure logic lands with unit tests in the same PR. Shell/IO lands with an integration test or an
+- One commit per numbered subsection or per acceptance-test cluster, never one per milestone.
+- Every commit message states which FR/NFR IDs it advances and which acceptance tests it makes green.
+- Pure logic lands with unit tests in the same commit. Shell/IO lands with an integration test or an
   explicit note saying why it cannot have one.
-- No PR may add a network call. A PR that appears to need one is a design bug; escalate rather
+- No commit may add a network call. A change that appears to need one is a design bug; escalate rather
   than adding it (NFR-PRIV-1).
 
 ### 49.2 Order of implementation (per milestone)
@@ -5395,7 +5395,7 @@ mechanism.
    fast-math, no reassociation, no parallel reduction with nondeterministic ordering.
 8. **The thermal governor is never bypassed** to make a benchmark look better.
 
-### 49.4 Definition of done (per PR)
+### 49.4 Definition of done (per commit)
 
 Tests green · acceptance IDs advanced and named · no new dependency without an Appendix Q entry ·
 no new network host · mockup coverage contract (§40.6) still satisfied · CHANGELOG entry naming
@@ -5635,10 +5635,30 @@ the mapping, so nothing is silently dropped.
 > added.
 
 > **D-10 · Subsonic library adds but no track plays** — `FR-FIX-10`
-> Not yet diagnosed. Fixture: the public Navidrome demo, `https://demo.navidrome.org`,
-> user `demo`, password `demo` (published credentials, not secret). The regression
-> lane must assert **playback advances**, not merely that a track row appeared —
-> "adds cleanly, plays nothing" is precisely this defect's shape and an existence
+> **Root cause: diagnosed against the public Navidrome demo.** Authentication and
+> asset resolution are working: `ping.view`, `getArtists.view`, `getArtist.view`,
+> and `getAlbum.view` accept the generated Subsonic token, and
+> `SubsonicProvider.resolve(node:)` produces the expected `rest/stream.view?id=…`
+> URL. The demo answers that URL with `206 Partial Content`, `Accept-Ranges: bytes`,
+> a valid `Content-Range`, and `Content-Type: audio/mpeg`; the first byte-range
+> body is an MP3. This rules out auth, URL construction, byte ranges, and asset
+> resolution as the cause.
+>
+> The failure is in the playback hand-off. `RemoteTrackRowFactory` stores the
+> resolved URL, but `CachingResourceLoader` supplies AVFoundation content
+> information by deriving a UTI from the URL path extension. A Subsonic stream
+> URL ends in `.view`, so it falls through to generic `public.audio`; the loader
+> never propagates the server's `audio/mpeg` response MIME type (and the asset
+> does not retain it separately). The track therefore appears and resolves, but
+> AVFoundation receives no concrete MP3 content type for the custom resource
+> loader and does not advance playback. This is a small, local playback-boundary
+> fix: preserve/use the resolved MIME type (with a safe URL-extension fallback),
+> then assert that the elapsed transport time advances in the D-10 lane.
+>
+> Fixture: the public Navidrome demo, `https://demo.navidrome.org`, user `demo`,
+> password `demo` (published credentials, not secret). The regression lane must
+> assert **playback advances**, not merely that a track row appeared — "adds
+> cleanly, plays nothing" is precisely this defect's shape and an existence
 > assertion would pass throughout it (§53.5).
 
 > **D-11 · WebDAV has no local test server** — `FR-FIX-11` · §54.1
@@ -5669,8 +5689,8 @@ the mapping, so nothing is silently dropped.
 > create (§54.5), so its lane skips until those exist.
 >
 > ⚠️ Each of these adds a network host. NFR-PRIV-1 and the operating brief treat a
-> new host as a design decision requiring explicit sign-off rather than a PR
-> detail. That sign-off is hereby **on the record for these four and no others**.
+> new host as a design decision requiring explicit sign-off rather than an
+> implementation detail. That sign-off is hereby **on the record for these four and no others**.
 
 ## 52. Now Playing information architecture
 
@@ -5792,7 +5812,7 @@ it. This is the single most important line in the suite.
 
 Scaffolded and running: the harness, the runner, the skip contract, the compose
 services, and every lane as a named test with its defect ID. Lane **bodies** are
-`TODO(D-n)` and skip. They are written before the fixes on purpose — the fix PR
+`TODO(D-n)` and skip. They are written before the fixes on purpose — the fix commit
 for `D-n` fills in lane `D-n`, and "the lane is green" is what closes the defect.
 
 ## 54. Fixtures, servers, and credentials
@@ -6952,7 +6972,7 @@ Where a requirement maps to a CI **gate** (privacy, determinism, RT-safety) rath
 
 # Appendix M — Phase-by-phase build manifest
 
-This appendix turns the roadmap (§48) and execution guide (§49) into a concrete, repo-shaped manifest: for each milestone, the plan document, the source files to add (aligned to the existing package layout under `Sources/`), and the PR breakdown. Paths assume the DJ code lives under a `Sources/DJ/...` tree inside the existing package as the `TonearmDJ` macOS-gated product (§9); shared reuse points to existing modules. This is directly consumable by a coding agent following the plan-first workflow.
+This appendix turns the roadmap (§48) and execution guide (§49) into a concrete, repo-shaped manifest: for each milestone, the plan document, the source files to add (aligned to the existing package layout under `Sources/`), and the commit breakdown. Paths assume the DJ code lives under a `Sources/DJ/...` tree inside the existing package as the `TonearmDJ` macOS-gated product (§9); shared reuse points to existing modules. This is directly consumable by a coding agent following the plan-first workflow.
 
 ## M.1 Milestone M0 — Foundations, entitlement & the free-tier flip
 
@@ -6976,7 +6996,7 @@ This appendix turns the roadmap (§48) and execution guide (§49) into a concret
 | `Sources/DJ/Features/Library/LibraryView.swift` + `LibraryModel.swift` | bare library list (§41.2) |
 | `Tests/DJTests/SchemaTests.swift`, `RecordRoundTripTests.swift` | migration + record round-trips |
 
-**PRs:** (0.1) package/targets + DJ modules compile with **no platform gate** (§9.1, invariant §49.3.6);
+**Commits:** (0.1) package/targets + DJ modules compile with **no platform gate** (§9.1, invariant §49.3.6);
 (0.2) schema + DB open + record round-trip tests; (0.3) folder import + library list;
 (0.4) **retire `remoteLibraries` and extend the free-tier registry** — shippable on its own, immediately, as a free update;
 (0.5) `EntitlementStore` + Founders grant + AT-STORE-\* with no Pro feature behind it yet;
@@ -6988,7 +7008,7 @@ This appendix turns the roadmap (§48) and execution guide (§49) into a concret
 (0.10) **Subsonic playback** — D-10 — and **Jellyfin empty-password** — D-13;
 (0.11) fill the UI regression lane bodies for every defect fixed above, and migrate
 `scripts/subsonic-test-env.local.sh` into `.test-credentials` (§54.4).
-Each defect PR fills in its own lane; "the lane is green" is what closes the defect (§53.6).
+Each defect commit fills in its own lane; "the lane is green" is what closes the defect (§53.6).
 **Exit:** M0 (§48.1) — remote libraries free in production; CI build/schema/telemetry/free-tier gates green;
 Part X register green under `make test-ui-regression`.
 
@@ -7013,7 +7033,7 @@ Part X register green under `make test-ui-regression`.
 | `Sources/DJ/Features/Ingestion/AnalysisView.swift` + model | mockups `ipad/02-library.html` and `ipad/03-analysis.html` progress |
 | `Tests/DJTests/Golden/*` + `DSPTests.swift` | golden fixtures + kernel unit tests |
 
-**PRs:** (1.1) decode+loudness; (1.2) STFT+features+onsets w/ unit tests; (1.3) tempo+beats+downbeats w/ goldens; (1.4) key+phrase+energy+waveform; (1.5) coordinator + screens + health metric. **Exit:** M1 (§48.2), AT-ING-\*, AT-GRID-\*.
+**Commits:** (1.1) decode+loudness; (1.2) STFT+features+onsets w/ unit tests; (1.3) tempo+beats+downbeats w/ goldens; (1.4) key+phrase+energy+waveform; (1.5) coordinator + screens + health metric. **Exit:** M1 (§48.2), AT-ING-\*, AT-GRID-\*.
 
 ## M.3 Milestone M2 — Semantic search
 
@@ -7030,7 +7050,7 @@ Part X register green under `make test-ui-regression`.
 | `Sources/DJ/Features/VibeSearch/VibeSearchView.swift` + model | mockup `ipad/04b-vibe-search-results.html` |
 | `Tests/DJTests/SearchTests.swift`, `FusionTests.swift` | ranking math + constrained ANN |
 
-**PRs:** (2.1) embedder + preprocess + **On-Demand-Resource delivery** (§27.1a) with the app fully functional when the tags are absent;
+**Commits:** (2.1) embedder + preprocess + **On-Demand-Resource delivery** (§27.1a) with the app fully functional when the tags are absent;
 (2.2) **Tier A** int8 matrix + vDSP scan + upsert during analysis — measured at 30k *before* any sqlite-vec work (§50.3);
 (2.3) the §16.6 recall@10 ≥ 0.95 quantization gate; (2.4) hybrid ranking + audio-to-audio search + tests;
 (2.5) Vibe Search screens + smart-crate save; (2.6) Tier B sqlite-vec **only if 2.2 shows it is needed**.
@@ -7053,7 +7073,7 @@ Part X register green under `make test-ui-regression`.
 | `Sources/DJ/Sync/AutoPlaylistBriefMapping.swift` | the *brief* syncs, not just the track list (§38.2) |
 | `Tests/DJTests/SequencerTests.swift`, `ArcTests.swift`, `BriefExtractorTests.swift` | AT-PLIST-1..7 (§28A.7) |
 
-**PRs:** (3.1) arcs + transition cost, pure, golden-tested; (3.2) beam sequencer + duration close-out;
+**Commits:** (3.1) arcs + transition cost, pure, golden-tested; (3.2) beam sequencer + duration close-out;
 (3.3) brief extractor + persistence + sync mapping; (3.4) brief and result UI on both size classes;
 (3.5) the AT-PLIST-3 shuffle-comparison harness and the blind listening check.
 **Exit:** M3 / **ship 2.1 free** (§48.4) — FR-PLIST-2 (±5%) and FR-PLIST-8 (≤ 3 s) met.
@@ -7089,7 +7109,7 @@ Part X register green under `make test-ui-regression`.
 | `Sources/DJ/Features/Paywall/PaywallView.swift` + model | mockups `ipad/13a`, `ipad/13b`, `iphone/08` — rules and prohibitions per §40.4 and App. T.7 |
 | `Tests/DJTests/EngineOfflineTests.swift`, `SyncMathTests.swift`, `AudioSessionMatrixTests.swift` | offline-render assertions, phase math, AT-SESS-\* route/interruption matrix |
 
-**PRs:** (4.1) RT boundary + guard + offline harness; (4.2) `AudioSessionCoordinator` + route/interruption matrix;
+**Commits:** (4.1) RT boundary + guard + offline harness; (4.2) `AudioSessionCoordinator` + route/interruption matrix;
 (4.3) single-deck play/cue/loop sample-accurate; (4.4) mixer (EQ/filter/xfader/limiter); (4.5) time-stretch/key-lock;
 (4.6) dual-deck sync + telemetry + iPad workspace; (4.7) iPhone portrait solo-deck surface;
 (4.8) `JogGestureModel` (pure, unit-tested — including a drag that crosses the platter/ring boundary mid-gesture,
@@ -7098,7 +7118,7 @@ which must **not** change mode) + `JogView`; (4.9) `TwinDeckView` + orientation 
 (AT-TWIN-2, AT-TWIN-3); (4.11) iPad deck module slot, default `STEMS`; (4.12) Track Prep + grid corrections;
 (4.13) paywall + purchase flow + memory ceiling.
 
-**Sequencing note.** PRs 4.8–4.11 are the compact twin-deck surface. They are presentation-only — no engine,
+**Sequencing note.** Commits 4.8–4.11 are the compact twin-deck surface. They are presentation-only — no engine,
 schema, or analysis change — and they sit at the end of the milestone deliberately: if `AT-SESS-*` or **AT-THERM-1**
 have eaten the schedule, they move to M6 at zero rework cost, because they share `WorkspaceModel` with the iPad
 workspace already delivered in 4.6. The order within the milestone is otherwise §49.2's: views last.
@@ -7126,7 +7146,7 @@ first TestFlight build of this milestone, before the layout is fixed.
 | `Sources/DJ/Features/Mixes/MixesView.swift` + model | mockup `ipad/10-mixes.html` |
 | `Tests/DJTests/RecordingRecoveryTests.swift`, `StemCacheTests.swift` | crash recovery + cache versioning |
 
-**PRs:** (5.1) Demucs ODR + separation + cache + version stamp; (5.2) stem voices live on decks, with the honest
+**Commits:** (5.1) Demucs ODR + separation + cache + version stamp; (5.2) stem voices live on decks, with the honest
 disabled state when unprepared (§36.5); (5.3) **gig crates** — promotion from a playlist, budgeted separation,
 LRU eviction shown before it happens (§41.17); (5.4) record tap + encoder + segmented file;
 (5.5) journal + crash/interruption recovery + finalize; (5.6) Finish + Mixes screens + timeline + export.
@@ -7156,17 +7176,17 @@ LRU eviction shown before it happens (§41.17); (5.4) record tap + encoder + seg
 | `Tests/DJTests/SyncRoundTripTests.swift`, `MidiMappingTests.swift` | upload/download round-trip; learn/bind |
 | CI (edit) | add DJ target to zero-telemetry registry gate (§45.3); enable RT-safety + determinism gates (§47.4) |
 
-**PRs:** (6.1) DJ record types + mapping/cue-merge + tests; (6.2) optional peer sync; (6.3) `AudioSessionCoordinator` hardening + route/interruption matrix; (6.4) route observation, channel roles, **split cue**; (6.5) CoreMIDI over USB-C/BLE/Network + learn + bundled profiles + Hardware screen; (6.6) Watch performance remote; (6.7) Settings/storage/eviction + Glass + a11y pass; (6.8) CI invariant gates; (6.9) jog haptic detents, the portrait `Jog` bank, and per-deck jog sensitivity in settings (§40.7.4, §42.6). **Exit:** M6 / v3.1 (§48.7), AT-MIDI-\*, AT-WATCH-\*, the remaining AT-SESS-\* hardening rows, and all CI gates green.
+**Commits:** (6.1) DJ record types + mapping/cue-merge + tests; (6.2) optional peer sync; (6.3) `AudioSessionCoordinator` hardening + route/interruption matrix; (6.4) route observation, channel roles, **split cue**; (6.5) CoreMIDI over USB-C/BLE/Network + learn + bundled profiles + Hardware screen; (6.6) Watch performance remote; (6.7) Settings/storage/eviction + Glass + a11y pass; (6.8) CI invariant gates; (6.9) jog haptic detents, the portrait `Jog` bank, and per-deck jog sensitivity in settings (§40.7.4, §42.6). **Exit:** M6 / v3.1 (§48.7), AT-MIDI-\*, AT-WATCH-\*, the remaining AT-SESS-\* hardening rows, and all CI gates green.
 
 ## M.8 Cross-cutting, landed continuously
 
-Some work is not a phase but a standing discipline, added alongside every PR:
+Some work is not a phase but a standing discipline, added alongside every commit:
 
 - **Tests first for pure code** (DSP, mapping, sync, fusion) — they carry the risk and are cheap (§47.1).
 - **CI gates** enabled as soon as the relevant surface exists (telemetry from M0; RT-safety from M3; determinism from M1) so regressions are caught immediately (§47.4).
 - **Plan docs** (`docs/plans/dj-phase-N-*.md`) authored before each phase, copying the normative interfaces (App. I) and acceptance tests (§47.3) so the agent implements against a fixed target (§49.1).
 
-This manifest, the interface index (App. I), the DDL (§14–15), and the DSP reference (App. F) together constitute a complete, ordered build plan: an agent can start at M0.1 and proceed PR by PR to a shipping v1.0, with every step verified by tests and machine-checked invariants.
+This manifest, the interface index (App. I), the DDL (§14–15), and the DSP reference (App. F) together constitute a complete, ordered build plan: an agent can start at M0.1 and proceed commit by commit to a shipping v1.0, with every step verified by tests and machine-checked invariants.
 
 ---
 
@@ -7483,11 +7503,11 @@ A compact, ordered checklist the coding agent runs at the start of and during ea
 3. Confirm the existing repo builds and its tests pass before adding anything.
 
 **At the start of each phase N:**
-4. Open the phase plan (`docs/plans/dj-phase-N-*.md`) — it is the source of truth for scope and PR order.
+4. Open the phase plan (`docs/plans/dj-phase-N-*.md`) — it is the source of truth for scope and commit order.
 5. From the plan, copy the **normative interfaces** for this phase (Appendix I) into the code as protocol stubs — implement against fixed signatures.
 6. Skim the spec sections the plan cross-references for the *why*; don't re-read the whole document.
 
-**For each PR in the phase (in order):**
+**For each task in the phase (in order):**
 7. **Schema first:** land any migration + records for this slice, with round-trip tests (Part III).
 8. **Pure logic + tests:** implement the deterministic core (DSP kernel, scoring, mapping, merge) and its unit/golden tests *before* wiring anything (§47.1, Appendix F/G, Appendix R fixtures).
 9. **Shell:** wire the impure edge (job runner, render callback, CoreMIDI, CloudKit) around the pure core.
@@ -7641,7 +7661,7 @@ The test asserts, for each member, that the capability functions with `isPro == 
 mechanical form of the promise in §2.4, and it is the reason that promise can be made credibly:
 the README says these are free forever, and the build fails if anyone makes them not.
 
-`AT-FREE-*` is this test. It runs on every PR.
+`AT-FREE-*` is this test. It runs on every change.
 
 ## T.6 Building from source
 
