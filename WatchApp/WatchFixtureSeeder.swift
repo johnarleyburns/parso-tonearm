@@ -99,9 +99,10 @@ enum WatchFixtureSeeder {
             title: "Built-in Playlist",
             trackIds: trackIds)
 
+        let firstTrackKey = trackIds.first.map { "t\($0)" } ?? "t0"
         _ = try? await store.dbQueue.write { db in
             var manifestEntry = WatchManifestRecord(
-                trackKey: trackIds.first.map { "t\($0)" } ?? "t0",
+                trackKey: firstTrackKey,
                 bytes: 1_000_000, pinned: true, reportedAt: Date())
             try manifestEntry.insert(db)
         }

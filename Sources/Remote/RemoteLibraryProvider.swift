@@ -12,7 +12,7 @@ public struct RemoteArtwork: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-public struct RemoteTrackMetadata: Codable, Equatable, Hashable {
+public struct RemoteTrackMetadata: Codable, Equatable, Hashable, Sendable {
     public var title: String?
     public var artist: String?
     public var album: String?
@@ -79,8 +79,8 @@ public struct RemoteTrackMetadata: Codable, Equatable, Hashable {
     }
 }
 
-public struct RemoteNode: Identifiable, Codable, Equatable, Hashable {
-    public enum Kind: String, Codable {
+public struct RemoteNode: Identifiable, Codable, Equatable, Hashable, Sendable {
+    public enum Kind: String, Codable, Sendable {
         case directory
         case audio
         case item
@@ -112,7 +112,7 @@ public struct RemoteNode: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-public struct ResolvedAsset: Codable, Equatable {
+public struct ResolvedAsset: Codable, Equatable, Sendable {
     public var url: URL
     public var headers: [String: String]
     public var supportsByteRanges: Bool
@@ -132,7 +132,7 @@ public struct ResolvedAsset: Codable, Equatable {
     }
 }
 
-public protocol RemoteLibraryProvider {
+public protocol RemoteLibraryProvider: Sendable {
     var sourceKind: SourceKind { get }
 
     func browse(path: String) async throws -> [RemoteNode]

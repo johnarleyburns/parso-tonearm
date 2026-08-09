@@ -1,7 +1,7 @@
 import Foundation
 
 /// The result of planning a queue restore from a persisted snapshot.
-public struct RestorePlan {
+public struct RestorePlan: Sendable {
     public var rows: [TrackRow]
     public var startIndex: Int
     public var seekTo: Double
@@ -26,8 +26,8 @@ public enum QueueRestorePlanner {
     /// - Returns `nil` when no tracks can be resolved at all.
     public static func plan(
         saved: PlaybackStateSnapshot,
-        resolveByID: (Int64) async -> TrackRow?,
-        resolveBySyncID: (String) async -> TrackRow?
+        resolveByID: @Sendable (Int64) async -> TrackRow?,
+        resolveBySyncID: @Sendable (String) async -> TrackRow?
     ) async -> RestorePlan? {
         var rows: [TrackRow] = []
         var startIndex = 0

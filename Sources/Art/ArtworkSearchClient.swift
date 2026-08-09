@@ -16,7 +16,7 @@ public struct ITunesResult: Decodable, Equatable {
 }
 
 /// The chosen artwork plus whether the match is strong enough to remember.
-public struct ArtworkMatch: Equatable {
+public struct ArtworkMatch: Equatable, Sendable {
     public let artworkURL: URL
     /// Strong matches (artist AND album/track align) may be persisted as the
     /// source's remembered representative; weak matches are shown but provisional.

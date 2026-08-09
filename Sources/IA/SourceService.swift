@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SourcePreview {
+public struct SourcePreview: @unchecked Sendable {
     public var kind: SourceKind
     public var title: String
     public var subtitle: String

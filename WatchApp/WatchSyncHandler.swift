@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 import TonearmCore
 
-final class WatchSyncHandler {
+final class WatchSyncHandler: @unchecked Sendable {
     static let shared = WatchSyncHandler()
 
     func setup() {

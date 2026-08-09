@@ -14,7 +14,7 @@ public struct SMBFolderPolicy {
 /// SMB access is mediated by iOS Files. Users connect an SMB server in Files and
 /// grant Tonearm a security-scoped folder bookmark; the provider then browses the
 /// folder tree like any other remote library without importing or copying audio.
-public struct SMBProvider: RemoteLibraryProvider {
+public struct SMBProvider: @unchecked Sendable, RemoteLibraryProvider {
     public var rootBookmark: Data
     public var fileManager: FileManager = .default
 

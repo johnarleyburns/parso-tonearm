@@ -6,7 +6,7 @@ import TonearmCore
 
 #if canImport(WatchConnectivity)
 
-final class PhoneWatchSessionAdapter: NSObject, WCSessionDelegate, WatchSessionWriter {
+final class PhoneWatchSessionAdapter: NSObject, @unchecked Sendable, WCSessionDelegate, WatchSessionWriter {
     private let session: WCSession
     private var activationContinuation: CheckedContinuation<Bool, Never>?
     private var _catalogVersion: Int = 0
@@ -95,12 +95,15 @@ final class PhoneWatchSessionAdapter: NSObject, WCSessionDelegate, WatchSessionW
     nonisolated func session(_ session: WCSession,
                              didReceiveMessage message: [String: Any],
                              replyHandler: @escaping ([String: Any]) -> Void) {
-        Task { await handleMessage(message, replyHandler: replyHandler) }
+        let message = WatchMessageBox(message)
+        let replyHandler = WatchReplyBox(replyHandler)
+        Task { await handleMessage(message.value, replyHandler: replyHandler.value) }
     }
 
     nonisolated func session(_ session: WCSession,
                              didReceiveUserInfo userInfo: [String: Any]) {
-        Task { await handleUserInfo(userInfo) }
+        let userInfo = WatchMessageBox(userInfo)
+        Task { await handleUserInfo(userInfo.value) }
     }
 
     private func handleActivation(state: WCSessionActivationState, error: Error?) {
@@ -129,7 +132,7 @@ final class PhoneWatchSessionAdapter: NSObject, WCSessionDelegate, WatchSessionW
         case .resendCatalog:
             replyHandler(["ack": true])
         case .manifestReport:
-            Task { await ingestManifestReport(message) }
+            ingestManifestReport(message)
             replyHandler(["ack": true])
         default:
             replyHandler(["error": "unexpected kind"])
@@ -140,13 +143,23 @@ final class PhoneWatchSessionAdapter: NSObject, WCSessionDelegate, WatchSessionW
         guard let kindStr = userInfo["kind"] as? String,
               let kind = WatchSyncMessageKind(rawValue: kindStr) else { return }
         if kind == .manifestReport {
-            Task { await ingestManifestReport(userInfo) }
+            ingestManifestReport(userInfo)
         }
     }
 
-    private func ingestManifestReport(_ info: [String: Any]) async {
+    private func ingestManifestReport(_ info: [String: Any]) {
         // Manifest reports are ingested by AppState via the database.
     }
+}
+
+private struct WatchMessageBox: @unchecked Sendable {
+    let value: [String: Any]
+    init(_ value: [String: Any]) { self.value = value }
+}
+
+private struct WatchReplyBox: @unchecked Sendable {
+    let value: ([String: Any]) -> Void
+    init(_ value: @escaping ([String: Any]) -> Void) { self.value = value }
 }
 
 #else

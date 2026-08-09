@@ -1,6 +1,6 @@
 import Foundation
 
-public protocol WatchAudioOutput: AnyObject, Sendable {
+@MainActor public protocol WatchAudioOutput: AnyObject {
     func load(url: URL) async
     func play() async
     func pause() async

@@ -1,10 +1,10 @@
 #if !os(watchOS)
 import Foundation
-import AVFoundation
+@preconcurrency import AVFoundation
 import UniformTypeIdentifiers
 import CryptoKit
 
-public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
+public final class CachingResourceLoader: NSObject, @unchecked Sendable, AVAssetResourceLoaderDelegate {
     public static let scheme = "tonearm-cache"
 
     private let originalURL: URL
@@ -55,7 +55,7 @@ public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegat
         let key = cacheKey
         let url = originalURL
         let hdrs = headers
-        Task.detached(priority: .background) {
+        Task.detached(priority: .background) { @Sendable [key, url, hdrs, bytes] in
             guard bytes > 0 else { return }
             let fileURL = await CacheStore.shared.fileURL(for: key)
             if !FileManager.default.fileExists(atPath: fileURL.path) {
@@ -116,9 +116,10 @@ public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegat
                         shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest) -> Bool {
         stateLock.lock()
         guard !didShutdown else { stateLock.unlock(); return false }
-        let task = Task { [weak self] in
+        let request = LoadingRequestBox(loadingRequest)
+        let task = Task { [weak self, request] in
             guard let self else { return }
-            await self.handle(loadingRequest)
+            await self.handle(request.value)
         }
         inFlight.append(task)
         stateLock.unlock()
@@ -339,5 +340,10 @@ public final class CachingResourceLoader: NSObject, AVAssetResourceLoaderDelegat
         resolvedSupportsByteRanges = value
         stateLock.unlock()
     }
+}
+
+private final class LoadingRequestBox: @unchecked Sendable {
+    let value: AVAssetResourceLoadingRequest
+    init(_ value: AVAssetResourceLoadingRequest) { self.value = value }
 }
 #endif

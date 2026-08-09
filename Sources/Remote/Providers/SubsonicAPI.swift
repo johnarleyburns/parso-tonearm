@@ -5,7 +5,7 @@ public enum SubsonicAPI {
     public static let defaultVersion = "1.16.1"
     public static let defaultClient = "Tonearm"
 
-    public enum Format: String, Equatable {
+    public enum Format: String, Equatable, Sendable {
         case json
         case xml
     }

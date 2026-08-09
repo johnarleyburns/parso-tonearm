@@ -1,10 +1,9 @@
 import Foundation
-import Synchronization
 
 /// The persisted now-playing state: enough to rebuild the play queue (paused, at
 /// the saved position) after the app is suspended or relaunched, so playback
 /// resumes from the last known queue.
-public struct PlaybackStateSnapshot: Codable, Equatable {
+public struct PlaybackStateSnapshot: Codable, Equatable, Sendable {
     public var trackIDs: [Int64]
     /// Stable cross-device identity for the queued tracks (parallel to `trackIDs`).
     /// Nil when populated from a v1 payload (pre-F1). Filled by F1 persist.
@@ -25,10 +24,10 @@ public enum PlaybackStateStore {
 
     /// Injectable defaults provider so tests can point the singleton
     /// `AudioPlayer` at an ephemeral suite and spy on writes.
-    private static let defaultsProviderState = Mutex<() -> UserDefaults?>({ sharedDefaults() })
+    private static let defaultsProviderState = LockedValue<() -> UserDefaults?>({ sharedDefaults() })
     public static var defaultsProvider: () -> UserDefaults? {
-        get { defaultsProviderState.withLock { $0 } }
-        set { defaultsProviderState.withLock { $0 = newValue } }
+        get { defaultsProviderState.read() }
+        set { defaultsProviderState.write(newValue) }
     }
 
     public static func load(defaults: UserDefaults? = nil) -> PlaybackStateSnapshot? {

@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-public struct SmartPlaylist: Equatable, Codable {
+public struct SmartPlaylist: @unchecked Sendable, Equatable, Codable {
     public var root: SmartPlaylistRuleGroup
     public var sort: Sort
     public var limit: Int?

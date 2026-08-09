@@ -1,12 +1,12 @@
 import Foundation
 
-public protocol WatchTransferFileProvider {
+public protocol WatchTransferFileProvider: Sendable {
     func localFileURL(for trackKey: String) async -> URL?
     func downloadRemoteFile(for trackKey: String) async -> URL?
     func fileSize(for trackKey: String) -> Int64?
 }
 
-public protocol WatchSessionWriter {
+public protocol WatchSessionWriter: Sendable {
     func transferFile(_ url: URL, metadata: WatchAudioMetadata) async throws
     func sendUserInfo(_ info: [String: Any]) async throws
     func sendCatalog(_ snapshot: WatchCatalogSnapshot) async throws

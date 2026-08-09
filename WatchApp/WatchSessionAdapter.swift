@@ -2,7 +2,7 @@ import Foundation
 import WatchConnectivity
 import TonearmCore
 
-final class WatchSessionAdapter: NSObject, WCSessionDelegate, ObservableObject {
+final class WatchSessionAdapter: NSObject, @unchecked Sendable, WCSessionDelegate, ObservableObject {
     static let shared = WatchSessionAdapter()
     private let session: WCSession
 

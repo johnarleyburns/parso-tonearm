@@ -80,7 +80,7 @@ final class RemoteLibraryProviderTests: XCTestCase {
         }
     }
 
-    private final class FakeRemoteProvider: RemoteLibraryProvider {
+    private final class FakeRemoteProvider: @unchecked Sendable, RemoteLibraryProvider {
         let sourceKind: SourceKind
         private let nodesByPath: [String: [RemoteNode]]
         private let assetsByNodeID: [String: ResolvedAsset]

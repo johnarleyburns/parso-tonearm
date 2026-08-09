@@ -48,24 +48,28 @@ final class SystemPlaybackBridge: PlaybackPlatformBridge {
         interruptionPause: @escaping () -> Void,
         interruptionResume: @escaping () -> Void
     ) {
+        let routeCallback = CallbackBox(routeShouldPause)
+        let pauseCallback = CallbackBox(interruptionPause)
+        let resumeCallback = CallbackBox(interruptionResume)
         routeChangeObserver = NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification,
             object: nil, queue: .main
         ) { notification in
+            let notification = NotificationBox(notification)
             Task { @MainActor in
-                guard let reasonRaw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                guard let reasonRaw = notification.value.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
                       let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw) else { return }
                 let prevKey = AVAudioSessionRouteChangePreviousRouteKey
-                let prevRoute = notification.userInfo?[prevKey] as? AVAudioSessionRouteDescription
+                let prevRoute = notification.value.userInfo?[prevKey] as? AVAudioSessionRouteDescription
                 let prevHadExternal = prevRoute?.outputs.contains(where: { $0.portType != .builtInSpeaker }) == true
 
                 switch reason {
                 case .oldDeviceUnavailable:
-                    if prevHadExternal { routeShouldPause() }
+                    if prevHadExternal { routeCallback.call() }
                 case .routeConfigurationChange:
                     let currentOutputs = AVAudioSession.sharedInstance().currentRoute.outputs
                     let isBuiltInOnly = currentOutputs.allSatisfy { $0.portType == .builtInSpeaker }
-                    if isBuiltInOnly && prevHadExternal { routeShouldPause() }
+                    if isBuiltInOnly && prevHadExternal { routeCallback.call() }
                 default: break
                 }
             }
@@ -75,16 +79,17 @@ final class SystemPlaybackBridge: PlaybackPlatformBridge {
             forName: AVAudioSession.interruptionNotification,
             object: nil, queue: .main
         ) { notification in
-            guard let typeRaw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+            let notification = NotificationBox(notification)
+            guard let typeRaw = notification.value.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   let type = AVAudioSession.InterruptionType(rawValue: typeRaw) else { return }
-            let optionsRaw = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            let optionsRaw = notification.value.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
             Task { @MainActor in
                 switch type {
                 case .began:
-                    interruptionPause()
+                    pauseCallback.call()
                 case .ended:
                     if AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume) {
-                        interruptionResume()
+                        resumeCallback.call()
                     }
                 @unknown default:
                     break
@@ -167,4 +172,15 @@ final class SystemPlaybackBridge: PlaybackPlatformBridge {
         }
         WidgetArtworkStore.prune(keeping: keep)
     }
+}
+
+private struct CallbackBox: @unchecked Sendable {
+    let value: () -> Void
+    init(_ value: @escaping () -> Void) { self.value = value }
+    func call() { value() }
+}
+
+private struct NotificationBox: @unchecked Sendable {
+    let value: Notification
+    init(_ value: Notification) { self.value = value }
 }

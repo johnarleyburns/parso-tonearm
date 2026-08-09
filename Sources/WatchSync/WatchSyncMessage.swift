@@ -1,6 +1,6 @@
 import Foundation
 
-public enum WatchSyncMessageKind: String, Codable {
+public enum WatchSyncMessageKind: String, Codable, Sendable {
     case catalog
     case artwork
     case audio
@@ -50,7 +50,7 @@ public struct WatchSyncEnvelope: Codable, Equatable {
 
 // MARK: - Payload types
 
-public struct WatchCatalogSnapshot: Codable, Equatable {
+public struct WatchCatalogSnapshot: Codable, Equatable, Sendable {
     public var version: Int
     public var playlists: [WatchPlaylistDTO]
     public var albums: [WatchAlbumDTO]
@@ -106,7 +106,7 @@ public struct WatchTrackDTO: Codable, Equatable, Sendable {
     }
 }
 
-public struct WatchAlbumDTO: Codable, Equatable {
+public struct WatchAlbumDTO: Codable, Equatable, Sendable {
     public var key: String
     public var title: String
     public var artist: String?
@@ -138,7 +138,7 @@ public struct WatchPlaylistDTO: Codable, Equatable, Sendable {
     }
 }
 
-public struct WatchArtistDTO: Codable, Equatable {
+public struct WatchArtistDTO: Codable, Equatable, Sendable {
     public var key: String
     public var name: String
 
@@ -148,7 +148,7 @@ public struct WatchArtistDTO: Codable, Equatable {
     }
 }
 
-public struct WatchAudioMetadata: Codable, Equatable {
+public struct WatchAudioMetadata: Codable, Equatable, Sendable {
     public var trackKey: String
     public var bytes: Int64
     public var pinned: Bool

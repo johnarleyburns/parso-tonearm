@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-public struct CredentialStore {
+public struct CredentialStore: Sendable {
     public enum StoreError: Error, Equatable {
         case keychainStatus(OSStatus)
     }

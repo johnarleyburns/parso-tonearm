@@ -31,7 +31,7 @@ public enum OAuthError: LocalizedError, Equatable {
     }
 }
 
-public struct OAuthPKCE: Equatable {
+public struct OAuthPKCE: Equatable, Sendable {
     public var verifier: String
     public var challenge: String
     public var method: String
@@ -54,7 +54,7 @@ public struct OAuthPKCE: Equatable {
     }
 }
 
-public struct OAuthProviderConfig: Equatable, Codable {
+public struct OAuthProviderConfig: Equatable, Codable, Sendable {
     public var provider: CloudDriveAPI.Provider
     public var clientID: String
     public var clientSecret: String?
@@ -197,7 +197,7 @@ public struct OAuthProviderConfig: Equatable, Codable {
     }
 }
 
-public struct OAuthAuthorizationSession: Equatable {
+public struct OAuthAuthorizationSession: Equatable, Sendable {
     public var config: OAuthProviderConfig
     public var state: String
     public var pkce: OAuthPKCE
@@ -227,7 +227,7 @@ public struct OAuthAuthorizationSession: Equatable {
     }
 }
 
-public struct OAuthToken: Equatable, Codable {
+public struct OAuthToken: Equatable, Codable, Sendable {
     public var provider: CloudDriveAPI.Provider
     public var accessToken: String
     public var refreshToken: String?
@@ -332,7 +332,7 @@ public struct OAuthTokenResponse: Equatable {
     }
 }
 
-public struct OAuthTokenStore {
+public struct OAuthTokenStore: Sendable {
     public var credentialStore: CredentialStore
 
     public init(credentialStore: CredentialStore = CredentialStore()) {
@@ -357,7 +357,7 @@ public struct OAuthTokenStore {
     }
 }
 
-public struct OAuthTokenClient {
+public struct OAuthTokenClient: Sendable {
     public var session: URLSession
 
     public init(session: URLSession = .shared) {

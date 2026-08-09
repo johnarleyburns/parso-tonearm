@@ -1,7 +1,7 @@
 import Foundation
 
 public enum CloudDriveAPI {
-    public enum Provider: String, CaseIterable, Equatable, Codable {
+    public enum Provider: String, CaseIterable, Equatable, Codable, Sendable {
         case dropbox
         case googleDrive
         case oneDrive

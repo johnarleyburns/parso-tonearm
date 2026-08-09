@@ -14,7 +14,7 @@ import os
 /// `os_unfair_lock`. The audio thread picks the pending kernel up with
 /// `os_unfair_lock_trylock` (and keeps using the previous one if the trylock
 /// fails), then processes without holding any lock.
-public final class EQAudioTap {
+public final class EQAudioTap: @unchecked Sendable {
 
     private final class Storage {
         /// Owned and mutated only on the audio thread (except `reset` in prepare).
@@ -90,7 +90,7 @@ public final class EQAudioTap {
 
     /// Builds an `AVAudioMix` carrying this tap for the given item's first audio
     /// track. Returns nil if the asset exposes no audio track yet.
-    public func makeAudioMix(for item: AVPlayerItem) async -> AVAudioMix? {
+    @MainActor public func makeAudioMix(for item: AVPlayerItem) async -> AVAudioMix? {
         guard let track = try? await item.asset.loadTracks(withMediaType: .audio).first else {
             return nil
         }

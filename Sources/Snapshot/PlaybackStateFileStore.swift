@@ -1,5 +1,4 @@
 import Foundation
-import Synchronization
 
 /// Atomic file tier for playback state, stronger than UserDefaults (cfprefsd is
 /// async) and the recovery tier when the defaults key is corrupt/missing.
@@ -11,10 +10,10 @@ import Synchronization
 public enum PlaybackStateFileStore {
     private static let filename = "playback-state.v2.json"
     private static let tmpSuffix = ".tmp"
-    private static let overrideState = Mutex<URL?>(nil)
+    private static let overrideState = LockedValue<URL?>(nil)
     static var fileURLOverride: URL? {
-        get { overrideState.withLock { $0 } }
-        set { overrideState.withLock { $0 = newValue } }
+        get { overrideState.read() }
+        set { overrideState.write(newValue) }
     }
 
     // MARK: - Location
@@ -62,4 +61,13 @@ public enum PlaybackStateFileStore {
         else { return nil }
         return snapshot
     }
+}
+
+final class LockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Value
+
+    init(_ value: Value) { self.value = value }
+    func read() -> Value { lock.lock(); defer { lock.unlock() }; return value }
+    func write(_ value: Value) { lock.lock(); self.value = value; lock.unlock() }
 }

@@ -2,7 +2,7 @@ import XCTest
 import CloudKit
 @testable import TonearmCore
 
-final class PlaybackCloudMirrorTests: XCTestCase {
+@MainActor final class PlaybackCloudMirrorTests: XCTestCase {
 
     // MARK: - Record round-trip
 

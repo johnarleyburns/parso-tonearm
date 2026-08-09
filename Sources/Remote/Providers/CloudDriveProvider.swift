@@ -25,11 +25,11 @@ public struct CloudDriveAccess: Equatable, Sendable {
     }
 }
 
-public protocol CloudDriveAccessProviding {
+public protocol CloudDriveAccessProviding: Sendable {
     func access() async throws -> CloudDriveAccess
 }
 
-public struct StaticCloudDriveAccessProvider: CloudDriveAccessProviding {
+public struct StaticCloudDriveAccessProvider: CloudDriveAccessProviding, Sendable {
     public var accessToken: String
     public var environment: CloudDriveAPI.Environment
 
