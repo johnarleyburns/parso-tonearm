@@ -1,6 +1,6 @@
 import Foundation
 
-public struct RemoteArtwork: Codable, Equatable, Hashable {
+public struct RemoteArtwork: Codable, Equatable, Hashable, Sendable {
     public var id: String?
     public var url: URL?
     public var headers: [String: String]

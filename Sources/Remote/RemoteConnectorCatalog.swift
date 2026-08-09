@@ -21,7 +21,7 @@ public enum RemoteConnectorAuthKind: String, Codable, Equatable, Sendable {
 }
 
 public struct RemoteConnectorGuide: Equatable, Codable, Sendable {
-    public struct Section: Equatable, Codable {
+    public struct Section: Equatable, Codable, Sendable {
         public var title: String
         public var body: String
 

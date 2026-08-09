@@ -43,14 +43,14 @@ public enum ListeningStats {
         public var id: String { name }
     }
 
-    public struct PeriodRollup: Equatable, Identifiable {
+    public struct PeriodRollup: Equatable, Identifiable, Sendable {
         public var start: Date
         public var playCount: Int
         public var listeningTime: TimeInterval
         public var id: Date { start }
     }
 
-    public struct YearInReview: Equatable {
+    public struct YearInReview: Equatable, Sendable {
         public var year: Int
         public var playCount: Int
         public var listeningTime: TimeInterval

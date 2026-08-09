@@ -93,7 +93,7 @@ public enum TagEdit {
         }
     }
 
-    public enum WriteAccess: Equatable {
+    public enum WriteAccess: Equatable, Sendable {
         case localFile(path: String)
         case readOnly(reason: String)
 
@@ -122,7 +122,7 @@ public enum TagEdit {
         case mixed
     }
 
-    public struct Proposal: Equatable {
+    public struct Proposal: Equatable, Sendable {
         public var assignments: [Field: Value?] = [:]
         public var replacements: [FindReplace] = []
         public var numberFromFilename = false

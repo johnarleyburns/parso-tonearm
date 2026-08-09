@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-public struct TrackRow: Identifiable, Equatable {
+public struct TrackRow: Identifiable, Equatable, Sendable {
     public var track: Track
     public var album: Album?
     public var source: Source?

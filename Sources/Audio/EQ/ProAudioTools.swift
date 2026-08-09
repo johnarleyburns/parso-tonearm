@@ -189,7 +189,7 @@ public extension Biquad {
     }
 }
 
-public struct ParametricEQBand: Equatable, Identifiable, Codable {
+public struct ParametricEQBand: Equatable, Identifiable, Codable, Sendable {
     public var id: String
     public var type: BiquadFilterType
     public var frequency: Double
@@ -241,7 +241,7 @@ public struct ParametricEQCascade: Equatable {
     }
 }
 
-public struct CrossfeedMatrix: Equatable {
+public struct CrossfeedMatrix: Equatable, Sendable {
     public var leftToLeft: Double
     public var leftToRight: Double
     public var rightToLeft: Double
@@ -270,7 +270,7 @@ public struct CrossfeedMatrix: Equatable {
     }
 }
 
-public struct ConvolutionPlan: Equatable {
+public struct ConvolutionPlan: Equatable, Sendable {
     public var taps: [Double]
     public var blockSize: Int
     public var latencyFrames: Int

@@ -27,7 +27,7 @@ public enum CloudDriveAPI {
         }
     }
 
-    public struct Environment: Equatable, Codable {
+    public struct Environment: Equatable, Codable, Sendable {
         public var baseURL: URL
 
         public init(baseURL: URL) {

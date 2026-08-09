@@ -1,6 +1,6 @@
 #if !os(watchOS)
 import Foundation
-import AVFoundation
+@preconcurrency import AVFoundation
 import os
 
 /// Attaches the full Pro Audio chain to an `AVPlayerItem` via `MTAudioProcessingTap`

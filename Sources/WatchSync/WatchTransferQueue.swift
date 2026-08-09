@@ -1,12 +1,12 @@
 import Foundation
 
-public enum WatchTransferOrigin: String, Equatable, Codable {
+public enum WatchTransferOrigin: String, Equatable, Codable, Sendable {
     case single
     case album
     case playlist
 }
 
-public enum WatchTransferState: String, Equatable, Codable {
+public enum WatchTransferState: String, Equatable, Codable, Sendable {
     case queued
     case sending
     case sent
