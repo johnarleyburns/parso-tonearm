@@ -1,0 +1,122 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width"><title>Platterhead — Stems &amp; filter detail (iPad)</title>
+<link rel="stylesheet" href="../platterhead.css"></head><body>
+<div class="stage">
+<div class="ipad">
+  <div class="statusbar"><span>9:41 Mon 12 Oct</span><span class="small">Platterhead · performing</span><span>􀙇 􀛨 74%</span></div>
+  <div class="topbar">
+    <span class="pill pro">􀑈 Pro</span><h1>Deck B — stems &amp; filter</h1>
+    <span class="pill work mono">􀇬 Fair</span>
+    <span class="pill cyan mono">256 · 11.4 ms</span>
+    <button class="button ghost">􀆄 Back to workspace</button>
+    <button class="button record">■ 00:41:02</button></div>
+
+  <section class="content" style="padding:13px 15px">
+    <div class="grid" style="grid-template-columns:1.35fr 1fr;gap:13px">
+
+      <div>
+        <div class="card" style="margin-bottom:12px">
+          <div class="row between" style="margin-bottom:9px">
+            <div><b style="font-size:15px">Undertow Static</b>
+              <div class="tiny">Kell Vasse · 128.00 · 9A · −3.1%</div></div>
+            <span class="pill good">􀇿 4 stems from cache · 13.1 MB</span></div>
+
+          <div class="stem" style="grid-template-columns:74px 1fr 90px 30px;margin:11px 0">
+            <span><b>Vocals</b></span><div class="fader"><i style="width:84%"></i></div>
+            <div class="wave sm" style="height:22px;filter:hue-rotate(300deg)"></div><b class="tiny">S M</b></div>
+          <div class="stem" style="grid-template-columns:74px 1fr 90px 30px;margin:11px 0">
+            <span><b>Drums</b></span><div class="fader"><i style="width:90%"></i></div>
+            <div class="wave sm" style="height:22px;filter:hue-rotate(60deg)"></div><b class="tiny">S M</b></div>
+          <div class="stem" style="grid-template-columns:74px 1fr 90px 30px;margin:11px 0">
+            <span><b>Bass</b></span><div class="fader off"><i style="width:0%"></i></div>
+            <div class="wave sm" style="height:22px;opacity:.3"></div><b class="tiny" style="color:var(--red)">S <u>M</u></b></div>
+          <div class="stem" style="grid-template-columns:74px 1fr 90px 30px;margin:11px 0">
+            <span><b>Other</b></span><div class="fader"><i style="width:64%"></i></div>
+            <div class="wave sm" style="height:22px;filter:hue-rotate(140deg)"></div><b class="tiny">S M</b></div>
+
+          <p class="tiny" style="margin:12px 0 0">Bass is muted on Deck B while Deck A's bass plays — the
+            classic swap. Mute is sample-accurate and quantized to the next beat.</p>
+        </div>
+
+        <div class="card">
+          <div class="row between"><h3 style="margin:0">Filter &amp; EQ — combined response</h3>
+            <div class="row" style="gap:6px"><span class="pill">HPF 240 Hz</span>
+              <span class="pill">LOW −6</span><span class="pill">MID 0</span><span class="pill">HIGH +2</span></div></div>
+          <div class="arc" style="height:132px;margin-top:10px"><div class="gridlines"></div>
+            <svg viewBox="0 0 600 132" preserveAspectRatio="none">
+              <line x1="0" y1="66" x2="600" y2="66" stroke="#3a4150" stroke-width="1" stroke-dasharray="4 4"/>
+              <path d="M0,124 C40,120 70,104 100,84 C130,66 160,58 200,56 C260,54 300,66 340,68
+                       C400,70 440,62 500,50 C540,42 570,36 600,32"
+                    fill="none" stroke="#7c5cff" stroke-width="3"/>
+              <path d="M0,124 C40,120 70,104 100,84 C130,66 160,58 200,56 L200,132 L0,132 Z"
+                    fill="#7c5cff14"/>
+            </svg>
+            <span class="tiny mono" style="position:absolute;left:9px;bottom:6px;color:#6c7484">20 Hz</span>
+            <span class="tiny mono" style="position:absolute;left:31%;bottom:6px;color:#6c7484">240</span>
+            <span class="tiny mono" style="position:absolute;left:56%;bottom:6px;color:#6c7484">2 k</span>
+            <span class="tiny mono" style="position:absolute;right:9px;bottom:6px;color:#6c7484">20 kHz</span>
+            <span class="tiny mono" style="position:absolute;right:9px;top:6px;color:#6c7484">+6 dB</span></div>
+          <p class="tiny" style="margin:10px 0 0">One plot, not three knobs pretending to be independent. The
+            high-pass sweep and the isolator bands interact, and this is the only honest way to show that.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:12px">
+          <div class="row between"><h3 style="margin:0">Separation queue</h3><span class="pill work">Deprioritized</span></div>
+          <p class="tiny" style="margin:7px 0 11px">On-demand separation runs at the lowest GPU priority during a
+            live set and is abandoned the moment thermal state reaches Serious. It is never the specified path —
+            prepared crates are.</p>
+
+          <div class="row between" style="margin:9px 0 5px"><span class="small">Ferrite Bloom</span>
+            <span class="tiny mono">62%</span></div>
+          <div class="bar"><i class="c" style="width:62%"></i></div>
+
+          <div class="row between" style="margin:12px 0 5px"><span class="small">Cardinal Dust</span>
+            <span class="tiny">queued</span></div>
+          <div class="bar"><i style="width:0%"></i></div>
+
+          <div class="row between" style="margin:12px 0 5px"><span class="small">Salt Air Signal</span>
+            <span class="tiny">queued</span></div>
+          <div class="bar"><i style="width:0%"></i></div>
+
+          <hr>
+          <div class="row between" style="margin:8px 0"><span class="small">GPU</span><span class="mono tiny">38%</span></div>
+          <div class="bar"><i class="y" style="width:38%"></i></div>
+          <div class="row between" style="margin:10px 0 8px"><span class="small">ANE</span><span class="mono tiny">idle</span></div>
+          <div class="bar"><i style="width:4%"></i></div>
+          <p class="tiny" style="margin:11px 0 0">Liquid Glass materials are switched off while separation runs —
+            invisible to you, measurable in frame time.</p>
+        </div>
+
+        <div class="card" style="border-color:#7a4a1e;background:linear-gradient(150deg,#241a0f,#16120c)">
+          <div class="row" style="gap:11px"><span style="font-size:18px">􀇬</span>
+            <div><b style="font-size:12.5px">Two of the next three tracks have no stems yet.</b>
+              <div class="small" style="margin-top:3px">They'll still play — you'll get the full mix and the stem
+                faders will stay disabled and say so. Prepare the crate on a charger and this stops happening.</div>
+            </div></div>
+          <button class="button wide" style="margin-top:11px">Open gig crate</button>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3>Quantize</h3>
+          <div class="row wrap" style="gap:7px">
+            <span class="chip">Off</span><span class="chip">1 beat</span>
+            <span class="chip sel">1 bar</span><span class="chip">4 bars</span></div>
+          <p class="tiny" style="margin:10px 0 0">Applies to cue triggers, loop toggles and stem mutes — every
+            gesture on this screen lands on the grid.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="home"></div>
+</div>
+
+<p class="caption"><b>§41.10 Stems &amp; filter detail.</b> A focused view over one deck's four stems with per-stem gain, mute,
+solo and cached-stem status. The separation queue is <em>visible</em>, so "why isn't this ready" always has an answer rather
+than a spinner, and the amber card states the FR-ENG-3 fallback in plain words: unprepared tracks play the full mix and the
+faders stay honestly disabled rather than appearing live and doing nothing (§36.5). The filter and EQ render as a single
+combined response curve because they interact, and three independent knobs would misrepresent that. GPU and ANE budgets are
+on screen because on a phone they are thermal budgets (§43.3, §43.7).</p>
+</div>
+</body></html>

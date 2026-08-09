@@ -1,0 +1,128 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width"><title>Platterhead — Analysis &amp; library health (iPad)</title>
+<link rel="stylesheet" href="../platterhead.css"></head><body>
+<div class="stage">
+<div class="ipad">
+  <div class="statusbar"><span>9:41 Mon 12 Oct</span><span class="small">Platterhead</span><span>􀙇 􀛨 92%</span></div>
+  <div class="split">
+    <aside class="sidebar">
+      <div class="brand">◉ Platterhead</div>
+      <div class="navhead">Library</div>
+      <div class="nav">Music <span class="badge">12,842</span></div>
+      <div class="nav">Playlists <span class="badge">46</span></div>
+      <div class="nav">Smart Crates <span class="badge">11</span></div>
+      <div class="navhead">Find</div>
+      <div class="nav">Vibe Search</div><div class="nav">Make a playlist</div>
+      <div class="navhead">Perform</div>
+      <div class="nav locked">DJ Workspace <span>􀎡</span></div>
+      <div class="nav locked">Gig Crates <span>􀎡</span></div>
+      <div class="nav">Recorded Mixes <span class="badge">18</span></div>
+      <div class="navhead">System</div>
+      <div class="nav active">Analysis <span class="badge">7</span></div>
+      <div class="nav">Settings</div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar"><h1>Analysis &amp; library health</h1>
+        <button class="button">Pause</button>
+        <button class="button primary">Analyze everything now</button></div>
+
+      <section class="content">
+        <div class="card" style="border-color:#7a5a1e;background:linear-gradient(150deg,#231a0d,#16120a);margin-bottom:13px">
+          <div class="row" style="gap:12px">
+            <span style="font-size:22px">􀇬</span>
+            <div class="grow"><b>Paused — the iPad is warm.</b>
+              <div class="small" style="margin-top:3px">Thermal state is <b>Serious</b>. Stage 2 and stage 3 are
+                paused; stage 1 is running at half concurrency. Everything resumes automatically once the device
+                returns to <b>Nominal</b> — we don't resume at Fair, so it can't oscillate.</div></div>
+            <button class="button">Run anyway</button>
+          </div>
+        </div>
+
+        <div class="grid c3" style="margin-bottom:13px">
+          <div class="card">
+            <div class="row between"><p class="kicker">Stage 1 — Essentials</p><span class="pill work">Running</span></div>
+            <div class="row between" style="margin:9px 0 7px"><b class="metric">98.2%</b><span class="pill free">Free</span></div>
+            <div class="bar"><i class="g" style="width:98.2%"></i></div>
+            <p class="small" style="margin:9px 0 0">Tempo · beat grid · downbeats · key · energy · waveform<br>
+              <b class="mono">12,611 / 12,842</b> · ~2.4 s each · <b>≈ 9 min left</b></p>
+          </div>
+          <div class="card">
+            <div class="row between"><p class="kicker">Stage 2 — Semantic</p><span class="pill warn">Paused (thermal)</span></div>
+            <div class="row between" style="margin:9px 0 7px"><b class="metric">96.4%</b><span class="pill free">Free</span></div>
+            <div class="bar"><i class="c" style="width:96.4%"></i></div>
+            <p class="small" style="margin:9px 0 0">CLAP embeddings · phrase segmentation<br>
+              <b class="mono">12,381 / 12,842</b> · ~1.7 s each · <b>≈ 13 min left</b></p>
+          </div>
+          <div class="card" style="opacity:.62">
+            <div class="row between"><p class="kicker">Stage 3 — Stems</p><span class="pill pro">􀎡 Pro</span></div>
+            <div class="row between" style="margin:9px 0 7px"><b class="metric">—</b><span class="small">gig crates only</span></div>
+            <div class="bar"><i style="width:0%"></i></div>
+            <p class="small" style="margin:9px 0 0">Separation runs only for crates you prepare, never library-wide.
+              ~34 s each, on a charger.</p>
+          </div>
+        </div>
+
+        <div class="grid c2" style="margin-bottom:13px">
+          <div class="card">
+            <h3>Storage</h3>
+            <div class="row between" style="margin:7px 0"><span class="small">Search vectors</span>
+              <span><b class="mono">6.6 MB</b> <span class="tiny">Tier A</span></span></div>
+            <div class="bar" style="margin-bottom:10px"><i class="c" style="width:2%"></i></div>
+            <div class="row between" style="margin:7px 0"><span class="small">Waveforms</span>
+              <span><b class="mono">218 MB</b> <span class="tiny">of 600 MB</span></span></div>
+            <div class="bar" style="margin-bottom:10px"><i style="width:36%"></i></div>
+            <div class="row between" style="margin:7px 0"><span class="small">Remote audio cache</span>
+              <span><b class="mono">11.2 GB</b> <span class="tiny">of 20 GB</span></span></div>
+            <div class="bar" style="margin-bottom:10px"><i class="g" style="width:56%"></i></div>
+            <div class="row between" style="margin:7px 0"><span class="small">Stems <span class="pill pro">Pro</span></span>
+              <span><b class="mono">0 B</b> <span class="tiny">of 12 GB</span></span></div>
+            <div class="bar"><i style="width:0%"></i></div>
+            <p class="tiny" style="margin:11px 0 0">All of this is regenerable and excluded from backup (§13.1). If iOS
+              purges it, we rebuild quietly.</p>
+          </div>
+
+          <div class="card">
+            <h3>Search model</h3>
+            <div class="row between" style="margin-bottom:9px">
+              <div><b>CLAP text encoder</b><div class="tiny">40 MB · on-demand resource</div></div>
+              <span class="pill good">Downloaded</span></div>
+            <div class="row between" style="margin-bottom:9px">
+              <div><b>CLAP audio encoder</b><div class="tiny">120 MB · on-demand resource</div></div>
+              <span class="pill good">Downloaded</span></div>
+            <div class="row between" style="margin-bottom:11px">
+              <div><b>Demucs separator</b><div class="tiny">180 MB · fetched when you prepare a crate</div></div>
+              <span class="pill">Not downloaded</span></div>
+            <hr>
+            <h3 style="margin-top:12px">Sources</h3>
+            <div class="row between" style="margin:7px 0"><span class="small">􀈕 On this iPad</span>
+              <span class="pill good">Watching · 4,182</span></div>
+            <div class="row between"><span class="small">􀇃 Navidrome — study.lan</span>
+              <span class="pill good">Reachable · 8,660</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row between">
+            <div class="row wrap" style="gap:9px">
+              <span class="chip sel">Only while charging</span>
+              <span class="chip sel">Pause when warm</span>
+              <span class="chip">Analyze on cellular</span>
+              <span class="chip sel">Suspend during performance</span>
+            </div>
+            <button class="button ghost">Re-analyze at new version…</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="home"></div>
+</div>
+
+<p class="caption"><b>§41.3 Analysis &amp; library health.</b> <code>AnalysisView ▸ AnalysisModel ▸ AnalysisCoordinator, StorageBudgetService</code>.
+The three analysis stages of §4.2 with their tiers made explicit: stages 1 and 2 are free and library-wide, stage 3 is Pro and
+gig-crate scoped (FR-ANL-9). The governor's current decision is stated <em>in words</em>, including the hysteresis rule, because
+"why is my iPad hot" must have a visible answer (NFR-THERM-4, FR-ANL-8). On-Demand Resource state is shown as ordinary status,
+not an error (§27.1a) — Demucs is simply not downloaded because nothing has needed it yet.</p>
+</div>
+</body></html>

@@ -1,0 +1,178 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width"><title>Platterhead — Twin deck, momentary bank drawer (iPhone)</title>
+<link rel="stylesheet" href="../platterhead.css"></head><body>
+<div class="stage">
+<div class="phone land">
+  <div class="island"></div>
+  <div class="dead"><span>dead band · 59 pt</span></div>
+  <div class="dead r"><span>dead band · 59 pt</span></div>
+
+  <!-- filter stays reachable with the drawer open — that is why it lives on the edge -->
+  <div class="edge" style="left:62px;top:150px;bottom:26px;z-index:9"><i style="height:34%"></i>
+    <b style="bottom:calc(34% - 4px)"></b><span>FILTER A</span></div>
+  <div class="edge" style="right:62px;top:150px;bottom:26px"><i style="height:62%"></i>
+    <b style="bottom:calc(62% - 4px)"></b><span>FILTER B</span></div>
+
+  <div class="land-content">
+
+    <div class="row between" style="height:20px">
+      <div class="row" style="gap:5px">
+        <span class="pill good mono" style="padding:1px 6px;font-size:9.5px">􀇱 Nominal</span>
+        <span class="pill cyan mono" style="padding:1px 6px;font-size:9.5px">256 · 11.4 ms</span>
+        <span class="pill mono" style="padding:1px 6px;font-size:9.5px">􀪷 split cue</span>
+        <span class="pill pro" style="padding:1px 6px;font-size:9.5px">A BANK · held</span></div>
+      <div class="row" style="gap:5px">
+        <span class="pill" style="padding:1px 6px;font-size:9.5px">mix-out in 0:48</span>
+        <span class="pill bad mono" style="padding:1px 7px;font-size:9.5px">● 00:39:02</span></div>
+    </div>
+
+    <!-- uncovered, always: both waveforms on one playhead -->
+    <div class="wavepair" style="margin-top:5px">
+      <span class="lbl" style="top:5px">A</span>
+      <div class="wave" style="height:44px;border-radius:0"><div class="beats"></div>
+        <div class="phrase" style="left:70%;width:20%;background:#42dc881a;border-left-color:#42dc8866"></div></div>
+      <span class="lbl" style="top:52px;color:#a9eef6b0">B</span>
+      <div class="wave b" style="height:44px;border-radius:0"><div class="beats"></div>
+        <div class="phrase" style="left:44%;width:12%;background:#28d7e51a;border-left-color:#28d7e566"></div></div>
+    </div>
+
+    <div class="row between" style="margin-top:5px;height:38px;padding:0 20px">
+      <div style="width:228px">
+        <b class="ell" style="font-size:12.5px;display:block;line-height:1.15">Neon Meridian</b>
+        <div class="row between"><span class="time" style="font-size:17px">−00:48</span>
+          <span class="tiny mono" style="text-align:right;line-height:1.25">124.00<br>8A · +0.0%</span></div>
+      </div>
+      <div style="width:202px">
+        <div class="spectrum" style="height:22px;gap:2px">
+          <i style="height:31%"></i><i style="height:58%"></i><i style="height:80%"></i><i style="height:44%"></i>
+          <i style="height:91%"></i><i style="height:67%"></i><i style="height:97%"></i><i style="height:52%"></i>
+          <i style="height:83%"></i><i style="height:39%"></i><i style="height:88%"></i><i style="height:64%"></i>
+          <i style="height:36%"></i><i style="height:75%"></i></div>
+        <div class="row between" style="margin-top:2px"><span class="tiny">MASTER</span>
+          <span class="tiny" style="color:#ffe095">limiter −1.1 dB</span></div>
+      </div>
+      <div style="width:228px;text-align:right">
+        <b class="ell" style="font-size:12.5px;display:block;line-height:1.15">Undertow Static</b>
+        <div class="row between"><span class="tiny mono" style="line-height:1.25">124.00<br>9A · −3.1%</span>
+          <span class="time" style="font-size:17px">−04:22</span></div>
+      </div>
+    </div>
+
+    <div class="row between" style="margin-top:4px;padding:0 30px;align-items:flex-start">
+
+      <!-- DECK A: jog is under the drawer for as long as the thumb holds it -->
+      <div style="width:228px;position:relative;z-index:1" class="dimmed">
+        <div class="row" style="gap:6px;align-items:center">
+          <div class="jog a" style="width:168px;height:168px;--pos:88%">
+            <div class="ring"></div>
+            <span class="marker" style="--deg:317deg"></span>
+            <div class="platter"><div><span class="pill pro" style="padding:0 6px;font-size:9px">DECK A</span>
+              <div class="mono" style="font-size:15px;font-weight:750;margin-top:3px">124.0</div></div></div>
+          </div>
+          <div style="width:54px">
+            <button class="button" style="width:54px;height:54px;justify-content:center;padding:0;font-size:11px">􀊊</button>
+            <button class="button primary" style="width:54px;height:54px;justify-content:center;padding:0;margin-top:6px;font-size:11px">􀊕</button>
+            <button class="button" style="width:54px;height:48px;justify-content:center;padding:0;margin-top:6px;font-size:10.5px">LOOP 8</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MIXER: never covered. The crossfader is the one control you cannot navigate to. -->
+      <div style="width:202px">
+        <p class="tiny" style="margin:0 0 3px;text-align:center;font-size:9px">BEAT PHASE · A vs B</p>
+        <div class="pmeter"><i class="late" style="left:calc(50% + 9px)"></i></div>
+        <p class="tiny" style="margin:3px 0 0;text-align:center;font-size:9px;color:#ffe095">B drifting · +6.4 ms</p>
+
+        <div class="row" style="justify-content:center;gap:22px;margin:7px 0 6px;align-items:flex-end">
+          <div style="text-align:center;width:34px">
+            <div class="vfader" style="height:64px;margin:0 auto"><i style="height:86%"></i>
+              <b style="bottom:calc(86% - 4px)"></b></div>
+            <span class="tiny" style="font-size:9px">CH A</span></div>
+          <div style="text-align:center;padding-bottom:10px">
+            <button class="button" style="padding:6px 10px;font-size:10.5px;border-color:#4c3b8f;background:#241d44">SYNC</button>
+            <div class="tiny" style="font-size:8.5px;margin-top:5px">tap = beat<br>hold = downbeat</div></div>
+          <div style="text-align:center;width:34px">
+            <div class="vfader" style="height:64px;margin:0 auto"><i style="height:72%"></i>
+              <b style="bottom:calc(72% - 4px)"></b></div>
+            <span class="tiny" style="font-size:9px">CH B</span></div>
+        </div>
+
+        <div style="background:#12161e;border:1px solid #2b3242;border-radius:10px;padding:6px 9px 7px">
+          <div class="row between" style="margin-bottom:6px"><span class="tiny mono" style="font-size:9px">A</span>
+            <span class="tiny" style="font-size:9px">CROSSFADER</span>
+            <span class="tiny mono" style="font-size:9px">B</span></div>
+          <div class="xfader" style="height:11px;border-radius:6px">
+            <span style="left:44%;position:absolute;top:-9px;width:22px;height:29px;border-radius:7px;
+              background:#d9dee8;box-shadow:0 2px 10px #0009"></span></div>
+        </div>
+      </div>
+
+      <!-- DECK B: fully live throughout -->
+      <div style="width:228px">
+        <div class="row" style="gap:6px;align-items:center">
+          <div style="width:54px">
+            <button class="button" style="width:54px;height:54px;justify-content:center;padding:0;font-size:11px">􀊊</button>
+            <button class="button primary" style="width:54px;height:54px;justify-content:center;padding:0;margin-top:6px;font-size:11px">􀊕</button>
+            <button class="button" style="width:54px;height:48px;justify-content:center;padding:0;margin-top:6px;font-size:10.5px">LOOP 4</button>
+          </div>
+          <div class="jog b" style="width:168px;height:168px;--pos:34%">
+            <div class="ring"></div>
+            <span class="marker" style="--deg:122deg"></span>
+            <span class="ghost" style="--deg:139deg"></span>
+            <div class="platter">
+              <div><span class="pill cyan" style="padding:0 6px;font-size:9px">DECK B</span>
+                <div class="mono" style="font-size:15px;font-weight:750;margin-top:3px">124.0</div>
+                <div class="tiny" style="font-size:8.5px;letter-spacing:.6px">CDJ · beat 1</div></div></div>
+            <span class="cap pill good" style="padding:0 6px;font-size:8.5px">INCOMING</span>
+          </div>
+        </div>
+        <div class="row between" style="margin-top:5px;background:#151a23;border:1px solid #2f3644;
+          border-top-color:#1f6470;border-radius:8px;padding:4px 9px;height:24px">
+          <span class="tiny" style="font-size:9px">HOLD ▲ B BANK</span>
+          <span class="tiny" style="font-size:9px;color:#b6f2f8">EQ · STEMS · PADS · CUES</span></div>
+      </div>
+    </div>
+
+    <!-- ── the momentary bank drawer, over deck A's jog only ── -->
+    <div class="drawer" style="left:34px;width:238px;height:206px">
+      <div class="grab"></div>
+      <div class="seg" style="margin-bottom:9px">
+        <span class="on">EQ</span><span>STEMS</span><span>PADS</span><span>CUES</span></div>
+
+      <div class="row" style="justify-content:space-between;padding:0 10px">
+        <div style="text-align:center"><div class="knob" style="border-top-color:var(--accent2)">HI</div>
+          <div class="tiny mono" style="font-size:8.5px;margin-top:3px">+2.5</div></div>
+        <div style="text-align:center"><div class="knob">MID</div>
+          <div class="tiny mono" style="font-size:8.5px;margin-top:3px">0.0</div></div>
+        <div style="text-align:center"><div class="knob" style="border-top-color:var(--red)">LOW</div>
+          <div class="tiny mono" style="font-size:8.5px;margin-top:3px">KILL</div></div>
+      </div>
+
+      <div class="row between" style="margin-top:8px">
+        <span class="tiny" style="font-size:9px">TRIM</span>
+        <span class="tiny mono" style="font-size:9px">−1.5 dB</span></div>
+      <div class="fader" style="margin-top:4px"><i style="width:64%"></i></div>
+
+      <p class="tiny" style="margin:8px 0 0;text-align:center;font-size:9px;line-height:1.45">
+        <b style="color:#cfc2ff">Hold</b> the tab to peek, release to return the jog ·
+        <b style="color:#cfc2ff">tap</b> to pin, 12 s timeout<br>
+        filter stays on the edge slider, left 􀆊</p>
+    </div>
+  </div>
+  <div class="home"></div>
+</div>
+
+<p class="caption"><b>§42.7b The momentary bank drawer.</b> This is the screen that proves the twin-deck model, the
+way <code>05b</code> proves the solo-deck one. A phone genuinely cannot show two jogs <em>and</em> two EQ sections
+<em>and</em> stem faders at 44&nbsp;pt — the arithmetic is unarguable: three 44&nbsp;pt knobs plus gaps is 152&nbsp;pt, which
+fits one 228&nbsp;pt deck column and cannot fit two side by side in the 202&nbsp;pt centre. So the banks are
+<b>momentary, not resident</b>: hold the bank tab and the drawer rises over <em>that deck's jog</em> — 228&nbsp;pt of the 734,
+covering nothing else. Both waveforms, both transports, deck B's jog, the beat-phase meter and the crossfader all stay live and
+visible; §42.7's rule that a sheet may never cover the crossfader holds here unchanged. Spring-loading is the point: a held
+drawer cannot leave the surface in a mode the user has forgotten about, which is the failure that makes small DJ UIs dangerous
+mid-set. A tap pins it for hands-free use and it self-dismisses after 12&nbsp;s. Filter is deliberately <em>not</em> in the
+drawer — it stays on the screen edge, still visible and still under a thumb <em>with the drawer open</em>, because filter and
+EQ get worked together. Deck A's jog and transport are occluded, and only they. The limiter has gone amber and the phase
+meter shows B drifting +6.4&nbsp;ms: the two readouts that tell a DJ to reach for the jog, both outside the drawer.</p>
+</div>
+</body></html>

@@ -1,0 +1,164 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width"><title>Platterhead — Twin deck, landscape (iPhone)</title>
+<link rel="stylesheet" href="../platterhead.css"></head><body>
+<div class="stage">
+<div class="phone land">
+  <div class="island"></div>
+  <div class="dead"><span>dead band · 59 pt</span></div>
+  <div class="dead r"><span>dead band · 59 pt</span></div>
+
+  <!-- filter, on the two screen edges: zero layout cost, always under a thumb -->
+  <div class="edge" style="left:62px;top:150px;bottom:26px"><i style="height:50%"></i>
+    <b style="bottom:calc(50% - 4px)"></b><span>FILTER A</span></div>
+  <div class="edge" style="right:62px;top:150px;bottom:26px"><i style="height:62%"></i>
+    <b style="bottom:calc(62% - 4px)"></b><span>FILTER B</span></div>
+
+  <div class="land-content">
+
+    <!-- telemetry: the three correctness readouts + record state (§43.7, FR-SESS-2) -->
+    <div class="row between" style="height:20px">
+      <div class="row" style="gap:5px">
+        <span class="pill good mono" style="padding:1px 6px;font-size:9.5px">􀇱 Nominal</span>
+        <span class="pill cyan mono" style="padding:1px 6px;font-size:9.5px">256 · 11.4 ms</span>
+        <span class="pill mono" style="padding:1px 6px;font-size:9.5px">􀪷 split cue</span>
+        <span class="pill pro" style="padding:1px 6px;font-size:9.5px">TWIN · landscape</span></div>
+      <div class="row" style="gap:5px">
+        <span class="pill" style="padding:1px 6px;font-size:9.5px">mix-out in 1:12</span>
+        <span class="pill bad mono" style="padding:1px 7px;font-size:9.5px">● 00:38:14</span></div>
+    </div>
+
+    <!-- parallel waveforms, one playhead: the only two-deck display that earns its pixels -->
+    <div class="wavepair" style="margin-top:5px">
+      <span class="lbl" style="top:5px">A</span>
+      <div class="wave" style="height:44px;border-radius:0"><div class="beats"></div>
+        <div class="phrase" style="left:62%;width:20%;background:#42dc881a;border-left-color:#42dc8866"></div></div>
+      <span class="lbl" style="top:52px;color:#a9eef6b0">B</span>
+      <div class="wave b" style="height:44px;border-radius:0"><div class="beats"></div>
+        <div class="phrase" style="left:44%;width:12%;background:#28d7e51a;border-left-color:#28d7e566"></div></div>
+    </div>
+
+    <!-- track identity, deck-side; master metering, centre -->
+    <div class="row between" style="margin-top:5px;height:38px;padding:0 20px">
+      <div style="width:228px">
+        <b class="ell" style="font-size:12.5px;display:block;line-height:1.15">Neon Meridian</b>
+        <div class="row between"><span class="time" style="font-size:17px">−03:42</span>
+          <span class="tiny mono" style="text-align:right;line-height:1.25">124.00<br>8A · +0.0%</span></div>
+      </div>
+      <div style="width:202px">
+        <div class="spectrum" style="height:22px;gap:2px">
+          <i style="height:26%"></i><i style="height:52%"></i><i style="height:74%"></i><i style="height:46%"></i>
+          <i style="height:88%"></i><i style="height:63%"></i><i style="height:95%"></i><i style="height:55%"></i>
+          <i style="height:79%"></i><i style="height:41%"></i><i style="height:86%"></i><i style="height:60%"></i>
+          <i style="height:33%"></i><i style="height:72%"></i></div>
+        <div class="row between" style="margin-top:2px"><span class="tiny">MASTER</span>
+          <span class="tiny" style="color:#9cf3bc">limiter −0.3 dB</span></div>
+      </div>
+      <div style="width:228px;text-align:right">
+        <b class="ell" style="font-size:12.5px;display:block;line-height:1.15">Undertow Static</b>
+        <div class="row between"><span class="tiny mono" style="line-height:1.25">128.00<br>9A · −3.1%</span>
+          <span class="time" style="font-size:17px">−05:10</span></div>
+      </div>
+    </div>
+
+    <!-- control band: everything here is inside a thumb arc from a bottom corner -->
+    <div class="row between" style="margin-top:4px;padding:0 30px;align-items:flex-start">
+
+      <!-- ── DECK A ── -->
+      <div style="width:228px">
+        <div class="row" style="gap:6px;align-items:center">
+          <div class="jog a held" style="width:168px;height:168px;--pos:38%">
+            <div class="ring"></div>
+            <span class="marker" style="--deg:137deg"></span>
+            <span class="ghost" style="--deg:119deg"></span>
+            <div class="platter">
+              <div><span class="pill pro" style="padding:0 6px;font-size:9px">DECK A</span>
+                <div class="mono" style="font-size:15px;font-weight:750;margin-top:3px">124.0</div>
+                <div class="tiny" style="font-size:8.5px;letter-spacing:.6px">VINYL · beat 3</div></div></div>
+            <span class="cap pill good" style="padding:0 6px;font-size:8.5px">MASTER</span>
+          </div>
+          <div style="width:54px">
+            <button class="button" style="width:54px;height:54px;justify-content:center;padding:0;font-size:11px">􀊊 CUE</button>
+            <button class="button primary" style="width:54px;height:54px;justify-content:center;padding:0;margin-top:6px;font-size:11px">􀊕</button>
+            <button class="button" style="width:54px;height:48px;justify-content:center;padding:0;margin-top:6px;font-size:10.5px">LOOP 8</button>
+          </div>
+        </div>
+        <div class="row between" style="margin-top:5px;background:#151a23;border:1px solid #2f3644;
+          border-top-color:#4c3b8f;border-radius:8px;padding:4px 9px;height:24px">
+          <span class="tiny" style="font-size:9px">HOLD ▲ A BANK</span>
+          <span class="tiny" style="font-size:9px;color:#cfc2ff">EQ · STEMS · PADS · CUES</span></div>
+      </div>
+
+      <!-- ── MIXER ── -->
+      <div style="width:202px">
+        <p class="tiny" style="margin:0 0 3px;text-align:center;font-size:9px">BEAT PHASE · A vs B</p>
+        <div class="pmeter"><i style="left:calc(50% - 3px)"></i></div>
+        <p class="tiny" style="margin:3px 0 0;text-align:center;font-size:9px;color:#9cf3bc">locked · ±1.8 ms</p>
+
+        <div class="row" style="justify-content:center;gap:22px;margin:7px 0 6px;align-items:flex-end">
+          <div style="text-align:center;width:34px">
+            <div class="vfader" style="height:64px;margin:0 auto"><i style="height:86%"></i>
+              <b style="bottom:calc(86% - 4px)"></b></div>
+            <span class="tiny" style="font-size:9px">CH A</span></div>
+          <div style="text-align:center;padding-bottom:10px">
+            <button class="button" style="padding:6px 10px;font-size:10.5px">SYNC</button>
+            <div class="tiny" style="font-size:8.5px;margin-top:5px">tap = beat<br>hold = downbeat</div></div>
+          <div style="text-align:center;width:34px">
+            <div class="vfader" style="height:64px;margin:0 auto"><i style="height:72%"></i>
+              <b style="bottom:calc(72% - 4px)"></b></div>
+            <span class="tiny" style="font-size:9px">CH B</span></div>
+        </div>
+
+        <div style="background:#12161e;border:1px solid #2b3242;border-radius:10px;padding:6px 9px 7px">
+          <div class="row between" style="margin-bottom:6px"><span class="tiny mono" style="font-size:9px">A</span>
+            <span class="tiny" style="font-size:9px">CROSSFADER</span>
+            <span class="tiny mono" style="font-size:9px">B</span></div>
+          <div class="xfader" style="height:11px;border-radius:6px">
+            <span style="left:58%;position:absolute;top:-9px;width:22px;height:29px;border-radius:7px;
+              background:#d9dee8;box-shadow:0 2px 10px #0009"></span></div>
+        </div>
+      </div>
+
+      <!-- ── DECK B ── -->
+      <div style="width:228px">
+        <div class="row" style="gap:6px;align-items:center">
+          <div style="width:54px">
+            <button class="button" style="width:54px;height:54px;justify-content:center;padding:0;font-size:11px">􀊊 CUE</button>
+            <button class="button" style="width:54px;height:54px;justify-content:center;padding:0;margin-top:6px;font-size:11px">􀊗</button>
+            <button class="button" style="width:54px;height:48px;justify-content:center;padding:0;margin-top:6px;font-size:10.5px">LOOP 4</button>
+          </div>
+          <div class="jog b" style="width:168px;height:168px;--pos:64%">
+            <div class="ring"></div>
+            <span class="marker" style="--deg:230deg"></span>
+            <span class="ghost" style="--deg:212deg"></span>
+            <div class="platter">
+              <div><span class="pill cyan" style="padding:0 6px;font-size:9px">DECK B</span>
+                <div class="mono" style="font-size:15px;font-weight:750;margin-top:3px">124.0</div>
+                <div class="tiny" style="font-size:8.5px;letter-spacing:.6px">CDJ · beat 3</div></div></div>
+            <span class="cap pill cyan" style="padding:0 6px;font-size:8.5px">SYNCED</span>
+          </div>
+        </div>
+        <div class="row between" style="margin-top:5px;background:#151a23;border:1px solid #2f3644;
+          border-top-color:#1f6470;border-radius:8px;padding:4px 9px;height:24px">
+          <span class="tiny" style="font-size:9px">HOLD ▲ B BANK</span>
+          <span class="tiny" style="font-size:9px;color:#b6f2f8">EQ · STEMS · PADS · CUES</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="home"></div>
+</div>
+
+<p class="caption"><b>§42.7a Twin deck — landscape.</b> <code>TwinDeckView ▸ WorkspaceModel ▸ PerformanceEngine,
+TelemetryPump</code>. <b>Pro.</b> A 6-inch screen cannot hold two decks, a mixer and four stem faders at a usable touch size (§42.1). It does not have
+to: the binding constraint on a phone is <b>reach, not pixels</b>. Held in two
+hands in landscape, the screen divides into two ~90&nbsp;pt thumb arcs at the bottom corners and a large centre region no thumb
+can get to without regripping. So the centre carries only <em>display</em> — parallel waveforms on one shared playhead, master
+spectrum, beat phase — and every <em>control</em> sits in an arc: a 168&nbsp;pt jog per deck (≈28&nbsp;mm, matched to the sweep
+a thumb makes without regripping), CUE/PLAY/LOOP at 54&nbsp;pt on the inner side, the crossfader on the bottom centre edge where
+either thumb reaches it, and filter as a slider on each screen edge, which costs no layout width at all. The four control banks
+— EQ, stems, pads, cues — are <b>not</b> on this screen; they rise as momentary drawers over one jog (§42.7b), because you never
+need a jog and an EQ in the same instant. The jog's white marker is track position; the cyan ghost marker is the
+<em>other</em> deck's beat phase, so aligning two dots is beatmatching without headphones — an affordance hardware cannot offer.
+The two 59&nbsp;pt bands are the landscape sensor-housing inset, mirrored; nothing interactive may live there. Thermal state,
+granted buffer and latency (FR-SESS-2) and record state keep their top strip, per the mockup conventions.</p>
+</div>
+</body></html>

@@ -1,0 +1,270 @@
+/* Parso Platterhead — shared mockup stylesheet.
+   No external dependencies: no CDN, no webfonts, no scripts.
+   Palette and idiom inherited from the v1.0 Mac mockups so the two sets read as one product. */
+
+:root{
+  --bg:#0a0b0e; --panel:#12151b; --panel2:#181c24; --line:#2b303b;
+  --muted:#8e97a8; --text:#f4f6fa; --dim:#aeb6c5;
+  --accent:#7c5cff; --accent2:#9580ff; --cyan:#28d7e5; --green:#42dc88;
+  --yellow:#ffc857; --red:#ff5d73; --orange:#ff9f45;
+  --free:#42dc88; --pro:#7c5cff;
+  --shadow:0 20px 55px #0008;
+}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 48% -12%,#26213d 0,#0a0b0e 36%);
+  font:14px -apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;
+  color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+a{color:var(--cyan)}
+
+/* ── device frames ─────────────────────────────────────────────── */
+.stage{display:grid;place-items:center;min-height:100vh;padding:26px 16px;gap:18px;grid-auto-flow:row}
+.caption{max-width:1180px;color:var(--muted);font-size:12.5px;line-height:1.6}
+.caption b{color:var(--dim)}
+.caption code{background:#181c24;padding:1px 5px;border-radius:4px;color:#c3cad8}
+
+.ipad{width:1180px;height:830px;background:#080a0e;border:11px solid #232631;border-radius:26px;
+  box-shadow:0 30px 80px #000c;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.ipad .home{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:200px;height:4px;
+  border-radius:2px;background:#5b6172;z-index:9}
+
+.phone{width:393px;height:852px;background:#080a0e;border:8px solid #252933;border-radius:50px;
+  box-shadow:0 25px 70px #000;overflow:hidden;position:relative}
+.phone .island{position:absolute;z-index:6;top:11px;left:50%;transform:translateX(-50%);
+  width:118px;height:33px;background:#000;border-radius:20px}
+.phone .home{position:absolute;bottom:7px;left:50%;transform:translateX(-50%);width:138px;height:5px;
+  border-radius:3px;background:#5b6172;z-index:9}
+
+.watch{width:198px;height:242px;background:#000;border:9px solid #1b1e26;border-radius:46px;
+  box-shadow:0 20px 50px #000c;overflow:hidden;position:relative;padding:14px 12px}
+
+/* ── status bars & chrome ──────────────────────────────────────── */
+.statusbar{height:26px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 22px;font-size:11.5px;font-weight:600;color:#cfd4df;flex:none}
+.phone .statusbar{padding:14px 26px 0;height:44px;align-items:flex-start}
+
+.topbar{height:52px;display:flex;align-items:center;gap:12px;padding:0 16px;
+  background:#11141b;border-bottom:1px solid var(--line);flex:none}
+.topbar h1{font-size:16px;margin:0;font-weight:700;flex:1}
+
+.split{display:grid;grid-template-columns:214px 1fr;flex:1;min-height:0}
+.split.wide{grid-template-columns:214px 300px 1fr}
+.sidebar{padding:10px 9px;border-right:1px solid var(--line);background:#0f1219;overflow:hidden}
+.brand{padding:8px 11px 14px;font-size:17px;font-weight:800;letter-spacing:.2px}
+.navhead{font-size:9.5px;color:#687183;text-transform:uppercase;letter-spacing:1.3px;padding:13px 11px 6px}
+.nav{padding:8px 11px;border-radius:8px;color:var(--dim);margin:2px 0;display:flex;
+  justify-content:space-between;align-items:center;gap:8px;font-size:13px}
+.nav.active{background:#29233f;color:#fff;font-weight:600}
+.nav.locked{color:#5f6779}
+.badge{background:#303642;border-radius:10px;padding:1px 7px;font-size:10.5px;color:#c3cad8}
+.main{min-width:0;overflow:hidden;display:flex;flex-direction:column}
+.content{padding:15px 17px;overflow:hidden;flex:1;min-height:0}
+
+/* ── generic building blocks ───────────────────────────────────── */
+.card{background:linear-gradient(150deg,#171b23,#11141a);border:1px solid var(--line);
+  border-radius:12px;padding:14px}
+.card h3{margin:0 0 11px;font-size:12.5px;color:#dce1ea;font-weight:650}
+.card.flat{background:#12161d}
+.grid{display:grid;gap:12px}
+.c2{grid-template-columns:1fr 1fr}
+.c3{grid-template-columns:repeat(3,1fr)}
+.c4{grid-template-columns:repeat(4,1fr)}
+.row{display:flex;align-items:center;gap:9px}
+.between{justify-content:space-between}
+.wrap{flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+.small{font-size:11.5px;color:var(--muted);line-height:1.5}
+.tiny{font-size:10px;color:var(--muted)}
+.kicker{font-size:9.5px;text-transform:uppercase;letter-spacing:1.1px;color:var(--muted);font-weight:700}
+.metric{font-size:26px;font-weight:780;letter-spacing:-.5px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.button{border:1px solid #3a4150;background:#1a1e27;color:#fff;border-radius:9px;
+  padding:9px 13px;font-weight:650;font-size:12.5px;display:inline-flex;align-items:center;gap:6px}
+.button.primary{background:var(--accent);border-color:var(--accent2)}
+.button.ghost{background:transparent}
+.button.record{background:#5b1721;border-color:#a62d40;color:#ffd9df}
+.button.wide{width:100%;justify-content:center}
+.button.lg{padding:12px 18px;font-size:14px;border-radius:11px}
+.button.dis{opacity:.4}
+
+.pill{font-size:10.5px;padding:3px 8px;border:1px solid #3c4351;border-radius:999px;color:#bdc4d1;
+  display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.pill.good{color:#9cf3bc;border-color:#276943;background:#153524}
+.pill.work{color:#ffe095;border-color:#66511d;background:#30260f}
+.pill.warn{color:#ffc9a5;border-color:#7a4a1e;background:#341f0f}
+.pill.bad{color:#ffbcc6;border-color:#7c2b39;background:#33151b}
+.pill.free{color:#9cf3bc;border-color:#276943;background:#12261b}
+.pill.pro{color:#cfc2ff;border-color:#4c3b8f;background:#1d1735}
+.pill.cyan{color:#b6f2f8;border-color:#1f6470;background:#0f2b30}
+
+.searchbar{height:38px;border:1px solid #343b49;border-radius:10px;background:#0b0d12;
+  color:#b8c0ce;padding:10px 13px;display:flex;align-items:center;gap:9px;font-size:13px}
+.chip{font-size:11.5px;padding:6px 11px;border-radius:999px;border:1px solid #3a4150;
+  background:#171b23;color:#cbd2df;display:inline-flex;gap:6px;align-items:center}
+.chip.add{border-color:#2f6a46;background:#12291d;color:#a5efc4}
+.chip.sub{border-color:#743341;background:#2c1319;color:#ffb9c4}
+.chip.sel{border-color:var(--accent2);background:#241d44;color:#e4ddff}
+
+.bar{height:6px;background:#262c37;border-radius:4px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.bar>i.g{background:var(--green)} .bar>i.c{background:var(--cyan)}
+.bar>i.y{background:var(--yellow)} .bar>i.r{background:var(--red)}
+
+.tablehead{color:#70798a;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px}
+.trk{display:grid;gap:9px;align-items:center;padding:8px 6px;border-bottom:1px solid #202631;font-size:12.5px}
+.cover{width:28px;height:28px;border-radius:5px;background:linear-gradient(135deg,#8a6fff,#23c4d5);flex:none}
+.cover.b{background:linear-gradient(135deg,#ff8a5c,#c33bb0)}
+.cover.c{background:linear-gradient(135deg,#3ddc97,#1f8fd0)}
+.cover.d{background:linear-gradient(135deg,#ffce4f,#ff6b6b)}
+
+/* ── audio-specific ────────────────────────────────────────────── */
+.wave{height:76px;border-radius:7px;position:relative;overflow:hidden;
+  background:repeating-linear-gradient(90deg,transparent 0 5px,#735dff 6px 9px,transparent 10px 13px),
+             linear-gradient(#141824,#1a1427)}
+.wave.b{background:repeating-linear-gradient(90deg,transparent 0 5px,#28d7e5 6px 9px,transparent 10px 13px),
+             linear-gradient(#101d22,#14202b)}
+.wave.sm{height:44px}
+.wave.lg{height:104px}
+.wave:after{content:'';position:absolute;left:50%;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 10px #fff}
+.wave.left:after{left:22%}
+.wave .beats{position:absolute;inset:0;background:repeating-linear-gradient(90deg,#ffffff26 0 1px,transparent 1px 34px)}
+.wave .phrase{position:absolute;top:0;bottom:0;background:#7c5cff1f;border-left:1px solid #7c5cff66}
+
+.spectrum{height:64px;display:flex;gap:3px;align-items:flex-end}
+.spectrum i{display:block;flex:1;background:linear-gradient(var(--cyan),var(--accent));border-radius:2px 2px 0 0}
+
+.fader{height:7px;background:#252b35;border-radius:4px;position:relative}
+.fader i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:4px}
+.fader.off i{background:#3c4351}
+.stem{display:grid;grid-template-columns:62px 1fr 26px;gap:9px;align-items:center;margin:7px 0;font-size:12px}
+.xfader{height:8px;background:#252b35;border-radius:5px;position:relative}
+.xfader:after{content:'';position:absolute;top:-7px;width:15px;height:22px;border-radius:4px;background:#d9dee8}
+/* flex:none is load-bearing — a knob inside a .row would otherwise shrink its width
+   and render as an ellipse. 44 pt is the NFR-A11Y-3 floor and may not be shrunk away. */
+.knob{width:44px;height:44px;flex:none;border:5px solid #303745;border-top-color:var(--cyan);
+  border-radius:50%;display:grid;place-items:center;font-size:9px;color:var(--dim);font-weight:700}
+.time{font:750 30px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-1px}
+.time.sm{font-size:20px}
+
+.deck{background:#12161d;border:1px solid #313744;border-radius:12px;padding:13px}
+.deck.locked{opacity:.35;filter:saturate(.4)}
+.pads{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.pad{height:42px;border-radius:8px;background:#1c2130;border:1px solid #333b4c;display:grid;
+  place-items:center;font-size:10.5px;color:#cbd2df;font-weight:650}
+.pad.a{background:#2a1f45;border-color:#4c3b8f;color:#d9cfff}
+.pad.b{background:#123028;border-color:#276943;color:#a5efc4}
+.pad.c{background:#33240f;border-color:#7a5a1e;color:#ffdca5}
+.pad.d{background:#331520;border-color:#7c2b39;color:#ffb9c4}
+
+/* energy arc plot */
+.arc{position:relative;height:118px;background:#0c0f14;border:1px solid #262c37;border-radius:9px;overflow:hidden}
+.arc .gridlines{position:absolute;inset:0;background:repeating-linear-gradient(0deg,#ffffff0d 0 1px,transparent 1px 29px)}
+.arc svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ── lock / paywall ────────────────────────────────────────────── */
+.lockchip{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;
+  border:1px solid #4c3b8f;background:#1d1735;color:#cfc2ff;font-size:12px;font-weight:650}
+.dimmed{opacity:.34;pointer-events:none;filter:saturate(.45)}
+.sheet{background:#141821;border:1px solid #333a49;border-radius:18px;padding:22px;box-shadow:var(--shadow)}
+.checkline{display:flex;gap:10px;align-items:flex-start;margin:9px 0;font-size:12.5px;color:var(--dim)}
+.checkline b{color:var(--text);font-weight:650}
+.tick{color:var(--green);flex:none;font-weight:800}
+
+/* ── phone-specific ────────────────────────────────────────────── */
+.ioshead{padding:6px 19px 10px}
+.ioshead h1{font-size:29px;margin:0;letter-spacing:-.6px}
+.ioscontent{padding:0 16px;overflow:hidden}
+.tabbar{position:absolute;bottom:0;left:0;right:0;height:78px;background:#11151cf2;
+  border-top:1px solid #2c323c;display:flex;justify-content:space-around;padding-top:11px}
+.tab{font-size:9.5px;text-align:center;color:#8e97a8;width:70px}
+.tab b{display:block;font-size:19px;margin-bottom:2px;font-weight:400}
+.tab.active{color:#a98fff}
+.bottombar{position:absolute;bottom:0;left:0;right:0;background:#101319f5;border-top:1px solid #2c323c;
+  padding:11px 16px 22px}
+.strip{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;
+  background:#151a23;border:1px solid #2f3644;border-radius:12px;padding:9px 11px}
+.strip.glow{border-color:#4c3b8f;box-shadow:0 0 0 1px #7c5cff44,0 0 22px #7c5cff22}
+
+/* ── twin deck: landscape frame, jog wheels, drawers, edge sliders ──
+   Spec §40.7 (jog model), §41.9a (iPad module), §42.7a–42.7b (compact surface). */
+
+.phone.land{width:852px;height:393px;border-radius:44px}
+.phone.land .island{top:50%;left:10px;transform:translateY(-50%);width:33px;height:118px}
+.phone.land .home{bottom:6px;width:224px}
+
+/* the landscape sensor-housing dead band — mirrored on both edges (see doc §3.1) */
+.dead{position:absolute;top:0;bottom:0;width:59px;z-index:5;background:#04050799;
+  display:grid;place-items:center;border-right:1px solid #171b23}
+.dead.r{right:0;border-right:0;border-left:1px solid #171b23}
+.dead span{writing-mode:vertical-rl;font-size:8px;letter-spacing:1.4px;
+  color:#3d4453;text-transform:uppercase;font-weight:700}
+.land-content{position:absolute;left:59px;right:59px;top:0;bottom:0;padding:6px 10px 0}
+
+/* parallel waveforms, one shared playhead — the two-deck phase display */
+.wavepair{position:relative;border-radius:8px;overflow:hidden;border:1px solid #232a36;background:#0b0e14}
+.wavepair .wave{border-radius:0}
+.wavepair .wave:after{display:none}
+.wavepair:after{content:'';position:absolute;left:50%;top:0;bottom:0;width:2px;
+  background:#fff;box-shadow:0 0 12px #fff;z-index:3}
+.wavepair .lbl{position:absolute;left:6px;z-index:4;font-size:9px;font-weight:800;
+  letter-spacing:1px;color:#ffffffb0;text-shadow:0 1px 3px #000}
+
+/* jog wheel. --pos drives the position ring; markers rotate on --deg. */
+.jog{position:relative;border-radius:50%;flex:none;
+  background:conic-gradient(from -90deg,var(--accent) 0 var(--pos,25%),#222836 var(--pos,25%) 100%);
+  box-shadow:0 0 0 1px #39415a,0 10px 26px #0009;display:grid;place-items:center}
+.jog.b{background:conic-gradient(from -90deg,var(--cyan) 0 var(--pos,25%),#222836 var(--pos,25%) 100%)}
+.jog .ring{position:absolute;inset:11px;border-radius:50%;background:#0e1119;
+  border:1px solid #2c3342;
+  background-image:repeating-conic-gradient(from -90deg,#ffffff14 0 .6deg,transparent .6deg 22.5deg)}
+.jog .platter{position:relative;z-index:2;width:58%;height:58%;border-radius:50%;
+  background:radial-gradient(circle at 50% 26%,#242b3a,#0d1016 78%);border:1px solid #333b4c;
+  display:grid;place-items:center;text-align:center;line-height:1.2}
+.jog .marker,.jog .ghost{position:absolute;left:50%;top:14px;bottom:50%;width:2px;z-index:3;
+  transform-origin:bottom center;transform:translateX(-50%) rotate(var(--deg,0deg))}
+.jog .marker{background:linear-gradient(#fff,#ffffff22)}
+.jog .marker:after{content:'';position:absolute;top:-3px;left:50%;transform:translateX(-50%);
+  width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 12px #fff}
+.jog .ghost{background:linear-gradient(#28d7e5,#28d7e522);opacity:.75}
+.jog .ghost:after{content:'';position:absolute;top:-2px;left:50%;transform:translateX(-50%);
+  width:8px;height:8px;border-radius:50%;border:2px solid var(--cyan);background:#0b0e14}
+.jog.b .ghost{background:linear-gradient(var(--accent2),#7c5cff22)}
+.jog.b .ghost:after{border-color:var(--accent2)}
+.jog .cap{position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);z-index:4}
+.jog.held{box-shadow:0 0 0 2px #7c5cff,0 0 28px #7c5cff55,0 10px 26px #0009}
+
+/* beat-phase meter: centred means locked */
+.pmeter{height:11px;border-radius:6px;background:#151a23;border:1px solid #2b3242;position:relative}
+.pmeter:before{content:'';position:absolute;left:50%;top:-4px;bottom:-4px;width:1px;background:#5a627a}
+.pmeter i{position:absolute;top:1px;bottom:1px;width:7px;border-radius:4px;background:var(--green);
+  box-shadow:0 0 9px #42dc8899}
+.pmeter i.late{background:var(--yellow);box-shadow:0 0 9px #ffc85799}
+
+/* vertical channel fader */
+.vfader{width:13px;background:#232935;border-radius:7px;position:relative;overflow:hidden;
+  display:flex;align-items:flex-end}
+.vfader i{display:block;width:100%;background:linear-gradient(var(--cyan),var(--accent))}
+.vfader b{position:absolute;left:-4px;width:21px;height:9px;border-radius:4px;background:#d9dee8;
+  box-shadow:0 2px 7px #000a}
+
+/* momentary drawer — rises over one deck's jog, never over the crossfader */
+.drawer{position:absolute;bottom:0;z-index:8;background:#141924f7;border:1px solid #3b4356;
+  border-radius:16px 16px 0 0;box-shadow:0 -16px 44px #000b;padding:9px 11px 12px}
+.drawer .grab{width:36px;height:4px;border-radius:2px;background:#4d5568;margin:0 auto 8px}
+
+/* screen-edge slider (filter). Costs no layout width. */
+.edge{position:absolute;width:24px;border-radius:12px;background:#101520;border:1px solid #2c3342;
+  z-index:6;overflow:hidden;display:flex;align-items:flex-end}
+.edge i{display:block;width:100%;background:linear-gradient(#28d7e5,#7c5cff);opacity:.5}
+.edge b{position:absolute;left:1px;right:1px;height:9px;border-radius:5px;background:#d9dee8;
+  box-shadow:0 2px 8px #000a}
+.edge span{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);writing-mode:vertical-rl;
+  font-size:8px;letter-spacing:1.2px;color:#8e97a8;font-weight:700}
+
+/* module slot switcher (iPad deck lower third) */
+.seg{display:flex;background:#11151d;border:1px solid #2c3342;border-radius:9px;padding:2px;gap:2px}
+.seg span{flex:1;text-align:center;font-size:10.5px;font-weight:650;color:#9aa3b4;
+  padding:5px 0;border-radius:7px}
+.seg span.on{background:#29233f;color:#fff}

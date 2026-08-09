@@ -1,0 +1,96 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width"><title>Platterhead — First run &amp; sources (iPad)</title>
+<link rel="stylesheet" href="../platterhead.css"></head><body>
+<div class="stage">
+<div class="ipad">
+  <div class="statusbar"><span>9:41 Mon 12 Oct</span><span class="small">Platterhead</span><span>􀙇 􀛨 92%</span></div>
+
+  <div class="topbar"><h1>Welcome to Platterhead</h1>
+    <span class="pill free">✓ No account</span>
+    <span class="pill free">✓ No telemetry</span>
+    <span class="pill cyan">GPLv3</span></div>
+
+  <section class="content" style="padding:24px 30px">
+    <div class="grid c2" style="gap:20px">
+
+      <div>
+        <p class="kicker">Step 1 of 2</p>
+        <h2 style="font-size:27px;margin:6px 0 8px;letter-spacing:-.6px">Where is your music?</h2>
+        <p class="small" style="max-width:430px">Platterhead references your files where they are. It never
+          copies them, never uploads them, and never modifies them unless you ask it to edit a tag.</p>
+
+        <div class="card" style="margin-top:14px">
+          <div class="row between" style="margin-bottom:10px">
+            <div class="row"><span style="font-size:19px">􀈕</span><div>
+              <b>On this iPad</b><div class="tiny">Files app · Music folder</div></div></div>
+            <span class="pill good">4,182 tracks</span>
+          </div>
+          <div class="row between" style="margin-bottom:10px">
+            <div class="row"><span style="font-size:19px">􀇃</span><div>
+              <b>Navidrome — study.lan</b><div class="tiny">Subsonic · streams &amp; caches as you listen</div></div></div>
+            <span class="pill good">8,660 tracks</span>
+          </div>
+          <div class="row between">
+            <div class="row"><span style="font-size:19px">􀈭</span><div>
+              <b>Add another source…</b>
+              <div class="tiny">Dropbox · Drive · OneDrive · pCloud · WebDAV · Jellyfin · Plex · SMB · archive.org</div></div></div>
+            <span class="pill free">All free</span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;border-color:#276943;background:#12211a">
+          <div class="row" style="gap:11px"><span style="font-size:17px">􀢋</span>
+          <div><b style="font-size:12.5px">Remote libraries are free, permanently.</b>
+          <div class="small" style="margin-top:3px">All ten providers, no tier, no limit. A CI test fails the
+          build if anyone ever tries to put them behind a purchase.</div></div></div>
+        </div>
+      </div>
+
+      <div>
+        <p class="kicker">Step 2 of 2</p>
+        <h2 style="font-size:27px;margin:6px 0 8px;letter-spacing:-.6px">Here's what happens next</h2>
+        <p class="small" style="max-width:430px">We'll listen to every track once, on this device, to learn its
+          tempo, key and feel. Nothing is sent anywhere.</p>
+
+        <div class="card" style="margin-top:14px">
+          <div class="row between"><b class="mono metric" style="font-size:22px">12,842</b>
+            <span class="small">tracks found</span></div>
+          <hr>
+          <div class="row between" style="margin:8px 0"><span class="small">Stage 1 — tempo, key, energy, waveform</span>
+            <b class="mono">≈ 2 h 40 m</b></div>
+          <div class="row between" style="margin:8px 0"><span class="small">Stage 2 — search embeddings</span>
+            <b class="mono">≈ 1 h 55 m</b></div>
+          <div class="row between" style="margin:8px 0"><span class="small">Disk used when finished</span>
+            <b class="mono">≈ 340 MB</b></div>
+          <hr>
+          <div class="row between"><span class="small">Search model download</span><b class="mono">160 MB</b></div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="row between" style="margin-bottom:10px"><b style="font-size:13px">Only analyze while charging</b>
+            <span class="pill good">On</span></div>
+          <div class="row between" style="margin-bottom:10px"><b style="font-size:13px">Pause if the iPad gets warm</b>
+            <span class="pill good">On</span></div>
+          <div class="row between"><b style="font-size:13px">Download the search model now</b>
+            <span class="pill good">On · Wi-Fi only</span></div>
+          <p class="tiny" style="margin:11px 0 0">You can change all of this later, and you can use the app
+            immediately — analysis runs in the background.</p>
+        </div>
+
+        <div class="row" style="margin-top:16px;gap:10px">
+          <button class="button primary lg">Start analyzing</button>
+          <button class="button lg ghost">Not now — just let me listen</button>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="home"></div>
+</div>
+
+<p class="caption"><b>§41.1 First run &amp; sources.</b> <code>FirstRunView ▸ FirstRunModel ▸ SourceRepository, BookmarkVault</code>.
+No account, no email, no iCloud sign-in — the only question that matters is where the music is (FR-LIB-1, FR-LIB-7).
+The right column states what will happen in plain numbers rather than starting a silent background crawl (FR-ANL-8), and
+surfaces the thermal and power policy up front (FR-ANL-7). The CLAP model is an On-Demand Resource, offered here and
+deferrable (§27.1a, FR-SEM-6) — declining it costs semantic search and nothing else.</p>
+</div>
+</body></html>

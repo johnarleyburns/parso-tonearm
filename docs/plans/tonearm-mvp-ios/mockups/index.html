@@ -1,0 +1,176 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width"><title>Platterhead iOS — mockup index</title>
+<link rel="stylesheet" href="platterhead.css">
+<style>
+.wrapper{max-width:1080px;margin:0 auto;padding:44px 22px 80px}
+.idx{display:grid;grid-template-columns:repeat(auto-fill,minmax(322px,1fr));gap:11px;margin:14px 0 30px}
+.idx a{display:block;text-decoration:none;color:inherit;background:linear-gradient(150deg,#171b23,#11141a);
+  border:1px solid var(--line);border-radius:11px;padding:13px 15px}
+.idx a:hover{border-color:var(--accent2);background:#1b1730}
+.idx b{display:block;font-size:13.5px;margin-bottom:3px}
+.idx .f{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#6c7484;margin-bottom:6px}
+</style></head><body>
+<div class="wrapper">
+
+<p class="kicker">Parso Platterhead · v2.0-iOS</p>
+<h1 style="font-size:34px;margin:8px 0 10px;letter-spacing:-1px">Mockups</h1>
+<p class="small" style="font-size:14px;max-width:720px">Every screen in Part VII of
+<a href="../PLATTERHEAD_IOS_ARCHITECTURE.md">PLATTERHEAD_IOS_ARCHITECTURE.md</a>, as a standalone HTML file.
+No external dependencies — one shared stylesheet, no CDN, no fonts, no scripts. Several screens have more than one
+file because a single static image cannot show the behaviour.</p>
+
+<div class="row wrap" style="gap:8px;margin:16px 0 6px">
+  <span class="pill free">Free tier</span><span class="pill pro">􀎡 Pro — one-time purchase</span>
+  <span class="pill">iPad 14 screens / 18 files</span><span class="pill">iPhone 10 screens / 12 files</span>
+  <span class="pill">watchOS 1 / 1</span></div>
+
+<h2 style="font-size:19px;margin:30px 0 4px">iPad — regular size class</h2>
+<p class="small">Three-column split view. Performance screens are landscape-locked.</p>
+<div class="idx">
+  <a href="ipad/01-first-run.html"><b>First run &amp; sources</b>
+    <div class="f">ipad/01-first-run.html</div>
+    <span class="small">§41.1 · sources, analysis estimate, thermal policy, model download</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+  <a href="ipad/02-library.html"><b>Library</b>
+    <div class="f">ipad/02-library.html</div>
+    <span class="small">§41.2 · per-stage status, remote tracks as ordinary rows, locked Pro nav visible</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+  <a href="ipad/03-analysis.html"><b>Analysis &amp; library health</b>
+    <div class="f">ipad/03-analysis.html</div>
+    <span class="small">§41.3 · three stages, thermal governor stated in words, ODR state</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+  <a href="ipad/04a-vibe-search-query.html"><b>Vibe search — query</b>
+    <div class="f">ipad/04a-vibe-search-query.html</div>
+    <span class="small">§41.4 · the empty state, privacy claim, library-seeded suggestions</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+  <a href="ipad/04b-vibe-search-results.html"><b>Vibe search — results &amp; refine</b>
+    <div class="f">ipad/04b-vibe-search-results.html</div>
+    <span class="small">§41.5 · decomposed hybrid score, ± refinement, latency breakdown</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+  <a href="ipad/05a-autoplaylist-brief.html"><b>Auto-playlist — the brief</b>
+    <div class="f">ipad/05a-autoplaylist-brief.html</div>
+    <span class="small">§41.6 · prose brief, editable parse chips, arc picker, constraints</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+  <a href="ipad/05b-autoplaylist-result.html"><b>Auto-playlist — generated</b>
+    <div class="f">ipad/05b-autoplaylist-result.html</div>
+    <span class="small">§41.7 · sequence against the arc, per-transition badges, locks and rejects</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+  <a href="ipad/06-track-preparation.html"><b>Track preparation</b>
+    <div class="f">ipad/06-track-preparation.html</div>
+    <span class="small">§41.8 · phrase map, cue pads, grid tools sized for a thumb</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span> <span class="pill free">readout free</span></div></a>
+  <a href="ipad/07-dj-workspace.html"><b>DJ workspace</b>
+    <div class="f">ipad/07-dj-workspace.html</div>
+    <span class="small">§41.9 · two decks, mixer, thermal / granted-latency / memory readouts</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="ipad/07b-dj-workspace-jog.html"><b>DJ workspace — jog module</b>
+    <div class="f">ipad/07b-dj-workspace-jog.html</div>
+    <span class="small">§41.9a · swappable deck module, 248 pt platter, release-to-commit loop flyout</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="ipad/08-dj-stems-fx.html"><b>Stems &amp; filter detail</b>
+    <div class="f">ipad/08-dj-stems-fx.html</div>
+    <span class="small">§41.10 · separation queue, combined EQ/filter response, fallback stated</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="ipad/09-recording-finish.html"><b>Recording finished</b>
+    <div class="f">ipad/09-recording-finish.html</div>
+    <span class="small">§41.11 · timeline with the interruption shown, export, opt-in sync</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="ipad/10-mixes.html"><b>Recorded mixes</b>
+    <div class="f">ipad/10-mixes.html</div>
+    <span class="small">§41.12 · local vs iCloud, per-device divergence as a fact not an error</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="ipad/11-midi-audio-cue.html"><b>MIDI, audio &amp; cue</b>
+    <div class="f">ipad/11-midi-audio-cue.html</div>
+    <span class="small">§41.13 · granted latency, Bluetooth warning, three cue modes with diagram</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="ipad/12-settings-storage.html"><b>Settings &amp; storage</b>
+    <div class="f">ipad/12-settings-storage.html</div>
+    <span class="small">§41.14 · per-cache budgets, eviction shown before it happens</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+  <a href="ipad/13a-paywall-context.html"><b>Paywall — in context</b>
+    <div class="f">ipad/13a-paywall-context.html</div>
+    <span class="small">§41.15 · the real deck surface dimmed; never hidden, never faked</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="ipad/13b-paywall-sheet.html"><b>Paywall — purchase sheet</b>
+    <div class="f">ipad/13b-paywall-sheet.html</div>
+    <span class="small">§41.16 · price, permanence, the free-tier promise, the GPLv3 admission</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="ipad/14-gig-crate.html"><b>Gig crate</b>
+    <div class="f">ipad/14-gig-crate.html</div>
+    <span class="small">§41.17 · the bridge from a free playlist to a prepared set, under budget</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+</div>
+
+<h2 style="font-size:19px;margin:30px 0 4px">iPhone — compact size class</h2>
+<p class="small">Same engine, different control surface. Orientation is the mode: portrait is one deck in focus with the
+other in a strip, landscape is both decks with a jog each (§42.1).</p>
+<div class="idx">
+  <a href="iphone/01-library-home.html"><b>Library home</b>
+    <div class="f">iphone/01-library-home.html</div>
+    <span class="small">§42.2 · search promoted, playlists-made-for-you shelf, free libraries</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+  <a href="iphone/02-vibe-search.html"><b>Vibe search</b>
+    <div class="f">iphone/02-vibe-search.html</div>
+    <span class="small">§42.3 · query and results in one scroll, detail deferred to tap</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+  <a href="iphone/03-autoplaylist.html"><b>Auto-playlist</b>
+    <div class="f">iphone/03-autoplaylist.html</div>
+    <span class="small">§42.4 · brief and result together, arc as a sparkline</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+  <a href="iphone/04-track-preparation.html"><b>Track preparation</b>
+    <div class="f">iphone/04-track-preparation.html</div>
+    <span class="small">§42.5 · pinch-zoom waveform, cue pads, synced from the iPad</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span> <span class="pill free">readout free</span></div></a>
+  <a href="iphone/05a-solo-deck.html"><b>Solo deck — performing</b>
+    <div class="f">iphone/05a-solo-deck.html</div>
+    <span class="small">§42.6 · focused deck, other deck in a strip, crossfader always reachable</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="iphone/05b-solo-deck-browse.html"><b>Browsing while performing</b>
+    <div class="f">iphone/05b-solo-deck-browse.html</div>
+    <span class="small">§42.7 · the screen that proves the solo-deck model works</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="iphone/05c-twin-deck-landscape.html"><b>Twin deck — landscape</b>
+    <div class="f">iphone/05c-twin-deck-landscape.html</div>
+    <span class="small">§42.7a · both decks resident, a jog each, the phase ghost marker</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="iphone/05d-twin-deck-drawer.html"><b>Momentary bank drawer</b>
+    <div class="f">iphone/05d-twin-deck-drawer.html</div>
+    <span class="small">§42.7b · EQ over one jog; crossfader and both waveforms stay live</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="iphone/06-stems-cue.html"><b>Stems &amp; split cue</b>
+    <div class="f">iphone/06-stems-cue.html</div>
+    <span class="small">§42.8 · thumb-sized faders and the $10-cable answer to pre-listening</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="iphone/07-recording-finish.html"><b>Recording finished</b>
+    <div class="f">iphone/07-recording-finish.html</div>
+    <span class="small">§42.9 · the interruption a phone actually gets, costed in seconds</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="iphone/08-paywall.html"><b>Paywall</b>
+    <div class="f">iphone/08-paywall.html</div>
+    <span class="small">§42.10 · same rules, same prohibitions, compact</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+  <a href="iphone/09-settings-storage.html"><b>Settings &amp; storage</b>
+    <div class="f">iphone/09-settings-storage.html</div>
+    <span class="small">§42.11 · tighter phone budgets, sync categories, Founders grant</span>
+    <div style="margin-top:7px"><span class="pill free">Free</span></div></a>
+</div>
+
+<h2 style="font-size:19px;margin:30px 0 4px">watchOS</h2>
+<div class="idx">
+  <a href="watch/01-performance-remote.html"><b>Performance remote</b>
+    <div class="f">watch/01-performance-remote.html</div>
+    <span class="small">§42B.1 / §39A · three states including the disconnected one, which is the point</span>
+    <div style="margin-top:7px"><span class="pill pro">Pro</span></div></a>
+</div>
+
+<h2 style="font-size:19px;margin:30px 0 8px">Coverage contract</h2>
+<div class="card">
+  <p class="small" style="margin:0 0 9px">Per §40.6: <b>every screen in §41, §42 and §42B must have a mockup before
+    implementation.</b> Adding, removing or materially changing a screen requires updating the spec's inventory, this
+    index, and <code>README.md</code>.</p>
+  <div class="row wrap" style="gap:8px">
+    <span class="pill good">iPad 14/14</span><span class="pill good">iPhone 10/10</span>
+    <span class="pill good">watchOS 1/1</span></div>
+</div>
+
+</div></body></html>

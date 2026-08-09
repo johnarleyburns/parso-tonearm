@@ -1,0 +1,95 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width"><title>Platterhead — Vibe search, query state (iPad)</title>
+<link rel="stylesheet" href="../platterhead.css"></head><body>
+<div class="stage">
+<div class="ipad">
+  <div class="statusbar"><span>9:41 Mon 12 Oct</span><span class="small">Platterhead</span><span>􀙇 􀛨 92%</span></div>
+  <div class="split">
+    <aside class="sidebar">
+      <div class="brand">◉ Platterhead</div>
+      <div class="navhead">Library</div>
+      <div class="nav">Music <span class="badge">12,842</span></div>
+      <div class="nav">Playlists <span class="badge">46</span></div>
+      <div class="nav">Smart Crates <span class="badge">11</span></div>
+      <div class="navhead">Find</div>
+      <div class="nav active">Vibe Search <span class="pill free">Free</span></div>
+      <div class="nav">Make a playlist <span class="pill free">Free</span></div>
+      <div class="navhead">Perform</div>
+      <div class="nav locked">DJ Workspace <span>􀎡</span></div>
+      <div class="nav locked">Gig Crates <span>􀎡</span></div>
+      <div class="nav">Recorded Mixes <span class="badge">18</span></div>
+      <div class="navhead">System</div>
+      <div class="nav">Analysis</div><div class="nav">Settings</div>
+    </aside>
+
+    <main class="main">
+      <section class="content" style="padding:0">
+        <div style="padding:52px 60px 0;max-width:900px;margin:0 auto">
+          <p class="kicker">Vibe search · free, forever</p>
+          <h1 style="font-size:36px;margin:9px 0 10px;letter-spacing:-1.1px">Describe what you want to hear.</h1>
+          <p class="small" style="font-size:14px;max-width:600px">Not a title. Not a genre tag. A feeling, a texture,
+            a memory of a room. Platterhead listened to all 12,842 of your tracks and knows what they sound like.</p>
+
+          <div class="searchbar" style="height:56px;margin-top:24px;font-size:16px;border-color:#4c3b8f;
+              box-shadow:0 0 0 1px #7c5cff33,0 0 30px #7c5cff1a">
+            <span style="font-size:18px">⌕</span>
+            <span style="color:#6c7484">dark driving bassline, no vocals, feels like a tunnel</span>
+            <span class="grow"></span>
+            <span class="pill cyan">􀊫 dictate</span>
+          </div>
+
+          <div class="card" style="margin-top:14px;border-color:#276943;background:#12211a;padding:12px 14px">
+            <div class="row" style="gap:11px"><span style="font-size:16px">􀎡</span>
+              <div class="small"><b style="color:var(--text)">Your query never leaves this device.</b>
+                The language model that understands it runs on the Neural Engine, right here. There is no server to
+                send it to, and we do not keep it.</div>
+              <button class="button ghost" style="padding:5px 10px;font-size:11px">Got it</button></div>
+          </div>
+
+          <p class="kicker" style="margin-top:26px">Try one of these — drawn from your own library, not a list we wrote</p>
+          <div class="row wrap" style="gap:8px;margin-top:11px">
+            <span class="chip">warm analogue drift</span>
+            <span class="chip">late-night rain on a window</span>
+            <span class="chip">brutal, mechanical, no melody</span>
+            <span class="chip">bright and slightly too fast</span>
+            <span class="chip">something my dad would like</span>
+            <span class="chip">hypnotic, barely changes for six minutes</span>
+            <span class="chip">the bit before a drop, stretched forever</span>
+            <span class="chip">cold room, single synth, no reverb</span>
+          </div>
+
+          <div class="grid c3" style="margin-top:30px">
+            <div class="card" style="padding:13px">
+              <p class="kicker">Also try</p><b style="display:block;margin:6px 0 4px">More like this track</b>
+              <p class="small">Hold any track and choose "More like this". Skips the text encoder entirely —
+                results in about 20 ms.</p></div>
+            <div class="card" style="padding:13px">
+              <p class="kicker">Also try</p><b style="display:block;margin:6px 0 4px">Add and subtract</b>
+              <p class="small">Refine a result set with <span class="chip add" style="font-size:10px;padding:2px 7px">+ hypnotic</span>
+                and <span class="chip sub" style="font-size:10px;padding:2px 7px">− vocals</span> without starting over.</p></div>
+            <div class="card" style="padding:13px">
+              <p class="kicker">Also try</p><b style="display:block;margin:6px 0 4px">Save it as a Smart Crate</b>
+              <p class="small">A crate is the <em>query</em>, not a copy. It keeps finding new matches as your
+                library grows.</p></div>
+          </div>
+
+          <div class="row between" style="margin-top:26px;padding-top:14px;border-top:1px solid var(--line)">
+            <span class="small">Index: <b class="mono">12,381</b> of 12,842 tracks · <b>96.4% coverage</b> ·
+              Tier A exact search</span>
+            <span class="small">Missing tracks are still analyzing — results will improve.</span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="home"></div>
+</div>
+
+<p class="caption"><b>§41.4 Vibe search — query state.</b> <code>SearchView ▸ SearchModel ▸ SearchService, EmbeddingService</code>.
+<b>Free tier</b> (FR-SEM-1..8). The privacy line is shown once on first use and is a genuine architectural claim, not a policy
+promise (NFR-PRIV-5). Suggestion chips are seeded from the library's own descriptor distribution rather than hard-coded, so
+they read as <em>your</em> music. The footer states index coverage honestly (FR-SEM-8) instead of pretending a
+partially-analyzed library is complete. Two files exist for this screen because the query and refined-results states are
+behaviourally different — see <code>04b-vibe-search-results.html</code>.</p>
+</div>
+</body></html>
