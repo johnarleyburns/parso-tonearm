@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -19,6 +19,7 @@ let package = Package(
             path: ".",
             exclude: [
                 ".build",
+                "CLAUDE.md",
                 ".github",
                 "docs",
                 "docker-compose.remote-test.yml",
@@ -67,6 +68,7 @@ let package = Package(
                 .copy("Resources/Audio"),
                 .copy("Resources/Video")
             ],
+            swiftSettings: [.swiftLanguageMode(.v6)],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
         .testTarget(
@@ -77,7 +79,8 @@ let package = Package(
                 // Helper process used by optional integration smoke tests.
                 "Support"
             ],
-            resources: [.copy("Fixtures")]
+            resources: [.copy("Fixtures")],
+            swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]
 )

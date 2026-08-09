@@ -67,7 +67,7 @@ public struct WatchCatalogSnapshot: Codable, Equatable {
     }
 }
 
-public struct WatchTrackDTO: Codable, Equatable {
+public struct WatchTrackDTO: Codable, Equatable, Sendable {
     public var key: String
     public var title: String
     public var artist: String?
@@ -126,7 +126,7 @@ public struct WatchAlbumDTO: Codable, Equatable {
     }
 }
 
-public struct WatchPlaylistDTO: Codable, Equatable {
+public struct WatchPlaylistDTO: Codable, Equatable, Sendable {
     public var key: String
     public var title: String
     public var trackKeys: [String]

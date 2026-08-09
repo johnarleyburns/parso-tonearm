@@ -1,14 +1,14 @@
 import Foundation
 
 public enum TagEdit {
-    public struct EditableTrack: Equatable, Identifiable {
+    public struct EditableTrack: Equatable, Identifiable, Sendable {
         public var id: Int64
         public var tags: Tags
         public var filename: String?
         public var writeAccess: WriteAccess
     }
 
-    public struct Tags: Equatable {
+    public struct Tags: Equatable, Sendable {
         public var title: String?
         public var artist: String?
         public var albumTitle: String?

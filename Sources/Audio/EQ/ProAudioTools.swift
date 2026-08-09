@@ -1,6 +1,6 @@
 import Foundation
 
-public enum BiquadFilterType: String, CaseIterable, Equatable, Codable {
+public enum BiquadFilterType: String, CaseIterable, Equatable, Codable, Sendable {
     case peaking
     case lowShelf
     case highShelf
@@ -18,7 +18,7 @@ public enum BiquadFilterType: String, CaseIterable, Equatable, Codable {
     }
 }
 
-public struct BiquadCoefficients: Equatable {
+public struct BiquadCoefficients: Equatable, Sendable {
     public var b0: Double
     public var b1: Double
     public var b2: Double

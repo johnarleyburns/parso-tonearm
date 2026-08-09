@@ -1,6 +1,6 @@
 import Foundation
 
-public struct WatchLocalManifestEntry {
+public struct WatchLocalManifestEntry: Sendable {
     public var trackKey: String
     public var bytes: Int64
     public var pinned: Bool

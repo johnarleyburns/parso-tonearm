@@ -1,6 +1,6 @@
 import Foundation
 
-public struct AmbientTrack {
+public struct AmbientTrack: Sendable {
     public let channelId: String
     public let title: String
     public let artist: String

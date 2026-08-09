@@ -26,6 +26,9 @@ jobs:
       - name: Accept Xcode License
         run: sudo xcodebuild -license accept
 
+      - name: Enforce Swift 6 contract
+        run: bash scripts/check-swift6.sh
+
       - name: StoreKit import boundary guard
         run: |
           set -eo pipefail

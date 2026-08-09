@@ -1,13 +1,13 @@
 import Foundation
 
 public enum ReplayGain {
-    public enum Mode: Equatable {
+    public enum Mode: Equatable, Sendable {
         case off
         case track
         case album
     }
 
-    public struct Tags: Equatable {
+    public struct Tags: Equatable, Sendable {
         var trackGainDB: Double?
         var albumGainDB: Double?
         var trackPeak: Double?
@@ -16,7 +16,7 @@ public enum ReplayGain {
         static let empty = Tags()
     }
 
-    public struct TagItem: Equatable {
+    public struct TagItem: Equatable, Sendable {
         var key: String?
         var commonKey: String?
         var identifier: String?

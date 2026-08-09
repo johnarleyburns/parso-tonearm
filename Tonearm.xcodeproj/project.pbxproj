@@ -1,0 +1,1403 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		01EBEFA7CCFCA3A96D612CDC /* TonearmApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 706DA4B73090EF9C76A51174 /* TonearmApp.swift */; };
+		04AB1C915EDC9668DB183B57 /* ambient-flowing-water.wav in Resources */ = {isa = PBXBuildFile; fileRef = 6B30803B3705FC80247E98A8 /* ambient-flowing-water.wav */; };
+		0630A202DEA82E067F243939 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 292C3AA06CBE9E58AA7418FF /* ArtworkView.swift */; };
+		09BA5404F865447289CD7A3D /* WatchPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37E434F82159D7C687895D77 /* WatchPlayer.swift */; };
+		0BAE4D620A0105E3C4FC19BA /* AddMenuSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA48CEED5AEAFB50D5AB50F /* AddMenuSheet.swift */; };
+		152F9F90A86DAD934384AA5E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FFBC2DE0A6436C4A1A80014C /* Assets.xcassets */; };
+		15D68A714F1A586F779133FE /* AVPlayerOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9270E7191F0C56C47CA68AEF /* AVPlayerOutput.swift */; };
+		19D3B7BFDB92E43C1DF0BB38 /* ambient-flowing-water.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 68C41942DAE2689F40567DDD /* ambient-flowing-water.mp4 */; };
+		1A0ED14038DAB24DEC322BEC /* UpNextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42E2045814F52BC75F1609F /* UpNextView.swift */; };
+		1B9340D6FCB8EAFED2391F06 /* ProToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 841673E58AB857F3F5C1B063 /* ProToolsView.swift */; };
+		20D740B9A416060861D03212 /* WatchSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6CE09CD175F8D1AF3F2958 /* WatchSyncHandler.swift */; };
+		258615352F9FC8B6D84BA3FC /* GlassSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0EA57A9A9BC3350FCC805C /* GlassSurface.swift */; };
+		270849FD1C2B861CB7D22A4E /* ambient-ocean.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = BA10A0A38CCAEB7B37B8B008 /* ambient-ocean.mp4 */; };
+		2A74A418509060190D7BF44F /* ambient-rain.wav in Resources */ = {isa = PBXBuildFile; fileRef = E38CB1BF7D38667CEFEBA735 /* ambient-rain.wav */; };
+		2AF3605F104466A0A619CC31 /* OAuthClientConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD37144613B3E4468ED3D2 /* OAuthClientConfiguration.swift */; };
+		2B12111CBDF1D49C39714944 /* ListenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97FF4E2C42647407E4F4E0F /* ListenView.swift */; };
+		2BDD7EA40A22BF33622364F5 /* Tonearm.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 2B9AB52221643622272FFDB6 /* Tonearm.storekit */; };
+		2FB5EA4A4EEFB59CEBA07B8F /* WatchPlaylistsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */; };
+		30487CE5289BB55F2472813F /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB454D89725B61725520B04A /* NowPlayingView.swift */; };
+		34532A4505591A95D2765EFF /* OAuthSignInCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD5669565C3C31C5DAB9A3D3 /* OAuthSignInCoordinator.swift */; };
+		3B69A3EEB3B798C7E772B384 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CEB1F70B1E36FCA6BCADAB6B /* Assets.xcassets */; };
+		3F45EBC68A11B97763AA09BA /* WatchSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A21E9BA83011557E190F76D /* WatchSmokeUITests.swift */; };
+		40ADEDBFEE6EF20F755D9813 /* CreatePlaylistSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75E7A69FA687317AC246E026 /* CreatePlaylistSheet.swift */; };
+		4149F3C1BAF17DF80800B6C7 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 017148BE727DF3DC34D3928C /* OnboardingView.swift */; };
+		43F852A09254A155153C1830 /* WatchGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76C125EC2410AC9E4151E6DF /* WatchGlyph.swift */; };
+		464C5B08FAAF1036A497892B /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0974BD26C3A62104181966A /* WatchRootView.swift */; };
+		471860B6E4026ABBD21B2A33 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BD8625177C1F1696B158A63 /* Components.swift */; };
+		4F556962AF663ABF80303696 /* AdaptiveGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4497CDA730FA46494E531667 /* AdaptiveGlass.swift */; };
+		55344DAAB8AAC8239D613381 /* AirPlayButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C72A4A2127018D6E48638F2 /* AirPlayButton.swift */; };
+		56F4F1925361073B6B0A664E /* AmbientPlaylistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3726DD886D8478C23AEA8A73 /* AmbientPlaylistView.swift */; };
+		5B465DBD74B94A0538CC824B /* ambient-rain.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 4EDDCD4974AB22B40A4AB3EE /* ambient-rain.mp4 */; };
+		5F09D1C32CB94D57F173D001 /* WatchFetchOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB123222EE9042CA89F2CB7E /* WatchFetchOverlay.swift */; };
+		62874EE2E842BBE59D064A7C /* PhoneWatchSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF71DF665673F9AE321A652A /* PhoneWatchSessionAdapter.swift */; };
+		634F7013397B8B104E7B4EDC /* AnimatedSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361B96D20825E7FB9E3FA9F3 /* AnimatedSplashView.swift */; };
+		65382A626085DF49D9496F82 /* WatchStorageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C8B4A708B46F295FFFBBCD /* WatchStorageView.swift */; };
+		6850787E3F2A8AE11FE57E4A /* WatchComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F264152278DB935FBFB188F5 /* WatchComponents.swift */; };
+		6C5DD6A4AF0825987A8CE9E3 /* SystemPlaybackBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD2E724E87813719D5A0A81 /* SystemPlaybackBridge.swift */; };
+		6E4FBE3405E7DED87AC0E5FE /* GlassDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = E51C6DE97A7D128E05BB1604 /* GlassDock.swift */; };
+		6FF649FB95E0F82150307951 /* AddFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764B46CE0EAFEC605FE2CE5D /* AddFolderSheet.swift */; };
+		7155FE7BF0A91F242A4A2F25 /* PlaylistsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80C464F1FF08824183F765F /* PlaylistsView.swift */; };
+		73BB22E45390F362F4B45F55 /* TonearmWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		73EF48B22BA7870F3A6C08D7 /* TonearmSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5CEA0DA2DDAF7A8F27DC1F /* TonearmSmokeUITests.swift */; };
+		781C7C906ED63132DF7CCDB2 /* WatchNowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C123D981D52AC1C9DE3751 /* WatchNowPlayingView.swift */; };
+		782717264F729A5B9089D729 /* WatchSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD1B4DD87021743D84C9830 /* WatchSessionAdapter.swift */; };
+		796967ED51F8C7841F6FC270 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 25DC295C778B26F9C30D320D /* TonearmCore */; };
+		7A3B9D3BDEBED8D945FA809F /* ATTRIBUTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */; };
+		7EC0CA2A51F83AC350BF5AEE /* TonearmWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		817CD786F8CC3FC747B95A61 /* WatchAlbumsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 783A00C9B2142335E1E6936B /* WatchAlbumsView.swift */; };
+		8553DC45ADAE9EC2DCB3101A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B48E8BCEBBB60820A867070 /* LibraryView.swift */; };
+		8AE40034D4CB1F72F61EC466 /* CacheGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071CC5C8B79CC1A10F456254 /* CacheGlyph.swift */; };
+		914F796831D48C417ACC3A5F /* TonearmWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BCC18D418FCB74AB0314363 /* TonearmWidgets.swift */; };
+		92F6E6D644CD35182A59813C /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = F69C1C622F8A154BF8AA5B85 /* TonearmCore */; };
+		9385955168CC8058B3A019FB /* AddSourceSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3521D0B43D98F47FD1188599 /* AddSourceSheet.swift */; };
+		94C8DFA6509A832BF22FAC17 /* WatchSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 174BBA2ECE78CF32CFAC192C /* WatchSettingsView.swift */; };
+		9E573BB60815F1EB9B85148D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50DA465263A2171C1396F13F /* RootView.swift */; };
+		A874CDAAE6139A6C31115E30 /* WatchFixtureSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */; };
+		AD8AF503F7EE66FABFD99B86 /* TonearmShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B05161851F3AEADE6DD18515 /* RemoteConnectorGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22000483380D73EC6205A4B9 /* RemoteConnectorGuideView.swift */; };
+		B72DE992BD62735CB370A71F /* SourceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9894FCBA2B17EE64A57067E8 /* SourceDetailView.swift */; };
+		B85A66E82620EA180EAF7A67 /* LoopingVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B148C78FDABC2A552953E74 /* LoopingVideoView.swift */; };
+		BE20C9CFF3CB74BB6864F917 /* ArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE86C3C1F56FA212DBB6D8F0 /* ArtworkStore.swift */; };
+		C0D5BE09D689D61435BEDCA1 /* WidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */; };
+		C0E3EB7AB1D02FA2309CE3B2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */; };
+		C5E4A0FDE163504E89491B31 /* SourcesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E08FD7930B1AABFA3C2825E0 /* SourcesView.swift */; };
+		C8ABFA6DEBDCBFC45E023FA6 /* PlatterheadWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 053C5BB5C4AF1B09D39BBCC6 /* PlatterheadWatchApp.swift */; };
+		CA85D99F000D191F2542DDF6 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 65EC4F101281094B1EB48E18 /* TonearmCore */; };
+		D48DC71189EEC9D2917B9A0E /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07BB75BFAD34B2382CE704F9 /* ShareViewController.swift */; };
+		DE2BEC06DBD57AB6777880B0 /* splash_screen.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 390F5E4BCDCBB5C6D4A3A98D /* splash_screen.jpg */; };
+		E15A8628673977ECC56099DB /* ProPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D928C4FD455EF96E0D393F1 /* ProPaywallView.swift */; };
+		E7D8EA806A23E80EA7653ACB /* ambient-ocean.wav in Resources */ = {isa = PBXBuildFile; fileRef = 74D07216801F19A8231EE98A /* ambient-ocean.wav */; };
+		E804FEFD3B24E44527EF05E8 /* Palette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EBACB49341C09E9F49B5482 /* Palette.swift */; };
+		E84D1DCC3BDCFDFA5ED92E0E /* WatchUpNextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9753F65AC559CA8402C2D74 /* WatchUpNextView.swift */; };
+		EA61DA978312F3700904DED7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C114ED8EAE6B45F219A551DA /* SettingsView.swift */; };
+		EE18D34B4E395874C8840D7B /* AddServerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF21CDA1D35FD0F742088DF3 /* AddServerSheet.swift */; };
+		EFBBDA6C054C53C43E5620CF /* ArtworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E305F0D8B7B9B42169405D1 /* ArtworkService.swift */; };
+		F1FEBCEF7BC2546437362B1D /* EQView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB44399EDF479626BC62A6F /* EQView.swift */; };
+		F9FF663536834A156EF40E11 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 391DE85B4F0BACCBFDCDAF98 /* TonearmCore */; };
+		FA21DEDFD4C224853AF43150 /* WidgetArtworkStore+Save.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		61F9A33AE0E075259C9C372D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2657207D642EAA297D8BD2CE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CD1737525AA7AB55ACD89AF0;
+			remoteInfo = TonearmWatch;
+		};
+		8165B99C381C2B0DCF1D7DEC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2657207D642EAA297D8BD2CE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C40A8C12F54ED33C850C40B6;
+			remoteInfo = TonearmShareExtension;
+		};
+		B27CE341F3E2B336DDEDB119 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2657207D642EAA297D8BD2CE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 68F0460D59215C176FF8B8A3;
+			remoteInfo = Tonearm;
+		};
+		B3A41330A9E97C9243137993 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2657207D642EAA297D8BD2CE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B5F60FC34FB7BCEF9231709E;
+			remoteInfo = TonearmWidgetsExtension;
+		};
+		FEC80C1E4ACBF961506FA7BC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2657207D642EAA297D8BD2CE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CD1737525AA7AB55ACD89AF0;
+			remoteInfo = TonearmWatch;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C761ABEB772F3DA0DCD6C4B0 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AD8AF503F7EE66FABFD99B86 /* TonearmShareExtension.appex in Embed Foundation Extensions */,
+				73BB22E45390F362F4B45F55 /* TonearmWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C91606BCA8FF5D4983B0C615 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				7EC0CA2A51F83AC350BF5AEE /* TonearmWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		017148BE727DF3DC34D3928C /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		053C5BB5C4AF1B09D39BBCC6 /* PlatterheadWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatterheadWatchApp.swift; sourceTree = "<group>"; };
+		071CC5C8B79CC1A10F456254 /* CacheGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheGlyph.swift; sourceTree = "<group>"; };
+		07BB75BFAD34B2382CE704F9 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		089C841BE7459AF20665F7B0 /* Tonearm.Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.Debug.entitlements; sourceTree = "<group>"; };
+		0A0EA57A9A9BC3350FCC805C /* GlassSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSurface.swift; sourceTree = "<group>"; };
+		0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPlaylistsView.swift; sourceTree = "<group>"; };
+		0F6CE09CD175F8D1AF3F2958 /* WatchSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncHandler.swift; sourceTree = "<group>"; };
+		0FFCDEBB114755DD71B0E074 /* WatchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WatchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		11F034B4AB152DB439603498 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		174BBA2ECE78CF32CFAC192C /* WatchSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSettingsView.swift; sourceTree = "<group>"; };
+		1CD2E724E87813719D5A0A81 /* SystemPlaybackBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemPlaybackBridge.swift; sourceTree = "<group>"; };
+		1EFD37144613B3E4468ED3D2 /* OAuthClientConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthClientConfiguration.swift; sourceTree = "<group>"; };
+		22000483380D73EC6205A4B9 /* RemoteConnectorGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConnectorGuideView.swift; sourceTree = "<group>"; };
+		292C3AA06CBE9E58AA7418FF /* ArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkView.swift; sourceTree = "<group>"; };
+		2B9AB52221643622272FFDB6 /* Tonearm.storekit */ = {isa = PBXFileReference; path = Tonearm.storekit; sourceTree = "<group>"; };
+		2BCC18D418FCB74AB0314363 /* TonearmWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonearmWidgets.swift; sourceTree = "<group>"; };
+		2E305F0D8B7B9B42169405D1 /* ArtworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkService.swift; sourceTree = "<group>"; };
+		3521D0B43D98F47FD1188599 /* AddSourceSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSourceSheet.swift; sourceTree = "<group>"; };
+		361B96D20825E7FB9E3FA9F3 /* AnimatedSplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedSplashView.swift; sourceTree = "<group>"; };
+		3726DD886D8478C23AEA8A73 /* AmbientPlaylistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientPlaylistView.swift; sourceTree = "<group>"; };
+		37E434F82159D7C687895D77 /* WatchPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPlayer.swift; sourceTree = "<group>"; };
+		390F5E4BCDCBB5C6D4A3A98D /* splash_screen.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = splash_screen.jpg; sourceTree = "<group>"; };
+		3B148C78FDABC2A552953E74 /* LoopingVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopingVideoView.swift; sourceTree = "<group>"; };
+		3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		4497CDA730FA46494E531667 /* AdaptiveGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveGlass.swift; sourceTree = "<group>"; };
+		4AA48CEED5AEAFB50D5AB50F /* AddMenuSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMenuSheet.swift; sourceTree = "<group>"; };
+		4EBACB49341C09E9F49B5482 /* Palette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
+		4EDDCD4974AB22B40A4AB3EE /* ambient-rain.mp4 */ = {isa = PBXFileReference; path = "ambient-rain.mp4"; sourceTree = "<group>"; };
+		50DA465263A2171C1396F13F /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		59CB1F5051BC2E45CAFEFCB5 /* TonearmUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TonearmUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TonearmShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		68C41942DAE2689F40567DDD /* ambient-flowing-water.mp4 */ = {isa = PBXFileReference; path = "ambient-flowing-water.mp4"; sourceTree = "<group>"; };
+		6A0894E26B1776B29602DF7C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		6A21E9BA83011557E190F76D /* WatchSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSmokeUITests.swift; sourceTree = "<group>"; };
+		6AB44399EDF479626BC62A6F /* EQView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EQView.swift; sourceTree = "<group>"; };
+		6B30803B3705FC80247E98A8 /* ambient-flowing-water.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-flowing-water.wav"; sourceTree = "<group>"; };
+		706DA4B73090EF9C76A51174 /* TonearmApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonearmApp.swift; sourceTree = "<group>"; };
+		732D19D5B0A59029A785C86A /* TonearmWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TonearmWidgets.entitlements; sourceTree = "<group>"; };
+		73C123D981D52AC1C9DE3751 /* WatchNowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchNowPlayingView.swift; sourceTree = "<group>"; };
+		74D07216801F19A8231EE98A /* ambient-ocean.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-ocean.wav"; sourceTree = "<group>"; };
+		75E7A69FA687317AC246E026 /* CreatePlaylistSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlaylistSheet.swift; sourceTree = "<group>"; };
+		764B46CE0EAFEC605FE2CE5D /* AddFolderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddFolderSheet.swift; sourceTree = "<group>"; };
+		76C125EC2410AC9E4151E6DF /* WatchGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchGlyph.swift; sourceTree = "<group>"; };
+		783A00C9B2142335E1E6936B /* WatchAlbumsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAlbumsView.swift; sourceTree = "<group>"; };
+		792522B037084CCCB22FF9D2 /* parso-tonearm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "parso-tonearm"; path = .; sourceTree = SOURCE_ROOT; };
+		7C72A4A2127018D6E48638F2 /* AirPlayButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPlayButton.swift; sourceTree = "<group>"; };
+		841673E58AB857F3F5C1B063 /* ProToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProToolsView.swift; sourceTree = "<group>"; };
+		8B48E8BCEBBB60820A867070 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TonearmWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D928C4FD455EF96E0D393F1 /* ProPaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProPaywallView.swift; sourceTree = "<group>"; };
+		8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TonearmWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9270E7191F0C56C47CA68AEF /* AVPlayerOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AVPlayerOutput.swift; sourceTree = "<group>"; };
+		9894FCBA2B17EE64A57067E8 /* SourceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceDetailView.swift; sourceTree = "<group>"; };
+		99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ATTRIBUTION.md; sourceTree = "<group>"; };
+		9BD8625177C1F1696B158A63 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		AE86C3C1F56FA212DBB6D8F0 /* ArtworkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkStore.swift; sourceTree = "<group>"; };
+		AE88E0E38F38D3267A0EBF38 /* Tonearm.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.entitlements; sourceTree = "<group>"; };
+		AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WidgetArtworkStore+Save.swift"; sourceTree = "<group>"; };
+		AF71DF665673F9AE321A652A /* PhoneWatchSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchSessionAdapter.swift; sourceTree = "<group>"; };
+		B97FF4E2C42647407E4F4E0F /* ListenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenView.swift; sourceTree = "<group>"; };
+		BA10A0A38CCAEB7B37B8B008 /* ambient-ocean.mp4 */ = {isa = PBXFileReference; path = "ambient-ocean.mp4"; sourceTree = "<group>"; };
+		BB123222EE9042CA89F2CB7E /* WatchFetchOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchFetchOverlay.swift; sourceTree = "<group>"; };
+		BB454D89725B61725520B04A /* NowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingView.swift; sourceTree = "<group>"; };
+		BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchFixtureSeeder.swift; sourceTree = "<group>"; };
+		BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotPublisher.swift; sourceTree = "<group>"; };
+		C114ED8EAE6B45F219A551DA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		CDA5510BE764F39731C1901D /* Tonearm.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tonearm.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CEB1F70B1E36FCA6BCADAB6B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CF21CDA1D35FD0F742088DF3 /* AddServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddServerSheet.swift; sourceTree = "<group>"; };
+		D0974BD26C3A62104181966A /* WatchRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRootView.swift; sourceTree = "<group>"; };
+		D80C464F1FF08824183F765F /* PlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsView.swift; sourceTree = "<group>"; };
+		E08FD7930B1AABFA3C2825E0 /* SourcesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcesView.swift; sourceTree = "<group>"; };
+		E38162EF6D932D8762B6D123 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E38CB1BF7D38667CEFEBA735 /* ambient-rain.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-rain.wav"; sourceTree = "<group>"; };
+		E51C6DE97A7D128E05BB1604 /* GlassDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassDock.swift; sourceTree = "<group>"; };
+		E8C8B4A708B46F295FFFBBCD /* WatchStorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStorageView.swift; sourceTree = "<group>"; };
+		EBD1B4DD87021743D84C9830 /* WatchSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSessionAdapter.swift; sourceTree = "<group>"; };
+		F1BAAB8C1EDFCC23544B7B03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F264152278DB935FBFB188F5 /* WatchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchComponents.swift; sourceTree = "<group>"; };
+		F42E2045814F52BC75F1609F /* UpNextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpNextView.swift; sourceTree = "<group>"; };
+		F9753F65AC559CA8402C2D74 /* WatchUpNextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchUpNextView.swift; sourceTree = "<group>"; };
+		FD5669565C3C31C5DAB9A3D3 /* OAuthSignInCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthSignInCoordinator.swift; sourceTree = "<group>"; };
+		FF5CEA0DA2DDAF7A8F27DC1F /* TonearmSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonearmSmokeUITests.swift; sourceTree = "<group>"; };
+		FFBC2DE0A6436C4A1A80014C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		0A61622FD6D5CD5C6A3E8EE0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F9FF663536834A156EF40E11 /* TonearmCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0E98C33495E38D684D85ECF3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				92F6E6D644CD35182A59813C /* TonearmCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		743F1229733254EB6CF55CB7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				796967ED51F8C7841F6FC270 /* TonearmCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		75393E28E8499A5730901397 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CA85D99F000D191F2542DDF6 /* TonearmCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0A758F8A0D5E9029B3F7BFC3 /* WatchApp */ = {
+			isa = PBXGroup;
+			children = (
+				4D206AEE22F9E823777F0BFD /* Views */,
+				CEB1F70B1E36FCA6BCADAB6B /* Assets.xcassets */,
+				9270E7191F0C56C47CA68AEF /* AVPlayerOutput.swift */,
+				6A0894E26B1776B29602DF7C /* Info.plist */,
+				053C5BB5C4AF1B09D39BBCC6 /* PlatterheadWatchApp.swift */,
+				BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */,
+				37E434F82159D7C687895D77 /* WatchPlayer.swift */,
+				EBD1B4DD87021743D84C9830 /* WatchSessionAdapter.swift */,
+				0F6CE09CD175F8D1AF3F2958 /* WatchSyncHandler.swift */,
+			);
+			path = WatchApp;
+			sourceTree = "<group>";
+		};
+		11B60F667CF5D1321E6931A3 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				8D3EE9747CAECA3F387D5924 /* App */,
+				F37E05675464FE4D04BF4F37 /* DesignSystem */,
+				3D0E18C3584DC41145E6F79A /* Features */,
+				BB0939C124BAA2B61B94386A /* Media */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		17A3C7131FA4A509010DE475 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CDA5510BE764F39731C1901D /* Tonearm.app */,
+				5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */,
+				59CB1F5051BC2E45CAFEFCB5 /* TonearmUITests.xctest */,
+				8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */,
+				8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */,
+				0FFCDEBB114755DD71B0E074 /* WatchUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		25F8202722CC087F1D99E75B /* Listen */ = {
+			isa = PBXGroup;
+			children = (
+				B97FF4E2C42647407E4F4E0F /* ListenView.swift */,
+			);
+			path = Listen;
+			sourceTree = "<group>";
+		};
+		264AB505F29364FB7B0B6672 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				792522B037084CCCB22FF9D2 /* parso-tonearm */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		39568B5401606194C242E745 /* Ingest */ = {
+			isa = PBXGroup;
+			children = (
+				764B46CE0EAFEC605FE2CE5D /* AddFolderSheet.swift */,
+				4AA48CEED5AEAFB50D5AB50F /* AddMenuSheet.swift */,
+				CF21CDA1D35FD0F742088DF3 /* AddServerSheet.swift */,
+				3521D0B43D98F47FD1188599 /* AddSourceSheet.swift */,
+				1EFD37144613B3E4468ED3D2 /* OAuthClientConfiguration.swift */,
+				FD5669565C3C31C5DAB9A3D3 /* OAuthSignInCoordinator.swift */,
+				22000483380D73EC6205A4B9 /* RemoteConnectorGuideView.swift */,
+			);
+			path = Ingest;
+			sourceTree = "<group>";
+		};
+		3D0E18C3584DC41145E6F79A /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				499B83014C41D2FBCEB59014 /* Chrome */,
+				4A3EE7FA05BF135CAAD44C55 /* Components */,
+				39568B5401606194C242E745 /* Ingest */,
+				910E3AEF5745A8A0C0EE75F0 /* Library */,
+				25F8202722CC087F1D99E75B /* Listen */,
+				DAB8F8AA918232E7C075D87A /* NowPlaying */,
+				897370D36FF70549A59B1818 /* Onboarding */,
+				D31A734C0186231F9B3BCDBF /* Playlists */,
+				F0EAD284850C332417DA3EC6 /* Settings */,
+				8582F1969F63FDDEABD2EF25 /* Sources */,
+				9BD8625177C1F1696B158A63 /* Components.swift */,
+				50DA465263A2171C1396F13F /* RootView.swift */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		499B83014C41D2FBCEB59014 /* Chrome */ = {
+			isa = PBXGroup;
+			children = (
+				4497CDA730FA46494E531667 /* AdaptiveGlass.swift */,
+				E51C6DE97A7D128E05BB1604 /* GlassDock.swift */,
+			);
+			path = Chrome;
+			sourceTree = "<group>";
+		};
+		4A3EE7FA05BF135CAAD44C55 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				7C72A4A2127018D6E48638F2 /* AirPlayButton.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		4D206AEE22F9E823777F0BFD /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				783A00C9B2142335E1E6936B /* WatchAlbumsView.swift */,
+				F264152278DB935FBFB188F5 /* WatchComponents.swift */,
+				BB123222EE9042CA89F2CB7E /* WatchFetchOverlay.swift */,
+				73C123D981D52AC1C9DE3751 /* WatchNowPlayingView.swift */,
+				0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */,
+				D0974BD26C3A62104181966A /* WatchRootView.swift */,
+				E8C8B4A708B46F295FFFBBCD /* WatchStorageView.swift */,
+				F9753F65AC559CA8402C2D74 /* WatchUpNextView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		6C188CA38BDF5ACBFC5EFBF5 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				FF5CEA0DA2DDAF7A8F27DC1F /* TonearmSmokeUITests.swift */,
+			);
+			path = UITests;
+			sourceTree = "<group>";
+		};
+		84A5835CD1D34ED39549B235 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				94D3A2525220B072498FB15D /* Audio */,
+				F90AE6772698F2114601747C /* Video */,
+				FFBC2DE0A6436C4A1A80014C /* Assets.xcassets */,
+				390F5E4BCDCBB5C6D4A3A98D /* splash_screen.jpg */,
+				2B9AB52221643622272FFDB6 /* Tonearm.storekit */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		8582F1969F63FDDEABD2EF25 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				9894FCBA2B17EE64A57067E8 /* SourceDetailView.swift */,
+				E08FD7930B1AABFA3C2825E0 /* SourcesView.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		897370D36FF70549A59B1818 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				361B96D20825E7FB9E3FA9F3 /* AnimatedSplashView.swift */,
+				017148BE727DF3DC34D3928C /* OnboardingView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		8D3EE9747CAECA3F387D5924 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */,
+				E38162EF6D932D8762B6D123 /* Info.plist */,
+				AF71DF665673F9AE321A652A /* PhoneWatchSessionAdapter.swift */,
+				1CD2E724E87813719D5A0A81 /* SystemPlaybackBridge.swift */,
+				089C841BE7459AF20665F7B0 /* Tonearm.Debug.entitlements */,
+				AE88E0E38F38D3267A0EBF38 /* Tonearm.entitlements */,
+				706DA4B73090EF9C76A51174 /* TonearmApp.swift */,
+				BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		910E3AEF5745A8A0C0EE75F0 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				8B48E8BCEBBB60820A867070 /* LibraryView.swift */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
+		91690C89622E5142A62FE70F /* WidgetsExtension */ = {
+			isa = PBXGroup;
+			children = (
+				11F034B4AB152DB439603498 /* Info.plist */,
+				732D19D5B0A59029A785C86A /* TonearmWidgets.entitlements */,
+				2BCC18D418FCB74AB0314363 /* TonearmWidgets.swift */,
+			);
+			path = WidgetsExtension;
+			sourceTree = "<group>";
+		};
+		94D3A2525220B072498FB15D /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				6B30803B3705FC80247E98A8 /* ambient-flowing-water.wav */,
+				74D07216801F19A8231EE98A /* ambient-ocean.wav */,
+				E38CB1BF7D38667CEFEBA735 /* ambient-rain.wav */,
+				99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		9F2907457C1E2173870ADF57 /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				F1BAAB8C1EDFCC23544B7B03 /* Info.plist */,
+				07BB75BFAD34B2382CE704F9 /* ShareViewController.swift */,
+			);
+			path = ShareExtension;
+			sourceTree = "<group>";
+		};
+		A8CC20B716BD06760275EDF0 /* WatchUITests */ = {
+			isa = PBXGroup;
+			children = (
+				6A21E9BA83011557E190F76D /* WatchSmokeUITests.swift */,
+			);
+			path = WatchUITests;
+			sourceTree = "<group>";
+		};
+		BB0939C124BAA2B61B94386A /* Media */ = {
+			isa = PBXGroup;
+			children = (
+				2E305F0D8B7B9B42169405D1 /* ArtworkService.swift */,
+				AE86C3C1F56FA212DBB6D8F0 /* ArtworkStore.swift */,
+				AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */,
+			);
+			path = Media;
+			sourceTree = "<group>";
+		};
+		D31A734C0186231F9B3BCDBF /* Playlists */ = {
+			isa = PBXGroup;
+			children = (
+				3726DD886D8478C23AEA8A73 /* AmbientPlaylistView.swift */,
+				75E7A69FA687317AC246E026 /* CreatePlaylistSheet.swift */,
+				D80C464F1FF08824183F765F /* PlaylistsView.swift */,
+			);
+			path = Playlists;
+			sourceTree = "<group>";
+		};
+		DAB8F8AA918232E7C075D87A /* NowPlaying */ = {
+			isa = PBXGroup;
+			children = (
+				BB454D89725B61725520B04A /* NowPlayingView.swift */,
+				F42E2045814F52BC75F1609F /* UpNextView.swift */,
+			);
+			path = NowPlaying;
+			sourceTree = "<group>";
+		};
+		E4A17E2C35C89B52EE42ED08 = {
+			isa = PBXGroup;
+			children = (
+				264AB505F29364FB7B0B6672 /* Packages */,
+				84A5835CD1D34ED39549B235 /* Resources */,
+				9F2907457C1E2173870ADF57 /* ShareExtension */,
+				11B60F667CF5D1321E6931A3 /* Sources */,
+				6C188CA38BDF5ACBFC5EFBF5 /* UITests */,
+				0A758F8A0D5E9029B3F7BFC3 /* WatchApp */,
+				A8CC20B716BD06760275EDF0 /* WatchUITests */,
+				91690C89622E5142A62FE70F /* WidgetsExtension */,
+				17A3C7131FA4A509010DE475 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F0EAD284850C332417DA3EC6 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				6AB44399EDF479626BC62A6F /* EQView.swift */,
+				8D928C4FD455EF96E0D393F1 /* ProPaywallView.swift */,
+				841673E58AB857F3F5C1B063 /* ProToolsView.swift */,
+				C114ED8EAE6B45F219A551DA /* SettingsView.swift */,
+				174BBA2ECE78CF32CFAC192C /* WatchSettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		F37E05675464FE4D04BF4F37 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				292C3AA06CBE9E58AA7418FF /* ArtworkView.swift */,
+				071CC5C8B79CC1A10F456254 /* CacheGlyph.swift */,
+				0A0EA57A9A9BC3350FCC805C /* GlassSurface.swift */,
+				3B148C78FDABC2A552953E74 /* LoopingVideoView.swift */,
+				4EBACB49341C09E9F49B5482 /* Palette.swift */,
+				76C125EC2410AC9E4151E6DF /* WatchGlyph.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		F90AE6772698F2114601747C /* Video */ = {
+			isa = PBXGroup;
+			children = (
+				68C41942DAE2689F40567DDD /* ambient-flowing-water.mp4 */,
+				BA10A0A38CCAEB7B37B8B008 /* ambient-ocean.mp4 */,
+				4EDDCD4974AB22B40A4AB3EE /* ambient-rain.mp4 */,
+			);
+			path = Video;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		541B2581DFBC0293A58EEE08 /* WatchUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2AF329E0032EBA72685B10A9 /* Build configuration list for PBXNativeTarget "WatchUITests" */;
+			buildPhases = (
+				565B8388D74FF07409094B68 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				49BE5CA7339BD346B137621D /* PBXTargetDependency */,
+			);
+			name = WatchUITests;
+			packageProductDependencies = (
+			);
+			productName = WatchUITests;
+			productReference = 0FFCDEBB114755DD71B0E074 /* WatchUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		65C5BA178A6D1265B091D80E /* TonearmUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EFDD4049215C6B126607CB01 /* Build configuration list for PBXNativeTarget "TonearmUITests" */;
+			buildPhases = (
+				06D62267122E8C92CD1347C5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				781F2867A6C35B51A7770A84 /* PBXTargetDependency */,
+			);
+			name = TonearmUITests;
+			packageProductDependencies = (
+			);
+			productName = TonearmUITests;
+			productReference = 59CB1F5051BC2E45CAFEFCB5 /* TonearmUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		68F0460D59215C176FF8B8A3 /* Tonearm */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3A9187CDDC3A5D12A374387C /* Build configuration list for PBXNativeTarget "Tonearm" */;
+			buildPhases = (
+				074C47CFFC9884EFFB08A3A9 /* Sources */,
+				D4C7B5D4B71EE5300AB3F88D /* Resources */,
+				743F1229733254EB6CF55CB7 /* Frameworks */,
+				C761ABEB772F3DA0DCD6C4B0 /* Embed Foundation Extensions */,
+				C91606BCA8FF5D4983B0C615 /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				2DBF718735591301675A5C8A /* PBXTargetDependency */,
+				FB9695396F51D883627E9D2F /* PBXTargetDependency */,
+				6D722A483E33EC32D641CD1E /* PBXTargetDependency */,
+			);
+			name = Tonearm;
+			packageProductDependencies = (
+				25DC295C778B26F9C30D320D /* TonearmCore */,
+			);
+			productName = Tonearm;
+			productReference = CDA5510BE764F39731C1901D /* Tonearm.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B5F60FC34FB7BCEF9231709E /* TonearmWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EF760426E2DF5088D47E9EFA /* Build configuration list for PBXNativeTarget "TonearmWidgetsExtension" */;
+			buildPhases = (
+				8F9D577023B98486550325BA /* Sources */,
+				0A61622FD6D5CD5C6A3E8EE0 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TonearmWidgetsExtension;
+			packageProductDependencies = (
+				391DE85B4F0BACCBFDCDAF98 /* TonearmCore */,
+			);
+			productName = TonearmWidgetsExtension;
+			productReference = 8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		C40A8C12F54ED33C850C40B6 /* TonearmShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F75699965ED0FBD45B395043 /* Build configuration list for PBXNativeTarget "TonearmShareExtension" */;
+			buildPhases = (
+				4BFB7A7D7A6B54DFE139A1D5 /* Sources */,
+				75393E28E8499A5730901397 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TonearmShareExtension;
+			packageProductDependencies = (
+				65EC4F101281094B1EB48E18 /* TonearmCore */,
+			);
+			productName = TonearmShareExtension;
+			productReference = 5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		CD1737525AA7AB55ACD89AF0 /* TonearmWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7455A9BD93AED2D5F57D38A4 /* Build configuration list for PBXNativeTarget "TonearmWatch" */;
+			buildPhases = (
+				75A6B674EF22EEFEC2E80157 /* Sources */,
+				DEC5F526469ADBD2A04D63EF /* Resources */,
+				0E98C33495E38D684D85ECF3 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TonearmWatch;
+			packageProductDependencies = (
+				F69C1C622F8A154BF8AA5B85 /* TonearmCore */,
+			);
+			productName = TonearmWatch;
+			productReference = 8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		2657207D642EAA297D8BD2CE /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					541B2581DFBC0293A58EEE08 = {
+						DevelopmentTeam = 3264Y8YUGV;
+						TestTargetID = CD1737525AA7AB55ACD89AF0;
+					};
+					65C5BA178A6D1265B091D80E = {
+						DevelopmentTeam = 3264Y8YUGV;
+						TestTargetID = 68F0460D59215C176FF8B8A3;
+					};
+					68F0460D59215C176FF8B8A3 = {
+						DevelopmentTeam = 3264Y8YUGV;
+					};
+					B5F60FC34FB7BCEF9231709E = {
+						DevelopmentTeam = 3264Y8YUGV;
+					};
+					C40A8C12F54ED33C850C40B6 = {
+						DevelopmentTeam = 3264Y8YUGV;
+					};
+					CD1737525AA7AB55ACD89AF0 = {
+						DevelopmentTeam = 3264Y8YUGV;
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = 3D0A5A8C107383589F908E23 /* Build configuration list for PBXProject "Tonearm" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E4A17E2C35C89B52EE42ED08;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				01691E235BE9D1455C36FBB1 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 17A3C7131FA4A509010DE475 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				68F0460D59215C176FF8B8A3 /* Tonearm */,
+				C40A8C12F54ED33C850C40B6 /* TonearmShareExtension */,
+				65C5BA178A6D1265B091D80E /* TonearmUITests */,
+				CD1737525AA7AB55ACD89AF0 /* TonearmWatch */,
+				B5F60FC34FB7BCEF9231709E /* TonearmWidgetsExtension */,
+				541B2581DFBC0293A58EEE08 /* WatchUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D4C7B5D4B71EE5300AB3F88D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A3B9D3BDEBED8D945FA809F /* ATTRIBUTION.md in Resources */,
+				152F9F90A86DAD934384AA5E /* Assets.xcassets in Resources */,
+				2BDD7EA40A22BF33622364F5 /* Tonearm.storekit in Resources */,
+				19D3B7BFDB92E43C1DF0BB38 /* ambient-flowing-water.mp4 in Resources */,
+				04AB1C915EDC9668DB183B57 /* ambient-flowing-water.wav in Resources */,
+				270849FD1C2B861CB7D22A4E /* ambient-ocean.mp4 in Resources */,
+				E7D8EA806A23E80EA7653ACB /* ambient-ocean.wav in Resources */,
+				5B465DBD74B94A0538CC824B /* ambient-rain.mp4 in Resources */,
+				2A74A418509060190D7BF44F /* ambient-rain.wav in Resources */,
+				DE2BEC06DBD57AB6777880B0 /* splash_screen.jpg in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DEC5F526469ADBD2A04D63EF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3B69A3EEB3B798C7E772B384 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		06D62267122E8C92CD1347C5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				73EF48B22BA7870F3A6C08D7 /* TonearmSmokeUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		074C47CFFC9884EFFB08A3A9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4F556962AF663ABF80303696 /* AdaptiveGlass.swift in Sources */,
+				6FF649FB95E0F82150307951 /* AddFolderSheet.swift in Sources */,
+				0BAE4D620A0105E3C4FC19BA /* AddMenuSheet.swift in Sources */,
+				EE18D34B4E395874C8840D7B /* AddServerSheet.swift in Sources */,
+				9385955168CC8058B3A019FB /* AddSourceSheet.swift in Sources */,
+				55344DAAB8AAC8239D613381 /* AirPlayButton.swift in Sources */,
+				56F4F1925361073B6B0A664E /* AmbientPlaylistView.swift in Sources */,
+				634F7013397B8B104E7B4EDC /* AnimatedSplashView.swift in Sources */,
+				C0E3EB7AB1D02FA2309CE3B2 /* AppState.swift in Sources */,
+				EFBBDA6C054C53C43E5620CF /* ArtworkService.swift in Sources */,
+				BE20C9CFF3CB74BB6864F917 /* ArtworkStore.swift in Sources */,
+				0630A202DEA82E067F243939 /* ArtworkView.swift in Sources */,
+				8AE40034D4CB1F72F61EC466 /* CacheGlyph.swift in Sources */,
+				471860B6E4026ABBD21B2A33 /* Components.swift in Sources */,
+				40ADEDBFEE6EF20F755D9813 /* CreatePlaylistSheet.swift in Sources */,
+				F1FEBCEF7BC2546437362B1D /* EQView.swift in Sources */,
+				6E4FBE3405E7DED87AC0E5FE /* GlassDock.swift in Sources */,
+				258615352F9FC8B6D84BA3FC /* GlassSurface.swift in Sources */,
+				8553DC45ADAE9EC2DCB3101A /* LibraryView.swift in Sources */,
+				2B12111CBDF1D49C39714944 /* ListenView.swift in Sources */,
+				B85A66E82620EA180EAF7A67 /* LoopingVideoView.swift in Sources */,
+				30487CE5289BB55F2472813F /* NowPlayingView.swift in Sources */,
+				2AF3605F104466A0A619CC31 /* OAuthClientConfiguration.swift in Sources */,
+				34532A4505591A95D2765EFF /* OAuthSignInCoordinator.swift in Sources */,
+				4149F3C1BAF17DF80800B6C7 /* OnboardingView.swift in Sources */,
+				E804FEFD3B24E44527EF05E8 /* Palette.swift in Sources */,
+				62874EE2E842BBE59D064A7C /* PhoneWatchSessionAdapter.swift in Sources */,
+				7155FE7BF0A91F242A4A2F25 /* PlaylistsView.swift in Sources */,
+				E15A8628673977ECC56099DB /* ProPaywallView.swift in Sources */,
+				1B9340D6FCB8EAFED2391F06 /* ProToolsView.swift in Sources */,
+				B05161851F3AEADE6DD18515 /* RemoteConnectorGuideView.swift in Sources */,
+				9E573BB60815F1EB9B85148D /* RootView.swift in Sources */,
+				EA61DA978312F3700904DED7 /* SettingsView.swift in Sources */,
+				B72DE992BD62735CB370A71F /* SourceDetailView.swift in Sources */,
+				C5E4A0FDE163504E89491B31 /* SourcesView.swift in Sources */,
+				6C5DD6A4AF0825987A8CE9E3 /* SystemPlaybackBridge.swift in Sources */,
+				01EBEFA7CCFCA3A96D612CDC /* TonearmApp.swift in Sources */,
+				1A0ED14038DAB24DEC322BEC /* UpNextView.swift in Sources */,
+				43F852A09254A155153C1830 /* WatchGlyph.swift in Sources */,
+				94C8DFA6509A832BF22FAC17 /* WatchSettingsView.swift in Sources */,
+				FA21DEDFD4C224853AF43150 /* WidgetArtworkStore+Save.swift in Sources */,
+				C0D5BE09D689D61435BEDCA1 /* WidgetSnapshotPublisher.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4BFB7A7D7A6B54DFE139A1D5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D48DC71189EEC9D2917B9A0E /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		565B8388D74FF07409094B68 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3F45EBC68A11B97763AA09BA /* WatchSmokeUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		75A6B674EF22EEFEC2E80157 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				15D68A714F1A586F779133FE /* AVPlayerOutput.swift in Sources */,
+				C8ABFA6DEBDCBFC45E023FA6 /* PlatterheadWatchApp.swift in Sources */,
+				817CD786F8CC3FC747B95A61 /* WatchAlbumsView.swift in Sources */,
+				6850787E3F2A8AE11FE57E4A /* WatchComponents.swift in Sources */,
+				5F09D1C32CB94D57F173D001 /* WatchFetchOverlay.swift in Sources */,
+				A874CDAAE6139A6C31115E30 /* WatchFixtureSeeder.swift in Sources */,
+				781C7C906ED63132DF7CCDB2 /* WatchNowPlayingView.swift in Sources */,
+				09BA5404F865447289CD7A3D /* WatchPlayer.swift in Sources */,
+				2FB5EA4A4EEFB59CEBA07B8F /* WatchPlaylistsView.swift in Sources */,
+				464C5B08FAAF1036A497892B /* WatchRootView.swift in Sources */,
+				782717264F729A5B9089D729 /* WatchSessionAdapter.swift in Sources */,
+				65382A626085DF49D9496F82 /* WatchStorageView.swift in Sources */,
+				20D740B9A416060861D03212 /* WatchSyncHandler.swift in Sources */,
+				E84D1DCC3BDCFDFA5ED92E0E /* WatchUpNextView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8F9D577023B98486550325BA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				914F796831D48C417ACC3A5F /* TonearmWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		2DBF718735591301675A5C8A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C40A8C12F54ED33C850C40B6 /* TonearmShareExtension */;
+			targetProxy = 8165B99C381C2B0DCF1D7DEC /* PBXContainerItemProxy */;
+		};
+		49BE5CA7339BD346B137621D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CD1737525AA7AB55ACD89AF0 /* TonearmWatch */;
+			targetProxy = 61F9A33AE0E075259C9C372D /* PBXContainerItemProxy */;
+		};
+		6D722A483E33EC32D641CD1E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CD1737525AA7AB55ACD89AF0 /* TonearmWatch */;
+			targetProxy = FEC80C1E4ACBF961506FA7BC /* PBXContainerItemProxy */;
+		};
+		781F2867A6C35B51A7770A84 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 68F0460D59215C176FF8B8A3 /* Tonearm */;
+			targetProxy = B27CE341F3E2B336DDEDB119 /* PBXContainerItemProxy */;
+		};
+		FB9695396F51D883627E9D2F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B5F60FC34FB7BCEF9231709E /* TonearmWidgetsExtension */;
+			targetProxy = B3A41330A9E97C9243137993 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0E3DA9C985FBD27394800498 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Tonearm;
+			};
+			name = Release;
+		};
+		3121ED1CE687FE6BE086A223 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = "$(CURRENT_PROJECT_VERSION)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WatchApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Platterhead;
+				INFOPLIST_KEY_UIBackgroundModes = (
+					audio,
+				);
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = guru.parso.tonearm;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
+				MARKETING_VERSION = "$(MARKETING_VERSION)";
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.watchkitapp;
+				PROVISIONING_PROFILE_SPECIFIER = "Platterhead Watch App Store";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
+		4170D265CBDCAF9ACAB75DBE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/App/Tonearm.Debug.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3264Y8YUGV;
+				INFOPLIST_FILE = Sources/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm;
+				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4E3E7A7EB07427B8512FBFFC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.watchkitapp.uitests;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = TonearmWatch;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
+		67D5EAB64FA67C443B073469 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = WidgetsExtension/TonearmWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3264Y8YUGV;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WidgetsExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6E41501CB64EA7838FDEBB8F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = WidgetsExtension/TonearmWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = 3264Y8YUGV;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WidgetsExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.widgets;
+				PROVISIONING_PROFILE_SPECIFIER = "Platterhead Widgets Profile";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		70D18E32E374D89EC23CB417 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Tonearm;
+			};
+			name = Debug;
+		};
+		8B7B2E09CFFE678B4110D637 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/App/Tonearm.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = 3264Y8YUGV;
+				INFOPLIST_FILE = Sources/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm;
+				PROVISIONING_PROFILE_SPECIFIER = "Platterhead Profile";
+				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		8F3692EDC4EC41DD16825E07 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3264Y8YUGV;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.share;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		922596C9C41CC934AC8746B8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 3264Y8YUGV;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TONEARM_DROPBOX_CLIENT_ID = "";
+				TONEARM_GOOGLE_DRIVE_CLIENT_ID = "";
+				TONEARM_ONEDRIVE_CLIENT_ID = "";
+				TONEARM_PCLOUD_CLIENT_ID = "";
+				TONEARM_PCLOUD_CLIENT_SECRET = "";
+			};
+			name = Release;
+		};
+		9DA1074B514791F8D21B1563 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = "$(CURRENT_PROJECT_VERSION)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WatchApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Platterhead;
+				INFOPLIST_KEY_UIBackgroundModes = (
+					audio,
+				);
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = guru.parso.tonearm;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
+				MARKETING_VERSION = "$(MARKETING_VERSION)";
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.watchkitapp;
+				PROVISIONING_PROFILE_SPECIFIER = "Platterhead Watch App Store";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Release;
+		};
+		A485BFA90AD123A300A42AAD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = 3264Y8YUGV;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.share;
+				PROVISIONING_PROFILE_SPECIFIER = "Platterhead Share Extension Profile";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B9D7EB96BA69D5C59847B5D3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 3264Y8YUGV;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TONEARM_DROPBOX_CLIENT_ID = "";
+				TONEARM_GOOGLE_DRIVE_CLIENT_ID = "";
+				TONEARM_ONEDRIVE_CLIENT_ID = "";
+				TONEARM_PCLOUD_CLIENT_ID = "";
+				TONEARM_PCLOUD_CLIENT_SECRET = "";
+			};
+			name = Debug;
+		};
+		CD631E814D16DBF6F4EAFD7F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.watchkitapp.uitests;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = TonearmWatch;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2AF329E0032EBA72685B10A9 /* Build configuration list for PBXNativeTarget "WatchUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4E3E7A7EB07427B8512FBFFC /* Debug */,
+				CD631E814D16DBF6F4EAFD7F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		3A9187CDDC3A5D12A374387C /* Build configuration list for PBXNativeTarget "Tonearm" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4170D265CBDCAF9ACAB75DBE /* Debug */,
+				8B7B2E09CFFE678B4110D637 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		3D0A5A8C107383589F908E23 /* Build configuration list for PBXProject "Tonearm" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B9D7EB96BA69D5C59847B5D3 /* Debug */,
+				922596C9C41CC934AC8746B8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7455A9BD93AED2D5F57D38A4 /* Build configuration list for PBXNativeTarget "TonearmWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3121ED1CE687FE6BE086A223 /* Debug */,
+				9DA1074B514791F8D21B1563 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EF760426E2DF5088D47E9EFA /* Build configuration list for PBXNativeTarget "TonearmWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				67D5EAB64FA67C443B073469 /* Debug */,
+				6E41501CB64EA7838FDEBB8F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EFDD4049215C6B126607CB01 /* Build configuration list for PBXNativeTarget "TonearmUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				70D18E32E374D89EC23CB417 /* Debug */,
+				0E3DA9C985FBD27394800498 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F75699965ED0FBD45B395043 /* Build configuration list for PBXNativeTarget "TonearmShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8F3692EDC4EC41DD16825E07 /* Debug */,
+				A485BFA90AD123A300A42AAD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		01691E235BE9D1455C36FBB1 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		25DC295C778B26F9C30D320D /* TonearmCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TonearmCore;
+		};
+		391DE85B4F0BACCBFDCDAF98 /* TonearmCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TonearmCore;
+		};
+		65EC4F101281094B1EB48E18 /* TonearmCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TonearmCore;
+		};
+		F69C1C622F8A154BF8AA5B85 /* TonearmCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TonearmCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 2657207D642EAA297D8BD2CE /* Project object */;
+}

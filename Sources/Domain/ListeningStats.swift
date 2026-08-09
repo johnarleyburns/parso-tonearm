@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ListeningStats {
-    public struct Summary: Equatable {
+    public struct Summary: Equatable, Sendable {
         public var totalPlayCount: Int
         public var totalListeningTime: TimeInterval
         public var currentStreakDays: Int
@@ -29,14 +29,14 @@ public enum ListeningStats {
                                        topArtist: nil, topTrack: nil, shareText: ""))
     }
 
-    public struct TrackRank: Equatable, Identifiable {
+    public struct TrackRank: Equatable, Identifiable, Sendable {
         public var row: TrackRow
         public var playCount: Int
         public var listeningTime: TimeInterval
         public var id: Int64 { row.id }
     }
 
-    public struct NameRank: Equatable, Identifiable {
+    public struct NameRank: Equatable, Identifiable, Sendable {
         public var name: String
         public var playCount: Int
         public var listeningTime: TimeInterval

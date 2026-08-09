@@ -2,7 +2,7 @@ import Foundation
 
 /// EQ presets (mockup screen 4) plus user-saved curves. Persisted alongside the
 /// app's other settings via UserDefaults (mirrors the `@AppStorage` convention).
-public struct EQPreset: Equatable, Codable, Identifiable {
+public struct EQPreset: Equatable, Codable, Identifiable, Sendable {
     public var id: String { name }
     public let name: String
     public let gains: [Double]

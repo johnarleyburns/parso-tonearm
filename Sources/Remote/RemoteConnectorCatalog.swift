@@ -1,6 +1,6 @@
 import Foundation
 
-public enum RemoteConnectorTier: String, Codable, Equatable {
+public enum RemoteConnectorTier: String, Codable, Equatable, Sendable {
     case guided
     case advanced
 
@@ -12,7 +12,7 @@ public enum RemoteConnectorTier: String, Codable, Equatable {
     }
 }
 
-public enum RemoteConnectorAuthKind: String, Codable, Equatable {
+public enum RemoteConnectorAuthKind: String, Codable, Equatable, Sendable {
     case oauth
     case usernamePassword
     case token
@@ -20,7 +20,7 @@ public enum RemoteConnectorAuthKind: String, Codable, Equatable {
     case urlOnly
 }
 
-public struct RemoteConnectorGuide: Equatable, Codable {
+public struct RemoteConnectorGuide: Equatable, Codable, Sendable {
     public struct Section: Equatable, Codable {
         public var title: String
         public var body: String
@@ -40,7 +40,7 @@ public struct RemoteConnectorGuide: Equatable, Codable {
     }
 }
 
-public struct RemoteConnector: Identifiable, Equatable, Codable {
+public struct RemoteConnector: Identifiable, Equatable, Codable, Sendable {
     public var id: String { connectorID ?? sourceKind.rawValue }
     public var sourceKind: SourceKind
     public var connectorID: String?

@@ -5,7 +5,7 @@ import Foundation
 /// DSP (`ProAudioKernel`) and the paywall status label (`BitPerfectOutputPlan`) are
 /// both derived from this single source of truth so the sliders actually drive the
 /// audio instead of a status string.
-public struct ProAudioSettings: Equatable, Codable {
+public struct ProAudioSettings: Equatable, Codable, Sendable {
     /// Parametric EQ cascade applied after the 10-band graphic EQ.
     public var parametricBands: [ParametricEQBand]
     /// Symmetric crossfeed amount in dB (the mixed-in opposite channel level).

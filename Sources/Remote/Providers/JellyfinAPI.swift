@@ -8,7 +8,7 @@ public enum JellyfinAPI {
         version: "1.0"
     )
 
-    public struct Client: Equatable {
+    public struct Client: Equatable, Sendable {
         var name: String
         var device: String
         var deviceID: String

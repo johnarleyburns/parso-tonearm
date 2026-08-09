@@ -1,6 +1,6 @@
 import Foundation
 
-public enum SourceKind: String, Codable, CaseIterable {
+public enum SourceKind: String, Codable, CaseIterable, Sendable {
     case local
     case iaItem
     case iaList
@@ -17,19 +17,19 @@ public enum SourceKind: String, Codable, CaseIterable {
     case pCloud
 }
 
-public enum AssetKind: String, Codable {
+public enum AssetKind: String, Codable, Sendable {
     case localRef
     case managedCopy
     case remote
     case builtIn
 }
 
-public enum PlaylistKind: String, Codable {
+public enum PlaylistKind: String, Codable, Sendable {
     case manual
     case folder
 }
 
-public struct Source: Identifiable, Equatable, Codable, Hashable {
+public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
     public var id: Int64?
     public var kind: SourceKind
     public var iaIdentifier: String?
@@ -95,7 +95,7 @@ public struct Source: Identifiable, Equatable, Codable, Hashable {
     }
 }
 
-public struct Album: Identifiable, Equatable, Codable, Hashable {
+public struct Album: Identifiable, Equatable, Codable, Hashable, Sendable {
     public var id: Int64?
     public var sourceId: Int64
     public var title: String
@@ -137,7 +137,7 @@ public struct Artist: Identifiable, Equatable, Codable, Hashable {
     public var syncID: String? = nil
 }
 
-public struct Track: Identifiable, Equatable, Codable {
+public struct Track: Identifiable, Equatable, Codable, Sendable {
     public var id: Int64?
     public var albumId: Int64?
     public var sourceId: Int64
@@ -199,7 +199,7 @@ public struct Track: Identifiable, Equatable, Codable {
     }
 }
 
-public struct Asset: Identifiable, Equatable, Codable {
+public struct Asset: Identifiable, Equatable, Codable, Sendable {
     public var id: Int64?
     public var trackId: Int64
     public var kind: AssetKind
@@ -274,7 +274,7 @@ public struct Asset: Identifiable, Equatable, Codable {
     }
 }
 
-public struct CacheEntry: Identifiable, Equatable, Codable {
+public struct CacheEntry: Identifiable, Equatable, Codable, Sendable {
     public var id: Int64?
     public var assetId: Int64
     public var relPath: String
@@ -285,7 +285,7 @@ public struct CacheEntry: Identifiable, Equatable, Codable {
     public var createdAt: Date
 }
 
-public struct Playlist: Identifiable, Equatable, Codable, Hashable {
+public struct Playlist: Identifiable, Equatable, Codable, Hashable, Sendable {
     public var id: Int64?
     public var title: String
     public var kind: PlaylistKind
@@ -308,7 +308,7 @@ public struct Playlist: Identifiable, Equatable, Codable, Hashable {
     }
 }
 
-public struct PlaylistItem: Identifiable, Equatable, Codable {
+public struct PlaylistItem: Identifiable, Equatable, Codable, Sendable {
     public var id: Int64?
     public var playlistId: Int64
     public var position: Int
@@ -317,21 +317,21 @@ public struct PlaylistItem: Identifiable, Equatable, Codable {
     public var syncID: String? = nil
 }
 
-public struct PlayEvent: Identifiable, Equatable, Codable {
+public struct PlayEvent: Identifiable, Equatable, Codable, Sendable {
     public var id: Int64?
     public var trackId: Int64
     public var playedAt: Date
     public var syncID: String? = nil
 }
 
-public struct Favorite: Identifiable, Equatable, Codable {
+public struct Favorite: Identifiable, Equatable, Codable, Sendable {
     public var id: Int64?
     public var trackId: Int64
     public var favoritedAt: Date
     public var syncID: String? = nil
 }
 
-public struct WatchTransferRecord: Identifiable, Equatable, Codable {
+public struct WatchTransferRecord: Identifiable, Equatable, Codable, Sendable {
     public var id: Int64?
     public var trackId: Int64
     public var state: String
@@ -360,7 +360,7 @@ public struct WatchTransferRecord: Identifiable, Equatable, Codable {
     }
 }
 
-public struct WatchManifestRecord: Equatable, Codable {
+public struct WatchManifestRecord: Equatable, Codable, Sendable {
     public var trackKey: String
     public var bytes: Int64
     public var pinned: Bool

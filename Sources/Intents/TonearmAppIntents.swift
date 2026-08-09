@@ -4,9 +4,9 @@ import Foundation
 
 public struct TonearmPlayPlaylistIntent: AppIntent {
     public init() {}
-    public static var title: LocalizedStringResource = "Play Playlist"
-    public static var description = IntentDescription("Starts a Platterhead playlist.")
-    public static var openAppWhenRun = true
+    public static let title: LocalizedStringResource = "Play Playlist"
+    public static let description = IntentDescription("Starts a Platterhead playlist.")
+    public static let openAppWhenRun = true
 
     @Parameter(title: "Playlist")
     public var playlistName: String
@@ -20,9 +20,9 @@ public struct TonearmPlayPlaylistIntent: AppIntent {
 
 public struct TonearmPlayArtistIntent: AppIntent {
     public init() {}
-    public static var title: LocalizedStringResource = "Play Artist"
-    public static var description = IntentDescription("Starts all Platterhead tracks by an artist.")
-    public static var openAppWhenRun = true
+    public static let title: LocalizedStringResource = "Play Artist"
+    public static let description = IntentDescription("Starts all Platterhead tracks by an artist.")
+    public static let openAppWhenRun = true
 
     @Parameter(title: "Artist")
     public var artistName: String
@@ -36,9 +36,9 @@ public struct TonearmPlayArtistIntent: AppIntent {
 
 public struct TonearmResumeIntent: AppIntent {
     public init() {}
-    public static var title: LocalizedStringResource = "Resume Platterhead"
-    public static var description = IntentDescription("Resumes Platterhead playback.")
-    public static var openAppWhenRun = true
+    public static let title: LocalizedStringResource = "Resume Platterhead"
+    public static let description = IntentDescription("Resumes Platterhead playback.")
+    public static let openAppWhenRun = true
 
     @MainActor
     public func perform() async throws -> some IntentResult {
@@ -49,9 +49,9 @@ public struct TonearmResumeIntent: AppIntent {
 
 public struct TonearmSleepTimerIntent: AppIntent {
     public init() {}
-    public static var title: LocalizedStringResource = "Set Sleep Timer"
-    public static var description = IntentDescription("Sets a Platterhead sleep timer in minutes.")
-    public static var openAppWhenRun = true
+    public static let title: LocalizedStringResource = "Set Sleep Timer"
+    public static let description = IntentDescription("Sets a Platterhead sleep timer in minutes.")
+    public static let openAppWhenRun = true
 
     @Parameter(title: "Minutes", default: 30)
     public var minutes: Int
@@ -70,9 +70,9 @@ public struct TonearmSleepTimerIntent: AppIntent {
 
 public struct TonearmAddSourceIntent: AppIntent {
     public init() {}
-    public static var title: LocalizedStringResource = "Add Archive Source"
-    public static var description = IntentDescription("Adds an archive.org library to Platterhead.")
-    public static var openAppWhenRun = true
+    public static let title: LocalizedStringResource = "Add Archive Source"
+    public static let description = IntentDescription("Adds an archive.org library to Platterhead.")
+    public static let openAppWhenRun = true
 
     @Parameter(title: "URL")
     public var rawURL: String
@@ -90,7 +90,7 @@ public struct TonearmAddSourceIntent: AppIntent {
 }
 
 public struct TonearmShortcutsProvider: AppShortcutsProvider {
-    public static var shortcutTileColor: ShortcutTileColor = .teal
+    public static let shortcutTileColor: ShortcutTileColor = .teal
 
     public static var appShortcuts: [AppShortcut] {
         AppShortcut(

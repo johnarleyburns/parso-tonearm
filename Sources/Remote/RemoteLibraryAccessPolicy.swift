@@ -1,6 +1,6 @@
 import Foundation
 
-public enum RemoteLibraryAction: Equatable {
+public enum RemoteLibraryAction: Equatable, Sendable {
     case openAddFlow
     case connect(SourceKind)
     case browse(SourceKind)
@@ -32,7 +32,7 @@ public enum RemoteLibraryAccessPolicy {
     }
 }
 
-public enum RemoteLibraryEntryPointDecision: Equatable {
+public enum RemoteLibraryEntryPointDecision: Equatable, Sendable {
     case openSheet
     case showPaywall
 }

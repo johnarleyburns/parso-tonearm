@@ -13,7 +13,7 @@ public enum WatchTransferState: String, Equatable, Codable {
     case failed
 }
 
-public struct WatchTransferItem: Equatable, Codable {
+public struct WatchTransferItem: Equatable, Codable, Sendable {
     public var trackKey: String
     public var state: WatchTransferState
     public var originKind: WatchTransferOrigin

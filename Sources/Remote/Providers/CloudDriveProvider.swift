@@ -15,7 +15,7 @@ public struct CloudDriveServerPolicy {
     }
 }
 
-public struct CloudDriveAccess: Equatable {
+public struct CloudDriveAccess: Equatable, Sendable {
     public var accessToken: String
     public var environment: CloudDriveAPI.Environment
 

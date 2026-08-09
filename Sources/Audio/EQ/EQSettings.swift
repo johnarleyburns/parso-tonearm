@@ -1,7 +1,7 @@
 import Foundation
 
 /// User-facing EQ state. This is a pure value: no UI frameworks, no I/O.
-public struct EQSettings: Equatable, Codable {
+public struct EQSettings: Equatable, Codable, Sendable {
     public var bands: [Float]
     public var enabled: Bool
     public var activePresetID: String?

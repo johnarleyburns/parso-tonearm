@@ -8,7 +8,7 @@ public enum PlexAPI {
         clientIdentifier: "tonearm-ios"
     )
 
-    public struct Client: Equatable {
+    public struct Client: Equatable, Sendable {
         var product: String
         var version: String
         var platform: String
