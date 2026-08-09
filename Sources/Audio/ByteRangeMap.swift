@@ -1,7 +1,7 @@
 import Foundation
 
 /// Persisted set of contiguous byte ranges present in a sparse cache file.
-public struct ByteRangeMap: Codable, Equatable {
+public struct ByteRangeMap: Codable, Equatable, Sendable {
     public private(set) var ranges: [Range<Int64>] = []
 
     public init() {}

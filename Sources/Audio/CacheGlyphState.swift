@@ -2,7 +2,7 @@ import Foundation
 
 /// The cache-fill state the player publishes; the `CacheGlyph` view (app target)
 /// renders it. Lives in Core because `AudioPlayer` / `CacheStore` drive it.
-public enum CacheGlyphState: Equatable {
+public enum CacheGlyphState: Equatable, Sendable {
     case none
     case filling(Double)
     case cached

@@ -130,7 +130,7 @@ public struct Album: Identifiable, Equatable, Codable, Hashable, Sendable {
     }
 }
 
-public struct Artist: Identifiable, Equatable, Codable, Hashable {
+public struct Artist: Identifiable, Equatable, Codable, Hashable, Sendable {
     public var id: Int64?
     public var name: String
     public var sortName: String

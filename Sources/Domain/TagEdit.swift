@@ -48,7 +48,7 @@ public enum TagEdit {
         }
     }
 
-    public enum Field: String, CaseIterable, Equatable {
+    public enum Field: String, CaseIterable, Equatable, Sendable {
         case title
         case artist
         case albumTitle
@@ -69,12 +69,12 @@ public enum TagEdit {
         }
     }
 
-    public enum FieldKind {
+    public enum FieldKind: Sendable {
         case text
         case integer
     }
 
-    public enum Value: Equatable {
+    public enum Value: Equatable, Sendable {
         case text(String)
         case integer(Int)
 
@@ -138,7 +138,7 @@ public enum TagEdit {
         }
     }
 
-    public struct FindReplace: Equatable {
+    public struct FindReplace: Equatable, Sendable {
         public var field: Field
         public var find: String
         public var replacement: String
