@@ -66,3 +66,7 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Local test credentials — never committed. See .test-credentials.example.
+.test-credentials
+*.local.sh

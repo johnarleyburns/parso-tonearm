@@ -1,0 +1,109 @@
+# Platterhead — UI regression suite backing servers (§53–54).
+#
+# Started on demand by `make test-ui-regression`. NOT used by CI, NOT used by
+# `make test-swift`, and NOT wired into any git hook — see §53.2 for why.
+#
+#   docker compose -f docker-compose.ui-regression.yml up -d --wait
+#
+# Lanes backed by a public demo server (archive.org, Navidrome, Jellyfin) have no
+# service here; they are reached over the network and skip when offline (§53.4).
+
+services:
+  # ── fixture media ────────────────────────────────────────────────────────
+  # Writes one small, license-free WAV that every local server then serves, so
+  # nothing binary is committed to the repo (§54.1).
+  fixture-media:
+    image: python:3.12-slim
+    command: ["python", "/srv/make-fixture-media.py", "/media"]
+    volumes:
+      - ./scripts/ui-regression:/srv:ro
+      - fixture-media:/media
+
+  # ── D-11 · WebDAV ────────────────────────────────────────────────────────
+  webdav:
+    image: bytemark/webdav:2.4
+    depends_on:
+      fixture-media:
+        condition: service_completed_successfully
+    environment:
+      AUTH_TYPE: Basic
+      USERNAME: platterhead
+      PASSWORD: regression
+    ports:
+      - "18091:80"
+    volumes:
+      - fixture-media:/var/lib/dav/data
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf -u platterhead:regression http://127.0.0.1/ >/dev/null"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # ── D-12 · SMB ───────────────────────────────────────────────────────────
+  smb:
+    image: dperson/samba:latest
+    depends_on:
+      fixture-media:
+        condition: service_completed_successfully
+    command: >
+      -u "platterhead;regression"
+      -s "Music;/media;yes;no;no;platterhead"
+      -p
+    ports:
+      - "18445:445"
+    volumes:
+      - fixture-media:/media
+    healthcheck:
+      test: ["CMD", "sh", "-c", "smbclient -L localhost -U platterhead%regression >/dev/null 2>&1"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  # ── D-14 · Plex ──────────────────────────────────────────────────────────
+  # Requires PLEX_CLAIM from https://www.plex.tv/claim (valid 4 minutes). Without
+  # it the container starts unclaimed and the lane skips rather than fails.
+  plex:
+    image: plexinc/pms-docker:latest
+    depends_on:
+      fixture-media:
+        condition: service_completed_successfully
+    environment:
+      PLEX_CLAIM: "${PLEX_CLAIM:-}"
+      ADVERTISE_IP: "http://127.0.0.1:32400/"
+    ports:
+      - "32400:32400"
+    volumes:
+      - fixture-media:/data/music:ro
+      - plex-config:/config
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf http://127.0.0.1:32400/identity >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # ── D-13 · Jellyfin (local alternative to the public demo) ───────────────
+  # Optional. The default D-13 fixture is the public demo, because a fresh
+  # Jellyfin needs its setup wizard completed before it will serve anything.
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    profiles: ["jellyfin-local"]
+    depends_on:
+      fixture-media:
+        condition: service_completed_successfully
+    ports:
+      - "18096:8096"
+    volumes:
+      - fixture-media:/media:ro
+      - jellyfin-config:/config
+      - jellyfin-cache:/cache
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf http://127.0.0.1:8096/health >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  fixture-media:
+  plex-config:
+  jellyfin-config:
+  jellyfin-cache:
