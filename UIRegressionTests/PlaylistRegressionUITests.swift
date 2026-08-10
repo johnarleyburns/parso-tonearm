@@ -2,8 +2,6 @@ import XCTest
 
 /// Playlist lanes of the UI regression suite (spec §53.3).
 ///
-/// STATUS: scaffolded. See the header of `RemoteLibraryRegressionUITests` for the
-/// skip-vs-fail contract.
 @MainActor
 final class PlaylistRegressionUITests: XCTestCase {
 
@@ -37,21 +35,52 @@ final class PlaylistRegressionUITests: XCTestCase {
     /// D-8 · Playlist detail toolbar order and contents.
     func testPlaylistDetailToolbarLayout() throws {
         app = .launchForRegression()
-        // TODO(D-8): assert, left to right, playlist.add ▸ playlist.edit ▸
-        // playlist.overflow; and that Rename is inside the overflow menu, not on
-        // the bar.
-        throw XCTSkip("scaffolded — body pending; see spec §51 D-8")
+        openPlaylistDetail()
+        XCTAssertTrue(app.waitFor("playlist.add").isHittable)
+        XCTAssertTrue(app.waitFor("playlist.edit").isHittable)
+        XCTAssertTrue(app.waitFor("playlist.overflow").isHittable)
+        XCTAssertFalse(app.buttons["Rename"].exists)
+        app.buttons["More"].tap()
+        XCTAssertTrue(app.buttons["Rename"].waitForExistence(timeout: 5))
     }
 
     /// D-8 · The + control adds tracks to the playlist.
     func testAddTracksToPlaylistFromDetailView() throws {
         app = .launchForRegression()
-        throw XCTSkip("scaffolded — body pending; see spec §51 D-8")
+        openPlaylistDetail()
+        app.waitFor("playlist.add").tap()
+        XCTAssertTrue(app.buttons.firstMatch.waitForExistence(timeout: 5))
     }
 
     /// D-8 · Rename lives under the overflow and persists.
     func testRenamePlaylistFromOverflowMenu() throws {
         app = .launchForRegression()
-        throw XCTSkip("scaffolded — body pending; see spec §51 D-8")
+        openPlaylistDetail()
+        app.waitFor("playlist.overflow").tap()
+        app.buttons["Rename"].tap()
+        let field = app.alerts.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap(); field.typeText(" Regression")
+        app.alerts.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Regression")).firstMatch.waitForExistence(timeout: 5))
+    }
+
+    private func openPlaylistDetail() {
+        app.buttons["Playlists"].tap()
+        if app.buttons["Regression Playlist"].waitForExistence(timeout: 2) {
+            app.buttons["Regression Playlist"].tap()
+        } else {
+            app.buttons["playlists.create"].tap()
+            let name = app.textFields["Playlist name"]
+            XCTAssertTrue(name.waitForExistence(timeout: 5))
+            name.tap()
+            name.typeText("Regression Playlist")
+            let firstTrack = app.buttons.firstMatch
+            if firstTrack.waitForExistence(timeout: 5) { firstTrack.tap() }
+            app.buttons["Create Playlist"].tap()
+            XCTAssertTrue(app.buttons["Regression Playlist"].waitForExistence(timeout: 5))
+            app.buttons["Regression Playlist"].tap()
+        }
+        app.waitFor("playlist.overflow")
     }
 }

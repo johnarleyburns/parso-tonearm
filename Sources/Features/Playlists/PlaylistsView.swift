@@ -10,6 +10,7 @@ struct PlaylistsView: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
                 ScreenHeader(title: "Playlists") { appState.showCreatePlaylist = true }
+                    .accessibilityIdentifier("playlists.create")
                     .padding(.horizontal, 18)
                     .padding(.bottom, 12)
 
@@ -118,13 +119,34 @@ struct PlaylistDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 15)).foregroundStyle(Palette.brass)
-                        .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
-                }
-                Spacer()
                 Menu {
+                    if appState.allTracks.isEmpty {
+                        Text("No tracks available")
+                    } else {
+                        ForEach(appState.allTracks) { row in
+                            Button(row.track.title) {
+                                Task { await appState.addToPlaylist(row, playlist: currentPlaylist) }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.brass)
+                        .frame(width: 44, height: 44).glassSurface(cornerRadius: 22)
+                }
+                .accessibilityIdentifier("playlist.add")
+                Spacer()
+                EditButton()
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.brass)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityIdentifier("playlist.edit")
+                Menu {
+                    Button {
+                        beginRename(currentPlaylist)
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
                     Button {
                         Task { await appState.download(rows: trackRows) }
                     } label: {
@@ -143,20 +165,10 @@ struct PlaylistDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 14)).foregroundStyle(Palette.brass)
-                        .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
+                        .frame(width: 44, height: 44).glassSurface(cornerRadius: 22)
                 }
                 .accessibilityLabel("More")
-                EditButton()
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Palette.brass)
-                Button {
-                    beginRename(currentPlaylist)
-                } label: {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 14)).foregroundStyle(Palette.brass)
-                        .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
-                }
-                .accessibilityLabel("Rename")
+                .accessibilityIdentifier("playlist.overflow")
             }
             .padding(.top, 8)
             .padding(.horizontal, 18)
