@@ -24,6 +24,7 @@ struct TonearmApp: App {
         }
         if !shouldSeedProForUITesting {
             ProStore.shared.start()
+            EntitlementStore.shared.start()
         }
         AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
         AudioPlayer.shared.persistor.cloudBackend = CloudPlaybackBackend()

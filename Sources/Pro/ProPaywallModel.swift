@@ -18,17 +18,18 @@ public final class ProPaywallModel: ObservableObject {
         self.displayPrice = resolvedStore.displayPrice
     }
 
-    /// The Pro features shown on the sheet, in mockup order. Through commit 0.4
-    /// nothing is paid — `ProFeature` is empty — so the honest list is empty.
-    /// The next milestone (`EntitlementStore`, Appendix T.2–T.4) fills it in.
+    /// The Pro features shown on the sheet, in mockup order. The paywall is
+    /// unpresented until M4 repurposes it for the DJ product, so the honest
+    /// list is empty. `ProCapability` (Appendix T.3) is the capability set the
+    /// next milestone's paywall will advertise.
     public struct Feature: Identifiable {
         public var id: String { title }
         public let title: String
         public let detail: String
-        public let features: [ProFeature]
+        public let features: [ProCapability]
         public let entryPoint: String
 
-        public init(title: String, detail: String, features: [ProFeature], entryPoint: String) {
+        public init(title: String, detail: String, features: [ProCapability], entryPoint: String) {
             self.title = title
             self.detail = detail
             self.features = features

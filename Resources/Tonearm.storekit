@@ -18,6 +18,21 @@
       "productID" : "guru.parso.tonearm.pro",
       "referenceName" : "Remote Libraries",
       "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "39.99",
+      "familyShareable" : true,
+      "internalID" : "A0000002",
+      "localizations" : [
+        {
+          "description" : "Platterhead DJ — decks, mixing, stems, recording, preparation and gig crates. One-time purchase, yours forever, Family Sharing enabled.",
+          "displayName" : "Platterhead DJ",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "guru.parso.tonearm.pro.dj",
+      "referenceName" : "Platterhead DJ",
+      "type" : "NonConsumable"
     }
   ],
   "settings" : {

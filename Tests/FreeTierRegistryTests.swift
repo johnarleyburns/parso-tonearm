@@ -2,21 +2,25 @@ import XCTest
 @testable import TonearmCore
 
 /// Pins the free/paid split so later phases can't silently gate a free feature.
-/// Commit 0.4 retires the last paid case (`remoteLibraries`, FR-LIB-7): nothing
-/// is paid yet, so the paid set is empty — the honest intermediate state until
-/// the DJ capability lands with `EntitlementStore` (Appendix T.3). The free
-/// list is the promise in §2.4, machine-checked: any capability on it is free,
-/// forever, and the build fails if anyone ever re-gates one.
+/// Commit 0.5 lands the DJ capability set (`ProCapability`, Appendix T.3), so
+/// the paid set is no longer empty: it is exactly the seven performing
+/// capabilities. The free list is the promise in §2.4, machine-checked: any
+/// capability on it is free, forever, and the build fails if anyone ever
+/// re-gates one.
 final class FreeTierRegistryTests: XCTestCase {
 
-    func testProFeatureCasesAreExactlyThePaidCapabilities() {
-        XCTAssertTrue(
-            ProFeature.allCases.isEmpty,
-            "Commit 0.4 retires remoteLibraries; nothing is paid yet (Appendix T.3)"
+    func testProCapabilityCasesAreExactlyThePaidCapabilities() {
+        let expectedPaid: Set<String> = [
+            "decks", "mixer", "stems", "recording", "hardware", "preparation", "gigCrates",
+        ]
+        XCTAssertEqual(
+            Set(ProCapability.allCases.map(\.rawValue)),
+            expectedPaid,
+            "ProCapability is the complete paid set (Appendix T.3)"
         )
     }
 
-    func testExpandedFreeListIsNeverAProFeature() {
+    func testExpandedFreeListIsNeverAPaidCapability() {
         let freeCapabilities = [
             // — pre-existing free conveniences —
             "flac",
@@ -69,7 +73,7 @@ final class FreeTierRegistryTests: XCTestCase {
             "analysisReadout",
             "mixPlayback",
         ]
-        let gated = Set(ProFeature.allCases.map { String(describing: $0) })
+        let gated = Set(ProCapability.allCases.map(\.rawValue))
         for capability in freeCapabilities {
             XCTAssertFalse(gated.contains(capability),
                            "\(capability) is free and must not be gated")
@@ -77,6 +81,6 @@ final class FreeTierRegistryTests: XCTestCase {
     }
 
     func testGatedCountIsStable() {
-        XCTAssertEqual(ProFeature.allCases.count, 0)
+        XCTAssertEqual(ProCapability.allCases.count, 7)
     }
 }
