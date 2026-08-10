@@ -35,9 +35,7 @@ public actor FolderWatchService {
         defer { if accessed { folderURL.stopAccessingSecurityScopedResource() } }
 
         let scanned = IngestService().scanFolder(folderURL, includeSubfolders: true).map { $0.url }
-        // Source that backs this folder playlist (matched by title).
-        guard let source = try? await store.firstSource(title: playlist.title, kind: .local),
-              let sid = source.id else { return 0 }
+        guard let sid = playlist.sourceId else { return 0 }
         let existingRows = (try? await store.tracks(forSource: sid)) ?? []
         let existingPaths = Set(existingRows.compactMap { row -> String? in
             guard let urlString = row.asset?.remoteURL, let url = URL(string: urlString) else { return nil }

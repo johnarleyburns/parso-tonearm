@@ -92,14 +92,12 @@ public actor LibraryStore {
         }
     }
 
-    /// The folder playlist whose title matches a source's title, if any. Folder
-    /// imports create both a `.local` source and a `.folder` playlist sharing the
-    /// folder name; this reconnects them for watch rescans.
+    /// The folder playlist explicitly owned by a source.
     public func folderPlaylist(matchingSourceId sourceId: Int64) throws -> Playlist? {
         try dbQueue.read { db in
-            guard let source = try Source.fetchOne(db, key: sourceId) else { return nil }
             return try Playlist
-                .filter(Column("title") == source.title && Column("kind") == PlaylistKind.folder.rawValue)
+                .filter(Column("sourceId") == sourceId && Column("kind") == PlaylistKind.folder.rawValue)
+                .order(Column("id"))
                 .fetchOne(db)
         }
     }
@@ -599,13 +597,10 @@ public actor LibraryStore {
         try dbQueue.write { db in
             let existing = try Playlist.fetchOne(db, key: id)
             try db.execute(sql: "UPDATE playlist SET title = ? WHERE id = ?", arguments: [title, id])
-            if existing?.kind == .folder, let oldTitle = existing?.title {
+            if existing?.kind == .folder, let sourceId = existing?.sourceId {
                 try db.execute(
-                    sql: """
-                        UPDATE source SET title = ?
-                        WHERE kind = ? AND title = ?
-                        """,
-                    arguments: [title, SourceKind.local.rawValue, oldTitle])
+                    sql: "UPDATE source SET title = ? WHERE id = ?",
+                    arguments: [title, sourceId])
             }
         }
     }

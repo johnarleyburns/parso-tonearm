@@ -289,6 +289,7 @@ public struct Playlist: Identifiable, Equatable, Codable, Hashable, Sendable {
     public var id: Int64?
     public var title: String
     public var kind: PlaylistKind
+    public var sourceId: Int64?
     public var folderBookmark: Data?
     public var watch: Bool
     public var syncID: String? = nil
@@ -296,12 +297,14 @@ public struct Playlist: Identifiable, Equatable, Codable, Hashable, Sendable {
     public init(id: Int64?,
                 title: String,
                 kind: PlaylistKind,
+                sourceId: Int64? = nil,
                 folderBookmark: Data?,
                 watch: Bool,
                 syncID: String? = nil) {
         self.id = id
         self.title = title
         self.kind = kind
+        self.sourceId = sourceId
         self.folderBookmark = folderBookmark
         self.watch = watch
         self.syncID = syncID

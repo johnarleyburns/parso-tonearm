@@ -3,7 +3,7 @@ import GRDB
 
 public enum Schema {
     private static let migrationOrder = [
-        "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12"
+        "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13"
     ]
 
     public static func migrator(upTo target: String? = nil) -> DatabaseMigrator {
@@ -369,6 +369,75 @@ public enum Schema {
                     t.column("pinned", .boolean).notNull()
                     t.column("reportedAt", .datetime).notNull()
                 }
+            }
+        }
+
+        if shouldRegister("v13", upTo: target) {
+            migrator.registerMigration("v13") { db in
+                try db.alter(table: "playlist") { t in
+                    t.add(column: "sourceId", .integer).references("source", onDelete: .setNull)
+                }
+
+                // Older folder playlists were linked to their source by title.
+                // Assign each legacy row to a distinct matching folder source in
+                // insertion order, which preserves same-named folders instead of
+                // collapsing them together.
+                let sources = try Row.fetchAll(db, sql: """
+                    SELECT id, title FROM source
+                    WHERE kind = 'local' AND localIsFolder = 1
+                    ORDER BY id
+                    """)
+                for source in sources {
+                    let sourceID: Int64 = source["id"]
+                    let title: String = source["title"]
+                    let candidates = try Row.fetchAll(db, sql: """
+                        SELECT id FROM playlist
+                        WHERE kind = 'folder' AND sourceId IS NULL AND title = ?
+                        ORDER BY id
+                        """, arguments: [title])
+                    guard let candidate = candidates.first else { continue }
+                    let playlistID: Int64 = candidate["id"]
+                    try db.execute(sql: "UPDATE playlist SET sourceId = ? WHERE id = ?",
+                                   arguments: [sourceID, playlistID])
+                }
+
+                // If a pre-release database already contains source-linked
+                // duplicates, merge their items into the oldest row before
+                // removing the duplicate. Positions are appended, so no
+                // playlist membership is lost.
+                let duplicateGroups = try Row.fetchAll(db, sql: """
+                    SELECT sourceId, MIN(id) AS keepID
+                    FROM playlist
+                    WHERE kind = 'folder' AND sourceId IS NOT NULL
+                    GROUP BY sourceId HAVING COUNT(*) > 1
+                    """)
+                for group in duplicateGroups {
+                    let sourceID: Int64 = group["sourceId"]
+                    let keepID: Int64 = group["keepID"]
+                    let duplicates = try Int64.fetchAll(db, sql: """
+                        SELECT id FROM playlist
+                        WHERE kind = 'folder' AND sourceId = ? AND id <> ?
+                        ORDER BY id
+                        """, arguments: [sourceID, keepID])
+                    var nextPosition = (try Int.fetchOne(db, sql: """
+                        SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_item WHERE playlistId = ?
+                        """, arguments: [keepID])) ?? 0
+                    for duplicateID in duplicates {
+                        let items = try Row.fetchAll(db, sql: """
+                            SELECT trackId, sectionTitle FROM playlist_item
+                            WHERE playlistId = ? ORDER BY position, id
+                            """, arguments: [duplicateID])
+                        for item in items {
+                            try db.execute(sql: """
+                                INSERT INTO playlist_item (playlistId, position, trackId, sectionTitle)
+                                VALUES (?, ?, ?, ?)
+                                """, arguments: [keepID, nextPosition, item["trackId"], item["sectionTitle"]])
+                            nextPosition += 1
+                        }
+                        try db.execute(sql: "DELETE FROM playlist WHERE id = ?", arguments: [duplicateID])
+                    }
+                }
+                try db.create(indexOn: "playlist", columns: ["sourceId"])
             }
         }
 

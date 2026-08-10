@@ -108,6 +108,7 @@ public struct IngestService {
 
         let folderBookmark = BookmarkVault.makeBookmark(for: folderURL)
         var playlist = Playlist(id: nil, title: folderURL.lastPathComponent, kind: .folder,
+                                sourceId: sid,
                                 folderBookmark: folderBookmark, watch: watch)
         playlist = try await store.insertPlaylist(playlist)
 
