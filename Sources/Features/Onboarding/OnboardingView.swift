@@ -2,10 +2,18 @@ import SwiftUI
 import TonearmCore
 
 struct OnboardingSourceOption: Identifiable {
+    enum Kind {
+        case archiveOrg
+        case subsonicDemo
+    }
+
     let id = UUID()
+    let kind: Kind
     let title: String
     let subtitle: String
     let url: String
+    var username: String?
+    var password: String?
     var selected: Bool = true
 }
 
@@ -21,18 +29,28 @@ struct OnboardingView: View {
     @State private var pickedFolder: URL?
     @State private var pickedFolderBookmark: Data?
     @State private var options: [OnboardingSourceOption] = [
-        .init(title: "Chopin — Musopen",
+        .init(kind: .archiveOrg,
+              title: "Chopin — Musopen",
               subtitle: "Public domain recordings",
               url: "https://archive.org/details/musopen-chopin"),
-        .init(title: "Beethoven — Complete Piano Sonatas",
+        .init(kind: .archiveOrg,
+              title: "Beethoven — Complete Piano Sonatas",
               subtitle: "Artur Schnabel · public domain",
               url: "https://archive.org/details/lp_the-complete-piano-sonatas-on-thirteen-dis_ludwig-van-beethoven-artur-schnabel_0"),
-        .init(title: "Bach — Open Goldberg Variations",
+        .init(kind: .archiveOrg,
+              title: "Bach — Open Goldberg Variations",
               subtitle: "CC0 · Kimiko Ishizaka",
               url: "https://archive.org/details/The_Open_Goldberg_Variations-11823"),
-        .init(title: "Bach — Well-Tempered Clavier, Book 1",
+        .init(kind: .archiveOrg,
+              title: "Bach — Well-Tempered Clavier, Book 1",
               subtitle: "Public domain",
-              url: "https://archive.org/details/bach-well-tempered-clavier-book-1")
+              url: "https://archive.org/details/bach-well-tempered-clavier-book-1"),
+        .init(kind: .subsonicDemo,
+              title: "Navidrome — Demo Music",
+              subtitle: "Subsonic · an instant music collection",
+              url: "https://demo.navidrome.org",
+              username: "demo",
+              password: "demo")
     ]
 
     private let intros: [(icon: String, title: String, body: String)] = [
@@ -152,7 +170,7 @@ struct OnboardingView: View {
             Text("Start your Music")
                 .font(.system(size: 24, weight: .heavy)).kerning(-0.5)
                 .padding(.top, 40)
-            Text("These are verified public-domain / CC0 recordings.\nWe’ll add the ones you keep checked.")
+            Text("These are verified public-domain / CC0 recordings,\nplus a Subsonic demo server to hear a full library.\nWe’ll add the ones you keep checked.")
                 .font(.system(size: 13)).foregroundStyle(Palette.ink2)
                 .multilineTextAlignment(.center).padding(.top, 6)
 
@@ -212,8 +230,22 @@ struct OnboardingView: View {
 
     private func finish() async {
         isFinishing = true
-        let urls = options.filter { $0.selected }.map { $0.url }
-        await appState.completeOnboarding(sourceURLs: urls)
+        let selected = options.filter { $0.selected }
+        let archiveURLs = selected.filter { $0.kind == .archiveOrg }.map { $0.url }
+        if !archiveURLs.isEmpty {
+            await appState.completeOnboarding(sourceURLs: archiveURLs)
+        }
+        for option in selected where option.kind == .subsonicDemo {
+            do {
+                try await appState.addSubsonicServer(url: option.url,
+                                                     username: option.username ?? "",
+                                                     password: option.password ?? "")
+            } catch {
+                print("onboarding add subsonic demo error: \(error)")
+            }
+        }
+        appState.didOnboard = true
+        await appState.reload()
         isFinishing = false
     }
 
