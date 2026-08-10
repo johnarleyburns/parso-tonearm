@@ -222,14 +222,14 @@ struct NowPlayingView: View {
             .accessibilityIdentifier("np.next")
             Button { player.cycleRepeatMode() } label: {
                 Image(systemName: repeatIcon).font(.system(size: 17))
-                    .frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
+                    .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
             }
             .accessibilityLabel("Repeat")
             .accessibilityIdentifier("np.repeat")
             Button { player.shuffle.toggle() } label: {
                 Image(systemName: "shuffle").font(.system(size: 17))
                     .foregroundStyle(player.shuffle ? Palette.brass : .white.opacity(0.6))
-                    .frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
+                    .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
             }
             .disabled(player.isAmbient)
             .accessibilityLabel("Shuffle")

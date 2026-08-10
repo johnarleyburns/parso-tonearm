@@ -64,8 +64,8 @@ final class NowPlayingRegressionUITests: XCTestCase {
     func testAddToPlaylistFromNowPlaying() throws {
         app = .launchForRegression()
         openNowPlaying()
-        app.waitFor("np.addToPlaylist").tap()
-        XCTAssertTrue(app.buttons["No track playing"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.waitFor("np.addToPlaylist").isEnabled,
+                       "ambient playback has no library track to add")
     }
 
     /// D-5 · Download to phone is reachable from Now Playing and changes state.
