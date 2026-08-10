@@ -39,15 +39,9 @@ struct NowPlayingView: View {
                         LoopingVideoView(url: videoURL, isPlaying: player.isPlaying)
                             .clipShape(RoundedRectangle(cornerRadius: 16))
                             .allowsHitTesting(false)
-                    } else if !player.isAmbient, player.currentTrack != nil {
-                        artworkOverlay
                     }
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 16))
-                .onTapGesture {
-                    guard !player.isAmbient, player.currentTrack != nil else { return }
-                    showPhotoPicker = true
-                }
                 .contextMenu {
                     if !player.isAmbient, player.currentTrack != nil {
                         Button {
@@ -119,37 +113,6 @@ struct NowPlayingView: View {
             try? await appState.store.deleteCustomArtwork(trackId: row.id)
             npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
             ArtworkInvalidation.shared.invalidate()
-        }
-    }
-
-    @ViewBuilder private var artworkOverlay: some View {
-        if npArtwork == nil {
-            VStack(spacing: 8) {
-                Image(systemName: "photo.badge.plus")
-                    .font(.system(size: 28, weight: .light))
-                Text("No Image")
-                    .font(.system(size: 13, weight: .medium))
-                Text("Add Artwork")
-                    .font(.system(size: 11, weight: .semibold))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
-            }
-            .foregroundStyle(.white.opacity(0.55))
-        } else {
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Text("Tap to Change")
-                        .font(.system(size: 10, weight: .semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .foregroundStyle(.white.opacity(0.55))
-                        .padding(10)
-                }
-            }
         }
     }
 
@@ -237,7 +200,7 @@ struct NowPlayingView: View {
     }
 
     private var transport: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 10) {
             Button { player.previous() } label: {
                 Image(systemName: "backward.fill").font(.system(size: 20))
                     .frame(width: 52, height: 52).background(.ultraThinMaterial, in: Circle())
@@ -257,71 +220,68 @@ struct NowPlayingView: View {
             }
             .accessibilityLabel("Next Track")
             .accessibilityIdentifier("np.next")
+            Button { player.cycleRepeatMode() } label: {
+                Image(systemName: repeatIcon).font(.system(size: 17))
+                    .frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
+            }
+            .accessibilityLabel("Repeat")
+            .accessibilityIdentifier("np.repeat")
+            Button { player.shuffle.toggle() } label: {
+                Image(systemName: "shuffle").font(.system(size: 17))
+                    .foregroundStyle(player.shuffle ? Palette.brass : .white.opacity(0.6))
+                    .frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
+            }
+            .disabled(player.isAmbient)
+            .accessibilityLabel("Shuffle")
+            .accessibilityIdentifier("np.shuffle")
         }
         .foregroundStyle(.white)
     }
 
     private var toolbar: some View {
-        HStack(spacing: 12) {
-            if let row = player.currentTrack {
-                Button {
-                    Task { await appState.toggleFavorite(row) }
-                } label: {
-                    Image(systemName: appState.isFavorite(row) ? "heart.fill" : "heart")
-                        .foregroundStyle(appState.isFavorite(row) ? Color.red : .white.opacity(0.6))
-                        .font(.system(size: 16))
-                        .frame(width: 36, height: 36)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-            }
-
-            Button { player.cycleRepeatMode() } label: {
-                Image(systemName: repeatIcon)
-                    .font(.system(size: 16))
-                    .foregroundStyle(player.repeatMode != .off ? Palette.brass : .white.opacity(0.6))
-                    .frame(width: 36, height: 36)
+        HStack(spacing: 8) {
+            Button {
+                if let row = player.currentTrack { Task { await appState.toggleFavorite(row) } }
+            } label: {
+                Image(systemName: player.currentTrack.map { appState.isFavorite($0) } == true ? "heart.fill" : "heart")
+                    .foregroundStyle(player.currentTrack.map { appState.isFavorite($0) } == true ? Color.red : .white.opacity(0.6))
+                    .font(.system(size: 16)).frame(width: 44, height: 44)
                     .background(.ultraThinMaterial, in: Circle())
             }
-
-            Button { player.shuffle.toggle() } label: {
-                Image(systemName: "shuffle")
-                    .font(.system(size: 16))
-                    .foregroundStyle(player.shuffle ? Palette.brass : .white.opacity(0.6))
-                    .frame(width: 36, height: 36)
-                    .background(.ultraThinMaterial, in: Circle())
-            }
-            .disabled(player.isAmbient)
-
-            AirPlayButton()
-                .frame(width: 36, height: 36)
-
-            Button { showEQ = true } label: {
-                Image(systemName: "slider.vertical.3")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.white.opacity(0.6))
-                    .frame(width: 36, height: 36)
-                    .background(.ultraThinMaterial, in: Circle())
-            }
-
-            if let row = player.currentTrack {
-                phoneDownloadButton(for: row)
-                watchButton(for: row)
-            }
-
-            Spacer()
-
-            if let row = player.currentTrack,
-               let shareURL = shareURL(for: row) {
-                ShareLink(item: shareURL) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.white.opacity(0.6))
-                        .frame(width: 36, height: 36)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-            }
+            .disabled(player.currentTrack == nil)
+            .accessibilityLabel("Favorite")
+            .accessibilityIdentifier("np.favorite")
 
             Menu {
+                if let row = player.currentTrack {
+                    ForEach(appState.playlists) { playlist in
+                        Button(playlist.title) { Task { await appState.addToPlaylist(row, playlist: playlist) } }
+                    }
+                } else { Text("No track playing") }
+            } label: {
+                Image(systemName: "text.badge.plus").font(.system(size: 16))
+                    .frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
+            }
+            .disabled(player.currentTrack == nil)
+            .accessibilityLabel("Add to Playlist")
+            .accessibilityIdentifier("np.addToPlaylist")
+
+            AirPlayButton()
+                .frame(width: 44, height: 44)
+                .accessibilityIdentifier("np.airplay")
+
+            phoneDownloadButton(for: player.currentTrack)
+            watchButton(for: player.currentTrack)
+
+            Menu {
+                if !player.isAmbient, player.currentTrack != nil {
+                    Button { showPhotoPicker = true } label: { Label("Change Artwork", systemImage: "photo.badge.plus") }
+                    if npArtwork != nil { Button(role: .destructive) { showArtworkDeleteAlert = true } label: { Label("Remove Artwork", systemImage: "trash") } }
+                }
+                Button { showEQ = true } label: { Label("Equalizer", systemImage: "slider.vertical.3") }
+                if let row = player.currentTrack, let shareURL = shareURL(for: row) {
+                    ShareLink(item: shareURL) { Label("Share Artwork", systemImage: "square.and.arrow.up") }
+                }
                 Button("15 minutes") { startSleepTimer(minutes: 15) }
                 Button("30 minutes") { startSleepTimer(minutes: 30) }
                 Button("45 minutes") { startSleepTimer(minutes: 45) }
@@ -335,21 +295,23 @@ struct NowPlayingView: View {
                 Image(systemName: player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack ? "moon.zzz.fill" : "moon.zzz")
                     .font(.system(size: 16))
                     .foregroundStyle((player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack) ? Palette.brass : .white.opacity(0.6))
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
                     .background(.ultraThinMaterial, in: Circle())
             }
+            .accessibilityLabel("More")
+            .accessibilityIdentifier("np.overflow")
         }
     }
 
     @ViewBuilder
-    private func phoneDownloadButton(for row: TrackRow) -> some View {
-        let state = appState.phoneDownloadState(for: row)
+    private func phoneDownloadButton(for row: TrackRow?) -> some View {
+        let state = row.map { appState.phoneDownloadState(for: $0) } ?? .notDownloaded
         Button {
             switch state {
             case .notDownloaded:
-                Task { await appState.download(rows: [row]) }
+                if let row { Task { await appState.download(rows: [row]) } }
             case .downloaded:
-                Task { await appState.removeDownloadFromPhone(rows: [row]) }
+                if let row { Task { await appState.removeDownloadFromPhone(rows: [row]) } }
             case .downloading:
                 break
             }
@@ -357,21 +319,23 @@ struct NowPlayingView: View {
             CacheGlyph(state: cacheGlyphState(from: state))
         }
         .buttonStyle(.plain)
-        .frame(width: 36, height: 36)
+        .frame(width: 44, height: 44)
         .background(.ultraThinMaterial, in: Circle())
+        .accessibilityIdentifier("np.download")
+        .disabled(row == nil)
     }
 
     @ViewBuilder
-    private func watchButton(for row: TrackRow) -> some View {
-        let state = appState.watchGlyphState(for: row)
+    private func watchButton(for row: TrackRow?) -> some View {
+        let state = row.map { appState.watchGlyphState(for: $0) } ?? .notOnWatch
         Button {
             switch state {
             case .notOnWatch:
-                Task { await appState.downloadToWatch(rows: [row]) }
+                if let row { Task { await appState.downloadToWatch(rows: [row]) } }
             case .onWatch:
-                Task { await appState.removeFromWatch(rows: [row]) }
+                if let row { Task { await appState.removeFromWatch(rows: [row]) } }
             case .failed:
-                Task { await appState.downloadToWatch(rows: [row]) }
+                if let row { Task { await appState.downloadToWatch(rows: [row]) } }
             case .transferring:
                 break
             }
@@ -379,8 +343,10 @@ struct NowPlayingView: View {
             WatchGlyphView(state: state)
         }
         .buttonStyle(.plain)
-        .frame(width: 36, height: 36)
+        .frame(width: 44, height: 44)
         .background(.ultraThinMaterial, in: Circle())
+        .accessibilityIdentifier("np.watchDownload")
+        .disabled(row == nil)
     }
 
     private func cacheGlyphState(from state: PhoneDownloadState) -> CacheGlyphState {

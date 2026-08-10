@@ -918,6 +918,12 @@ final class AppState: ObservableObject {
         tab = .playlists
     }
 
+    func addToPlaylist(_ row: TrackRow, playlist: Playlist) async {
+        guard let playlistID = playlist.id else { return }
+        try? await store.addToPlaylist(playlistId: playlistID, trackId: row.id)
+        await reload()
+    }
+
     func deletePlaylist(_ playlist: Playlist) async {
         guard let id = playlist.id else { return }
         try? await store.deletePlaylist(id: id)
