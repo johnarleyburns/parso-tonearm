@@ -8,7 +8,8 @@ public struct JellyfinServerPolicy {
     public static func canSubmit(url: String, username: String, password: String) -> Bool {
         (try? normalizeBaseURL(url)) != nil
             && !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !password.isEmpty
+            // Jellyfin demo accounts may intentionally have no password; the
+            // API request encodes the empty value as `Pw: ""`.
     }
 
     public static func displayName(baseURL: URL) -> String {

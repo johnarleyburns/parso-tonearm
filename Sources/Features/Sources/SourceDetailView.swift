@@ -110,6 +110,7 @@ struct SourceDetailView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("remote.node.\(node.id)")
                     Divider().overlay(Palette.hairline)
                 }
             }

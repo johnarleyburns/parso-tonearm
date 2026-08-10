@@ -11,6 +11,7 @@ public final class CachingResourceLoader: NSObject, @unchecked Sendable, AVAsset
     private let headers: [String: String]
     public let cacheKey: String
     private var resolvedURL: URL?
+    private var resolvedContentType: String?
     private let stateLock = NSLock()
     private var inFlight: [Task<Void, Never>] = []
     private var didShutdown = false
@@ -151,7 +152,10 @@ public final class CachingResourceLoader: NSObject, @unchecked Sendable, AVAsset
     }
 
     private func contentType() -> String {
-        Self.contentType(for: originalURL)
+        stateLock.lock()
+        let resolved = resolvedContentType
+        stateLock.unlock()
+        return resolved ?? Self.contentType(for: originalURL)
     }
 
     /// Maps a remote audio URL to a UTI for AVFoundation. Uses the path extension
@@ -169,6 +173,14 @@ public final class CachingResourceLoader: NSObject, @unchecked Sendable, AVAsset
         }
     }
 
+    private func setResolvedContentType(_ mimeType: String?) {
+        guard let mimeType,
+              let type = UTType(mimeType: mimeType)?.identifier else { return }
+        stateLock.lock()
+        resolvedContentType = type
+        stateLock.unlock()
+    }
+
     // MARK: - Content-length probe
 
     private func ensureResolvedLength() async throws -> Int64 {
@@ -183,6 +195,9 @@ public final class CachingResourceLoader: NSObject, @unchecked Sendable, AVAsset
         let (_, response) = try await Self.session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         self.resolvedURL = http.url ?? originalURL
+        setResolvedContentType(
+            http.value(forHTTPHeaderField: "Content-Type")?.split(separator: ";", maxSplits: 1).first.map(String.init)
+        )
         guard let probe = RemoteStreamingResponsePolicy.probeResult(
             statusCode: http.statusCode,
             contentRange: http.value(forHTTPHeaderField: "Content-Range"),

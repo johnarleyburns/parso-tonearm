@@ -86,9 +86,28 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
             lane: "Subsonic demo (D-10)")
         XCTAssertEqual(creds["PH_TEST_SUBSONIC_DEMO_URL"], "https://demo.navidrome.org")
         app = .launchForRegression()
-        // TODO(D-10): add the library, browse to a track, play,
-        // assertPlaybackAdvances(). This lane is the one that must not regress.
-        throw XCTSkip("scaffolded — body pending; see spec §51 D-10")
+        app.buttons["Add"].tap()
+        let remote = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Add Remote Library")).firstMatch
+        XCTAssertTrue(remote.waitForExistence(timeout: 10)); remote.tap()
+        app.buttons["Remote Library Connector subsonic"].tap()
+        let url = app.textFields["Add Remote Library SERVER URL"]
+        let user = app.textFields["Add Remote Library USERNAME"]
+        let password = app.secureTextFields["Add Remote Library PASSWORD"]
+        XCTAssertTrue(url.waitForExistence(timeout: 10)); url.tap(); app.typeText(creds["PH_TEST_SUBSONIC_DEMO_URL"]!)
+        user.tap(); app.typeText(creds["PH_TEST_SUBSONIC_DEMO_USERNAME"]!)
+        password.tap(); app.typeText(creds["PH_TEST_SUBSONIC_DEMO_PASSWORD"]!)
+        app.buttons["Connect Subsonic"].tap()
+        let close = app.buttons["Close Add Remote Library"]
+        if close.waitForExistence(timeout: 3) { close.tap() }
+        let source = app.element("Source demo.navidrome.org")
+        XCTAssertTrue(source.waitForExistence(timeout: 30)); source.tap()
+        let artist = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "remote.node.")).firstMatch
+        XCTAssertTrue(artist.waitForExistence(timeout: 30)); artist.tap()
+        let album = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "remote.node.")).firstMatch
+        XCTAssertTrue(album.waitForExistence(timeout: 30)); album.tap()
+        let song = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "remote.node.")).firstMatch
+        XCTAssertTrue(song.waitForExistence(timeout: 30)); song.tap()
+        app.assertPlaybackAdvances()
     }
 
     // MARK: - WebDAV / SMB (local servers)
@@ -124,9 +143,18 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         XCTAssertTrue(password.isEmpty, "the demo account's password is empty by design")
         XCTAssertFalse(url.isEmpty); XCTAssertFalse(user.isEmpty)
         app = .launchForRegression()
-        // TODO(D-13): assert the Add-Library form's Connect action is ENABLED with
-        // the password field left blank, then connect and play one track.
-        throw XCTSkip("scaffolded — body pending; see spec §51 D-13")
+        app.buttons["Add"].tap()
+        let remote = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Add Remote Library")).firstMatch
+        XCTAssertTrue(remote.waitForExistence(timeout: 10)); remote.tap()
+        app.buttons["Remote Library Connector jellyfin"].tap()
+        let urlField = app.textFields["Add Remote Library SERVER URL"]
+        let userField = app.textFields["Add Remote Library USERNAME"]
+        XCTAssertTrue(urlField.waitForExistence(timeout: 10)); urlField.tap(); app.typeText(url)
+        userField.tap(); app.typeText(user)
+        let connect = app.buttons["Connect Jellyfin"]
+        XCTAssertTrue(connect.isEnabled, "Jellyfin Connect must remain enabled for an empty password")
+        connect.tap()
+        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2))
     }
 
     /// D-14 · Plex against a locally claimed server.

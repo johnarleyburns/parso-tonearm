@@ -159,6 +159,7 @@ final class JellyfinAPITests: XCTestCase {
 
         XCTAssertEqual(url.absoluteString, "https://localhost:8096")
         XCTAssertTrue(JellyfinServerPolicy.canSubmit(url: "http://localhost:8096", username: "alice", password: "secret"))
+        XCTAssertTrue(JellyfinServerPolicy.canSubmit(url: "http://localhost:8096", username: "demo", password: ""))
         XCTAssertFalse(JellyfinServerPolicy.canSubmit(url: "ftp://localhost", username: "alice", password: "secret"))
         XCTAssertFalse(JellyfinServerPolicy.canSubmit(url: "http://localhost", username: "", password: "secret"))
     }
