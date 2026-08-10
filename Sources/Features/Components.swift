@@ -55,16 +55,12 @@ struct AddRemoteLibraryButton: View {
     @EnvironmentObject var appState: AppState
     var compact = false
 
-    private var isLocked: Bool {
-        !ProGating.isEnabled(.remoteLibraries)
-    }
-
     var body: some View {
         Button {
             appState.requestAddRemoteLibrary()
         } label: {
             HStack(spacing: 11) {
-                Image(systemName: isLocked ? "lock.fill" : "server.rack")
+                Image(systemName: "server.rack")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Palette.brass)
                     .frame(width: compact ? 30 : 36, height: compact ? 30 : 36)
@@ -90,7 +86,7 @@ struct AddRemoteLibraryButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(isLocked ? "Add Remote Library, requires Pro" : "Add Remote Library")
+        .accessibilityLabel("Add Remote Library")
         .accessibilityIdentifier("Add Remote Library")
     }
 }

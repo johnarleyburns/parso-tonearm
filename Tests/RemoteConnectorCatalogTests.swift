@@ -66,15 +66,6 @@ final class RemoteConnectorCatalogTests: XCTestCase {
         }
     }
 
-    func testPaywallRemoteLibraryCopyListsEveryConnector() throws {
-        let model = ProPaywallModel()
-        let detail = try XCTUnwrap(model.features.first { $0.title == "Remote Libraries" }?.detail)
-
-        for connector in RemoteConnectorCatalog.all {
-            XCTAssertTrue(detail.contains(connector.proDisplayName), "\(connector.proDisplayName) missing from Pro copy")
-        }
-    }
-
     func testReadmeRemoteConnectorSectionListsEveryConnector() throws {
         let testURL = URL(fileURLWithPath: #filePath)
         let readmeURL = testURL

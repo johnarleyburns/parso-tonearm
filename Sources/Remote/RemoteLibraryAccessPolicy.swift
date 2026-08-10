@@ -1,11 +1,9 @@
 import Foundation
 
-public enum RemoteLibraryAction: Equatable, Sendable {
-    case openAddFlow
-    case connect(SourceKind)
-    case browse(SourceKind)
-    case resolve(SourceKind)
-}
+/// Classifies source kinds for the remote-library feature. Commit 0.4 removed
+/// the purchase gate entirely (FR-LIB-7): every remote-library provider is free
+/// for everyone, so nothing here decides purchase — it only answers "is this a
+/// remote library?" for provider dispatch and UI copy.
 public enum RemoteLibraryAccessPolicy {
     public static let productSourceKinds: [SourceKind] = RemoteConnectorCatalog.productSourceKinds
 
@@ -18,41 +16,6 @@ public enum RemoteLibraryAccessPolicy {
         switch kind {
         case .iaItem, .iaList, .iaCollection, .iaFavorites: return true
         default: return false
-        }
-    }
-
-    public static func decision(for action: RemoteLibraryAction, isPro: Bool) -> ProGateDecision {
-        switch action {
-        case .openAddFlow:
-            return isPro ? .allow : .requiresPro(.remoteLibraries)
-        case .connect(let kind), .browse(let kind), .resolve(let kind):
-            guard isRemoteLibrary(kind) else { return .allow }
-            return isPro ? .allow : .requiresPro(.remoteLibraries)
-        }
-    }
-}
-
-public enum RemoteLibraryEntryPointDecision: Equatable, Sendable {
-    case openSheet
-    case showPaywall
-}
-
-public enum RemoteLibraryGate {
-    public static func entryPointDecision(isPro: Bool) -> RemoteLibraryEntryPointDecision {
-        switch RemoteLibraryAccessPolicy.decision(for: .openAddFlow, isPro: isPro) {
-        case .allow:
-            return .openSheet
-        case .requiresPro:
-            return .showPaywall
-        }
-    }
-
-    public static func require(_ action: RemoteLibraryAction, isPro: Bool) throws {
-        switch RemoteLibraryAccessPolicy.decision(for: action, isPro: isPro) {
-        case .allow:
-            return
-        case .requiresPro(let feature):
-            throw ProFeatureAccessError.requiresPro(feature)
         }
     }
 }

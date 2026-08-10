@@ -10,8 +10,7 @@ struct AddMenuSheet: View {
             Spacer()
             VStack(spacing: 0) {
                 MenuItem(icon: "server.rack", title: "Add Remote Library",
-                         subtitle: RemoteConnectorCatalog.proDisplayList,
-                         locked: !ProGating.isEnabled(.remoteLibraries)) {
+                         subtitle: RemoteConnectorCatalog.proDisplayList) {
                     appState.pendingImport = nil
                     appState.showAddMenu = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {

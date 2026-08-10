@@ -18,7 +18,9 @@ public final class ProPaywallModel: ObservableObject {
         self.displayPrice = resolvedStore.displayPrice
     }
 
-    /// The Pro features shown on the sheet, in mockup order.
+    /// The Pro features shown on the sheet, in mockup order. Through commit 0.4
+    /// nothing is paid — `ProFeature` is empty — so the honest list is empty.
+    /// The next milestone (`EntitlementStore`, Appendix T.2–T.4) fills it in.
     public struct Feature: Identifiable {
         public var id: String { title }
         public let title: String
@@ -34,12 +36,7 @@ public final class ProPaywallModel: ObservableObject {
         }
     }
 
-    public lazy var features: [Feature] = [
-        Feature(title: "Remote Libraries",
-                detail: "Connect to all \(RemoteConnectorCatalog.productSourceKinds.count) providers: \(RemoteConnectorCatalog.proDisplayList)",
-                features: [.remoteLibraries],
-                entryPoint: "Settings > Libraries")
-    ]
+    public var features: [Feature] = []
 
     public func refresh() {
         isPro = store.isPro

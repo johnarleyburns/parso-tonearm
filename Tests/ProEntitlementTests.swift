@@ -21,9 +21,6 @@ final class ProEntitlementTests: XCTestCase {
     func testDefaultsToNotEntitled() {
         XCTAssertFalse(ProEntitlement.isActive)
         XCTAssertNil(ProEntitlement.current)
-        for feature in ProFeature.allCases {
-            XCTAssertFalse(ProFeature.isEnabled(feature))
-        }
     }
 
     func testVerifiedPurchasePersistsAndUnlocks() {
@@ -32,9 +29,6 @@ final class ProEntitlementTests: XCTestCase {
 
         XCTAssertTrue(ProEntitlement.isActive)
         XCTAssertEqual(ProEntitlement.current?.transactionID, 42)
-        for feature in ProFeature.allCases {
-            XCTAssertTrue(ProFeature.isEnabled(feature))
-        }
     }
 
     // Offline (airplane mode) read: once persisted, the cached flag keeps Pro
@@ -53,8 +47,5 @@ final class ProEntitlementTests: XCTestCase {
         ProEntitlement.clear()  // models a revocation / refund
         XCTAssertFalse(ProEntitlement.isActive)
         XCTAssertNil(ProEntitlement.current)
-        for feature in ProFeature.allCases {
-            XCTAssertFalse(ProFeature.isEnabled(feature))
-        }
     }
 }

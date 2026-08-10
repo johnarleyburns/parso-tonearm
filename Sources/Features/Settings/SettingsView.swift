@@ -11,7 +11,6 @@ struct SettingsView: View {
     @State private var showPrivacy = false
     @State private var showClearConfirm = false
     @State private var showClearCustomConfirm = false
-    @State private var showPaywall = false
     @State private var showEQ = false
     @State private var showTools = false
     @State private var showCustomCacheLimit = false
@@ -49,7 +48,6 @@ struct SettingsView: View {
         .foregroundStyle(Palette.ink)
         .task { await refresh() }
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
-        .sheet(isPresented: $showPaywall) { ProPaywallView() }
         .sheet(isPresented: $showEQ) { EQView() }
         .sheet(isPresented: $showTools) { ProToolsView() }
         .confirmationDialog("Clear \(TimeFmt.megabytes(cacheUsed)) of cached audio?",
@@ -372,11 +370,6 @@ struct SettingsView: View {
 
     private var aboutCard: some View {
         VStack(spacing: 0) {
-            Button { showPaywall = true } label: {
-                aboutRow("Platterhead Pro", "Connect remote libraries: Subsonic, Dropbox, etc.")
-            }
-            .buttonStyle(.plain)
-            Divider().overlay(Palette.hairline)
             aboutRow("Licenses", "GPLv3 + third-party")
             Divider().overlay(Palette.hairline)
             aboutRow("About", "Platterhead 0.1 — you bring the records")

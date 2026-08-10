@@ -1,17 +1,14 @@
 import SwiftUI
 import TonearmCore
 
-/// Pro unlock sheet. Presented ONLY from gated touchpoints —
-/// never on launch, never interrupting playback.
+/// Pro unlock sheet. M0 retires the only purchasable feature (remote
+/// libraries); nothing is paid yet, so this view is no longer presented from
+/// any touchpoint. It stays in the target so the StoreKit boundary
+/// (`ProStore` + this view) survives for the next milestone, which introduces
+/// `EntitlementStore` and the DJ capability (Appendix T.2–T.4).
 struct ProPaywallView: View {
-    var entryPoint: ProPaywallEntryPoint = .generic
-    var onProCompletion: (() -> Void)? = nil
-
     @Environment(\.dismiss) private var dismiss
     @StateObject private var model = ProPaywallModel()
-
-    /// GPL "build Pro from source" link (Ground: Platterhead is GPL-3.0).
-    private let repoURL = URL(string: "https://github.com/anomalyco/parso-tonearm")!
 
     var body: some View {
         ScrollView {
@@ -20,54 +17,25 @@ struct ProPaywallView: View {
                     .font(.system(size: 11, weight: .semibold)).kerning(2)
                     .foregroundStyle(Palette.brass)
                     .padding(.top, 22)
-                Text("Remote Libraries")
+                Text("Platterhead Pro")
                     .font(.system(size: 24, weight: .heavy))
                     .padding(.top, 8)
-                Text("\(model.displayPrice) · no subscription, no account")
+                Text("Platterhead DJ is coming. Decks, mixing, stems, recording and hardware.")
                     .font(.system(size: 14)).foregroundStyle(Palette.ink2)
+                    .multilineTextAlignment(.center)
                     .padding(.top, 2).padding(.bottom, 16)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(model.features) { feature in
-                        featureRow(feature)
-                    }
-                }
-                .padding(.horizontal, 4)
-
                 Button {
-                    Task {
-                        let didBecomePro = await model.purchase()
-                        await completeIfNeeded(didBecomePro)
-                    }
+                    Task { await model.restore() }
                 } label: {
-                    Group {
-                        if model.purchasing { ProgressView().tint(.black) }
-                        else { Text(model.isPro ? "Purchased" : "Unlock Remote Libraries") }
-                    }
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color(hex: 0x101214))
-                    .frame(maxWidth: .infinity).frame(height: 52)
-                    .background(Palette.brass, in: RoundedRectangle(cornerRadius: 14))
+                    Text("Restore Purchase")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Palette.ink2)
+                        .frame(maxWidth: .infinity).frame(height: 52)
                 }
-                .disabled(model.purchasing || model.isPro)
-                .padding(.top, 14)
-
-                HStack(spacing: 4) {
-                    Button("Restore Purchase") {
-                        Task {
-                            let didBecomePro = await model.restore()
-                            await completeIfNeeded(didBecomePro)
-                        }
-                    }
-                        .font(.system(size: 12))
-                    Text("·").foregroundStyle(Palette.ink3)
-                    Link("build Pro from source", destination: repoURL)
-                        .font(.system(size: 12))
-                }
-                .tint(Palette.ink2)
                 .padding(.top, 12)
 
-                Text("Everything else is free, forever: FLAC · Opus · gapless · EQ · iCloud sync · parametric EQ · smart playlists · tag editor · duplicate detection · zero telemetry.")
+                Text("Everything in the free tier is free, forever: all formats · gapless · EQ · iCloud sync · smart playlists · tag editor · duplicate detection · all 10 remote-library providers · zero telemetry.")
                     .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                     .multilineTextAlignment(.center)
                     .padding(.top, 16)
@@ -83,35 +51,6 @@ struct ProPaywallView: View {
                     .font(.system(size: 26)).foregroundStyle(Palette.ink3)
             }
             .padding(16)
-        }
-    }
-
-    private func featureRow(_ feature: ProPaywallModel.Feature) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "checkmark")
-                .font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.ok)
-                .padding(.top, 2)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(feature.title).font(.system(size: 14, weight: .semibold))
-                Text(feature.detail)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Palette.ink2)
-            }
-            Spacer()
-        }
-        .padding(.vertical, 6)
-    }
-
-    private func completeIfNeeded(_ didBecomePro: Bool) async {
-        switch AddRemoteLibraryProFlow.presentationAfterProCompletion(
-            entryPoint: entryPoint,
-            didBecomePro: didBecomePro
-        ) {
-        case .showAddRemoteLibraryCompletion:
-            onProCompletion?()
-            dismiss()
-        case .none:
-            break
         }
     }
 }

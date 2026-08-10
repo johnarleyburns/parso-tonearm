@@ -23,38 +23,43 @@ own disk and your own phone, and we've removed them. They are free, permanently,
 test (`Tests/FreeTierRegistryTests.swift`) fails the build if anyone ever tries to re-gate
 them.
 
-The new line is simple:
+In the same spirit, remote libraries used to be the one paid feature — a tax on the music
+that lives on *other people's servers you already pay for*. They are free now too, along
+with semantic search and auto-generated playlists.
 
-> **Free — a complete player.** Everything you can do *with your music, on your own devices.*
+The line is simple:
+
+> **Free — everything about *listening*.** A complete player for music you own, wherever it
+> lives, including finding it by feel and having the app build playlists for you.
 >
-> **Pro — reach.** Your music *wherever else it lives*. Remote libraries only.
+> **Pro — everything about *performing*.** Platterhead DJ is coming: decks, mixing, stems,
+> recording and hardware. One price, once, forever.
 
 ### Free, forever
 
 All formats (FLAC, Opus, ALAC, MP3, AAC, WAV/AIFF) · gapless · 10-band EQ · ReplayGain ·
 crossfade · unlimited cache, any size · any prefetch depth · folder watch · full Music
-browse by artist, album and genre · queue and playlist editing · archive.org libraries ·
-local import · widgets, Shortcuts, share extension · listening stats · scrobbling · lyrics ·
-iCloud Sync (Music, playlists, favorites, artwork, presets) · parametric EQ · crossfeed ·
-convolution · bit-perfect output · smart playlists · tag editor · bulk edits ·
-duplicate detection · zero telemetry, no account.
+browse by artist, album and genre · queue and playlist editing · local import · widgets,
+Shortcuts, share extension · listening stats · scrobbling · lyrics · iCloud Sync (Music,
+playlists, favorites, artwork, presets) · parametric EQ · crossfeed · convolution ·
+bit-perfect output · smart playlists · tag editor · bulk edits · duplicate detection ·
+**all 10 remote-library providers (archive.org, Dropbox, Google Drive, OneDrive, pCloud,
+Subsonic/Navidrome, WebDAV, Jellyfin, Plex and SMB)** · semantic vibe search ·
+auto-generated playlists · analysis stages 1–2 (BPM, key, energy) · zero telemetry, no
+account.
 
-### Remote Libraries — $7.99, one time
+### Pro — Platterhead DJ (coming)
 
-Connect to your music wherever it lives. All 10 providers: archive.org, Dropbox,
-Google Drive, OneDrive, pCloud, Subsonic/Navidrome, WebDAV, Jellyfin, Plex and SMB.
-Streamed through the same transparent cache as everything else, so it goes offline by itself.
-
-**One price. Forever.** No subscription, no account, no telemetry — while VOX charges
-$49.99/year and Flacbox puts ads in its free tier. Family Sharing is on. And because Tonearm
-is GPLv3, you can always build Pro from source instead.
+Two decks, mixing, beat sync, hot cues, stems, recording and MIDI hardware — one time, no
+subscription, no account. Anyone who bought the retired remote-libraries product before the
+transition receives Platterhead DJ at no charge. And because Tonearm is GPLv3, you can always
+build Pro from source instead.
 
 ## Roadmap
 
+- **Platterhead DJ (Pro)** — two decks, stems, recording, hardware.
 - **CarPlay** — *planned, pending Apple's entitlement approval.* It will ship **free** once
   approved. It is deliberately absent from the paid feature list until it is real.
-- **Remote Libraries** — OAuth polish, provider-specific troubleshooting, and broader
-  integration coverage.
 - **iPad and Mac** apps.
 
 The remote connector OAuth handoff plan lives in
@@ -62,7 +67,7 @@ The remote connector OAuth handoff plan lives in
 
 ## Remote library connectors
 
-Remote libraries are a Pro feature, but they still follow Tonearm's privacy rule: Tonearm
+Remote libraries are free, but they still follow Tonearm's privacy rule: Tonearm
 talks only to services you explicitly connect, stores credentials in Keychain, and never
 routes your music through a Tonearm server.
 
@@ -114,7 +119,7 @@ Requires iOS 18. Single dependency: [GRDB](https://github.com/groue/GRDB.swift).
 ## Architecture
 
 Product rules live in **pure, unit-tested types** with no SwiftUI, no UIKit, no singletons
-and no I/O — `URLGrammar`, `FileSelectionPolicy`, `ProGating`, `SyncGating`, `SyncMerge`,
+and no I/O — `URLGrammar`, `FileSelectionPolicy`, `SyncGating`, `SyncMerge`,
 `ImportRouter`, `ByteRangeMap`, `PlaybackResilience`. Views bind, format and dispatch; they
 never decide. If a view contains an `if` that encodes a product rule, that rule belongs in a
 tested type instead.

@@ -52,9 +52,6 @@ final class AppState: ObservableObject {
     @Published var showNowPlaying = false
     @Published var showAddSource = false
     @Published var showAddRemoteLibrary = false
-    @Published var showProPaywall = false
-    @Published var proPaywallEntryPoint: ProPaywallEntryPoint = .generic
-    @Published var showAddRemoteLibraryProCompletion = false
     @Published var showCreatePlaylist = false
     @Published var artworkChangeTrackId: Int64?
     @Published var offlineProgress: OfflineProgress?
@@ -277,51 +274,11 @@ final class AppState: ObservableObject {
     }
 
     func requestAddRemoteLibrary() {
-        switch RemoteLibraryGate.entryPointDecision(isPro: ProGating.isEnabled(.remoteLibraries)) {
-        case .openSheet:
-            tab = .sources
-            showAddRemoteLibrary = true
-        case .showPaywall:
-            proPaywallEntryPoint = .addRemoteLibrary
-            showProPaywall = true
-        }
-    }
-
-    func requestGenericProPaywall() {
-        proPaywallEntryPoint = .generic
-        showProPaywall = true
-    }
-
-    func handleProCompletion() {
-        switch AddRemoteLibraryProFlow.presentationAfterProCompletion(
-            entryPoint: proPaywallEntryPoint,
-            didBecomePro: ProGating.isEnabled(.remoteLibraries)
-        ) {
-        case .showAddRemoteLibraryCompletion:
-            showProPaywall = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                self.showAddRemoteLibraryProCompletion = true
-            }
-        case .none:
-            break
-        }
-    }
-
-    func applyAddRemoteLibraryPostPurchaseAction(_ action: RemoteLibraryPostPurchaseAction) {
-        let outcome = AddRemoteLibraryProFlow.outcome(for: action)
-        showAddRemoteLibraryProCompletion = false
-        if outcome.openLibrariesTab {
-            tab = .sources
-        }
-        if outcome.openAddServerSheet {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                self.showAddRemoteLibrary = true
-            }
-        }
+        tab = .sources
+        showAddRemoteLibrary = true
     }
 
     func addSubsonicServer(url rawURL: String, username rawUsername: String, password: String) async throws {
-        try requireRemoteLibrary(.connect(.subsonic))
         let baseURL = try SubsonicServerPolicy.normalizeBaseURL(rawURL)
         let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
         let provider = SubsonicProvider(baseURL: baseURL, username: username, password: password)
@@ -353,7 +310,6 @@ final class AppState: ObservableObject {
     }
 
     func addWebDAVServer(url rawURL: String, username rawUsername: String, password: String) async throws {
-        try requireRemoteLibrary(.connect(.webDAV))
         let baseURL = try WebDAVServerPolicy.normalizeBaseURL(rawURL)
         let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
         let provider = WebDAVProvider(baseURL: baseURL, username: username, password: password)
@@ -371,7 +327,6 @@ final class AppState: ObservableObject {
     }
 
     func addJellyfinServer(url rawURL: String, username rawUsername: String, password: String) async throws {
-        try requireRemoteLibrary(.connect(.jellyfin))
         let baseURL = try JellyfinServerPolicy.normalizeBaseURL(rawURL)
         let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
         let request = try JellyfinAPI.request(
@@ -397,7 +352,6 @@ final class AppState: ObservableObject {
     }
 
     func addPlexServer(url rawURL: String, token rawToken: String) async throws {
-        try requireRemoteLibrary(.connect(.plex))
         let baseURL = try PlexServerPolicy.normalizeBaseURL(rawURL)
         let token = rawToken.trimmingCharacters(in: .whitespacesAndNewlines)
         let provider = PlexProvider(baseURL: baseURL, token: token)
@@ -414,7 +368,6 @@ final class AppState: ObservableObject {
     }
 
     func addCloudDrive(provider cloudProvider: CloudDriveAPI.Provider, accessToken rawToken: String) async throws {
-        try requireRemoteLibrary(.connect(cloudProvider.sourceKind))
         let token = rawToken.trimmingCharacters(in: .whitespacesAndNewlines)
         let provider = CloudDriveProvider(provider: cloudProvider, accessToken: token)
         try await provider.refresh()
@@ -432,7 +385,6 @@ final class AppState: ObservableObject {
     }
 
     func addCloudDrive(provider cloudProvider: CloudDriveAPI.Provider, oauthToken token: OAuthToken) async throws {
-        try requireRemoteLibrary(.connect(cloudProvider.sourceKind))
         let provider = CloudDriveProvider(
             provider: cloudProvider,
             accessProvider: OAuthCloudDriveAccessProvider(token: token)
@@ -452,7 +404,6 @@ final class AppState: ObservableObject {
     }
 
     func addSMBFolder(_ folderURL: URL, bookmark folderBookmark: Data?) async throws {
-        try requireRemoteLibrary(.connect(.smb))
         let bookmark = folderBookmark ?? BookmarkVault.makeBookmark(for: folderURL)
         guard let bookmark else { throw IngestError.failedToCreateBookmark }
 
@@ -467,7 +418,6 @@ final class AppState: ObservableObject {
     }
 
     func addIASource(url rawURL: String, username: String?, password: String?) async throws {
-        try requireRemoteLibrary(.connect(.iaList))
         let url = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let service = SourceService(preferFLAC: preferFLAC)
         let preview = try await service.preview(from: url)
@@ -487,8 +437,7 @@ final class AppState: ObservableObject {
     }
 
     func browseRemote(source: Source, path: String) async throws -> [RemoteNode] {
-        try requireRemoteLibrary(.browse(source.kind))
-        return try await remoteProvider(for: source).browse(path: path)
+        try await remoteProvider(for: source).browse(path: path)
     }
 
     func renameSource(_ source: Source, title: String) async {
@@ -603,10 +552,6 @@ final class AppState: ObservableObject {
     @discardableResult
     func makeOffline(source: Source) async -> Bool {
         guard let sourceID = source.id else { return false }
-        do {
-            try requireRemoteLibrary(.browse(source.kind))
-        } catch { return false }
-
         guard let estimate = await offlineEstimate(for: source) else { return false }
         let check = offlineDiskCheck(requiredBytes: estimate.totalBytes)
         guard check.allowed else {
@@ -718,7 +663,6 @@ final class AppState: ObservableObject {
     }
 
     func remoteTrackRows(source: Source, nodes: [RemoteNode]) async throws -> [TrackRow] {
-        try requireRemoteLibrary(.resolve(source.kind))
         let provider = try remoteProvider(for: source)
         var rows: [TrackRow] = []
         for (index, node) in nodes.filter({ $0.kind == .audio }).enumerated() {
@@ -760,10 +704,6 @@ final class AppState: ObservableObject {
 
     private func remoteProvider(for source: Source) throws -> any RemoteLibraryProvider {
         try RemoteLibraryProviderFactory.provider(for: source)
-    }
-
-    private func requireRemoteLibrary(_ action: RemoteLibraryAction) throws {
-        try RemoteLibraryGate.require(action, isPro: ProGating.isEnabled(.remoteLibraries))
     }
 
     @discardableResult
