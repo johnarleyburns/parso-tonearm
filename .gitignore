@@ -70,3 +70,4 @@ fastlane/test_output
 # Local test credentials — never committed. See .test-credentials.example.
 .test-credentials
 *.local.sh
+.test-results/

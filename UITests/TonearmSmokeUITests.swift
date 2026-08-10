@@ -58,7 +58,7 @@ final class TonearmSmokeUITests: XCTestCase {
 
     private func launch(arguments: [String] = []) {
         app = XCUIApplication()
-        app.launchArguments = ["UI_TESTING"] + arguments
+        app.launchArguments = ["UI_TESTING", "-uiRegression", "-resetLibrary"] + arguments
         app.launch()
     }
 

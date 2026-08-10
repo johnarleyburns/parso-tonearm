@@ -38,9 +38,6 @@ struct TonearmApp: App {
                 .task {
                     await appState.bootstrap()
                     didCompleteBootstrap = true
-                    if #available(iOS 17.0, *) {
-                        await CloudSyncEngine.shared.reconcile()
-                    }
                 }
                 .onOpenURL { url in
                     Task { await appState.handleIncomingURL(url) }
@@ -53,9 +50,6 @@ struct TonearmApp: App {
                 Task {
                     let added = await FolderWatchService.shared.rescanWatchedFolders(store: appState.store)
                     if added > 0 { await appState.reload() }
-                }
-                if #available(iOS 17.0, *) {
-                    Task { await CloudSyncEngine.shared.reconcile(); await AudioPlayer.shared.restorePersistedQueue() }
                 }
             case .background, .inactive:
                 AudioPlayer.shared.persistNow()

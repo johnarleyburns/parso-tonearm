@@ -116,7 +116,11 @@ final class SystemPlaybackBridge: PlaybackPlatformBridge {
 
         Task {
             if let image = await ArtworkService.shared.artwork(forTrackRow: row) {
-                let art = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                // MediaPlayer invokes this handler on its private access queue,
+                // not on the main actor. Build it in a nonisolated helper so
+                // Swift concurrency does not retain SystemPlaybackBridge's
+                // @MainActor isolation in the callback.
+                let art = makeMediaArtwork(image)
                 var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
                 current[MPMediaItemPropertyArtwork] = art
                 MPNowPlayingInfoCenter.default().nowPlayingInfo = current
@@ -172,6 +176,13 @@ final class SystemPlaybackBridge: PlaybackPlatformBridge {
         }
         WidgetArtworkStore.prune(keeping: keep)
     }
+}
+
+/// `MPMediaItemArtwork` may request artwork from MediaPlayer's `accessQueue`.
+/// Keep the request handler nonisolated; capturing a handler created inside the
+/// @MainActor bridge makes Swift's executor check trap on iOS 18.7.
+private func makeMediaArtwork(_ image: UIImage) -> MPMediaItemArtwork {
+    MPMediaItemArtwork(boundsSize: image.size) { _ in image }
 }
 
 private struct CallbackBox: @unchecked Sendable {
