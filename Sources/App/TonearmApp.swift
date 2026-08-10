@@ -6,6 +6,7 @@ struct TonearmApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var player = AudioPlayer.shared
     @Environment(\.scenePhase) private var scenePhase
+    @State private var didCompleteBootstrap = false
 
     init() {
         let launchArguments = ProcessInfo.processInfo.arguments
@@ -34,20 +35,21 @@ struct TonearmApp: App {
                 .environmentObject(appState)
                 .environmentObject(player)
                 .preferredColorScheme(.dark)
-                .task { await appState.bootstrap() }
-                .onOpenURL { url in
-                    Task { await appState.handleIncomingURL(url) }
-                }
                 .task {
+                    await appState.bootstrap()
+                    didCompleteBootstrap = true
                     if #available(iOS 17.0, *) {
                         await CloudSyncEngine.shared.reconcile()
-                        await AudioPlayer.shared.restorePersistedQueue()
                     }
+                }
+                .onOpenURL { url in
+                    Task { await appState.handleIncomingURL(url) }
                 }
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
+                guard didCompleteBootstrap else { return }
                 Task {
                     let added = await FolderWatchService.shared.rescanWatchedFolders(store: appState.store)
                     if added > 0 { await appState.reload() }
