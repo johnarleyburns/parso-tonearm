@@ -49,7 +49,7 @@ final class PlaylistRegressionUITests: XCTestCase {
         app = .launchForRegression()
         openPlaylistDetail()
         app.waitFor("playlist.add").tap()
-        XCTAssertTrue(app.buttons.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No tracks available"].waitForExistence(timeout: 5))
     }
 
     /// D-8 · Rename lives under the overflow and persists.
@@ -67,19 +67,19 @@ final class PlaylistRegressionUITests: XCTestCase {
 
     private func openPlaylistDetail() {
         app.buttons["Playlists"].tap()
-        if app.buttons["Regression Playlist"].waitForExistence(timeout: 2) {
-            app.buttons["Regression Playlist"].tap()
+        let existing = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Regression Playlist")).firstMatch
+        if existing.waitForExistence(timeout: 2) {
+            existing.tap()
         } else {
             app.buttons["playlists.create"].tap()
             let name = app.textFields["Playlist name"]
             XCTAssertTrue(name.waitForExistence(timeout: 5))
             name.tap()
             name.typeText("Regression Playlist")
-            let firstTrack = app.buttons.firstMatch
-            if firstTrack.waitForExistence(timeout: 5) { firstTrack.tap() }
             app.buttons["Create Playlist"].tap()
-            XCTAssertTrue(app.buttons["Regression Playlist"].waitForExistence(timeout: 5))
-            app.buttons["Regression Playlist"].tap()
+            let created = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Regression Playlist")).firstMatch
+            XCTAssertTrue(created.waitForExistence(timeout: 5))
+            created.tap()
         }
         app.waitFor("playlist.overflow")
     }

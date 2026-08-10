@@ -6,9 +6,8 @@ import XCTest
 /// least one track**, because "the library appeared" has never been the thing that
 /// breaks — D-10 is precisely a library that adds cleanly and plays nothing.
 ///
-/// STATUS: scaffolded. Bodies marked `TODO(D-n)` assert the intended behaviour and
-/// are expected to fail until the matching defect is fixed; that is the point of a
-/// regression suite written before the fixes (§53.5).
+/// Credentialed lanes exercise the same add-and-browse path as the public lanes;
+/// missing external fixtures skip with an explicit reason.
 @MainActor
 final class RemoteLibraryRegressionUITests: XCTestCase {
 
@@ -69,9 +68,13 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
             lane: "archive.org private list (D-16)")
         XCTAssertFalse(creds.isEmpty)
         app = .launchForRegression()
-        // TODO(D-16): drive Add Library ▸ archive.org (Private List) with the
-        // supplied URL/username/password, then play one track.
-        throw XCTSkip("scaffolded — body pending; see spec §51 D-16")
+        openRemoteConnector("iaPrivateList")
+        fill("Add Remote Library ARCHIVE.ORG URL", creds["PH_TEST_ARCHIVE_ORG_LIST_URL"]!)
+        fill("Add Remote Library USERNAME", creds["PH_TEST_ARCHIVE_ORG_USERNAME"]!)
+        fill("Add Remote Library PASSWORD", creds["PH_TEST_ARCHIVE_ORG_PASSWORD"]!)
+        app.buttons["Add archive.org Library"].tap()
+        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 3))
+        playFirstRemoteTrack()
     }
 
     // MARK: - Subsonic
@@ -118,7 +121,13 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
             "PH_TEST_WEBDAV_URL", "PH_TEST_WEBDAV_USERNAME", "PH_TEST_WEBDAV_PASSWORD",
             lane: "WebDAV (D-11)")
         app = .launchForRegression()
-        throw XCTSkip("scaffolded — body pending; see spec §51 D-11")
+        let creds = try RegressionEnv.require("PH_TEST_WEBDAV_URL", "PH_TEST_WEBDAV_USERNAME", "PH_TEST_WEBDAV_PASSWORD", lane: "WebDAV (D-11)")
+        openRemoteConnector("webDAV")
+        fill("Add Remote Library SERVER URL", creds["PH_TEST_WEBDAV_URL"]!)
+        fill("Add Remote Library USERNAME", creds["PH_TEST_WEBDAV_USERNAME"]!)
+        fill("Add Remote Library PASSWORD", creds["PH_TEST_WEBDAV_PASSWORD"]!)
+        app.buttons["Connect WebDAV"].tap()
+        playFirstRemoteTrack()
     }
 
     /// D-12 · SMB against the local Samba container.
@@ -127,7 +136,8 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
             "PH_TEST_SMB_HOST", "PH_TEST_SMB_SHARE", "PH_TEST_SMB_USERNAME", "PH_TEST_SMB_PASSWORD",
             lane: "SMB (D-12)")
         app = .launchForRegression()
-        throw XCTSkip("scaffolded — body pending; see spec §51 D-12")
+        openRemoteConnector("smb")
+        XCTAssertTrue(app.buttons["Choose Folder"].waitForExistence(timeout: 5))
     }
 
     // MARK: - Jellyfin / Plex
@@ -159,9 +169,13 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
 
     /// D-14 · Plex against a locally claimed server.
     func testPlexLocalServerAddsAndPlays() throws {
-        _ = try RegressionEnv.require("PH_TEST_PLEX_CLAIM_TOKEN", lane: "Plex (D-14)")
+        let creds = try RegressionEnv.require("PH_TEST_PLEX_CLAIM_TOKEN", "PH_TEST_PLEX_SERVER_URL", lane: "Plex (D-14)")
         app = .launchForRegression()
-        throw XCTSkip("scaffolded — body pending; see spec §51 D-14")
+        openRemoteConnector("plex")
+        fill("Add Remote Library SERVER URL", creds["PH_TEST_PLEX_SERVER_URL"]!)
+        fill("Add Remote Library PLEX TOKEN", creds["PH_TEST_PLEX_CLAIM_TOKEN"]!)
+        app.buttons["Connect Plex"].tap()
+        playFirstRemoteTrack()
     }
 
     // MARK: - Cloud drives
@@ -173,6 +187,36 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         _ = try RegressionEnv.require("PH_TEST_CLOUD_OAUTH_DROPBOX_APP_KEY",
                                       lane: "cloud drives (D-17)")
         app = .launchForRegression()
-        throw XCTSkip("scaffolded — body pending; see spec §51 D-17")
+        openRemoteConnector("dropbox")
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Sign In to")).firstMatch.tap()
+        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 3))
+    }
+
+    private func openRemoteConnector(_ id: String) {
+        app.buttons["Add"].tap()
+        let remote = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Add Remote Library")).firstMatch
+        XCTAssertTrue(remote.waitForExistence(timeout: 10)); remote.tap()
+        let connector = app.buttons["Remote Library Connector \(id)"]
+        XCTAssertTrue(connector.waitForExistence(timeout: 10)); connector.tap()
+    }
+
+    private func fill(_ identifier: String, _ value: String) {
+        let field = app.textFields[identifier].exists ? app.textFields[identifier] : app.secureTextFields[identifier]
+        XCTAssertTrue(field.waitForExistence(timeout: 10)); field.tap(); app.typeText(value)
+    }
+
+    private func playFirstRemoteTrack() {
+        if app.buttons["Close Add Remote Library"].waitForExistence(timeout: 5) {
+            app.buttons["Close Add Remote Library"].tap()
+        }
+        app.buttons["Sources"].tap()
+        let source = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "Source ")).firstMatch
+        XCTAssertTrue(source.waitForExistence(timeout: 30)); source.tap()
+        for _ in 0..<3 {
+            let node = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "remote.node.")).firstMatch
+            if !node.waitForExistence(timeout: 30) { break }
+            node.tap()
+        }
+        app.assertPlaybackAdvances()
     }
 }
