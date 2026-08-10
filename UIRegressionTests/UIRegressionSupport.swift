@@ -45,7 +45,11 @@ extension XCUIApplication {
     /// a deterministic state: seeded library, no onboarding, no paywall interstitial.
     static func launchForRegression() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["-uiRegression", "1", "-resetLibrary", "1"]
+        app.launchArguments += [
+            "-uiRegression", "1",
+            "-resetLibrary", "1",
+            "UI_TESTING", "UI_TESTING_ENABLE_PRO"
+        ]
         app.launch()
         return app
     }

@@ -15,7 +15,10 @@ final class RemoteConnectorCatalogTests: XCTestCase {
             .googleDrive,
             .oneDrive,
             .pCloud,
+            .iaItem,
             .iaList,
+            .iaCollection,
+            .iaFavorites,
         ])
     }
 
@@ -26,11 +29,27 @@ final class RemoteConnectorCatalogTests: XCTestCase {
         ])
     }
 
-    func testTierSplitMatchesSupportPlan() {
-        let guided = Set(RemoteConnectorCatalog.all.filter { $0.tier == .guided }.map(\.sourceKind))
-        let advanced = Set(RemoteConnectorCatalog.all.filter { $0.tier == .advanced }.map(\.sourceKind))
+    func testEveryRemoteSourceKindResolvesToAConnector() {
+        for kind in SourceKind.allCases where kind != .local {
+            XCTAssertFalse(
+                RemoteConnectorCatalog.connectors(for: kind).isEmpty,
+                "Missing connector for \(kind.rawValue)"
+            )
+        }
+    }
 
-        XCTAssertEqual(guided, Set([.dropbox, .googleDrive, .oneDrive, .pCloud, .subsonic, .webDAV, .jellyfin, .iaList]))
+    func testPublicArchiveConnectorServesEveryArchiveSourceKind() {
+        XCTAssertEqual(
+            RemoteConnectorCatalog.connector(byID: "iaPublicList")?.sourceKinds,
+            [.iaItem, .iaList, .iaCollection, .iaFavorites]
+        )
+    }
+
+    func testTierSplitMatchesSupportPlan() {
+        let guided = Set(RemoteConnectorCatalog.all.filter { $0.tier == .guided }.flatMap(\.sourceKinds))
+        let advanced = Set(RemoteConnectorCatalog.all.filter { $0.tier == .advanced }.flatMap(\.sourceKinds))
+
+        XCTAssertEqual(guided, Set([.dropbox, .googleDrive, .oneDrive, .pCloud, .subsonic, .webDAV, .jellyfin, .iaItem, .iaList, .iaCollection, .iaFavorites]))
         XCTAssertEqual(advanced, Set([.plex, .smb]))
     }
 

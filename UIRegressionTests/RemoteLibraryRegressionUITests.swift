@@ -23,10 +23,41 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
     /// D-9 · archive.org collections and lists resolve instead of failing -1002.
     /// D-15 · "The Vapor Vault" collection plays at least one track.
     func testArchiveOrgPublicCollectionAddsAndPlays() throws {
+        let collectionName = RegressionEnv.value("PH_TEST_ARCHIVE_PUBLIC_COLLECTION") ?? "The Vapor Vault"
         app = .launchForRegression()
-        // TODO(D-9, D-15): add the collection by URL, assert no NSURLErrorDomain
-        // -1002 alert appears, open the first item, play, assertPlaybackAdvances().
-        throw XCTSkip("scaffolded — body pending; see spec §51 D-9, D-15")
+        app.buttons["Add"].tap()
+        let addRemoteLibrary = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Add Remote Library")
+        ).firstMatch
+        XCTAssertTrue(addRemoteLibrary.waitForExistence(timeout: 10))
+        addRemoteLibrary.tap()
+
+        let urlField = app.textFields["Add Remote Library ARCHIVE.ORG URL"]
+        XCTAssertTrue(urlField.waitForExistence(timeout: 10))
+        urlField.tap()
+        app.typeText("https://archive.org/details/vapor-vault")
+        app.keyboards.buttons["return"].tap()
+        app.buttons["Add archive.org Library"].tap()
+
+        XCTAssertFalse(app.alerts.matching(NSPredicate(format: "label CONTAINS[c] %@", "unsupported")).firstMatch.waitForExistence(timeout: 2))
+        let sheetGrabber = app.buttons["Sheet Grabber"]
+        if sheetGrabber.waitForExistence(timeout: 5) {
+            sheetGrabber.swipeDown()
+        } else {
+            let close = app.buttons["Close Add Remote Library"]
+            if close.waitForExistence(timeout: 2) { close.tap() }
+        }
+        let collection = app.element("Source \(collectionName)")
+        XCTAssertTrue(collection.waitForExistence(timeout: 30))
+        collection.tap()
+
+        let play = app.buttons["Play"].firstMatch
+        XCTAssertTrue(play.waitForExistence(timeout: 30))
+        play.tap()
+        let miniTitle = app.element("mini.title")
+        XCTAssertTrue(miniTitle.waitForExistence(timeout: 20))
+        miniTitle.tap()
+        app.assertPlaybackAdvances()
     }
 
     /// D-16 · archive.org private list, credentials from `.test-credentials`.

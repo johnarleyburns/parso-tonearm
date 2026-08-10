@@ -8,7 +8,9 @@ struct AddServerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var oauthCoordinator = OAuthSignInCoordinator()
 
-    @State private var selectedConnectorID: String = RemoteConnectorCatalog.all.first?.id ?? ""
+    @State private var selectedConnectorID: String = RemoteConnectorCatalog.connector(byID: "iaPublicList")?.id
+        ?? RemoteConnectorCatalog.all.first?.id
+        ?? ""
     @State private var urlText = ""
     @State private var username = ""
     @State private var password = ""
@@ -63,6 +65,15 @@ struct AddServerSheet: View {
         .foregroundStyle(Palette.ink)
         .presentationDetents([.height(560)])
         .presentationBackground(.ultraThinMaterial)
+        .overlay(alignment: .topTrailing) {
+            Button("Close") {
+                appState.showAddRemoteLibrary = false
+                dismiss()
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .accessibilityIdentifier("Close Add Remote Library")
+            .padding(.top, 12)
+        }
         .onChange(of: selectedConnectorID) { _, _ in error = nil }
         .sheet(isPresented: $showGuide) {
             RemoteConnectorGuideView(guide: connector.guide)
@@ -97,10 +108,23 @@ struct AddServerSheet: View {
         isIAPublicList || isIAPrivateList
     }
 
+    private var pickerOptions: [RemoteConnector] {
+        RemoteConnectorCatalog.all.sorted { lhs, rhs in
+            func rank(_ connector: RemoteConnector) -> Int {
+                switch connector.connectorID {
+                case "iaPublicList": return 0
+                case "iaPrivateList": return 1
+                default: return 2
+                }
+            }
+            return rank(lhs) < rank(rhs)
+        }
+    }
+
     private var providerPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(RemoteConnectorCatalog.all) { option in
+                ForEach(pickerOptions) { option in
                     Button { selectedConnectorID = option.id } label: {
                         HStack(spacing: 6) {
                             Image(systemName: option.icon)
@@ -118,6 +142,7 @@ struct AddServerSheet: View {
                                     in: Capsule())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("Remote Library Connector \(option.id)")
                 }
             }
         }
@@ -348,6 +373,7 @@ struct AddServerSheet: View {
                     return
                 }
             }
+            appState.showAddRemoteLibrary = false
             dismiss()
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription

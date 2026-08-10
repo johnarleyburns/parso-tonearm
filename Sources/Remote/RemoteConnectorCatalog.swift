@@ -41,9 +41,9 @@ public struct RemoteConnectorGuide: Equatable, Codable, Sendable {
 }
 
 public struct RemoteConnector: Identifiable, Equatable, Codable, Sendable {
-    public var id: String { connectorID ?? sourceKind.rawValue }
-    public var sourceKind: SourceKind
-    public var connectorID: String?
+    public var id: String { connectorID }
+    public var sourceKinds: [SourceKind]
+    public var connectorID: String
     public var title: String
     public var proDisplayName: String
     public var subtitle: String
@@ -52,8 +52,8 @@ public struct RemoteConnector: Identifiable, Equatable, Codable, Sendable {
     public var icon: String
     public var guide: RemoteConnectorGuide
 
-    public init(sourceKind: SourceKind,
-                connectorID: String? = nil,
+    public init(sourceKinds: [SourceKind],
+                connectorID: String,
                 title: String,
                 proDisplayName: String? = nil,
                 subtitle: String,
@@ -61,7 +61,7 @@ public struct RemoteConnector: Identifiable, Equatable, Codable, Sendable {
                 authKind: RemoteConnectorAuthKind,
                 icon: String,
                 guide: RemoteConnectorGuide) {
-        self.sourceKind = sourceKind
+        self.sourceKinds = sourceKinds
         self.connectorID = connectorID
         self.title = title
         self.proDisplayName = proDisplayName ?? title
@@ -71,12 +71,22 @@ public struct RemoteConnector: Identifiable, Equatable, Codable, Sendable {
         self.icon = icon
         self.guide = guide
     }
+
+    /// The single source kind used by the non-archive connectors.
+    ///
+    /// Archive.org deliberately serves several source kinds through one
+    /// connector, so callers that need the kind selected by a URL should use
+    /// the resolved source instead of this convenience value.
+    public var sourceKind: SourceKind {
+        sourceKinds.sorted { $0.rawValue < $1.rawValue }.first ?? .local
+    }
 }
 
 public enum RemoteConnectorCatalog {
     public static let all: [RemoteConnector] = [
         RemoteConnector(
-            sourceKind: .subsonic,
+            sourceKinds: [.subsonic],
+            connectorID: "subsonic",
             title: "Subsonic",
             proDisplayName: "Subsonic/Navidrome",
             subtitle: "Subsonic or Navidrome",
@@ -92,7 +102,8 @@ public enum RemoteConnectorCatalog {
             )
         ),
         RemoteConnector(
-            sourceKind: .webDAV,
+            sourceKinds: [.webDAV],
+            connectorID: "webDAV",
             title: "WebDAV",
             subtitle: "Nextcloud, ownCloud, rclone",
             tier: .guided,
@@ -107,7 +118,8 @@ public enum RemoteConnectorCatalog {
             )
         ),
         RemoteConnector(
-            sourceKind: .smb,
+            sourceKinds: [.smb],
+            connectorID: "smb",
             title: "SMB",
             subtitle: "Folder shared through Files",
             tier: .advanced,
@@ -122,7 +134,8 @@ public enum RemoteConnectorCatalog {
             )
         ),
         RemoteConnector(
-            sourceKind: .jellyfin,
+            sourceKinds: [.jellyfin],
+            connectorID: "jellyfin",
             title: "Jellyfin",
             subtitle: "Music library server",
             tier: .guided,
@@ -137,7 +150,8 @@ public enum RemoteConnectorCatalog {
             )
         ),
         RemoteConnector(
-            sourceKind: .plex,
+            sourceKinds: [.plex],
+            connectorID: "plex",
             title: "Plex",
             subtitle: "Plex music section",
             tier: .advanced,
@@ -152,7 +166,8 @@ public enum RemoteConnectorCatalog {
             )
         ),
         RemoteConnector(
-            sourceKind: .dropbox,
+            sourceKinds: [.dropbox],
+            connectorID: "dropbox",
             title: "Dropbox",
             subtitle: "Sign in with read-only access",
             tier: .guided,
@@ -161,7 +176,8 @@ public enum RemoteConnectorCatalog {
             guide: cloudGuide("Dropbox", permission: "read-only file metadata and content access")
         ),
         RemoteConnector(
-            sourceKind: .googleDrive,
+            sourceKinds: [.googleDrive],
+            connectorID: "googleDrive",
             title: "Google Drive",
             subtitle: "Sign in with Drive readonly",
             tier: .guided,
@@ -170,7 +186,8 @@ public enum RemoteConnectorCatalog {
             guide: cloudGuide("Google Drive", permission: "Drive readonly access")
         ),
         RemoteConnector(
-            sourceKind: .oneDrive,
+            sourceKinds: [.oneDrive],
+            connectorID: "oneDrive",
             title: "OneDrive",
             subtitle: "Sign in with Files.Read",
             tier: .guided,
@@ -179,7 +196,8 @@ public enum RemoteConnectorCatalog {
             guide: cloudGuide("OneDrive", permission: "Microsoft Graph Files.Read access")
         ),
         RemoteConnector(
-            sourceKind: .pCloud,
+            sourceKinds: [.pCloud],
+            connectorID: "pCloud",
             title: "pCloud",
             subtitle: "Sign in with pCloud",
             tier: .guided,
@@ -188,7 +206,7 @@ public enum RemoteConnectorCatalog {
             guide: cloudGuide("pCloud", permission: "pCloud file listing and download access")
         ),
         RemoteConnector(
-            sourceKind: .iaList,
+            sourceKinds: [.iaItem, .iaList, .iaCollection, .iaFavorites],
             connectorID: "iaPublicList",
             title: "archive.org",
             proDisplayName: "archive.org (public lists, items, collections)",
@@ -205,7 +223,7 @@ public enum RemoteConnectorCatalog {
             )
         ),
         RemoteConnector(
-            sourceKind: .iaList,
+            sourceKinds: [.iaList],
             connectorID: "iaPrivateList",
             title: "archive.org (Private List)",
             proDisplayName: "archive.org (private lists)",
@@ -223,8 +241,11 @@ public enum RemoteConnectorCatalog {
         ),
     ]
 
+    private static let byID: [String: RemoteConnector] =
+        Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+
     public static var productSourceKinds: [SourceKind] {
-        let allKinds = all.map(\.sourceKind)
+        let allKinds = all.flatMap(\.sourceKinds)
         // Deduplicate while preserving order
         var seen = Set<String>()
         return allKinds.filter { seen.insert($0.rawValue).inserted }
@@ -246,11 +267,15 @@ public enum RemoteConnectorCatalog {
     }
 
     public static func connector(for kind: SourceKind) -> RemoteConnector? {
-        all.first { $0.sourceKind == kind }
+        connectors(for: kind).first
+    }
+
+    public static func connectors(for kind: SourceKind) -> [RemoteConnector] {
+        all.filter { $0.sourceKinds.contains(kind) }
     }
 
     public static func connector(byID id: String) -> RemoteConnector? {
-        all.first { $0.id == id }
+        byID[id]
     }
 
     public static func requireConnector(for kind: SourceKind) throws -> RemoteConnector {

@@ -22,6 +22,7 @@ struct SourcesView: View {
                                 SourceRow(source: source)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("Source \(source.title)")
                             .contextMenu {
                                 Button("Play") { Task { await appState.playSource(source) } }
                                 Button("Remove", role: .destructive) {

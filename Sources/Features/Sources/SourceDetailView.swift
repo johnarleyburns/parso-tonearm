@@ -48,7 +48,7 @@ struct SourceDetailView: View {
 
     @ViewBuilder
     private var content: some View {
-        if isRemoteLibrary {
+        if isBrowseableServer {
             remoteBrowser
         } else {
             localTrackList
@@ -209,13 +209,14 @@ struct SourceDetailView: View {
 
     private var badgeText: String {
         if source.kind == .local { return "on device" }
+        if isArchiveSource { return "archive.org · \(source.licenseText ?? "streams permitted")" }
         if isRemoteLibrary { return "\(remoteProviderName) · private library" }
         return "archive.org · \(source.licenseText ?? "streams permitted")"
     }
 
     @ViewBuilder
     private var cta: some View {
-        if isRemoteLibrary {
+        if isBrowseableServer {
             HStack(spacing: 10) {
                 Button { Task { await playVisibleRemote(startAt: 0, shuffled: false) } } label: {
                     ctaLabel(icon: "play.fill", title: "Play")
@@ -252,7 +253,7 @@ struct SourceDetailView: View {
     }
 
     private func load() async {
-        if isRemoteLibrary {
+        if isBrowseableServer {
             await loadRemote(path: remotePath)
         } else {
             tracks = await appState.tracks(for: source)
@@ -361,6 +362,10 @@ struct SourceDetailView: View {
 
     private var isRemoteLibrary: Bool {
         RemoteLibraryAccessPolicy.isRemoteLibrary(source.kind)
+    }
+
+    private var isBrowseableServer: Bool {
+        isRemoteLibrary && !isArchiveSource
     }
 
     private var isArchiveSource: Bool {

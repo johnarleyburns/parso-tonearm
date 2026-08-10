@@ -204,6 +204,7 @@ struct NowPlayingView: View {
 
             HStack {
                 Text(TimeFmt.mmss(player.currentTime))
+                    .accessibilityIdentifier("np.elapsed")
                 Spacer()
                 Text(qualityChip)
                     .font(.system(size: 9.5, weight: .bold)).kerning(0.8)
