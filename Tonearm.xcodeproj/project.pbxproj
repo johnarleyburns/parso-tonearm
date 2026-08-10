@@ -75,6 +75,7 @@
 		C0D5BE09D689D61435BEDCA1 /* WidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */; };
 		C0E3EB7AB1D02FA2309CE3B2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */; };
 		C5E4A0FDE163504E89491B31 /* SourcesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E08FD7930B1AABFA3C2825E0 /* SourcesView.swift */; };
+		C776768D33A8CED2D2AECE56 /* TonearmDJ in Frameworks */ = {isa = PBXBuildFile; productRef = 1C09B54EEFA4691DE4B5274A /* TonearmDJ */; };
 		C8ABFA6DEBDCBFC45E023FA6 /* PlatterheadWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 053C5BB5C4AF1B09D39BBCC6 /* PlatterheadWatchApp.swift */; };
 		CA85D99F000D191F2542DDF6 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 65EC4F101281094B1EB48E18 /* TonearmCore */; };
 		D48DC71189EEC9D2917B9A0E /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07BB75BFAD34B2382CE704F9 /* ShareViewController.swift */; };
@@ -277,6 +278,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				796967ED51F8C7841F6FC270 /* TonearmCore in Frameworks */,
+				C776768D33A8CED2D2AECE56 /* TonearmDJ in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -662,6 +664,7 @@
 			name = Tonearm;
 			packageProductDependencies = (
 				25DC295C778B26F9C30D320D /* TonearmCore */,
+				1C09B54EEFA4691DE4B5274A /* TonearmDJ */,
 			);
 			productName = Tonearm;
 			productReference = CDA5510BE764F39731C1901D /* Tonearm.app */;
@@ -1492,6 +1495,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		1C09B54EEFA4691DE4B5274A /* TonearmDJ */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TonearmDJ;
+		};
 		25DC295C778B26F9C30D320D /* TonearmCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = TonearmCore;

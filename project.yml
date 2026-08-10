@@ -35,7 +35,9 @@ targets:
         excludes:
           - "Art/**"
           - "Audio/**"
+          - "CSQLiteVec/**"
           - "Data/**"
+          - "DJ/**"
           - "Domain/**"
           - "IA/**"
           - "Intents/**"
@@ -49,6 +51,8 @@ targets:
       - path: Resources
     dependencies:
       - package: TonearmCore
+      - package: TonearmCore
+        product: TonearmDJ
       - target: TonearmShareExtension
         embed: true
       - target: TonearmWidgetsExtension

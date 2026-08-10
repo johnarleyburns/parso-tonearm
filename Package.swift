@@ -5,7 +5,8 @@ let package = Package(
     name: "TonearmCore",
     platforms: [.iOS(.v17), .macOS(.v14), .watchOS(.v10)],
     products: [
-        .library(name: "TonearmCore", targets: ["TonearmCore"])
+        .library(name: "TonearmCore", targets: ["TonearmCore"]),
+        .library(name: "TonearmDJ", targets: ["TonearmDJ"])
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0")
@@ -23,6 +24,7 @@ let package = Package(
                 ".github",
                 "docs",
                 "docker-compose.remote-test.yml",
+                "docker-compose.ui-regression.yml",
                 "ExportOptions.plist",
                 "IMPLEMENTATION_PLAN.md",
                 "LICENSE",
@@ -32,7 +34,9 @@ let package = Package(
                 "Resources/splash_screen.jpg",
                 "ShareExtension",
                 "Sources/App",
+                "Sources/CSQLiteVec",
                 "Sources/DesignSystem",
+                "Sources/DJ",
                 "Sources/Features",
                 "Sources/Media",
                 "Sources/Widgets",
@@ -41,6 +45,7 @@ let package = Package(
                 "Tests",
                 "Tonearm.xcodeproj",
                 "UITests",
+                "UIRegressionTests",
                 "WatchApp",
                 "WatchUITests",
                 "WidgetsExtension",
@@ -71,15 +76,49 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
+        .target(
+            name: "CSQLiteVec",
+            path: "Sources/CSQLiteVec",
+            sources: ["sqlite-vec.c"],
+            publicHeadersPath: "include",
+            cSettings: [.define("SQLITE_CORE", to: "1")]
+        ),
+        .target(
+            name: "TonearmDJ",
+            dependencies: [
+                "TonearmCore",
+                "CSQLiteVec",
+                .product(name: "GRDB", package: "GRDB.swift")
+            ],
+            path: "Sources/DJ",
+            swiftSettings: [.swiftLanguageMode(.v6)],
+            linkerSettings: [
+                .linkedFramework("Accelerate"),
+                .linkedFramework("CoreML"),
+                .linkedFramework("Metal"),
+                .linkedFramework("MetalPerformanceShaders"),
+                .linkedFramework("AVFoundation"),
+                .linkedFramework("CoreMIDI"),
+                .linkedLibrary("sqlite3")
+            ]
+        ),
         .testTarget(
             name: "TonearmCoreTests",
             dependencies: ["TonearmCore"],
             path: "Tests",
             exclude: [
                 // Helper process used by optional integration smoke tests.
-                "Support"
+                "Support",
+                // DJ tests live in their own target (TonearmDJTests).
+                "DJTests"
             ],
             resources: [.copy("Fixtures")],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "TonearmDJTests",
+            dependencies: ["TonearmDJ"],
+            path: "Tests/DJTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]
