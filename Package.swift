@@ -32,6 +32,8 @@ let package = Package(
                 "Package.resolved",
                 "README.md",
                 "Resources/splash_screen.jpg",
+                "Resources/Models",
+                "Resources/CLAP",
                 "ShareExtension",
                 "Sources/App",
                 "Sources/CSQLiteVec",
@@ -51,6 +53,8 @@ let package = Package(
                 "WidgetsExtension",
                 "project.yml",
                 "scripts",
+                "tools",
+                "current_status.md",
                 "Resources/Assets.xcassets",
                 "Resources/Tonearm.storekit"
             ],
@@ -119,6 +123,7 @@ let package = Package(
             name: "TonearmDJTests",
             dependencies: ["TonearmDJ"],
             path: "Tests/DJTests",
+            resources: [.copy("Fixtures")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]

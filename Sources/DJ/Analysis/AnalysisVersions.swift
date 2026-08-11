@@ -10,8 +10,9 @@ public enum AnalysisVersions {
     public static let key = 1
     public static let phrase = 1
     public static let waveform = 1
-    // `embedding` (CLAP) arrives in M2; excluded until then so reconcile never
-    // enqueues a stage no implementation can run.
+    /// Stage 2 (M2): music-CLAP semantic embeddings. Lands at 1 in commit 2.1,
+    /// when the real model is in-repo and the embedding lane is runnable.
+    public static let embedding = 1
 
     /// Human note for each stage, registered in `analysis_version` so the
     /// registry row says what the version actually is.
@@ -22,5 +23,6 @@ public enum AnalysisVersions {
         "key": "HPCP chroma + Krumhansl/Temperley key correlation, Camelot",
         "phrase": "self-similarity + energy contour segmentation, bar-aligned",
         "waveform": "multi-resolution min/max/RMS pyramid",
+        "embedding": "music-CLAP HTSAT-base FP16, log-mel 48k 64b, 10s/5s attention-pooled 512-D",
     ]
 }

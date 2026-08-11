@@ -226,3 +226,116 @@ extension DJImportEvent: FetchableRecord, MutablePersistableRecord {
     public static let databaseTableName = "import_event"
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
+
+// MARK: - dj_v3 embedding rows (§15.4)
+
+/// Registry of embedding model sets; seeded by the `dj_v3` migration (§27.1).
+public struct DJEmbeddingVersion: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
+    public var version: Int
+    public var modelName: String
+    public var dimensions: Int
+    public var windowSeconds: Double
+    public var hopSeconds: Double
+    public var pooling: String
+    public var introducedAt: Date
+
+    public init(version: Int, modelName: String, dimensions: Int,
+                windowSeconds: Double, hopSeconds: Double,
+                pooling: String, introducedAt: Date) {
+        self.version = version
+        self.modelName = modelName
+        self.dimensions = dimensions
+        self.windowSeconds = windowSeconds
+        self.hopSeconds = hopSeconds
+        self.pooling = pooling
+        self.introducedAt = introducedAt
+    }
+    public static let databaseTableName = "embedding_version"
+}
+
+/// One track's pooled whole-track vector, int8-quantized (§15.4, §16.6).
+/// `vector` is raw `Int8[dims]` — L2-normalized then quantized, no header.
+public struct DJTrackEmbedding: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
+    public var trackID: Int64
+    public var dims: Int
+    public var vector: Data
+    public var scale: Double
+    public var matrixRow: Int?
+    public var version: Int
+
+    public init(trackID: Int64, dims: Int, vector: Data, scale: Double,
+                matrixRow: Int?, version: Int) {
+        self.trackID = trackID
+        self.dims = dims
+        self.vector = vector
+        self.scale = scale
+        self.matrixRow = matrixRow
+        self.version = version
+    }
+
+    public init(trackID: Int64, int8Vector: [Int8], scale: Double,
+                matrixRow: Int?, version: Int) {
+        self.trackID = trackID
+        self.dims = int8Vector.count
+        self.vector = int8Vector.withUnsafeBufferPointer { Data(buffer: $0) }
+        self.scale = scale
+        self.matrixRow = matrixRow
+        self.version = version
+    }
+
+    public var int8Vector: [Int8] {
+        vector.withUnsafeBytes { Array($0.bindMemory(to: Int8.self)) }
+    }
+
+    public static let databaseTableName = "track_embedding"
+}
+
+/// Per-window vectors — crate-scoped (§15.4, §16.4): rows exist only while a
+/// crate referencing the track is prepared.
+public struct DJWindowEmbedding: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
+    public var id: Int64?
+    public var trackID: Int64
+    public var windowIndex: Int
+    public var startSample: Int64
+    public var endSample: Int64
+    public var vector: Data
+    public var scale: Double
+    public var version: Int
+
+    public init(id: Int64? = nil, trackID: Int64, windowIndex: Int,
+                startSample: Int64, endSample: Int64, vector: Data,
+                scale: Double, version: Int) {
+        self.id = id
+        self.trackID = trackID
+        self.windowIndex = windowIndex
+        self.startSample = startSample
+        self.endSample = endSample
+        self.vector = vector
+        self.scale = scale
+        self.version = version
+    }
+
+    public static let databaseTableName = "window_embedding"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+}
+
+/// Tier A matrix bookkeeping (§15.4, §16.2). Singleton row with id == 1.
+public struct DJVectorMatrixMeta: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
+    public var id: Int64
+    public var rowCount: Int
+    public var tombstoneCount: Int
+    public var dims: Int
+    public var tier: String
+    public var lastCompactedAt: Date?
+
+    public init(id: Int64, rowCount: Int, tombstoneCount: Int, dims: Int,
+                tier: String, lastCompactedAt: Date?) {
+        self.id = id
+        self.rowCount = rowCount
+        self.tombstoneCount = tombstoneCount
+        self.dims = dims
+        self.tier = tier
+        self.lastCompactedAt = lastCompactedAt
+    }
+    public static let databaseTableName = "vector_matrix_meta"
+}
