@@ -214,9 +214,16 @@ _To be filled in as commits land: files changed, tests run, intentional deviatio
 
 | Commit | Status | Notes |
 |---|---|---|
-| Plan doc | — | — |
-| 1.1 decode+loudness | — | — |
-| 1.2 STFT+features+onsets | — | — |
-| 1.3 tempo+beats+downbeats | — | — |
-| 1.4 key+phrase+energy+waveform | — | — |
-| 1.5 coordinator+governor+screens | — | — |
+| Plan doc | done | `dd9cc35` |
+| 1.1 decode+loudness | done | `4c27407` — 769 tests green |
+| 1.2 STFT+features+onsets | done | `b5f2270` — 781 tests green |
+| 1.3 tempo+beats+downbeats | done | `753f2a3` — 793 tests green; comb now interpolates fractional lags; rigid rephase + half-period onset snap |
+| 1.4 key+phrase+energy+waveform | done | `feat(dj): key detection…` — 812 tests green; chroma folds FFT bins directly (F.6), Foote checkerboard sign corrected, plateau-aware peak-pick |
+| 1.5 coordinator+governor+screens | done | `feat(dj): analysis coordinator…` — 833 tests green |
+
+**Intentional deviations:** (a) onset `thresholdWindow` 16 → 8 frames (0.68 s exceeded
+0.5 s beat spacing at DJ tempos); (b) beat refine window widened to half the beat period
+for the rigid constant-tempo grid; (c) chroma uses direct bin→pitch-class folding per
+App. F.6 rather than a separate CQT kernel; (d) `AnalysisModel`/`AnalysisView` live under
+`Features/Ingest/` (the app target) and are covered by model-level + smoke tests, not the
+UI-regression lanes (unchanged in M1).
