@@ -114,6 +114,88 @@ public enum AnalysisBlobLayouts {
         return (count, frameRateHz, values)
     }
 
+    // MARK: - EnergyCurve
+
+    /// Layout: `{u32 magic=0x45524759, u16 version, u16 _reserved, u32 count, f32 hopSeconds}`
+    /// then `count × f32` in [0,1] (Appendix C).
+    public static func encodeEnergyCurve(_ curve: [Float],
+                                         hopSeconds: Double,
+                                         version: Int) -> Data {
+        var data = Data()
+        appendMagic("YGRE", to: &data)
+        appendU16(UInt16(version), to: &data)
+        appendU16(0, to: &data)
+        appendU32(UInt32(curve.count), to: &data)
+        appendF32(Float(hopSeconds), to: &data)
+        for v in curve { appendF32(v, to: &data) }
+        return data
+    }
+
+    public static func decodeEnergyCurve(_ data: Data) throws -> (count: Int, hopSeconds: Double, values: [Float]) {
+        var reader = DataReader(data)
+        guard let magic = reader.read4(), magic == "YGRE" else { throw BlobError.badMagic }
+        _ = try reader.u16()   // version
+        _ = try reader.u16()   // reserved
+        let count = Int(try reader.u32())
+        let hopSeconds = Double(try reader.f32())
+        var values: [Float] = []
+        values.reserveCapacity(count)
+        for _ in 0..<count { values.append(try reader.f32()) }
+        return (count, hopSeconds, values)
+    }
+
+    // MARK: - WaveformPyramid
+
+    /// Layout: `{u32 magic=0x59465057, u16 version, u16 levels, u32 baseSamplesPerBin,
+    /// u32 sampleRate, u32 bandCount}` then per level:
+    /// `{u32 binCount}` then `binCount × {f32 min, f32 max, f32 rms, [bandCount × f32 rms]}`
+    public static func encodeWaveformPyramid(_ pyramid: WaveformPyramid,
+                                             version: Int) -> Data {
+        var data = Data()
+        appendMagic("WFPY", to: &data)
+        appendU16(UInt16(version), to: &data)
+        appendU16(UInt16(pyramid.levels.count), to: &data)
+        appendU32(UInt32(pyramid.baseSamplesPerBin), to: &data)
+        appendU32(UInt32(pyramid.sampleRate), to: &data)
+        let bandCount = pyramid.levels.first?.first?.bandRMS.count ?? 0
+        appendU32(UInt32(bandCount), to: &data)
+        for level in pyramid.levels {
+            appendU32(UInt32(level.count), to: &data)
+            for bin in level {
+                appendF32(bin.min, to: &data)
+                appendF32(bin.max, to: &data)
+                appendF32(bin.rms, to: &data)
+                for b in bin.bandRMS { appendF32(b, to: &data) }
+            }
+        }
+        return data
+    }
+
+    public static func decodeWaveformPyramid(_ data: Data) throws -> (levels: [[WaveformBin]], sampleRate: Double, baseSamplesPerBin: Int) {
+        var reader = DataReader(data)
+        guard let magic = reader.read4(), magic == "WFPY" else { throw BlobError.badMagic }
+        _ = try reader.u16()   // version
+        let levelCount = Int(try reader.u16())
+        let baseSamplesPerBin = Int(try reader.u32())
+        let sampleRate = Double(try reader.u32())
+        let bandCount = Int(try reader.u32())
+        var levels: [[WaveformBin]] = []
+        for _ in 0..<levelCount {
+            let binCount = Int(try reader.u32())
+            var level: [WaveformBin] = []
+            for _ in 0..<binCount {
+                let mn = try reader.f32()
+                let mx = try reader.f32()
+                let rms = try reader.f32()
+                var bands: [Float] = []
+                for _ in 0..<bandCount { bands.append(try reader.f32()) }
+                level.append(WaveformBin(min: mn, max: mx, rms: rms, bandRMS: bands))
+            }
+            levels.append(level)
+        }
+        return (levels, sampleRate, baseSamplesPerBin)
+    }
+
     // MARK: - Helpers
 
     public enum BlobError: Error { case badMagic }
