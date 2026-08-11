@@ -75,6 +75,20 @@ public struct DJTrackRepository: Sendable {
         }
     }
 
+    /// One-shot fetch of specific rows, preserving `ids` order (§18.2). Used by
+    /// the semantic search re-rank, which needs the pool's rows in scan order.
+    public func tracks(ids: [Int64]) throws -> [DJTrackRow] {
+        guard !ids.isEmpty else { return [] }
+        let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ",")
+        let sql = Self.baseListingSQL + " WHERE t.id IN (\(placeholders)) GROUP BY t.id"
+        let rows = try pool.read { db in
+            try SQLRequest<DJTrackRow>(sql: sql, arguments: StatementArguments(ids)).fetchAll(db)
+        }
+        var byID: [Int64: DJTrackRow] = [:]
+        for row in rows { byID[row.id] = row }
+        return ids.compactMap { byID[$0] }
+    }
+
     /// Live listing. Emits the current rows immediately, then re-emits on any
     /// change to the tracked tables. Cancelling the stream stops the observation.
     public func observeAll(_ query: LibraryQuery) -> AsyncStream<[DJTrackRow]> {

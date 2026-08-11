@@ -255,7 +255,8 @@ public struct DJEmbeddingVersion: Codable, FetchableRecord, MutablePersistableRe
 
 /// One track's pooled whole-track vector, int8-quantized (§15.4, §16.6).
 /// `vector` is raw `Int8[dims]` — L2-normalized then quantized, no header.
-public struct DJTrackEmbedding: Codable, FetchableRecord, MutablePersistableRecord, Equatable {
+public struct DJTrackEmbedding: Codable, FetchableRecord, MutablePersistableRecord,
+                                Equatable, Sendable {
     public var trackID: Int64
     public var dims: Int
     public var vector: Data

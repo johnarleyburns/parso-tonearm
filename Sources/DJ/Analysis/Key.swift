@@ -76,7 +76,7 @@ public struct KeyEstimate: Equatable, Sendable {
 
 /// Camelot key notation (Appendix B): a wheel number 1...12 and a letter
 /// A (minor) / B (major). Adjacent numbers on the wheel are harmonically close.
-public struct CamelotKey: Hashable, Sendable {
+public struct CamelotKey: Hashable, Codable, Sendable {
     public var number: Int
     public var letter: Character
 
@@ -85,7 +85,34 @@ public struct CamelotKey: Hashable, Sendable {
         self.letter = letter
     }
 
+    /// Parse a stored Camelot code like "8A" or "12B". The letter is required;
+    /// the number is 1...12. Returns nil for anything else.
+    public init?(code: String) {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let letter = trimmed.last, letter == "A" || letter == "B" else { return nil }
+        let numberString = trimmed.dropLast()
+        guard let number = Int(numberString), (1...12).contains(number) else { return nil }
+        self.init(number: number, letter: letter)
+    }
+
     public var code: String { "\(number)\(letter)" }
+
+    // MARK: Codable — encoded as the "8A" code string, which round-trips and
+    // keeps `VibeQuery`'s synthesized Codable unambiguous.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let code = try container.decode(String.self)
+        guard let parsed = CamelotKey(code: code) else {
+            throw DecodingError.dataCorruptedError(in: container,
+                debugDescription: "Invalid Camelot code: \(code)")
+        }
+        self = parsed
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(code)
+    }
 
     /// The relative-major/minor partner (same number, other letter).
     public var relative: CamelotKey {
