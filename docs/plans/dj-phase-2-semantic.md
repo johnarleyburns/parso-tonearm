@@ -258,7 +258,7 @@ _To be filled in as commits land: files changed, tests run, intentional deviatio
 | Plan doc | pending | `docs/plans/dj-phase-2-semantic.md` |
 | Model conversion (§2.1) | done | real weights in-repo + verified (audio cos ≥ 0.9997, text ≥ 0.9999, retrieval intact); `tools/clap-coreml/`, ODR tags wired |
 | 2.1 schema+preprocess+model seam+ODR | done | `DJMigrations+v3`, `DJSchema`/`DJRecords`/`AnalysisVersions` updated; `Semantic/` (Preprocess, RoBERTaTokenizer, CLAPEmbedder, EmbeddingModel, ModelResourceService); fixtures via `tools/clap-coreml/golden_frontend.py`; 34 targeted tests green (Preprocess golden 0.5 dB tolerance, windows align by hop for interior frames); checkpoint purged |
-| 2.2 Tier A store+pooling+upsert | pending | benchmark ns/row → decides 2.6 |
+| 2.2 Tier A store+pooling+upsert | done | `Quantization`, `Pooling`, `VectorStore`/`VectorStoreTierA` (mmap scan, tombstones, compaction, byte-identical rebuild), `EmbeddingCoordinator` + `AnalyzePipeline.embed`; 27 targeted tests green; **benchmark 30k×512 scan = 17.6 ms (588 ns/row), under the 120 ms FR-SEM-3 target** |
 | 2.3 recall@10 ≥ 0.95 gate | pending | fallback f16 if it fails |
 | 2.4 ranking+search service | pending | |
 | 2.5 Vibe Search UI+smart crates | pending | |

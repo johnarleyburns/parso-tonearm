@@ -159,6 +159,36 @@ public enum AnalyzePipeline {
             self.waveformLevels = waveformLevels
         }
     }
+
+    /// Stage-2 embedding pass: decode → log-mel → encode → pool (§27.1–27.4).
+    /// Deterministic end-to-end (NFR-DET-3); the embedder actor serializes the
+    /// encoder, so this is concurrency-1 regardless of callers.
+    public static func embed(url: URL, embedder: CLAPEmbedder) async throws -> PooledEmbedding {
+        let pcm = try AudioDecoder.decode(url)
+        let windows = try Preprocess.logMel(pcm: pcm, spec: embedder.spec)
+        let windowVectors = try await embedder.embedWindows(windows)
+        // §27.4 energy blend: mean log-mel magnitude per window — a §25-loudness
+        // proxy; Stage-1's RMS curve can refine it later without ABI change.
+        let energies = windows.map { window in
+            window.logMel.reduce(0, +) / Float(max(1, window.logMel.count))
+        }
+        let pooled = Pooling.pool(windowVectors, strategy: embedder.spec.pooling,
+                                  energy: energies)
+        return PooledEmbedding(pooled: pooled, windowVectors: windowVectors)
+    }
+
+    /// Stage-2 aggregate: the pooled whole-track vector plus per-window vectors.
+    /// Only `pooled` is persisted in commit 2.2; windows feed the crate-scoped
+    /// §16.4 work later.
+    public struct PooledEmbedding: Sendable {
+        public let pooled: [Float]
+        public let windowVectors: [[Float]]
+
+        public init(pooled: [Float], windowVectors: [[Float]]) {
+            self.pooled = pooled
+            self.windowVectors = windowVectors
+        }
+    }
 }
 
 /// Progress emitted by the coordinator (§41.3).
