@@ -4,11 +4,22 @@ import UniformTypeIdentifiers
 /// Bare library list (spec §41.2, mockup `ipad/02-library.html`): the track
 /// table with title/artist/album/BPM/key/analysis status, a single search field,
 /// and an "Add music" folder importer. Remote providers, crates and the analysis
-/// health cards arrive in later milestones.
+/// health cards arrive in later milestones. Vibe Search is reachable from the
+/// toolbar ("Find by feel") and per-track "More like this" (audio-to-audio,
+/// FR-SEM-7) — both free.
 public struct LibraryView: View {
     @StateObject private var model: LibraryModel
     @State private var showFolderImporter = false
     @State private var showImportSummary = false
+    @State private var vibeDestination: VibeDestination?
+    @State private var vibeModel: VibeSearchModel?
+
+    /// Where a Vibe Search navigation lands: a fresh query, or audio-to-audio
+    /// seeded by a track row.
+    public enum VibeDestination: Hashable {
+        case fresh
+        case moreLike(Int64)
+    }
 
     public init(store: DJLibraryStore = .shared) {
         _model = StateObject(wrappedValue: LibraryModel(store: store))
@@ -29,12 +40,27 @@ public struct LibraryView: View {
                 } else {
                     List(model.filteredRows) { row in
                         LibraryTrackRowView(row: row)
+                            .contextMenu {
+                                Button {
+                                    openVibeSearch(.moreLike(row.id))
+                                } label: {
+                                    Label("More like this", systemImage: "sparkle.magnifyingglass")
+                                }
+                            }
                     }
                     .listStyle(.inset)
                 }
             }
             .navigationTitle("Music")
             .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        openVibeSearch(.fresh)
+                    } label: {
+                        Label("Find by feel", systemImage: "sparkle.magnifyingglass")
+                    }
+                    .accessibilityLabel("Find by feel")
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showFolderImporter = true
@@ -60,8 +86,26 @@ public struct LibraryView: View {
             } message: { summary in
                 Text("Added \(summary.added) tracks. Skipped \(summary.skipped).")
             }
+            .navigationDestination(item: $vibeDestination) { destination in
+                if let vibeModel {
+                    VibeSearchView(model: vibeModel)
+                }
+            }
             .task { model.start() }
             .onDisappear { model.stop() }
+        }
+    }
+
+    /// Lazily assemble the search stack on first use; a missing store is an
+    /// honest absence (FR-SEM-6) and simply leaves the entry points inert.
+    private func openVibeSearch(_ destination: VibeDestination) {
+        if vibeModel == nil {
+            vibeModel = VibeSearchAssembly.makeModel(pool: model.store.pool)
+        }
+        guard let vibeModel else { return }
+        vibeDestination = destination
+        if case .moreLike(let trackID) = destination {
+            Task { await vibeModel.searchSimilar(to: trackID) }
         }
     }
 }
