@@ -24,19 +24,23 @@ downloaded. FR-SEM-1..8, AT-SEARCH-\*, AT-SEM-6. `make test-swift` green; app bu
 
 ## 2 · Resolved spec-vs-repo decisions (recorded up front)
 
-1. **The model seam — no CLAP weights exist in this repo (spec gap).** §27.1/Appendix D assumes
-   converted `.mlpackage` files produced by a tools repo; none are in-repo, and ODR tags
-   (`clap-text`, `clap-audio`, §27.1a) carry no content until the user lands real weights.
-   **Resolution:** `CLAPEmbedder` talks to a `SemanticModel` protocol with two conformances:
-   `CoreMLSemanticModel` (loads `.mlpackage` from an ODR-provided URL; compiles and ships, but
-   reports "not available" until a real file exists — which is exactly the FR-SEM-6 behaviour) and
-   `DeterministicFakeSemanticModel` (seeded, hash-based pseudo-embedding, **tests and goldens
-   only**, never production). Everything below the protocol — preprocess, pooling, quantization,
-   store, search, UI — is identical for both. Production without tags is the required degradation
-   (fully functional, semantic features disabled, honest UI), exercised in tests. The real weights
-   land later as ODR assets owned by the user/tools repo; the audit table (§9) records that
-   hand-off. **The `embedding` stage version lands at 1 in commit 2.1** because an implementation
-   can now run it (against the seam), and `AnalysisVersions`' long-standing exclusion is lifted.
+1. **The model seam — real CLAP weights are in-repo.** §27.1/Appendix D assumes converted
+   `.mlpackage` files produced by a tools repo; they now exist: the official LAION-CLAP music
+   checkpoint (`lukewys/laion_clap` → `music_audioset_epoch_15_esc_90.14.pt`, HTSAT-base,
+   Apache-2.0) is converted (FP16) and verified (audio cosine ≥ 0.9997, text ≥ 0.9999,
+   cross-modal retrieval intact) into `Resources/Models/CLAPAudioEncoder.mlpackage` (137 MB,
+   ODR `clap-audio`) and `Resources/Models/CLAPTextEncoder.mlpackage` (240 MB, ODR `clap-text`);
+   the mel filterbank + RoBERTa vocab/merges live bundled in `Resources/CLAP/`. Reproduction
+   tooling is in `tools/clap-coreml/`. **`CLAPEmbedder` still talks to a `SemanticModel`
+   protocol** with two conformances: `CoreMLSemanticModel` (loads `.mlpackage` from an
+   ODR-provided URL; compiles and ships, but reports "not available" until the tag is fetched —
+   which is exactly the FR-SEM-6 behaviour) and `DeterministicFakeSemanticModel` (seeded,
+   hash-based pseudo-embedding, **tests and goldens only**, never production). Everything below
+   the protocol — preprocess, pooling, quantization, store, search, UI — is identical for both.
+   Production without tags is the required degradation (fully functional, semantic features
+   disabled, honest UI), exercised in tests. **The `embedding` stage version lands at 1 in commit
+   2.1** because an implementation can now run it, and `AnalysisVersions`' long-standing
+   exclusion is lifted.
 2. **`vectors.i8` layout — §15.7a is referenced (§16.2, §16.7, G.4) but never defined.** Define
    it here, following §15.7 conventions: a single append-only file at
    `Caches/TonearmDJ/vectors.i8`, row-major `Int8[dims]`, no header, dims from
@@ -55,9 +59,11 @@ downloaded. FR-SEM-1..8, AT-SEARCH-\*, AT-SEM-6. `make test-swift` green; app bu
    `DJSchema.migrationOrder` becomes `["dj_v1", "dj_v2", "dj_v3"]`. No existing table changes.
 5. **Preprocessing parameters are model-specified.** `Preprocess` is a pure
    `(PCMBuffer, EmbeddingModelSpec) → [MelWindow]`; the spec (sample rate, FFT/mel params,
-   window/hop seconds) comes from the active model. The fake uses a fixed deterministic spec and
-   goldens pin it; when the real model lands, its spec replaces the fake's and goldens re-pin
-   with an `embedding_version` bump (§27.1).
+   window/hop seconds) comes from the active model. The real model's spec (from
+   `model_spec.json`, `tools/clap-coreml/`) is: 48 kHz, 10 s window / 5 s hop, FFT 1024 / hop 480,
+   **64 librosa-slaney mel bins over 50–14000 Hz**, 1001 frames, 512-D L2-normed embeddings,
+   text max length 77. The fake uses a fixed deterministic spec and goldens pin it; the real
+   spec replaces it in commit 2.1 with an `embedding_version` bump if ever changed (§27.1).
 6. **The embedding stage is governor-gated and availability-gated.** The coordinator runs the
    `.embeddings` lane only when the audio model is actually available (`ModelResourceService`),
    and never enqueues tracks whose `embeddingVersion` is current. The ANE serializes predictions
@@ -128,8 +134,9 @@ matrix is a derived index rebuilt from it on version change (§16.7).
 - `AnalysisVersions.embedding = 1` + descriptor; seed the `embedding_version` registry row
   (modelName from the active provider; dims 512; window 10 s; hop 5 s; pooling `attention`).
 - **ODR tags:** declare `clap-text` + `clap-audio` on the app target (project.yml / Info.plist)
-  so `NSBundleResourceRequest` is wired; `xcodegen generate` and commit. No content behind the
-  tags yet — that is the user's model hand-off.
+  so `NSBundleResourceRequest` is wired; `xcodegen generate` and commit. The tags **carry content**
+  (the converted `Resources/Models/*.mlpackage` from this plan's §2.1); tests still treat tags as
+  present/absent deterministically (macOS `swift test` has no ODR system).
 - Tests: `PreprocessTests` (golden log-mel for a synthetic signal; spec-parameter determinism),
   `FakeEmbeddingTests` (determinism, L2 unit norm, seed stability), `ModelResourceServiceTests`
   (absent tag → honest state, lease/release, progress, re-request after purge),
@@ -249,6 +256,7 @@ _To be filled in as commits land: files changed, tests run, intentional deviatio
 | Commit | Status | Notes |
 |---|---|---|
 | Plan doc | pending | `docs/plans/dj-phase-2-semantic.md` |
+| Model conversion (§2.1) | done | real weights in-repo + verified (audio cos ≥ 0.9997, text ≥ 0.9999, retrieval intact); `tools/clap-coreml/`, ODR tags wired |
 | 2.1 schema+preprocess+model seam+ODR | pending | |
 | 2.2 Tier A store+pooling+upsert | pending | benchmark ns/row → decides 2.6 |
 | 2.3 recall@10 ≥ 0.95 gate | pending | fallback f16 if it fails |
@@ -256,6 +264,6 @@ _To be filled in as commits land: files changed, tests run, intentional deviatio
 | 2.5 Vibe Search UI+smart crates | pending | |
 | 2.6 Tier B sqlite-vec | deferred | blocked on §50.3 real-device measurement (user-owned) |
 
-**Open items owned by the user:** the converted CLAP `.mlpackage` files as ODR content for
-`clap-text`/`clap-audio`; the A17 real-device FR-SEM-3/§50.3 measurement that settles Tier B.
-Until then the shipping posture is Tier A with honest absence states — exactly §16.1 and FR-SEM-6.
+**Open items owned by the user:** the A17 real-device FR-SEM-3/§50.3 measurement that settles
+Tier B. Until then the shipping posture is Tier A with honest absence states — exactly §16.1 and
+FR-SEM-6. (Model weights are no longer an open item; they are in-repo as ODR content.)

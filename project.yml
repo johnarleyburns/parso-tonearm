@@ -49,6 +49,18 @@ targets:
           - "WatchPlayback/**"
           - "WatchSync/**"
       - path: Resources
+        excludes:
+          - "Models/**"
+      - path: Resources/Models/CLAPAudioEncoder.mlpackage
+        type: folder
+        buildPhase: resources
+        resourceTags:
+          - clap-audio
+      - path: Resources/Models/CLAPTextEncoder.mlpackage
+        type: folder
+        buildPhase: resources
+        resourceTags:
+          - clap-text
     dependencies:
       - package: TonearmCore
       - package: TonearmCore
