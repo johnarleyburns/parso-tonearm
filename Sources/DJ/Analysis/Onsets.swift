@@ -9,7 +9,10 @@ public struct OnsetConfig: Sendable, Equatable {
     /// Window for the moving mean used to remove slow drift (in frames).
     public var meanRemovalWindow: Int = 16
     /// Window for the adaptive peak-picking threshold (in frames).
-    public var thresholdWindow: Int = 16
+    /// Must be smaller than the shortest beat interval you expect: at the DJ
+    /// tempo floor (~60 BPM) a beat is ~19 frames at 23.4 fps, so 8 frames
+    /// (~0.34 s) stays safely under it.
+    public var thresholdWindow: Int = 8
     /// Threshold multiple of the local standard deviation above the local mean.
     public var thresholdK: Float = 2.0
     /// Minimum inter-onset gap in seconds (refractory period).
@@ -18,7 +21,7 @@ public struct OnsetConfig: Sendable, Equatable {
     public init(bands: [ClosedRange<Float>] = [20...120, 120...2_000, 2_000...16_000],
                 bandWeights: [Float] = [1.0, 0.8, 0.6],
                 meanRemovalWindow: Int = 16,
-                thresholdWindow: Int = 16,
+                thresholdWindow: Int = 8,
                 thresholdK: Float = 2.0,
                 minGapSeconds: Double = 0.03) {
         self.bands = bands
@@ -117,8 +120,11 @@ public enum OnsetDetector {
             let threshold = mean + config.thresholdK * sqrt(variance)
 
             if v >= threshold && (i - last) >= minGap {
+                // Sub-frame parabolic refinement so peak times are not locked
+                // to the frame grid (§23.1, FR-ANL-4).
+                let delta = BeatTracker.subFrameOffset(envelope, at: i) ?? 0
                 peaks.append(OnsetPeak(frameIndex: i,
-                                       timeSeconds: Double(i) / frameRateHz,
+                                       timeSeconds: (Double(i) + Double(delta)) / frameRateHz,
                                        strength: v))
                 last = i
             }
