@@ -830,9 +830,40 @@ final class AppState: ObservableObject {
     }
 
     func playSource(_ source: Source, startAt: Int = 0) async {
+        if isBrowseableRemote(source) {
+            try? await playRemoteScope(source: source, path: "", startAt: startAt, shuffled: false)
+            return
+        }
         let tracks = await tracks(for: source)
         guard !tracks.isEmpty else { return }
         AudioPlayer.shared.play(tracks: tracks, startAt: startAt, source: .source(source))
+    }
+
+    /// Plays from the current browse scope of a remote library. If the current
+    /// level holds no audio nodes (library-level artists, artist-level albums),
+    /// it descends to the first playable tracks — library level starts with the
+    /// first track of the first album of the first artist, artist level with the
+    /// first album's tracks — so "Play" always starts music at any depth.
+    func playRemoteScope(source: Source, path: String, startAt: Int = 0, shuffled: Bool = false) async throws {
+        let provider = try remoteProvider(for: source)
+        let nodes = await RemoteScopePlayback.firstAudioNodes(in: provider, path: path)
+        guard !nodes.isEmpty else { return }
+        var rows = try await remoteTrackRows(source: source, nodes: nodes)
+        if shuffled {
+            AudioPlayer.shared.shuffle = true
+            rows.shuffle()
+        }
+        AudioPlayer.shared.play(tracks: rows, startAt: min(startAt, max(rows.count - 1, 0)), source: .source(source))
+    }
+
+    private func isBrowseableRemote(_ source: Source) -> Bool {
+        guard RemoteLibraryAccessPolicy.isRemoteLibrary(source.kind) else { return false }
+        switch source.kind {
+        case .iaItem, .iaList, .iaCollection, .iaFavorites:
+            return false
+        default:
+            return true
+        }
     }
 
     // MARK: - Favorites (TF7)

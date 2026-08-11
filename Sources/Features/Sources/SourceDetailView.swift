@@ -226,7 +226,6 @@ struct SourceDetailView: View {
                     ctaLabel(icon: "shuffle", title: "Shuffle")
                 }
             }
-            .opacity(remoteNodes.contains { $0.kind == .audio } ? 1 : 0.45)
         } else {
             HStack(spacing: 10) {
                 Button { player.play(tracks: tracks, startAt: 0, source: .source(source)) } label: {
@@ -296,8 +295,16 @@ struct SourceDetailView: View {
 
     private func playVisibleRemote(startAt: Int, shuffled: Bool) async {
         let audioNodes = remoteNodes.filter { $0.kind == .audio }
-        guard !audioNodes.isEmpty else { return }
-        await playRemote(nodes: audioNodes, startAt: startAt, shuffled: shuffled)
+        if !audioNodes.isEmpty {
+            await playRemote(nodes: audioNodes, startAt: startAt, shuffled: shuffled)
+            return
+        }
+        do {
+            try await appState.playRemoteScope(source: source, path: remotePath,
+                                               startAt: startAt, shuffled: shuffled)
+        } catch {
+            remoteError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
     }
 
     private func playRemote(nodes: [RemoteNode], startAt: Int, shuffled: Bool) async {

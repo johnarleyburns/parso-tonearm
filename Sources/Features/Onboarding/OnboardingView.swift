@@ -5,6 +5,7 @@ struct OnboardingSourceOption: Identifiable {
     enum Kind {
         case archiveOrg
         case subsonicDemo
+        case jellyfinDemo
     }
 
     let id = UUID()
@@ -50,7 +51,13 @@ struct OnboardingView: View {
               subtitle: "Subsonic · an instant music collection",
               url: "https://demo.navidrome.org",
               username: "demo",
-              password: "demo")
+              password: "demo"),
+        .init(kind: .jellyfinDemo,
+              title: "Jellyfin — Demo Server",
+              subtitle: "Jellyfin · an instant music collection",
+              url: "https://demo.jellyfin.org/stable",
+              username: "demo",
+              password: "")
     ]
 
     private let intros: [(icon: String, title: String, body: String)] = [
@@ -170,7 +177,7 @@ struct OnboardingView: View {
             Text("Start your Music")
                 .font(.system(size: 24, weight: .heavy)).kerning(-0.5)
                 .padding(.top, 40)
-            Text("These are verified public-domain / CC0 recordings,\nplus a Subsonic demo server to hear a full library.\nWe’ll add the ones you keep checked.")
+            Text("These are verified public-domain / CC0 recordings,\nplus Subsonic and Jellyfin demo servers to hear full libraries.\nWe’ll add the ones you keep checked.")
                 .font(.system(size: 13)).foregroundStyle(Palette.ink2)
                 .multilineTextAlignment(.center).padding(.top, 6)
 
@@ -235,13 +242,26 @@ struct OnboardingView: View {
         if !archiveURLs.isEmpty {
             await appState.completeOnboarding(sourceURLs: archiveURLs)
         }
-        for option in selected where option.kind == .subsonicDemo {
-            do {
-                try await appState.addSubsonicServer(url: option.url,
-                                                     username: option.username ?? "",
-                                                     password: option.password ?? "")
-            } catch {
-                print("onboarding add subsonic demo error: \(error)")
+        for option in selected {
+            switch option.kind {
+            case .subsonicDemo:
+                do {
+                    try await appState.addSubsonicServer(url: option.url,
+                                                         username: option.username ?? "",
+                                                         password: option.password ?? "")
+                } catch {
+                    print("onboarding add subsonic demo error: \(error)")
+                }
+            case .jellyfinDemo:
+                do {
+                    try await appState.addJellyfinServer(url: option.url,
+                                                         username: option.username ?? "",
+                                                         password: option.password ?? "")
+                } catch {
+                    print("onboarding add jellyfin demo error: \(error)")
+                }
+            case .archiveOrg:
+                break
             }
         }
         appState.didOnboard = true

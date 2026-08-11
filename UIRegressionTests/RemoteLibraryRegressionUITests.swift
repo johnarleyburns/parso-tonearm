@@ -113,6 +113,44 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         app.assertPlaybackAdvances()
     }
 
+    /// D-10b · Pressing Play must start music from ANY browse depth. At the
+    /// library level it plays the first track of the first album of the first
+    /// artist; at the artist level the first album's tracks. Regression for the
+    /// "Play does nothing / greyed out" defect above the album level.
+    func testSubsonicPlayButtonPlaysAtLibraryAndArtistLevel() throws {
+        let creds = try RegressionEnv.require(
+            "PH_TEST_SUBSONIC_DEMO_URL", "PH_TEST_SUBSONIC_DEMO_USERNAME", "PH_TEST_SUBSONIC_DEMO_PASSWORD",
+            lane: "Subsonic demo play-at-any-level (D-10b)")
+        app = .launchForRegression()
+        app.buttons["Add"].tap()
+        let remote = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Add Remote Library")).firstMatch
+        XCTAssertTrue(remote.waitForExistence(timeout: 10)); remote.tap()
+        app.buttons["Remote Library Connector subsonic"].tap()
+        let url = app.textFields["Add Remote Library SERVER URL"]
+        let user = app.textFields["Add Remote Library USERNAME"]
+        let password = app.secureTextFields["Add Remote Library PASSWORD"]
+        XCTAssertTrue(url.waitForExistence(timeout: 10)); url.tap(); app.typeText(creds["PH_TEST_SUBSONIC_DEMO_URL"]!)
+        user.tap(); app.typeText(creds["PH_TEST_SUBSONIC_DEMO_USERNAME"]!)
+        password.tap(); app.typeText(creds["PH_TEST_SUBSONIC_DEMO_PASSWORD"]!)
+        app.buttons["Connect Subsonic"].tap()
+        let close = app.buttons["Close Add Remote Library"]
+        if close.waitForExistence(timeout: 3) { close.tap() }
+
+        let source = app.element("Source demo.navidrome.org")
+        XCTAssertTrue(source.waitForExistence(timeout: 30)); source.tap()
+
+        let play = app.buttons["Play"].firstMatch
+        XCTAssertTrue(play.waitForExistence(timeout: 10))
+        play.tap()
+        app.assertPlaybackAdvances(timeout: 60)
+
+        let artist = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "remote.node.")).firstMatch
+        XCTAssertTrue(artist.waitForExistence(timeout: 30)); artist.tap()
+        XCTAssertTrue(play.waitForExistence(timeout: 10))
+        play.tap()
+        app.assertPlaybackAdvances(timeout: 60)
+    }
+
     // MARK: - WebDAV / SMB (local servers)
 
     /// D-11 · WebDAV against the local container.
