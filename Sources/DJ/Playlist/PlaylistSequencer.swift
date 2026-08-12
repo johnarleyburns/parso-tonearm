@@ -498,8 +498,10 @@ extension PlaylistSequencer {
         return true
     }
 
-    private static func validateSpacing(_ tracks: [TrackFeatures],
-                                        constraints: SequencingConstraints) -> Bool {
+    /// Public validity check over a whole sequence — the generator's replace and
+    /// reshuffle re-validate after a local change (§28A.4).
+    public static func validateSpacing(_ tracks: [TrackFeatures],
+                                       constraints: SequencingConstraints) -> Bool {
         for slot in 1..<tracks.count where !spacingOK(tracks[slot], at: slot, in: tracks,
                                                       constraints: constraints) {
             return false

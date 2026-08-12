@@ -92,6 +92,23 @@ public struct SequencingConstraints: Codable, Sendable, Equatable {
     }
 }
 
+extension SequencingConstraints {
+    /// Deterministic, canonical JSON form for `auto_playlist_brief.constraintsJSON`
+    /// (§14.3): `.sortedKeys` fixes the key order, so the same constraints always
+    /// encode to the same bytes (NFR-DET-3) and an encode → decode → encode
+    /// round-trip is byte-identical — the `byte-exact constraintsJSON` test pins.
+    public func encodedJSONString() throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(self)
+        return String(data: data, encoding: .utf8)!
+    }
+
+    public static func decodeJSON(_ string: String) throws -> SequencingConstraints {
+        try JSONDecoder().decode(SequencingConstraints.self, from: Data(string.utf8))
+    }
+}
+
 /// The weights of the objective J (§28A.1): arc adherence, semantic score,
 /// transition cost, and duration error. Pinned so two devices agree
 /// (plan §2.5); sum to 1.0.
