@@ -768,6 +768,120 @@ final class EngineOfflineTests: XCTestCase {
         return Double(crossings) * 48_000.0 / (2.0 * window)
     }
 
+    // MARK: - Sync + telemetry (commit 4.6, §32)
+
+    func testSyncAlignsBeatsOnMasterGrid() throws {
+        let gridA = DeckGrid(referenceSample: 0, bpm: 120, beatsPerBar: 4, sampleRate: 48_000)
+        let gridB = DeckGrid(referenceSample: 0, bpm: 120, beatsPerBar: 4, sampleRate: 48_000)
+        let engine = try makeEngine()
+        try engine.start()
+        defer { engine.stop() }
+
+        engine.load(.a, source: rampSource(frames: 100_000, grid: gridA).source)
+        engine.load(.b, source: rampSource(frames: 100_000, grid: gridB).source)
+        engine.play(.a)
+        engine.play(.b)
+
+        _ = try renderFrames(engine, count: 1024) // both playheads at 1024, same phase
+        engine.seek(.b, toSample: 6000, quantized: false)
+        _ = try renderFrames(engine, count: 1) // deck B jumps to 6000, then advances 1
+
+        engine.sync(.b, to: .a)
+        _ = try renderFrames(engine, count: 512)
+
+        let phaseA = gridA.beatPhase(at: Double(engine.deckPlayhead(.a)))
+        let phaseB = gridB.beatPhase(at: Double(engine.deckPlayhead(.b)))
+        XCTAssertEqual(phaseA, phaseB, accuracy: 1e-3,
+                       "sync must phase-align deck B to deck A's beat grid (AT-ENGINE-SYNC)")
+        XCTAssertTrue(engine.isSynced(.b))
+        XCTAssertEqual(engine.graph.deckRate(1), 1.0, accuracy: 1e-6,
+                       "same BPM and unity master → the synced deck plays at unity")
+    }
+
+    func testSyncRateTracksMasterPitchChangeContinuously() throws {
+        let gridA = DeckGrid(referenceSample: 0, bpm: 120, beatsPerBar: 4, sampleRate: 48_000)
+        let gridB = DeckGrid(referenceSample: 0, bpm: 100, beatsPerBar: 4, sampleRate: 48_000)
+        let engine = try makeEngine()
+        try engine.start()
+        defer { engine.stop() }
+
+        engine.load(.a, source: rampSource(frames: 100_000, grid: gridA).source)
+        engine.load(.b, source: rampSource(frames: 100_000, grid: gridB).source)
+        engine.play(.a)
+        engine.play(.b)
+        _ = try renderFrames(engine, count: 512)
+
+        engine.sync(.b, to: .a)
+        _ = try renderFrames(engine, count: 4096)
+        XCTAssertEqual(engine.graph.deckRate(1), 1.2, accuracy: 1e-4,
+                       "120 BPM / 100 BPM at unity → rate 1.2")
+
+        engine.setRate(.a, rate: 1.1) // master pitched +10% → effective 132 BPM
+        _ = try renderFrames(engine, count: 4096)
+        XCTAssertEqual(engine.graph.deckRate(1), 1.32, accuracy: 1e-4,
+                       "continuous sync tracks the master pitch change (§32.1)")
+
+        engine.unsync(.b)
+        _ = try renderFrames(engine, count: 4096)
+        XCTAssertFalse(engine.isSynced(.b))
+        XCTAssertEqual(engine.graph.deckRate(1), 1.32, accuracy: 1e-4,
+                       "unsync freezes the deck at its last synced rate (manual control)")
+    }
+
+    func testSyncBarAlignsDownbeats() throws {
+        let gridA = DeckGrid(referenceSample: 0, bpm: 120, beatsPerBar: 4, sampleRate: 48_000)
+        let gridB = DeckGrid(referenceSample: 0, bpm: 120, beatsPerBar: 4, sampleRate: 48_000)
+        let engine = try makeEngine()
+        try engine.start()
+        defer { engine.stop() }
+
+        engine.load(.a, source: rampSource(frames: 200_000, grid: gridA).source)
+        engine.load(.b, source: rampSource(frames: 200_000, grid: gridB).source)
+        engine.play(.a)
+        engine.play(.b)
+        _ = try renderFrames(engine, count: 1024)
+
+        engine.seek(.b, toSample: 48_000, quantized: false) // mid-bar-2
+        _ = try renderFrames(engine, count: 1)
+
+        engine.sync(.b, to: .a, barSync: true)
+        _ = try renderFrames(engine, count: 512)
+
+        let barA = gridA.barPhase(at: Double(engine.deckPlayhead(.a)))
+        let barB = gridB.barPhase(at: Double(engine.deckPlayhead(.b)))
+        XCTAssertEqual(barA, barB, accuracy: 1e-3,
+                       "bar sync aligns downbeats — bar 1 to bar 1 (§32.2)")
+    }
+
+    func testTelemetryPublishesMasterClockAndDeckReadouts() throws {
+        let grid = DeckGrid(referenceSample: 0, bpm: 120, beatsPerBar: 4, sampleRate: 48_000)
+        let engine = try makeEngine()
+        try engine.start()
+        defer { engine.stop() }
+
+        engine.load(.a, source: rampSource(frames: 100_000, grid: grid).source)
+        engine.play(.a)
+        _ = try engine.renderMono(1000)
+
+        let snapshot = engine.graph.masterClock
+        XCTAssertEqual(snapshot.masterSample, 1000, "the master clock counts absolute frames")
+        XCTAssertEqual(snapshot.masterBPM, 120, accuracy: 1e-6, "effective BPM from grid × rate")
+        XCTAssertEqual(snapshot.downbeatPhase, grid.barPhase(at: 1000), accuracy: 1e-6)
+
+        let telemetry = engine.sampleTelemetry()
+        XCTAssertEqual(telemetry.masterSample, 1000)
+        XCTAssertEqual(telemetry.deckA.playheadSample, 1000)
+        XCTAssertEqual(telemetry.deckA.bpmEffective, 120, accuracy: 1e-6)
+        XCTAssertEqual(telemetry.deckA.phase, grid.beatPhase(at: 1000), accuracy: 1e-6)
+        XCTAssertTrue(telemetry.deckA.playing)
+        XCTAssertFalse(telemetry.deckA.synced)
+        XCTAssertGreaterThan(telemetry.deckA.level, 0, "a playing deck publishes a peak level")
+        XCTAssertEqual(telemetry.masterLevel, telemetry.deckA.level, accuracy: 0.001,
+                       "one deck, no crossfader → the bus equals the deck")
+        XCTAssertGreaterThan(telemetry.renderLoad, 0)
+        XCTAssertLessThanOrEqual(telemetry.renderLoad, 1)
+    }
+
     // MARK: - Helpers
 
     private func makeEngine(ringCapacity: Int = 16,

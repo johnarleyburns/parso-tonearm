@@ -53,6 +53,14 @@ public final class PerformanceEngine {
     public var guardWasActive: Bool { graph.guardWasActive }
     public func deckPlayhead(_ deck: Deck) -> Int64 { graph.deckPlayhead(deck.rawValue) }
 
+    /// The buffer period in milliseconds (mockup `ipad/07`'s "256 · 11.4 ms"
+    /// readout, from the graph's granted buffer — §34.2).
+    public var bufferPeriodMillis: Double { graph.bufferPeriodMillis }
+
+    /// The configured master limiter ceiling, nil when the limiter is out of
+    /// the path (§35.5).
+    public var limiterCeiling: Float? { graph.limiterCeiling }
+
     // MARK: - Transport / loading
 
     /// Arm a pre-decoded source for a deck. Ownership of the `DeckSource`'s PCM
@@ -175,6 +183,87 @@ public final class PerformanceEngine {
     /// unity (§35.4).
     public func setCrossfader(_ position: Float, curve: CrossfaderCurve) {
         _ = graph.commandRing.tryPush(.setCrossfader(position: position, curve: curve))
+    }
+
+    // MARK: - Sync (§32, FR-ENG-4)
+
+    /// Engage beat sync: tempo-match `deck` to `master` and phase-align its
+    /// beats at the sync instant (§32.1). `barSync` aligns downbeats rather
+    /// than beats (§32.2). While engaged the render thread keeps the deck's
+    /// rate tracking the master (continuous, §32.1), so a master pitch change
+    /// moves the synced deck with it. The correction is computed purely
+    /// (`SyncEngine`) and applied as a rate command plus a scheduled,
+    /// sample-accurate nudge.
+    public func sync(_ deck: Deck, to master: Deck, barSync: Bool = false) {
+        let correction = barSync
+            ? SyncEngine.downbeatCorrection(master: clockSnapshot(master),
+                                            synced: clockSnapshot(deck),
+                                            atMasterSample: graph.masterSample)
+            : SyncEngine.correction(master: clockSnapshot(master),
+                                    synced: clockSnapshot(deck),
+                                    atMasterSample: graph.masterSample)
+        _ = graph.commandRing.tryPush(.setRate(deck: deck.rawValue, rate: correction.setRate))
+        if correction.playheadShiftSamples != 0 {
+            _ = graph.commandRing.tryPush(.syncNudge(deck: deck.rawValue,
+                                                     shiftSamples: correction.playheadShiftSamples))
+        }
+        _ = graph.commandRing.tryPush(.sync(deck: deck.rawValue, master: master.rawValue))
+    }
+
+    /// Disengage sync; the deck returns to manual rate control.
+    public func unsync(_ deck: Deck) {
+        _ = graph.commandRing.tryPush(.unsync(deck: deck.rawValue))
+    }
+
+    /// Whether beat sync is currently engaged for the deck (read from the
+    /// render thread's published state, §32.1).
+    public func isSynced(_ deck: Deck) -> Bool {
+        graph.deckIsSynced(deck.rawValue)
+    }
+
+    private func clockSnapshot(_ deck: Deck) -> SyncClock {
+        SyncClock(playheadSample: Double(deckPlayhead(deck)),
+                  grid: currentGrid(deck),
+                  rate: Double(graph.deckRate(deck.rawValue)))
+    }
+
+    // MARK: - Telemetry (§40.3, App. I.4)
+
+    /// Sample the published atomics into one telemetry value. The display-rate
+    /// pump calls this and hands the value to `pushTelemetry`; the workspace
+    /// readouts and beat-phase meter are driven by the result (§40.3).
+    public func sampleTelemetry() -> EngineTelemetry {
+        EngineTelemetry(masterSample: graph.masterSample,
+                        masterBPM: graph.masterClock.masterBPM,
+                        downbeatPhase: graph.masterClock.downbeatPhase,
+                        deckA: deckTelemetry(.a),
+                        deckB: deckTelemetry(.b),
+                        masterLevel: graph.masterLevel,
+                        renderLoad: graph.renderLoadRatio)
+    }
+
+    private func deckTelemetry(_ deck: Deck) -> EngineTelemetry.Deck {
+        let playhead = deckPlayhead(deck)
+        let clock = clockSnapshot(deck)
+        return EngineTelemetry.Deck(playheadSample: playhead,
+                                    bpmEffective: clock.effectiveBPM,
+                                    phase: clock.beatPhase(at: clock.playheadSample),
+                                    level: graph.deckLevel(deck.rawValue),
+                                    playing: graph.deckIsPlaying(deck.rawValue),
+                                    synced: graph.deckIsSynced(deck.rawValue))
+    }
+
+    /// The atomics → `AsyncStream` bridge. The pump yields sampled values here;
+    /// the session view model awaits them (App. I.4, §40.3).
+    public let telemetryStream = EngineTelemetryStream()
+
+    /// The consumer stream over `telemetryStream`.
+    public var telemetry: AsyncStream<EngineTelemetry> { telemetryStream.stream }
+
+    /// Sample the atomics and yield the value onto the telemetry stream
+    /// (display cadence, §40.3).
+    public func pushTelemetry() {
+        telemetryStream.push(sampleTelemetry())
     }
 
     // MARK: - Offline rendering (harness)

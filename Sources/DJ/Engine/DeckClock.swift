@@ -24,6 +24,21 @@ public struct DeckGrid: Sendable, Equatable {
     public var samplesPerBar: Double {
         samplesPerBeat * Double(max(beatsPerBar, 1))
     }
+
+    /// Beat phase (0 ≤ p < 1) of `sample` within its grid beat (§30.1). The
+    /// pure kernel the quantize and sync math read (§32.3).
+    public func beatPhase(at sample: Double) -> Double {
+        let offset = (sample - referenceSample).truncatingRemainder(dividingBy: samplesPerBeat)
+        let phase = offset / samplesPerBeat
+        return phase >= 0 ? phase : phase + 1
+    }
+
+    /// Bar phase (0 ≤ p < 1) of `sample` within its grid bar (§32.2).
+    public func barPhase(at sample: Double) -> Double {
+        let offset = (sample - referenceSample).truncatingRemainder(dividingBy: samplesPerBar)
+        let phase = offset / samplesPerBar
+        return phase >= 0 ? phase : phase + 1
+    }
 }
 
 /// Quantize resolution — the grid division a quantized trigger lands on (§30.3).

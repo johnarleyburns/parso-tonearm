@@ -73,6 +73,8 @@ public final class AudioGraph: @unchecked Sendable {
 
     public let sampleRate: Double
     public let channelCount: AVAudioChannelCount
+    /// The manual-rendering maximum frame count per callback (§34.1).
+    public let maximumFrameCount: AVAudioFrameCount
     /// The control channel: commands are enqueued here and drained by the
     /// render thread (§12.2).
     public let commandRing: CommandRing
@@ -93,12 +95,79 @@ public final class AudioGraph: @unchecked Sendable {
         graphState.masterSampleAtomic.load(ordering: .relaxed)
     }
 
+    /// The assembled master clock snapshot (§30.1) — master sample, effective
+    /// BPM and downbeat phase, published by the render thread each callback and
+    /// read here once per callback by the control side.
+    public var masterClock: MasterClock {
+        MasterClock(masterSample: masterSample,
+                    masterBPM: Double(graphState.masterBPMAromic.load(ordering: .relaxed)),
+                    downbeatPhase: Double(graphState.downbeatPhaseAtomic.load(ordering: .relaxed)))
+    }
+
+    /// Post-limiter master-bus peak level (0…1) from the last callback.
+    public var masterLevel: Float {
+        graphState.masterLevelAtomic.load(ordering: .relaxed)
+    }
+
     /// The most recently published playhead for a deck (0 = A, 1 = B).
     public func deckPlayhead(_ deck: UInt8) -> Int64 {
         switch deck {
         case 0: return graphState.playheadAtomicA.load(ordering: .relaxed)
         default: return graphState.playheadAtomicB.load(ordering: .relaxed)
         }
+    }
+
+    /// The most recently published playback rate for a deck (§32.1 — the sync
+    /// path reads the authoritative render-side value back).
+    public func deckRate(_ deck: UInt8) -> Float {
+        switch deck {
+        case 0: return graphState.rateAtomicA.load(ordering: .relaxed)
+        default: return graphState.rateAtomicB.load(ordering: .relaxed)
+        }
+    }
+
+    /// The most recently published post-chain peak level (0…1) for a deck.
+    public func deckLevel(_ deck: UInt8) -> Float {
+        switch deck {
+        case 0: return graphState.levelAtomicA.load(ordering: .relaxed)
+        default: return graphState.levelAtomicB.load(ordering: .relaxed)
+        }
+    }
+
+    /// Whether a deck is currently rendering (published each callback).
+    public func deckIsPlaying(_ deck: UInt8) -> Bool {
+        switch deck {
+        case 0: return graphState.playingAtomicA.load(ordering: .relaxed)
+        default: return graphState.playingAtomicB.load(ordering: .relaxed)
+        }
+    }
+
+    /// Whether beat sync is currently engaged for a deck (§32.1).
+    public func deckIsSynced(_ deck: UInt8) -> Bool {
+        switch deck {
+        case 0: return graphState.syncedAtomicA.load(ordering: .relaxed)
+        default: return graphState.syncedAtomicB.load(ordering: .relaxed)
+        }
+    }
+
+    /// Render load as time-over-buffer-period (0…1) for the last callback
+    /// (§34.3). The mockup's CPU% is this value scaled to 100.
+    public var renderLoadRatio: Double {
+        let periodNanos = UInt64((Double(maximumFrameCount) / sampleRate) * 1e9)
+        return renderLoad.loadRatio(periodNanos: periodNanos)
+    }
+
+    /// Whether a master limiter ceiling is configured (the workspace's limiter
+    /// indicator, §35.5).
+    public var limiterCeiling: Float? {
+        graphState.limiterCeiling
+    }
+
+    /// The buffer period in milliseconds (`maximumFrameCount` at `sampleRate`)
+    /// — the workspace's "256 · 11.4 ms" readout, from the graph's granted
+    /// buffer (§34.2).
+    public var bufferPeriodMillis: Double {
+        Double(maximumFrameCount) / sampleRate * 1000.0
     }
 
     /// Frames a playing deck rendered as silence because it had no source or
@@ -163,6 +232,7 @@ public final class AudioGraph: @unchecked Sendable {
                     let masterSample = graphState.clock.masterSample
                     let frames = Int(frameCount)
                     ring.drain { graphState.apply($0, masterSample: masterSample) }
+                    graphState.applyContinuousSync()
                     graphState.applyTimePitch(unitA, deck: 0)
                     graphState.renderDeckIntoOutput(0,
                                                     into: UnsafeMutableAudioBufferListPointer(outputData),
@@ -176,6 +246,7 @@ public final class AudioGraph: @unchecked Sendable {
                     let masterSample = graphState.clock.masterSample
                     let frames = Int(frameCount)
                     ring.drain { graphState.apply($0, masterSample: masterSample) }
+                    graphState.applyContinuousSync()
                     graphState.applyTimePitch(unitB, deck: 1)
                     graphState.renderDeckIntoOutput(1,
                                                     into: UnsafeMutableAudioBufferListPointer(outputData),
@@ -203,6 +274,7 @@ public final class AudioGraph: @unchecked Sendable {
                     let masterSample = graphState.clock.masterSample
                     let frames = Int(frameCount)
                     ring.drain { graphState.apply($0, masterSample: masterSample) }
+                    graphState.applyContinuousSync()
                     _ = snap.read() // acquire the current snapshot once per callback
                     graphState.renderDecks(into: UnsafeMutableAudioBufferListPointer(outputData),
                                            frames: frames)
@@ -217,6 +289,7 @@ public final class AudioGraph: @unchecked Sendable {
         }
 
         self.sampleRate = sampleRate
+        self.maximumFrameCount = configuration.maximumFrameCount
         self.engine = engine
         self.sourceNodes = sourceNodes
         self.timePitchUnits = timePitchUnits
@@ -259,7 +332,9 @@ public final class AudioGraph: @unchecked Sendable {
             // source nodes read the same pre-advance `frameStart` in a
             // callback and the timeline advances exactly once per pull.
             graphState.clock.advance(by: Int64(frameCount))
-            graphState.publishMasterSample()
+            graphState.publishMasterClock()
+            graphState.publishDeckTelemetry(0)
+            graphState.publishDeckTelemetry(1)
         }
         return buffer
     }
@@ -272,15 +347,28 @@ final class RenderGraphState: @unchecked Sendable {
     /// The master clock in absolute samples on the device timeline (§30.1).
     var clock: DeckClock
     let masterSampleAtomic = Atomic<Int64>(0)
+    let masterBPMAromic = Atomic<Float>(0)
+    let downbeatPhaseAtomic = Atomic<Float>(0)
     let starvedAtomic = Atomic<UInt64>(0)
     let playheadAtomicA = Atomic<Int64>(0)
     let playheadAtomicB = Atomic<Int64>(0)
+    let rateAtomicA = Atomic<Float>(1)
+    let rateAtomicB = Atomic<Float>(1)
+    let levelAtomicA = Atomic<Float>(0)
+    let levelAtomicB = Atomic<Float>(0)
+    let playingAtomicA = Atomic<Bool>(false)
+    let playingAtomicB = Atomic<Bool>(false)
+    let syncedAtomicA = Atomic<Bool>(false)
+    let syncedAtomicB = Atomic<Bool>(false)
+    let masterLevelAtomic = Atomic<Float>(0)
+    let limiterCeiling: Float?
     let decks: [DeckState]
     let master: MasterStage
 
     init(sampleRate: Double, channelCount: Int,
          limiterCeiling: Float?, limiterLookaheadFrames: Int) {
         clock = DeckClock(sampleRate: sampleRate)
+        self.limiterCeiling = limiterCeiling
         decks = [DeckState(sampleRate: sampleRate, channelCount: channelCount),
                  DeckState(sampleRate: sampleRate, channelCount: channelCount)]
         master = MasterStage(channelCount: channelCount, sampleRate: sampleRate,
@@ -318,25 +406,84 @@ final class RenderGraphState: @unchecked Sendable {
             renderDeck(deck, into: list, frames: frames, frameStart: frameStart)
         }
         master.limit(into: list, frames: frames)
+        publishMasterLevel(into: list, frames: frames)
         clock.advance(by: Int64(frames))
-        publishMasterSample()
+        publishMasterClock()
         publishDeckTelemetry(0)
         publishDeckTelemetry(1)
     }
 
-    /// Publish the master clock's sample position (the direct topology calls
-    /// this from the render block; the time-pitch topology from `render`).
-    func publishMasterSample() {
+    /// Publish the master clock snapshot — master sample, effective BPM and
+    /// downbeat phase — from the master deck (deck A, §30.1). The direct
+    /// topology calls this from the render block; the time-pitch topology from
+    /// `render`.
+    func publishMasterClock() {
         masterSampleAtomic.store(clock.masterSample, ordering: .relaxed)
+        guard !decks.isEmpty else {
+            masterBPMAromic.store(0, ordering: .relaxed)
+            downbeatPhaseAtomic.store(0, ordering: .relaxed)
+            return
+        }
+        let master = decks[0]
+        guard let masterSource = master.source() else {
+            masterBPMAromic.store(0, ordering: .relaxed)
+            downbeatPhaseAtomic.store(0, ordering: .relaxed)
+            return
+        }
+        masterBPMAromic.store(Float(masterSource.grid.bpm * master.rate), ordering: .relaxed)
+        downbeatPhaseAtomic.store(Float(masterSource.grid.barPhase(at: master.playhead)),
+                                  ordering: .relaxed)
     }
 
-    /// Publish a deck's playhead through its relaxed atomic (§30.1).
+    /// Publish the post-limiter master-bus peak level (0…1).
+    func publishMasterLevel(into list: UnsafeMutableAudioBufferListPointer, frames: Int) {
+        var peak: Float = 0
+        for m in list {
+            guard let data = m.mData else { continue }
+            let p = data.assumingMemoryBound(to: Float.self)
+            for i in 0..<frames {
+                let magnitude = abs(p[i])
+                if magnitude > peak { peak = magnitude }
+            }
+        }
+        masterLevelAtomic.store(peak, ordering: .relaxed)
+    }
+
+    /// Continuous rate tracking (§32.1): while a deck is synced to the master,
+    /// its rate is re-derived every callback so its effective BPM stays equal
+    /// to the master's — a master pitch change moves the synced deck with it.
+    /// Called right after the ring drain, before any deck renders.
+    func applyContinuousSync() {
+        guard decks.count == 2 else { return }
+        for deck in decks where deck.syncedToMaster >= 0 {
+            let masterIndex = deck.syncedToMaster
+            guard decks.indices.contains(masterIndex),
+                  let masterSource = decks[masterIndex].source(),
+                  let syncedSource = deck.source() else { continue }
+            deck.rate = SyncEngine.continuousRate(masterRate: decks[masterIndex].rate,
+                                                  masterBPM: masterSource.grid.bpm,
+                                                  syncedBPM: syncedSource.grid.bpm)
+        }
+    }
+
+    /// Publish a deck's playhead/rate/level/play/sync state through its relaxed
+    /// atomics (§30.1).
     func publishDeckTelemetry(_ deck: Int) {
         guard decks.indices.contains(deck) else { return }
-        let playhead = Int64(decks[deck].playhead)
+        let d = decks[deck]
         switch deck {
-        case 0: playheadAtomicA.store(playhead, ordering: .relaxed)
-        default: playheadAtomicB.store(playhead, ordering: .relaxed)
+        case 0:
+            playheadAtomicA.store(Int64(d.playhead), ordering: .relaxed)
+            rateAtomicA.store(Float(d.rate), ordering: .relaxed)
+            levelAtomicA.store(d.peak, ordering: .relaxed)
+            playingAtomicA.store(d.playing, ordering: .relaxed)
+            syncedAtomicA.store(d.syncedToMaster >= 0, ordering: .relaxed)
+        default:
+            playheadAtomicB.store(Int64(d.playhead), ordering: .relaxed)
+            rateAtomicB.store(Float(d.rate), ordering: .relaxed)
+            levelAtomicB.store(d.peak, ordering: .relaxed)
+            playingAtomicB.store(d.playing, ordering: .relaxed)
+            syncedAtomicB.store(d.syncedToMaster >= 0, ordering: .relaxed)
         }
     }
 
@@ -374,6 +521,7 @@ final class RenderGraphState: @unchecked Sendable {
     /// exact frame for scheduled cue jumps and loop boundaries (§30.2).
     private func renderDeck(_ deck: DeckState, into list: UnsafeMutableAudioBufferListPointer,
                             frames: Int, frameStart: Int64) {
+        deck.peak = 0
         guard deck.playing else { return } // paused: silence, playhead frozen
         guard let source = deck.source() else {
             deck.starved = true
@@ -442,7 +590,10 @@ final class RenderGraphState: @unchecked Sendable {
                 let track = Int64(start + Double(i) * rate)
                 if track >= 0 && track < source.frameCount {
                     let raw = base[Int(track) * srcChannels + srcChannel]
-                    out[frame + i] += deck.mixers[c].process(raw)
+                    let processed = deck.mixers[c].process(raw)
+                    out[frame + i] += processed
+                    let magnitude = abs(processed)
+                    if magnitude > deck.peak { deck.peak = magnitude }
                 }
             }
         }
@@ -478,6 +629,11 @@ final class DeckState: @unchecked Sendable {
     var cue = TempCueState()
     var pendingJump: PendingJump?
     var starved = false
+    /// Master deck index while beat sync is engaged, −1 when not (§32.1). The
+    /// render thread re-derives the rate each callback (continuous tracking).
+    var syncedToMaster: Int = -1
+    /// Post-chain peak level (0…1) for the current callback's telemetry.
+    var peak: Float = 0
     /// The per-channel EQ/filter/fader/crossfader chain (§35.1). Only the
     /// render thread mutates it.
     var mixers: [DeckMixer]
@@ -559,6 +715,16 @@ final class DeckState: @unchecked Sendable {
             for c in mixers.indices { mixers[c].fader.target = command.f0 }
         case .setCrossfader:
             break // global — handled by the master stage
+        case .sync:
+            syncedToMaster = Int(command.f0)
+        case .unsync:
+            syncedToMaster = -1
+        case .syncNudge:
+            // Phase-align: a scheduled, sample-accurate jump to the current
+            // playhead plus the signed shift — fires at this callback's frame 0
+            // (§32.1).
+            pendingJump = PendingJump(atSample: masterSample,
+                                      targetSample: Int64(playhead) + command.i0)
         }
     }
 

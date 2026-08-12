@@ -51,6 +51,16 @@ public struct RTCommand: @unchecked Sendable, Equatable {
         /// Set the master crossfader — `f0` = position (−1 … 1), `f1` = curve
         /// raw value. Global; the deck slot is ignored.
         case setCrossfader
+        /// Engage continuous beat sync — `f0` = master deck index (§32.1).
+        /// While engaged the render thread re-derives the deck's rate each
+        /// callback so its effective BPM tracks the master's.
+        case sync
+        /// Disengage sync; the deck returns to manual rate control.
+        case unsync
+        /// Phase-align nudge — `i0` = signed playhead shift in track samples
+        /// (positive = forward). Applied as a scheduled, sample-accurate jump
+        /// at the current callback boundary (§32.1).
+        case syncNudge
     }
 
     public var tag: Tag
@@ -156,5 +166,22 @@ public struct RTCommand: @unchecked Sendable, Equatable {
     /// Set the master crossfader position and curve (§35.4).
     public static func setCrossfader(position: Float, curve: CrossfaderCurve) -> RTCommand {
         RTCommand(tag: .setCrossfader, deck: 0, f0: position, f1: curve.rawValue)
+    }
+
+    /// Engage continuous beat sync for a deck, with `master` as the tempo and
+    /// phase reference (§32.1).
+    public static func sync(deck: UInt8, master: UInt8) -> RTCommand {
+        RTCommand(tag: .sync, deck: deck, f0: Float(master))
+    }
+
+    /// Disengage sync; the deck returns to manual rate control (§32.1).
+    public static func unsync(deck: UInt8) -> RTCommand {
+        RTCommand(tag: .unsync, deck: deck)
+    }
+
+    /// Phase-align the deck with a signed playhead shift in track samples
+    /// (§32.1).
+    public static func syncNudge(deck: UInt8, shiftSamples: Int64) -> RTCommand {
+        RTCommand(tag: .syncNudge, deck: deck, i0: shiftSamples)
     }
 }
