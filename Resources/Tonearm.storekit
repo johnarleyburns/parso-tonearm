@@ -5,24 +5,9 @@
   ],
   "products" : [
     {
-      "displayPrice" : "7.99",
-      "familyShareable" : true,
-      "internalID" : "A0000001",
-      "localizations" : [
-        {
-          "description" : "One-time purchase to connect all remote libraries: Subsonic, Navidrome, WebDAV, Jellyfin, Plex, Dropbox, Google Drive, OneDrive, pCloud, SMB. Everything else — local playback, iCloud sync, parametric EQ, smart playlists, tag editor, duplicate detection — is free for everyone, permanently.",
-          "displayName" : "Remote Libraries",
-          "locale" : "en_US"
-        }
-      ],
-      "productID" : "guru.parso.tonearm.pro",
-      "referenceName" : "Remote Libraries",
-      "type" : "NonConsumable"
-    },
-    {
       "displayPrice" : "39.99",
       "familyShareable" : true,
-      "internalID" : "A0000002",
+      "internalID" : "A0000001",
       "localizations" : [
         {
           "description" : "Platterhead DJ — decks, mixing, stems, recording, preparation and gig crates. One-time purchase, yours forever, Family Sharing enabled.",
@@ -30,7 +15,7 @@
           "locale" : "en_US"
         }
       ],
-      "productID" : "guru.parso.tonearm.pro.dj",
+      "productID" : "guru.parso.tonearm.pro",
       "referenceName" : "Platterhead DJ",
       "type" : "NonConsumable"
     }

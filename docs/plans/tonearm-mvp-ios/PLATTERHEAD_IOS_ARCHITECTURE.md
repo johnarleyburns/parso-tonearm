@@ -3,7 +3,7 @@
 **Version 2.0-iOS** · Canonical engineering blueprint
 **Status:** Implementation-ready · supersedes `../tonearm-mvp/TONEARM_DJ_ARCHITECTURE.md` (v1.0, macOS-first)
 **Repository:** `johnarleyburns/parso-tonearm`
-**Platform target:** **iOS 17+ / iPadOS 17+** (universal, one binary, Apple Silicon) · watchOS 10+ remote
+**Platform target:** **iOS 18+ / iPadOS 18+** (universal, one binary, Apple Silicon) · watchOS 11+ remote
 **Monetization:** Free = the complete listener (including remote libraries, semantic search and auto-playlists) · **Pro = performing, one-time purchase**
 **License:** GPL-3.0 (source-available; Pro builds from source with no gate — Appendix T.6)
 **Audience:** Agentic coding systems and human contributors implementing Platterhead with minimal ambiguity.
@@ -186,7 +186,7 @@ What changes:
 
 | Area | Change |
 |---|---|
-| **Platform** | macOS 14+ → **iOS 17+ / iPadOS 17+**, universal binary, one app |
+| **Platform** | macOS 14+ → **iOS 18+ / iPadOS 18+**, universal binary, one app |
 | **Topology** | Two apps + CloudKit bridge → **one app**; sync demoted to optional multi-device convenience (Part VI) |
 | **Free/Pro line** | Pro = remote libraries → **Pro = DJ/performance only**; remote libraries and semantic search become free (§2.4) |
 | **Semantic search** | Pro-adjacent Mac feature → **free-tier hero feature**, with a new auto-playlist generator (§28A) |
@@ -202,7 +202,7 @@ Platterhead is **one application, one core, one library, two capability tiers.**
 
 ```mermaid
 flowchart TB
-    subgraph App["Platterhead — iOS 17+ / iPadOS 17+ (universal, one binary)"]
+    subgraph App["Platterhead — iOS 18+ / iPadOS 18+ (universal, one binary)"]
         direction TB
         subgraph Free["FREE — the complete listener"]
             Player["Player · formats · gapless · EQ<br/>ReplayGain · cache · widgets · Watch"]
@@ -235,8 +235,8 @@ flowchart TB
 
 **Key topology facts an implementer must internalize:**
 
-- ⟢ **`TonearmCore` already exists** (`Package.swift`, product `TonearmCore`, platforms iOS 17 /
-  macOS 14 / watchOS 10, GRDB 7 dependency, `linkedLibrary("sqlite3")`). The DJ capability
+- ⟢ **`TonearmCore` already exists** (`Package.swift`, product `TonearmCore`, platforms iOS 18 /
+  macOS 15 / watchOS 11, GRDB 7 dependency, `linkedLibrary("sqlite3")`). The DJ capability
   **extends** this package with new modules in the *same binary*. Shared types — `Source`,
   `Album`, `Track`, `Asset`, `Playlist`, `LibraryStore`, `CloudSyncEngine`, `RecordMapping`,
   `CacheKeyGenerator`, `ReplayGain` — are reused verbatim.
@@ -710,7 +710,7 @@ roadmap.
 ## 6. Constraints, assumptions, non-goals
 
 **Constraints**
-- **iOS 17+ / iPadOS 17+**, Apple Silicon (A-series and M-series). watchOS 10+ for the remote.
+- **iOS 18+ / iPadOS 18+**, Apple Silicon (A-series and M-series). watchOS 11+ for the remote.
 - The design assumes a Neural Engine and a Metal GPU. All supported devices have both.
 - DRM-free audio only. The app never attempts to bypass DRM. Apple Music and Spotify catalogue
   tracks are **not** mixable and this is by design, not omission.
@@ -873,7 +873,7 @@ at first use, and are absent from the SPM target entirely (§27.1a, §36.2).
 // Package.swift (additions shown; existing TonearmCore target unchanged)
 let package = Package(
     name: "TonearmCore",
-    platforms: [.iOS(.v17), .macOS(.v14), .watchOS(.v10)],
+    platforms: [.iOS(.v18), .macOS(.v15), .watchOS(.v11)],
     products: [
         .library(name: "TonearmCore", targets: ["TonearmCore"]),
         .library(name: "TonearmDJ",   targets: ["TonearmDJ"])   // NEW
@@ -4748,7 +4748,7 @@ Budgets, analysis policy, sync categories, purchase and restore.
 
 The app adopts **Liquid Glass** (iOS 26 material) **behind a capability flag**, exactly as
 established in J's other projects: a `GlassFeature.isEnabled` gate that is true only on OS 26+
-and falls back to conventional materials on the deployment floor (iOS 17). Adoption is
+and falls back to conventional materials on the deployment floor (iOS 18). Adoption is
 **surgical** — applied to chrome (toolbars, deck panels, sheet backgrounds, the crossfader bar)
 where it enhances depth without harming legibility — and **never** to waveforms, meters, or the
 energy-arc plot, where contrast carries information.
@@ -7220,7 +7220,7 @@ The most consequential decisions in this design are recorded here in short ADR f
 
 **ADR-13 — CI gates as the enforcement mechanism.** Privacy (zero-telemetry), determinism (golden), and RT-safety are enforced as build-failing gates, not conventions. *Rationale:* the design's core promises become continuously-verified properties; matches J's cross-project practice. *Rejected:* relying on code review/discipline alone (regressions slip in). (§47.4, §49.3.)
 
-**ADR-14 — Liquid Glass behind a capability flag, on chrome only.** Glass is applied via `GlassFeature.isEnabled` to chrome surfaces, never to data-dense readouts, with an iOS 17/macOS 14 floor. *Rationale:* native look on OS 26 without sacrificing waveform/meter legibility or the deployment floor; single codebase. *Rejected:* forked views or blanket adoption (maintenance burden / legibility loss). (§42A.)
+**ADR-14 — Liquid Glass behind a capability flag, on chrome only.** Glass is applied via `GlassFeature.isEnabled` to chrome surfaces, never to data-dense readouts, with an iOS 18/macOS 15 floor. *Rationale:* native look on OS 26 without sacrificing waveform/meter legibility or the deployment floor; single codebase. *Rejected:* forked views or blanket adoption (maintenance burden / legibility loss). (§42A.)
 
 # Appendix O — Glossary
 
@@ -7694,7 +7694,7 @@ commercial pressure:
 
 This is the **canonical Architecture & Low-Level Design Specification (v2.0-iOS)** for Parso
 Platterhead. It supersedes the macOS-first `TONEARM_DJ_ARCHITECTURE.md` (v1.0) and retargets the
-entire product to **iOS 17+ / iPadOS 17+ as a single universal application** with a redrawn
+entire product to **iOS 18+ / iPadOS 18+ as a single universal application** with a redrawn
 free/Pro line: everything about *listening* — including all ten remote libraries, on-device
 semantic search and auto-generated playlists — is free, and everything about *performing* is a
 single one-time purchase.

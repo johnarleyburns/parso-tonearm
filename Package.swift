@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "TonearmCore",
-    platforms: [.iOS(.v17), .macOS(.v14), .watchOS(.v10)],
+    platforms: [.iOS(.v18), .macOS(.v15), .watchOS(.v11)],
     products: [
         .library(name: "TonearmCore", targets: ["TonearmCore"]),
         .library(name: "TonearmDJ", targets: ["TonearmDJ"])
