@@ -37,15 +37,25 @@ public final class AudioGraph: @unchecked Sendable {
         public var channelCount: AVAudioChannelCount
         public var maximumFrameCount: AVAudioFrameCount
         public var ringCapacity: Int
+        /// Master limiter ceiling; `nil` leaves the limiter out of the path.
+        /// The offline deck-reader harness runs without one so its assertions
+        /// stay frame-exact; mixer tests configure it explicitly (§35.5).
+        public var limiterCeiling: Float?
+        /// Master limiter lookahead in frames (0 = delay-free brickwall).
+        public var limiterLookaheadFrames: Int
 
         public init(sampleRate: Double = 48_000,
                     channelCount: AVAudioChannelCount = 1,
                     maximumFrameCount: AVAudioFrameCount = 4096,
-                    ringCapacity: Int = 8) {
+                    ringCapacity: Int = 8,
+                    limiterCeiling: Float? = nil,
+                    limiterLookaheadFrames: Int = 0) {
             self.sampleRate = sampleRate
             self.channelCount = channelCount
             self.maximumFrameCount = maximumFrameCount
             self.ringCapacity = ringCapacity
+            self.limiterCeiling = limiterCeiling
+            self.limiterLookaheadFrames = limiterLookaheadFrames
         }
     }
 
@@ -107,7 +117,10 @@ public final class AudioGraph: @unchecked Sendable {
         let snap = EngineSnapshot()
         let load = RenderLoad()
         let probe = GuardActiveProbe()
-        let graphState = RenderGraphState(sampleRate: sampleRate)
+        let graphState = RenderGraphState(sampleRate: sampleRate,
+                                          channelCount: Int(channelCount),
+                                          limiterCeiling: configuration.limiterCeiling,
+                                          limiterLookaheadFrames: configuration.limiterLookaheadFrames)
 
         let sourceNode = AVAudioSourceNode(format: format) { _, _, frameCount, outputData in
             RTGuard.withRenderContext {
@@ -178,15 +191,25 @@ final class RenderGraphState: @unchecked Sendable {
     let playheadAtomicA = Atomic<Int64>(0)
     let playheadAtomicB = Atomic<Int64>(0)
     let decks: [DeckState]
+    let master: MasterStage
 
-    init(sampleRate: Double) {
+    init(sampleRate: Double, channelCount: Int,
+         limiterCeiling: Float?, limiterLookaheadFrames: Int) {
         clock = DeckClock(sampleRate: sampleRate)
-        decks = [DeckState(sampleRate: sampleRate), DeckState(sampleRate: sampleRate)]
+        decks = [DeckState(sampleRate: sampleRate, channelCount: channelCount),
+                 DeckState(sampleRate: sampleRate, channelCount: channelCount)]
+        master = MasterStage(channelCount: channelCount, sampleRate: sampleRate,
+                             ceiling: limiterCeiling, lookaheadFrames: limiterLookaheadFrames)
     }
 
-    /// Apply a drained command to the addressed deck. A bad deck index is
-    /// ignored at the boundary (§46.2).
+    /// Apply a drained command. The crossfader is global (master stage); every
+    /// other command addresses a deck. A bad deck index is ignored at the
+    /// boundary (§46.2).
     func apply(_ command: RTCommand, masterSample: Int64) {
+        if command.tag == .setCrossfader {
+            master.apply(command)
+            return
+        }
         let index = Int(command.deck)
         guard decks.indices.contains(index) else { return }
         decks[index].apply(command, masterSample: masterSample)
@@ -194,16 +217,22 @@ final class RenderGraphState: @unchecked Sendable {
 
     /// Render both decks into the output. The baseline is zeroed first, so a
     /// paused or unloaded deck contributes silence rather than garbage (§46.2);
-    /// loaded, playing decks accumulate onto it.
+    /// loaded, playing decks accumulate onto it through their EQ/filter/fader
+    /// chains. The crossfader gains are applied per deck, then the master
+    /// limiter shapes the summed bus (§35.5).
     func renderDecks(into list: UnsafeMutableAudioBufferListPointer, frames: Int) {
         let frameStart = clock.masterSample
         for m in list {
             guard let data = m.mData else { continue }
             memset(data, 0, frames * MemoryLayout<Float>.size)
         }
+        let (gainA, gainB) = master.gains()
+        decks[0].setCrossfaderGain(gainA)
+        decks[1].setCrossfaderGain(gainB)
         for deck in decks {
             renderDeck(deck, into: list, frames: frames, frameStart: frameStart)
         }
+        master.limit(into: list, frames: frames)
         clock.advance(by: Int64(frames))
         masterSampleAtomic.store(clock.masterSample, ordering: .relaxed)
         for (index, deck) in decks.enumerated() {
@@ -268,7 +297,9 @@ final class RenderGraphState: @unchecked Sendable {
 
     /// Copy `source[playhead ..< playhead+count)` into the output at `frame`,
     /// clamped at the end of the track — frames past EOF render silence, never
-    /// an out-of-bounds read (§46.2). Accumulates (`+=`) so both decks sum.
+    /// an out-of-bounds read (§46.2). Each sample runs through the deck's
+    /// EQ/filter/fader/crossfader chain (§35.1). Accumulates (`+=`) so both
+    /// decks sum.
     private func readChunk(_ deck: DeckState, _ source: DeckSource,
                            into list: UnsafeMutableAudioBufferListPointer,
                            at frame: Int, count: Int) {
@@ -284,7 +315,8 @@ final class RenderGraphState: @unchecked Sendable {
             for i in 0..<count {
                 let track = Int64(start + Double(i) * rate)
                 if track >= 0 && track < source.frameCount {
-                    out[frame + i] += base[Int(track) * srcChannels + srcChannel]
+                    let raw = base[Int(track) * srcChannels + srcChannel]
+                    out[frame + i] += deck.mixers[c].process(raw)
                 }
             }
         }
@@ -316,10 +348,14 @@ final class DeckState: @unchecked Sendable {
     var cue = TempCueState()
     var pendingJump: PendingJump?
     var starved = false
+    /// The per-channel EQ/filter/fader/crossfader chain (§35.1). Only the
+    /// render thread mutates it.
+    var mixers: [DeckMixer]
     private let sampleRate: Double
 
-    init(sampleRate: Double) {
+    init(sampleRate: Double, channelCount: Int) {
         self.sampleRate = sampleRate
+        mixers = (0..<channelCount).map { _ in DeckMixer(sampleRate: sampleRate) }
     }
 
     /// Read the armed source without retaining anything (§12.3).
@@ -378,7 +414,24 @@ final class DeckState: @unchecked Sendable {
             if let resolution = QuantizeResolution(rawValue: UInt8(command.f1)) {
                 quantizeResolution = resolution
             }
+        case .setEQ:
+            for c in mixers.indices {
+                mixers[c].eqEngaged = true
+                mixers[c].eq.setGains(low: command.f0, mid: command.f1, high: command.f2)
+            }
+        case .setFilter:
+            for c in mixers.indices { mixers[c].filter.setKnob(command.f0) }
+        case .setFader:
+            for c in mixers.indices { mixers[c].fader.target = command.f0 }
+        case .setCrossfader:
+            break // global — handled by the master stage
         }
+    }
+
+    /// Set the per-channel crossfader gain target (applied each callback from
+    /// the master stage's current position).
+    func setCrossfaderGain(_ gain: Float) {
+        for c in mixers.indices { mixers[c].crossfaderGain.target = gain }
     }
 }
 

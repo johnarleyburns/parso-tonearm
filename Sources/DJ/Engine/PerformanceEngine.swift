@@ -135,6 +135,36 @@ public final class PerformanceEngine {
         _ = graph.commandRing.tryPush(.setRate(deck: deck.rawValue, rate: rate))
     }
 
+    // MARK: - Mixer (§35)
+
+    /// Set the deck's 3-band EQ from knob positions (−1 kill … 0 unity …
+    /// +1 max boost). The knob-to-gain mapping is `ThreeBandEQ.knobToGain`
+    /// (§35.2); the gains cross the ring as linear values.
+    public func setEQKnobs(_ deck: Deck, low: Float, mid: Float, high: Float) {
+        _ = graph.commandRing.tryPush(.setEQ(deck: deck.rawValue,
+                                             low: ThreeBandEQ.knobToGain(low),
+                                             mid: ThreeBandEQ.knobToGain(mid),
+                                             high: ThreeBandEQ.knobToGain(high)))
+    }
+
+    /// Set the deck's sweep filter knob (−1 … 1; the centre detent bypasses,
+    /// §35.3).
+    public func setFilter(_ deck: Deck, knob: Float) {
+        _ = graph.commandRing.tryPush(.setFilter(deck: deck.rawValue, knob: knob))
+    }
+
+    /// Set the deck's channel fader (trim) gain (§35.4).
+    public func setChannelFader(_ deck: Deck, gain: Float) {
+        _ = graph.commandRing.tryPush(.setFader(deck: deck.rawValue, gain: gain))
+    }
+
+    /// Position the master crossfader (−1 = deck A full … +1 = deck B full).
+    /// The first call arms the crossfader; before that both decks pass at
+    /// unity (§35.4).
+    public func setCrossfader(_ position: Float, curve: CrossfaderCurve) {
+        _ = graph.commandRing.tryPush(.setCrossfader(position: position, curve: curve))
+    }
+
     // MARK: - Offline rendering (harness)
 
     public func render(_ frameCount: AVAudioFrameCount) throws -> AVAudioPCMBuffer {

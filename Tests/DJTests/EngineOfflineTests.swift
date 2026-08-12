@@ -485,11 +485,143 @@ final class EngineOfflineTests: XCTestCase {
                           "render load must leave headroom below the buffer period")
     }
 
+    // MARK: - Mixer (commit 4.4, §35)
+
+    func testEQKillThroughGraphIsSilent() throws {
+        let engine = try makeEngine()
+        try engine.start()
+        defer { engine.stop() }
+
+        let source = sineSource()
+        engine.load(.a, source: source.source)
+        engine.play(.a)
+
+        _ = try engine.renderMono(128) // audible before the kill
+        engine.setEQKnobs(.a, low: -1, mid: -1, high: -1) // full kill (−∞)
+        _ = try renderFrames(engine, count: 8192) // let the smoothing settle
+
+        let out = try engine.renderMono(512)
+        XCTAssertTrue(out.allSatisfy { abs($0) < 1e-4 },
+                      "a full EQ kill must silence the deck in the graph")
+        XCTAssertEqual(engine.deckPlayhead(.a), 128 + 8192 + 512, "the deck keeps playing through the kill")
+    }
+
+    func testFilterThroughGraphBypassIsIdenticalToReference() throws {
+        let engine = try makeEngine()
+        try engine.start()
+        defer { engine.stop() }
+
+        let source = sineSource()
+        engine.load(.a, source: source.source)
+        engine.play(.a)
+        engine.setFilter(.a, knob: 0) // centre detent → hard bypass
+
+        let out = try engine.renderMono(512)
+        let expected = sineReference(count: 512)
+        for i in 0..<512 {
+            XCTAssertEqual(out[i], expected[i], accuracy: 0.0005,
+                           "the bypassed filter must leave the deck frame-identical at sample \(i)")
+        }
+    }
+
+    func testChannelFaderScalesDeckOutput() throws {
+        let engine = try makeEngine()
+        try engine.start()
+        defer { engine.stop() }
+
+        let source = sineSource()
+        engine.load(.a, source: source.source)
+        engine.play(.a)
+        engine.setChannelFader(.a, gain: 0.5)
+        _ = try renderFrames(engine, count: 8192) // settle the fader ramp
+
+        let out = try engine.renderMono(512)
+        for (i, value) in out.enumerated() {
+            let expected = 0.5 * sineValue(at: 8192 + i)
+            XCTAssertEqual(value, expected, accuracy: 0.002, "fader at 0.5 halves the deck, sample \(i)")
+        }
+    }
+
+    func testCrossfaderBlendsDecksPerConstantPowerLaw() throws {
+        let engine = try makeEngine()
+        try engine.start()
+        defer { engine.stop() }
+
+        // Deck A's ramp is scaled to ±40 so float-level gain residuals (the
+        // one-pole's ~1e-5 convergence error) stay well below the assertions.
+        let ramp = rampSource(frames: 40_000) { Float($0) * 0.001 }
+        let flat = rampSource(frames: 40_000) { _ in 0.5 }
+        engine.load(.a, source: ramp.source)
+        engine.load(.b, source: flat.source)
+        engine.play(.a)
+        engine.play(.b)
+
+        // Full A: deck A at unity, deck B silent.
+        engine.setCrossfader(-1, curve: .constantPower)
+        _ = try renderFrames(engine, count: 8192)
+        var headA = engine.deckPlayhead(.a)
+        var out = try engine.renderMono(128)
+        for k in 0..<128 {
+            XCTAssertEqual(out[k], 0.001 * Float(headA + Int64(k)), accuracy: 1e-3,
+                           "full A: only deck A's ramp, sample \(k)")
+        }
+
+        // Full B: deck A silent, deck B at unity. cos(π/2) is ≈7.5e-8 rather
+        // than exactly 0, so deck A's ramp bleeds ~1e-6 through — absorb that
+        // float-level crossfader bleed in the tolerance.
+        engine.setCrossfader(1, curve: .constantPower)
+        _ = try renderFrames(engine, count: 8192)
+        out = try engine.renderMono(128)
+        for k in 0..<128 {
+            XCTAssertEqual(out[k], 0.5, accuracy: 1e-3, "full B: only deck B's level, sample \(k)")
+        }
+
+        // Centre: both decks at √2/2 — the constant-power blend.
+        engine.setCrossfader(0, curve: .constantPower)
+        _ = try renderFrames(engine, count: 8192)
+        headA = engine.deckPlayhead(.a)
+        out = try engine.renderMono(128)
+        let c = cos(Float.pi / 4)
+        for k in 0..<128 {
+            let position = 0.001 * Float(headA + Int64(k))
+            let expected = c * position + c * 0.5
+            XCTAssertEqual(out[k], expected, accuracy: 0.005,
+                           "centre blend follows the constant-power law, sample \(k)")
+        }
+        XCTAssertEqual(engine.deckPlayhead(.a), headA + 128)
+        XCTAssertEqual(engine.deckPlayhead(.b), headA + 128)
+    }
+
+    func testMasterLimiterClampsGraphOutput() throws {
+        let engine = try makeEngine(limiterCeiling: 0.9, limiterLookaheadFrames: 240)
+        try engine.start()
+        defer { engine.stop() }
+
+        // 1.5 sits above the soft knee (ceiling·10^(3/20) ≈ 1.27), so the hard
+        // `ceiling/peak` ratio applies: a constant 1.5 is held exactly at 0.9.
+        let loud = rampSource(frames: 40_000) { _ in 1.5 }
+        engine.load(.a, source: loud.source)
+        engine.play(.a)
+
+        let out = try renderFrames(engine, count: 4096)
+        XCTAssertLessThanOrEqual(out.max() ?? 0, 0.9 + 1e-4,
+                                 "the master limiter must hold the summed bus at the ceiling")
+        for i in 0..<240 {
+            XCTAssertEqual(out[i], 0, "the lookahead window primes with silence")
+        }
+        XCTAssertEqual(out[3000], 0.9, accuracy: 1e-3,
+                       "a hot constant input is held at the ceiling in steady state")
+    }
+
     // MARK: - Helpers
 
-    private func makeEngine(ringCapacity: Int = 16) throws -> PerformanceEngine {
+    private func makeEngine(ringCapacity: Int = 16,
+                            limiterCeiling: Float? = nil,
+                            limiterLookaheadFrames: Int = 0) throws -> PerformanceEngine {
         try PerformanceEngine(configuration: .init(sampleRate: 48_000, channelCount: 1,
-                                                   ringCapacity: ringCapacity))
+                                                   ringCapacity: ringCapacity,
+                                                   limiterCeiling: limiterCeiling,
+                                                   limiterLookaheadFrames: limiterLookaheadFrames))
     }
 
     private func sineSource(frames: Int = 48_000) -> TestSource {

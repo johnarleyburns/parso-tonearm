@@ -35,6 +35,16 @@ public struct RTCommand: @unchecked Sendable, Equatable {
         case exitLoop
         /// Set the deck's quantize state — `f0` = on, `f1` = resolution raw value.
         case setQuantize
+        /// Set the deck's 3-band EQ gains — `f0/f1/f2` = low/mid/high linear
+        /// gains (§35.2).
+        case setEQ
+        /// Set the deck's sweep filter — `f0` = knob position (−1 … 1, §35.3).
+        case setFilter
+        /// Set the deck's channel fader (trim) — `f0` = gain (§35.4).
+        case setFader
+        /// Set the master crossfader — `f0` = position (−1 … 1), `f1` = curve
+        /// raw value. Global; the deck slot is ignored.
+        case setCrossfader
     }
 
     public var tag: Tag
@@ -44,17 +54,19 @@ public struct RTCommand: @unchecked Sendable, Equatable {
     public var i1: Int64
     public var f0: Float
     public var f1: Float
+    public var f2: Float
     /// Ownership-transfer marker for an armed source (nil = none).
     public var ptr: UnsafeRawPointer?
 
     public init(tag: Tag = .play, deck: UInt8 = 0, i0: Int64 = 0, i1: Int64 = 0,
-                f0: Float = 0, f1: Float = 0, ptr: UnsafeRawPointer? = nil) {
+                f0: Float = 0, f1: Float = 0, f2: Float = 0, ptr: UnsafeRawPointer? = nil) {
         self.tag = tag
         self.deck = deck
         self.i0 = i0
         self.i1 = i1
         self.f0 = f0
         self.f1 = f1
+        self.f2 = f2
         self.ptr = ptr
     }
 
@@ -106,5 +118,25 @@ public struct RTCommand: @unchecked Sendable, Equatable {
 
     public static func setQuantize(deck: UInt8, on: Bool, resolution: QuantizeResolution) -> RTCommand {
         RTCommand(tag: .setQuantize, deck: deck, f0: on ? 1 : 0, f1: Float(resolution.rawValue))
+    }
+
+    /// Set the deck's 3-band EQ gains — low/mid/high linear gains (§35.2).
+    public static func setEQ(deck: UInt8, low: Float, mid: Float, high: Float) -> RTCommand {
+        RTCommand(tag: .setEQ, deck: deck, f0: low, f1: mid, f2: high)
+    }
+
+    /// Set the deck's sweep filter knob (§35.3).
+    public static func setFilter(deck: UInt8, knob: Float) -> RTCommand {
+        RTCommand(tag: .setFilter, deck: deck, f0: knob)
+    }
+
+    /// Set the deck's channel fader (trim) gain (§35.4).
+    public static func setFader(deck: UInt8, gain: Float) -> RTCommand {
+        RTCommand(tag: .setFader, deck: deck, f0: gain)
+    }
+
+    /// Set the master crossfader position and curve (§35.4).
+    public static func setCrossfader(position: Float, curve: CrossfaderCurve) -> RTCommand {
+        RTCommand(tag: .setCrossfader, deck: 0, f0: position, f1: curve.rawValue)
     }
 }
