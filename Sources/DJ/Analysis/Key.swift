@@ -302,4 +302,14 @@ public enum Camelot {
         if halfWheel == 6 { return 0.5 }
         return 0.0
     }
+
+    /// Camelot wheel distance in [0,1] for the sequencer's transition cost
+    /// (§28A.2): `1 − compatibility`, so there is exactly one scoring
+    /// implementation (§49.3). same 0.0, relative 0.1, ±1 same-letter 0.3,
+    /// energy-boost 0.5, else 1.0. Either key missing → neutral 0.5 (the
+    /// missing-attribute convention).
+    public static func distance(_ a: CamelotKey?, _ b: CamelotKey?) -> Double {
+        guard let a, let b else { return 0.5 }
+        return 1 - Double(compatibility(a, b))
+    }
 }

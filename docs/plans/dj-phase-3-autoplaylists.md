@@ -254,8 +254,8 @@ _To be filled in as commits land: files changed, tests run, intentional deviatio
 
 | Commit | Status | Notes |
 |---|---|---|
-| Plan doc | pending | `docs/plans/dj-phase-3-autoplaylists.md` |
-| 3.1 arcs + transition cost | pending | |
+| Plan doc | done | `docs/plans/dj-phase-3-autoplaylists.md` |
+| 3.1 arcs + transition cost | done | `Playlist/EnergyArc.swift` (six cases, closed-form `value(at:)`, `kindCode` + byte-exact `pointsJSON` payload round-trip via `from(kindCode:pointsJSON:)`, `EmpiricalEnergyCDF` with ties-by-(energy, trackID) and missing→0.5); `Camelot.distance` = `1 − compatibility` in `Key.swift` (one scoring implementation, plan §2.3); `Playlist/TransitionCost.swift` (`TrackFeatures`, `SequencingConstraints` with lo/hi bpmRange, `SequenceWeights` 0.25/0.35/0.25/0.15, pure `transitionCost` 0.30/0.25/0.30/0.15 with drops penalised harder, vDSP `timbreDistance`); `ArcTests` + `TransitionCostTests` = 32 tests green, full suite 970 green. Note: `arcPointsJSON` is the canonical JSON payload of the arc's parameters (level/peakAt/cycles/points), not just custom points — this is what lets a dragged peak survive persistence (plan §2.9 records the CloudKit-free sync intent; §14.3's "custom arcs only" comment is interpreted as indicative) |
 | 3.2 beam sequencer + duration close-out | pending | |
 | 3.3 brief extractor + persistence + generator + sync mapping | pending | |
 | 3.4 brief + result UI, both size classes | pending | |
