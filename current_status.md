@@ -21,6 +21,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M4 4.6** — `2bc6d4a` `feat(dj): dual-deck sync + telemetry + iPad workspace (M4 commit 4.6)`.
 - **M4 4.5** — `c628e99` `feat(dj): time-stretch/key-lock/key-shift via AVAudioUnitTimePitch (M4 commit 4.5)`.
 - **M4 4.4** — `6e3c0e9` `feat(dj): mixer — 3-band EQ, sweep filter, crossfader, master limiter (M4 commit 4.4)`.
 - **M4 4.3** — `e595254` `feat(dj): single-deck play/cue/loop, sample-accurate (M4 commit 4.3)`.
@@ -46,7 +47,46 @@ governor) is fully committed.
 
 ## Working on
 
-**M4 commit 4.5 — time-stretch / key lock / key shift — complete (`c628e99`).**
+**M4 commit 4.6 — dual-deck sync + telemetry + iPad workspace — complete.** The
+§32 sync engine, the §40.3 telemetry pipeline, and the single session VM over
+the `ipad/07` workspace:
+
+- `Engine/SyncEngine.swift` — the pure §32.3 kernel: `SyncClock` (playhead +
+  grid + rate), `SyncCorrection`, and `correction`/`downbeatCorrection`/
+  `continuousRate`. `DeckGrid` gains `beatPhase(at:)`/`barPhase(at:)`.
+  `PerformanceEngine.sync/unsync`: the pure correction is applied as a rate
+  command + a scheduled sample-accurate nudge (`RTCommand.syncNudge`), then
+  `.sync` engages **continuous rate tracking** — the render thread re-derives
+  the synced deck's rate every callback so a master pitch change moves the
+  synced deck with it (§32.1).
+- Telemetry: the graph publishes per-callback relaxed atomics — deck
+  rate/level (peak measured in the deck chain and the post-limiter bus)/
+  playing/synced, plus the `MasterClock` components (master sample, effective
+  BPM, downbeat phase) — assembled by `AudioGraph.masterClock` (the §30.1
+  snapshot). `EngineTelemetry` + `EngineTelemetryStream` (atomics →
+  `AsyncStream`, newest-1); `PerformanceEngine.sampleTelemetry/pushTelemetry/
+  telemetry`. `Features/Common/TelemetryPump.swift` — `CADisplayLink` (iOS) /
+  `NSScreen.displayLink` (macOS test host), ProMotion 60–120 Hz, throttled to
+  30 Hz at `.serious`, paused backgrounded.
+- `Features/Workspace/` — `WorkspaceModel` (the one session VM over the
+  `WorkspaceEngine` protocol, mixer control state, idle-timer scoping §34A.6
+  driven from telemetry) + `WorkspaceView` (two decks, centre mixer: vertical
+  EQ stacks, filter sliders, crossfader, master meter, limiter indicator,
+  beat-phase meter, thermal/buffer readout; SYNC tap=beat/hold=downbeat),
+  gated by `ProCapability.isEnabled(.decks)` — free users see the real dimmed
+  surface + lock chip (§40.4). **Decision (recorded):** the `MasterClock`
+  snapshot is three relaxed atomics assembled control-side (a ≤1-callback skew
+  is harmless for a relative nudge + display-rate readouts), not a
+  reverse-direction double-buffered pointer — the render thread cannot
+  allocate/lock.
+- Tests: 12 pure `SyncMathTests` + 4 new `EngineOfflineTests` (sync aligns
+  beats on the master grid, continuous rate tracks a master pitch change then
+  unsync freezes, bar sync aligns downbeats, telemetry/master-clock readouts
+  exact) + 8 `WorkspaceModelTests` (gate, lifecycle, forwarding, the
+  atomics→stream pipeline). Full suite 1129 green (1105 baseline + 24). No
+  `xcodegen generate`. **FR-ENG-1/2/4, FR-ENG-9; AT-ENGINE-SYNC-\*.**
+
+- **M4 commit 4.5 — time-stretch / key lock / key shift — complete (`c628e99`).**
 The §31 time-pitch wiring, with a per-deck `AVAudioUnitTimePitch` in the graph
 and a pure cent-math core:
 
@@ -175,16 +215,13 @@ gate sits at 2.5 s (still under the 3 s budget).
 
 ## Next
 
-- **M4 commit 4.6** — sync + telemetry + iPad workspace: pure
-  `SyncEngine.correction(master:synced:atMasterSample:)` (§32) with
-  `PerformanceEngine.sync/unsync` (continuous rate tracking, scheduled
-  sample-accurate phase nudge); `EngineSnapshot` publishes the master-clock
-  snapshot; `EngineTelemetry` via atomics → `AsyncStream`; `TelemetryPump`
-  (`CADisplayLink`, ProMotion-aware, throttled at `.serious`); the single
-  `WorkspaceModel`/`WorkspaceView` session VM (two decks, centre mixer,
-  transport/sync/loop, idle-timer scoping), gated by `ProCapability.isEnabled
-  (.decks)`. Then 4.7 (iPhone portrait solo surface) … 4.13 (paywall +
-  purchase + memory ceiling).
+- **M4 commit 4.7** — iPhone portrait solo surface: one focused deck full-width
+  (waveform, transport, cues, bank chips incl. **Jog**), the other deck in a
+  72-pt strip, swipe/tap swap (view-only, both live), always-visible crossfader
+  bottom bar, browse-while-performing crate sheet that may never cover the
+  crossfader (§42.6–42.7; mockups `iphone/05a`, `iphone/05b`). Over the shared
+  `WorkspaceModel` from 4.6. 44 pt minimum targets, haptic confirm. Then 4.8
+  (jog gesture model + jog view) … 4.13 (paywall + purchase + memory ceiling).
   Ship gates AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the
   user-owned shipping gate**, run after the milestone on a real device (deferred
   per decision 4 of the M4 kickoff).
