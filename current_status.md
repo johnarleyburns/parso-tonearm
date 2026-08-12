@@ -21,6 +21,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M4 4.2** — `40903e7` `feat(dj): audio-session decision table and coordinator (M4 commit 4.2)`.
 - **M4 4.1** — `211f431` `feat(dj): RT boundary — command ring, snapshot, RTGuard, offline engine harness (M4 commit 4.1)`.
 - **M4 gate** — `a7615e5` `test(dj): AT-PLIST-8 gate 2.0s → 2.5s — owner runs Low Power Mode on AC`.
 - **M4 plan** — `5e8b731` `docs(dj): M4 plan — real-time engine, audio session, purchase (3.0 Pro launch)`.
@@ -42,33 +43,45 @@ governor) is fully committed.
 
 ## Working on
 
-**M4 commit 4.1 — RT boundary + RTGuard + offline engine harness — complete
-(`211f431`).** All under `Sources/DJ/Engine/` (no `xcodegen generate` needed, DJ
-target excluded from the app):
+**M4 commit 4.2 — `SessionPolicy` + `AudioSessionCoordinator` — complete (`40903e7`).**
+Pure route/interruption decision table + thin platform-conditional shell per plan §2.3/§2.4:
 
-- `RTCommand.swift` — POD command (tag + deck + i0/f0/f1 + `UnsafeRawPointer?` armed
-  source), tags `play`/`pause`/`setPitch`/`loadArm`, `@unchecked Sendable` + Equatable.
-- `CommandRing.swift` — fixed power-of-two SPSC ring, stdlib `Atomic<Int>` head/tail,
-  release/acquire `tryPush`/`drain` (count-returning), pre-allocated, never grows.
-- `EngineSnapshot.swift` — double-buffered `Atomic<UnsafeRawPointer?>` publish/read,
-  control-side retire list (`retire`/`drainRetired`), never freed on the render thread.
-- `RTGuard.swift` — DEBUG thread-local render-context flag (`withRenderContext`,
-  `checkRTSafe`, `assertRTSafe`); RELEASE compiles out entirely.
-- `RenderLoad.swift` — `mach_absolute_time` start/end ticks in the callback, one
-  relaxed atomic store, `lastRenderNanos` + `loadRatio(periodNanos:)`.
-- `AudioGraph.swift` — offline manual-rendering `AVAudioEngine` harness: sine source,
-  drains the ring each callback, reads the snapshot, wraps in `RTGuard`, meters with
-  `RenderLoad`; `Configuration` (sample rate/channel/ring capacity/initial state);
-  render block captures the ring/snapshot/load/probe/state (not `self`) so the graph
-  lifetime is not tied to the engine's. DEBUG `guardWasActive` probe.
-- `Tests/DJTests/EngineOfflineTests.swift` — 12 tests green: ring FIFO / full→false /
-  empty no-op / pointer round-trip; snapshot publish/read/retire; RTGuard flag +
-  `checkRTSafe` + nested context; RenderLoad measure/reset; offline render vs a
-  sample-referenced sine; pause-mute + frozen-phase resume; **setPitch applies at the
-  exact frame boundary** (frame 100, ±5e-4); RTGuard wraps the render; 10 s /
-  512-frame long render with a 21-command burst per chunk (ring overflows softly)
-  renders every frame, bounded output, load ratio < 1.0. **FR-ENG-1, NFR-PERF-1,
-  NFR-PERF-2; the RT half of AT-ENGINE-\*.**
+- `Session/SessionPolicy.swift` — `Mode` (listening / performing /
+  performing+talkover, §34A.1) with pure buffer preferences; `Granted` read-back
+  with `roundTripMillis` (FR-SESS-2); pure `response(for routeChange:)` covering
+  every §34A.3 row (oldDeviceUnavailable → pause both decks; newDeviceAvailable →
+  re-read/re-negotiate; category/override → re-read + re-assert; config change →
+  re-read only; **sample-rate change → rebuild, winning over every reason**) and
+  `response(for interruption:)` covering every §34A.4 row (.began → flush segment
+  + capture playheads; .ended+shouldResume → restore **paused**, rebuild on format
+  change; .ended without → remain paused / offer Resume); `response(forMediaServicesReset:)`.
+  Never auto-plays after interruption.
+- `Session/AudioSessionCoordinator.swift` — the one `#if canImport(AVAudioSession)`
+  module (invariant §49.3.6): three modes' category/options, normative order
+  category → preferences → activate → read back (§34A.2), route/interruption/
+  mediaServicesWereReset notification marshalling into the pure table,
+  Bluetooth-while-performing refusal with measured roundTripMillis (FR-SESS-4).
+  macOS host gets a minimal stub (`unavailableOnThisPlatform`).
+- `AudioSessionMatrixTests.swift` — 20 tests green on the macOS host: every
+  §34A.3/34A.4 row's decision, Bluetooth warning + listening-benign, media-services
+  reset → rebuild, mode buffer prefs, `roundTripMillis` math (granted ≠ requested),
+  never-auto-play invariant, coordinator stub. **FR-SESS-1/2/3/4; AT-SESS-\* decision
+  matrix** (physical route events user-owned on a device, §2.11). 314 DJ tests green;
+  no `xcodegen generate` needed (DJ excluded from app target).
+
+- **M4 commit 4.1 — RT boundary + RTGuard + offline engine harness — complete
+  (`211f431`).** `RTCommand` (POD, `@unchecked Sendable`) + `CommandRing` (fixed
+  power-of-two SPSC, stdlib `Atomic<Int>` head/tail, release/acquire, never grows);
+  `EngineSnapshot` (double-buffered `Atomic<UnsafeRawPointer?>` publish/read, control-side
+  retire list); `RTGuard` (DEBUG thread-local render flag, RELEASE compiles out); `RenderLoad`
+  (`mach_absolute_time`, one relaxed atomic store); `AudioGraph` (offline manual-rendering
+  `AVAudioEngine` harness; render block captures ring/snapshot/load/probe/state, not `self`).
+  `EngineOfflineTests`: 12 green — ring FIFO/full→false/empty/pointer round-trip; snapshot
+  publish/read/retire; RTGuard flag + nested context; RenderLoad measure/reset; offline render
+  vs sample-referenced sine; pause-mute + frozen-phase resume; **setPitch at exact frame 100
+  (±5e-4)**; RTGuard wraps the render; 10 s/512-frame render with 21-command bursts renders
+  every frame, bounded output, load < 1.0. **FR-ENG-1, NFR-PERF-1, NFR-PERF-2; the RT half of
+  AT-ENGINE-\*.**
 
 **Gate adjustment (`a7615e5`, owner decision):** the AT-PLIST-8 30k-candidate beam
 gate was **2.0 s → 2.5 s**. Root cause found: not load — the owner's **Low Power Mode
@@ -78,13 +91,13 @@ gate sits at 2.5 s (still under the 3 s budget).
 
 ## Next
 
-- **M4 commit 4.2** — `Session/SessionPolicy.swift` (pure route/interruption decision
-  table, §34A.3) + `AudioSessionCoordinator` (the one sanctioned `#if canImport`
-  module) + `AudioSessionMatrixTests`. Then 4.3 (single-deck play/cue/loop,
-  sample-accurate) … 4.13 (paywall + purchase + memory ceiling). Ship gates
-  AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the user-owned
-  shipping gate**, run after the milestone on a real device (deferred per decision 4
-  of the M4 kickoff).
+- **M4 commit 4.3** — single-deck play/cue/loop sample-accurate: `AudioGraph` +
+  `DeckClock` + `Scheduler` + `CueLoop` (§29–30, §33), the `PerformanceEngine`
+  façade (load/play/pause/cue/seek + setQuantize), offline tests for frame-exact cue
+  landing, loop wrap, quantized trigger. Then 4.4 (mixer EQ/filter/crossfader/limiter)
+  … 4.13 (paywall + purchase + memory ceiling). Ship gates AT-ENGINE-\*, AT-SESS-\*,
+  AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the user-owned shipping gate**, run after
+  the milestone on a real device (deferred per decision 4 of the M4 kickoff).
 
 ## After M4
 
