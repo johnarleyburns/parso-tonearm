@@ -21,6 +21,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M4 4.4** — `6e3c0e9` `feat(dj): mixer — 3-band EQ, sweep filter, crossfader, master limiter (M4 commit 4.4)`.
 - **M4 4.3** — `e595254` `feat(dj): single-deck play/cue/loop, sample-accurate (M4 commit 4.3)`.
 - **M4 4.2** — `40903e7` `feat(dj): audio-session decision table and coordinator (M4 commit 4.2)`.
 - **M4 4.1** — `211f431` `feat(dj): RT boundary — command ring, snapshot, RTGuard, offline engine harness (M4 commit 4.1)`.
@@ -44,7 +45,42 @@ governor) is fully committed.
 
 ## Working on
 
-**M4 commit 4.3 — single-deck play/cue/loop, sample-accurate — complete (`e595254`).**
+**M4 commit 4.4 — mixer: EQ / filter / crossfader / limiter — complete (`6e3c0e9`).**
+The §35 mixer DSP, wired into the deck render path and the master bus:
+
+- `Engine/Mixer.swift` — `LinkwitzRiley` (LR4: two cascaded 2nd-order Butterworth
+  biquads per band; the low/high sum is an exact all-pass — flat magnitude at
+  unity, phase-coherent kills), `ThreeBandEQ` (200 Hz / 2 kHz splits, smoothed
+  gains, `knobToGain` maps −1 kill … 0 unity … +1 = +6 dB), `SweepFilter`
+  (state-variable HP/LP, hard-bypassed at centre, 12 kHz → 300 Hz sweep),
+  `crossfaderGains` + `CrossfaderCurve` (constantPower / linear / sharp, the
+  spec's §35.4 function verbatim), `SmoothedGain` one-pole ramps so fader moves
+  never click, `LookaheadLimiter` (delay-line lookahead, soft-knee gain that
+  provably never exceeds the ceiling, instant attack / slow release), and the
+  graph wiring `DeckMixer` (per-channel EQ→filter→fader→crossfader chain) +
+  `MasterStage` (crossfader position/curve + per-channel limiter).
+- `Engine/RTCommand.swift` — `setEQ`/`setFilter`/`setFader`/`setCrossfader` tags
+  and an `f2` payload slot for the three band gains.
+- `Engine/AudioGraph.swift` — each deck's chain runs per sample in `readChunk`;
+  the master stage applies crossfader gains per deck each callback and the
+  limiter over the summed bus. `Configuration` gains `limiterCeiling`/
+  `limiterLookaheadFrames`.
+- `Engine/PerformanceEngine.swift` — `setEQKnobs` (knob→gain), `setFilter`,
+  `setChannelFader`, `setCrossfader` — all enqueue lock-free commands.
+- Tests: 16 pure `MixerTests` (crossfader laws + power identity, smoothed gain,
+  EQ magnitude-flat/kill/knob anchors, filter bypass/LP/HP/cutoff, limiter
+  ceiling/lookahead/transient-prediction/brickwall) + 5 new `EngineOfflineTests`
+  (EQ kill silences the graph, filter bypass frame-identical, fader halves the
+  deck, constant-power crossfader blend at full-A/full-B/centre, master limiter
+  clamps the graph output). Full suite 1091 green. No `xcodegen generate`.
+  **Decisions:** the deck chain is a bit-exact pass-through until a control is
+  touched (EQ idle until `setEQ`, filter bypassed at centre, crossfader idle
+  until positioned) so the 4.3 frame-exact reader harness stays valid; the
+  limiter is out of the path unless a ceiling is configured (reader harness
+  runs without it, mixer tests configure it). **FR-ENG-2, FR-ENG-7 (master
+  path), AT-ENGINE-\*.**
+
+- **M4 commit 4.3 — single-deck play/cue/loop, sample-accurate — complete (`e595254`).**
 The deck reader replaces the 4.1 sine scaffold (§29–30, §33), driven only through
 the command ring:
 
@@ -105,13 +141,13 @@ gate sits at 2.5 s (still under the 3 s budget).
 
 ## Next
 
-- **M4 commit 4.4** — mixer: EQ / filter / crossfader / limiter (`Engine/Mixer.swift`,
-  §35): 3-band isolator EQ (Linkwitz–Riley splits, full kill, ±6 dB), state-variable
-  HP/LP sweep filter (bypassed at centre), channel fader, constant-power crossfader,
-  master brickwall limiter; one-pole gain smoothing so fader moves never click.
-  Offline render assertions (EQ flat at 12 o'clock, kill = −∞, filter bypass at
-  centre, crossfader sums constant magnitude, limiter never exceeds ceiling).
-  Then 4.5 (time-stretch/key-lock) … 4.13 (paywall + purchase + memory ceiling).
+- **M4 commit 4.5** — time-stretch / key lock / key shift (`Engine/TimePitch.swift`,
+  §31): `AVAudioUnitTimePitch` per deck — `rate` = 1 + percent/100 (tempo),
+  `pitch` = `1200·log2(rate)` cents when key-lock off, held constant when on;
+  ±N semitone key shift with rate held. Offline render of a known-frequency
+  tone asserts pitch preservation under tempo with key lock on, pitch-follows-
+  rate off, and the +1 semitone ratio. Then 4.6 (sync + telemetry + iPad
+  workspace) … 4.13 (paywall + purchase + memory ceiling).
   Ship gates AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the
   user-owned shipping gate**, run after the milestone on a real device (deferred
   per decision 4 of the M4 kickoff).
