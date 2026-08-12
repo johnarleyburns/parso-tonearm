@@ -57,6 +57,9 @@ public final class PerformanceEngine {
     /// readout, from the graph's granted buffer — §34.2).
     public var bufferPeriodMillis: Double { graph.bufferPeriodMillis }
 
+    /// The graph's sample rate, used to render playheads as clock time.
+    public var sampleRate: Double { graph.sampleRate }
+
     /// The configured master limiter ceiling, nil when the limiter is out of
     /// the path (§35.5).
     public var limiterCeiling: Float? { graph.limiterCeiling }

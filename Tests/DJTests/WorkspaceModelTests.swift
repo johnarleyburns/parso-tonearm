@@ -17,6 +17,7 @@ final class WorkspaceModelTests: XCTestCase {
         var masterSample: Int64 { current.masterSample }
         var bufferPeriodMillis: Double = 85.3
         var limiterCeiling: Float?
+        var sampleRate: Double = 48_000
 
         private(set) var started = false
         private(set) var stopped = false
@@ -214,6 +215,61 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertFalse(model.telemetry.deckA.synced)
         XCTAssertEqual(model.telemetry.masterBPM, 120, accuracy: 1e-6, "the master clock snapshot")
         XCTAssertEqual(model.telemetry.masterSample, 1024)
+    }
+
+    // MARK: - Compact posture (§42.1, §42.6–42.7)
+
+    func testFocusSwapIsViewOnly() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        XCTAssertEqual(model.focusedDeck, .a, "deck A starts in focus")
+        model.swapFocus()
+        XCTAssertEqual(model.focusedDeck, .b)
+        model.swapFocus()
+        XCTAssertEqual(model.focusedDeck, .a)
+
+        XCTAssertTrue(fake.played.isEmpty, "swapping focus must not touch transport (FR-ENG-10)")
+        XCTAssertTrue(fake.paused.isEmpty)
+        XCTAssertTrue(fake.synced.isEmpty)
+        XCTAssertTrue(fake.unsynced.isEmpty)
+        XCTAssertTrue(fake.eqKnobs.isEmpty, "swapping focus must not touch the mixer")
+        XCTAssertEqual(model.telemetry, EngineTelemetry(), "telemetry is untouched by a view-only swap")
+        XCTAssertFalse(fake.stopped, "the engine keeps running behind the swap — both decks stay live")
+    }
+
+    func testCrateSheetNeverCoversTheCrossfaderBar() throws {
+        // §42.7: the browse-while-performing sheet may never cover the
+        // crossfader. Assert the pure bound over a spread of container
+        // heights — the view consumes exactly this rule.
+        for container in stride(from: CGFloat(400), through: CGFloat(1000), by: CGFloat(25)) {
+            let maxHeight = WorkspaceModel.crateSheetMaxHeight(containerHeight: container)
+            XCTAssertGreaterThanOrEqual(maxHeight, 0,
+                "sheet height stays non-negative at container \(container)")
+            XCTAssertLessThanOrEqual(maxHeight + WorkspaceModel.crossfaderBarHeight, container,
+                "the sheet bottom stays above the crossfader bar at container \(container)")
+            XCTAssertLessThanOrEqual(maxHeight, container * 0.6 + 0.001,
+                "the sheet is ~60% of the container (mockup `iphone/05b`) at \(container)")
+        }
+    }
+
+    func testCrateSheetPresentationChangesNoEngineState() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        XCTAssertFalse(model.isCrateSheetPresented)
+        model.raiseCrateSheet()
+        XCTAssertTrue(model.isCrateSheetPresented)
+        model.dismissCrateSheet()
+        XCTAssertFalse(model.isCrateSheetPresented)
+
+        XCTAssertTrue(fake.played.isEmpty, "raising the crate sheet changes no engine state")
+        XCTAssertTrue(fake.paused.isEmpty)
+        XCTAssertEqual(model.focusedDeck, .a, "the sheet does not disturb focus")
     }
 
     // MARK: - Helpers

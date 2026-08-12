@@ -194,8 +194,9 @@ private struct DeckColumnView: View {
 }
 
 /// A 44 pt-minimum transport button with press/release semantics (CUE is a
-/// hold-to-preview control, §33.1).
-private struct TransportButton: View {
+/// hold-to-preview control, §33.1). Shared by the iPad workspace and the
+/// compact solo/twin-deck surfaces (plan 4.7).
+struct TransportButton: View {
     let title: String
     var emphasized = false
     let action: () -> Void
@@ -223,8 +224,8 @@ private struct TransportButton: View {
     }
 }
 
-/// A small pill badge.
-private struct Pill: View {
+/// A small pill badge, shared across the performance surfaces.
+struct Pill: View {
     let text: String
     let color: Color
     init(_ text: String, color: Color) {
@@ -378,8 +379,9 @@ private struct MixerColumnView: View {
 }
 
 /// A deck's three EQ knobs (§41.9 — the groups stack vertically because six
-/// 44 pt knobs do not fit across a 268 pt column).
-private struct EQGroup: View {
+/// 44 pt knobs do not fit across a 268 pt column). Shared with the compact
+/// surface's EQ bank (plan 4.7).
+struct EQGroup: View {
     let title: String
     let low: Float
     let mid: Float
@@ -405,7 +407,7 @@ private struct EQGroup: View {
 /// A 44 pt minimum rotary knob driven by a vertical drag. The dial renders
 /// −1 … +1 across ±135°; the centre detent (kill→unity→+6 dB) is §35.2's
 /// mapping — the knob itself is linear knob position.
-private struct EQKnob: View {
+struct EQKnob: View {
     let label: String
     let value: Float
     let onChanged: (Float) -> Void
@@ -446,8 +448,9 @@ private struct EQKnob: View {
     }
 }
 
-/// A vertical drag fader for the sweep filters (§35.3).
-private struct VerticalSlider: View {
+/// A vertical drag fader for the sweep filters (§35.3). Shared with the
+/// compact surface's filter bank (plan 4.7).
+struct VerticalSlider: View {
     let value: Float
     let onChanged: (Float) -> Void
 

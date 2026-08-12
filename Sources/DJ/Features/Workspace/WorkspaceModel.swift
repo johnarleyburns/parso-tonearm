@@ -14,6 +14,9 @@ public protocol WorkspaceEngine: AnyObject {
     /// The configured master limiter ceiling, nil when the limiter is out of
     /// the path (§35.5).
     var limiterCeiling: Float? { get }
+    /// The graph's sample rate — the model renders playheads as clock time
+    /// from this (mockup `iphone/05a`'s −mm:ss readouts).
+    var sampleRate: Double { get }
     func start() throws
     func stop()
     func load(_ deck: PerformanceEngine.Deck, source: DeckSource)
@@ -242,5 +245,47 @@ public final class WorkspaceModel: ObservableObject {
         engine.setCrossfader(position, curve: curve)
         crossfader = position
         crossfaderCurve = curve
+    }
+
+    // MARK: - Compact posture (§42.1, §42.6–42.7)
+
+    /// The deck in focus on the compact solo-deck surface. The swap is a
+    /// view-only change: both decks stay live in the engine and swapping or
+    /// rotating changes no engine state (FR-ENG-10, §42.1).
+    @Published public var focusedDeck: PerformanceEngine.Deck = .a
+
+    /// Swap which deck the compact surface focuses. View-only — no engine
+    /// call is made, telemetry is untouched, both decks remain live (§42.1).
+    public func swapFocus() {
+        focusedDeck = focusedDeck == .a ? .b : .a
+        Haptics.confirm()
+    }
+
+    /// Whether the browse-while-performing crate sheet is raised (§42.7,
+    /// mockup `iphone/05b`). Raising it changes no engine state — the decks
+    /// keep playing under the sheet.
+    @Published public private(set) var isCrateSheetPresented = false
+
+    public func raiseCrateSheet() {
+        isCrateSheetPresented = true
+        Haptics.confirm()
+    }
+
+    public func dismissCrateSheet() {
+        isCrateSheetPresented = false
+    }
+
+    /// The band reserved for the always-visible crossfader bottom bar on the
+    /// compact surface. The crate sheet's layout is bounded below by this
+    /// band: it may never cover the crossfader (§42.7, mockup `iphone/05b`'s
+    /// `bottom: 96px` inset).
+    public static let crossfaderBarHeight: CGFloat = 96
+
+    /// The tallest the crate sheet may be inside a `containerHeight`-tall
+    /// container: roughly 60% of the height (mockup `iphone/05b`), but never
+    /// reaching into the crossfader bar — both decks stay visible above the
+    /// sheet and the crossfader stays reachable (§42.7).
+    public static func crateSheetMaxHeight(containerHeight: CGFloat) -> CGFloat {
+        max(0, min(containerHeight * 0.6, containerHeight - crossfaderBarHeight))
     }
 }
