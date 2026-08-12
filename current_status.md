@@ -21,6 +21,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M4 4.7** — `91580c0` `feat(dj): iPhone portrait solo-deck surface (M4 commit 4.7)`.
 - **M4 4.6** — `2bc6d4a` `feat(dj): dual-deck sync + telemetry + iPad workspace (M4 commit 4.6)`.
 - **M4 4.5** — `c628e99` `feat(dj): time-stretch/key-lock/key-shift via AVAudioUnitTimePitch (M4 commit 4.5)`.
 - **M4 4.4** — `6e3c0e9` `feat(dj): mixer — 3-band EQ, sweep filter, crossfader, master limiter (M4 commit 4.4)`.
@@ -47,7 +48,40 @@ governor) is fully committed.
 
 ## Working on
 
-**M4 commit 4.6 — dual-deck sync + telemetry + iPad workspace — complete.** The
+**M4 commit 4.7 — iPhone portrait solo-deck surface — complete (`91580c0`).**
+The §42.6–42.7 compact posture over the shared `WorkspaceModel` (mockups
+`iphone/05a`, `iphone/05b`):
+
+- `Features/Workspace/SoloDeckView.swift` — one focused deck full-width
+  (header pills, playhead + BPM readout, waveform, CUE/PLAY/SYNC/LOOP
+  transport, hot-cue pads, bank chips `Stems · EQ · Filter · Cues · Jog`),
+  the other deck in a **72 pt strip** (identity, BPM, state, playhead,
+  play/pause); **swipe-up or tap swaps focus — view-only**, both decks stay
+  live in the engine, no engine state changes (FR-ENG-10, §42.1). The
+  crossfader lives in the **always-visible bottom bar** (the whole strip is a
+  1:1 relative drag surface) and the browse-while-performing crate sheet may
+  never cover it: the sheet renders *behind* the bar and its height is bounded
+  by the model's pure `WorkspaceModel.crateSheetMaxHeight` rule. 44 pt min
+  targets, haptic confirm via the new `Features/Common/Haptics.swift`
+  (NFR-A11Y-3). Free users see the real dimmed surface + lock chip (§40.4).
+- `WorkspaceModel` gains the compact-posture state — `focusedDeck` +
+  `swapFocus` (no engine call), `isCrateSheetPresented` raise/dismiss, and the
+  static `crossfaderBarHeight`/`crateSheetMaxHeight` geometry bound.
+  `WorkspaceEngine` gains `sampleRate` so playheads render as clock time; the
+  iPad workspace's `TransportButton`/`Pill`/`EQGroup`/`EQKnob`/`VerticalSlider`
+  are shared across both surfaces (promoted to internal).
+- Tests: 3 new `WorkspaceModelTests` — focus swap is view-only (engine records
+  zero calls, telemetry untouched), the sheet never covers the crossfader over
+  a spread of container heights, raising the sheet changes no engine state.
+  Full suite 1132 green (1129 baseline + 3). Swift 6 guard OK. No
+  `xcodegen generate`. **FR-ENG-9/10, §42.6–42.7.**
+- **Decision (recorded):** the crate-sheet track rows (gig crate ranked by the
+  §28A.2 transition cost against the playing deck) and track titles/keys are
+  deferred — the workspace has no library data seam yet — so the sheet carries
+  the honest placeholder like the waveform/stems baselines; the normative
+  geometry rule is what this commit ships.
+
+- **M4 commit 4.6 — dual-deck sync + telemetry + iPad workspace — complete.** The
 §32 sync engine, the §40.3 telemetry pipeline, and the single session VM over
 the `ipad/07` workspace:
 
@@ -215,16 +249,16 @@ gate sits at 2.5 s (still under the 3 s budget).
 
 ## Next
 
-- **M4 commit 4.7** — iPhone portrait solo surface: one focused deck full-width
-  (waveform, transport, cues, bank chips incl. **Jog**), the other deck in a
-  72-pt strip, swipe/tap swap (view-only, both live), always-visible crossfader
-  bottom bar, browse-while-performing crate sheet that may never cover the
-  crossfader (§42.6–42.7; mockups `iphone/05a`, `iphone/05b`). Over the shared
-  `WorkspaceModel` from 4.6. 44 pt minimum targets, haptic confirm. Then 4.8
-  (jog gesture model + jog view) … 4.13 (paywall + purchase + memory ceiling).
-  Ship gates AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the
-  user-owned shipping gate**, run after the milestone on a real device (deferred
-  per decision 4 of the M4 kickoff).
+- **M4 commit 4.8** — `JogGestureModel` (pure) + `JogView`: the pure
+  contact-relative rotation state machine (radius split fixed at touch-down,
+  sensitivity 0.5–2.0, `scrub/nudge/hold/release` intents only, no SwiftUI
+  import) + the `CADisplayLink`-rendered jog off the telemetry pump, Core
+  Haptics detents, position marker + phase ghost (§40.7; FR-ENG-11, AT-TWIN-4).
+  The `Jog` bank chip on the 4.7 solo deck swaps in the real jog. Then 4.9
+  (TwinDeckView + orientation switch) … 4.13 (paywall + purchase + memory
+  ceiling). Ship gates AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*;
+  **AT-THERM-1 is the user-owned shipping gate**, run after the milestone on a
+  real device (deferred per decision 4 of the M4 kickoff).
 
 ## After M4
 
