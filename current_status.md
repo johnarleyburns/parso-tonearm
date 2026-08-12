@@ -21,6 +21,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M4 4.5** — `c628e99` `feat(dj): time-stretch/key-lock/key-shift via AVAudioUnitTimePitch (M4 commit 4.5)`.
 - **M4 4.4** — `6e3c0e9` `feat(dj): mixer — 3-band EQ, sweep filter, crossfader, master limiter (M4 commit 4.4)`.
 - **M4 4.3** — `e595254` `feat(dj): single-deck play/cue/loop, sample-accurate (M4 commit 4.3)`.
 - **M4 4.2** — `40903e7` `feat(dj): audio-session decision table and coordinator (M4 commit 4.2)`.
@@ -45,7 +46,40 @@ governor) is fully committed.
 
 ## Working on
 
-**M4 commit 4.4 — mixer: EQ / filter / crossfader / limiter — complete (`6e3c0e9`).**
+**M4 commit 4.5 — time-stretch / key lock / key shift — complete (`c628e99`).**
+The §31 time-pitch wiring, with a per-deck `AVAudioUnitTimePitch` in the graph
+and a pure cent-math core:
+
+- `Engine/TimePitch.swift` — `TimePitchMath` (pure `rateFromPercent`,
+  `centsFromRate` = 1200·log2(r), `semitoneCents`,
+  `pitchCents(rate:keyLock:keyShiftSemitones:)`), `TimePitchSettings` (per-deck
+  rate/keyLock/keyShift → `unitPitchCents`, plus `effectiveKeyShiftSemitones`
+  for the UI's Camelot hint), `TimePitchUnit` (`AVAudioUnitTimePitch` wrapper,
+  music parameters — transient-preserving mode asserted, RT-safe `apply` that
+  skips unchanged values so an idle deck costs no parameter traffic).
+- `Engine/RTCommand.swift` — `setKeyLock`/`setKeyShift` tags; `DeckState`
+  gains the keyLock/keyShift state; `PerformanceEngine` gains
+  `setKeyLock`/`setKeyShift` on the same lock-free command path.
+- `Engine/AudioGraph.swift` — `Configuration.timePitch` engages a §29.1-shape
+  per-deck `source → unit → main mixer` topology (the offline pitch tier).
+  Both deck source nodes drain the ring (first drain applies every command,
+  second finds it empty) so application is independent of engine pull order;
+  the master clock advances in `render()` so both decks read the same
+  pre-advance `frameStart` within a callback. **Decision (recorded):** the deck
+  reader stays the tempo authority (frame-exact, per the 4.4 decision) and the
+  unit carries only the key compensation — `unitRate` held 1.0,
+  `unitPitch` = (keyLock ? −1200·log2(rate) : 0) + 100·semitones — so every
+  frame-exact reader test stays bit-exact while FR-ENG-6 holds observably
+  (spike-verified: reader 528 Hz + unit −316¢ → 440 Hz).
+- Tests: 8 pure `TimePitchTests` (golden cent conversions; keyLock holds,
+  vinyl follows, semitone-ratio rules) + 6 new `EngineOfflineTests` on the
+  time-pitch graph that measure the **dominant frequency by zero crossings**
+  over a steady window (keyLock on at rate 1.2 holds 440 Hz; keyLock at unity
+  transparent; keyLock off follows rate to 528 Hz; ±1 semitone at `2^(±1/12)`;
+  keyShift compounds under keyLock to 440·2^(1/12), not 528·2^(1/12)). Full
+  suite 1105 green. No `xcodegen generate`. **FR-ENG-6, AT-ENGINE-\*.**
+
+- **M4 commit 4.4 — mixer: EQ / filter / crossfader / limiter — complete (`6e3c0e9`).**
 The §35 mixer DSP, wired into the deck render path and the master bus:
 
 - `Engine/Mixer.swift` — `LinkwitzRiley` (LR4: two cascaded 2nd-order Butterworth
@@ -141,13 +175,16 @@ gate sits at 2.5 s (still under the 3 s budget).
 
 ## Next
 
-- **M4 commit 4.5** — time-stretch / key lock / key shift (`Engine/TimePitch.swift`,
-  §31): `AVAudioUnitTimePitch` per deck — `rate` = 1 + percent/100 (tempo),
-  `pitch` = `1200·log2(rate)` cents when key-lock off, held constant when on;
-  ±N semitone key shift with rate held. Offline render of a known-frequency
-  tone asserts pitch preservation under tempo with key lock on, pitch-follows-
-  rate off, and the +1 semitone ratio. Then 4.6 (sync + telemetry + iPad
-  workspace) … 4.13 (paywall + purchase + memory ceiling).
+- **M4 commit 4.6** — sync + telemetry + iPad workspace: pure
+  `SyncEngine.correction(master:synced:atMasterSample:)` (§32) with
+  `PerformanceEngine.sync/unsync` (continuous rate tracking, scheduled
+  sample-accurate phase nudge); `EngineSnapshot` publishes the master-clock
+  snapshot; `EngineTelemetry` via atomics → `AsyncStream`; `TelemetryPump`
+  (`CADisplayLink`, ProMotion-aware, throttled at `.serious`); the single
+  `WorkspaceModel`/`WorkspaceView` session VM (two decks, centre mixer,
+  transport/sync/loop, idle-timer scoping), gated by `ProCapability.isEnabled
+  (.decks)`. Then 4.7 (iPhone portrait solo surface) … 4.13 (paywall +
+  purchase + memory ceiling).
   Ship gates AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the
   user-owned shipping gate**, run after the milestone on a real device (deferred
   per decision 4 of the M4 kickoff).
