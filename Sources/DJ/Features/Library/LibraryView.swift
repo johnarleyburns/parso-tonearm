@@ -13,6 +13,8 @@ public struct LibraryView: View {
     @State private var showImportSummary = false
     @State private var vibeDestination: VibeDestination?
     @State private var vibeModel: VibeSearchModel?
+    @State private var showPlaylistBrief = false
+    @State private var playlistModel: AutoPlaylistModel?
 
     /// Where a Vibe Search navigation lands: a fresh query, or audio-to-audio
     /// seeded by a track row.
@@ -55,6 +57,14 @@ public struct LibraryView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
+                        openPlaylistBrief()
+                    } label: {
+                        Label("Make a playlist", systemImage: "wand.and.stars")
+                    }
+                    .accessibilityLabel("Make a playlist")
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
                         openVibeSearch(.fresh)
                     } label: {
                         Label("Find by feel", systemImage: "sparkle.magnifyingglass")
@@ -91,9 +101,25 @@ public struct LibraryView: View {
                     VibeSearchView(model: vibeModel)
                 }
             }
+            .sheet(isPresented: $showPlaylistBrief) {
+                if let playlistModel {
+                    NavigationStack {
+                        PlaylistBriefView(model: playlistModel)
+                    }
+                }
+            }
             .task { model.start() }
             .onDisappear { model.stop() }
         }
+    }
+
+    /// Lazily assemble the auto-playlist stack on first use; a missing store is
+    /// an honest absence and simply leaves the entry point inert.
+    private func openPlaylistBrief() {
+        if playlistModel == nil {
+            playlistModel = AutoPlaylistAssembly.makeModel(pool: model.store.pool)
+        }
+        showPlaylistBrief = playlistModel != nil
     }
 
     /// Lazily assemble the search stack on first use; a missing store is an
