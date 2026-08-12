@@ -43,19 +43,31 @@ public final class AudioGraph: @unchecked Sendable {
         public var limiterCeiling: Float?
         /// Master limiter lookahead in frames (0 = delay-free brickwall).
         public var limiterLookaheadFrames: Int
+        /// Engage the per-deck `AVAudioUnitTimePitch` graph (§31, plan 4.5).
+        ///
+        /// When `false` the graph is the bit-exact single-source-node deck
+        /// reader (the frame-exact tier); when `true` each deck routes through
+        /// its own time-pitch unit (`source → unit → main mixer`, §29.1) and
+        /// the pitch/key offline tests render real stretched output. The
+        /// time-pitch topology is the §31 pitch tier — the master stage
+        /// (crossfader/limiter, §35.5) is exercised by the direct topology, so
+        /// `limiterCeiling` is not applied here. Default `false`.
+        public var timePitch: Bool
 
         public init(sampleRate: Double = 48_000,
                     channelCount: AVAudioChannelCount = 1,
                     maximumFrameCount: AVAudioFrameCount = 4096,
                     ringCapacity: Int = 8,
                     limiterCeiling: Float? = nil,
-                    limiterLookaheadFrames: Int = 0) {
+                    limiterLookaheadFrames: Int = 0,
+                    timePitch: Bool = false) {
             self.sampleRate = sampleRate
             self.channelCount = channelCount
             self.maximumFrameCount = maximumFrameCount
             self.ringCapacity = ringCapacity
             self.limiterCeiling = limiterCeiling
             self.limiterLookaheadFrames = limiterLookaheadFrames
+            self.timePitch = timePitch
         }
     }
 
@@ -96,7 +108,12 @@ public final class AudioGraph: @unchecked Sendable {
     }
 
     private let engine: AVAudioEngine
-    private let sourceNode: AVAudioSourceNode
+    /// The graph's source node(s): one for the direct topology, two (one per
+    /// deck) for the time-pitch topology. Retained so the render closures'
+    /// captures stay alive.
+    private let sourceNodes: [AVAudioSourceNode]
+    /// The per-deck `AVAudioUnitTimePitch` units; empty in the direct topology.
+    private let timePitchUnits: [TimePitchUnit]
     private let manualRenderingFormat: AVAudioFormat
     private let guardProbe: GuardActiveProbe
     private let graphState: RenderGraphState
@@ -122,27 +139,87 @@ public final class AudioGraph: @unchecked Sendable {
                                           limiterCeiling: configuration.limiterCeiling,
                                           limiterLookaheadFrames: configuration.limiterLookaheadFrames)
 
-        let sourceNode = AVAudioSourceNode(format: format) { _, _, frameCount, outputData in
-            RTGuard.withRenderContext {
-                let start = load.startTicks()
-                probe.flag.store(RTGuard.isInRenderContext, ordering: .relaxed)
-                let masterSample = graphState.clock.masterSample
-                let frames = Int(frameCount)
-                ring.drain { graphState.apply($0, masterSample: masterSample) }
-                _ = snap.read() // acquire the current snapshot once per callback
-                graphState.renderDecks(into: UnsafeMutableAudioBufferListPointer(outputData),
-                                       frames: frames)
-                load.endTicks(start)
-            }
-            return 0
-        }
+        let sourceNodes: [AVAudioSourceNode]
+        let timePitchUnits: [TimePitchUnit]
 
-        engine.attach(sourceNode)
-        engine.connect(sourceNode, to: engine.mainMixerNode, format: format)
+        if configuration.timePitch {
+            // §31 pitch tier (§29.1 shape): per-deck `source → unit → main
+            // mixer`. Each deck's source node renders only its deck through the
+            // shared reader and sets its unit's key compensation from the
+            // drained deck state. Both blocks drain the ring — the first drain
+            // applies every command (deck-addressed dispatch, §12.2), the
+            // second finds it empty — so command application is independent of
+            // engine pull order. The master stage is not in this topology
+            // (plan 4.5: the pitch tier; the master path is the direct
+            // topology's). The master clock is advanced after each callback in
+            // `render` rather than by a node, so both decks see the same
+            // pre-advance `frameStart` within a callback.
+            let unitA = TimePitchUnit()
+            let unitB = TimePitchUnit()
+            let sourceA = AVAudioSourceNode(format: format) { _, _, frameCount, outputData in
+                RTGuard.withRenderContext {
+                    let start = load.startTicks()
+                    probe.flag.store(RTGuard.isInRenderContext, ordering: .relaxed)
+                    let masterSample = graphState.clock.masterSample
+                    let frames = Int(frameCount)
+                    ring.drain { graphState.apply($0, masterSample: masterSample) }
+                    graphState.applyTimePitch(unitA, deck: 0)
+                    graphState.renderDeckIntoOutput(0,
+                                                    into: UnsafeMutableAudioBufferListPointer(outputData),
+                                                    frames: frames)
+                    load.endTicks(start)
+                }
+                return 0
+            }
+            let sourceB = AVAudioSourceNode(format: format) { _, _, frameCount, outputData in
+                RTGuard.withRenderContext {
+                    let masterSample = graphState.clock.masterSample
+                    let frames = Int(frameCount)
+                    ring.drain { graphState.apply($0, masterSample: masterSample) }
+                    graphState.applyTimePitch(unitB, deck: 1)
+                    graphState.renderDeckIntoOutput(1,
+                                                    into: UnsafeMutableAudioBufferListPointer(outputData),
+                                                    frames: frames)
+                }
+                return 0
+            }
+            engine.attach(sourceA)
+            engine.attach(sourceB)
+            engine.attach(unitA.node)
+            engine.attach(unitB.node)
+            engine.connect(sourceA, to: unitA.node, format: format)
+            engine.connect(sourceB, to: unitB.node, format: format)
+            engine.connect(unitA.node, to: engine.mainMixerNode, format: format)
+            engine.connect(unitB.node, to: engine.mainMixerNode, format: format)
+            sourceNodes = [sourceA, sourceB]
+            timePitchUnits = [unitA, unitB]
+        } else {
+            // Direct topology: one source node renders both decks, the master
+            // stage and the clock advance (§29.1 simplified, plan 4.3/4.4).
+            let sourceNode = AVAudioSourceNode(format: format) { _, _, frameCount, outputData in
+                RTGuard.withRenderContext {
+                    let start = load.startTicks()
+                    probe.flag.store(RTGuard.isInRenderContext, ordering: .relaxed)
+                    let masterSample = graphState.clock.masterSample
+                    let frames = Int(frameCount)
+                    ring.drain { graphState.apply($0, masterSample: masterSample) }
+                    _ = snap.read() // acquire the current snapshot once per callback
+                    graphState.renderDecks(into: UnsafeMutableAudioBufferListPointer(outputData),
+                                           frames: frames)
+                    load.endTicks(start)
+                }
+                return 0
+            }
+            engine.attach(sourceNode)
+            engine.connect(sourceNode, to: engine.mainMixerNode, format: format)
+            sourceNodes = [sourceNode]
+            timePitchUnits = []
+        }
 
         self.sampleRate = sampleRate
         self.engine = engine
-        self.sourceNode = sourceNode
+        self.sourceNodes = sourceNodes
+        self.timePitchUnits = timePitchUnits
         self.commandRing = ring
         self.snapshot = snap
         self.renderLoad = load
@@ -175,6 +252,14 @@ public final class AudioGraph: @unchecked Sendable {
         let status = try engine.renderOffline(frameCount, to: buffer)
         guard status == .success else {
             throw AudioGraphError.renderFailed(status: status)
+        }
+        if !timePitchUnits.isEmpty {
+            // The time-pitch topology's clock is advanced here (off-RT but
+            // synchronous — the offline pull completed above) so both decks'
+            // source nodes read the same pre-advance `frameStart` in a
+            // callback and the timeline advances exactly once per pull.
+            graphState.clock.advance(by: Int64(frameCount))
+            graphState.publishMasterSample()
         }
         return buffer
     }
@@ -234,14 +319,55 @@ final class RenderGraphState: @unchecked Sendable {
         }
         master.limit(into: list, frames: frames)
         clock.advance(by: Int64(frames))
+        publishMasterSample()
+        publishDeckTelemetry(0)
+        publishDeckTelemetry(1)
+    }
+
+    /// Publish the master clock's sample position (the direct topology calls
+    /// this from the render block; the time-pitch topology from `render`).
+    func publishMasterSample() {
         masterSampleAtomic.store(clock.masterSample, ordering: .relaxed)
-        for (index, deck) in decks.enumerated() {
-            let playhead = Int64(deck.playhead)
-            switch index {
-            case 0: playheadAtomicA.store(playhead, ordering: .relaxed)
-            default: playheadAtomicB.store(playhead, ordering: .relaxed)
-            }
+    }
+
+    /// Publish a deck's playhead through its relaxed atomic (§30.1).
+    func publishDeckTelemetry(_ deck: Int) {
+        guard decks.indices.contains(deck) else { return }
+        let playhead = Int64(decks[deck].playhead)
+        switch deck {
+        case 0: playheadAtomicA.store(playhead, ordering: .relaxed)
+        default: playheadAtomicB.store(playhead, ordering: .relaxed)
         }
+    }
+
+    /// Render one deck into an output that feeds its time-pitch unit (the
+    /// §31 pitch tier's per-deck chain). Zeroes the buffer first so an
+    /// unloaded or paused deck renders silence, not garbage (§46.2), then
+    /// publishes the deck's playhead.
+    func renderDeckIntoOutput(_ deck: Int,
+                              into list: UnsafeMutableAudioBufferListPointer,
+                              frames: Int) {
+        guard decks.indices.contains(deck) else { return }
+        for m in list {
+            guard let data = m.mData else { continue }
+            memset(data, 0, frames * MemoryLayout<Float>.size)
+        }
+        renderDeck(decks[deck], into: list, frames: frames,
+                   frameStart: clock.masterSample)
+        publishDeckTelemetry(deck)
+    }
+
+    /// Set a deck's time-pitch unit from its drained tempo/key state (§31).
+    /// Called every callback so a `setRate`/`setKeyLock`/`setKeyShift` command
+    /// is reflected in the unit's pitch at the same boundary the reader starts
+    /// using it. The unit's `apply` is the RT-safe AU-parameter path and
+    /// skips the set when nothing changed.
+    func applyTimePitch(_ unit: TimePitchUnit, deck: Int) {
+        guard decks.indices.contains(deck) else { return }
+        let state = decks[deck]
+        unit.apply(TimePitchSettings(rate: state.rate,
+                                     keyLock: state.keyLock,
+                                     keyShiftSemitones: state.keyShift))
     }
 
     /// Render one deck's output for the callback, splitting the buffer at the
@@ -340,6 +466,10 @@ final class DeckState: @unchecked Sendable {
     var playing = false
     var playhead: Double = 0
     var rate: Double = 1
+    /// Key lock on — pitch held constant under tempo changes (§31.2).
+    var keyLock = false
+    /// Independent musical key shift in semitones, rate held (§31.3).
+    var keyShift: Double = 0
     var loopStart: Int64 = 0
     var loopEnd: Int64 = 0
     var loopActive = false
@@ -414,6 +544,10 @@ final class DeckState: @unchecked Sendable {
             if let resolution = QuantizeResolution(rawValue: UInt8(command.f1)) {
                 quantizeResolution = resolution
             }
+        case .setKeyLock:
+            keyLock = command.f0 >= 0.5
+        case .setKeyShift:
+            keyShift = Double(command.f0)
         case .setEQ:
             for c in mixers.indices {
                 mixers[c].eqEngaged = true

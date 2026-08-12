@@ -135,6 +135,18 @@ public final class PerformanceEngine {
         _ = graph.commandRing.tryPush(.setRate(deck: deck.rawValue, rate: rate))
     }
 
+    /// Engage/disengage key lock: pitch is held constant while the deck's
+    /// tempo (rate) changes (§31.2).
+    public func setKeyLock(_ deck: Deck, locked: Bool) {
+        _ = graph.commandRing.tryPush(.setKeyLock(deck: deck.rawValue, locked: locked))
+    }
+
+    /// Shift the deck's musical key by ±N semitones, rate held — harmonic
+    /// mixing (§31.3). The UI reads the shifted key back for the Camelot hint.
+    public func setKeyShift(_ deck: Deck, semitones: Float) {
+        _ = graph.commandRing.tryPush(.setKeyShift(deck: deck.rawValue, semitones: semitones))
+    }
+
     // MARK: - Mixer (§35)
 
     /// Set the deck's 3-band EQ from knob positions (−1 kill … 0 unity …

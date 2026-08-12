@@ -613,15 +613,172 @@ final class EngineOfflineTests: XCTestCase {
                        "a hot constant input is held at the ceiling in steady state")
     }
 
+    // MARK: - Time-pitch / key lock (commit 4.5, §31)
+
+    /// The time-pitch topology renders a deck through its `AVAudioUnitTimePitch`
+    /// (plan §5 4.5, §29.1 shape). `AVAudioUnitTimePitch` is windowed DSP, not
+    /// a bit-exact transform, so these assertions measure the **dominant
+    /// frequency** over a steady window rather than individual samples — FR-ENG-6
+    /// (key lock holds pitch under a tempo change) and §31.3 (key shift ratio).
+    ///
+    /// The deck reader is the tempo authority: at rate 1.2 a 440 Hz tone leaves
+    /// the reader at 528 Hz. Key lock on lowers the unit's pitch by
+    /// `1200·log2(1.2) ≈ 316¢` so the output stays at 440 Hz; key lock off
+    /// leaves the 528 Hz vinyl behaviour; a +1 semitone shift moves the
+    /// frequency by `2^(1/12)` with the rate held.
+
+    func testKeyLockHoldsPitchUnderTempoChange() throws {
+        let engine = try makeEngine(timePitch: true)
+        try engine.start()
+        defer { engine.stop() }
+
+        let source = sineSource(frames: 200_000)
+        engine.load(.a, source: source.source)
+        engine.play(.a)
+        engine.setRate(.a, rate: 1.2)
+        engine.setKeyLock(.a, locked: true)
+
+        let samples = try renderPitchChunks(engine, warmup: 4, measure: 28)
+        let frequency = measuredFrequency(samples)
+        XCTAssertEqual(frequency, 440.0, accuracy: 440.0 * 0.015,
+                       "key lock must hold pitch at 440 Hz under a +20% tempo change "
+                       + "(reader at 528 Hz, unit −316¢ → measured \(frequency) Hz)")
+    }
+
+    func testKeyLockAtUnityRateIsTransparent() throws {
+        let engine = try makeEngine(timePitch: true)
+        try engine.start()
+        defer { engine.stop() }
+
+        let source = sineSource(frames: 200_000)
+        engine.load(.a, source: source.source)
+        engine.play(.a)
+        engine.setKeyLock(.a, locked: true) // rate stays 1 → compensation 0¢
+
+        let samples = try renderPitchChunks(engine, warmup: 4, measure: 28)
+        let frequency = measuredFrequency(samples)
+        XCTAssertEqual(frequency, 440.0, accuracy: 440.0 * 0.015,
+                       "key lock at unity rate must leave the frequency untouched "
+                       + "(measured \(frequency) Hz)")
+    }
+
+    func testKeyLockOffPitchFollowsRate() throws {
+        let engine = try makeEngine(timePitch: true)
+        try engine.start()
+        defer { engine.stop() }
+
+        let source = sineSource(frames: 200_000)
+        engine.load(.a, source: source.source)
+        engine.play(.a)
+        engine.setRate(.a, rate: 1.2) // key lock off (default): vinyl behaviour
+
+        let samples = try renderPitchChunks(engine, warmup: 4, measure: 28)
+        let frequency = measuredFrequency(samples)
+        let expected = 440.0 * 1.2
+        XCTAssertEqual(frequency, expected, accuracy: expected * 0.015,
+                       "key lock off must let pitch follow rate (measured \(frequency) Hz, "
+                       + "expected \(expected) Hz)")
+    }
+
+    func testKeyShiftSemitoneMovesFrequencyByExpectedRatio() throws {
+        let engine = try makeEngine(timePitch: true)
+        try engine.start()
+        defer { engine.stop() }
+
+        let source = sineSource(frames: 200_000)
+        engine.load(.a, source: source.source)
+        engine.play(.a)
+        engine.setKeyShift(.a, semitones: 1) // rate held at 1
+
+        let samples = try renderPitchChunks(engine, warmup: 4, measure: 28)
+        let frequency = measuredFrequency(samples)
+        let expected = 440.0 * pow(2, 1.0 / 12.0)
+        XCTAssertEqual(frequency, expected, accuracy: expected * 0.015,
+                       "a +1 semitone key shift must move the frequency by 2^(1/12) "
+                       + "(measured \(frequency) Hz, expected \(expected) Hz)")
+    }
+
+    func testKeyShiftNegativeSemitoneMovesFrequencyDown() throws {
+        let engine = try makeEngine(timePitch: true)
+        try engine.start()
+        defer { engine.stop() }
+
+        let source = sineSource(frames: 200_000)
+        engine.load(.a, source: source.source)
+        engine.play(.a)
+        engine.setKeyShift(.a, semitones: -1)
+
+        let samples = try renderPitchChunks(engine, warmup: 4, measure: 28)
+        let frequency = measuredFrequency(samples)
+        let expected = 440.0 * pow(2, -1.0 / 12.0)
+        XCTAssertEqual(frequency, expected, accuracy: expected * 0.015,
+                       "a −1 semitone key shift must move the frequency by 2^(−1/12) "
+                       + "(measured \(frequency) Hz, expected \(expected) Hz)")
+    }
+
+    func testKeyShiftCompoundsUnderKeyLock() throws {
+        let engine = try makeEngine(timePitch: true)
+        try engine.start()
+        defer { engine.stop() }
+
+        let source = sineSource(frames: 200_000)
+        engine.load(.a, source: source.source)
+        engine.play(.a)
+        engine.setRate(.a, rate: 1.2)
+        engine.setKeyLock(.a, locked: true) // holds pitch at 440 Hz
+        engine.setKeyShift(.a, semitones: 1) // then nudges it up a semitone
+
+        let samples = try renderPitchChunks(engine, warmup: 4, measure: 28)
+        let frequency = measuredFrequency(samples)
+        let expected = 440.0 * pow(2, 1.0 / 12.0)
+        XCTAssertEqual(frequency, expected, accuracy: expected * 0.015,
+                       "key lock under tempo + one semitone must land on 440·2^(1/12), "
+                       + "not 528·2^(1/12) (measured \(frequency) Hz, expected \(expected) Hz)")
+    }
+
+    /// Render `warmup` + `measure` 4096-frame chunks on the time-pitch graph and
+    /// return the measured window (the warm-up covers the unit's latency and
+    /// windowing). The deck reader consumes `rate` source samples per output
+    /// frame, so the test sources are sized well past the window.
+    private func renderPitchChunks(_ engine: PerformanceEngine,
+                                   warmup: Int, measure: Int) throws -> [Float] {
+        var samples: [Float] = []
+        samples.reserveCapacity(measure * 4096)
+        for _ in 0..<warmup {
+            _ = try engine.renderMono(4096)
+        }
+        for _ in 0..<measure {
+            samples += try engine.renderMono(4096)
+        }
+        return samples
+    }
+
+    /// The dominant frequency of `samples` by zero crossings over the whole
+    /// buffer (each cycle contributes two crossings).
+    private func measuredFrequency(_ samples: [Float]) -> Double {
+        guard samples.count > 8 else { return 0 }
+        var crossings = 0
+        var last = samples[0]
+        for i in 1..<samples.count {
+            let s = samples[i]
+            if (last < 0 && s >= 0) || (last >= 0 && s < 0) { crossings += 1 }
+            last = s
+        }
+        let window = Double(samples.count)
+        return Double(crossings) * 48_000.0 / (2.0 * window)
+    }
+
     // MARK: - Helpers
 
     private func makeEngine(ringCapacity: Int = 16,
                             limiterCeiling: Float? = nil,
-                            limiterLookaheadFrames: Int = 0) throws -> PerformanceEngine {
+                            limiterLookaheadFrames: Int = 0,
+                            timePitch: Bool = false) throws -> PerformanceEngine {
         try PerformanceEngine(configuration: .init(sampleRate: 48_000, channelCount: 1,
                                                    ringCapacity: ringCapacity,
                                                    limiterCeiling: limiterCeiling,
-                                                   limiterLookaheadFrames: limiterLookaheadFrames))
+                                                   limiterLookaheadFrames: limiterLookaheadFrames,
+                                                   timePitch: timePitch))
     }
 
     private func sineSource(frames: Int = 48_000) -> TestSource {

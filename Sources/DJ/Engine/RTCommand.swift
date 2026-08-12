@@ -35,6 +35,12 @@ public struct RTCommand: @unchecked Sendable, Equatable {
         case exitLoop
         /// Set the deck's quantize state — `f0` = on, `f1` = resolution raw value.
         case setQuantize
+        /// Set the deck's key-lock state — `f0` = locked (pitch held constant
+        /// under tempo changes, §31.2).
+        case setKeyLock
+        /// Set the deck's independent musical key shift — `f0` = semitones
+        /// (±N, §31.3).
+        case setKeyShift
         /// Set the deck's 3-band EQ gains — `f0/f1/f2` = low/mid/high linear
         /// gains (§35.2).
         case setEQ
@@ -123,6 +129,18 @@ public struct RTCommand: @unchecked Sendable, Equatable {
     /// Set the deck's 3-band EQ gains — low/mid/high linear gains (§35.2).
     public static func setEQ(deck: UInt8, low: Float, mid: Float, high: Float) -> RTCommand {
         RTCommand(tag: .setEQ, deck: deck, f0: low, f1: mid, f2: high)
+    }
+
+    /// Set the deck's key-lock state — pitch held constant under tempo changes
+    /// (§31.2).
+    public static func setKeyLock(deck: UInt8, locked: Bool) -> RTCommand {
+        RTCommand(tag: .setKeyLock, deck: deck, f0: locked ? 1 : 0)
+    }
+
+    /// Set the deck's independent musical key shift in semitones, rate held
+    /// (§31.3).
+    public static func setKeyShift(deck: UInt8, semitones: Float) -> RTCommand {
+        RTCommand(tag: .setKeyShift, deck: deck, f0: semitones)
     }
 
     /// Set the deck's sweep filter knob (§35.3).
