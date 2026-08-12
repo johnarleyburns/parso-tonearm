@@ -21,6 +21,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M4 4.3** — `e595254` `feat(dj): single-deck play/cue/loop, sample-accurate (M4 commit 4.3)`.
 - **M4 4.2** — `40903e7` `feat(dj): audio-session decision table and coordinator (M4 commit 4.2)`.
 - **M4 4.1** — `211f431` `feat(dj): RT boundary — command ring, snapshot, RTGuard, offline engine harness (M4 commit 4.1)`.
 - **M4 gate** — `a7615e5` `test(dj): AT-PLIST-8 gate 2.0s → 2.5s — owner runs Low Power Mode on AC`.
@@ -43,31 +44,44 @@ governor) is fully committed.
 
 ## Working on
 
-**M4 commit 4.2 — `SessionPolicy` + `AudioSessionCoordinator` — complete (`40903e7`).**
-Pure route/interruption decision table + thin platform-conditional shell per plan §2.3/§2.4:
+**M4 commit 4.3 — single-deck play/cue/loop, sample-accurate — complete (`e595254`).**
+The deck reader replaces the 4.1 sine scaffold (§29–30, §33), driven only through
+the command ring:
 
-- `Session/SessionPolicy.swift` — `Mode` (listening / performing /
-  performing+talkover, §34A.1) with pure buffer preferences; `Granted` read-back
-  with `roundTripMillis` (FR-SESS-2); pure `response(for routeChange:)` covering
-  every §34A.3 row (oldDeviceUnavailable → pause both decks; newDeviceAvailable →
-  re-read/re-negotiate; category/override → re-read + re-assert; config change →
-  re-read only; **sample-rate change → rebuild, winning over every reason**) and
-  `response(for interruption:)` covering every §34A.4 row (.began → flush segment
-  + capture playheads; .ended+shouldResume → restore **paused**, rebuild on format
-  change; .ended without → remain paused / offer Resume); `response(forMediaServicesReset:)`.
-  Never auto-plays after interruption.
-- `Session/AudioSessionCoordinator.swift` — the one `#if canImport(AVAudioSession)`
-  module (invariant §49.3.6): three modes' category/options, normative order
-  category → preferences → activate → read back (§34A.2), route/interruption/
-  mediaServicesWereReset notification marshalling into the pure table,
-  Bluetooth-while-performing refusal with measured roundTripMillis (FR-SESS-4).
-  macOS host gets a minimal stub (`unavailableOnThisPlatform`).
-- `AudioSessionMatrixTests.swift` — 20 tests green on the macOS host: every
-  §34A.3/34A.4 row's decision, Bluetooth warning + listening-benign, media-services
-  reset → rebuild, mode buffer prefs, `roundTripMillis` math (granted ≠ requested),
-  never-auto-play invariant, coordinator stub. **FR-SESS-1/2/3/4; AT-SESS-\* decision
-  matrix** (physical route events user-owned on a device, §2.11). 314 DJ tests green;
-  no `xcodegen generate` needed (DJ excluded from app target).
+- `Engine/DeckClock.swift` — `DeckClock` (absolute master sample, §30.1), `DeckGrid`
+  (beat grid for quantize), `QuantizeResolution`, and `DeckSource` — a **pure-value**
+  pre-decoded PCM source that crosses the RT boundary as a raw pointer: no ARC, no
+  lock, no allocation (§12.3).
+- `Engine/Scheduler.swift` — pure `quantizedBoundary(after:resolution:grid:)` and
+  `triggerFrame(...)`: the exact master-timeline frame a trigger lands on (§30.3).
+- `Engine/CueLoop.swift` — pure loop end/wrap math + the `TempCueState`
+  press-jump-preview / release-return machine (§33).
+- `Engine/AudioGraph.swift` — two `DeckState` readers over a zeroed baseline
+  (both decks sum; paused/unloaded decks render **silence, not garbage**, and bump
+  the §46.2 starved counter). Loop wrap and quantized cue jumps **split the buffer
+  at the exact frame** (§30.2). Master clock + per-deck playheads publish via
+  relaxed atomics (§30.1). `RTCommand` gained seek/setCue/cuePress/cueRelease/
+  triggerHotCue/setLoop/exitLoop/setQuantize, an `i1` slot, and `setPitch` →
+  `setRate` (§31.1).
+- `Engine/PerformanceEngine.swift` — the `@MainActor` façade (App. I.4):
+  `load/play/pause/cue/seek` + `setQuantize`, hot cues, CDJ-style loops — all
+  enqueue lock-free commands, none block on audio. `load` boxes the `DeckSource`
+  (the §12.2 ownership-transfer marker) and owns the box lifetime.
+- `EngineOfflineTests` — 25 green on the macOS host: a hot cue lands on the exact
+  frame; a loop wraps end→start frame-exact; a **quantized trigger lands on the
+  grid boundary mid-buffer** (sample 24 000, split inside a 4096 chunk); playhead
+  telemetry exact; temp-cue press/release returns to the pre-preview position;
+  dual-deck sum + pause-freeze; no-buffer renders silence (§46.2); pure
+  quantize/loop/cue math; 10 s render never overruns. **FR-ENG-1/5, AT-ENGINE-\***
+  (offline-render tier; physical timing is user-owned — plan §2.11). Full suite
+  1070 green; no `xcodegen generate` (DJ excluded from app target).
+
+- **M4 commit 4.2 — `SessionPolicy` + `AudioSessionCoordinator` — complete
+  (`40903e7`).** Pure §34A route/interruption decision table (mode buffers,
+  granted round-trip, every §34A.3/34A.4 row, never-auto-play) + the thin
+  `#if canImport(AVAudioSession)` coordinator shell (category→prefs→activate→
+  read-back, Bluetooth refusal, media-services reset). 20 `AudioSessionMatrixTests`
+  green. **FR-SESS-1/2/3/4, AT-SESS-\* decision matrix.**
 
 - **M4 commit 4.1 — RT boundary + RTGuard + offline engine harness — complete
   (`211f431`).** `RTCommand` (POD, `@unchecked Sendable`) + `CommandRing` (fixed
@@ -91,13 +105,16 @@ gate sits at 2.5 s (still under the 3 s budget).
 
 ## Next
 
-- **M4 commit 4.3** — single-deck play/cue/loop sample-accurate: `AudioGraph` +
-  `DeckClock` + `Scheduler` + `CueLoop` (§29–30, §33), the `PerformanceEngine`
-  façade (load/play/pause/cue/seek + setQuantize), offline tests for frame-exact cue
-  landing, loop wrap, quantized trigger. Then 4.4 (mixer EQ/filter/crossfader/limiter)
-  … 4.13 (paywall + purchase + memory ceiling). Ship gates AT-ENGINE-\*, AT-SESS-\*,
-  AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the user-owned shipping gate**, run after
-  the milestone on a real device (deferred per decision 4 of the M4 kickoff).
+- **M4 commit 4.4** — mixer: EQ / filter / crossfader / limiter (`Engine/Mixer.swift`,
+  §35): 3-band isolator EQ (Linkwitz–Riley splits, full kill, ±6 dB), state-variable
+  HP/LP sweep filter (bypassed at centre), channel fader, constant-power crossfader,
+  master brickwall limiter; one-pole gain smoothing so fader moves never click.
+  Offline render assertions (EQ flat at 12 o'clock, kill = −∞, filter bypass at
+  centre, crossfader sums constant magnitude, limiter never exceeds ceiling).
+  Then 4.5 (time-stretch/key-lock) … 4.13 (paywall + purchase + memory ceiling).
+  Ship gates AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the
+  user-owned shipping gate**, run after the milestone on a real device (deferred
+  per decision 4 of the M4 kickoff).
 
 ## After M4
 
