@@ -21,6 +21,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M4 4.9** — `113e8b7` `feat(dj): twin-deck landscape surface + orientation switch (M4 commit 4.9)`.
 - **M4 4.8** — `fce2b16` `feat(dj): jog gesture model + jog view with phase ghost (M4 commit 4.8)`.
 - **M4 4.7** — `91580c0` `feat(dj): iPhone portrait solo-deck surface (M4 commit 4.7)`.
 - **M4 4.6** — `2bc6d4a` `feat(dj): dual-deck sync + telemetry + iPad workspace (M4 commit 4.6)`.
@@ -50,7 +51,43 @@ governor) is fully committed.
 
 ## Working on
 
-**M4 commit 4.8 — `JogGestureModel` (pure) + `JogView` — complete (`fce2b16`).**
+**M4 commit 4.9 — `TwinDeckView` + orientation switch — complete (`113e8b7`).**
+The landscape twin-deck surface and §42.1's posture switch (FR-ENG-10, AT-TWIN-1):
+
+- `Features/Workspace/TwinDeckView.swift` — `TwinDeckView`, the §42.7a
+  landscape surface (mockup `iphone/05c`): 168 pt `JogView` per deck
+  (transport on each deck's inner side — CUE · PLAY/PAUSE · LOOP 54×54, jog
+  intents through a lazily-created `JogTransport` per deck, AT-TWIN-4),
+  stacked waveforms on **one shared playhead** (the beat ticks are positioned
+  from each deck's telemetry phase, so a synced pair shows coincident grids —
+  the honest baseline until the deck-prep waveform render), the 202 pt mixer
+  column (signed beat-phase meter + "locked · ±ms" readout, channel faders
+  A/B, SYNC tap=beat/hold=downbeat, crossfader — **no EQ**, it is a bank), a
+  passive bank tab per deck (the §42.7b drawer is 4.10), and a continuous
+  screen-edge filter slider on each edge that costs zero layout width and is
+  never occluded. The layout consumes `WorkspaceModel.TwinGeometry` — §42.7a's
+  budget verbatim (`734 = 30 │ 168 │ 6 │ 54 │ 8 │ 202 │ 8 │ 54 │ 6 │ 168 │
+  30`); the 59 pt sensor-housing dead bands carry nothing interactive.
+- **Orientation switch:** `CompactPerformanceView` maps `verticalSizeClass`
+  (`.compact` = landscape = twin, `.regular` = portrait = solo) onto the
+  model's view-only `compactPosture` and renders `SoloDeckView`/`TwinDeckView`
+  over the **one** `WorkspaceModel`. The container owns the engine lifecycle
+  (begin/end, scene-phase pump, `.defersSystemGestures`), so rotating never
+  stop/starts the engine — `SoloDeckView` gains a `managesLifecycle` flag
+  (default true; false when embedded) to make that possible.
+- `WorkspaceModel` additions: `channelA`/`channelB` published fader state
+  (unity default, the §35.4 transparent-until-touched convention),
+  `compactPosture` + `setPosture` (view-only), the pure
+  `beatPhaseError`/`beatPhaseErrorMillis` (signed circular difference;
+  `ms = error × 60000/bpm` — the sample rate cancels), and `TwinGeometry`.
+- Tests: 6 new `WorkspaceModelTests` — rotation is view-only, rotation
+  preserves transport/playhead exactly (AT-TWIN-1), channel-fader state
+  mirrors the engine, golden phase-error + ms math, the §42.7a budget sums to
+  734 and a deck column decomposes exactly. Full suite 1159 green (1153
+  baseline + 6); Swift 6 guard OK; no `xcodegen generate`. **FR-ENG-10,
+  AT-TWIN-1, §42.1/42.7a.**
+
+- **M4 commit 4.8 — `JogGestureModel` (pure) + `JogView` — complete (`fce2b16`).**
 The §40.7 jog control model, the rendered platter, and the jog's only route to
 the transport (FR-ENG-11, AT-TWIN-4):
 
@@ -296,17 +333,20 @@ to keep it from failing in a clock-capped Low Power Mode state.
 
 ## Next
 
-- **M4 commit 4.9** — `TwinDeckView` + orientation switch: both decks
-  resident in landscape (mockups `iphone/05c`, `iphone/05d`), a 168 pt jog
-  each (`JogView` from 4.8), stacked waveforms on one shared playhead, the
-  202 pt mixer column (beat-phase meter, channel faders, SYNC tap=beat /
-  hold=downbeat, crossfader), 54×54 transport, screen-edge filter sliders.
-  Orientation is the only switch (§42.1) — rotating changes **no** engine
-  state (FR-ENG-10, AT-TWIN-1). Then 4.10 (bank drawers + edge sliders) …
-  4.13 (paywall + purchase + memory ceiling). Ship gates AT-ENGINE-\*,
-  AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the user-owned
-  shipping gate**, run after the milestone on a real device (deferred per
-  decision 4 of the M4 kickoff).
+- **M4 commit 4.10** — bank drawers, edge sliders, bottom-edge crossfader
+  surface (§42.7b, mockup `iphone/05d`): the five modal idioms — momentary
+  drawer (may cover only its own jog+transport), screen-edge filter slider
+  (never occluded), release-to-commit flyout for LOOP/CUE, bottom-edge
+  relative crossfader drag surface (1:1, 40 pt), half-height crate sheet
+  (never over the crossfader). Spring-loading (hold raises, release dismisses
+  within one frame), tap pins with 12 s idle self-dismiss (AT-TWIN-3).
+  `EQ · STEMS · PADS · CUES` banks; nothing modal covers the crossfader, both
+  waveforms, the beat-phase meter or the opposite jog (FR-ENG-12, AT-TWIN-2).
+  Then 4.11 (iPad deck module slot, default `STEMS`) … 4.13 (paywall +
+  purchase + memory ceiling). Ship gates AT-ENGINE-\*, AT-SESS-\*,
+  AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the user-owned shipping gate**,
+  run after the milestone on a real device (deferred per decision 4 of the M4
+  kickoff).
 
 ## After M4
 
