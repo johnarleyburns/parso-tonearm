@@ -33,7 +33,12 @@ final class WorkspaceModelTests: XCTestCase {
 
         func start() throws { started = true }
         func stop() { stopped = true }
-        func load(_ deck: PerformanceEngine.Deck, source: DeckSource) {}
+        private(set) var loadedDeck: PerformanceEngine.Deck?
+        private(set) var loadedSource: DeckSource?
+        func load(_ deck: PerformanceEngine.Deck, source: DeckSource) {
+            loadedDeck = deck
+            loadedSource = source
+        }
         func play(_ deck: PerformanceEngine.Deck) { played.append(deck) }
         func pause(_ deck: PerformanceEngine.Deck) { paused.append(deck) }
         func cue(_ deck: PerformanceEngine.Deck) {}
@@ -71,6 +76,38 @@ final class WorkspaceModelTests: XCTestCase {
     private struct EmptyEntitlementSource: EntitlementSource {
         func currentTransactions() async throws -> [TransactionFact] { [] }
         func transactionUpdates() -> AsyncStream<TransactionFact> { AsyncStream { _ in } }
+    }
+
+    /// A recording fake of the library → deck seam (plan 5.1): the per-deck
+    /// queue catalog plus canned load outcomes, so the model's queue state and
+    /// load forwarding are exercised deterministically. Main-actor confined
+    /// (like the tests), which is what makes its `Sendable` conformance safe.
+    @MainActor
+    private final class FakeDeckLibrary: DeckLibraryServicing {
+        var available: [DeckQueueSource] = [.allTracks]
+        var rowsBySource: [DeckQueueSource: [DeckQueueRow]] = [:]
+        var outcomes: [Int64: DeckLoadOutcome] = [:]
+        private(set) var loadedTrackIDs: [Int64] = []
+
+        func availableQueues() async throws -> [DeckQueueSource] { available }
+
+        func rows(in source: DeckQueueSource) async throws -> [DeckQueueRow] {
+            rowsBySource[source] ?? []
+        }
+
+        func load(trackID: Int64) async -> DeckLoadOutcome {
+            loadedTrackIDs.append(trackID)
+            return outcomes[trackID] ?? .refused(.unavailable(reason: "not ready"))
+        }
+    }
+
+    /// A tiny decoded box the fake hands back as `.loaded` — the model keeps it
+    /// alive (the §12.2 box) for the duration of the test.
+    private func makeLoadedBox(frames: Int = 1000) -> DeckSourceBox {
+        let storage = UnsafeMutableBufferPointer<Float>.allocate(capacity: frames)
+        for i in 0..<frames { storage[i] = 0.1 }
+        return DeckSourceBox(samples: storage, sampleRate: 48_000,
+                             grid: DeckGrid(bpm: 120, sampleRate: 48_000))
     }
 
     private func makeStore(isPro: Bool) -> EntitlementStore {
@@ -765,6 +802,122 @@ final class WorkspaceModelTests: XCTestCase {
                                  "the jog module fits its deck column and cannot reach the mixer (AT-TWIN-2)")
         XCTAssertGreaterThanOrEqual(column, WorkspaceModel.ModuleGeometry.jogSize,
                                     "a deck column is comfortably wider than the jog itself")
+    }
+
+    // MARK: - Per-deck queues (§41.9c, FR-ENG-13; plan 5.1)
+
+    func testPerDeckQueuesAreIndependent() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        library.available = [.allTracks, .playlist(id: 1, title: "Set A")]
+        library.rowsBySource[.allTracks] = [
+            DeckQueueRow(trackID: 10, title: "Alpha", artist: "A", readiness: .ready),
+            DeckQueueRow(trackID: 11, title: "Beta", artist: "B", readiness: .ready)
+        ]
+        library.rowsBySource[.playlist(id: 1, title: "Set A")] = [
+            DeckQueueRow(trackID: 20, title: "Gamma", artist: "C", readiness: .ready)
+        ]
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library)
+        try model.begin()
+        defer { model.end() }
+
+        await model.selectQueue(.playlist(id: 1, title: "Set A"), for: .a)
+        XCTAssertEqual(model.queue(for: .a).source, .playlist(id: 1, title: "Set A"))
+        XCTAssertEqual(model.queue(for: .a).rows.map(\.trackID), [20])
+
+        // The two decks are independent (FR-ENG-13): pointing deck A at a
+        // playlist leaves deck B exactly where it was.
+        XCTAssertEqual(model.queue(for: .b).source, .allTracks)
+        XCTAssertEqual(model.queue(for: .b).rows, [])
+
+        await model.selectQueue(.allTracks, for: .b)
+        XCTAssertEqual(model.queue(for: .b).rows.map(\.trackID), [10, 11])
+        XCTAssertEqual(model.queue(for: .a).rows.map(\.trackID), [20],
+                       "setting deck B leaves deck A's queue untouched")
+    }
+
+    func testQueuesNeverAdvanceOnTheirOwn() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        library.rowsBySource[.allTracks] = [
+            DeckQueueRow(trackID: 1, title: "One", artist: "", readiness: .ready)
+        ]
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library)
+        try model.begin()
+        defer { model.end() }
+
+        await model.selectQueue(.allTracks, for: .a)
+        await model.refreshDeckQueues()
+        XCTAssertNil(fake.loadedSource, "queue selection and refresh never arm a deck — no auto-play-next (§41.9c)")
+        XCTAssertEqual(model.loadState(for: .a), .idle)
+        XCTAssertEqual(model.queue(for: .a).rows.map(\.trackID), [1])
+    }
+
+    func testLoadForwardsThroughTheLoaderAndArmsTheEngine() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        let box = makeLoadedBox()
+        library.outcomes[5] = .loaded(box)
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library)
+        try model.begin()
+        defer { model.end() }
+
+        await model.load(.a, trackID: 5)
+        XCTAssertEqual(fake.loadedDeck, .a)
+        XCTAssertEqual(fake.loadedSource?.frameCount, box.source.frameCount,
+                       "the engine arms exactly the loader's decoded source (§12.2)")
+        XCTAssertEqual(library.loadedTrackIDs, [5])
+        XCTAssertEqual(model.loadState(for: .a), .loaded(trackID: 5))
+    }
+
+    func testRefusedLoadNeverArmsTheEngine() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        library.outcomes[5] = .refused(.unavailable(reason: "Audio is not on this device yet"))
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library)
+        try model.begin()
+        defer { model.end() }
+
+        await model.load(.a, trackID: 5)
+        XCTAssertNil(fake.loadedSource, "the engine is touched only on a successful load (FR-LIB-8)")
+        XCTAssertEqual(model.loadState(for: .a),
+                       .refused(trackID: 5, reason: "Audio is not on this device yet"))
+    }
+
+    func testFailedLoadIsAnHonestMessage() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        library.outcomes[5] = .failed(DeckLoadFailure("could not decode"))
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library)
+        try model.begin()
+        defer { model.end() }
+
+        await model.load(.a, trackID: 5)
+        XCTAssertNil(fake.loadedSource)
+        XCTAssertEqual(model.loadState(for: .a), .failed(trackID: 5, message: "could not decode"))
+    }
+
+    func testRefreshDeckQueuesLoadsSourcesAndRows() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        library.available = [.allTracks, .playlist(id: 9, title: "Set B")]
+        library.rowsBySource[.allTracks] = [
+            DeckQueueRow(trackID: 1, title: "One", artist: "", readiness: .ready)
+        ]
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library)
+        try model.begin()
+        defer { model.end() }
+
+        XCTAssertTrue(model.availableQueues.isEmpty, "queues load on demand, not at init")
+        await model.refreshDeckQueues()
+        XCTAssertEqual(model.availableQueues, [.allTracks, .playlist(id: 9, title: "Set B")])
+        XCTAssertEqual(model.queue(for: .a).rows.map(\.trackID), [1])
     }
 
     // MARK: - Helpers

@@ -584,14 +584,25 @@ private struct SoloStripView: View {
 
 // MARK: - Browse-while-performing crate sheet
 
-/// The browse-while-performing crate sheet (§42.7, mockup `iphone/05b`): a
-/// raised panel ranked against the currently focused deck. Two rules are
-/// normative and structural here: both decks stay visible above the sheet,
-/// and the sheet may never cover the crossfader — the panel's height is
-/// bounded by `WorkspaceModel.crateSheetMaxHeight` and it renders *behind*
-/// the always-visible crossfader bar.
+/// The browse-while-performing crate sheet (§42.7, mockup `iphone/05b`): the
+/// focused deck's queue, ranked against that deck. Two rules are normative and
+/// structural here: both decks stay visible above the sheet, and the sheet may
+/// never cover the crossfader — the panel's height is bounded by
+/// `WorkspaceModel.crateSheetMaxHeight` and it renders *behind* the
+/// always-visible crossfader bar.
+///
+/// Plan 5.1 made the rows real (decision 16: "the crate sheet deferred in 4.7
+/// gets its real rows here"): a **source picker at its head** (§41.9c,
+/// FR-ENG-13 — the deck's queue may be any selectable source), and one-gesture
+/// loading through `WorkspaceModel.load(_:trackID:)` with the FR-LIB-8
+/// readiness shown per row (mockup `iphone/05b`'s dimmed caching row — a
+/// track that is not deck-ready says so, it never fails on the tap).
 private struct CrateSheetView: View {
     @ObservedObject var model: WorkspaceModel
+
+    private var deck: PerformanceEngine.Deck { model.focusedDeck }
+    private var queue: DeckQueue { model.queue(for: deck) }
+    private var loadState: DeckLoadState { model.loadState(for: deck) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -602,48 +613,120 @@ private struct CrateSheetView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 12)
 
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Gig crate")
-                        .font(.system(size: 15, weight: .bold))
-                    Text("ranked against DECK \(model.focusedDeck == .a ? "A" : "B") · browse while performing")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button {
-                    model.dismissCrateSheet()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 44, height: 44)
-                        .background(Color.white.opacity(0.06), in: Circle())
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 15)
-            .padding(.bottom, 10)
+            header
 
             Divider()
 
-            VStack(spacing: 10) {
-                Image(systemName: "square.stack.3d.up")
-                    .font(.system(size: 26))
-                    .foregroundStyle(.secondary)
-                Text("Crate rows land with the library browse wiring")
-                    .font(.system(size: 12, weight: .semibold))
-                Text("It stays clear of the crossfader, so you can keep mixing while you browse")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(queue.rows) { row in
+                        rowView(row)
+                    }
+                }
+                .padding(.horizontal, 15)
+                .padding(.vertical, 10)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 28)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 0)
         }
         .background(Color(red: 0.055, green: 0.075, blue: 0.10))
         .overlay(alignment: .top) { Divider() }
+        .task {
+            await model.refreshDeckQueues()
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                // The §41.9c source picker at the browse surface's head — the
+                // deck's queue is any selectable source; the other deck is
+                // untouched (FR-ENG-13).
+                Menu {
+                    ForEach(model.availableQueues, id: \.self) { source in
+                        Button {
+                            Task { await model.selectQueue(source, for: deck) }
+                        } label: {
+                            if source == queue.source {
+                                Label(source.title, systemImage: "checkmark")
+                            } else {
+                                Text(source.title)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "square.stack")
+                        Text(queue.source.title)
+                            .lineLimit(1)
+                    }
+                    .font(.system(size: 14, weight: .bold))
+                }
+                .buttonStyle(.plain)
+                Text("\(queue.rows.count) tracks · ranked against DECK \(deck == .a ? "A" : "B") · browse while performing")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button {
+                model.dismissCrateSheet()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.06), in: Circle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 15)
+        .padding(.bottom, 10)
+    }
+
+    private func rowView(_ row: DeckQueueRow) -> some View {
+        let isReady = row.readiness.isReady
+        let isLoading = loadState == .loading(trackID: row.trackID)
+        return Button {
+            guard isReady else { return }
+            Task { await model.load(deck, trackID: row.trackID) }
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(row.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isReady ? .primary : .secondary)
+                        .lineLimit(1)
+                    Text(row.artist.isEmpty ? "—" : row.artist)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                status(for: row, isLoading: isLoading)
+            }
+            .padding(.vertical, 7)
+            .padding(.horizontal, 9)
+            .background(Color.white.opacity(isReady ? 0.04 : 0.02), in: RoundedRectangle(cornerRadius: 8))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .disabled(!isReady)
+        .opacity(isReady ? 1 : 0.5)
+    }
+
+    @ViewBuilder
+    private func status(for row: DeckQueueRow, isLoading: Bool) -> some View {
+        if isLoading {
+            ProgressView()
+                .controlSize(.small)
+        } else if row.readiness.isReady {
+            Label("load", systemImage: "play.circle.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+        } else {
+            Text(WorkspaceModel.unavailableReason(row.readiness))
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+        }
     }
 }

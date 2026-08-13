@@ -50,6 +50,33 @@ public protocol WorkspaceEngine: AnyObject {
 
 extension PerformanceEngine: WorkspaceEngine {}
 
+/// The per-deck load state of the `WorkspaceModel.load(_:trackID:)` one-gesture
+/// path (plan 5.1). The gate and decode failures are **honest states with a
+/// message**, never a crash; the crate rows render them (plan: "a decode
+/// failure is an honest state not a crash").
+public enum DeckLoadState: Equatable, Sendable {
+    case idle
+    case loading(trackID: Int64)
+    case loaded(trackID: Int64)
+    /// The FR-LIB-8 gate refused the track — it is not deck-ready.
+    case refused(trackID: Int64, reason: String)
+    /// The decode or resolve failed; the deck is not armed.
+    case failed(trackID: Int64, message: String)
+
+    public var trackID: Int64? {
+        switch self {
+        case .idle: return nil
+        case .loading(let id), .loaded(let id), .refused(let id, _), .failed(let id, _):
+            return id
+        }
+    }
+
+    public var isLoading: Bool {
+        if case .loading = self { return true }
+        return false
+    }
+}
+
 /// The one session view model for every performance surface (plan §2.9, 4.6;
 /// §41.9): the iPad workspace, and later the compact solo/twin-deck postures,
 /// all over this single VM. Two decks, centre mixer, transport + sync + loop —
@@ -71,6 +98,16 @@ public final class WorkspaceModel: ObservableObject {
     /// the performance surfaces can hand it to the paywall (`PaywallModel`),
     /// which buys through the *same* store that unlocks the decks (AT-STORE-2).
     public let store: EntitlementStore
+    /// The library → deck seam (plan 5.1, decision 16): the per-deck queues
+    /// (§41.9c, FR-ENG-13) and the one gesture that loads a track to a deck
+    /// through the FR-LIB-8 gate and the decode path. Injectable so the model's
+    /// queue state and load forwarding are testable with a fake; the real
+    /// `DeckLoader(store: .shared)` is resolved lazily so a model that never
+    /// touches a queue costs no database I/O.
+    public var library: any DeckLibraryServicing {
+        injectedLibrary ?? DeckLoader(store: .shared)
+    }
+    private let injectedLibrary: (any DeckLibraryServicing)?
     private let pump: TelemetryPump?
     private var telemetryTask: Task<Void, Never>?
     private var anyDeckPlaying = false
@@ -119,13 +156,34 @@ public final class WorkspaceModel: ObservableObject {
     @Published public var jogSensitivityA: Double = 1.0
     @Published public var jogSensitivityB: Double = 1.0
 
+    /// The selectable per-deck queues (§41.9c): the whole library plus every
+    /// saved playlist. Refresh via `refreshDeckQueues()`.
+    @Published public private(set) var availableQueues: [DeckQueueSource] = []
+    /// Deck A's queue — its source and rows (FR-ENG-13: the two decks may point
+    /// at **different** sources at once).
+    @Published public private(set) var queueA = DeckQueue(source: .allTracks, rows: [])
+    /// Deck B's queue.
+    @Published public private(set) var queueB = DeckQueue(source: .allTracks, rows: [])
+    /// The per-deck load state of the `load(_:trackID:)` one-gesture path —
+    /// idle / loading / loaded, or the honest FR-LIB-8 refusal or decode
+    /// failure as a message. View-only readers render it, never block on it.
+    @Published public private(set) var loadStateA: DeckLoadState = .idle
+    @Published public private(set) var loadStateB: DeckLoadState = .idle
+    /// The §12.2 ownership-transfer boxes: the model keeps each deck's decoded
+    /// PCM alive until the deck is reloaded. Dropping the box on reload frees
+    /// the previous source — the offline harness is synchronous, so the engine
+    /// has already retired it.
+    private var sourceBoxes: [PerformanceEngine.Deck: DeckSourceBox] = [:]
+
     public init(engine: any WorkspaceEngine,
                 store: EntitlementStore,
                 pump: TelemetryPump? = nil,
                 pinnedDrawerIdle: Duration = .seconds(12),
-                defaults: UserDefaults = .standard) {
+                defaults: UserDefaults = .standard,
+                library: (any DeckLibraryServicing)? = nil) {
         self.engine = engine
         self.store = store
+        self.injectedLibrary = library
         self.isPro = store.isPro
         self.pinnedDrawerIdle = pinnedDrawerIdle
         self.defaults = defaults
@@ -200,6 +258,83 @@ public final class WorkspaceModel: ObservableObject {
 
     public func load(_ deck: PerformanceEngine.Deck, source: DeckSource) {
         engine.load(deck, source: source)
+    }
+
+    // MARK: - Per-deck queues (§41.9c, FR-ENG-13; plan 5.1)
+
+    /// A deck's current queue (its source + rows). Both decks stay independent:
+    /// `selectQueue(_:for:)` touches only the named deck (FR-ENG-13).
+    public func queue(for deck: PerformanceEngine.Deck) -> DeckQueue {
+        deck == .a ? queueA : queueB
+    }
+
+    /// The deck's current load state — the crate rows render it.
+    public func loadState(for deck: PerformanceEngine.Deck) -> DeckLoadState {
+        deck == .a ? loadStateA : loadStateB
+    }
+
+    /// Refresh the selectable queues and re-read each deck's current queue's
+    /// rows. Called when the workspace's browse surface appears (and when a new
+    /// playlist is saved). Never changes what is loaded or playing.
+    public func refreshDeckQueues() async {
+        availableQueues = (try? await library.availableQueues()) ?? []
+        await reloadQueue(for: .a)
+        await reloadQueue(for: .b)
+    }
+
+    /// Point one deck at a source. **The other deck is untouched** — setting
+    /// deck A's queue never changes deck B's (FR-ENG-13), and neither queue ever
+    /// advances on its own (there is no auto-play-next on a deck, §41.9c).
+    public func selectQueue(_ source: DeckQueueSource, for deck: PerformanceEngine.Deck) async {
+        let rows = (try? await library.rows(in: source)) ?? []
+        switch deck {
+        case .a: queueA = DeckQueue(source: source, rows: rows)
+        case .b: queueB = DeckQueue(source: source, rows: rows)
+        }
+    }
+
+    /// The one gesture that loads a library track to a deck (FR-ENG-13,
+    /// §41.9c): resolve → FR-LIB-8 gate → decode off the main actor → hand the
+    /// `DeckSource` to the engine, keeping the §12.2 box alive. The engine is
+    /// touched **only** on a successful load.
+    public func load(_ deck: PerformanceEngine.Deck, trackID: Int64) async {
+        setLoadState(.loading(trackID: trackID), for: deck)
+        switch await library.load(trackID: trackID) {
+        case .loaded(let box):
+            engine.load(deck, source: box.source)
+            sourceBoxes[deck] = box
+            setLoadState(.loaded(trackID: trackID), for: deck)
+        case .refused(let readiness):
+            let reason = Self.unavailableReason(readiness)
+            setLoadState(.refused(trackID: trackID, reason: reason), for: deck)
+        case .failed(let failure):
+            setLoadState(.failed(trackID: trackID, message: failure.message), for: deck)
+        }
+    }
+
+    private func reloadQueue(for deck: PerformanceEngine.Deck) async {
+        let current = queue(for: deck)
+        let rows = (try? await library.rows(in: current.source)) ?? []
+        switch deck {
+        case .a: queueA = DeckQueue(source: current.source, rows: rows)
+        case .b: queueB = DeckQueue(source: current.source, rows: rows)
+        }
+    }
+
+    private func setLoadState(_ state: DeckLoadState, for deck: PerformanceEngine.Deck) {
+        switch deck {
+        case .a: loadStateA = state
+        case .b: loadStateB = state
+        }
+    }
+
+    /// The user-facing wording for a refused load (FR-LIB-8) — the crate rows
+    /// and the workspace readout share it.
+    public static func unavailableReason(_ readiness: DeckReadiness) -> String {
+        switch readiness {
+        case .ready: return "Ready"
+        case .unavailable(let reason): return reason
+        }
     }
 
     public func play(_ deck: PerformanceEngine.Deck) {

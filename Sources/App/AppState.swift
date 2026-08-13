@@ -4,7 +4,7 @@ import TonearmCore
 import GRDB
 
 enum AppTab: Int, CaseIterable {
-    case listen, playlists, library, sources, settings
+    case listen, playlists, library, sources, settings, dj
 }
 
 enum PendingImport: Equatable {

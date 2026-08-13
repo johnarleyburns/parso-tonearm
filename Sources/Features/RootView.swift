@@ -19,6 +19,7 @@ struct RootView: View {
                 case .library: LibraryView()
                 case .sources: SourcesView()
                 case .settings: SettingsView()
+                case .dj: DJHomeView()
                 }
             }
 

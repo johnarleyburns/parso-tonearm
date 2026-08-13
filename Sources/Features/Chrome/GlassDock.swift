@@ -107,7 +107,8 @@ struct TabBar: View {
         (.playlists, "music.note.list", "Playlists"),
         (.library, "square.grid.2x2.fill", "Music"),
         (.sources, "cloud.fill", "Libraries"),
-        (.settings, "gearshape.fill", "Settings")
+        (.settings, "gearshape.fill", "Settings"),
+        (.dj, "slider.horizontal.3", "DJ")
     ]
 
     var body: some View {

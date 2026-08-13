@@ -59,6 +59,7 @@
 		782717264F729A5B9089D729 /* WatchSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD1B4DD87021743D84C9830 /* WatchSessionAdapter.swift */; };
 		796967ED51F8C7841F6FC270 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 25DC295C778B26F9C30D320D /* TonearmCore */; };
 		7971FCD80BE7D612C09F9B60 /* RemoteLibraryRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D198A526169E0BB94CA5DC01 /* RemoteLibraryRegressionUITests.swift */; };
+		7A2800C8675EA20C3EFA4988 /* DJHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01FC8C9CC6EF9060CBDEEDB5 /* DJHomeView.swift */; };
 		7A3B9D3BDEBED8D945FA809F /* ATTRIBUTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */; };
 		7EC0CA2A51F83AC350BF5AEE /* TonearmWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		817CD786F8CC3FC747B95A61 /* WatchAlbumsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 783A00C9B2142335E1E6936B /* WatchAlbumsView.swift */; };
@@ -172,6 +173,7 @@
 
 /* Begin PBXFileReference section */
 		017148BE727DF3DC34D3928C /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		01FC8C9CC6EF9060CBDEEDB5 /* DJHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJHomeView.swift; sourceTree = "<group>"; };
 		053C5BB5C4AF1B09D39BBCC6 /* PlatterheadWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatterheadWatchApp.swift; sourceTree = "<group>"; };
 		071CC5C8B79CC1A10F456254 /* CacheGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheGlyph.swift; sourceTree = "<group>"; };
 		07BB75BFAD34B2382CE704F9 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
@@ -323,6 +325,14 @@
 			path = WatchApp;
 			sourceTree = "<group>";
 		};
+		0B9F3C5F9BA0C753C0A32F77 /* DJ */ = {
+			isa = PBXGroup;
+			children = (
+				01FC8C9CC6EF9060CBDEEDB5 /* DJHomeView.swift */,
+			);
+			path = DJ;
+			sourceTree = "<group>";
+		};
 		11B60F667CF5D1321E6931A3 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
@@ -385,6 +395,7 @@
 			children = (
 				499B83014C41D2FBCEB59014 /* Chrome */,
 				4A3EE7FA05BF135CAAD44C55 /* Components */,
+				0B9F3C5F9BA0C753C0A32F77 /* DJ */,
 				39568B5401606194C242E745 /* Ingest */,
 				910E3AEF5745A8A0C0EE75F0 /* Library */,
 				25F8202722CC087F1D99E75B /* Listen */,
@@ -914,6 +925,7 @@
 				8AE40034D4CB1F72F61EC466 /* CacheGlyph.swift in Sources */,
 				471860B6E4026ABBD21B2A33 /* Components.swift in Sources */,
 				40ADEDBFEE6EF20F755D9813 /* CreatePlaylistSheet.swift in Sources */,
+				7A2800C8675EA20C3EFA4988 /* DJHomeView.swift in Sources */,
 				F1FEBCEF7BC2546437362B1D /* EQView.swift in Sources */,
 				6E4FBE3405E7DED87AC0E5FE /* GlassDock.swift in Sources */,
 				258615352F9FC8B6D84BA3FC /* GlassSurface.swift in Sources */,
