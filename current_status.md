@@ -53,6 +53,50 @@ governor) is fully committed.
 
 ## Working on
 
+**M4 commit 4.12 — Track Prep + grid corrections — complete (`ea66d33`).**
+The §41.8 Track Prep surface over the existing `grid_correction` path — the
+authoritative override log that replays deterministically over the immutable
+detected grid (§23.3, FR-PREP-5, FR-ANL-5, AT-GRID-\*):
+
+- `Data/GridCorrectionRepository.swift` — `TrackPrepSnapshot` (identity + the
+  **free** analysis readout per FR-PREP-4: BPM/key/LUFS/DR/grid confidence,
+  phrase map, first downbeat) and the authoritative `DeckGrid` a deck would
+  load (detected `beat_grid` + replayed corrections); `GridCorrectionRepository`
+  over the pool + the `DJLibraryStore` actor (reads via the pool, writes
+  through the single writer), plus the `TrackPrepRepositing` seam so the VM
+  tests inject a fake repository.
+- `Domain/DJLibraryStore.swift` — `gridCorrections` / `appendGridCorrection` /
+  `undoLastGridCorrection`, each one GRDB transaction (NFR-REL-1).
+- `Engine/DeckClock.swift` — `GridReplay`, the pure §23.3 kernel next to
+  `DeckGrid`: nudge/shift add a sample delta, setDownbeat/setBPM are absolute
+  (the newest wins), ×2/÷2 scale tempo, malformed entries skipped, replay
+  ordered by `(appliedAt, id)` so array order can never matter (NFR-DET).
+  `authoritativeGridIfAnalyzed` reports the honest "no grid yet" state — a
+  correction without a grid to correct is meaningless.
+- `Features/Prep/TrackPrepModel.swift` — the gate
+  (`ProCapability.isEnabled(.preparation)`, App. T.3 — free users see the
+  readout only, the tools render locked per §40.4) + the one-thumb tools
+  (nudge, tap-to-set-downbeat, ×2/÷2, setBPM, undo) that append to the log
+  and re-read the snapshot, plus the pure `TempoTapper` — a median-interval
+  tempo tap robust to one mistimed tap (FR-PREP-5).
+- `Features/Prep/TrackPrepView.swift` — mockup `ipad/06`: readout pills, the
+  gated grid-tool chips, a waveform with **real pinch-zoom over the grid's
+  bar/beat markers** (honest baseline bars until the analysis-driven pyramid
+  render, per the 4.6/4.7 convention), drag-to-nudge / tap-to-set-downbeat
+  committing **once** on release with haptic confirm (NFR-A11Y-3), and the
+  free "What we heard" panel. Cue pads and loops render the honest
+  unavailable state until their repositories land (the FR-PREP-2/3
+  convention, like the stems faders before M5).
+- Tests: 18 `GridCorrectionTests` — replay golden + determinism +
+  malformed-skip + nil-base; **DB tests assert a correction overrides
+  without mutating `beat_grid` (bpm/source/firstBeatSample untouched),
+  persists across a fresh repository, and feeds the deck grid; undo pops the
+  newest only**; the readout rows (LUFS/DR/phrases/confidence); the VM gate
+  refuses free edits at the intent boundary and forwards Pro ones through the
+  fake; TempoTapper math. Full suite 1201 green (1183 baseline + 18); Swift 6
+  guard OK; no `xcodegen generate`. **FR-PREP (grid), AT-GRID-\*, FR-ANL-5,
+  §23.3.**
+
 **M4 commit 4.11 — iPad deck module slot, default `STEMS` — complete (`726884a`).**
 The §41.9a per-deck module slot (mockup `ipad/07b`, FR-ENG-1 — jog as a slot,
 AT-TWIN-2 — a module never occludes shared controls):
@@ -425,17 +469,18 @@ to keep it from failing in a clock-capped Low Power Mode state.
 
 ## Next
 
-- **M4 commit 4.12** — Track Prep + grid corrections (mockup `ipad/06`):
-  `Features/Prep/TrackPrepView.swift` + model — waveform with pinch-zoom, cue
-  pad row, grid tools (tap-to-set downbeat, tempo tap, correction undo),
-  written through `DJLibraryStore`'s existing `grid_correction` path
-  (authoritative override log, immutable analysis preserved — §23.3); free
-  users see the analysis readout only (FR-PREP-4), the grid tools gated by
-  `ProCapability.isEnabled(.preparation)` (Appendix T.3). Then 4.13 (paywall
-  + purchase + memory ceiling). Ship gates AT-ENGINE-\*, AT-SESS-\*,
-  AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the user-owned shipping gate**, run
-  after the milestone on a real device (deferred per decision 4 of the M4
-  kickoff).
+- **M4 commit 4.13** — paywall + purchase flow + memory ceiling (mockup
+  `ipad/13a`, `ipad/13b`, `iphone/08`): `EntitlementStore` gains
+  `purchase()`/`restore()` (StoreKit stays in `Sources/Pro/`); `PaywallView`
+  + model in `Sources/DJ/Features/Paywall/` consume `isPro` and never import
+  StoreKit (App. T.3); **product repurpose** (§2.1): `FoundersGrant` collapses
+  to the single `guru.parso.tonearm.pro` product, `FoundersGrantTests`
+  rewritten to the one-row table (AT-STORE-4), `.storekit` carries the single
+  product at $39.99; `Perf/MemoryCeiling.swift` — `task_vm_info` sampling,
+  shed order, refuse-load at 95% (NFR-REL-4). Ship gates AT-ENGINE-\*,
+  AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the user-owned shipping
+  gate**, run after the milestone on a real device (deferred per decision 4 of
+  the M4 kickoff).
 
 ## After M4
 
