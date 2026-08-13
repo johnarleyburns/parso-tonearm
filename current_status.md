@@ -21,6 +21,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M4 4.8** — `fce2b16` `feat(dj): jog gesture model + jog view with phase ghost (M4 commit 4.8)`.
 - **M4 4.7** — `91580c0` `feat(dj): iPhone portrait solo-deck surface (M4 commit 4.7)`.
 - **M4 4.6** — `2bc6d4a` `feat(dj): dual-deck sync + telemetry + iPad workspace (M4 commit 4.6)`.
 - **M4 4.5** — `c628e99` `feat(dj): time-stretch/key-lock/key-shift via AVAudioUnitTimePitch (M4 commit 4.5)`.
@@ -48,7 +49,48 @@ governor) is fully committed.
 
 ## Working on
 
-**M4 commit 4.7 — iPhone portrait solo-deck surface — complete (`91580c0`).**
+**M4 commit 4.8 — `JogGestureModel` (pure) + `JogView` — complete (`fce2b16`).**
+The §40.7 jog control model, the rendered platter, and the jog's only route to
+the transport (FR-ENG-11, AT-TWIN-4):
+
+- `Features/Workspace/JogGestureModel.swift` — the **pure** contact-relative
+  rotation state machine (§40.7.2–40.7.4): no SwiftUI/UIKit/engine reference.
+  Rotation is measured from wherever the finger lands; the radius split
+  (platter inner 58% / ring outer 42%) is **fixed at touch-down** — a drag that
+  crosses the boundary mid-gesture must not change mode; sensitivity 0.5–2.0
+  (clamped) scales displacement; the ring's bend saturates at ±16% across ±π.
+  Emits **only** the four transport intents `hold` / `scrub(radians:)` /
+  `nudge(rate:)` / `release`. `JogPoint` (Double coords) keeps it host-agnostic.
+- `Features/Workspace/JogView.swift` — the rendered platter off the telemetry
+  pump (the model's `@Published telemetry`, driven at display cadence by
+  `TelemetryPump` — no second display link): the **position marker** (this
+  deck's beat phase) + the **phase ghost** (the other deck's beat phase) on the
+  same dial (§40.7.5), a hub readout, and `JogDetentDriver` — Core-Haptics
+  light-per-beat / heavy-per-downbeat detents (§40.7.4) while the platter is
+  held, following the master clock (the audible beat while a held deck pauses).
+  `JogTransport` maps the intents onto the engine's existing transport intents
+  (pause/play hold-resume, relative seek — one revolution = one beat,
+  setRate bend off the deck's base) and is guarded by `RTGuard.assertRTSafe`
+  (§46.3). **Decision (recorded):** the spec's App. I.4 façade does **not**
+  actually define `scrub/nudge/hold/release` (the claim in FR-ENG-11/§40.7.7 is
+  aspirational in the spec itself), so `JogTransport` maps the four jog intents
+  onto the transport surface the engine already ships, documented in the file;
+  `WorkspaceEngine`/`WorkspaceModel`/`PerformanceEngine` gain the read-only
+  `deckRate(_:)` seam (graph already publishes it) as the pitch-bend base.
+- The 4.7 solo-deck `Jog` bank chip swaps the placeholder circle for the real
+  `JogView` (168 pt), wired through a lazily-created `JogTransport`.
+- Tests: 21 `JogGestureModelTests` — rotation→scrub/nudge, the radius split
+  fixed across a boundary-crossing drag (both directions), sensitivity scaling
+  + clamping, contact-relative displacement, release, a golden deterministic
+  script, bend saturation, one-beat-per-revolution scrub math, the detent
+  driver's pure per-beat/per-downbeat decision, **AT-TWIN-4** (the jog's
+  intent path is flagged by the §46.3 shim inside `withRenderContext`), and
+  FR-ENG-11 transport wiring (hold pauses + release resumes a playing deck, a
+  paused deck is never started by lift, scrub seeks relative and clamps at 0,
+  nudge bends off the base and release restores, non-unity base rate).
+  Full suite 1153 green (1132 baseline + 21). **FR-ENG-11, AT-TWIN-4, §40.7.**
+
+- **M4 commit 4.7 — iPhone portrait solo-deck surface — complete (`91580c0`).**
 The §42.6–42.7 compact posture over the shared `WorkspaceModel` (mockups
 `iphone/05a`, `iphone/05b`):
 
@@ -249,16 +291,17 @@ gate sits at 2.5 s (still under the 3 s budget).
 
 ## Next
 
-- **M4 commit 4.8** — `JogGestureModel` (pure) + `JogView`: the pure
-  contact-relative rotation state machine (radius split fixed at touch-down,
-  sensitivity 0.5–2.0, `scrub/nudge/hold/release` intents only, no SwiftUI
-  import) + the `CADisplayLink`-rendered jog off the telemetry pump, Core
-  Haptics detents, position marker + phase ghost (§40.7; FR-ENG-11, AT-TWIN-4).
-  The `Jog` bank chip on the 4.7 solo deck swaps in the real jog. Then 4.9
-  (TwinDeckView + orientation switch) … 4.13 (paywall + purchase + memory
-  ceiling). Ship gates AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*;
-  **AT-THERM-1 is the user-owned shipping gate**, run after the milestone on a
-  real device (deferred per decision 4 of the M4 kickoff).
+- **M4 commit 4.9** — `TwinDeckView` + orientation switch: both decks
+  resident in landscape (mockups `iphone/05c`, `iphone/05d`), a 168 pt jog
+  each (`JogView` from 4.8), stacked waveforms on one shared playhead, the
+  202 pt mixer column (beat-phase meter, channel faders, SYNC tap=beat /
+  hold=downbeat, crossfader), 54×54 transport, screen-edge filter sliders.
+  Orientation is the only switch (§42.1) — rotating changes **no** engine
+  state (FR-ENG-10, AT-TWIN-1). Then 4.10 (bank drawers + edge sliders) …
+  4.13 (paywall + purchase + memory ceiling). Ship gates AT-ENGINE-\*,
+  AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the user-owned
+  shipping gate**, run after the milestone on a real device (deferred per
+  decision 4 of the M4 kickoff).
 
 ## After M4
 
