@@ -21,6 +21,8 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **Seed-fix** — `1290b31` `test(dj): seed the onset-noise test — fixes the SystemRandomNumberGenerator flake`.
+- **M4 4.10** — `f9e77c9` `feat(dj): bank drawers, edge sliders, bottom-edge crossfader (M4 commit 4.10)`.
 - **M4 4.9** — `113e8b7` `feat(dj): twin-deck landscape surface + orientation switch (M4 commit 4.9)`.
 - **M4 4.8** — `fce2b16` `feat(dj): jog gesture model + jog view with phase ghost (M4 commit 4.8)`.
 - **M4 4.7** — `91580c0` `feat(dj): iPhone portrait solo-deck surface (M4 commit 4.7)`.
@@ -51,7 +53,59 @@ governor) is fully committed.
 
 ## Working on
 
-**M4 commit 4.9 — `TwinDeckView` + orientation switch — complete (`113e8b7`).**
+**M4 commit 4.10 — bank drawers, edge sliders, bottom-edge crossfader — complete (`f9e77c9`).**
+The five §42.7b modal idioms with their two normative rules over the one
+`WorkspaceModel` (mockup `iphone/05d`, FR-ENG-12, AT-TWIN-2/3/4):
+
+- `Features/Workspace/BankDrawer.swift` — the **momentary bank drawer**: a
+  228×206 panel over **one deck's jog + transport and nothing else**
+  (`EQ · STEMS · PADS · CUES` seg — EQ = three 44 pt knobs with kill/boost
+  readouts + a TRIM fader, STEMS = **two** honest-unavailable stem faders per
+  §2.1's iPhone budget, PADS = four 44 pt pads, CUES = four hot cues), a grab
+  handle + pinned-drawer dismiss button. **Spring-loading** (AT-TWIN-3): press
+  springs, release dismisses within one frame — a held drawer can never leave
+  the surface in a forgotten mode — a tap pins, and the pinned drawer
+  self-dismisses after 12 s idle (injectable) with touch resetting the clock.
+  The state machine lives in `WorkspaceModel` (`TwinBank`, `DrawerState`
+  idle/spring/pinned, `springDrawer`/`releaseDrawer`/`pinDrawer`/
+  `dismissDrawer`/`selectDrawerBank`/`noteDrawerActivity`) — **view-only**, no
+  engine call, decks keep playing under the drawer.
+- **Release-to-commit LOOP flyout** (`LoopReleaseToCommitButton`): holding LOOP
+  raises the §41.9a beat counts 1/2/4/8/16/32 + EXIT; release over a chip
+  commits, release outside cancels — the loop never changes on the way out.
+  The chips are positioned at the model's pure `WorkspaceModel.LoopFlyout`
+  frames, so the drag's release resolution is honest to what the user sees;
+  the flyout stays within that deck's column. **Decision (recorded):** CUE
+  keeps its existing §33.1 press-jump-preview / release-return — the same
+  idiom's cue semantics — rather than a second flyout with invented engine
+  calls.
+- **Bottom-edge crossfader** (`BottomEdgeCrossfader`): the §42.7a full-width
+  40 pt **1:1 relative** drag surface over the vertical slack + home indicator
+  (pure `WorkspaceModel.relativeCrossfader`, double-tap slams); the surface
+  gains `.ignoresSafeArea()` so the §42.7a canvas (852×393) and the band land
+  exactly.
+- **Screen-edge filter slider** (`EdgeSlider.swift`, rule 2): 24 pt at the
+  true screen edge, always live and never occluded — the drawer's frame
+  (dead band 59 + margin 30 + one deck column) structurally clears it.
+- The bank tab's 44 pt hit region is a bottom-aligned overlay overlapping the
+  jog's lower rim per §42.7a, without breaking the 206 pt control band.
+- Tests: 12 new `WorkspaceModelTests` — spring-release restores the jog in one
+  frame, pinned drawer self-dismisses after idle (and does **not** before),
+  touch inside the pinned drawer resets the clock, the spring-release-pins
+  threshold, the drawer never covers the shared controls across both decks
+  (`drawerXRange` vs `mixerXRange` never intersect) + the edge-slider
+  clearance, drawer interaction changes no engine state, springing one deck
+  replaces another's pinned drawer, per-deck bank memory, flyout release
+  resolution golden incl. the cancel paths, and the 1:1 relative-crossfader
+  mapping. Full suite 1171 green (1159 baseline + 12); Swift 6 guard OK; no
+  `xcodegen generate`. **FR-ENG-12, AT-TWIN-2/3/4, §42.7b.**
+- **Seed-fix (`1290b31`):** the documented `OnsetTests` flake is fixed — the
+  noise test now uses the repo's seeded `SplitMix64` (which gains the
+  `RandomNumberGenerator` conformance) instead of ambient entropy, so
+  `peaks.count < 3` is deterministic (NFR-DET-3). It blocked the 4.10 commit
+  twice before the fix.
+
+- **M4 commit 4.9 — `TwinDeckView` + orientation switch — complete (`113e8b7`).**
 The landscape twin-deck surface and §42.1's posture switch (FR-ENG-10, AT-TWIN-1):
 
 - `Features/Workspace/TwinDeckView.swift` — `TwinDeckView`, the §42.7a
@@ -333,20 +387,16 @@ to keep it from failing in a clock-capped Low Power Mode state.
 
 ## Next
 
-- **M4 commit 4.10** — bank drawers, edge sliders, bottom-edge crossfader
-  surface (§42.7b, mockup `iphone/05d`): the five modal idioms — momentary
-  drawer (may cover only its own jog+transport), screen-edge filter slider
-  (never occluded), release-to-commit flyout for LOOP/CUE, bottom-edge
-  relative crossfader drag surface (1:1, 40 pt), half-height crate sheet
-  (never over the crossfader). Spring-loading (hold raises, release dismisses
-  within one frame), tap pins with 12 s idle self-dismiss (AT-TWIN-3).
-  `EQ · STEMS · PADS · CUES` banks; nothing modal covers the crossfader, both
-  waveforms, the beat-phase meter or the opposite jog (FR-ENG-12, AT-TWIN-2).
-  Then 4.11 (iPad deck module slot, default `STEMS`) … 4.13 (paywall +
-  purchase + memory ceiling). Ship gates AT-ENGINE-\*, AT-SESS-\*,
-  AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the user-owned shipping gate**,
-  run after the milestone on a real device (deferred per decision 4 of the M4
-  kickoff).
+- **M4 commit 4.11** — iPad deck module slot, default `STEMS` (§41.9a,
+  mockup `ipad/07b`): per-deck slot `JOG · STEMS · PADS · FX`, persisted per
+  deck, default `STEMS` (honest disabled stem faders until M5), jog module at
+  248 pt with ± pitch-bend buttons and vinyl/CDJ mode shown inside the
+  platter, jog sensitivity in the centre column, `LOOP` release-to-commit
+  flyout identical to the 4.10 compact idiom. Then 4.12 (Track Prep + grid
+  corrections) … 4.13 (paywall + purchase + memory ceiling). Ship gates
+  AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the
+  user-owned shipping gate**, run after the milestone on a real device
+  (deferred per decision 4 of the M4 kickoff).
 
 ## After M4
 
@@ -366,9 +416,10 @@ no new dependencies, no StoreKit outside `Sources/Pro/`, no `#if os(...)` around
 core modules. Swift 6 language mode + strict concurrency, warning-free.
 
 **Known flakes / environmental gates:**
-- `OnsetTests.testNoiseDoesNotProduceSpuriousPeaks` (DSPTests.swift:174) uses
-  `SystemRandomNumberGenerator`, so `peaks.count < 3` is nondeterministic — blocked
-  one commit attempt (3 vs 3) then passed on retry. Worth a separate seed-fix commit.
+- ~~`OnsetTests.testNoiseDoesNotProduceSpuriousPeaks`~~ — **fixed in `1290b31`**: the
+  noise test is now seeded `SplitMix64` (which gained the `RandomNumberGenerator`
+  conformance), so `peaks.count < 3` is deterministic (NFR-DET-3). It had blocked a
+  commit attempt (3 vs 3) intermittently before the fix.
 - `SequencerTests.testThirtyThousandCandidateBeamStaysInsideBudget` — gate raised
   2.5 s → 4.0 s (owner decision). Root cause was Low Power Mode capping
   CPU clocks (1235 ms off, ~2.05 s on), not load; measured stable across load
