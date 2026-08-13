@@ -9,9 +9,12 @@ audit table §9).
 
 ## Milestone
 
-**M4 — the two-deck engine, `AVAudioSession`, and StoreKit** (the 3.0 Pro launch,
-spec §48.5, Appendix M.5), working from `docs/plans/dj-phase-4-engine.md`. **Complete**
-— plan `5e8b731` + commits 4.1–4.13 are all on `main`. Its user-owned ship gates
+**M5 — stems, recording & gig crates** (spec §48.6, Appendix M.6), working from
+`docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; commits 5.1–5.6 to
+come. Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware)
+are user-owned and defer to a post-M5 device pass. M4 — the two-deck engine,
+`AVAudioSession`, and StoreKit (the 3.0 Pro launch, spec §48.5, Appendix M.5) — is
+**complete**: plan `5e8b731` + commits 4.1–4.13 are all on `main`. Its user-owned ship gates
 (AT-THERM-1 on-device thermal/memory, AT-PLIST-2 on-device timing, AT-PLIST-7
 listening) are deferred to a single post-M4 device pass. M3 (auto-playlists,
 `docs/plans/dj-phase-3-autoplaylists.md`) is **complete** — commits 3.1–3.5 are all
@@ -55,6 +58,32 @@ governor) is fully committed.
   `dd9cc35`…`fc81f2e`.
 
 ## Working on
+
+**M5 — plan committed, commits 5.1–5.6 ahead.** The stems / recording / gig-crate
+milestone (spec §48.6, Appendix M.6), working from
+`docs/plans/dj-phase-4-stems-recording.md` (plan commit in this entry):
+
+- Commit sequence (§5 of the plan): **5.1** Demucs ODR + separation + cache + version
+  stamp; **5.2** stem voices live on decks with the honest disabled state when
+  unprepared (§36.5); **5.3** gig crates — promotion from a playlist, budgeted
+  separation, LRU eviction shown before it happens (§41.17); **5.4** record tap +
+  encoder + segmented file (§37.2); **5.5** journal + crash/interruption recovery +
+  finalize (NFR-REL-2); **5.6** Finish + Mixes screens + timeline + export (§41.11,
+  §41.12).
+- **Recorded decisions (plan §2):** no committed `DemucsStems.mlpackage` — the
+  separator runs against a `StemModelProviding` ODR seam (the M2 `ModelResourceService`
+  pattern) with a deterministic fake model in tests, and the real model conversion is
+  user-owned; stems are a **source-level swap** (`StemSet` armed like `DeckSource`) so
+  a deck with no stem set is byte-for-byte the existing single-source reader (every
+  4.3–4.5 frame-exact test stays valid); recording tables (`performance_session`,
+  `mix`, `mix_track_event`, `mix_asset`) + `stem_cache` land in a new **`dj_v4`**
+  migration (they are not in the repo's `dj_v1`); the record tap is a post-limiter
+  RT-safe ring copy drained by an encoder actor into a segmented M4A; the timeline is
+  fed control-side, never from the render thread; CloudKit mix-sync is M6 (local-only
+  with the honest `localOnly` default in M5); FR-REC-5 is satisfied structurally in
+  the DJ mixes library. No new dependency, no new network host, no `xcodegen generate`.
+- The on-device AT-STEM-\* rows and a real Demucs run are the user-owned post-M5 pass
+  (plan §2.12), joining M4's deferred AT-THERM-1/AT-MEM-1.
 
 **M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
 The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
@@ -525,15 +554,20 @@ to keep it from failing in a clock-capped Low Power Mode state.
 
 ## Next
 
-- **Post-M4 device pass** (user-owned ship gates, one pass per handoff §8 and
-  plan §2.11): **AT-THERM-1** (60-minute two-deck session, battery, 50%
-  brightness, never `.critical`, §43.7), **AT-MEM-1** (the same session never
-  crosses the §43.5 footprint ceiling — the `MemoryCeilingMonitor` is shipped
-  and unit-tested), the M3 leftovers **AT-PLIST-2** (on-device timing) and
-  **AT-PLIST-7** (listening), and the physical AT-SESS-\* route events. Then
-  **ship 3.0 — the Pro launch**: AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*,
-  AT-TWIN-\* are green; app builds; the purchase unlocks the decks with no
-  relaunch (AT-STORE-2). **Ask before `git push`** — push triggers CI +
+- **M5 commits 5.1–5.6** (`docs/plans/dj-phase-4-stems-recording.md`, §5): stems
+  separation + cache (5.1), stem voices on decks (5.2), gig crates + storage budget
+  (5.3), record tap + encoder (5.4), journal + crash recovery (5.5), Finish + Mixes +
+  timeline + export (5.6). **Exit:** AT-STEM-\*, AT-REC-\* green; a recording survives
+  a forced termination with at most the final segment lost (NFR-REL-2). On-device rows
+  (real Demucs timing/thermal) defer to the post-M5 device pass.
+- **Post-M4 device pass** (user-owned ship gates, one pass per handoff §8 and the M4
+  plan §2.11): **AT-THERM-1** (60-minute two-deck session, battery, 50% brightness,
+  never `.critical`, §43.7), **AT-MEM-1** (the same session never crosses the §43.5
+  footprint ceiling — the `MemoryCeilingMonitor` is shipped and unit-tested), the M3
+  leftovers **AT-PLIST-2** (on-device timing) and **AT-PLIST-7** (listening), and the
+  physical AT-SESS-\* route events. Then **ship 3.0 — the Pro launch**: AT-ENGINE-\*,
+  AT-SESS-\*, AT-STORE-\*, AT-TWIN-\* are green; app builds; the purchase unlocks the
+  decks with no relaunch (AT-STORE-2). **Ask before `git push`** — push triggers CI +
   TestFlight and 3.0 is the release gate.
 
 ## After M4
@@ -542,9 +576,9 @@ to keep it from failing in a clock-capped Low Power Mode state.
   real-device FR-SEM-3 measurement.
 - **M1 exit-gate leftovers** (blocked, user-owned): paid products in App Store
   Connect; Plex claim token + cloud OAuth registrations into `.test-credentials`.
-- **M5** — stems (`StemSeparator` Demucs Core ML, §36) slot into the
-  `DeckModuleSlot`'s honest-unavailable faders; recording (§37), then M6
-  hardware/Watch.
+- **M5** — stems (`StemSeparator` Demucs Core ML, §36) — **in progress**; the `dj_v4`
+  migration adds the recording tables + `stem_cache`; recording (§37) ships with M5;
+  then M6 hardware/Watch.
 
 ## Standing rules in play
 
