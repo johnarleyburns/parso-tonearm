@@ -28,6 +28,8 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.4** — `a6d59f3` `feat(dj): club ergonomics — per-channel strips, tempo faders, eight pads, CUE-left-of-PLAY, §53.11 identifiers (M5 commit 5.4)`.
+- **M5 5.3** — `9bd2db6` `feat(dj): waveform render — band-split colour, composed grid, phrase ribbon, overview (M5 commit 5.3)`.
 - **M5 5.2** — `f8f9db1` `feat(dj): analysis persistence — phrases, downbeats, real beat grid, band-split pyramid (M5 commit 5.2)`.
 - **M5 5.1** — `69814f6` `feat(dj): app entry point + library → deck seam (M5 commit 5.1)`.
 - **M5 plan (re-scope)** — `d108b09` `docs(dj): M5 re-scope — outcome milestone, reachability first, Jamendo/AAC (Appendix M.6)`.
@@ -64,7 +66,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.2 landed, commits 5.3–5.13 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.4 landed, commits 5.4a–5.14 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -109,6 +111,48 @@ table instead of being dropped (FR-WAVE-1, AT-WAVE-1, §49.3 rule 9):
   re-analysis idempotence, and grid corrections still override without mutating
   the immutable rows. DJ-only — no `xcodegen generate` (plan decision 25). Full
   suite **1244 green** (1241 baseline + 3).
+
+**M5 commit 5.4 — club-standard ergonomics — complete (`a6d59f3`).** The §41.9b
+arrangement lands over mockup `ipad/07` (FR-TRANS-1/2, §42.7c, NFR-A11Y-6):
+
+- `WorkspaceView` is relaid out to the club arrangement. The two decks' waveforms
+  stack on **one shared playhead** at the top (§26A.5 view 2 — the overview +
+  phrase ribbons per deck, the detail rows beneath), freeing the deck columns to
+  be pure performance. Each deck column carries the club block: the **tempo fader
+  on the outer edge** (rule 4, ±8% `ClubGeometry.tempoFaderRange`; `setTempo` →
+  `setRate` with the ±8% clamp; VINYL/CDJ mode toggle rides the same outer column)
+  beside the **jog centred** (the plain 248 pt platter — the bend-column jog
+  module stays in the module slot's JOG option), the `HOT CUE · PAD FX · BEAT JUMP
+  · SAMPLER` **mode selector** above **eight pads** in two rows of four (rule 5),
+  and **CUE left of PLAY** at the deck's inner base (rule 3). The **mixer column
+  is the two per-channel vertical strips** (rule 1 — TRIM compact → HI → MID →
+  LOW → FILTER → vertical fader → CUE; `ClubGeometry.channelStripOrder`), the
+  **crossfader horizontal and bottom-centre** (rule 2, `dj.mixer.crossfader`), the
+  §35A **Beat FX block** below it (rule 7, honest-unavailable until 5.5's engine),
+  and the master/limiter/thermal readouts. The per-deck queue moves into a browse
+  sheet from the deck header (the compact crate-sheet pattern — FR-ENG-13 intact,
+  and the column keeps its club geometry); the module slot stays (STEMS is 5.8's
+  surface) with slimmed content; the jog sensitivity faders ride under the pads
+  (the mixer is now the strips).
+- **Compact (§42.7c):** the transferable core was already always-visible
+  (crossfader, channel faders, edge filters, CUE-left-of-PLAY, jog); **ECHO** now
+  has an always-visible button on both compact surfaces (`dj.fx.echo`,
+  honest-unavailable until 5.5 — Echo Out's two controls both stay reachable
+  without a drawer); EQ remains in the bank drawer.
+- **Geometry tests updated, not deleted** (decision 19): `1fr 320px 1fr`, the
+  ~416 pt deck column, `jogModuleWidth` ≤ both the derived (406 on 1180) and the
+  normative (416) deck column. New model surface: `masterBarBeat` pure bar:beat
+  math for `dj.master.bar` (§53.11) and per-deck tempo state.
+- **§53.11 accessibility identifiers on every performance control**, across all
+  three surfaces: `dj.deck.<a|b>.<play|cue|filter|fader>`, `dj.deck.<a|b>.eq.
+  <low|mid|high>`, `dj.mixer.crossfader`, `dj.fx.echo`, and `dj.master.bar`
+  exposing `bar:beat` (part of each control's contract, plan decision 27).
+- Tests: 8 new `WorkspaceModelTests` (club mixer budget, strip reading order,
+  CUE-left-of-PLAY, eight-pad geometry, tempo range + clamp + rate forwarding,
+  echo beat set, master bar:beat math) + 4 updated geometry tests. Full suite
+  **1262 green** (1244 baseline + 18); Swift 6 guard OK; app builds; iPhone +
+  watch smoke tests pass in the pre-commit hook. No `xcodegen generate` (DJ-only,
+  decision 25). **FR-TRANS-1/2, §41.9b, §42.7c, §53.11.**
 
 - **Commit sequence (plan §5).** Unblockers first: **5.1** app entry point + library →
   deck seam (§49.3a); **5.2** analysis persistence (§19.4); **5.3** the §26A waveform
@@ -614,24 +658,97 @@ gate sits at 2.5 s (still under the 3 s budget).
 **2.5 s → 4.0 s** (`SequencerTests.testThirtyThousandCandidateBeamStaysInsideBudget`)
 to keep it from failing in a clock-capped Low Power Mode state.
 
+## Uncommitted in the working tree — the DJ regression suite (commit 5.14, scaffolded early)
+
+**Nothing here is committed.** It is one coherent change: the design *and* the scaffold
+for the DJ regression suite, written ahead of its place in the sequence so the hooks it
+needs can land with the commits that build the surfaces rather than being retrofitted.
+It is safe to commit as-is, or to leave sitting while 5.4/5.4a proceed.
+
+Verified before writing: `xcodegen generate` has been run and the three new lanes are in
+`project.pbxproj`; `xcodebuild build-for-testing -scheme TonearmUIRegression` compiles
+**clean, zero warnings**; `verify-mix.py` was validated against synthesized audio — it
+passes a real bass swap (37 dB out / 37 dB in, mids held) and **fails a fake one** where
+the mids drop too, reporting "that is a cut, not a swap". The discriminating assertion is
+real, not decorative.
+
+| Path | What it is |
+|---|---|
+| `docs/plans/dj-regression-suite.md` | **new** — the coder brief: oracle rationale, fixture design, the five signature definitions, lane inventory, commit hooks, traps |
+| `UIRegressionTests/DJPerformanceDriver.swift` | **new** — bar-aware gesture driver (`waitForBar`, `sweep`), the §53.11 identifier constants, `MIX_MINUTES` |
+| `UIRegressionTests/DJMixRegressionUITests.swift` | **new** — `AT-MIX-1..8`, bodies `XCTSkip` per the §53.6 precedent |
+| `UIRegressionTests/DJLiveMixRegressionUITests.swift` | **new** — `AT-MIX-9..10`, live Jamendo, skips without a `client_id` |
+| `scripts/ui-regression/make-dj-fixture-media.py` | **new** — tone-identity fixtures; runs, writes 8 WAVs + a manifest |
+| `scripts/ui-regression/verify-mix.py` | **new** — the host-side analyzer; pure stdlib, targeted windows around journal marks |
+| `scripts/ui-regression/jamendo-mock/serve.py` | **new** — canned catalogue + fixture media over HTTP |
+| `docker-compose.ui-regression.yml` | + `dj-fixture-media`, `jamendo-mock` services |
+| `scripts/run-ui-regression.sh` | + `djmix`/`djlive` lanes, container artifact pull, analyzer invocation, artifact policy |
+| `Makefile`, `.gitignore` | + `MIX_MINUTES`; ignore `build/ui-regression/` |
+| `.test-credentials.example` | + `[jamendo]` — **key name only**, no value |
+| spec, M5 plan, HANDOFF, this file | §53.7–53.12, §54.6, `AT-MIX-*`, decisions 26–30, commits 5.4a/5.14 |
+
+**The recorded mix is kept on purpose.** `build/ui-regression/dj/` holds exactly one audio
+file so a human can play it and judge whether the analyzer's thresholds are tuned right —
+a failing signature over a mix that *sounds* wrong means the app is broken, while a failing
+signature over a mix that sounds right means the *threshold* is wrong, and without the audio
+those are indistinguishable. The directory is wiped at the **start** of every DJ run (so a
+rerun never leaves you auditioning the previous mix), intermediates are deleted at the end,
+and `KEEP_INTERMEDIATES=1` retains them for debugging.
+
+**Correction worth carrying forward:** the "DJ files need no `xcodegen generate`" shortcut
+holds **only** for `Sources/DJ/**`, which is an SPM target that globs at build time.
+`TonearmUIRegressionTests` is an Xcode target and XcodeGen writes explicit file references
+into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible to
+`xcodebuild` until a regen runs. Verified against the existing lane files.
+
 ## Next
 
-- **M5 commit 5.3 — the waveform render** (`docs/plans/dj-phase-4-stems-recording.md`
-  §5, spec §26A, AT-WAVE-2..7). `Data/WaveformRepository` → `WaveformRenderModel`
-  (§26A.1: pyramid-level selection, grid composed with `grid_correction`, phrase
-  spans, cues, active loop, playhead) over the §19.4 rows 5.2 started writing; the
-  `Canvas`-based band-split renderer, `PhraseRibbon` (bar counts not seconds,
-  dashed low-confidence edges), `OverviewStrip`; stacked twin waveforms share one
-  playhead; honest empty state for unanalysed tracks; thermal degradation (one
-  pyramid level coarser at `.serious`). Wire into `TrackPrepView`, `WorkspaceView`,
-  `SoloDeckView`, `TwinDeckView`, replacing the 4.7/4.9 placeholder strips. 5.2
-  (`f8f9db1`) is done: the persisted artifacts are real, so the renderer draws
-  from analysis, never synthetic geometry.
-- Then **5.4** club ergonomics → **5.5** Beat FX echo +
-  AT-TRANS → **5.6** genre libraries → **5.7–5.13**
-  the original stems/recording/gig-crate scope. **Exit:** AT-STEM-\*, AT-REC-\*,
-  AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\* green, plus the owner's end-to-end recorded
-  set as the user-owned shipping gate.
+- **M5 commit 5.4 — complete (`a6d59f3`)**. Club-standard ergonomics (§41.9b, §42.7c):
+  the workspace now matches mockup `ipad/07` — shared waveforms on one playhead,
+  per-channel vertical strips (TRIM → HI → MID → LOW → FILTER → fader → CUE), a
+  320 pt mixer column with the crossfader bottom-centre, the deck columns with
+  tempo fader on the outer edge + jog centred + eight pads under the mode
+  selector + CUE left of PLAY; the §53.11 accessibility identifiers on every
+  performance control. **Geometry tests updated, not deleted** (decision 19).
+- **Then 5.4a — the real-time render pump. ⚠ Do not skip past it: the app makes no
+  sound today.** `AudioGraph.init` enables manual `.offline` rendering
+  unconditionally (`Sources/DJ/Engine/AudioGraph.swift:199`) and the only callers of
+  `render()`/`renderMono()` anywhere in `Sources/` are unit tests, so the shipped app
+  dispatches UI commands into a graph nobody pulls: **PLAY advances no clock and
+  emits no audio.** Not a regression — 5.1 delivered reachability of the *surface*,
+  and every acceptance test is honest about running offline — but it sits underneath
+  the whole exit gate, and 5.5 onward cannot be verified without it. Add `.realtime`
+  beside `.offline` in `AudioGraph.Configuration`; connect the existing source nodes
+  through `mainMixerNode → outputNode`; advance the master clock in the render
+  callback. **One render-closure body, two drivers** — if the realtime path grows its
+  own copy, every offline test stops proving anything about what ships. Enter
+  `AudioSessionCoordinator` first, in the §34A.2 order. Acceptance: the existing
+  suite stays green unchanged **and** the app makes sound. A topology switch, not a
+  rewrite (decision 26, spec §53.11).
+- Then **5.5** Beat FX echo + AT-TRANS → **5.6** genre libraries → **5.7–5.13** the
+  original stems/recording/gig-crate scope → **5.14 the DJ regression suite**.
+  **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
+  **AT-MIX-1..8** green, plus the owner's end-to-end recorded set as the user-owned
+  shipping gate.
+- **⚠ 5.4a — the app currently makes no sound.** `AudioGraph` enables manual
+  `.offline` rendering unconditionally (`Sources/DJ/Engine/AudioGraph.swift:199`)
+  and the only callers of `render()` are unit tests, so the shipped app dispatches
+  UI commands into a graph nobody pulls: **PLAY advances no clock and emits no
+  audio.** Not a regression in anything committed — 5.1 delivered reachability of
+  the *surface*, and every acceptance test is honest about running offline — but it
+  sits underneath the whole M5 exit gate. Found while designing the regression
+  suite; recorded as plan decision 26 and spec §53.11. `.realtime` is added as a
+  configuration mode with **one render-closure body and two drivers**; the
+  `.offline` path is preserved exactly so the existing suite keeps its meaning.
+- **5.14 — the DJ regression suite** (`docs/plans/dj-regression-suite.md`, spec
+  §53.7–53.12). The M5 exit narrative driven through the real UI and asserted
+  against **the recording the app produces**, because `XCUITest` cannot hear and a
+  lane that asserts "the deck row says Playing" is the D-10 false green exactly.
+  Synthetic **tone-identity** fixtures (deck A 55/611/5300 Hz, deck B
+  87/1290/8900 Hz) make band energy attributable to a specific deck, which is what
+  turns "did the bass swap?" into a question with a crisp answer. `LANES=djmix`
+  gates the milestone; `LANES=djlive` hits real Jamendo and informs it. **By hand,
+  never in CI** (§53.2).
 - **Post-M4 device pass** (user-owned ship gates, one pass per handoff §8 and the M4
   plan §2.11): **AT-THERM-1** (60-minute two-deck session, battery, 50% brightness,
   never `.critical`, §43.7), **AT-MEM-1** (the same session never crosses the §43.5
@@ -666,6 +783,17 @@ the app target excludes `DJ/**`; TonearmDJ is the SPM target — **but M5 commit
 handoff §9, recorded in the plan (decision 20) and §18A.2; no others. Still **no new
 dependencies**, no StoreKit outside `Sources/Pro/`, no `#if os(...)` around DJ core
 modules. Swift 6 language mode + strict concurrency, warning-free.
+
+**CI runs `swift test` only.** The UI regression suite — including the new **DJ
+lanes** (`LANES=djmix|djlive`, spec §53.7–53.12) — is run **by hand** before a release
+and after major changes. It must never be wired into CI, `make test-swift`, or a git
+hook. The DJ lanes need Docker, a simulator with a real-time audio device, and up to
+20 minutes, so the pull toward "just add it to the nightly" is stronger than it was
+for the original lanes; the answer is unchanged. The separate target/scheme
+(`TonearmUIRegressionTests` / `TonearmUIRegression`) keeps that structural, not
+conventional. **No credential outside `.test-credentials`** — the Jamendo `client_id`
+included — and **no third-party audio committed**, Creative Commons included (§54.6);
+DJ fixtures are generated tones.
 
 **Known flakes / environmental gates:**
 - ~~`OnsetTests.testNoiseDoesNotProduceSpuriousPeaks`~~ — **fixed in `1290b31`**: the
