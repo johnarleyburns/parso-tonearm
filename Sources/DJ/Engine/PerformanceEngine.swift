@@ -64,6 +64,13 @@ public final class PerformanceEngine {
     /// the path (§35.5).
     public var limiterCeiling: Float? { graph.limiterCeiling }
 
+    /// The deck's current playback rate (published by the render thread each
+    /// callback — §32.1). The jog's pitch-bend intent reads it as the base for
+    /// its temporary tempo offset (§40.7.3).
+    public func deckRate(_ deck: Deck) -> Double {
+        Double(graph.deckRate(deck.rawValue))
+    }
+
     // MARK: - Transport / loading
 
     /// Arm a pre-decoded source for a deck. Ownership of the `DeckSource`'s PCM

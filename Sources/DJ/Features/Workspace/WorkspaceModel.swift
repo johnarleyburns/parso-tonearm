@@ -17,6 +17,8 @@ public protocol WorkspaceEngine: AnyObject {
     /// The graph's sample rate — the model renders playheads as clock time
     /// from this (mockup `iphone/05a`'s −mm:ss readouts).
     var sampleRate: Double { get }
+    /// The deck's current playback rate — the jog's pitch-bend base (§40.7.3).
+    func deckRate(_ deck: PerformanceEngine.Deck) -> Double
     func start() throws
     func stop()
     func load(_ deck: PerformanceEngine.Deck, source: DeckSource)
@@ -145,6 +147,12 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     // MARK: - Transport / loading
+
+    /// The deck's current playback rate — the jog reads it as the base for a
+    /// temporary pitch bend (§40.7.3).
+    public func deckRate(_ deck: PerformanceEngine.Deck) -> Double {
+        engine.deckRate(deck)
+    }
 
     public func load(_ deck: PerformanceEngine.Deck, source: DeckSource) {
         engine.load(deck, source: source)

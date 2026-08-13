@@ -29,6 +29,7 @@ final class WorkspaceModelTests: XCTestCase {
         private(set) var unsynced: [PerformanceEngine.Deck] = []
         private(set) var eqKnobs: [PerformanceEngine.Deck: (low: Float, mid: Float, high: Float)] = [:]
         private var syncedState: [PerformanceEngine.Deck: Bool] = [:]
+        private(set) var rates: [PerformanceEngine.Deck: Double] = [:]
 
         func start() throws { started = true }
         func stop() { stopped = true }
@@ -56,6 +57,7 @@ final class WorkspaceModelTests: XCTestCase {
             syncedState[deck] = false
         }
         func isSynced(_ deck: PerformanceEngine.Deck) -> Bool { syncedState[deck] ?? false }
+        func deckRate(_ deck: PerformanceEngine.Deck) -> Double { rates[deck] ?? 1.0 }
         func setEQKnobs(_ deck: PerformanceEngine.Deck, low: Float, mid: Float, high: Float) {
             eqKnobs[deck] = (low, mid, high)
         }

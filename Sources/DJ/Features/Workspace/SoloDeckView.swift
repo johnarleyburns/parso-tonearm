@@ -214,8 +214,9 @@ private func clampUnit(_ value: CGFloat) -> CGFloat {
 /// The focused deck at full width (§42.6): header pills, title + playhead
 /// + BPM readout, waveform, transport row, hot-cue pads and the bank chip row
 /// (`Stems · EQ · Filter · Cues · Jog`). The bank selection raises its
-/// controls below the chips; the `Jog` chip is present (plan 4.7) with the
-/// full jog surface landing in commit 4.8.
+/// controls below the chips; the `Jog` chip swaps in the real `JogView`
+/// (plan 4.8) — a rendered platter with position marker + phase ghost whose
+/// intents reach the transport only through `JogTransport`.
 private struct SoloDeckColumnView: View {
     @ObservedObject var model: WorkspaceModel
     let deck: PerformanceEngine.Deck
@@ -416,23 +417,24 @@ private struct SoloDeckColumnView: View {
                 }
             }
         case .jog:
-            Circle()
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                .background(Circle().fill(Color.white.opacity(0.04)))
+            JogView(model: model, deck: deck, onIntent: jogIntent)
                 .frame(width: 168, height: 168)
-                .overlay {
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
-                        .frame(width: 98, height: 98)
-                }
-                .overlay {
-                    Text("JOG")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.secondary)
-                }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 4)
         }
+    }
+
+    /// The jog's only route to the transport (FR-ENG-11, §40.7.7): intents are
+    /// mapped by `JogTransport` onto the engine's transport intents, guarded by
+    /// `RTGuard.assertRTSafe` (AT-TWIN-4). The transport is created lazily on
+    /// the first gesture so an idle jog costs nothing.
+    @State private var jogTransport: JogTransport?
+
+    private func jogIntent(_ intent: JogGestureModel.Intent) {
+        if jogTransport == nil {
+            jogTransport = JogTransport(engine: model.engine, deck: deck)
+        }
+        jogTransport?.route(intent)
     }
 
     /// The honest unavailable stem faders until the M5 separator lands

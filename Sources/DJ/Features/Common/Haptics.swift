@@ -17,4 +17,19 @@ public enum Haptics {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         #endif
     }
+
+    /// A light transient fired per beat while a platter is held (§40.7.4).
+    public static func beat() {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        #endif
+    }
+
+    /// A heavier transient fired per downbeat while a platter is held
+    /// (§40.7.4 — the accent that anchors the bar).
+    public static func downbeat() {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        #endif
+    }
 }
