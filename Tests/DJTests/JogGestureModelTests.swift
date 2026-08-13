@@ -131,6 +131,69 @@ final class JogGestureModelTests: XCTestCase {
         XCTAssertEqual(model.touchUp(), .release, "both regions end with the same lift intent")
     }
 
+    // MARK: - Platter mode (§41.9a: vinyl = scratch, CDJ = nudge, plan 4.11)
+
+    func testVinylModeIsTheDefaultPlatterAction() {
+        var model = JogGestureModel()
+        XCTAssertEqual(model.jogMode, .vinyl)
+        _ = model.touchDown(at: JogPoint(x: 40, y: 0), center: center, radius: radius)
+        XCTAssertEqual(model.touchMoved(to: JogPoint(x: 0, y: 40)), .scrub(radians: .pi / 2),
+                       "vinyl platter rotation scratches (§40.7.3)")
+    }
+
+    func testCDJModePlatterEmitsNudgeNotScrub() {
+        var model = JogGestureModel(jogMode: .cdj)
+        XCTAssertEqual(model.touchDown(at: JogPoint(x: 40, y: 0), center: center, radius: radius), .hold,
+                       "touch = hold in CDJ mode too (§40.7.3)")
+        XCTAssertEqual(model.region, .platter)
+        XCTAssertEqual(model.touchMoved(to: JogPoint(x: 0, y: 40)),
+                       .nudge(rate: JogGestureModel.bendRate(angle: .pi / 2)),
+                       "CDJ platter rotation nudges, it does not scrub (§41.9a)")
+    }
+
+    func testCDJModeRingStillBends() {
+        var model = JogGestureModel(jogMode: .cdj)
+        XCTAssertNil(model.touchDown(at: JogPoint(x: 90, y: 0), center: center, radius: radius))
+        XCTAssertEqual(model.touchMoved(to: JogPoint(x: 0, y: 90)), .nudge(rate: 0.08),
+                       "the ring bend is unchanged in CDJ mode")
+    }
+
+    func testCDJPlatterNudgeSaturatesAtTheMaxBend() {
+        var model = JogGestureModel(sensitivity: 2.0, jogMode: .cdj)
+        _ = model.touchDown(at: JogPoint(x: 40, y: 0), center: center, radius: radius)
+        XCTAssertEqual(model.touchMoved(to: JogPoint(x: 0, y: 40)), .nudge(rate: 0.16),
+                       "a quarter turn at 2.0 saturates the platter nudge")
+    }
+
+    func testSetSensitivityClampsToTheRange() {
+        var model = JogGestureModel()
+        model.setSensitivity(3.0)
+        XCTAssertEqual(model.sensitivity, 2.0, "the mixer column's fader is clamped to §40.7.4")
+        model.setSensitivity(0.1)
+        XCTAssertEqual(model.sensitivity, 0.5)
+        model.setSensitivity(1.4)
+        XCTAssertEqual(model.sensitivity, 1.4, accuracy: 1e-12)
+    }
+
+    // MARK: - iPad hub readout (§41.9a bar/beat, plan 4.11)
+
+    func testBarBeatReadoutDerivesFromThePlayhead() {
+        // 120 BPM at 48 kHz → 24 000 samples per beat; a 4/4 bar → 96 000.
+        XCTAssertEqual(JogView.barBeat(playheadSample: 0, bpmEffective: 120, sampleRate: 48_000).bar, 1)
+        XCTAssertEqual(JogView.barBeat(playheadSample: 0, bpmEffective: 120, sampleRate: 48_000).beat, 1)
+        let beat = Int64(24_000)
+        XCTAssertEqual(JogView.barBeat(playheadSample: beat, bpmEffective: 120, sampleRate: 48_000).beat, 2)
+        XCTAssertEqual(JogView.barBeat(playheadSample: beat * 3, bpmEffective: 120, sampleRate: 48_000).beat, 4)
+        XCTAssertEqual(JogView.barBeat(playheadSample: beat * 4, bpmEffective: 120, sampleRate: 48_000).bar, 2,
+                       "the beat after 4 lands in bar 2")
+        XCTAssertEqual(JogView.barBeat(playheadSample: beat * 4, bpmEffective: 120, sampleRate: 48_000).beat, 1)
+        XCTAssertEqual(JogView.barBeat(playheadSample: beat * 35, bpmEffective: 120, sampleRate: 48_000).bar, 9)
+        XCTAssertEqual(JogView.barBeat(playheadSample: -100, bpmEffective: 120, sampleRate: 48_000).bar, 1,
+                       "a negative playhead clamps to bar 1")
+        XCTAssertEqual(JogView.barBeat(playheadSample: 0, bpmEffective: 0, sampleRate: 48_000).bar, 1,
+                       "no tempo reads bar 1, beat 1")
+    }
+
     // MARK: - Determinism
 
     func testDeterministicScriptMatchesGoldenIntentSequence() {

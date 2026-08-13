@@ -12,19 +12,35 @@ import SwiftUI
 /// The jog never touches the engine directly and never executes on the render
 /// thread (FR-ENG-11): the intent routing that reaches the transport is
 /// guarded by `RTGuard.assertRTSafe` (§46.3, AT-TWIN-4).
+///
+/// The §41.9a iPad jog module (plan 4.11) drives the same surface at 248 pt:
+/// `mode` selects the §40.7.3 platter action (vinyl = scratch, CDJ = nudge —
+/// shown inside the platter, so the mode is never a guess), `sensitivity` is
+/// the per-deck §40.7.4 value the mixer column fader sets, and
+/// `showsModeReadout` swaps the minimal phone hub for the iPad's bar/beat +
+/// mode readout that compensates for iPad's lack of a Taptic Engine.
 public struct JogView: View {
     @ObservedObject var model: WorkspaceModel
     let deck: PerformanceEngine.Deck
     let onIntent: (JogGestureModel.Intent) -> Void
+    let mode: JogGestureModel.JogMode
+    let sensitivity: Double
+    let showsModeReadout: Bool
 
     @State private var gesture = JogGestureModel()
     @State private var detents = JogDetentDriver()
 
     public init(model: WorkspaceModel, deck: PerformanceEngine.Deck,
-                onIntent: @escaping (JogGestureModel.Intent) -> Void) {
+                onIntent: @escaping (JogGestureModel.Intent) -> Void,
+                mode: JogGestureModel.JogMode = .vinyl,
+                sensitivity: Double = 1.0,
+                showsModeReadout: Bool = false) {
         self.model = model
         self.deck = deck
         self.onIntent = onIntent
+        self.mode = mode
+        self.sensitivity = sensitivity
+        self.showsModeReadout = showsModeReadout
     }
 
     public var body: some View {
@@ -46,6 +62,12 @@ public struct JogView: View {
                     .onEnded { _ in endTouch() }
             )
         }
+        .onAppear {
+            gesture.jogMode = mode
+            gesture.setSensitivity(sensitivity)
+        }
+        .onChange(of: mode) { _, newValue in gesture.jogMode = newValue }
+        .onChange(of: sensitivity) { _, newValue in gesture.setSensitivity(newValue) }
         .onChange(of: model.telemetry) { _, _ in
             detents.update(telemetry: model.telemetry, sampleRate: model.engine.sampleRate)
         }
@@ -124,18 +146,72 @@ public struct JogView: View {
             .offset(x: CGFloat(cos(angle) * orbit), y: CGFloat(sin(angle) * orbit))
     }
 
-    /// The hub readout: the bound deck and its beat phase, the honest
-    /// in-platter text (§40.7.4 notes the iPad jog's readout; the phone keeps
-    /// it minimal).
+    /// The hub readout. The compact surfaces keep it minimal — the bound deck
+    /// and its beat phase; the §41.9a iPad module (`showsModeReadout`) swaps in
+    /// the mode pill + BPM + bar/beat readout the larger platter earns (and
+    /// that compensates for iPad's lack of a Taptic Engine, §40.7.4).
     private var readout: some View {
-        VStack(spacing: 2) {
-            Text(deck == .a ? "A" : "B")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.secondary)
-            Text(String(format: "%.0f%%", thisPhase * 100))
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundStyle(.secondary)
+        Group {
+            if showsModeReadout {
+                modeReadout
+            } else {
+                VStack(spacing: 2) {
+                    Text(deck == .a ? "A" : "B")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.secondary)
+                    Text(String(format: "%.0f%%", thisPhase * 100))
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
+    }
+
+    private var telemetryDeck: EngineTelemetry.Deck {
+        deck == .a ? model.telemetry.deckA : model.telemetry.deckB
+    }
+
+    private var modeReadout: some View {
+        let color: Color = mode == .vinyl ? .green : .cyan
+        return VStack(spacing: 3) {
+            Text(mode == .vinyl ? "VINYL" : "CDJ")
+                .font(.system(size: 9, weight: .bold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(color.opacity(0.18), in: Capsule())
+                .foregroundStyle(color)
+            Text(String(format: "%.1f", telemetryDeck.bpmEffective))
+                .font(.system(size: 23, weight: .bold, design: .monospaced))
+                .monospacedDigit()
+            Text(barBeatText)
+                .font(.system(size: 8, design: .monospaced))
+                .foregroundStyle(.secondary)
+            Text(mode == .vinyl ? "platter = scratch\nring = bend"
+                                : "platter = nudge\nring = bend")
+                .font(.system(size: 7))
+                .foregroundStyle(color.opacity(0.8))
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    private var barBeatText: String {
+        let barBeat = Self.barBeat(playheadSample: telemetryDeck.playheadSample,
+                                   bpmEffective: telemetryDeck.bpmEffective,
+                                   sampleRate: model.engine.sampleRate)
+        return String(format: "BAR %d · BEAT %d", barBeat.bar, barBeat.beat)
+    }
+
+    /// The deck's bar/beat readout at its playhead, derived from the
+    /// telemetry's `playheadSample` and `bpmEffective` (a 4/4 bar, the default
+    /// grid). Pure so the iPad hub's readout is pinned off-device.
+    public static func barBeat(playheadSample: Int64,
+                               bpmEffective: Double,
+                               sampleRate: Double) -> (bar: Int, beat: Int) {
+        guard bpmEffective > 0, sampleRate > 0 else { return (1, 1) }
+        let samplesPerBeat = sampleRate * 60 / bpmEffective
+        guard samplesPerBeat > 0 else { return (1, 1) }
+        let beatIndex = max(0, playheadSample) / Int64(samplesPerBeat)
+        return (Int(beatIndex / 4) + 1, Int(beatIndex % 4) + 1)
     }
 }
 

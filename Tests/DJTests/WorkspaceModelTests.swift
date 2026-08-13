@@ -666,7 +666,117 @@ final class WorkspaceModelTests: XCTestCase {
                        0.2, accuracy: 1e-6, "no travel means no mapping")
     }
 
+    // MARK: - iPad module slot (§41.9a, plan 4.11)
+
+    func testModuleSlotDefaultsToStems() {
+        let model = WorkspaceModel(engine: FakeWorkspaceEngine(), store: makeStore(isPro: true),
+                                   pump: nil, defaults: makeIsolatedDefaults())
+        XCTAssertEqual(model.moduleSlot(.a), .stems, "the slot defaults to STEMS (§41.9a)")
+        XCTAssertEqual(model.moduleSlot(.b), .stems)
+        XCTAssertEqual(model.moduleSlotA, .stems)
+        XCTAssertEqual(model.moduleSlotB, .stems)
+    }
+
+    func testModuleSlotIsRememberedPerDeckAndPersists() {
+        let defaults = makeIsolatedDefaults()
+        let first = WorkspaceModel(engine: FakeWorkspaceEngine(), store: makeStore(isPro: true),
+                                   pump: nil, defaults: defaults)
+        first.setModuleSlot(.jog, deck: .a)
+        XCTAssertEqual(first.moduleSlot(.a), .jog)
+        XCTAssertEqual(first.moduleSlot(.b), .stems, "deck B's slot is untouched")
+
+        // A fresh model over the same defaults remembers deck A's choice —
+        // the §41.9a "remembered per deck" contract.
+        let second = WorkspaceModel(engine: FakeWorkspaceEngine(), store: makeStore(isPro: true),
+                                    pump: nil, defaults: defaults)
+        XCTAssertEqual(second.moduleSlot(.a), .jog, "the per-deck slot persists across model instances")
+        XCTAssertEqual(second.moduleSlot(.b), .stems)
+    }
+
+    func testJogModeDefaultsToVinylAndPersistsPerDeck() {
+        let defaults = makeIsolatedDefaults()
+        let first = WorkspaceModel(engine: FakeWorkspaceEngine(), store: makeStore(isPro: true),
+                                   pump: nil, defaults: defaults)
+        XCTAssertEqual(first.jogMode(.a), .vinyl, "vinyl (scratch) is the default platter action")
+        first.setJogMode(.cdj, deck: .b)
+        XCTAssertEqual(first.jogMode(.b), .cdj)
+        XCTAssertEqual(first.jogMode(.a), .vinyl, "deck A's mode is untouched")
+
+        let second = WorkspaceModel(engine: FakeWorkspaceEngine(), store: makeStore(isPro: true),
+                                    pump: nil, defaults: defaults)
+        XCTAssertEqual(second.jogMode(.b), .cdj, "the jog mode persists per deck")
+        XCTAssertEqual(second.jogMode(.a), .vinyl)
+    }
+
+    func testModuleSlotSwapChangesNoEngineState() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   defaults: makeIsolatedDefaults())
+        try model.begin()
+        defer { model.end() }
+
+        model.setModuleSlot(.jog, deck: .a)
+        model.setModuleSlot(.pads, deck: .b)
+        model.setModuleSlot(.fx, deck: .a)
+        model.setModuleSlot(.stems, deck: .a)
+        model.setJogMode(.cdj, deck: .a)
+        model.setJogSensitivity(.a, value: 1.4)
+        model.setJogSensitivity(.b, value: 0.3)
+
+        XCTAssertTrue(fake.played.isEmpty, "swapping modules, modes and sensitivity is view-only (AT-TWIN-2)")
+        XCTAssertTrue(fake.paused.isEmpty)
+        XCTAssertTrue(fake.synced.isEmpty)
+        XCTAssertTrue(fake.unsynced.isEmpty)
+        XCTAssertTrue(fake.eqKnobs.isEmpty, "the mixer is untouched by a module swap")
+        XCTAssertEqual(model.telemetry, EngineTelemetry(), "telemetry is untouched by a module swap")
+        XCTAssertFalse(fake.stopped, "the engine keeps running under the swap — both decks stay live")
+    }
+
+    func testJogSensitivityClampsToTheRange() {
+        let model = WorkspaceModel(engine: FakeWorkspaceEngine(), store: makeStore(isPro: true),
+                                   pump: nil, defaults: makeIsolatedDefaults())
+        XCTAssertEqual(model.jogSensitivity(.a), 1.0, "unity default (§40.7.4)")
+        model.setJogSensitivity(.a, value: 3.0)
+        XCTAssertEqual(model.jogSensitivity(.a), 2.0, "clamped to the §40.7.4 maximum")
+        model.setJogSensitivity(.a, value: 0.1)
+        XCTAssertEqual(model.jogSensitivity(.a), 0.5, "clamped to the §40.7.4 minimum")
+        model.setJogSensitivity(.a, value: 1.6)
+        XCTAssertEqual(model.jogSensitivity(.a), 1.6, accuracy: 1e-12)
+        XCTAssertEqual(model.jogSensitivity(.b), 1.0, "deck B is untouched")
+        XCTAssertEqual(model.jogSensitivityA, model.jogSensitivity(.a))
+    }
+
+    func testModuleSlotNeverOccludesSharedControls() {
+        // AT-TWIN-2: the module slot is a layout member of its own deck column
+        // (never an overlay), so the widest module — the 248 pt jog with its
+        // ± bend columns — must fit the §41.9 `1fr 268px 1fr` deck column on
+        // the 1180 pt canvas. That is what structurally keeps a module from
+        // ever reaching the mixer column or the opposite deck.
+        XCTAssertEqual(WorkspaceModel.ModuleGeometry.jogSize, 248, "the §41.9a jog diameter")
+        XCTAssertEqual(WorkspaceModel.ModuleGeometry.mixerColumnWidth, 268)
+        XCTAssertEqual(WorkspaceModel.ModuleGeometry.jogModuleWidth,
+                       248 + 2 * 58 + 2 * 14, "jog + two bend columns + two gaps")
+
+        let canvas: CGFloat = 1180
+        let column = WorkspaceModel.ModuleGeometry.deckColumnWidth(canvas: canvas)
+        XCTAssertEqual(column, (canvas - 2 * 12 - 268 - 2 * 12) / 2, accuracy: 1e-9,
+                       "the §41.9 grid math: 1fr 268px 1fr over a 1180 canvas")
+        XCTAssertLessThanOrEqual(WorkspaceModel.ModuleGeometry.jogModuleWidth, column,
+                                 "the jog module fits its deck column and cannot reach the mixer (AT-TWIN-2)")
+        XCTAssertGreaterThanOrEqual(column, WorkspaceModel.ModuleGeometry.jogSize,
+                                    "a deck column is comfortably wider than the jog itself")
+    }
+
     // MARK: - Helpers
+
+    /// An isolated `UserDefaults` domain per call — the module-slot persistence
+    /// tests must never read or write the process's real defaults (§41.9a).
+    private func makeIsolatedDefaults() -> UserDefaults {
+        let suite = "WorkspaceModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
+    }
 
     private final class OfflineSource {
         let buffer: UnsafeMutablePointer<Float>

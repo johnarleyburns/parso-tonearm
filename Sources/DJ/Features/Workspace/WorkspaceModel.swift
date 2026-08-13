@@ -72,6 +72,9 @@ public final class WorkspaceModel: ObservableObject {
     private var telemetryTask: Task<Void, Never>?
     private var anyDeckPlaying = false
 
+    /// Where the per-deck module-slot / jog-mode choices are remembered
+    /// (§41.9a, plan 4.11). Injectable so tests isolate the persistence.
+    private let defaults: UserDefaults
     /// How long a pinned bank drawer stays up without touch before it
     /// self-dismisses (§42.7b, AT-TWIN-3). Injectable so the model test runs
     /// fast instead of sleeping 12 s.
@@ -98,18 +101,41 @@ public final class WorkspaceModel: ObservableObject {
     @Published public var crossfader: Float = 0
     @Published public var crossfaderCurve: CrossfaderCurve = .constantPower
 
+    /// The iPad module slot each deck occupies (§41.9a) — the per-deck
+    /// remembered `JOG · STEMS · PADS · FX` choice, **default `STEMS`** so §41.9
+    /// is what an existing user sees unless they ask for something else. The
+    /// published values let the slot's seg highlight follow the selection.
+    @Published public private(set) var moduleSlotA: DeckModuleSlot
+    @Published public private(set) var moduleSlotB: DeckModuleSlot
+    /// The per-deck jog platter action (§41.9a): vinyl (scratch) or CDJ
+    /// (nudge), shown inside the platter so the mode is never a guess.
+    @Published public private(set) var jogModeA: JogGestureModel.JogMode
+    @Published public private(set) var jogModeB: JogGestureModel.JogMode
+    /// The per-deck jog sensitivity, 0.5–2.0 (§40.7.4) — the mixer column's
+    /// faders own these (§41.9a). Session state like the mixer controls.
+    @Published public var jogSensitivityA: Double = 1.0
+    @Published public var jogSensitivityB: Double = 1.0
+
     public init(engine: any WorkspaceEngine,
                 store: EntitlementStore,
                 pump: TelemetryPump? = nil,
-                pinnedDrawerIdle: Duration = .seconds(12)) {
+                pinnedDrawerIdle: Duration = .seconds(12),
+                defaults: UserDefaults = .standard) {
         self.engine = engine
         self.store = store
         self.isPro = store.isPro
         self.pinnedDrawerIdle = pinnedDrawerIdle
+        self.defaults = defaults
         // The pump's tick drives the engine's atomics → stream directly, so
         // the closure never captures `self` (a display link would otherwise
         // outlive the model during init).
         self.pump = pump ?? TelemetryPump { [weak engine] in engine?.pushTelemetry() }
+        // The per-deck module slot and jog mode are remembered across launches
+        // (§41.9a, plan 4.11): read them once here, write on change.
+        moduleSlotA = Self.readModuleSlot(defaults: defaults, deck: .a)
+        moduleSlotB = Self.readModuleSlot(defaults: defaults, deck: .b)
+        jogModeA = Self.readJogMode(defaults: defaults, deck: .a)
+        jogModeB = Self.readJogMode(defaults: defaults, deck: .b)
     }
 
     /// The one gate for the performance surface (App. T.3). Free users see the
@@ -652,6 +678,134 @@ public final class WorkspaceModel: ObservableObject {
             }
             if exitChipFrame.contains(point) { return .exit }
             return nil
+        }
+    }
+
+    // MARK: - iPad module slot (§41.9a, mockup `ipad/07b`)
+
+    /// The per-deck module slot on the iPad workspace (§41.9a). The lower
+    /// third of a deck column offers `JOG · STEMS · PADS · FX`, is remembered
+    /// per deck, and **defaults to `STEMS`** so §41.9 is what an existing user
+    /// sees unless they ask for something else.
+    public enum DeckModuleSlot: String, CaseIterable, Sendable, Equatable {
+        case jog = "JOG"
+        case stems = "STEMS"
+        case pads = "PADS"
+        case fx = "FX"
+    }
+
+    /// The persisted per-deck choices (§41.9a): the module slot and the jog's
+    /// platter mode. Injectable `UserDefaults` keeps the persistence testable
+    /// off-device (the VibeSearchModel convention).
+    public static let moduleSlotDefaultsPrefix = "workspace.moduleSlot."
+    public static let jogModeDefaultsPrefix = "workspace.jogMode."
+
+    /// The module slot a deck currently occupies — the remembered selection,
+    /// `STEMS` by default (§41.9a).
+    public func moduleSlot(_ deck: PerformanceEngine.Deck) -> DeckModuleSlot {
+        deck == .a ? moduleSlotA : moduleSlotB
+    }
+
+    /// Switch a deck's module slot (`JOG · STEMS · PADS · FX`). The choice is
+    /// remembered per deck and across launches. **View-only**: swapping the
+    /// module changes no engine state — the decks keep playing, the mixer and
+    /// transport stay live, and only the deck's own lower third re-renders
+    /// (AT-TWIN-2).
+    public func setModuleSlot(_ slot: DeckModuleSlot, deck: PerformanceEngine.Deck) {
+        switch deck {
+        case .a: moduleSlotA = slot
+        case .b: moduleSlotB = slot
+        }
+        defaults.set(slot.rawValue, forKey: Self.moduleSlotKey(deck))
+        Haptics.confirm()
+    }
+
+    /// The deck's jog platter action (§41.9a): vinyl = scratch, CDJ = nudge.
+    /// Remembered per deck, defaulting to vinyl.
+    public func jogMode(_ deck: PerformanceEngine.Deck) -> JogGestureModel.JogMode {
+        deck == .a ? jogModeA : jogModeB
+    }
+
+    /// Set the deck's jog platter action. Remembered per deck. **View-only** —
+    /// it changes the jog's gesture model, never the engine (FR-ENG-11).
+    public func setJogMode(_ mode: JogGestureModel.JogMode, deck: PerformanceEngine.Deck) {
+        switch deck {
+        case .a: jogModeA = mode
+        case .b: jogModeB = mode
+        }
+        defaults.set(mode == .vinyl ? "vinyl" : "cdj", forKey: Self.jogModeKey(deck))
+        Haptics.confirm()
+    }
+
+    /// The deck's jog sensitivity, 0.5–2.0 (§40.7.4).
+    public func jogSensitivity(_ deck: PerformanceEngine.Deck) -> Double {
+        deck == .a ? jogSensitivityA : jogSensitivityB
+    }
+
+    /// Set the deck's jog sensitivity, clamped into the §40.7.4 range. **View-
+    /// only** — sensitivity scales the jog gesture's displacement; it never
+    /// reaches the engine.
+    public func setJogSensitivity(_ deck: PerformanceEngine.Deck, value: Double) {
+        let clamped = JogGestureModel.clampSensitivity(value)
+        switch deck {
+        case .a: jogSensitivityA = clamped
+        case .b: jogSensitivityB = clamped
+        }
+    }
+
+    private static func deckName(_ deck: PerformanceEngine.Deck) -> String {
+        deck == .a ? "a" : "b"
+    }
+
+    private static func moduleSlotKey(_ deck: PerformanceEngine.Deck) -> String {
+        moduleSlotDefaultsPrefix + deckName(deck)
+    }
+
+    private static func jogModeKey(_ deck: PerformanceEngine.Deck) -> String {
+        jogModeDefaultsPrefix + deckName(deck)
+    }
+
+    private static func readModuleSlot(defaults: UserDefaults,
+                                       deck: PerformanceEngine.Deck) -> DeckModuleSlot {
+        let raw = defaults.string(forKey: moduleSlotKey(deck)) ?? ""
+        return DeckModuleSlot(rawValue: raw) ?? .stems
+    }
+
+    private static func readJogMode(defaults: UserDefaults,
+                                    deck: PerformanceEngine.Deck) -> JogGestureModel.JogMode {
+        defaults.string(forKey: jogModeKey(deck)) == "cdj" ? .cdj : .vinyl
+    }
+
+    /// §41.9a's module geometry. The jog module is the widest module — a 248 pt
+    /// jog flanked by the ± pitch-bend columns — and must fit its deck column
+    /// without pushing into the mixer column (AT-TWIN-2: a module never
+    /// occludes shared controls; it is a layout member of its own column, not
+    /// an overlay).
+    public enum ModuleGeometry {
+        /// The §41.9a jog diameter: 248 pt ≈ 48 mm at the iPad's 131 pt/in — a
+        /// whole-hand control rather than the iPhone's thumb control.
+        public static let jogSize: CGFloat = 248
+        /// Each ± pitch-bend column's width (mockup `ipad/07b`).
+        public static let bendColumnWidth: CGFloat = 58
+        /// The jog ↔ bend-column gap (mockup `ipad/07b`'s 14 px).
+        public static let bendGap: CGFloat = 14
+        /// The jog module's normative total width: jog + two bend columns +
+        /// two gaps.
+        public static var jogModuleWidth: CGFloat {
+            jogSize + 2 * bendColumnWidth + 2 * bendGap
+        }
+        /// The §41.9a mixer column width (the iPad centre column, mockup `07`).
+        public static let mixerColumnWidth: CGFloat = 268
+        /// The workspace's column gap and outer padding (mockup `07`'s 12 px).
+        public static let columnGap: CGFloat = 12
+        public static let outerPadding: CGFloat = 12
+
+        /// A deck column's width on a `canvas`-wide workspace — the §41.9
+        /// grid `1fr 268px 1fr`. The module slot is a member of its deck
+        /// column, so `jogModuleWidth ≤ deckColumnWidth` is what keeps the jog
+        /// module from ever reaching the mixer column (AT-TWIN-2).
+        public static func deckColumnWidth(canvas: CGFloat) -> CGFloat {
+            max(0, (canvas - 2 * outerPadding - mixerColumnWidth - 2 * columnGap) / 2)
         }
     }
 }

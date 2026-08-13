@@ -33,9 +33,21 @@ public struct JogPoint: Sendable, Equatable {
 ///   crosses the boundary mid-gesture must not change mode (§40.7.3).
 public struct JogGestureModel: Sendable, Equatable {
 
+    /// The jog's platter action (§40.7.3, §41.9a). Identical geometry, a
+    /// different platter action — **vinyl scratches, CDJ nudges** — shown
+    /// inside the platter so the mode is never a guess. The ring's pitch bend
+    /// is unchanged in both modes.
+    public enum JogMode: Hashable, Sendable, Equatable {
+        /// Platter = position/scratch; touch = hold (§40.7.3).
+        case vinyl
+        /// Platter = nudge — a temporary tempo offset, released on lift.
+        case cdj
+    }
+
     /// The region a touch landed in, fixed at touch-down (§40.7.3).
     public enum Region: Sendable, Equatable {
-        /// Inner 58% — **position**: touch = hold, rotation = scrub.
+        /// Inner 58% — **position**: touch = hold, rotation = scrub (vinyl) /
+        /// nudge (CDJ).
         case platter
         /// Outer 42% — **pitch bend**: a temporary tempo offset, released on lift.
         case ring
@@ -72,6 +84,8 @@ public struct JogGestureModel: Sendable, Equatable {
     public var sensitivity: Double
     /// The inner-platter fraction of the radius (0.58, §40.7.3).
     public var platterFraction: Double
+    /// The platter action: vinyl (scratch) or CDJ (nudge) (§40.7.3, §41.9a).
+    public var jogMode: JogMode
 
     /// Whether a finger is currently down on the jog.
     public private(set) var isTracking = false
@@ -85,14 +99,22 @@ public struct JogGestureModel: Sendable, Equatable {
     private var touchDownAngle: Double = 0
 
     public init(sensitivity: Double = 1.0,
-                platterFraction: Double = JogGestureModel.platterFraction) {
+                platterFraction: Double = JogGestureModel.platterFraction,
+                jogMode: JogMode = .vinyl) {
         self.sensitivity = Self.clampSensitivity(sensitivity)
         self.platterFraction = min(max(platterFraction, 0), 1)
+        self.jogMode = jogMode
     }
 
     /// Clamp sensitivity into the §40.7.4 range (0.5–2.0).
     public static func clampSensitivity(_ value: Double) -> Double {
         min(max(value, sensitivityRange.lowerBound), sensitivityRange.upperBound)
+    }
+
+    /// Set the jog sensitivity, clamped into the §40.7.4 range (0.5–2.0). The
+    /// mixer column's per-deck fader drives this (plan 4.11).
+    public mutating func setSensitivity(_ value: Double) {
+        sensitivity = Self.clampSensitivity(value)
     }
 
     /// A touch lands. Returns `.hold` when it lands on the platter (touch =
@@ -121,7 +143,12 @@ public struct JogGestureModel: Sendable, Equatable {
         displacementRadians = scaled
         switch region {
         case .platter:
-            if abs(scaled) > 1e-9 { return .scrub(radians: scaled) }
+            if abs(scaled) > 1e-9 {
+                switch jogMode {
+                case .vinyl: return .scrub(radians: scaled)
+                case .cdj: return .nudge(rate: Self.bendRate(angle: scaled))
+                }
+            }
         case .ring:
             let bend = Self.bendRate(angle: scaled)
             if abs(bend) > 1e-9 { return .nudge(rate: bend) }

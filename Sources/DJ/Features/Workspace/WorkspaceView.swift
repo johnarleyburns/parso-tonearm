@@ -17,6 +17,12 @@ public struct WorkspaceView: View {
     @StateObject private var model: WorkspaceModel
     @Environment(\.scenePhase) private var scenePhase
 
+    /// The per-deck `JogTransport` for the §41.9a jog module — created lazily
+    /// on the first intent so an idle module costs nothing (the compact
+    /// surface convention).
+    @State private var jogATransport: JogTransport?
+    @State private var jogBTransport: JogTransport?
+
     public init(model: WorkspaceModel) {
         _model = StateObject(wrappedValue: model)
     }
@@ -48,9 +54,15 @@ public struct WorkspaceView: View {
 
     private var workspace: some View {
         HStack(spacing: 12) {
-            DeckColumnView(model: model, deck: .a, isMaster: true)
+            DeckColumnView(model: model, deck: .a, isMaster: true) { intent in
+                if jogATransport == nil { jogATransport = JogTransport(engine: model.engine, deck: .a) }
+                jogATransport?.route(intent)
+            }
             MixerColumnView(model: model)
-            DeckColumnView(model: model, deck: .b, isMaster: false)
+            DeckColumnView(model: model, deck: .b, isMaster: false) { intent in
+                if jogBTransport == nil { jogBTransport = JogTransport(engine: model.engine, deck: .b) }
+                jogBTransport?.route(intent)
+            }
         }
         .padding(12)
     }
@@ -67,13 +79,15 @@ public struct WorkspaceView: View {
 // MARK: - Deck column
 
 /// One deck's column: header (DECK / MASTER / SYNCED), title row, BPM/key
-/// readout, waveform strip, transport (CUE · PLAY · SYNC · LOOP), cue pads and
-/// the stems block (§41.9). The stems faders render the honest unavailable
-/// state until the M5 separator lands (plan §2.6).
+/// readout, waveform strip, transport (CUE · PLAY · SYNC · LOOP) and the
+/// **module slot** in the lower third (§41.9a) — `JOG · STEMS · PADS · FX`,
+/// remembered per deck, defaulting to `STEMS`. LOOP is the release-to-commit
+/// flyout, identical to the compact idiom (§41.9a, §42.7b idiom 3).
 private struct DeckColumnView: View {
     @ObservedObject var model: WorkspaceModel
     let deck: PerformanceEngine.Deck
     let isMaster: Bool
+    let onJogIntent: (JogGestureModel.Intent) -> Void
 
     private var telemetryDeck: EngineTelemetry.Deck {
         deck == .a ? model.telemetry.deckA : model.telemetry.deckB
@@ -116,42 +130,13 @@ private struct DeckColumnView: View {
 
             transport
 
-            HStack(spacing: 6) {
-                ForEach(["A", "B", "C", "D"], id: \.self) { pad in
-                    Text(pad)
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(maxWidth: .infinity, minHeight: 40)
-                        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
-                }
-            }
-
             Divider()
 
-            HStack {
-                Text("Stems")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text("unavailable · M5")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(["Vocals", "Drums", "Bass", "Other"], id: \.self) { stem in
-                HStack(spacing: 6) {
-                    Text(stem)
-                        .font(.system(size: 11))
-                        .frame(width: 52, alignment: .leading)
-                    GeometryReader { proxy in
-                        Capsule().fill(Color.white.opacity(0.08))
-                            .overlay(alignment: .leading) {
-                                Capsule().fill(Color.white.opacity(0.2))
-                                    .frame(width: proxy.size.width * 0.8)
-                            }
-                    }
-                    .frame(height: 4)
-                    Text("·")
-                        .foregroundStyle(.secondary)
-                }
-            }
+            // The §41.9a module slot: the deck's lower third is one swappable
+            // module, remembered per deck, default STEMS. It is a layout
+            // member of this column only — never an overlay, so no shared
+            // control can be occluded (AT-TWIN-2).
+            DeckModuleSlotView(model: model, deck: deck, onJogIntent: onJogIntent)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -181,14 +166,10 @@ private struct DeckColumnView: View {
                         model.sync(deck, to: deck == .a ? .b : .a, barSync: true)
                     }
                 )
-            TransportButton(title: "LOOP") {
-                model.setLoop(deck, beats: 8)
-            } onRelease: {}
-                .simultaneousGesture(
-                    LongPressGesture(minimumDuration: 0.4).onEnded { _ in
-                        model.exitLoop(deck)
-                    }
-                )
+            // LOOP is the §41.9a/§42.7b release-to-commit flyout: a quick tap
+            // keeps the 8-beat default, a hold raises the beat counts and
+            // release over a size commits — identical to the compact surface.
+            LoopReleaseToCommitButton(model: model, deck: deck)
         }
     }
 }
@@ -290,6 +271,26 @@ private struct MixerColumnView: View {
                     Text("A").font(.caption2).foregroundStyle(.secondary)
                     Spacer()
                     Text("B").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(spacing: 4) {
+                HStack {
+                    Text("JOG SENSITIVITY").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                    Spacer()
+                    Text(String(format: "A %.1f · B %.1f",
+                                model.jogSensitivityA, model.jogSensitivityB))
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                // The §41.9a per-deck jog sensitivity, 0.5–2.0 (§40.7.4) — the
+                // mixer column owns the faders, and each scales the jog module's
+                // gesture displacement (view-only, never the engine).
+                HStack(spacing: 9) {
+                    JogSensitivitySlider(value: model.jogSensitivityA,
+                                         onChanged: { model.setJogSensitivity(.a, value: $0) })
+                    JogSensitivitySlider(value: model.jogSensitivityB,
+                                         onChanged: { model.setJogSensitivity(.b, value: $0) })
                 }
             }
 
@@ -470,6 +471,39 @@ struct VerticalSlider: View {
                 }
             )
         }
+    }
+}
+
+/// A horizontal fader for the §41.9a per-deck jog sensitivity (§40.7.4,
+/// 0.5–2.0). Maps the value linearly onto the track; the whole strip is the
+/// drag surface.
+private struct JogSensitivitySlider: View {
+    let value: Double
+    let onChanged: (Double) -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let t = CGFloat((value - 0.5) / 1.5)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.10)).frame(height: 6)
+                Capsule().fill(Color.accentColor.opacity(0.9))
+                    .frame(width: 18, height: 18)
+                    .offset(x: max(0, min(width - 18, width * t - 9)))
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0).onChanged { gesture in
+                    let u = Self.clampUnit(gesture.location.x / width)
+                    onChanged(0.5 + 1.5 * Double(u))
+                }
+            )
+        }
+        .frame(height: 24)
+    }
+
+    private static func clampUnit(_ value: CGFloat) -> CGFloat {
+        max(0, min(1, value))
     }
 }
 
