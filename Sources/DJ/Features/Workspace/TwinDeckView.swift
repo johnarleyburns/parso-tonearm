@@ -54,6 +54,7 @@ public struct TwinDeckView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .ignoresSafeArea()
         #if os(iOS)
         .defersSystemGestures(on: .bottom)
         #endif
@@ -92,19 +93,58 @@ public struct TwinDeckView: View {
                 // width, at the innermost point of each thumb arc, and they
                 // stay reachable with a bank drawer open (§42.7a).
                 HStack {
-                    VerticalSlider(value: model.filterA,
-                                   onChanged: { model.setFilter(.a, knob: $0) })
-                        .frame(width: 24)
+                    EdgeSlider(value: model.filterA,
+                               onChanged: { model.setFilter(.a, knob: $0) })
+                        .frame(width: WorkspaceModel.DrawerGeometry.edgeSliderWidth)
                     Spacer()
-                    VerticalSlider(value: model.filterB,
-                                   onChanged: { model.setFilter(.b, knob: $0) })
-                        .frame(width: 24)
+                    EdgeSlider(value: model.filterB,
+                               onChanged: { model.setFilter(.b, knob: $0) })
+                        .frame(width: WorkspaceModel.DrawerGeometry.edgeSliderWidth)
                 }
                 .padding(.top, bandTop + 20)
                 .frame(height: max(0, proxy.size.height - bandTop - 40))
                 .padding(.horizontal, 12)
+
+                // The momentary bank drawer (§42.7b): exactly one deck column
+                // wide over that deck's jog + transport — the crossfader, both
+                // waveforms, the beat-phase meter and the opposite jog stay
+                // live and hit-testable (FR-ENG-12, AT-TWIN-2).
+                if let deck = model.drawerState.deck {
+                    BankDrawerView(model: model, deck: deck)
+                        .frame(width: WorkspaceModel.DrawerGeometry.width,
+                               height: WorkspaceModel.DrawerGeometry.height)
+                        .position(drawerPosition(in: proxy, deck: deck))
+                }
             }
         }
+        // The §42.7a bottom-edge crossfader drag surface: full width, 40 pt
+        // tall, over the vertical slack + home indicator — a 1:1 relative drag
+        // from anywhere, never covered by a modal idiom (§42.7b).
+        .overlay(alignment: .bottom) {
+            BottomEdgeCrossfader(
+                model: model,
+                residentCapTravel: WorkspaceModel.TwinGeometry.mixerColumnWidth
+                    - WorkspaceModel.TwinGeometry.crossfaderCapWidth)
+        }
+    }
+
+    /// The drawer's centre over a deck's column in the surface's (full-bleed,
+    /// §42.7a canvas) coordinate space: the 59 pt dead band, then the §42.7a
+    /// 30 pt outer margin, then the 228 pt column.
+    private func drawerPosition(in proxy: GeometryProxy,
+                                deck: PerformanceEngine.Deck) -> CGPoint {
+        let width = WorkspaceModel.DrawerGeometry.width
+        let x: CGFloat
+        switch deck {
+        case .a:
+            x = WorkspaceModel.DrawerGeometry.deadBandInset
+                + WorkspaceModel.TwinGeometry.outerMargin + width / 2
+        case .b:
+            x = proxy.size.width - WorkspaceModel.DrawerGeometry.deadBandInset
+                - WorkspaceModel.TwinGeometry.outerMargin - width / 2
+        }
+        let bandTop: CGFloat = 20 + 90 + 38
+        return CGPoint(x: x, y: bandTop + WorkspaceModel.DrawerGeometry.height / 2)
     }
 
     /// The §42.7a telemetry band: the correctness readouts stay inline because
@@ -230,22 +270,15 @@ private struct TwinDeckColumnView: View {
                     transportStack
                 }
             }
-
-            // The bank tab the momentary drawer anchors to (§42.7b). The
-            // drawer itself is commit 4.10 — this is the honest passive bar.
-            HStack {
-                Text("HOLD ▲ \(deck == .a ? "A" : "B") BANK")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("EQ · STEMS · PADS · CUES")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 9)
-            .frame(height: 24)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.03)))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.06), lineWidth: 1))
+        }
+        .frame(height: WorkspaceModel.DrawerGeometry.height, alignment: .top)
+        .overlay(alignment: .bottom) {
+            // The bank tab the momentary drawer anchors to (§42.7b). Its 44 pt
+            // hit region overlaps the jog's lower rim per §42.7a; holding
+            // springs the drawer open over this deck's jog + transport,
+            // releasing dismisses it (restoring the jog within one frame) and
+            // a tap pins it for hands-free work (AT-TWIN-3).
+            BankTabButton(model: model, deck: deck)
         }
     }
 
@@ -256,8 +289,8 @@ private struct TwinDeckColumnView: View {
     }
 
     /// The 54×54 transport: CUE · PLAY/PAUSE · LOOP (54×48), with the loop's
-    /// long-press exiting the loop. SYNC lives in the mixer column, not here
-    /// (§42.7a).
+    /// release-to-commit flyout (§42.7b idiom 3). SYNC lives in the mixer
+    /// column, not here (§42.7a).
     private var transportStack: some View {
         VStack(spacing: 6) {
             TransportButton(title: "CUE") {
@@ -279,16 +312,70 @@ private struct TwinDeckColumnView: View {
             .frame(width: WorkspaceModel.TwinGeometry.transportWidth,
                    height: WorkspaceModel.TwinGeometry.transportWidth)
 
-            TransportButton(title: "LOOP") {
-                model.setLoop(deck, beats: 8)
-            } onRelease: {}
-            .frame(width: WorkspaceModel.TwinGeometry.transportWidth, height: 48)
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.4).onEnded { _ in
-                    model.exitLoop(deck)
-                }
-            )
+            LoopReleaseToCommitButton(model: model, deck: deck)
         }
+    }
+}
+
+/// The bank tab (§42.7b): a 44 pt-hit-region strip overlaid on the jog's lower
+/// rim whose **press** springs the §42.7b drawer over this deck's jog +
+/// transport. Releasing dismisses it (AT-TWIN-3 restores the jog within one
+/// frame); a press shorter than `WorkspaceModel.DrawerGeometry.tapThreshold`
+/// is a tap that pins the bank for hands-free work. Pressing the tab of an
+/// already-pinned bank toggles it off.
+private struct BankTabButton: View {
+    @ObservedObject var model: WorkspaceModel
+    let deck: PerformanceEngine.Deck
+
+    @State private var pressStart: Date?
+    @State private var dismissedPinned = false
+
+    private var isBank: String { deck == .a ? "A" : "B" }
+
+    var body: some View {
+        HStack {
+            Text("HOLD ▲ \(isBank) BANK")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text("EQ · STEMS · PADS · CUES")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 9)
+        .frame(height: 24)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 8).fill(
+                model.drawerState.deck == deck ? Color.accentColor.opacity(0.10)
+                                               : Color.white.opacity(0.03)))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.06), lineWidth: 1))
+        .frame(height: 44, alignment: .bottom)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    guard pressStart == nil else { return }
+                    pressStart = Date()
+                    if case .pinned(let pinnedDeck, _) = model.drawerState, pinnedDeck == deck {
+                        model.dismissDrawer()
+                        dismissedPinned = true
+                    } else {
+                        model.springDrawer(deck: deck)
+                    }
+                }
+                .onEnded { _ in
+                    let held = Date().timeIntervalSince(pressStart ?? Date())
+                    defer { pressStart = nil; dismissedPinned = false }
+                    guard !dismissedPinned else { return }
+                    guard model.drawerState.deck == deck else { return }
+                    if WorkspaceModel.springReleasePins(holdDuration: held) {
+                        model.pinDrawer()
+                    } else {
+                        model.releaseDrawer()
+                    }
+                }
+        )
     }
 }
 

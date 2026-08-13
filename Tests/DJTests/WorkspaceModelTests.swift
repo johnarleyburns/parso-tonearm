@@ -407,6 +407,265 @@ final class WorkspaceModelTests: XCTestCase {
                        "a deck column decomposes exactly")
     }
 
+    // MARK: - Momentary bank drawer (§42.7b, plan 4.10)
+
+    func testSpringReleaseRestoresTheJogInOneFrame() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        model.springDrawer(deck: .a)
+        XCTAssertEqual(model.drawerState, .spring(deck: .a, bank: .eq),
+                       "holding deck A's tab springs the drawer over its jog + transport")
+
+        // Releasing is a synchronous state transition: the drawer disappears
+        // in the very next frame and the jog is back under the thumb
+        // (AT-TWIN-3).
+        model.releaseDrawer()
+        XCTAssertEqual(model.drawerState, .idle,
+                       "a held drawer can never leave the surface in a forgotten mode")
+        XCTAssertTrue(fake.played.isEmpty && fake.paused.isEmpty && fake.synced.isEmpty,
+                      "springing and releasing are view-only — no engine call")
+        XCTAssertEqual(model.telemetry, EngineTelemetry(), "telemetry is untouched")
+    }
+
+    func testPinnedDrawerSelfDismissesAfterIdle() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   pinnedDrawerIdle: .milliseconds(60))
+        try model.begin()
+        defer { model.end() }
+
+        model.springDrawer(deck: .a)
+        model.pinDrawer()
+        XCTAssertEqual(model.drawerState, .pinned(deck: .a, bank: .eq))
+
+        for _ in 0..<250 {
+            if model.drawerState == .idle { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(model.drawerState, .idle,
+                       "a pinned drawer self-dismisses after the idle period (AT-TWIN-3)")
+        XCTAssertFalse(fake.stopped, "the self-dismiss is view-only — the engine keeps playing")
+    }
+
+    func testPinnedDrawerDoesNotDismissBeforeIdle() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   pinnedDrawerIdle: .milliseconds(400))
+        try model.begin()
+        defer { model.end() }
+
+        model.springDrawer(deck: .b)
+        model.pinDrawer()
+        for _ in 0..<10 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertEqual(model.drawerState, .pinned(deck: .b, bank: .eq),
+                       "well before the idle period the pinned drawer stays up")
+    }
+
+    func testTouchInsidePinnedDrawerResetsItsIdleClock() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   pinnedDrawerIdle: .milliseconds(200))
+        try model.begin()
+        defer { model.end() }
+
+        model.springDrawer(deck: .a)
+        model.pinDrawer()
+
+        // Keep touching inside the drawer past its 200 ms idle — each touch
+        // re-arms the clock, so it stays pinned (§42.7b's "12 s of no touch").
+        for _ in 0..<6 {
+            try await Task.sleep(for: .milliseconds(50))
+            model.noteDrawerActivity()
+        }
+        XCTAssertEqual(model.drawerState, .pinned(deck: .a, bank: .eq),
+                       "touch inside the pinned drawer keeps it up past the idle period")
+
+        for _ in 0..<80 {
+            if model.drawerState == .idle { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(model.drawerState, .idle,
+                       "once the touch stops, the idle self-dismiss fires (AT-TWIN-3)")
+    }
+
+    func testSpringReleasePinsOnShortPressOnly() {
+        // §42.7b spring-loading discrimination: a press shorter than the tap
+        // threshold is a *tap* (pins the bank for hands-free work); a longer
+        // hold that is released is a *peek* (dismisses, restoring the jog).
+        XCTAssertTrue(WorkspaceModel.springReleasePins(holdDuration: 0.1))
+        XCTAssertTrue(WorkspaceModel.springReleasePins(holdDuration: 0.34))
+        XCTAssertFalse(WorkspaceModel.springReleasePins(holdDuration: 0.36))
+        XCTAssertFalse(WorkspaceModel.springReleasePins(holdDuration: 1.0))
+        XCTAssertFalse(WorkspaceModel.springReleasePins(holdDuration: 0.35),
+                       "at the threshold it is a tap — strictly shorter than")
+        XCTAssertEqual(WorkspaceModel.DrawerGeometry.tapThreshold, 0.35, accuracy: 1e-9)
+    }
+
+    func testDrawerNeverCoversSharedControls() {
+        // §42.7b rule 1 + FR-ENG-12 / AT-TWIN-2: the drawer is exactly one deck
+        // column wide over that deck's jog + transport — it structurally cannot
+        // reach the mixer column, either waveform, the beat-phase meter or the
+        // opposite deck's jog.
+        XCTAssertEqual(WorkspaceModel.DrawerGeometry.width,
+                       WorkspaceModel.TwinGeometry.deckColumnWidth,
+                       "a drawer is exactly one deck column wide (228 pt)")
+        XCTAssertEqual(WorkspaceModel.DrawerGeometry.height, 206,
+                       "the drawer spans the control band only")
+
+        let drawerA = WorkspaceModel.drawerXRange(deck: .a)
+        let drawerB = WorkspaceModel.drawerXRange(deck: .b)
+        let mixer = WorkspaceModel.mixerXRange
+
+        XCTAssertLessThanOrEqual(drawerA.upperBound, mixer.lowerBound,
+                                 "deck A's drawer never reaches the mixer column")
+        XCTAssertGreaterThanOrEqual(drawerB.lowerBound, mixer.upperBound,
+                                    "deck B's drawer never reaches the mixer column")
+        XCTAssertLessThanOrEqual(drawerA.upperBound, drawerB.lowerBound,
+                                 "a drawer never reaches the opposite deck")
+        XCTAssertLessThanOrEqual(drawerB.upperBound, WorkspaceModel.TwinGeometry.usableWidth,
+                                 "the drawer fits the usable width")
+
+        // §42.7b rule 2: the screen-edge filter slider is never occluded — its
+        // outer 24 pt sits entirely inside the dead band, and the drawer's
+        // nearest edge is the dead band + the §42.7a outer margin beyond it.
+        XCTAssertGreaterThanOrEqual(WorkspaceModel.DrawerGeometry.deadBandInset,
+                                    WorkspaceModel.DrawerGeometry.edgeSliderWidth,
+                                    "the edge slider's 24 pt fits the 59 pt dead band")
+        XCTAssertLessThan(WorkspaceModel.DrawerGeometry.edgeSliderWidth,
+                          WorkspaceModel.DrawerGeometry.deadBandInset
+                              + WorkspaceModel.TwinGeometry.outerMargin,
+                          "the drawer's nearest edge clears the edge slider")
+    }
+
+    func testDrawerInteractionChangesNoEngineState() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        XCTAssertEqual(model.drawerState, .idle)
+        model.springDrawer(deck: .a)
+        XCTAssertEqual(model.drawerState, .spring(deck: .a, bank: .eq))
+        model.pinDrawer()
+        XCTAssertEqual(model.drawerState, .pinned(deck: .a, bank: .eq))
+        model.selectDrawerBank(.cues)
+        XCTAssertEqual(model.drawerState, .pinned(deck: .a, bank: .cues))
+        model.dismissDrawer()
+        XCTAssertEqual(model.drawerState, .idle)
+
+        XCTAssertTrue(fake.played.isEmpty)
+        XCTAssertTrue(fake.paused.isEmpty)
+        XCTAssertTrue(fake.synced.isEmpty)
+        XCTAssertTrue(fake.unsynced.isEmpty)
+        XCTAssertTrue(fake.eqKnobs.isEmpty,
+                      "raising, pinning, switching and dismissing a drawer change no engine state (FR-ENG-12)")
+        XCTAssertEqual(model.telemetry, EngineTelemetry(),
+                       "telemetry is untouched by the drawer state machine")
+    }
+
+    func testSpringingOneDeckReplacesAnotherPinnedDrawer() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        model.springDrawer(deck: .a)
+        model.pinDrawer()
+        XCTAssertEqual(model.drawerState, .pinned(deck: .a, bank: .eq))
+
+        model.springDrawer(deck: .b)
+        XCTAssertEqual(model.drawerState, .spring(deck: .b, bank: .eq),
+                       "holding deck B's tab springs deck B's drawer over the pinned one")
+        model.pinDrawer()
+        XCTAssertEqual(model.drawerState, .pinned(deck: .b, bank: .eq))
+        XCTAssertTrue(fake.played.isEmpty && fake.eqKnobs.isEmpty,
+                      "springing a second deck is view-only")
+    }
+
+    func testDrawerRemembersTheSelectedBankPerDeck() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        XCTAssertEqual(model.selectedBank(.a), .eq, "EQ is the default bank (§42.7b)")
+        model.springDrawer(deck: .a)
+        model.selectDrawerBank(.pads)
+        XCTAssertEqual(model.selectedBank(.a), .pads)
+        model.dismissDrawer()
+        model.springDrawer(deck: .a)
+        XCTAssertEqual(model.drawerState, .spring(deck: .a, bank: .pads),
+                       "the remembered bank survives a dismiss")
+        XCTAssertEqual(model.selectedBank(.b), .eq, "deck B's bank is untouched")
+    }
+
+    // MARK: - §42.7b idiom 3: release-to-commit flyout
+
+    func testLoopFlyoutReleaseResolvesToTheChip() {
+        // Release over a size to set it, release outside to cancel — nothing
+        // changes on the way out. The resolution is pure, so the commit/cancel
+        // decision is pinned off-device.
+        let four = WorkspaceModel.LoopFlyout.chipFrame(index: 2)
+        XCTAssertEqual(WorkspaceModel.LoopFlyout.releasedAction(at: CGPoint(x: four.midX, y: four.midY)),
+                       .set(4))
+        let one = WorkspaceModel.LoopFlyout.chipFrame(index: 0)
+        XCTAssertEqual(WorkspaceModel.LoopFlyout.releasedAction(at: CGPoint(x: one.midX, y: one.midY)),
+                       .set(1))
+        let thirtyTwo = WorkspaceModel.LoopFlyout.chipFrame(index: 5)
+        XCTAssertEqual(WorkspaceModel.LoopFlyout.releasedAction(at: CGPoint(x: thirtyTwo.midX, y: thirtyTwo.midY)),
+                       .set(32))
+        let exit = WorkspaceModel.LoopFlyout.exitChipFrame
+        XCTAssertEqual(WorkspaceModel.LoopFlyout.releasedAction(at: CGPoint(x: exit.midX, y: exit.midY)),
+                       .exit)
+
+        // Sliding out — the button below the flyout, to its side, off its top —
+        // cancels: nil, so the engine is never touched.
+        XCTAssertNil(WorkspaceModel.LoopFlyout.releasedAction(
+            at: CGPoint(x: four.midX, y: WorkspaceModel.LoopFlyout.height + 30)))
+        XCTAssertNil(WorkspaceModel.LoopFlyout.releasedAction(
+            at: CGPoint(x: WorkspaceModel.LoopFlyout.width + 30, y: four.midY)))
+        XCTAssertNil(WorkspaceModel.LoopFlyout.releasedAction(
+            at: CGPoint(x: four.midX, y: -30)))
+        XCTAssertNil(WorkspaceModel.LoopFlyout.releasedAction(
+            at: CGPoint(x: four.midX, y: four.maxY + 2)),
+            "the gap between chips cancels")
+    }
+
+    func testLoopFlyoutBeatCountsAreThe41Point9aSet() {
+        XCTAssertEqual(WorkspaceModel.LoopFlyout.beats, [1, 2, 4, 8, 16, 32],
+                       "the §41.9a/§42.7b loop flyout beat counts, in order")
+    }
+
+    // MARK: - §42.7a idiom 4: bottom-edge relative crossfader
+
+    func testRelativeCrossfaderIsOneToOne() {
+        // The whole bottom edge drags 1:1: the resident cap's travel (mixer
+        // column 202 − cap 22 = 180 pt) sweeps −1 … +1, so +90 pt is a full
+        // sweep and +45 pt is half.
+        let travel = WorkspaceModel.TwinGeometry.mixerColumnWidth
+            - WorkspaceModel.TwinGeometry.crossfaderCapWidth
+        XCTAssertEqual(travel, 180)
+        XCTAssertEqual(WorkspaceModel.relativeCrossfader(from: 0, deltaX: 90, residentCapTravel: travel),
+                       1, accuracy: 1e-6, "a full travel drag sweeps to +1")
+        XCTAssertEqual(WorkspaceModel.relativeCrossfader(from: 0, deltaX: -90, residentCapTravel: travel),
+                       -1, accuracy: 1e-6, "and to −1")
+        XCTAssertEqual(WorkspaceModel.relativeCrossfader(from: 0, deltaX: 45, residentCapTravel: travel),
+                       0.5, accuracy: 1e-6, "half a travel is half a sweep")
+        XCTAssertEqual(WorkspaceModel.relativeCrossfader(from: 0.5, deltaX: 45, residentCapTravel: travel),
+                       1, accuracy: 1e-6, "clamped at the +1 end")
+        XCTAssertEqual(WorkspaceModel.relativeCrossfader(from: -0.5, deltaX: -45, residentCapTravel: travel),
+                       -1, accuracy: 1e-6, "clamped at the −1 end")
+        XCTAssertEqual(WorkspaceModel.relativeCrossfader(from: 0.2, deltaX: 0, residentCapTravel: travel),
+                       0.2, accuracy: 1e-6, "a stationary drag changes nothing")
+        XCTAssertEqual(WorkspaceModel.relativeCrossfader(from: 0.2, deltaX: 5, residentCapTravel: 0),
+                       0.2, accuracy: 1e-6, "no travel means no mapping")
+    }
+
     // MARK: - Helpers
 
     private final class OfflineSource {

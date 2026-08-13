@@ -1,4 +1,5 @@
 import Combine
+import CoreGraphics
 import Foundation
 import TonearmCore
 
@@ -71,6 +72,14 @@ public final class WorkspaceModel: ObservableObject {
     private var telemetryTask: Task<Void, Never>?
     private var anyDeckPlaying = false
 
+    /// How long a pinned bank drawer stays up without touch before it
+    /// self-dismisses (§42.7b, AT-TWIN-3). Injectable so the model test runs
+    /// fast instead of sleeping 12 s.
+    private let pinnedDrawerIdle: Duration
+    private var drawerIdleTask: Task<Void, Never>?
+    /// The per-deck remembered bank the drawer springs to (§42.7b).
+    private var bankByDeck: [PerformanceEngine.Deck: TwinBank] = [:]
+
     @Published public var telemetry = EngineTelemetry()
     @Published public private(set) var isPro: Bool
 
@@ -91,10 +100,12 @@ public final class WorkspaceModel: ObservableObject {
 
     public init(engine: any WorkspaceEngine,
                 store: EntitlementStore,
-                pump: TelemetryPump? = nil) {
+                pump: TelemetryPump? = nil,
+                pinnedDrawerIdle: Duration = .seconds(12)) {
         self.engine = engine
         self.store = store
         self.isPro = store.isPro
+        self.pinnedDrawerIdle = pinnedDrawerIdle
         // The pump's tick drives the engine's atomics → stream directly, so
         // the closure never captures `self` (a display link would otherwise
         // outlive the model during init).
@@ -124,6 +135,8 @@ public final class WorkspaceModel: ObservableObject {
     public func end() {
         telemetryTask?.cancel()
         telemetryTask = nil
+        drawerIdleTask?.cancel()
+        drawerIdleTask = nil
         pump?.stop()
         engine.stop()
         IdleTimerScope.update(anyDeckPlaying: false)
@@ -381,5 +394,264 @@ public final class WorkspaceModel: ObservableObject {
         public static let outerMargin: CGFloat = 30
         public static let columnGap: CGFloat = 8
         public static let jogTransportGap: CGFloat = 6
+        /// The resident crossfader cap's width — the bottom-edge surface's 1:1
+        /// mapping is against the cap's travel over the mixer column (§42.7a).
+        public static let crossfaderCapWidth: CGFloat = 22
+    }
+
+    // MARK: - Momentary bank drawer (§42.7b, mockup `iphone/05d`)
+
+    /// The four momentary banks on the compact surface (§42.7b). Filter is
+    /// deliberately absent — it stays on the screen edge, visible and under a
+    /// thumb while the drawer is open.
+    public enum TwinBank: String, CaseIterable, Sendable {
+        case eq = "EQ"
+        case stems = "STEMS"
+        case pads = "PADS"
+        case cues = "CUES"
+    }
+
+    /// The §42.7b drawer state machine: `idle`, **spring-loaded** (a tab held —
+    /// the drawer is raised for as long as the thumb holds, and releasing
+    /// dismisses it within one frame, restoring the jog under the thumb), or
+    /// **pinned** (a tap — hands-free, with a 12 s idle self-dismiss,
+    /// AT-TWIN-3). The drawer covers **only** that deck's jog + transport and
+    /// nothing else (FR-ENG-12, AT-TWIN-2).
+    public enum DrawerState: Equatable, Sendable {
+        case idle
+        case spring(deck: PerformanceEngine.Deck, bank: TwinBank)
+        case pinned(deck: PerformanceEngine.Deck, bank: TwinBank)
+
+        public var deck: PerformanceEngine.Deck? {
+            switch self {
+            case .idle: return nil
+            case .spring(let deck, _): return deck
+            case .pinned(let deck, _): return deck
+            }
+        }
+
+        public var bank: TwinBank? {
+            switch self {
+            case .idle: return nil
+            case .spring(_, let bank): return bank
+            case .pinned(_, let bank): return bank
+            }
+        }
+
+        public var isPinned: Bool {
+            if case .pinned = self { return true }
+            return false
+        }
+    }
+
+    /// The drawer's current state on the compact surface. View-only: raising,
+    /// pinning and dismissing a drawer changes **no** engine state — the decks
+    /// keep playing and every shared control stays live (FR-ENG-12, AT-TWIN-2).
+    @Published public private(set) var drawerState: DrawerState = .idle
+
+    /// The bank a deck's tab springs to and pins with (§42.7b). Defaults to
+    /// `EQ`; the remembered selection survives a rotate and a dismiss.
+    public func selectedBank(_ deck: PerformanceEngine.Deck) -> TwinBank {
+        bankByDeck[deck] ?? .eq
+    }
+
+    /// Spring the drawer open over a deck's jog + transport (§42.7b). Called
+    /// on the bank tab's touch-down; the drawer stays up exactly as long as
+    /// the thumb holds it.
+    public func springDrawer(deck: PerformanceEngine.Deck) {
+        drawerIdleTask?.cancel()
+        drawerState = .spring(deck: deck, bank: selectedBank(deck))
+    }
+
+    /// Release a held drawer: it dismisses **within one frame**, restoring the
+    /// jog under the thumb (AT-TWIN-3). A held drawer cannot leave the surface
+    /// in a mode the user has forgotten about.
+    public func releaseDrawer() {
+        drawerIdleTask?.cancel()
+        guard drawerState.deck != nil else { return }
+        drawerState = .idle
+    }
+
+    /// Pin the raised drawer for hands-free work. The pinned drawer
+    /// self-dismisses after `pinnedDrawerIdle` of no touch (AT-TWIN-3).
+    public func pinDrawer() {
+        drawerIdleTask?.cancel()
+        guard let deck = drawerState.deck else { return }
+        drawerState = .pinned(deck: deck, bank: selectedBank(deck))
+        armDrawerIdle()
+        Haptics.confirm()
+    }
+
+    /// Dismiss the drawer (a pinned drawer's toggle-off, or the 12 s idle
+    /// self-dismiss). View-only — the decks keep playing.
+    public func dismissDrawer() {
+        drawerIdleTask?.cancel()
+        guard drawerState.deck != nil else { return }
+        drawerState = .idle
+    }
+
+    /// Touch inside the pinned drawer resets its idle clock — the 12 s
+    /// self-dismiss is "12 s of no touch" (§42.7b). The drawer's background
+    /// reports every touch, so working the EQ knobs keeps the bank up.
+    public func noteDrawerActivity() {
+        guard drawerState.isPinned else { return }
+        armDrawerIdle()
+    }
+
+    /// Switch the drawer's bank (the pinned drawer's seg selector). Resets the
+    /// idle clock — this is touch.
+    public func selectDrawerBank(_ bank: TwinBank) {
+        guard let deck = drawerState.deck else { return }
+        bankByDeck[deck] = bank
+        switch drawerState {
+        case .idle: break
+        case .spring:
+            drawerState = .spring(deck: deck, bank: bank)
+        case .pinned:
+            drawerState = .pinned(deck: deck, bank: bank)
+            armDrawerIdle()
+        }
+    }
+
+    private func armDrawerIdle() {
+        drawerIdleTask?.cancel()
+        let duration = pinnedDrawerIdle
+        drawerIdleTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self.dismissDrawer()
+        }
+    }
+
+    /// §42.7b's spring-loading discrimination (AT-TWIN-3): a press shorter
+    /// than the tap threshold is a **tap** — it pins the bank for hands-free
+    /// work; a longer hold that is released is a **peek** — it dismisses,
+    /// restoring the jog under the thumb within one frame. Pure so the timing
+    /// rule is testable off-device.
+    public static func springReleasePins(holdDuration: TimeInterval,
+                                         tapThreshold: TimeInterval = DrawerGeometry.tapThreshold) -> Bool {
+        holdDuration < tapThreshold
+    }
+
+    /// §42.7b's geometry: the momentary drawer is exactly one deck column wide
+    /// and spans the control band height — it may cover that deck's jog +
+    /// transport, and nothing else (FR-ENG-12, AT-TWIN-2).
+    public enum DrawerGeometry {
+        public static let width: CGFloat = TwinGeometry.deckColumnWidth
+        public static let height: CGFloat = 206
+        /// A press shorter than this is a *tap* (pins the bank); a longer
+        /// hold that is released is a *peek* (dismisses, restoring the jog).
+        public static let tapThreshold: TimeInterval = 0.35
+        /// The §42.7a landscape sensor-housing dead band the content is inset
+        /// by on each edge.
+        public static let deadBandInset: CGFloat = 59
+        /// The §42.7b rule-2 screen-edge slider's width (the outer 24 pt).
+        public static let edgeSliderWidth: CGFloat = 24
+    }
+
+    /// The drawer's x-range over a deck in the §42.7a usable-width coordinate
+    /// space (0 = the left edge of the 734 pt usable width, outside the 59 pt
+    /// dead band). The drawer is exactly one deck column wide over that deck's
+    /// jog + transport, so it structurally cannot reach the mixer column or
+    /// the opposite deck — the crossfader, both waveforms, the beat-phase
+    /// meter and the opposite jog stay live and hit-testable (FR-ENG-12,
+    /// AT-TWIN-2).
+    public static func drawerXRange(deck: PerformanceEngine.Deck) -> Range<CGFloat> {
+        switch deck {
+        case .a:
+            let start = TwinGeometry.outerMargin
+            return start..<(start + DrawerGeometry.width)
+        case .b:
+            let start = TwinGeometry.usableWidth - TwinGeometry.outerMargin - DrawerGeometry.width
+            return start..<(start + DrawerGeometry.width)
+        }
+    }
+
+    /// The mixer column's x-range in the same coordinate space. A drawer may
+    /// never intersect it. (The §42.7a budget: outer margin 30 + deck column
+    /// 228 + gap 8 → the mixer starts at 266.)
+    public static var mixerXRange: Range<CGFloat> {
+        let start = TwinGeometry.outerMargin + TwinGeometry.deckColumnWidth + TwinGeometry.columnGap
+        return start..<(start + TwinGeometry.mixerColumnWidth)
+    }
+
+    /// §42.7a idiom 4: the whole bottom edge is a **1:1 relative crossfader
+    /// drag surface** — a drag of `deltaX` pt moves the resident fader cap by
+    /// `deltaX` pt. `residentCapTravel` is the resident cap's travel for a full
+    /// −1 … +1 sweep; the mapping is linear and clamped at the ends. Pure so
+    /// the 1:1 mapping is testable off-device.
+    public static func relativeCrossfader(from position: Float,
+                                          deltaX: CGFloat,
+                                          residentCapTravel: CGFloat) -> Float {
+        guard residentCapTravel > 0 else { return position }
+        let unitsPerPoint = 2 / residentCapTravel
+        return min(1, max(-1, position + Float(deltaX) * Float(unitsPerPoint)))
+    }
+
+    // MARK: - Release-to-commit flyout (§42.7b idiom 3, §41.9a)
+
+    /// §42.7b idiom 3: the **release-to-commit flyout** anchored to LOOP. The
+    /// §41.9a beat counts; release over a size commits, release outside
+    /// cancels — the loop never changes on the way out. CUE keeps its existing
+    /// §33.1 press-jump-preview / release-return, which is the same idiom's
+    /// cue semantics (hold to preview, release to return; nothing changes on
+    /// the way out).
+    public enum LoopAction: Equatable {
+        case set(Double)
+        case exit
+    }
+
+    /// The flyout's geometry and release resolution, laid out in the flyout's
+    /// own coordinate space (origin = the flyout's top-left, including the
+    /// kicker header). The view anchors the flyout over the LOOP button and
+    /// renders each chip at exactly its `chipFrame`, so the drag's release
+    /// point resolves honestly against what the user sees:
+    /// `releasedAction(at:)` returns the commit — `nil` means the finger slid
+    /// out and nothing changes.
+    public enum LoopFlyout {
+        public static let beats: [Double] = [1, 2, 4, 8, 16, 32]
+        public static let width: CGFloat = 150
+        public static let chipWidth: CGFloat = 44
+        public static let chipHeight: CGFloat = 34
+        public static let gap: CGFloat = 6
+        public static let horizontalPadding: CGFloat = 8
+        public static let headerHeight: CGFloat = 26
+        public static let topPadding: CGFloat = 8
+        public static let beatsPerRow = 3
+        public static let exitChipWidth: CGFloat = 96
+
+        static var gridHeight: CGFloat {
+            let rows = (beats.count + beatsPerRow - 1) / beatsPerRow
+            return CGFloat(rows) * chipHeight + CGFloat(max(0, rows - 1)) * gap
+        }
+
+        public static var height: CGFloat {
+            headerHeight + topPadding + gridHeight + gap + chipHeight + topPadding
+        }
+
+        static func chipFrame(index: Int) -> CGRect {
+            let row = index / beatsPerRow
+            let col = index % beatsPerRow
+            return CGRect(x: horizontalPadding + CGFloat(col) * (chipWidth + gap),
+                          y: headerHeight + topPadding + CGFloat(row) * (chipHeight + gap),
+                          width: chipWidth, height: chipHeight)
+        }
+
+        static var exitChipFrame: CGRect {
+            CGRect(x: (width - exitChipWidth) / 2,
+                   y: headerHeight + topPadding + gridHeight + gap,
+                   width: exitChipWidth, height: chipHeight)
+        }
+
+        /// The action a release point commits, `nil` when it slides out.
+        /// Nothing changes on the way out — the engine is touched only here.
+        public static func releasedAction(at point: CGPoint) -> LoopAction? {
+            for (index, beats) in beats.enumerated() where chipFrame(index: index).contains(point) {
+                return .set(beats)
+            }
+            if exitChipFrame.contains(point) { return .exit }
+            return nil
+        }
     }
 }
