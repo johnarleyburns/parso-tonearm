@@ -10,8 +10,10 @@ audit table §9).
 ## Milestone
 
 **M4 — the two-deck engine, `AVAudioSession`, and StoreKit** (the 3.0 Pro launch,
-spec §48.5, Appendix M.5), working from `docs/plans/dj-phase-4-engine.md`. **In
-progress** — plan commit first, then 4.1–4.13. M3 (auto-playlists,
+spec §48.5, Appendix M.5), working from `docs/plans/dj-phase-4-engine.md`. **Complete**
+— plan `5e8b731` + commits 4.1–4.13 are all on `main`. Its user-owned ship gates
+(AT-THERM-1 on-device thermal/memory, AT-PLIST-2 on-device timing, AT-PLIST-7
+listening) are deferred to a single post-M4 device pass. M3 (auto-playlists,
 `docs/plans/dj-phase-3-autoplaylists.md`) is **complete** — commits 3.1–3.5 are all
 on `main` (AT-PLIST-3 harness in 3.5 closed the last gate); its user-owned ship
 gates (AT-PLIST-2 on-device timing, AT-PLIST-7 listening) are deferred to a post-M4
@@ -21,6 +23,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M4 4.13** — `01d4acb` `feat(dj): paywall, purchase flow, memory ceiling (M4 commit 4.13)`.
 - **Seed-fix** — `1290b31` `test(dj): seed the onset-noise test — fixes the SystemRandomNumberGenerator flake`.
 - **M4 4.10** — `f9e77c9` `feat(dj): bank drawers, edge sliders, bottom-edge crossfader (M4 commit 4.10)`.
 - **M4 4.9** — `113e8b7` `feat(dj): twin-deck landscape surface + orientation switch (M4 commit 4.9)`.
@@ -52,6 +55,59 @@ governor) is fully committed.
   `dd9cc35`…`fc81f2e`.
 
 ## Working on
+
+**M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
+The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
+now complete**: every commit 4.1–4.13 is on `main`, and the milestone's ship
+gates (AT-THERM-1, AT-MEM-1, AT-PLIST-2/7) are the user-owned post-M4 device pass:
+
+- `Pro/EntitlementStore.swift` — `EntitlementSource` gains `purchase()`/`restore()`
+  (default no-ops, so the read-only fakes in other suites need no change);
+  `StoreKitEntitlementSource.purchase()` buys `guru.parso.tonearm.pro` via
+  `Product.purchase()`, `restore()` = `AppStore.sync()`. `EntitlementStore` gains
+  `purchase()`/`restore()` that re-derive from `currentEntitlements`, so **`isPro`
+  flips in-process with no relaunch** (AT-STORE-2, FR-STORE-1/2/3). `Source` docs
+  corrected (`.purchased` = "bought guru.parso.tonearm.pro"; `.foundersGrant`
+  survives only as a legacy cache row).
+- `Pro/FoundersGrant.swift` — the **product repurpose** (§2.1): `FoundersGrant`
+  collapses to the single `guru.parso.tonearm.pro` (the repurposed DJ product —
+  no `.pro.dj`, no retired product). The T.4 table becomes **one row**: verified
+  ownership ⇒ `.purchased`, family-shared ⇒ `.familyShared`, revoked ⇒ none; an
+  unverified transaction never grants. `FoundersGrantTests` rewritten to that
+  table (AT-STORE-4).
+- `Features/Paywall/PaywallModel.swift` — the §41.16/§42.10 model (mockups
+  `ipad/13a`, `ipad/13b`, `iphone/08`): consumes `isPro` and calls `purchase()`/
+  `restore()`, **never imports StoreKit** (App. T.3, §6.3). Presentation is
+  contextual-only — `present()` is the sheet's only entry, called from the lock
+  chip (§40.4 rule 3, FR-STORE-5); a dismissal is final for the session
+  (FR-STORE-6, T.7); a verified purchase auto-dismisses the sheet, a failed one
+  keeps it up with an honest message; `displayPrice` pinned to the storekit's
+  $39.99. `Features/Paywall/PaywallView.swift` — the sheet: one-time price,
+  the §2.4 green "everything you have now stays free" panel (naming the CI
+  test), GPLv3 build-it-yourself note, visible Restore, `isPurchasing` buy
+  button; no countdown/strikethrough/scarcity, no trial (plan §2.10). The lock
+  chip on **all three** performance surfaces (`WorkspaceView`, `SoloDeckView`,
+  `TwinDeckView`) now presents the sheet; `WorkspaceModel.store` is exposed so
+  the paywall buys through the same store that unlocks the decks.
+- `Perf/MemoryCeiling.swift` (§43.5, NFR-REL-4) — the pure policy (device class
+  from total RAM; ceilings 1.4 / 1.0 / 2.0 GB per class; **80% shed** / **95%
+  refuse-load** bands; the §43.5 shed order — waveform LODs → non-focused deck's
+  cached stem tails → on-demand separation → analysis), a Darwin
+  `task_vm_info.phys_footprint` provider (no `#if os`, the engine-core rule),
+  and a `MemoryCeilingMonitor` that samples every 2 s + on deck load and refuses
+  the next load at 95% with an honest message. **AT-MEM-1 is the user-owned
+  on-device gate** (deferred, plan §2.11); these policy tests are its automated
+  proxy.
+- Tests: 8 `PaywallModelTests` (contextual presentation, Pro no-op, purchase
+  flips without relaunch, failed purchase keeps the sheet + honest message,
+  restore, no-nagging dismissal, explicit re-reach still shows) + 15
+  `MemoryCeilingTests` (ceilings per class, 80%/95% bands, shed order,
+  refuse-at-95% with message, probe failure keeps the baseline) + the
+  purchase/restore path in `EntitlementStoreTests` + the one-row
+  `FoundersGrantTests`. Full suite **1224 green** (1201 baseline + 23); Swift 6
+  guard OK; StoreKit boundary intact (only `Sources/Pro/` imports StoreKit); no
+  `xcodegen generate`. **FR-STORE-1/2/3/5/6/7, AT-STORE-2/4, NFR-REL-4; M4
+  complete — AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\* green.**
 
 **M4 commit 4.12 — Track Prep + grid corrections — complete (`ea66d33`).**
 The §41.8 Track Prep surface over the existing `grid_correction` path — the
@@ -469,18 +525,16 @@ to keep it from failing in a clock-capped Low Power Mode state.
 
 ## Next
 
-- **M4 commit 4.13** — paywall + purchase flow + memory ceiling (mockup
-  `ipad/13a`, `ipad/13b`, `iphone/08`): `EntitlementStore` gains
-  `purchase()`/`restore()` (StoreKit stays in `Sources/Pro/`); `PaywallView`
-  + model in `Sources/DJ/Features/Paywall/` consume `isPro` and never import
-  StoreKit (App. T.3); **product repurpose** (§2.1): `FoundersGrant` collapses
-  to the single `guru.parso.tonearm.pro` product, `FoundersGrantTests`
-  rewritten to the one-row table (AT-STORE-4), `.storekit` carries the single
-  product at $39.99; `Perf/MemoryCeiling.swift` — `task_vm_info` sampling,
-  shed order, refuse-load at 95% (NFR-REL-4). Ship gates AT-ENGINE-\*,
-  AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the user-owned shipping
-  gate**, run after the milestone on a real device (deferred per decision 4 of
-  the M4 kickoff).
+- **Post-M4 device pass** (user-owned ship gates, one pass per handoff §8 and
+  plan §2.11): **AT-THERM-1** (60-minute two-deck session, battery, 50%
+  brightness, never `.critical`, §43.7), **AT-MEM-1** (the same session never
+  crosses the §43.5 footprint ceiling — the `MemoryCeilingMonitor` is shipped
+  and unit-tested), the M3 leftovers **AT-PLIST-2** (on-device timing) and
+  **AT-PLIST-7** (listening), and the physical AT-SESS-\* route events. Then
+  **ship 3.0 — the Pro launch**: AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*,
+  AT-TWIN-\* are green; app builds; the purchase unlocks the decks with no
+  relaunch (AT-STORE-2). **Ask before `git push`** — push triggers CI +
+  TestFlight and 3.0 is the release gate.
 
 ## After M4
 
@@ -488,6 +542,9 @@ to keep it from failing in a clock-capped Low Power Mode state.
   real-device FR-SEM-3 measurement.
 - **M1 exit-gate leftovers** (blocked, user-owned): paid products in App Store
   Connect; Plex claim token + cloud OAuth registrations into `.test-credentials`.
+- **M5** — stems (`StemSeparator` Demucs Core ML, §36) slot into the
+  `DeckModuleSlot`'s honest-unavailable faders; recording (§37), then M6
+  hardware/Watch.
 
 ## Standing rules in play
 
