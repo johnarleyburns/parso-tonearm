@@ -84,6 +84,8 @@ public final class WorkspaceModel: ObservableObject {
     @Published public var eqBHigh: Float = 0
     @Published public var filterA: Float = 0
     @Published public var filterB: Float = 0
+    @Published public var channelA: Float = 1.0
+    @Published public var channelB: Float = 1.0
     @Published public var crossfader: Float = 0
     @Published public var crossfaderCurve: CrossfaderCurve = .constantPower
 
@@ -247,6 +249,10 @@ public final class WorkspaceModel: ObservableObject {
 
     public func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float) {
         engine.setChannelFader(deck, gain: gain)
+        switch deck {
+        case .a: channelA = gain
+        case .b: channelB = gain
+        }
     }
 
     public func setCrossfader(_ position: Float, curve: CrossfaderCurve) {
@@ -295,5 +301,85 @@ public final class WorkspaceModel: ObservableObject {
     /// sheet and the crossfader stays reachable (§42.7).
     public static func crateSheetMaxHeight(containerHeight: CGFloat) -> CGFloat {
         max(0, min(containerHeight * 0.6, containerHeight - crossfaderBarHeight))
+    }
+
+    // MARK: - Compact posture (§42.1, §42.7a)
+
+    /// The two iPhone postures (§42.1): **orientation is the mode switch** —
+    /// there is no toggle, no setting, no button. Portrait is the solo-deck
+    /// surface (`SoloDeckView`), landscape the twin-deck surface
+    /// (`TwinDeckView`). The posture is presentation state on the one shared
+    /// session VM (like `focusedDeck`); the `CompactPerformanceView` container
+    /// maps the OS orientation to it, and both postures run over the same
+    /// `WorkspaceModel` and the same live engine.
+    public enum CompactPosture: Sendable, Equatable {
+        /// Portrait — one deck in focus, one in a strip (§42.6–42.7).
+        case solo
+        /// Landscape — both decks resident, a jog each (§42.7a).
+        case twin
+    }
+
+    /// The compact posture the surface currently renders. View-only state:
+    /// rotating changes **no** engine state (FR-ENG-10, AT-TWIN-1).
+    @Published public var compactPosture: CompactPosture = .solo
+
+    /// Rotate the compact surface between the solo and twin postures
+    /// (§42.1). View-only — no engine call is made, telemetry is untouched,
+    /// both decks stay live under the swap (AT-TWIN-1). The container drives
+    /// this from the OS orientation.
+    public func setPosture(_ posture: CompactPosture) {
+        compactPosture = posture
+    }
+
+    // MARK: - Beat-phase readout (§42.7a mixer column)
+
+    /// The signed beat-phase error between the two decks in (−0.5, 0.5],
+    /// positive when deck A is ahead (beat 0.9 vs 0.1 is a −0.2, not +0.8 —
+    /// the minimal circular difference). Pure, so the twin mixer column's
+    /// readout is testable off-device (AT-TWIN-1's phase meter).
+    public static func beatPhaseError(phaseA: Double, phaseB: Double) -> Double {
+        var error = (phaseA - phaseB).truncatingRemainder(dividingBy: 1)
+        if error > 0.5 {
+            error -= 1
+        } else if error <= -0.5 {
+            error += 1
+        }
+        return error
+    }
+
+    /// The phase error rendered as signed milliseconds at a tempo: `error`
+    /// beats at `bpm` = `error × 60000 / bpm` (the sample rate cancels out of
+    /// the samples→ms conversion), the mockup's "locked · ±1.8 ms".
+    public static func beatPhaseErrorMillis(error: Double, bpm: Double) -> Double {
+        guard bpm > 0 else { return 0 }
+        return error * 60_000 / bpm
+    }
+
+    /// The current signed phase error between the two decks in milliseconds
+    /// at the master tempo — the twin mixer column's centre readout.
+    public var beatPhaseErrorMillis: Double {
+        let error = Self.beatPhaseError(phaseA: telemetry.deckA.phase,
+                                        phaseB: telemetry.deckB.phase)
+        return Self.beatPhaseErrorMillis(error: error, bpm: telemetry.masterBPM)
+    }
+
+    // MARK: - Twin-deck geometry (§42.7a)
+
+    /// The §42.7a twin-deck horizontal budget (spec arithmetic, verbatim):
+    ///
+    ///    734 = 30 │ 168 jog A │ 6 │ 54 transport │ 8 │ 202 mixer │ 8 │ 54 transport │ 6 │ 168 jog B │ 30
+    ///
+    /// Both deck columns (jog + transport) are 228 pt; the mixer column is
+    /// 202 pt. Encoded here so the twin view consumes exactly the normative
+    /// geometry and the frames are testable off-device.
+    public enum TwinGeometry {
+        public static let usableWidth: CGFloat = 734
+        public static let deckColumnWidth: CGFloat = 228
+        public static let mixerColumnWidth: CGFloat = 202
+        public static let jogWidth: CGFloat = 168
+        public static let transportWidth: CGFloat = 54
+        public static let outerMargin: CGFloat = 30
+        public static let columnGap: CGFloat = 8
+        public static let jogTransportGap: CGFloat = 6
     }
 }

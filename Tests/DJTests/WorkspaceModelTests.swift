@@ -156,6 +156,21 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(model.eqBLow, 0, "deck B's EQ is untouched")
     }
 
+    func testChannelFaderStateMirrorsTheEngine() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        XCTAssertEqual(model.channelA, 1.0, "an untouched channel fader sits at unity (§35.4)")
+        XCTAssertEqual(model.channelB, 1.0)
+
+        model.setChannelFader(.a, gain: 0.6)
+        model.setChannelFader(.b, gain: 0.4)
+        XCTAssertEqual(model.channelA, 0.6, "the twin mixer column's fader state lives in the shared VM")
+        XCTAssertEqual(model.channelB, 0.4)
+    }
+
     // MARK: - Telemetry pipeline (§40.3)
 
     func testTelemetryStreamDeliversPumpedValues() async throws {
@@ -272,6 +287,124 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertTrue(fake.played.isEmpty, "raising the crate sheet changes no engine state")
         XCTAssertTrue(fake.paused.isEmpty)
         XCTAssertEqual(model.focusedDeck, .a, "the sheet does not disturb focus")
+    }
+
+    // MARK: - Orientation switch (§42.1, plan 4.9)
+
+    func testRotationIsViewOnly() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        XCTAssertEqual(model.compactPosture, .solo, "portrait is the default posture")
+        model.setPosture(.twin)
+        XCTAssertEqual(model.compactPosture, .twin)
+        model.setPosture(.solo)
+        XCTAssertEqual(model.compactPosture, .solo)
+
+        XCTAssertTrue(fake.played.isEmpty, "rotating must not touch transport (FR-ENG-10, AT-TWIN-1)")
+        XCTAssertTrue(fake.paused.isEmpty)
+        XCTAssertTrue(fake.synced.isEmpty)
+        XCTAssertTrue(fake.unsynced.isEmpty)
+        XCTAssertTrue(fake.eqKnobs.isEmpty, "rotating must not touch the mixer")
+        XCTAssertEqual(model.telemetry, EngineTelemetry(), "telemetry is untouched by a view-only rotation")
+        XCTAssertFalse(fake.stopped, "the engine keeps running behind the swap — both decks stay live")
+    }
+
+    func testRotationPreservesTransportExactly() async throws {
+        // AT-TWIN-1: rotating mid-playback changes **no** engine state. With a
+        // deck already playing, a posture swap must leave the engine's call
+        // record and the model's telemetry untouched — the swap is the same
+        // WorkspaceModel re-rendered, nothing else.
+        let fake = FakeWorkspaceEngine()
+        fake.current = EngineTelemetry(
+            masterSample: 9600,
+            masterBPM: 124,
+            downbeatPhase: 0.5,
+            deckA: EngineTelemetry.Deck(playheadSample: 9600, bpmEffective: 124,
+                                        phase: 0.25, level: 0.5, playing: true, synced: false),
+            deckB: EngineTelemetry.Deck(playheadSample: 0, bpmEffective: 124,
+                                        phase: 0.25, level: 0, playing: false, synced: false),
+            masterLevel: 0.5,
+            renderLoad: 0.2)
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+        for _ in 0..<50 { await Task.yield() }
+        model.pumpTelemetryNow()
+        for _ in 0..<50 { await Task.yield() }
+
+        model.play(.a)
+        XCTAssertEqual(fake.played, [.a])
+
+        model.setPosture(.twin)
+        model.setPosture(.solo)
+
+        XCTAssertEqual(fake.played, [.a], "rotation adds no transport calls")
+        XCTAssertTrue(fake.paused.isEmpty)
+        XCTAssertEqual(model.telemetry.deckA.playheadSample, 9600,
+                       "the playhead readout is preserved across the rotation")
+        XCTAssertEqual(model.telemetry.deckA.playing, true)
+        XCTAssertFalse(fake.stopped, "rotation never stop/starts the engine")
+    }
+
+    func testBeatPhaseErrorMath() {
+        // Pure golden cases for the mixer column's signed phase-error readout.
+        XCTAssertEqual(WorkspaceModel.beatPhaseError(phaseA: 0.25, phaseB: 0.25), 0,
+                       "equal phases are locked")
+        XCTAssertEqual(WorkspaceModel.beatPhaseError(phaseA: 0.6, phaseB: 0.2), 0.4,
+                       accuracy: 1e-12, "A ahead by 0.4 beat")
+        XCTAssertEqual(WorkspaceModel.beatPhaseError(phaseA: 0.2, phaseB: 0.6), -0.4,
+                       accuracy: 1e-12, "B ahead reads negative")
+        XCTAssertEqual(WorkspaceModel.beatPhaseError(phaseA: 0.9, phaseB: 0.1), -0.2,
+                       accuracy: 1e-12, "wrap-around takes the minimal circular distance")
+        XCTAssertEqual(WorkspaceModel.beatPhaseError(phaseA: 0.1, phaseB: 0.9), 0.2,
+                       accuracy: 1e-12, "signed the other way across the wrap")
+        XCTAssertEqual(WorkspaceModel.beatPhaseError(phaseA: 0.0, phaseB: 1.0), 0.0,
+                       accuracy: 1e-12, "a full beat apart is locked on the circle")
+    }
+
+    func testBeatPhaseErrorMillisMath() {
+        XCTAssertEqual(WorkspaceModel.beatPhaseErrorMillis(error: 0.1, bpm: 120),
+                       50, accuracy: 1e-9, "0.1 beat at 120 BPM = 0.1 × 500 ms = 50 ms")
+        XCTAssertEqual(WorkspaceModel.beatPhaseErrorMillis(error: -0.1, bpm: 120),
+                       -50, accuracy: 1e-9, "signed")
+        XCTAssertEqual(WorkspaceModel.beatPhaseErrorMillis(error: 0.0, bpm: 124),
+                       0, "locked is 0 ms")
+        XCTAssertEqual(WorkspaceModel.beatPhaseErrorMillis(error: 0.25, bpm: 60),
+                       250, accuracy: 1e-9, "0.25 beat at 60 BPM = 250 ms")
+        XCTAssertEqual(WorkspaceModel.beatPhaseErrorMillis(error: 0.1, bpm: 0),
+                       0, "no master clock reads 0")
+    }
+
+    func testTwinGeometryMatchesTheSpecBudget() {
+        // §42.7a verbatim: 734 = 30 │ 168 jog A │ 6 │ 54 transport │ 8 │ 202
+        // mixer │ 8 │ 54 transport │ 6 │ 168 jog B │ 30. The twin view consumes
+        // exactly these constants, so the frames are pinned here off-device.
+        let leftDeck = WorkspaceModel.TwinGeometry.outerMargin
+            + WorkspaceModel.TwinGeometry.jogWidth
+            + WorkspaceModel.TwinGeometry.jogTransportGap
+            + WorkspaceModel.TwinGeometry.transportWidth
+        let rightDeck = WorkspaceModel.TwinGeometry.transportWidth
+            + WorkspaceModel.TwinGeometry.jogTransportGap
+            + WorkspaceModel.TwinGeometry.jogWidth
+            + WorkspaceModel.TwinGeometry.outerMargin
+        let total = leftDeck
+            + WorkspaceModel.TwinGeometry.columnGap
+            + WorkspaceModel.TwinGeometry.mixerColumnWidth
+            + WorkspaceModel.TwinGeometry.columnGap
+            + rightDeck
+
+        XCTAssertEqual(WorkspaceModel.TwinGeometry.deckColumnWidth, 228,
+                       "jog 168 + 6 + transport 54")
+        XCTAssertEqual(WorkspaceModel.TwinGeometry.mixerColumnWidth, 202)
+        XCTAssertEqual(total, WorkspaceModel.TwinGeometry.usableWidth,
+                       "the budget sums to the 734 pt usable width")
+        XCTAssertEqual(WorkspaceModel.TwinGeometry.jogWidth + WorkspaceModel.TwinGeometry.jogTransportGap
+                       + WorkspaceModel.TwinGeometry.transportWidth,
+                       WorkspaceModel.TwinGeometry.deckColumnWidth,
+                       "a deck column decomposes exactly")
     }
 
     // MARK: - Helpers

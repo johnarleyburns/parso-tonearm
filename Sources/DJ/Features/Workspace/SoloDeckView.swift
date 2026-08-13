@@ -23,9 +23,15 @@ import SwiftUI
 public struct SoloDeckView: View {
     @StateObject private var model: WorkspaceModel
     @Environment(\.scenePhase) private var scenePhase
+    /// Whether this view owns the engine lifecycle (begin/end, scene-phase
+    /// pump pausing, deferred system gestures). `false` when embedded in
+    /// `CompactPerformanceView`, which owns the single lifecycle across a
+    /// rotation — so rotating never stop/starts the engine (AT-TWIN-1).
+    private let managesLifecycle: Bool
 
-    public init(model: WorkspaceModel) {
+    public init(model: WorkspaceModel, managesLifecycle: Bool = true) {
         _model = StateObject(wrappedValue: model)
+        self.managesLifecycle = managesLifecycle
     }
 
     public var body: some View {
@@ -46,10 +52,10 @@ public struct SoloDeckView: View {
         #if os(iOS)
         .defersSystemGestures(on: .bottom)
         #endif
-        .onAppear { try? model.begin() }
-        .onDisappear { model.end() }
+        .onAppear { if managesLifecycle { try? model.begin() } }
+        .onDisappear { if managesLifecycle { model.end() } }
         .onChange(of: scenePhase) { _, phase in
-            model.setPumpPaused(phase != .active)
+            if managesLifecycle { model.setPumpPaused(phase != .active) }
         }
     }
 

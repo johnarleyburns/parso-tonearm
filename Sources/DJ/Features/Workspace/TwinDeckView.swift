@@ -1,0 +1,685 @@
+import SwiftUI
+
+/// The iPhone landscape twin-deck surface (mockup `iphone/05c`, §42.7a) over
+/// the single session `WorkspaceModel` (plan 4.9). Both decks are resident —
+/// a 168 pt jog each, stacked waveforms on one shared playhead, a 202 pt mixer
+/// column (beat-phase meter, channel faders A/B, SYNC tap=beat/hold=downbeat,
+/// crossfader), 54×54 transport, a per-deck bank tab, and a continuous
+/// screen-edge filter slider on each edge that costs no layout width and is
+/// never occluded.
+///
+/// The layout follows §42.7a's budget exactly (encoded in
+/// `WorkspaceModel.TwinGeometry`): `734 = 30 │ 168 jog A │ 6 │ 54 transport │
+/// 8 │ 202 mixer │ 8 │ 54 transport │ 6 │ 168 jog B │ 30`. The two 59 pt bands
+/// are the landscape sensor-housing dead zones — nothing interactive lives
+/// there. The centre of the screen carries only display (waveforms, beat
+/// phase, identity); every control sits inside a thumb arc (§42.1).
+///
+/// The jog is wired exactly as in the solo surface: `JogView` intents reach
+/// the transport only through a lazily-created `JogTransport` guarded by
+/// `RTGuard.assertRTSafe` (FR-ENG-11, AT-TWIN-4). The momentary bank drawer
+/// the tabs announce is commit 4.10 — until then the tabs render the honest
+/// passive bar.
+///
+/// Like `SoloDeckView`, the gate is `WorkspaceModel.isDecksEnabled` (App. T.3)
+/// and the view owns its engine lifecycle by default; when embedded in
+/// `CompactPerformanceView` (`managesLifecycle: false`) the container owns the
+/// single lifecycle so rotating never stop/starts the engine (FR-ENG-10,
+/// AT-TWIN-1).
+public struct TwinDeckView: View {
+    @StateObject private var model: WorkspaceModel
+    @Environment(\.scenePhase) private var scenePhase
+    private let managesLifecycle: Bool
+
+    @State private var jogATransport: JogTransport?
+    @State private var jogBTransport: JogTransport?
+
+    public init(model: WorkspaceModel, managesLifecycle: Bool = true) {
+        _model = StateObject(wrappedValue: model)
+        self.managesLifecycle = managesLifecycle
+    }
+
+    public var body: some View {
+        Group {
+            if model.isDecksEnabled {
+                surface
+            } else {
+                ZStack(alignment: .topTrailing) {
+                    surface
+                        .opacity(0.35)
+                        .allowsHitTesting(false)
+                    lockChip
+                        .padding(16)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        #if os(iOS)
+        .defersSystemGestures(on: .bottom)
+        #endif
+        .onAppear { if managesLifecycle { try? model.begin() } }
+        .onDisappear { if managesLifecycle { model.end() } }
+        .onChange(of: scenePhase) { _, phase in
+            if managesLifecycle { model.setPumpPaused(phase != .active) }
+        }
+    }
+
+    private var lockChip: some View {
+        Label("Platterhead DJ · one-time", systemImage: "lock.fill")
+            .font(.footnote.weight(.semibold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.thinMaterial, in: Capsule())
+    }
+
+    private var surface: some View {
+        GeometryReader { proxy in
+            let bandTop: CGFloat = 20 + 90 + 38
+            ZStack(alignment: .top) {
+                // The two 59 pt sensor-housing dead bands carry nothing
+                // interactive (§42.7a). The filter edge sliders render *over*
+                // this padding at the true screen edges — always live, never
+                // occluded (§42.7b's rule 2).
+                VStack(spacing: 0) {
+                    telemetryRow
+                    StackedWaveformView(model: model)
+                    identityRow
+                    controlBand
+                }
+                .padding(.horizontal, 59)
+
+                // The screen-edge filter sliders: 24 pt wide, zero layout
+                // width, at the innermost point of each thumb arc, and they
+                // stay reachable with a bank drawer open (§42.7a).
+                HStack {
+                    VerticalSlider(value: model.filterA,
+                                   onChanged: { model.setFilter(.a, knob: $0) })
+                        .frame(width: 24)
+                    Spacer()
+                    VerticalSlider(value: model.filterB,
+                                   onChanged: { model.setFilter(.b, knob: $0) })
+                        .frame(width: 24)
+                }
+                .padding(.top, bandTop + 20)
+                .frame(height: max(0, proxy.size.height - bandTop - 40))
+                .padding(.horizontal, 12)
+            }
+        }
+    }
+
+    /// The §42.7a telemetry band: the correctness readouts stay inline because
+    /// on a phone there is no menu bar to hide them in.
+    private var telemetryRow: some View {
+        HStack(spacing: 5) {
+            Text(thermalText)
+                .font(.system(size: 10, design: .monospaced))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(thermalColor.opacity(0.16), in: Capsule())
+                .foregroundStyle(thermalColor)
+            Text("\(Int(model.engine.bufferPeriodMillis)) ms")
+                .font(.system(size: 10, design: .monospaced))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.cyan.opacity(0.14), in: Capsule())
+                .foregroundStyle(.cyan)
+            Text("TWIN · landscape")
+                .font(.system(size: 10, weight: .semibold))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.accentColor.opacity(0.14), in: Capsule())
+                .foregroundStyle(Color.accentColor)
+            Spacer()
+            Text("CPU \(Int(model.telemetry.renderLoad * 100))%")
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+        .frame(height: 20)
+        .padding(.horizontal, 2)
+    }
+
+    private var thermalText: String {
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: return "Nominal"
+        case .fair: return "Fair"
+        case .serious: return "Serious"
+        case .critical: return "Critical"
+        @unknown default: return "Unknown"
+        }
+    }
+
+    private var thermalColor: Color {
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: return .green
+        case .fair: return .orange
+        case .serious: return .red
+        case .critical: return .red
+        @unknown default: return .secondary
+        }
+    }
+
+    /// The §42.7a identity row (38 pt): deck titles and BPM/beat readouts
+    /// deck-side, the master spectrum + limiter readout centre — the centre
+    /// of the screen carries information, never controls (§42.1).
+    private var identityRow: some View {
+        HStack {
+            DeckIdentityView(model: model, deck: .a, alignsTrailing: false)
+            Spacer()
+            MasterReadoutView(model: model)
+            Spacer()
+            DeckIdentityView(model: model, deck: .b, alignsTrailing: true)
+        }
+        .frame(height: 38)
+        .padding(.horizontal, 20)
+    }
+
+    /// The control band: deck A (jog + transport) · mixer · deck B (transport
+    /// + jog), exactly the §42.7a budget. The band is where the thumbs are;
+    /// the mixer carries only what must be shared and continuous.
+    private var controlBand: some View {
+        HStack(spacing: WorkspaceModel.TwinGeometry.columnGap) {
+            TwinDeckColumnView(model: model, deck: .a, transportFirst: false,
+                               jogATransport: jogATransport,
+                               jogBTransport: jogBTransport) { intent in
+                if jogATransport == nil { jogATransport = JogTransport(engine: model.engine, deck: .a) }
+                jogATransport?.route(intent)
+            }
+            .frame(width: WorkspaceModel.TwinGeometry.deckColumnWidth)
+
+            TwinMixerColumnView(model: model)
+                .frame(width: WorkspaceModel.TwinGeometry.mixerColumnWidth)
+
+            TwinDeckColumnView(model: model, deck: .b, transportFirst: true,
+                               jogATransport: jogATransport,
+                               jogBTransport: jogBTransport) { intent in
+                if jogBTransport == nil { jogBTransport = JogTransport(engine: model.engine, deck: .b) }
+                jogBTransport?.route(intent)
+            }
+            .frame(width: WorkspaceModel.TwinGeometry.deckColumnWidth)
+        }
+        .frame(height: 206)
+        .padding(.horizontal, WorkspaceModel.TwinGeometry.outerMargin)
+    }
+}
+
+// MARK: - One deck's column
+
+/// One resident deck's control block (§42.7a): the 168 pt jog and the 54×54
+/// transport stack side by side (transport on the inner side — deck A's jog
+/// sits at the left thumb, deck B's at the right), with the bank tab below.
+private struct TwinDeckColumnView: View {
+    @ObservedObject var model: WorkspaceModel
+    let deck: PerformanceEngine.Deck
+    let transportFirst: Bool
+    let jogATransport: JogTransport?
+    let jogBTransport: JogTransport?
+    let onJogIntent: (JogGestureModel.Intent) -> Void
+
+    private var telemetryDeck: EngineTelemetry.Deck {
+        deck == .a ? model.telemetry.deckA : model.telemetry.deckB
+    }
+
+    var body: some View {
+        VStack(spacing: 5) {
+            HStack(spacing: WorkspaceModel.TwinGeometry.jogTransportGap) {
+                if transportFirst {
+                    transportStack
+                    jog
+                } else {
+                    jog
+                    transportStack
+                }
+            }
+
+            // The bank tab the momentary drawer anchors to (§42.7b). The
+            // drawer itself is commit 4.10 — this is the honest passive bar.
+            HStack {
+                Text("HOLD ▲ \(deck == .a ? "A" : "B") BANK")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("EQ · STEMS · PADS · CUES")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 9)
+            .frame(height: 24)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.03)))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.06), lineWidth: 1))
+        }
+    }
+
+    private var jog: some View {
+        JogView(model: model, deck: deck, onIntent: onJogIntent)
+            .frame(width: WorkspaceModel.TwinGeometry.jogWidth,
+                   height: WorkspaceModel.TwinGeometry.jogWidth)
+    }
+
+    /// The 54×54 transport: CUE · PLAY/PAUSE · LOOP (54×48), with the loop's
+    /// long-press exiting the loop. SYNC lives in the mixer column, not here
+    /// (§42.7a).
+    private var transportStack: some View {
+        VStack(spacing: 6) {
+            TransportButton(title: "CUE") {
+                model.cue(deck)
+            } onRelease: {
+                model.releaseCue(deck)
+            }
+            .frame(width: WorkspaceModel.TwinGeometry.transportWidth,
+                   height: WorkspaceModel.TwinGeometry.transportWidth)
+
+            TransportButton(title: telemetryDeck.playing ? "PAUSE" : "PLAY",
+                            emphasized: true) {
+                if telemetryDeck.playing {
+                    model.pause(deck)
+                } else {
+                    model.play(deck)
+                }
+            } onRelease: {}
+            .frame(width: WorkspaceModel.TwinGeometry.transportWidth,
+                   height: WorkspaceModel.TwinGeometry.transportWidth)
+
+            TransportButton(title: "LOOP") {
+                model.setLoop(deck, beats: 8)
+            } onRelease: {}
+            .frame(width: WorkspaceModel.TwinGeometry.transportWidth, height: 48)
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.4).onEnded { _ in
+                    model.exitLoop(deck)
+                }
+            )
+        }
+    }
+}
+
+// MARK: - Stacked waveforms on one shared playhead
+
+/// The §42.7a stacked-waveform display: deck A and deck B strips on **one
+/// shared playhead**, their beat grids aligned so phase error reads as
+/// horizontal offset at a glance — the two-deck display that earns its pixels.
+/// The strips are the honest neutral baseline until the analysis-driven
+/// waveform render lands with the deck-prep wiring (the 4.6/4.7 convention);
+/// the beat ticks are positioned from each deck's telemetry phase so a synced
+/// pair shows coincident grids.
+private struct StackedWaveformView: View {
+    @ObservedObject var model: WorkspaceModel
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                VStack(spacing: 2) {
+                    waveRow(deck: .a)
+                    waveRow(deck: .b)
+                }
+
+                // One shared playhead across both strips, at deck A's beat
+                // phase (deck A is master).
+                Rectangle()
+                    .fill(Color.white.opacity(0.75))
+                    .frame(width: 2)
+                    .position(x: CGFloat(model.telemetry.deckA.phase) * proxy.size.width,
+                              y: proxy.size.height / 2)
+            }
+        }
+        .frame(height: 90)
+    }
+
+    private func waveRow(deck: PerformanceEngine.Deck) -> some View {
+        let phase = deck == .a ? model.telemetry.deckA.phase : model.telemetry.deckB.phase
+        return HStack(spacing: 6) {
+            Text(deck == .a ? "A" : "B")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(deck == .a ? .white : Color.cyan.opacity(0.9))
+                .frame(width: 12)
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.06))
+                    ForEach(0..<16, id: \.self) { index in
+                        let x = (phase + Double(index) / 16)
+                            .truncatingRemainder(dividingBy: 1)
+                        Capsule()
+                            .fill(Color.white.opacity(0.18))
+                            .frame(width: 1, height: 44)
+                            .position(x: CGFloat(x) * proxy.size.width, y: 22)
+                    }
+                }
+            }
+            .frame(height: 44)
+        }
+    }
+}
+
+// MARK: - Identity / master readout
+
+/// One deck's identity cell (§42.7a): title, elapsed time and BPM/beat
+/// readout. Track titles and keys land with the library seam (the 4.7
+/// decision) — the identity row carries the honest deck placeholder.
+private struct DeckIdentityView: View {
+    @ObservedObject var model: WorkspaceModel
+    let deck: PerformanceEngine.Deck
+    let alignsTrailing: Bool
+
+    private var telemetryDeck: EngineTelemetry.Deck {
+        deck == .a ? model.telemetry.deckA : model.telemetry.deckB
+    }
+
+    var body: some View {
+        VStack(alignment: alignsTrailing ? .trailing : .leading, spacing: 1) {
+            Text(deck == .a ? "Deck A" : "Deck B")
+                .font(.system(size: 12.5, weight: .bold))
+                .lineLimit(1)
+            HStack(spacing: 6) {
+                Text(playheadText)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                Text(String(format: "%.1f BPM", telemetryDeck.bpmEffective))
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Text("beat \(Int(telemetryDeck.phase * 100))%")
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 228, alignment: alignsTrailing ? .trailing : .leading)
+    }
+
+    private var playheadText: String {
+        let seconds = Double(telemetryDeck.playheadSample) / model.engine.sampleRate
+        let clamped = max(0, seconds)
+        return String(format: "%02d:%02d", Int(clamped) / 60, Int(clamped) % 60)
+    }
+}
+
+/// The centre identity cell (§42.7a): the master spectrum (honest baseline
+/// bars) with the limiter state, the read-only centre of the screen.
+private struct MasterReadoutView: View {
+    @ObservedObject var model: WorkspaceModel
+
+    var body: some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 2) {
+                ForEach(0..<14, id: \.self) { index in
+                    let height = CGFloat(0.3 + 0.7 * (Double((index * 7) % 10) / 10))
+                    Capsule()
+                        .fill(Color.white.opacity(0.35))
+                        .frame(width: 3, height: 20 * height)
+                }
+            }
+            .frame(height: 20)
+            HStack {
+                Text("MASTER")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(limiterText)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(limiterColor)
+            }
+        }
+        .frame(width: 202)
+    }
+
+    private var limiterText: String {
+        if let ceiling = model.engine.limiterCeiling {
+            return String(format: "limiter −%.1f dB", (1 - ceiling) * 20)
+        }
+        return "limiter idle"
+    }
+
+    private var limiterColor: Color {
+        model.engine.limiterCeiling == nil ? .secondary : .green
+    }
+}
+
+// MARK: - Mixer column
+
+/// The 202 pt mixer column (§42.7a): only what must be shared and continuous —
+/// the beat-phase meter (centred means locked, with signed millisecond error),
+/// channel faders A/B, SYNC (tap = beat, hold = downbeat) and the crossfader.
+/// **No EQ** — three 44 pt knobs cannot fit the 202 pt column, so EQ is a
+/// bank, not a resident control.
+private struct TwinMixerColumnView: View {
+    @ObservedObject var model: WorkspaceModel
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("BEAT PHASE · A vs B")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            PhaseErrorMeter(errorFraction: errorFraction)
+
+            Text(phaseText)
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundStyle(phaseColor)
+
+            HStack(alignment: .center, spacing: 12) {
+                ChannelFader(label: "CH A", value: model.channelA,
+                             onChanged: { model.setChannelFader(.a, gain: $0) })
+                syncButton
+                ChannelFader(label: "CH B", value: model.channelB,
+                             onChanged: { model.setChannelFader(.b, gain: $0) })
+            }
+            .padding(.top, 2)
+
+            crossfaderBox
+        }
+    }
+
+    private var errorFraction: Double {
+        let error = WorkspaceModel.beatPhaseError(phaseA: model.telemetry.deckA.phase,
+                                                  phaseB: model.telemetry.deckB.phase)
+        // Render −0.5…0.5 as the meter's −1…1 span.
+        return error * 2
+    }
+
+    private var phaseText: String {
+        guard model.telemetry.masterBPM > 0 else { return "no master clock" }
+        return String(format: "%@ · ±%.1f ms",
+                      abs(model.beatPhaseErrorMillis) < 10 ? "locked" : "off",
+                      abs(model.beatPhaseErrorMillis))
+    }
+
+    private var phaseColor: Color {
+        model.telemetry.masterBPM > 0 && abs(model.beatPhaseErrorMillis) < 10
+            ? .green : .secondary
+    }
+
+    /// SYNC lives in the mixer: tap = beat, hold = downbeat (§32.2). Deck B
+    /// syncs to master A, the deck the jog's MASTER cap names.
+    private var syncButton: some View {
+        VStack(spacing: 4) {
+            Button {
+                model.sync(.b, to: .a)
+            } label: {
+                Text("SYNC")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 54, height: 44)
+                    .background(
+                        model.isSynced(.b) ? Color.cyan.opacity(0.28)
+                                           : Color.white.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(model.isSynced(.b) ? Color.cyan : .primary)
+            }
+            .buttonStyle(.plain)
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.4).onEnded { _ in
+                    model.sync(.b, to: .a, barSync: true)
+                }
+            )
+            Text("tap = beat\nhold = downbeat")
+                .font(.system(size: 8))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    private var crossfaderBox: some View {
+        VStack(spacing: 5) {
+            HStack {
+                Text("A").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                Spacer()
+                Text("CROSSFADER").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                Spacer()
+                Text("B").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+            }
+            GeometryReader { proxy in
+                let width = proxy.size.width
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.10))
+                        .frame(height: 10)
+                    let t = CGFloat((model.crossfader + 1) / 2)
+                    Capsule()
+                        .fill(Color.white.opacity(0.9))
+                        .frame(width: 22, height: 29)
+                        .offset(x: max(0, min(width - 22, width * t - 11)))
+                }
+                .frame(height: 34)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0).onChanged { value in
+                        let t = Self.clampUnit(value.location.x / width)
+                        model.setCrossfader(Float(t) * 2 - 1, curve: model.crossfaderCurve)
+                    }
+                )
+            }
+            .frame(height: 34)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.03)))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.06), lineWidth: 1))
+    }
+
+    private static func clampUnit(_ value: CGFloat) -> CGFloat {
+        max(0, min(1, value))
+    }
+}
+
+/// The beat-phase meter: the signed error between the two decks, centred means
+/// locked (mockup `iphone/05c`'s `pmeter`). The marker sits at the centre when
+/// the decks are phase-aligned and swings toward the lagging deck.
+private struct PhaseErrorMeter: View {
+    /// The signed error in the meter's −1…1 span (positive = A ahead).
+    let errorFraction: Double
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Capsule()
+                    .fill(Color.white.opacity(0.10))
+                Capsule()
+                    .fill(Color.white.opacity(0.5))
+                    .frame(width: 2, height: proxy.size.height - 6)
+                    .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                Capsule()
+                    .fill(Color.cyan)
+                    .frame(width: 10, height: 12)
+                    .position(x: proxy.size.width / 2
+                                  + CGFloat(errorFraction) * proxy.size.width / 2,
+                              y: proxy.size.height / 2)
+            }
+        }
+        .frame(height: 14)
+        .frame(width: 120)
+    }
+}
+
+/// A 44 pt-minimum channel fader (trim gain, §35.4). Unity at the top, full
+/// kill at the bottom; the whole 34×64 strip is the drag surface.
+private struct ChannelFader: View {
+    let label: String
+    let value: Float
+    let onChanged: (Float) -> Void
+
+    var body: some View {
+        VStack(spacing: 3) {
+            GeometryReader { proxy in
+                let height = proxy.size.height
+                ZStack(alignment: .bottom) {
+                    Capsule().fill(Color.white.opacity(0.08))
+                    Capsule().fill(Color.white.opacity(0.55))
+                        .frame(height: max(6, height * Self.clamp01(CGFloat(value))))
+                }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0).onChanged { gesture in
+                        let t = Self.clamp01((1 - gesture.location.y / height))
+                        onChanged(Float(t))
+                    }
+                )
+            }
+            .frame(width: 34, height: 64)
+            Text(label)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(width: 44, height: 44, alignment: .top)
+    }
+
+    private static func clamp01(_ value: CGFloat) -> CGFloat {
+        max(0, min(1, value))
+    }
+}
+
+// MARK: - Orientation switch
+
+/// The iPhone performance surface (§42.1): **orientation is the mode switch**.
+/// Portrait renders the solo-deck `SoloDeckView`, landscape the twin-deck
+/// `TwinDeckView` — both over the **one** `WorkspaceModel` and the one live
+/// engine. Rotating mid-playback is a view change only: the container owns the
+/// engine lifecycle (begin/end, scene-phase pump pausing, deferred system
+/// gestures), so a rotation never stop/starts the engine and changes no engine
+/// state (FR-ENG-10, AT-TWIN-1).
+///
+/// There is no toggle, no setting and no button — the surface follows the
+/// device orientation, mapping `verticalSizeClass` (`.compact` = landscape =
+/// twin, `.regular` = portrait = solo) onto the model's view-only
+/// `compactPosture`.
+public struct CompactPerformanceView: View {
+    @StateObject private var model: WorkspaceModel
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
+
+    public init(model: WorkspaceModel) {
+        _model = StateObject(wrappedValue: model)
+    }
+
+    public var body: some View {
+        Group {
+            switch model.compactPosture {
+            case .solo:
+                SoloDeckView(model: model, managesLifecycle: false)
+            case .twin:
+                TwinDeckView(model: model, managesLifecycle: false)
+            }
+        }
+        .preferredColorScheme(.dark)
+        #if os(iOS)
+        .defersSystemGestures(on: .bottom)
+        #endif
+        .onAppear {
+            applyPosture()
+            try? model.begin()
+        }
+        .onDisappear { model.end() }
+        .onChange(of: scenePhase) { _, phase in
+            model.setPumpPaused(phase != .active)
+        }
+        .onChange(of: verticalSizeClass) { _, _ in
+            applyPosture()
+        }
+    }
+
+    /// Portrait (`.regular` vertical size class) is the solo-deck posture,
+    /// landscape (`.compact`) the twin-deck one (§42.1).
+    private func applyPosture() {
+        let posture: WorkspaceModel.CompactPosture =
+            verticalSizeClass == .compact ? .twin : .solo
+        if model.compactPosture != posture {
+            model.setPosture(posture)
+        }
+    }
+}
