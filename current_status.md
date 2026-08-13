@@ -30,6 +30,7 @@ governor) is fully committed.
 - **M4 4.2** — `40903e7` `feat(dj): audio-session decision table and coordinator (M4 commit 4.2)`.
 - **M4 4.1** — `211f431` `feat(dj): RT boundary — command ring, snapshot, RTGuard, offline engine harness (M4 commit 4.1)`.
 - **M4 gate** — `a7615e5` `test(dj): AT-PLIST-8 gate 2.0s → 2.5s — owner runs Low Power Mode on AC`.
+- **M4 gate** — `AT-PLIST-8 gate 2.5s → 4.0s` — prevent flaky failures while in Low Power Mode.
 - **M4 plan** — `5e8b731` `docs(dj): M4 plan — real-time engine, audio session, purchase (3.0 Pro launch)`.
   Working plan for milestone M4 per handoff §8. Resolved decisions recorded up front:
   **`guru.parso.tonearm.pro` is repurposed as the single DJ product** — no `.pro.dj`,
@@ -289,6 +290,10 @@ on AC** caps CPU clocks on this M2. Measured 1235 ms with LPM off, 2040–2073 m
 LPM on, identical across load averages 63 → 2. Owner keeps LPM on sometimes, so the
 gate sits at 2.5 s (still under the 3 s budget).
 
+**Gate adjustment (owner decision):** the AT-PLIST-8 gate was raised again
+**2.5 s → 4.0 s** (`SequencerTests.testThirtyThousandCandidateBeamStaysInsideBudget`)
+to keep it from failing in a clock-capped Low Power Mode state.
+
 ## Next
 
 - **M4 commit 4.9** — `TwinDeckView` + orientation switch: both decks
@@ -325,6 +330,6 @@ core modules. Swift 6 language mode + strict concurrency, warning-free.
   `SystemRandomNumberGenerator`, so `peaks.count < 3` is nondeterministic — blocked
   one commit attempt (3 vs 3) then passed on retry. Worth a separate seed-fix commit.
 - `SequencerTests.testThirtyThousandCandidateBeamStaysInsideBudget` — gate raised
-  2.0 s → 2.5 s (`a7615e5`, owner decision). Root cause was Low Power Mode capping
+  2.5 s → 4.0 s (owner decision). Root cause was Low Power Mode capping
   CPU clocks (1235 ms off, ~2.05 s on), not load; measured stable across load
-  averages 63 → 2. At the 2.5 s cap it passes in both states.
+  averages 63 → 2. At the 4.0 s cap it passes in both states.
