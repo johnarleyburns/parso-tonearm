@@ -12,9 +12,10 @@ import SwiftUI
 /// waveform. Every gesture commits **once** on release — the model appends a
 /// single correction to the authoritative log (§23.3), never a stream.
 ///
-/// The waveform render is the honest baseline (the analysis-driven pyramid
-/// render lands with the deck-prep wiring); pinch-zoom is real over the grid's
-/// bar/beat markers, so the prep zoom already works off the grid alone.
+/// The waveform draws the §26A.2 analysis pyramid as its backdrop (persisted
+/// analysis, FR-WAVE-1 — never placeholder geometry), with pinch-zoom real
+/// over the grid's bar/beat markers, so the prep zoom already works off the
+/// analysis + the grid.
 public struct TrackPrepView: View {
     @ObservedObject var model: TrackPrepModel
 
@@ -187,6 +188,13 @@ public struct TrackPrepView: View {
             }
 
             if let snapshot, let grid = snapshot.grid {
+                // §26A.4: the phrase ribbon runs above the waveform — labelled
+                // spans in bars, the next drop visible before it arrives.
+                PhraseRibbon(model: model.waveform,
+                             windowStart: 0,
+                             visibleSamples: Double(model.waveform?.durationSamples ?? 1),
+                             halveLabels: WaveformThermal.current.degradesRendering)
+                    .frame(height: 12)
                 waveform(for: snapshot, grid: grid)
             } else {
                 Capsule()
@@ -203,10 +211,12 @@ public struct TrackPrepView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.06), lineWidth: 1))
     }
 
-    /// The honest waveform baseline (the analysis-driven pyramid render lands
-    /// with the deck-prep wiring) over the grid's real bar/beat markers. Pinch
-    /// zooms `visibleBars`; a Nudge drag previews a sample offset and commits
-    /// once on release; Set downbeat taps a sample onto the grid.
+    /// The waveform over the grid's real bar/beat markers: the §26A.2 analysis
+    /// pyramid is the backdrop (persisted analysis, never synthetic geometry —
+    /// FR-WAVE-1, §26A.1), the grid ticks/bar numbers from the authoritative
+    /// grid draw on top, and pinch zooms `visibleBars`; a Nudge drag previews a
+    /// sample offset and commits once on release; Set downbeat taps a sample
+    /// onto the grid.
     private func waveform(for snapshot: TrackPrepSnapshot, grid: DeckGrid) -> some View {
         GeometryReader { geo in
             let width = geo.size.width
@@ -220,20 +230,13 @@ public struct TrackPrepView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.white.opacity(0.06))
 
-                // Placeholder waveform bars — the honest baseline, mirrored so
-                // the waveform reads like audio rather than a flat band.
-                Canvas { context, size in
-                    let barCount = Int(size.width / 6)
-                    for index in 0..<barCount {
-                        let x = CGFloat(index) * 6
-                        let random = CGFloat(abs((index * 73 + 31) % 37))
-                        let halfHeight = 4 + random.truncatingRemainder(dividingBy: 22)
-                        context.fill(
-                            Path(CGRect(x: x, y: size.height / 2 - halfHeight,
-                                        width: 3, height: halfHeight * 2)),
-                            with: .color(.white.opacity(0.07)))
-                    }
-                }
+                // The §26A.2 analysis pyramid as the backdrop — the audio is
+                // drawn from the persisted band-split pyramid, never re-read
+                // at draw time (§26A.1). The grid markers and gestures draw
+                // over it; unanalysed tracks keep the neutral background.
+                WaveformBinsCanvas(model: model.waveform,
+                                   windowStart: Int64(viewStart),
+                                   samplesPerPoint: samplesPerPoint)
 
                 // Bar ticks + bar labels from the authoritative grid.
                 Canvas { context, size in

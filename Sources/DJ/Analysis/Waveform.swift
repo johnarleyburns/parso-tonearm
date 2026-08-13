@@ -45,6 +45,40 @@ public struct WaveformPyramid: Equatable, Sendable {
         self.sampleRate = sampleRate
         self.baseSamplesPerBin = baseSamplesPerBin
     }
+
+    /// Samples covered by one bin at `level` (level 0 = `baseSamplesPerBin`,
+    /// each level doubles). The renderer's zoom→level mapping (§26A.7).
+    public func samplesPerBin(at level: Int) -> Double {
+        Double(max(1, baseSamplesPerBin)) * pow(2.0, Double(max(0, level)))
+    }
+}
+
+/// The §26A.2 band splitter: the **same 200 Hz / 2 kHz crossovers as the
+/// mixer's three-band EQ** (§35.2), run statefully over a signal so the
+/// pyramid's per-bin low/mid/high RMS is a genuine filtered measurement. A
+/// waveform whose colours do not correspond to the EQ bands teaches the wrong
+/// instrument (§26A.2) — this is the source of FR-WAVE-2's colours.
+public struct WaveformBandSplit: Sendable {
+    public static let lowMidHz: Float = ThreeBandEQ.lowMidHz
+    public static let midHighHz: Float = ThreeBandEQ.midHighHz
+
+    private var lowMid: LinkwitzRiley
+    private var midHigh: LinkwitzRiley
+
+    public init(sampleRate: Double) {
+        lowMid = LinkwitzRiley(splitHz: Self.lowMidHz, sampleRate: sampleRate)
+        midHigh = LinkwitzRiley(splitHz: Self.midHighHz, sampleRate: sampleRate)
+    }
+
+    /// Split one sample into the three complementary bands. The bands sum
+    /// exactly to the input (LR4 is an all-pass splitter), so low + mid + high
+    /// reconstruct the signal.
+    @inline(__always)
+    public mutating func split(_ x: Float) -> (lo: Float, mid: Float, hi: Float) {
+        let (lo, hiA) = lowMid.split(x)
+        let (mid, hi) = midHigh.split(hiA)
+        return (lo, mid, hi)
+    }
 }
 
 /// Builds and packs the waveform pyramid (§26, App. C).
@@ -62,6 +96,26 @@ public enum WaveformPyramidBuilder {
             return WaveformPyramid(levels: [], sampleRate: sampleRate, baseSamplesPerBin: base)
         }
 
+        // §26A.2: the band split shares the mixer's 200 Hz / 2 kHz LR4
+        // crossovers (§35.2), run **statefully over the whole signal** so a
+        // bin's low/mid/high RMS is a genuine filtered measurement — the
+        // waveform's colours ARE the EQ bands. The old time-domain estimate
+        // mis-classified mid-band energy; FR-WAVE-2 has no other source.
+        var bandBuffers: (low: [Float], mid: [Float], high: [Float])?
+        if config.bandSplit {
+            var splitter = WaveformBandSplit(sampleRate: sampleRate)
+            var low = [Float](repeating: 0, count: mono.count)
+            var mid = [Float](repeating: 0, count: mono.count)
+            var high = [Float](repeating: 0, count: mono.count)
+            for i in 0..<mono.count {
+                let (lo, mi, hi) = splitter.split(mono[i])
+                low[i] = lo
+                mid[i] = mi
+                high[i] = hi
+            }
+            bandBuffers = (low, mid, high)
+        }
+
         var level0: [WaveformBin] = []
         let binCount = max(1, Int(ceil(Double(mono.count) / Double(base))))
         level0.reserveCapacity(binCount)
@@ -77,8 +131,10 @@ public enum WaveformPyramidBuilder {
             vDSP_maxv(slice, 1, &mx, vDSP_Length(end - start))
             vDSP_rmsqv(slice, 1, &rms, vDSP_Length(end - start))
             var bandRMS: [Float] = []
-            if config.bandSplit {
-                bandRMS = bandSplitRMS(slice, count: end - start)
+            if let bands = bandBuffers {
+                bandRMS = [rmsOfBand(bands.low, start, end),
+                           rmsOfBand(bands.mid, start, end),
+                           rmsOfBand(bands.high, start, end)]
             }
             level0.append(WaveformBin(min: mn, max: mx, rms: rms, bandRMS: bandRMS))
         }
@@ -111,29 +167,17 @@ public enum WaveformPyramidBuilder {
                                baseSamplesPerBin: base)
     }
 
-    /// Coarse low/mid/high RMS for a bin, using short FIR filters (§26.1
-    /// "band-filtered copies"). Deterministic and allocation-light.
-    static func bandSplitRMS(_ samples: UnsafePointer<Float>, count: Int) -> [Float] {
-        guard count > 0 else { return [0, 0, 0] }
-        // Simple fixed band estimates on the time-domain slice:
-        // low = mean |x| (DC-ish energy); high = mean |x[n] - x[n-1]| (activity);
-        // mid = remainder. Bounded to [0, max(|x|)] so RMS stays comparable.
-        var sumAbs: Float = 0
-        var sumDiff: Float = 0
-        var maxAbs: Float = 0
-        var prev: Float = samples[0]
-        for i in 0..<count {
-            let x = samples[i]
-            sumAbs += abs(x)
-            sumDiff += abs(x - prev)
-            if abs(x) > maxAbs { maxAbs = abs(x) }
-            prev = x
+    /// RMS over a band-filtered buffer slice — the per-bin band measurement
+    /// (§26A.2). The band buffers are precomputed statefully over the whole
+    /// signal, so a bin's values are genuine filtered energy, not an estimate.
+    static func rmsOfBand(_ buffer: [Float], _ start: Int, _ end: Int) -> Float {
+        let count = end - start
+        guard count > 0 else { return 0 }
+        return buffer.withUnsafeBufferPointer { bp in
+            var rms: Float = 0
+            vDSP_rmsqv(bp.baseAddress!.advanced(by: start), 1, &rms, vDSP_Length(count))
+            return rms
         }
-        let mean = sumAbs / Float(count)
-        let high = min(maxAbs, sumDiff / Float(count))
-        let low = min(mean, max(0, maxAbs - high))
-        let mid = max(0, maxAbs - low - high)
-        return [low, mid, high]
     }
 
     static func combineBands(_ a: [Float], _ b: [Float]) -> [Float] {

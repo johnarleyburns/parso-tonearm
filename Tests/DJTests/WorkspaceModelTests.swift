@@ -110,6 +110,19 @@ final class WorkspaceModelTests: XCTestCase {
                              grid: DeckGrid(bpm: 120, sampleRate: 48_000))
     }
 
+    /// A fake §26A render seam (plan 5.3): the model's waveform state is
+    /// exercised deterministically without touching a real database.
+    @MainActor
+    private final class FakeWaveformRepository: WaveformRendering {
+        var models: [Int64: WaveformRenderModel] = [:]
+        var requested: [Int64] = []
+
+        func renderModel(trackID: Int64) async throws -> WaveformRenderModel? {
+            requested.append(trackID)
+            return models[trackID]
+        }
+    }
+
     private func makeStore(isPro: Bool) -> EntitlementStore {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("WorkspaceModelTests-\(UUID().uuidString)", isDirectory: true)
@@ -860,8 +873,9 @@ final class WorkspaceModelTests: XCTestCase {
         let library = FakeDeckLibrary()
         let box = makeLoadedBox()
         library.outcomes[5] = .loaded(box)
+        let waveforms = FakeWaveformRepository()
         let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
-                                   library: library)
+                                   library: library, waveformRepository: waveforms)
         try model.begin()
         defer { model.end() }
 
@@ -871,6 +885,10 @@ final class WorkspaceModelTests: XCTestCase {
                        "the engine arms exactly the loader's decoded source (§12.2)")
         XCTAssertEqual(library.loadedTrackIDs, [5])
         XCTAssertEqual(model.loadState(for: .a), .loaded(trackID: 5))
+        XCTAssertEqual(model.hasLoadedTrack(.a), true)
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(waveforms.requested, [5], "a loaded deck asks its §26A render model")
+        XCTAssertNil(model.waveform(for: .a), "the fake has no model → the honest empty state")
     }
 
     func testRefusedLoadNeverArmsTheEngine() async throws {

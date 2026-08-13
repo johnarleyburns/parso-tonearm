@@ -392,58 +392,53 @@ private struct BankTabButton: View {
 
 // MARK: - Stacked waveforms on one shared playhead
 
-/// The §42.7a stacked-waveform display: deck A and deck B strips on **one
-/// shared playhead**, their beat grids aligned so phase error reads as
-/// horizontal offset at a glance — the two-deck display that earns its pixels.
-/// The strips are the honest neutral baseline until the analysis-driven
-/// waveform render lands with the deck-prep wiring (the 4.6/4.7 convention);
-/// the beat ticks are positioned from each deck's telemetry phase so a synced
-/// pair shows coincident grids.
+/// The §42.7a stacked-waveform display: deck A and deck B detail waveforms on
+/// **one shared playhead** — each strip scrolls under its own fixed centre
+/// line, so when the decks are in phase the grids align across the shared
+/// centre (the "grids line up" read, §26A.5). Both draw from persisted
+/// analysis (FR-WAVE-1) — the honest empty state replaces the old placeholder.
 private struct StackedWaveformView: View {
     @ObservedObject var model: WorkspaceModel
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                VStack(spacing: 2) {
-                    waveRow(deck: .a)
-                    waveRow(deck: .b)
-                }
-
-                // One shared playhead across both strips, at deck A's beat
-                // phase (deck A is master).
-                Rectangle()
-                    .fill(Color.white.opacity(0.75))
-                    .frame(width: 2)
-                    .position(x: CGFloat(model.telemetry.deckA.phase) * proxy.size.width,
-                              y: proxy.size.height / 2)
-            }
+        VStack(spacing: 2) {
+            waveRow(deck: .a)
+            waveRow(deck: .b)
         }
         .frame(height: 90)
     }
 
     private func waveRow(deck: PerformanceEngine.Deck) -> some View {
-        let phase = deck == .a ? model.telemetry.deckA.phase : model.telemetry.deckB.phase
-        return HStack(spacing: 6) {
-            Text(deck == .a ? "A" : "B")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(deck == .a ? .white : Color.cyan.opacity(0.9))
-                .frame(width: 12)
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.06))
-                    ForEach(0..<16, id: \.self) { index in
-                        let x = (phase + Double(index) / 16)
-                            .truncatingRemainder(dividingBy: 1)
-                        Capsule()
-                            .fill(Color.white.opacity(0.18))
-                            .frame(width: 1, height: 44)
-                            .position(x: CGFloat(x) * proxy.size.width, y: 22)
-                    }
-                }
+        let waveform = model.waveform(for: deck)
+        let grid = waveform?.grid
+        let playhead = deck == .a ? model.telemetry.deckA.playheadSample
+                                  : model.telemetry.deckB.playheadSample
+        let visibleSamples: Double = grid.map { 8 * $0.samplesPerBar } ?? 1
+        let windowStart: Int64 = grid.map { grid in
+            max(0, Int64(Double(playhead) - visibleSamples / 2))
+        } ?? 0
+        return VStack(spacing: 1) {
+            // §26A.4: each waveform carries its phrase ribbon above it.
+            PhraseRibbon(model: waveform,
+                         windowStart: 0,
+                         visibleSamples: Double(waveform?.durationSamples ?? 1),
+                         halveLabels: WaveformThermal.current.degradesRendering)
+                .frame(height: 11)
+            HStack(spacing: 5) {
+                Text(deck == .a ? "A" : "B")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(deck == .a ? .white : Color.cyan.opacity(0.9))
+                    .frame(width: 12)
+                WaveformDetailView(
+                    model: waveform,
+                    windowStart: windowStart,
+                    visibleSamples: visibleSamples,
+                    playhead: playhead,
+                    emptyTitle: model.hasLoadedTrack(deck) ? "Not analysed" : "Load a track",
+                    emptyMessage: model.hasLoadedTrack(deck) ? "Analyse to draw it here"
+                                                             : "Pick from the queue")
             }
-            .frame(height: 44)
+            .frame(height: 29)
         }
     }
 }

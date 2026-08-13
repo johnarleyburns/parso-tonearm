@@ -108,6 +108,22 @@ public final class WorkspaceModel: ObservableObject {
         injectedLibrary ?? DeckLoader(store: .shared)
     }
     private let injectedLibrary: (any DeckLibraryServicing)?
+    /// The §26A render-model seam (plan 5.3): builds each deck's
+    /// `WaveformRenderModel` from persisted analysis when a track loads and
+    /// when the thermal state crosses the §26A.7 shed. `WaveformRepository`
+    /// conforms; tests inject a fake so the workspace's waveform state is
+    /// exercised deterministically (§47.2).
+    public var waveformRepository: any WaveformRendering {
+        injectedWaveformRepository ?? WaveformRepository(pool: DJLibraryStore.shared.pool)
+    }
+    private let injectedWaveformRepository: (any WaveformRendering)?
+    /// The track currently loaded on each deck — what the deck's waveform is
+    /// built from. Cleared when the deck is reloaded.
+    private var loadedTrackIDs: [PerformanceEngine.Deck: Int64] = [:]
+    /// The thermal state the waveform models were last built under, so a
+    /// crossing into/out of `.serious` rebuilds them (one level coarser,
+    /// §26A.7).
+    private var lastWaveformThermal: WaveformThermal?
     private let pump: TelemetryPump?
     private var telemetryTask: Task<Void, Never>?
     private var anyDeckPlaying = false
@@ -125,6 +141,13 @@ public final class WorkspaceModel: ObservableObject {
 
     @Published public var telemetry = EngineTelemetry()
     @Published public private(set) var isPro: Bool
+
+    /// Each deck's §26A render model — the analysis-driven waveform. `nil`
+    /// until the deck loads an analysed track, or for an unanalysed track
+    /// (the honest empty state, §26A.1). Built off the main actor when the
+    /// track loads and when the thermal state crosses the §26A.7 shed.
+    @Published public private(set) var waveformA: WaveformRenderModel?
+    @Published public private(set) var waveformB: WaveformRenderModel?
 
     /// Mixer control state — held here so the shared session VM (not a view's
     /// lifetime) is the single owner of where the knobs and faders sit.
@@ -180,10 +203,12 @@ public final class WorkspaceModel: ObservableObject {
                 pump: TelemetryPump? = nil,
                 pinnedDrawerIdle: Duration = .seconds(12),
                 defaults: UserDefaults = .standard,
-                library: (any DeckLibraryServicing)? = nil) {
+                library: (any DeckLibraryServicing)? = nil,
+                waveformRepository: (any WaveformRendering)? = nil) {
         self.engine = engine
         self.store = store
         self.injectedLibrary = library
+        self.injectedWaveformRepository = waveformRepository
         self.isPro = store.isPro
         self.pinnedDrawerIdle = pinnedDrawerIdle
         self.defaults = defaults
@@ -246,6 +271,14 @@ public final class WorkspaceModel: ObservableObject {
             anyDeckPlaying = playing
             IdleTimerScope.update(anyDeckPlaying: playing)
         }
+        // §26A.7: the waveform detail is one pyramid level coarser at
+        // `.serious`. Rebuild a deck's render model when the thermal state
+        // crosses the shed line (rare; the build runs off the main actor).
+        let thermal = WaveformThermal.current
+        if thermal != lastWaveformThermal {
+            lastWaveformThermal = thermal
+            rebuildAllWaveforms()
+        }
     }
 
     // MARK: - Transport / loading
@@ -303,12 +336,61 @@ public final class WorkspaceModel: ObservableObject {
         case .loaded(let box):
             engine.load(deck, source: box.source)
             sourceBoxes[deck] = box
+            loadedTrackIDs[deck] = trackID
             setLoadState(.loaded(trackID: trackID), for: deck)
+            rebuildWaveform(for: deck)
         case .refused(let readiness):
             let reason = Self.unavailableReason(readiness)
             setLoadState(.refused(trackID: trackID, reason: reason), for: deck)
         case .failed(let failure):
             setLoadState(.failed(trackID: trackID, message: failure.message), for: deck)
+        }
+    }
+
+    // MARK: - Per-deck waveform render models (§26A, plan 5.3)
+
+    /// A deck's §26A render model — `nil` until it loads an analysed track, or
+    /// for an unanalysed track (the honest empty state). The views draw from
+    /// this and take the live playhead from telemetry.
+    public func waveform(for deck: PerformanceEngine.Deck) -> WaveformRenderModel? {
+        deck == .a ? waveformA : waveformB
+    }
+
+    /// Whether a deck currently has a track loaded (drives the waveform's
+    /// empty-state wording — "not analysed" vs "load a track").
+    public func hasLoadedTrack(_ deck: PerformanceEngine.Deck) -> Bool {
+        loadedTrackIDs[deck] != nil
+    }
+
+    /// Rebuild every loaded deck's render model — on a load, and on a §26A.7
+    /// thermal crossing. Runs off the main actor and publishes back.
+    private func rebuildAllWaveforms() {
+        rebuildWaveform(for: .a)
+        rebuildWaveform(for: .b)
+    }
+
+    private func rebuildWaveform(for deck: PerformanceEngine.Deck) {
+        guard let trackID = loadedTrackIDs[deck] else {
+            setWaveform(nil, for: deck)
+            return
+        }
+        let repository = waveformRepository
+        Task.detached { [weak self] in
+            let model = try? await repository.renderModel(trackID: trackID)
+            await self?.publishWaveform(model, for: deck)
+        }
+    }
+
+    @MainActor
+    private func publishWaveform(_ model: WaveformRenderModel?, for deck: PerformanceEngine.Deck) {
+        lastWaveformThermal = WaveformThermal.current
+        setWaveform(model, for: deck)
+    }
+
+    private func setWaveform(_ model: WaveformRenderModel?, for deck: PerformanceEngine.Deck) {
+        switch deck {
+        case .a: waveformA = model
+        case .b: waveformB = model
         }
     }
 

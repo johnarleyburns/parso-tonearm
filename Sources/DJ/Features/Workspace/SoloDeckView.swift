@@ -279,11 +279,10 @@ private struct SoloDeckColumnView: View {
             }
             .padding(.bottom, 9)
 
-            // Waveform — the analysis-driven waveform render lands with the
-            // deck-prep wiring; this is the honest neutral baseline.
-            Capsule()
-                .fill(Color.white.opacity(0.06))
-                .frame(height: 64)
+            // The §26A waveform stack — analysis-driven, from persisted
+            // analysis (FR-WAVE-1): phrase ribbon + full-track overview above
+            // the scrolling detail under its fixed-centre playhead.
+            waveformStack
 
             transport
                 .padding(.vertical, 10)
@@ -345,6 +344,46 @@ private struct SoloDeckColumnView: View {
         let clamped = max(0, seconds)
         let whole = Int(clamped)
         return String(format: "%02d:%02d", whole / 60, whole % 60)
+    }
+
+    @ViewBuilder
+    private var waveformStack: some View {
+        let waveform = model.waveform(for: deck)
+        let grid = waveform?.grid
+        let playhead = telemetryDeck.playheadSample
+        VStack(spacing: 2) {
+            PhraseRibbon(model: waveform,
+                         windowStart: 0,
+                         visibleSamples: Double(waveform?.durationSamples ?? 1),
+                         halveLabels: WaveformThermal.current.degradesRendering)
+                .frame(height: 12)
+            WaveformDetailView(
+                model: waveform,
+                windowStart: windowStart(for: playhead, grid: grid),
+                visibleSamples: visibleSamples(for: grid),
+                playhead: playhead,
+                emptyTitle: model.hasLoadedTrack(deck) ? "Not analysed yet" : "Load a track",
+                emptyMessage: model.hasLoadedTrack(deck) ? "Analyse to draw the waveform here"
+                                                         : "Pick a track from the queue")
+                .frame(height: 48)
+            OverviewStrip(model: waveform, playhead: playhead) { sample in
+                model.seek(deck, toSample: sample, quantized: true)
+            }
+            .frame(height: 18)
+        }
+    }
+
+    /// The performance window: 16 bars under the fixed-centre playhead (§26A.5).
+    private func visibleSamples(for grid: DeckGrid?) -> Double {
+        guard let grid else { return 1 }
+        return 16 * grid.samplesPerBar
+    }
+
+    /// The window start, centred on the playhead and clamped to the track head.
+    private func windowStart(for playhead: Int64, grid: DeckGrid?) -> Int64 {
+        guard let grid else { return 0 }
+        let half = visibleSamples(for: grid) / 2
+        return max(0, Int64(Double(playhead) - half))
     }
 
     private var transport: some View {

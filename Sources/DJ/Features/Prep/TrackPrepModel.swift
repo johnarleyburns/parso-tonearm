@@ -16,9 +16,15 @@ public final class TrackPrepModel: ObservableObject {
 
     public let repository: any TrackPrepRepositing
     private let store: EntitlementStore
+    /// The §26A render-model seam (plan 5.3). `nil` (the default in tests and
+    /// the honest "no analysis to draw" state) keeps the surface on its grid
+    /// readout; the prep surface wires the real `WaveformRepository` so the
+    /// analysis pyramid becomes the backdrop for the grid tools.
+    private let waveformRepository: (any WaveformRendering)?
     public let trackID: Int64
 
     @Published public private(set) var snapshot: TrackPrepSnapshot?
+    @Published public private(set) var waveform: WaveformRenderModel?
     @Published public private(set) var isBusy = false
     @Published public private(set) var lastError: String?
 
@@ -34,10 +40,12 @@ public final class TrackPrepModel: ObservableObject {
     public init(repository: any TrackPrepRepositing,
                 store: EntitlementStore,
                 trackID: Int64,
-                sampleRate: Double = 48_000) {
+                sampleRate: Double = 48_000,
+                waveformRepository: (any WaveformRendering)? = nil) {
         self.repository = repository
         self.store = store
         self.trackID = trackID
+        self.waveformRepository = waveformRepository
         self.tempoTapper = TempoTapper(sampleRate: sampleRate)
     }
 
@@ -50,7 +58,9 @@ public final class TrackPrepModel: ObservableObject {
     // MARK: - Data
 
     /// Load (or reload) the prep read model. The view calls this on appear and
-    /// after every grid edit.
+    /// after every grid edit. Also loads the §26A render model (the analysis
+    /// pyramid + composed grid the waveform draws) — a grid edit changes the
+    /// composed beats, so both are refreshed together.
     public func refresh() async {
         isBusy = true
         defer { isBusy = false }
@@ -59,6 +69,21 @@ public final class TrackPrepModel: ObservableObject {
             lastError = nil
         } catch {
             lastError = error.localizedDescription
+        }
+        await refreshWaveform()
+    }
+
+    /// Reload the §26A render model for this track. `nil` when the track is
+    /// unanalysed or no repository is wired — the honest empty state.
+    public func refreshWaveform() async {
+        guard let waveformRepository else {
+            waveform = nil
+            return
+        }
+        do {
+            waveform = try await waveformRepository.renderModel(trackID: trackID)
+        } catch {
+            waveform = nil
         }
     }
 
