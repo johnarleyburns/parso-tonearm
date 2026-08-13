@@ -22,6 +22,9 @@ public struct WorkspaceView: View {
     /// surface convention).
     @State private var jogATransport: JogTransport?
     @State private var jogBTransport: JogTransport?
+    /// The contextual paywall sheet (mockup `ipad/13b`, plan 4.13) — presented
+    /// only when the user taps the lock chip (FR-STORE-5, §40.4).
+    @State private var showingPaywall = false
 
     public init(model: WorkspaceModel) {
         _model = StateObject(wrappedValue: model)
@@ -36,8 +39,13 @@ public struct WorkspaceView: View {
                     workspace
                         .opacity(0.35)
                         .allowsHitTesting(false)
-                    lockChip
-                        .padding(16)
+                    Button {
+                        showingPaywall = true
+                    } label: {
+                        lockChip
+                    }
+                    .buttonStyle(.plain)
+                    .padding(16)
                 }
             }
         }
@@ -49,6 +57,9 @@ public struct WorkspaceView: View {
         .onDisappear { model.end() }
         .onChange(of: scenePhase) { _, phase in
             model.setPumpPaused(phase != .active)
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView(model: PaywallModel(store: model.store))
         }
     }
 

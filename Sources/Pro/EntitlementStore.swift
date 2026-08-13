@@ -24,11 +24,23 @@ public struct TransactionFact: Equatable, Sendable {
 
 /// The StoreKit boundary (T.2 rule 1), abstracted so the entitlement logic is
 /// unit-testable without a live StoreKit configuration. The production
-/// implementation reads `Transaction.currentEntitlements` and
-/// `Transaction.updates`; tests inject a fake.
+/// implementation reads `Transaction.currentEntitlements`, observes
+/// `Transaction.updates`, and runs the purchase/restore flow; tests inject a
+/// fake. `purchase()`/`restore()` default to no-ops so the read-only fakes in
+/// other test suites do not need to grow.
 protocol EntitlementSource: Sendable {
     func currentTransactions() async throws -> [TransactionFact]
     func transactionUpdates() -> AsyncStream<TransactionFact>
+    /// Initiates the one-time purchase. Returns `true` only on a verified
+    /// success; the fact then appears in `currentTransactions` (AT-STORE-2).
+    func purchase() async -> Bool
+    /// App Store account sync — the restore flow (FR-STORE-3).
+    func restore() async
+}
+
+extension EntitlementSource {
+    func purchase() async -> Bool { false }
+    func restore() async {}
 }
 
 /// StoreKit 2-backed source. Verification is `Transaction.currentEntitlements`
@@ -52,6 +64,34 @@ struct StoreKitEntitlementSource: EntitlementSource {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    /// The one-time purchase of `guru.parso.tonearm.pro` (FR-STORE-1). On
+    /// success the transaction appears in `currentEntitlements`, which
+    /// `EntitlementStore.purchase()` re-reads — the flip needs no relaunch
+    /// (AT-STORE-2).
+    func purchase() async -> Bool {
+        guard let product = try? await Product.products(for: [FoundersGrant.productID]).first else {
+            return false
+        }
+        do {
+            switch try await product.purchase() {
+            case .success:
+                return true
+            case .userCancelled, .pending:
+                return false
+            @unknown default:
+                return false
+            }
+        } catch {
+            return false
+        }
+    }
+
+    /// App Store account sync so a purchase on another device (or an earlier
+    /// install) restores without an account or a support ticket (FR-STORE-3).
+    func restore() async {
+        try? await AppStore.sync()
     }
 }
 
@@ -123,13 +163,10 @@ struct EntitlementCacheStore: Sendable {
 }
 
 /// The entitlement store (Appendix T.2, FR-STORE-1..7). Verifies
-/// `Transaction.currentEntitlements`, caches the result offline forever, and
-/// observes `Transaction.updates` for the app's lifetime, started before the
-/// first view appears.
-///
-/// Through M0 **no Pro capability is gated on this**: `isPro` is observable,
-/// nothing more. The gate is checked at intent boundaries (T.3), never inside
-/// the engine.
+/// `Transaction.currentEntitlements`, caches the result offline forever,
+/// observes `Transaction.updates` for the app's lifetime (started before the
+/// first view appears), and runs the purchase/restore flow. The gate is
+/// checked at intent boundaries (T.3), never inside the engine.
 @MainActor
 public final class EntitlementStore: ObservableObject {
     public static let shared = EntitlementStore()
@@ -139,8 +176,8 @@ public final class EntitlementStore: ObservableObject {
 
     public enum Source: String, Codable, Sendable {
         case none
-        case purchased        // bought guru.parso.tonearm.pro.dj
-        case foundersGrant    // owned the retired remote-libraries product (T.4)
+        case purchased        // bought guru.parso.tonearm.pro
+        case foundersGrant    // legacy cache row; the retired product no longer exists (M4 decision 1)
         case familyShared     // Family Sharing from another member's purchase
         case builtFromSource  // GPL build; see T.6
     }
@@ -193,6 +230,24 @@ public final class EntitlementStore: ObservableObject {
         }
     }
 
+    /// Initiates the one-time purchase of `guru.parso.tonearm.pro`
+    /// (FR-STORE-1). A verified success re-derives the grant from
+    /// `currentEntitlements`, so `isPro` flips immediately — **no relaunch**
+    /// (AT-STORE-2). Returns whether the purchase was verified.
+    @discardableResult
+    public func purchase() async -> Bool {
+        let ok = await entitlementSource.purchase()
+        if ok { await refresh() }
+        return ok
+    }
+
+    /// Restores prior purchases via the App Store account, then re-derives the
+    /// grant (FR-STORE-3). The paywall's Restore button calls this.
+    public func restore() async {
+        await entitlementSource.restore()
+        await refresh()
+    }
+
     // MARK: - Decision
 
     private func handle(_ fact: TransactionFact) async {
@@ -224,8 +279,6 @@ public final class EntitlementStore: ObservableObject {
             }
         case .purchased:
             setState(.purchased)
-        case .foundersGrant:
-            setState(.foundersGrant)
         case .familyShared:
             setState(.familyShared)
         }

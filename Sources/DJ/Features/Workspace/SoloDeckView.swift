@@ -28,6 +28,9 @@ public struct SoloDeckView: View {
     /// `CompactPerformanceView`, which owns the single lifecycle across a
     /// rotation — so rotating never stop/starts the engine (AT-TWIN-1).
     private let managesLifecycle: Bool
+    /// The contextual paywall sheet (mockup `iphone/08`, plan 4.13) —
+    /// presented only when the user taps the lock chip (FR-STORE-5, §40.4).
+    @State private var showingPaywall = false
 
     public init(model: WorkspaceModel, managesLifecycle: Bool = true) {
         _model = StateObject(wrappedValue: model)
@@ -43,8 +46,13 @@ public struct SoloDeckView: View {
                     surface
                         .opacity(0.35)
                         .allowsHitTesting(false)
-                    lockChip
-                        .padding(16)
+                    Button {
+                        showingPaywall = true
+                    } label: {
+                        lockChip
+                    }
+                    .buttonStyle(.plain)
+                    .padding(16)
                 }
             }
         }
@@ -56,6 +64,9 @@ public struct SoloDeckView: View {
         .onDisappear { if managesLifecycle { model.end() } }
         .onChange(of: scenePhase) { _, phase in
             if managesLifecycle { model.setPumpPaused(phase != .active) }
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView(model: PaywallModel(store: model.store))
         }
     }
 

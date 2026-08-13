@@ -1,15 +1,16 @@
 import XCTest
 @testable import TonearmCore
 
-/// T.2 rules 2–4 and FR-STORE-2/7, unit-tested without a live StoreKit
+/// T.2 rules 2–4 and FR-STORE-1/2/3/7, unit-tested without a live StoreKit
 /// configuration: the cached value wins offline and is read before any StoreKit
 /// call, a failed StoreKit call never revokes, a verified revocation clears
-/// (T.4 row 4), and a grant arriving mid-session flips `isPro` (AT-STORE-2).
+/// (T.4 row 3), a grant arriving mid-session flips `isPro` (AT-STORE-2), and
+/// the purchase/restore path runs through the fake source and needs no
+/// relaunch.
 @MainActor
 final class EntitlementStoreTests: XCTestCase {
 
-    private let retired = FoundersGrant.retiredProductID
-    private let dj = FoundersGrant.djProductID
+    private let productID = FoundersGrant.productID
 
     /// Creates an isolated cache file and a store over it. Each call gets a
     /// fresh temp directory so tests never share entitlement state.
@@ -36,9 +37,21 @@ final class EntitlementStoreTests: XCTestCase {
     // T.2 rule 2: the cached value is read at launch, before any StoreKit call.
     func testLaunchReadsCacheBeforeAnyStoreKitCall() {
         let (cacheURL, _) = freshCacheLocation()
-        writeCache(EntitlementCache(isPro: true, source: .foundersGrant, timestamp: Date()),
+        writeCache(EntitlementCache(isPro: true, source: .purchased, timestamp: Date()),
                    at: cacheURL)
         let store = makeStore(current: [], cacheURL: cacheURL)  // StoreKit would report nothing
+        XCTAssertTrue(store.isPro)
+        XCTAssertEqual(store.source, .purchased)
+    }
+
+    // T.2 rule 2 + M4 decision 1: a legacy cache row written before the product
+    // repurpose (`.foundersGrant`) still decodes and grants — the cache enum is
+    // stable even though the decision table no longer produces that source.
+    func testLegacyFoundersGrantCacheStillDecodes() {
+        let (cacheURL, _) = freshCacheLocation()
+        writeCache(EntitlementCache(isPro: true, source: .foundersGrant, timestamp: Date()),
+                   at: cacheURL)
+        let store = makeStore(current: [], cacheURL: cacheURL)
         XCTAssertTrue(store.isPro)
         XCTAssertEqual(store.source, .foundersGrant)
     }
@@ -58,18 +71,19 @@ final class EntitlementStoreTests: XCTestCase {
     // revoke an existing grant.
     func testEmptyScanDoesNotRevoke() async {
         let (cacheURL, _) = freshCacheLocation()
-        writeCache(EntitlementCache(isPro: true, source: .foundersGrant, timestamp: Date()),
+        writeCache(EntitlementCache(isPro: true, source: .purchased, timestamp: Date()),
                    at: cacheURL)
         let store = makeStore(current: [], cacheURL: cacheURL)
         await store.refresh()
         XCTAssertTrue(store.isPro)
-        XCTAssertEqual(store.source, .foundersGrant)
+        XCTAssertEqual(store.source, .purchased)
     }
 
-    // A verified DJ purchase grants `.purchased` and persists the cache.
-    func testVerifiedDJPurchaseGrantsPurchased() async {
+    // A verified own purchase grants `.purchased` and persists the cache
+    // (T.4 row 1).
+    func testVerifiedOwnPurchaseGrantsPurchased() async {
         let (store, cacheURL) = makeStore(current: [
-            TransactionFact(productID: dj, isVerified: true, isRevoked: false, isFamilyShared: false),
+            TransactionFact(productID: productID, isVerified: true, isRevoked: false, isFamilyShared: false),
         ])
         await store.refresh()
         XCTAssertTrue(store.isPro)
@@ -77,32 +91,22 @@ final class EntitlementStoreTests: XCTestCase {
         XCTAssertEqual(EntitlementCacheStore(fileURL: cacheURL).load()?.source, .purchased)
     }
 
-    // A verified retired-product transaction grants `.foundersGrant` (row 1).
-    func testVerifiedRetiredProductGrantsFounders() async {
+    // Family-shared copy grants `.familyShared` (T.4 row 2).
+    func testFamilySharedCopyGrantsFamilyShared() async {
         let (store, _) = makeStore(current: [
-            TransactionFact(productID: retired, isVerified: true, isRevoked: false, isFamilyShared: false),
-        ])
-        await store.refresh()
-        XCTAssertTrue(store.isPro)
-        XCTAssertEqual(store.source, .foundersGrant)
-    }
-
-    // Family-shared DJ purchase grants `.familyShared`.
-    func testFamilySharedDJGrantsFamilyShared() async {
-        let (store, _) = makeStore(current: [
-            TransactionFact(productID: dj, isVerified: true, isRevoked: false, isFamilyShared: true),
+            TransactionFact(productID: productID, isVerified: true, isRevoked: false, isFamilyShared: true),
         ])
         await store.refresh()
         XCTAssertEqual(store.source, .familyShared)
     }
 
-    // T.4 row 4: a revoked transaction clears a previously granted entitlement.
+    // T.4 row 3: a revoked transaction clears a previously granted entitlement.
     func testRevocationClearsGrant() async {
         let (cacheURL, _) = freshCacheLocation()
-        writeCache(EntitlementCache(isPro: true, source: .foundersGrant, timestamp: Date()),
+        writeCache(EntitlementCache(isPro: true, source: .purchased, timestamp: Date()),
                    at: cacheURL)
         let store = makeStore(current: [
-            TransactionFact(productID: retired, isVerified: true, isRevoked: true, isFamilyShared: false),
+            TransactionFact(productID: productID, isVerified: true, isRevoked: true, isFamilyShared: false),
         ], cacheURL: cacheURL)
         await store.refresh()
         XCTAssertFalse(store.isPro)
@@ -119,7 +123,7 @@ final class EntitlementStoreTests: XCTestCase {
         XCTAssertFalse(store.isPro)
 
         let (upgraded, _) = makeStore(current: [
-            TransactionFact(productID: dj, isVerified: true, isRevoked: false, isFamilyShared: true),
+            TransactionFact(productID: productID, isVerified: true, isRevoked: false, isFamilyShared: true),
         ])
         await upgraded.refresh()
         XCTAssertTrue(upgraded.isPro)
@@ -130,7 +134,7 @@ final class EntitlementStoreTests: XCTestCase {
     // enum, and a timestamp — no user identifier, no receipt, no device ID.
     func testCacheFileContainsNoUserIdentifier() async throws {
         let (store, cacheURL) = makeStore(current: [
-            TransactionFact(productID: dj, isVerified: true, isRevoked: false, isFamilyShared: false),
+            TransactionFact(productID: productID, isVerified: true, isRevoked: false, isFamilyShared: false),
         ])
         await store.refresh()
 
@@ -140,15 +144,45 @@ final class EntitlementStoreTests: XCTestCase {
                        "Only a boolean, a source enum, and a timestamp (FR-STORE-7)")
     }
 
-    // Revoked retired product but owns DJ: the DJ purchase still grants.
-    func testRevokedRetiredWithDJPurchaseStillGrants() async {
-        let (store, _) = makeStore(current: [
-            TransactionFact(productID: retired, isVerified: true, isRevoked: true, isFamilyShared: false),
-            TransactionFact(productID: dj, isVerified: true, isRevoked: false, isFamilyShared: false),
-        ])
-        await store.refresh()
-        XCTAssertTrue(store.isPro)
+    // FR-STORE-1 / AT-STORE-2: a verified purchase through the store flips
+    // `isPro` immediately — the decks unlock without a relaunch.
+    func testPurchaseGrantsWithoutRelaunch() async {
+        let (store, cacheURL) = makeStore(source: FakeEntitlementSource(current: [], grantOnPurchase: true))
+        XCTAssertFalse(store.isPro)
+
+        let ok = await store.purchase()
+        XCTAssertTrue(ok, "the verified purchase succeeded")
+        XCTAssertTrue(store.isPro, "the purchase flipped isPro in-process (AT-STORE-2)")
         XCTAssertEqual(store.source, .purchased)
+        XCTAssertEqual(EntitlementCacheStore(fileURL: cacheURL).load()?.source, .purchased)
+    }
+
+    // A cancelled or failed purchase grants nothing.
+    func testCancelledPurchaseGrantsNothing() async {
+        let (store, _) = makeStore(source: FakeEntitlementSource(current: []))
+        XCTAssertFalse(store.isPro)
+
+        let ok = await store.purchase()
+        XCTAssertFalse(ok)
+        XCTAssertFalse(store.isPro)
+    }
+
+    // FR-STORE-3: restore re-derives from currentEntitlements and flips isPro
+    // without a relaunch.
+    func testRestoreReDerivesTheGrant() async {
+        let (store, _) = makeStore(source: FakeEntitlementSource(current: [], grantOnRestore: true))
+        XCTAssertFalse(store.isPro)
+
+        await store.restore()
+        XCTAssertTrue(store.isPro, "restore re-derived the entitlement (FR-STORE-3)")
+        XCTAssertEqual(store.source, .purchased)
+    }
+
+    // A restore that finds nothing grants nothing.
+    func testRestoreWithNoPurchasesGrantsNothing() async {
+        let (store, _) = makeStore(source: FakeEntitlementSource(current: []))
+        await store.restore()
+        XCTAssertFalse(store.isPro)
     }
 
     // MARK: - Helpers
@@ -171,30 +205,66 @@ final class EntitlementStoreTests: XCTestCase {
                                                      stream: stream),
             cacheStore: EntitlementCacheStore(fileURL: cacheURL))
     }
+
+    /// Builds a store over an injected source (the purchase/restore path).
+    private func makeStore(source: FakeEntitlementSource) -> (store: EntitlementStore, cacheURL: URL) {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("EntitlementStoreTests-\(UUID().uuidString)", isDirectory: true)
+        let cacheURL = dir.appendingPathComponent("entitlement-cache.json")
+        return (EntitlementStore(entitlementSource: source,
+                                 cacheStore: EntitlementCacheStore(fileURL: cacheURL)),
+                cacheURL)
+    }
 }
 
-/// A `Sendable` StoreKit stand-in: returns canned facts, optionally throwing,
-/// with a controllable `Transaction.updates` stream.
+/// A `Sendable` StoreKit stand-in (a struct, the original pattern): returns
+/// canned facts, optionally throwing, with a controllable `Transaction.updates`
+/// stream and a scripted purchase/restore path. A purchase/restore that
+/// "succeeds" surfaces the verified grant fact in `currentTransactions`, exactly
+/// as StoreKit's `currentEntitlements` would after a real purchase — so the
+/// store's own `refresh()` re-derives it (AT-STORE-2).
 private struct FakeEntitlementSource: EntitlementSource {
-    private let current: [TransactionFact]
-    private let shouldThrow: Bool
-    private let stream: AsyncStream<TransactionFact>
+    let current: [TransactionFact]
+    let shouldThrow: Bool
+    let stream: AsyncStream<TransactionFact>
+    let grantOnPurchase: Bool
+    let grantOnRestore: Bool
 
     init(current: [TransactionFact],
          shouldThrow: Bool = false,
-         stream: AsyncStream<TransactionFact>? = nil) {
+         stream: AsyncStream<TransactionFact>? = nil,
+         grantOnPurchase: Bool = false,
+         grantOnRestore: Bool = false) {
         self.current = current
         self.shouldThrow = shouldThrow
         self.stream = stream ?? AsyncStream { _ in }
+        self.grantOnPurchase = grantOnPurchase
+        self.grantOnRestore = grantOnRestore
     }
 
     func currentTransactions() async throws -> [TransactionFact] {
         if shouldThrow { throw FakeEntitlementSourceError.failed }
+        if grantOnPurchase || grantOnRestore {
+            if current.contains(where: { $0.productID == FoundersGrant.productID && $0.isVerified }) {
+                return current
+            }
+            return current + [grant]
+        }
         return current
     }
 
     func transactionUpdates() -> AsyncStream<TransactionFact> {
         stream
+    }
+
+    func purchase() async -> Bool { grantOnPurchase }
+    func restore() async {}
+
+    private var grant: TransactionFact {
+        TransactionFact(productID: FoundersGrant.productID,
+                        isVerified: true,
+                        isRevoked: false,
+                        isFamilyShared: false)
     }
 }
 

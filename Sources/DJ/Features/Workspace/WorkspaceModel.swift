@@ -67,7 +67,10 @@ public final class WorkspaceModel: ObservableObject {
 
     /// The control surface.
     public let engine: any WorkspaceEngine
-    private let store: EntitlementStore
+    /// The entitlement store the workspace gate reads (App. T.3) — exposed so
+    /// the performance surfaces can hand it to the paywall (`PaywallModel`),
+    /// which buys through the *same* store that unlocks the decks (AT-STORE-2).
+    public let store: EntitlementStore
     private let pump: TelemetryPump?
     private var telemetryTask: Task<Void, Never>?
     private var anyDeckPlaying = false
