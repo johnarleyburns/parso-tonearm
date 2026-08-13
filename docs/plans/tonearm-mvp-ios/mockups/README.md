@@ -31,7 +31,7 @@ A single static image cannot show behaviour. Six screens are split:
 | iPad DJ workspace | `07`, `07b` | the stems layout vs. the same decks with the jog module in the slot |
 | Watch remote | one file, three states | performing · loading next · **disconnected** |
 
-## iPad — 14 screens, 18 files
+## iPad — 16 screens, 20 files
 
 | File | Screen | Spec | Tier |
 |---|---|---|---|
@@ -53,6 +53,8 @@ A single static image cannot show behaviour. Six screens are split:
 | `ipad/13a-paywall-context.html` | Paywall — in context | §41.15 | Pro |
 | `ipad/13b-paywall-sheet.html` | Paywall — purchase sheet | §41.16 | Pro |
 | `ipad/14-gig-crate.html` | Gig crate | §41.17 | Pro |
+| `ipad/15-genre-picker.html` | Genre picker (first run) | §41.1a | Free |
+| `ipad/16-transitions.html` | The transition coach | §41.18 | Free |
 
 ## iPhone — 10 screens, 12 files
 

@@ -1,39 +1,56 @@
-# DJ Phase 5 — Stems, recording & gig crates (Milestone M5)
+# DJ Phase 5 — the milestone where it becomes a DJ app (Milestone M5)
 
 Plan for milestone **M5** of the Platterhead iOS DJ build. Implementation is driven by this file
 one commit at a time, on `main`, per handoff §8 and the working agreement in
 `docs/plans/tonearm-mvp-ios/HANDOFF.md`. The plan doc is Appendix M.6's **`dj-phase-4-stems-recording.md`**
-(the appendix's own filename; the milestone is M5).
+(the appendix's own filename; the milestone is M5, and its scope is now wider than that filename
+suggests — see §1).
 
-**Spec:** `docs/plans/tonearm-mvp-ios/PLATTERHEAD_IOS_ARCHITECTURE.md`. Read §48.6 (goal/exit),
-Appendix M.6 (manifest + commits), §4.6 (FR-ENG-7/8), §4.6b (FR-REC-1..5), §35.1 (deck as a
-summed stem voice), §36 (stem separation pipeline), §37 (recording pipeline), §41.10/41.11/41.12
-(stems detail / recording finish / mixes), §41.17 (gig crate), §43.6 (storage budgets), §46.2
-(silent-fallback is a defect), §46.3 (RT guard), §49. **Appendix M.6's commit order is
-authoritative; §49.2's implementation order (schema/migrations → pure kernels → façade/actor →
-view model → view) is binding.**
+**Spec:** `docs/plans/tonearm-mvp-ios/PLATTERHEAD_IOS_ARCHITECTURE.md`. Read **§48.6 (goal/exit —
+rewritten)**, **Appendix M.6 (manifest + commits — rewritten)**, and then, per commit:
+**§49.3a** (reachability), **§19.4** (persisted analysis artifacts), **§26A** (waveform display),
+**§41.9b / §42.7c** (club ergonomics), **§35A** (Beat FX echo), **§35B** (the five transitions),
+**§18A** (genre libraries), **§41.1a** (genre picker), **§41.18** (transition coach), plus the
+original scope: §4.6 (FR-REC), §35.1, §36, §37, §41.10/41.11/41.12, §41.17, §43.6, §46.2, §46.3,
+§49. **Appendix M.6's commit order is authoritative; §49.2's implementation order
+(schema/migrations → pure kernels → façade/actor → view model → view) is binding within each
+commit.**
 
-## 1 · Milestone goal and exit (spec §48.6)
+## 1 · Milestone goal and exit (spec §48.6 — re-scoped)
 
-The stem separation pipeline (§36), the recording pipeline (§37), and gig crates (§41.17).
-**Prepared stems are the specified path** (FR-ENG-3, §36.5): separation runs the night before, on
-a charger, under the thermal governor, scoped to a *gig crate* (FR-ANL-9) — the "4 GB of prepared
-crates" model that makes stems affordable. On-demand separation during a live set is permitted,
-**deprioritized, and cancellable**, and the fallback — full-mix playback with honestly disabled
-stem faders — is the normal case on iOS, never a silent degradation. The deck is four summed stem
-voices (§35.1) with per-stem gain/mute/solo, and the mixer never cares whether a deck is stemmed.
-Recording captures the **post-limiter master bus** (§37.1) through a lock-free tap into a
-segmented M4A, journaled so a crash loses at most the final segment (NFR-REL-2). The Finish and
-Mixes surfaces (§41.11, §41.12) close the milestone.
+M5 was scoped as "stems, recording, gig crates" — three subsystems. It is **re-scoped as an
+outcome**, because those three were on track to land without the product becoming usable. After
+M4 the engine is complete and correct, and yet: nothing in the shipping app opens a performance
+surface, no library track can reach a deck, and every waveform is placeholder geometry because the
+analysis pipeline computes phrases and the waveform pyramid and then throws them away.
 
-**Exit (§48.6):** AT-STEM-\* and AT-REC-\* green; a recording survives a forced termination with
-at most the final segment lost (NFR-REL-2). `make test-swift` green; app builds; `xcodegen
-generate` not needed (DJ-only files, handoff §2 trap). **The on-device rows of AT-STEM-\* (real
-Demucs separation timing, ANE/GPU thermal behaviour during a live set) are user-owned** — they
-need a device and the real model, and run in the post-M5 device pass alongside M4's deferred
-AT-THERM-1/AT-MEM-1 (§2.11, plan §2.12).
+**The milestone is complete when the owner can perform this end to end, on a device:**
 
-## 2 · Resolved spec-vs-repo decisions (recorded up front)
+> Open the app → pick a genre (say **electronic → techno**) → get a library of current, legally
+> usable tracks ordered by interest → build a Deck A playlist and a Deck B playlist → open the
+> workspace → mix, using all five beginner transitions (Bass Swap, Filter, Echo Out, Fader Cut,
+> Blend) with the controls where a club-trained hand expects them → record a 20-minute set →
+> **listen to it immediately, in the app** → share it with a friend as a file that plays.
+
+**Exit (§48.6):**
+
+1. **AT-STEM-\*** and **AT-REC-\*** green; a recording survives forced termination losing at most
+   the final segment (NFR-REL-2).
+2. **AT-WAVE-\*** green — waveforms render from persisted analysis, not placeholders.
+3. **AT-TRANS-1..5** green — each transition asserted in the offline render *and* as a layout
+   assertion on both surfaces.
+4. **AT-GENRE-\*** green — a genre subscribes, caches, analyses, reaches a deck, with no account.
+5. **The narrative above, performed on a device by the owner** — one 20-minute recorded set using
+   all five transitions, played back in-app, exported and played elsewhere. **User-owned shipping
+   gate**, run in the post-M5 device pass alongside M4's deferred AT-THERM-1 / AT-MEM-1.
+
+`make test-swift` green; app builds; `xcodegen generate` **is** needed this milestone (5.1 and 5.6
+touch app-target and `Sources/Domain`/`Sources/Remote` files — see decision 25).
+
+## 2 · Resolved decisions (recorded up front)
+
+Decisions 1–14 were recorded when M5 was scoped as stems + recording, and **still stand**.
+Decisions 15–24 are new with the re-scope.
 
 1. **No Demucs `.mlpackage` is committed to this repo.** §36.2's PyTorch→CoreML conversion is an
    offline developer step (Appendix D). The M2 precedent is the CLAP model: ODR delivery with an
@@ -93,9 +110,9 @@ AT-THERM-1/AT-MEM-1 (§2.11, plan §2.12).
    an optional cue-sheet) is in M5; FR-REC-2/3's upload is not.
 10. **FR-REC-5 ("plays in the free player") is satisfied structurally in the DJ library.** The
     DJ app is a separate SPM target excluded from the app target (handoff §2 trap); the mixes are
-    ordinary playable assets in the DJ `MixesView` from the moment they finalize. The free-player
-    (TonearmCore NowPlaying) integration happens at the 3.0 ship when the DJ feature is wired into
-    the app — recorded here so the milestone does not invent an app-target seam it does not need.
+    ordinary playable assets in the DJ `MixesView` from the moment they finalize. *(Amended by
+    decision 15 — M5 now adds the app-side entry point, so this is no longer deferred to the 3.0
+    ship.)*
 11. **Storage budget is a new service** (§43.6): `StorageBudgetService` owns the per-cache disk
     accounting with **`mixesEvictable = false` always** (recordings are user content and are never
     auto-evicted — the app asks, never chooses, §43.6) and **stem LRU by `gig_crate.lastPerformedAt`**,
@@ -103,210 +120,335 @@ AT-THERM-1/AT-MEM-1 (§2.11, plan §2.12).
     distinct from M4's `MemoryCeiling` (RAM, NFR-REL-4); `StorageBudgetService` is disk.
 12. **The on-device numbers are user-owned and deferred to a post-M5 pass.** Real Demucs
     separation time, ANE/GPU thermal behaviour during a live set, and the physical route
-    interruption during a recording run on a device with the real model (plan §2.12). The
-    milestone's automated proxies are: chunk/overlap-add reconstruction, cache versioning, budget
-    + LRU accounting, stem-voice summing (frame-exact), record-tap → encode → read-back, and
-    crash-recovery finalize.
-13. **No new network host, no new dependency.** CoreML / Accelerate / AVFoundation / Metal are
-    already linked in `TonearmDJ`; ODR tags are the sanctioned M2 path. `Sources/DJ` stays excluded
-    from the app target, so DJ-only additions need **no `xcodegen generate`**.
-14. **The mixer column's record button lives in the workspace** (§41.9's centre column: "record
-    button with elapsed time"). `WorkspaceModel` gains the recording state (`isRecording`,
-    `elapsed`), the record toggle forwards `startRecording/stopRecording`, and the record/elapsed
-    chip is shared across every performance surface — it is session VM state, not a view's.
+    interruption during a recording run on a device with the real model (§12).
+13. **~~No new network host, no new dependency.~~ Amended by decision 20** — M5 adds exactly one
+    new host (the Jamendo API), authorised by the owner under handoff §9. Still **no new
+    dependency**: CoreML / Accelerate / AVFoundation / Metal are already linked.
+14. **The mixer column's record button lives in the workspace** (§41.9's centre column).
+    `WorkspaceModel` gains the recording state (`isRecording`, `elapsed`), the record toggle
+    forwards `startRecording/stopRecording`, and the record/elapsed chip is shared across every
+    performance surface — it is session VM state, not a view's.
+
+**New with the re-scope:**
+
+15. **Reachability is commit 5.1, not a follow-up (§49.3a).** Verified on `main` at M4 exit: no
+    file outside `Sources/DJ/` references `CompactPerformanceView`, `WorkspaceView`,
+    `SoloDeckView`, `TwinDeckView` or `TrackPrepView`; the only app-side `import TonearmDJ` is
+    `Sources/Features/Ingest/AnalysisView.swift` + `AnalysisModel.swift`; `RootView.swift` has no
+    DJ route; and no app-side file references `ProCapability`. The whole DJ feature set is dead
+    code in the shipped binary. 5.1 adds a real navigable route, Pro-gated via
+    `ProCapability.isEnabled(.decks)` with the §40.4 dimmed-surface treatment for free users.
+16. **The library → deck seam is also 5.1.** `WorkspaceModel` holds no reference to
+    `DJLibraryStore`, `DJTrack`, or any asset resolver — verified. `WorkspaceEngine.load(_:source:)`
+    takes a `DeckSource` (raw PCM) and nothing constructs one from a library row. A new
+    `DeckLoader` owns: resolve track → **enforce the FR-LIB-8 fully-cached gate** → decode to
+    `DeckSource` off the main actor → hand over with the §12.2 ownership transfer. The crate sheet
+    deferred in 4.7 ("the workspace has no library data seam yet") gets its real rows here.
+17. **Analysis persistence is a standalone commit (5.2) and precedes any render work.**
+    `AnalyzePipeline.AnalyzeResult` currently carries `phraseCount: Int` and `waveformLevels: Int`
+    — the `[Phrase]` array and `WaveformPyramid` are computed at `AnalysisCoordinator.swift:123`
+    and `:132` and dropped. `persist` writes loudness, `beat_grid`, `key_estimate`, the `track`
+    rollup and `analysis_run`, and **nothing** to `phrase`, `waveform_pyramid` or `downbeat`;
+    `beat_grid` is written with `firstBeatSample: 0, beatCount: 0` hardcoded. 5.2 widens the result
+    type and the transaction per §19.4. **Re-analysis of existing libraries is required** to
+    backfill — surfaced as an ordinary re-analysis prompt, not a silent migration.
+18. **The waveform renderer is pure-input, `Canvas`-based, and not Metal in M5.** §26A.1's
+    `WaveformRenderModel` is assembled control-side from memory-mapped BLOB slices; the renderer
+    is a SwiftUI `Canvas` drawing from that value. Metal is the escape hatch **only if** the §43.3
+    budget measurement (5.3's own test, and the §50.3 device row) says `Canvas` cannot hold two
+    detail waveforms plus two jogs. Choosing Metal up front would be speculative; choosing it
+    after a measurement is engineering.
+19. **The §41.9b relayout updates shipped geometry tests rather than deleting them.**
+    `WorkspaceModelTests`' column-budget assertions and `ModuleGeometry.jogModuleWidth` are written
+    against `1fr 268px 1fr`. 5.4 rewrites them against `1fr 320px 1fr` and the ~416 pt deck column,
+    keeping every assertion — the budget is still asserted, against new numbers. Deleting a
+    geometry test to make a relayout pass is the failure mode to avoid.
+20. **The music source is the Jamendo API, not the Free Music Archive.** FMA's app-developers page
+    states they shut down their API and prohibits both hotlinked playback and scraped browsing —
+    the two things this feature needs. Jamendo publishes a documented read API over a CC catalogue
+    with genre/tag filtering and popularity ordering, which is exactly FR-LIB-9's shape.
+    **Endpoint shapes, parameter names and paging MUST be verified against
+    `developer.jamendo.com/v3.0` at implementation time**, not assumed from the spec.
+    Owner-authorised under handoff §9 as a new network host.
+21. **`client_id` is an application credential and a user-owned registration step.** It is not a
+    user login (FR-LIB-9's "no account" holds). It goes on the user-owned checklist beside the
+    Plex claim token and the App Store Connect products. Until it exists, the provider's tests run
+    against **recorded fixtures** (Appendix R convention) — no live network in CI, per the standing
+    rule. `.test-credentials` carries the real value and is never committed.
+22. **The export format is AAC in M4A; MP3 is deferred to M6** (§37.6, FR-REC-7). The platform
+    ships no system MP3 *encoder*; producing `.mp3` requires vendoring LAME — a new dependency and
+    an LGPL review. Owner-decided. The UI names the format it produces and never promises MP3.
+23. **Beat FX ships exactly one effect.** The §35A post-fader beat-synced echo, because it is the
+    one the five transitions require. The FX module's other pads stay honestly unavailable (§36.5's
+    convention) rather than shipping a filter-sweep pad that duplicates the CFX knob. More Beat FX
+    are M6.
+24. **AT-TRANS-\* has two halves and both are automated.** The audio half is a scripted command
+    sequence against the M4 offline render with buffer assertions. The **layout half** is a model
+    -level assertion that every control a transition needs is present, ≥ 44 pt, and un-occluded on
+    both the tablet and compact surfaces — the same technique as 4.10's `drawerXRange` vs
+    `mixerXRange` non-intersection test. Neither half needs a device.
+25. **`xcodegen generate` is required this milestone, in commits 5.1 and 5.6 only.** The handoff's
+    "DJ-only files need no regen" trap holds for everything under `Sources/DJ/**` (the app target
+    excludes it). It does **not** hold for 5.1's app-side entry point under `Sources/Features/`,
+    or 5.6's edits to `Sources/Domain/Entities.swift` and
+    `Sources/Remote/Providers/JamendoGenreProvider.swift`. Both commits run `xcodegen generate`
+    and commit the regenerated project. Every other commit (5.2–5.5, 5.7–5.13) is DJ-only and
+    needs no regen.
 
 ## 3 · File manifest (Appendix M.6, paths indicative per handoff §6.4)
 
-New directories: `Sources/DJ/Stems/`, `Sources/DJ/Recording/`. Tests under `Tests/DJTests/`.
-`Sources/DJ` stays excluded from the app target (handoff §2 trap), so DJ-only file additions need
-**no `xcodegen generate`**.
+New directories: `Sources/DJ/Features/Waveform/`, `Sources/DJ/Features/Onboarding/`,
+`Sources/DJ/Features/Coach/`, `Sources/DJ/Stems/`, `Sources/DJ/Recording/`. Tests under
+`Tests/DJTests/`.
+
+**Files outside `Sources/DJ/` — these need `xcodegen generate`** (decision 25): the app-side entry point
+under `Sources/Features/`, `Sources/Domain/Entities.swift` (`SourceKind`), and
+`Sources/Remote/Providers/JamendoGenreProvider.swift`.
 
 | File | Purpose |
 |---|---|
-| `Stems/StemModel.swift` | `StemModelProviding` seam (availability / URL / run) + `StemVoice`/`StemOutput` pure values + the deterministic fake model |
-| `Stems/StemSeparator.swift` | Demucs chunk / overlap-add reconstruction kernel (§36.2), pure, vDSP |
-| `Stems/StemCache.swift` | content-addressed, versioned `.caf` cache (§36.4) |
-| `Stems/StemService.swift` | actor — serialized lane, thermal/performance fences, on-demand + crate-scoped queue (§36.3) |
-| `Engine/StemVoices.swift` | `StemSet` pure value (four `DeckSource`s + per-stem gains); reader-side summing (§35.1) |
-| `Engine/RTCommand.swift` (edit) | `setStemGain` / `setStemMute` / `setStemSolo` / `armStemSet` tags |
-| `Recording/RecordTap.swift` | RT-safe master-bus copy into a lock-free ring (§37.2) |
-| `Recording/Encoder.swift` | encoder actor — `AVAudioConverter` AAC, segmented writer with periodic flush (§37.2) |
-| `Recording/RecordingService.swift` | journal, finalize, recovery; `RecordingEventSink` (§37, §37.3) |
-| `Recording/MixTimeline.swift` | control-side event log → `mix_track_event` (§37.4) |
-| `Data/DJMigrations+v4.swift` | §15.5 DDL verbatim + `stem_cache` |
-| `Data/DJRecords.swift` (edit) | `StemCacheRow`, `DJMix`, `DJMixTrackEvent`, `DJMixAsset`, `GigCrate`, `GigCrateTrack` records |
-| `Data/GigCrateRepository.swift` | promotion from a playlist, per-crate readiness, budget + LRU queries |
-| `Perf/StorageBudgetService.swift` | pure disk-budget + LRU-eviction accounting, mixes never evicted (§43.6) |
-| `Features/Stems/StemsFXView.swift` + model | mockup `ipad/08-dj-stems-fx.html` — per-stem gain/mute/solo, separation queue, GPU/ANE budget (§41.10) |
-| `Features/GigCrate/GigCrateView.swift` + model | mockup `ipad/14-gig-crate.html` — promotion, readiness, storage vs budget, eviction preview (§41.17) |
-| `Features/Recording/RecordingFinishView.swift` + model | mockup `ipad/09-recording-finish.html` — title/notes, timeline, export/cue-sheet (§41.11) |
-| `Features/Mixes/MixesView.swift` + model | mockup `ipad/10-mixes.html` — local storage, playable mixes (§41.12, FR-REC-5) |
-| `Features/Workspace/DeckModuleSlot.swift` (edit) | STEMS module faders become live when prepared (honest otherwise) |
-| `Features/Workspace/BankDrawer.swift` (edit) | iPhone STEMS bank — two live faders (§2.1) |
-| `Features/Workspace/WorkspaceModel.swift` (edit) | recording state + record toggle; per-deck stem gain/mute/solo state |
-| `Tests/DJTests/{StemSeparatorTests,StemCacheTests,StemServiceTests,RecordingRecoveryTests,StorageBudgetTests,GigCrateTests,MixTimelineTests}.swift` | the §9 audit rows |
+| `Sources/Features/…` (edit) | **DJ entry point** — navigable route from the app root, Pro-gated (§49.3a, decision 15) |
+| `Sources/DJ/Features/Workspace/DeckLoader.swift` | library row → cached-audio gate → decode → `DeckSource` (decision 16) |
+| `Sources/DJ/Analysis/AnalysisCoordinator.swift` (edit) | persist phrases, downbeats, real beat grid + `beat_blob`, band-split pyramid (§19.4) |
+| `Sources/DJ/Data/WaveformRepository.swift` | read side — pyramid slice + grid + phrases + cues → `WaveformRenderModel` (§26A.1) |
+| `Sources/DJ/Features/Waveform/WaveformRenderer.swift` | frequency-coloured, beat-gridded `Canvas`; level selection + thermal degradation (§26A.2/.7) |
+| `Sources/DJ/Features/Waveform/PhraseRibbon.swift` | labelled spans, bar counts, low-confidence marking (§26A.4) |
+| `Sources/DJ/Features/Waveform/OverviewStrip.swift` | full-track overview + position cursor (§26A.5 view 1) |
+| `Sources/DJ/Engine/BeatEcho.swift` | pure post-fader beat-synced delay kernel (§35A.2) |
+| `Sources/DJ/Engine/RTCommand.swift` (edit) | `setEcho*` tags; `armStemSet` / `setStemGain` / `setStemMute` / `setStemSolo` |
+| `Sources/Domain/Entities.swift` (edit) | `SourceKind.jamendoGenre` (§18A.3) |
+| `Sources/Remote/Providers/JamendoGenreProvider.swift` | genre listing, popularity ordering, licence passthrough (§18A) |
+| `Sources/DJ/Features/Onboarding/GenrePickerView.swift` + model | mockup `ipad/15-genre-picker.html` (§41.1a) |
+| `Sources/DJ/Features/Coach/TransitionCoachView.swift` + model | mockup `ipad/16-transitions.html` (§41.18) |
+| `Sources/DJ/Stems/{StemModel,StemSeparator,StemCache,StemService}.swift` | §36 pipeline, seam + fake model (decisions 1–2, 5) |
+| `Sources/DJ/Engine/StemVoices.swift` | `StemSet` pure value; reader-side summing (§35.1, decision 3) |
+| `Sources/DJ/Recording/{RecordTap,Encoder,RecordingService,MixTimeline}.swift` | §37 pipeline (decisions 7–8) |
+| `Sources/DJ/Data/DJMigrations+v4.swift` | §15.5 DDL verbatim + `stem_cache` (decision 6) |
+| `Sources/DJ/Data/GigCrateRepository.swift` | promotion, readiness, budget + LRU queries |
+| `Sources/DJ/Perf/StorageBudgetService.swift` | pure disk-budget + LRU accounting, mixes never evicted (§43.6) |
+| `Sources/DJ/Features/{Stems,GigCrate,Recording,Mixes}/…` + models | mockups `ipad/08, 14, 09, 10` |
+| `Sources/DJ/Features/Workspace/*` (edit) | §41.9b relayout, §42.7c compact, live stem faders, record toggle |
+| `Tests/DJTests/{WaveformPersistenceTests,WaveformRenderTests,DeckLoaderTests,BeatEchoTests,TransitionTests,GenreLibraryTests,StemSeparatorTests,StemCacheTests,StemServiceTests,RecordingRecoveryTests,StorageBudgetTests,GigCrateTests,MixTimelineTests}.swift` | the §9 audit rows |
 
 ## 4 · Data layer — one new migration (`dj_v4`)
 
 `DJMigrations+v4.swift` (append-only; no existing table changes, the M1–M3 convention):
 
-- `stem_cache` — `(trackID, modelVersion)` unique key, `bytes`, per-stem relative paths, `createdAt`;
-  the §36.4 content-addressed presence record.
+- `stem_cache` — `(trackID, modelVersion)` unique key, `bytes`, per-stem relative paths, `createdAt`.
 - `performance_session`, `mix`, `mix_track_event`, `mix_asset` — §15.5 DDL **verbatim**
   (`mix.localState` default `complete`, `syncPolicy` default `localOnly`; `mix_asset` PK is
   `mixID`; `mix_track_event` carries the title/artist snapshot so it survives track deletion).
 - `DJSchema.migrationOrder` gains `"dj_v4"`.
 
 `gig_crate`/`gig_crate_track` already exist in `dj_v1` (§14.3) — M5 only *uses* them.
+`phrase`, `downbeat`, `waveform_pyramid`, `beat_blob` and `energy_curve` **already exist** in
+`dj_v2` and need no migration — 5.2 simply starts writing them (decision 17).
 
 ## 5 · Commit sequence (Appendix M.6)
 
-### Commit 5.1 — Demucs ODR + separation + cache + version stamp
+**5.1–5.3 are the unblockers.** Until they land, no other commit in this milestone can be verified
+against a real track, which is why they come first despite the original scope's ordering.
 
-- `ModelTag.stems` + `StemModelProviding` (availability / `url(for:)` / `run(_:)`), production
-  `DemucsModelProvider` over the `DemucsStems.mlpackage` URL from `BundleResourceProvider` (§2.1),
-  and the deterministic **fake model** (channel-split / passthrough) used by every test.
-- `Stems/StemSeparator.swift` (§36.2): fixed-length chunk + window + overlap-add reconstruction at
-  the seams (pure, vDSP; chunk length and overlap are constants in the module), output four stereo
-  streams at the model rate, resampled to the 48 kHz working rate.
-- `Stems/StemCache.swift` (§36.4): four `.caf` files per track under
-  `cachesDirectory/Stems/<contentHash>/<AnalysisVersions.stems>/`, `stem_cache` row written in one
-  transaction with `DJLibraryStore`; a model-version bump invalidates cleanly.
-- `AnalysisVersions.stems` = 1; `DJLibraryStore` gains `stemCache`/`writeStemCache`/
-  `evictStemCache` (one GRDB transaction each, NFR-REL-1).
-- Tests: `StemSeparatorTests` (chunk/overlap-add reconstruction golden — a known signal
-  reconstructs within tolerance across chunk boundaries), `StemCacheTests` (content-addressing,
-  version invalidation, eviction removes the directory + row).
-- **FR-ENG-3 (pipeline), §36; the AT-STEM cache/version rows.**
+### Commit 5.1 — reachability + the deck load seam
 
-### Commit 5.2 — stem voices live on decks, honest disabled state when unprepared
+- App-side **DJ entry point**: a navigable route from `RootView` to the performance surface,
+  Pro-gated via `ProCapability.isEnabled(.decks)` with §40.4's real-dimmed-surface + lock-chip
+  treatment for free users. `xcodegen generate` **required** and committed.
+- `Features/Workspace/DeckLoader.swift`: resolve a library track → **FR-LIB-8 fully-cached gate**
+  (a partially cached remote track is never deck-ready and says so) → decode off the main actor →
+  `DeckSource` handed over per §12.2. `WorkspaceModel` gains the loader seam and the crate-sheet
+  rows deferred in 4.7 become real.
+- **Per-deck queues (§41.9c, FR-ENG-13)** — the mechanism behind the milestone's "Deck A playlist
+  and Deck B playlist". **No new entity:** a deck's queue is an ordinary `playlist` /
+  `smart_crate` / `gig_crate` row, and a genre library is browsable as a list directly. Each
+  deck's browse surface gains a **source picker at its head**, and the two decks may point at
+  **different** playlists at once. Loading is one gesture through `DeckLoader`. §28A.2's
+  transition ranking re-orders *within* the selected playlist — it advises, never picks, never
+  auto-advances. **There is no auto-play-next on a deck.**
+- Tests: `DeckLoaderTests` — the cached gate refuses an incomplete asset, a decode failure is an
+  honest state not a crash, ownership transfer releases the box; a navigation test asserting the
+  performance surface is reachable from the app root (the §49.3a invariant, as a test); **per-deck
+  queue independence** — setting deck A's playlist leaves deck B's untouched, and neither ever
+  advances on its own.
+- **§49.3a, §41.9c, FR-LIB-8, FR-ENG-9, FR-ENG-13.**
 
-- `Engine/StemVoices.swift` (§35.1): `StemSet` — a pure value holding four `DeckSource`s + per-stem
-  gain targets — boxed and ownership-transferred exactly like `DeckSource` (§2.3). `DeckState`
-  gains `stemSetPointer`, per-stem one-pole smoothed gains, mute/solo state; the reader, when a
-  stem set is armed, sums the four voices at the shared playhead before the existing
-  EQ/filter/fader chain. **A deck with no stem set is byte-for-byte the current single-source
-  reader** (the 4.3–4.5 frame-exact tests stay valid, §2.3).
-- `RTCommand` gains `armStemSet`/`setStemGain`/`setStemMute`/`setStemSolo`; `PerformanceEngine`
-  gains `loadStemSet(deck:stemSet:)` + `setStemGain`/`setStemMute`/`setStemSolo` (all lock-free
-  enqueues); `SourceBoxRegistry` gains the stem slot.
-- `WorkspaceModel` gains per-deck stem state (`stemGains`, mutes, solos, the honest
-  `prepared/separating/unavailable → full mix` status from the loaded track's `stemState`);
-  `DeckModuleSlot`'s STEMS faders and the compact `BankDrawer` STEMS bank become **live** when the
-  loaded deck's stems are prepared, and stay honestly disabled with the "stems not prepared"
-  label otherwise (§36.5). On iPhone the bank shows the two live faders (§2.4). The workspace
-  record toggle is **5.4**.
-- Tests: `EngineOfflineTests` — a stem set sums frame-exact (per-stem gain, mute, solo against a
-  known signal); full-mix fallback is bit-identical to the single-source reader; `setStemGain`
-  doesn't move the playhead. Model tests for the honest state machine (prepared faders live /
-  unavailable faders disabled with the FR-ENG-3 message).
-- **FR-ENG-3, §36.5, §35.1; AT-STEM-* (engine rows).**
+### Commit 5.2 — analysis persistence (§19.4)
 
-### Commit 5.3 — gig crates: promotion, budgeted separation, LRU eviction
+- Widen `AnalyzePipeline.AnalyzeResult` to carry `[Phrase]`, `WaveformPyramid`, the beat sample
+  positions and the downbeat indices. Extend `AnalysisCoordinator.persist` to write `phrase`,
+  `downbeat`, `waveform_pyramid`, `beat_blob` and `energy_curve`, and to write **real**
+  `beat_grid.firstBeatSample` / `beatCount` — in the one existing transaction (NFR-REL-1).
+- `DJLibraryStore` gains the §11-specified `savePhrases(_:for:)` and the sibling artifact writers
+  (never implemented through M4), plus the read accessors `WaveformRepository` needs.
+- Re-analysis backfills existing libraries; surfaced as an ordinary re-analysis prompt.
+- Tests: `WaveformPersistenceTests` — **AT-WAVE-1**: analyse a synthetic track, re-read, assert
+  all five artifacts present with real values; `beat_grid` never carries placeholder zeros;
+  re-analysis is idempotent per version; `grid_correction` still overrides without mutating the
+  immutable rows.
+- **FR-WAVE-1, §19.4, AT-WAVE-1; invariant §49.3 rule 9.**
 
-- `Data/GigCrateRepository.swift` (§41.17): promote a `DJPlaylist` (or a generated playlist —
-  FR-PLIST-9) to a `gig_crate` with `storageBudgetBytes`; `gig_crate_track` rows in order; per-track
-  readiness (`audioCached` — the FR-LIB-8 gate; `stemsState` pending/running/ready/failed/evicted;
-  `stemsBytes`); promote/demote, `lastPerformedAt` update.
-- `Perf/StorageBudgetService.swift` (§43.6, pure): budget accounting per crate, **LRU by
-  `lastPerformedAt`**, "what will be evicted to make room" computed before any eviction
-  (FR-ANL-9), and **`mixesEvictable = false` always** — recordings are never evicted (§2.11).
-- `StemService` gains the crate-scoped queue: serialized lane (concurrency 1–2), paused while a
-  performance is live, abandoned at `.serious` (reusing `ThermalGovernor`, §2.2); per-track state
-  and queue position surface on the gig-crate screen.
-- `Features/GigCrate/GigCrateView.swift` + model (mockup `ipad/14`): the four headline readouts
-  (audio cached / analyzed / stems separated / storage vs budget), the per-track table (stems +
-  audio + size), the honest deck-disabled state for a not-fully-cached remote track (FR-LIB-8), and
-  the "Making room" eviction preview before anything is evicted.
-- Tests: `GigCrateTests` (promotion from a playlist, demotion, per-track readiness transitions),
-  `StorageBudgetTests` (budget accounting, LRU order by `lastPerformedAt`, eviction preview
-  selects the oldest crate, mixes never evictable), `StemServiceTests` (serialization, performing
-  fence, thermal abandon, queue order).
-- **FR-PLIST-9, FR-ANL-9, FR-LIB-8 (gate); AT-STEM-* (crate/budget/eviction rows).**
+### Commit 5.3 — the waveform render (§26A)
 
-### Commit 5.4 — record tap + encoder + segmented file
+- `Data/WaveformRepository.swift` → `WaveformRenderModel` (§26A.1): pyramid-level selection,
+  grid composed with `grid_correction`, phrase spans, cues, active loop, playhead.
+- `Features/Waveform/`: `WaveformRenderer` (band-split colour per §26A.2 — **the same 200 Hz /
+  2 kHz crossovers as the EQ**, beat ticks with heavy downbeats + bar numbers per §26A.3),
+  `PhraseRibbon` (§26A.4 — labels, **bar counts not seconds**, dashed low-confidence edges),
+  `OverviewStrip` (§26A.5 view 1). Stacked twin waveforms share **one** playhead (§26A.5).
+- Honest empty state for an unanalysed track — never synthetic geometry (§26A.1).
+- Thermal degradation: one pyramid level coarser at `.serious`, halved label density (§26A.7).
+- Wire into `TrackPrepView`, `WorkspaceView`, `SoloDeckView`, `TwinDeckView`, replacing the
+  placeholder strips left in 4.7/4.9.
+- Tests: `WaveformRenderTests` — **AT-WAVE-2..7**: band colour split for synthesised bass/mid/treble
+  signals; grid positions match what the engine quantises to; ribbon spans equal persisted rows;
+  low-confidence marked not hidden; empty state for unanalysed; markers land on sample positions at
+  every zoom; level selection picks the coarsest ≤ 1 px/bin and steps coarser at `.serious`.
+- **FR-WAVE-1..7, §26A, AT-WAVE-\*.**
 
-- `Recording/RecordTap.swift` (§37.2): the RT-safe post-limiter master-bus copy into a
-  pre-allocated lock-free ring, inside the render callback under `RTGuard` — no encoding, no file
-  I/O on the audio thread. `AudioGraph.Configuration.recordTapEnabled` (default false) keeps the
-  frame-exact reader harness bit-exact (§2.7).
-- `Recording/Encoder.swift`: the encoder actor drains the ring off-RT through `AVAudioConverter`
-  (AAC 256 kbps) into a **segmented M4A** with periodic flush; the ring is sized to absorb
-  scheduling jitter (§37.2).
-- `PerformanceEngine.startRecording/stopRecording` + the record/elapsed state on `WorkspaceModel`
-  (§2.14); the workspace's centre-column record button (mockup `ipad/07`'s "record button with
-  elapsed time").
-- Tests: `EngineOfflineTests` — record tap → drain → finalize yields an M4A whose decoded content
-  matches the rendered master buffer (sample-accurate modulo the encoder); tap idle leaves the
-  reader bit-exact; the ring absorbs a dropped drain without stalling audio.
-- **FR-ENG-7, §37.2; AT-REC-* (capture rows).**
+### Commit 5.4 — club-standard control ergonomics (§41.9b, §42.7c)
 
-### Commit 5.5 — journal + crash/interruption recovery + finalize
+- `WorkspaceView` relayout to the §41.9b arrangement: **per-channel vertical strips**
+  (TRIM → HI → MID → LOW → FILTER above a vertical channel fader and a CUE button), crossfader
+  horizontal bottom-centre, **CUE left of PLAY** at each deck's inner base, jog centred with the
+  **tempo fader on the outer edge**, **eight** performance pads under a `HOT CUE · PAD FX ·
+  BEAT JUMP · SAMPLER` mode selector. Mixer column 268 → **320 pt**; deck column → ~416 pt.
+- `TwinDeckView` / `SoloDeckView`: the §42.7c compact adaptation — the transferable core stays
+  always-visible (crossfader, channel faders, edge filters, CUE-left-of-PLAY, jog), EQ moves into
+  the momentary bank drawer, ECHO gets an always-visible button + release-to-commit flyout.
+- **Geometry tests updated, not deleted** (decision 19): the `1fr 320px 1fr` budget, the new deck
+  column decomposition, `jogModuleWidth` against 416, and the §42.7a compact budget re-asserted.
+- Mockup `ipad/07-dj-workspace.html` is already revised to this layout and is the reference.
+- **FR-TRANS-1/2, §41.9b, §42.7c; NFR-A11Y-6 (no target shrunk to fit).**
 
-- `Recording/RecordingService.swift` (§37, §37.3): the `mix` journal row (`localState =
-  'recording'`, output URL, start time) written at start; periodic segment flush; `reconcile()`
-  on launch finds stale `recording` rows, finalizes/repairs the last segment and marks `complete`
-  — **a crash loses at most the final segment** (NFR-REL-2). Interruption handling rides the §34A.4
-  session path (flush the segment, wait, open a new one — never auto-play, never a lost set;
-  FR-ENG-8). `finalize()` computes duration/size and writes the `mix`/`mix_asset` rows (§37.5).
-- Tests: `RecordingRecoveryTests` — simulate a crash mid-segment, reconcile, assert a playable,
-  near-complete file with at most one segment lost; interruption → new segment; finalize writes
-  the correct `mix`/`mix_asset` rows.
-- **FR-REC-1/3, FR-ENG-8, NFR-REL-2; AT-REC-* (recovery rows).**
+### Commit 5.5 — Beat FX echo + the five transitions (§35A, §35B)
 
-### Commit 5.6 — Finish + Mixes screens + timeline + export
+- `Engine/BeatEcho.swift` (pure, §35A.2): fixed-capacity ring allocated at graph construction,
+  delay time derived from the master clock (`beats × 60/BPM × sampleRate`), **read-pointer
+  crossfade on beat-length change** (a pointer jump clicks), feedback hard-clamped below unity,
+  and `enabled = false` **continues reading the tail** until it decays then bypasses at zero cost.
+- Graph placement is **post-fader, pre-crossfader, per channel** (§35A.1) — this is the whole
+  design; a pre-fader echo dies with the fader and Echo Out collapses into Fader Cut.
+- `RTCommand` gains `setEchoEnabled` / `setEchoBeats` / `setEchoDepth` / `setEchoFeedback`;
+  `PerformanceEngine` façade methods; the mixer column's Beat FX block and the compact ECHO button.
+- Tests: `BeatEchoTests` (pure — delay length against BPM, crossfade on change produces no
+  discontinuity, feedback always decays, tail-then-bypass) and `TransitionTests` —
+  **AT-TRANS-1..5**, each in both halves per decision 24: the offline-render audio assertion *and*
+  the layout assertion on both surfaces.
+- **FR-TRANS-3/4/5, §35A, §35B, AT-TRANS-1..5.**
 
-- `Recording/MixTimeline.swift` (§37.4): the control-side event log (deck loads, cue/loop toggles,
-  crossfader moves at low rate) fed by `PerformanceEngine` to the active `RecordingService` over
-  `RecordingEventSink`, tagged with `graph.masterSample` — no RT work (§2.8).
-- `Features/Recording/RecordingFinishView.swift` + model (mockup `ipad/09`): title/notes, the
-  generated artwork, the timeline (from `mix_track_event`, interruptions shown, not patched), the
-  stats pills (duration / format / size / peak / LUFS), Keep on device (done, default), the honest
-  "sync is M6" state (§2.9), **Export** — Save to Files / Share with an optional tracklist
-  cue-sheet (FR-REC-4).
-- `Features/Mixes/MixesView.swift` + model (mockup `ipad/10`): the mix library — cards + table,
-  local storage used, per-mix state, **playable from the DJ library** (FR-REC-5, §2.10), and the
-  "mixes are never auto-evicted" statement.
-- `Features/Stems/StemsFXView.swift` + model (mockup `ipad/08`, §41.10): the focused per-deck
-  stem surface — gain/mute/solo with cached-stem status, the visible separation queue + GPU/ANE
-  budget, and the honest FR-ENG-3 fallback card; a "Open gig crate" route into `GigCrateView`.
-- Tests: `MixTimelineTests` (deck loads → ordered `mix_track_event` rows with positions; cue/loop/
-  crossfader events; interruption marker), model tests (finish title/notes flow, export payload
-  with cue-sheet, mixes list + play).
-- **FR-REC-1/4/5, §41.11/41.12; AT-REC-* (timeline/export/free-play rows).**
+### Commit 5.6 — genre libraries (§18A, §41.1a)
+
+- `SourceKind.jamendoGenre` (`Sources/Domain`); `JamendoGenreProvider` behind the existing
+  `RemoteLibraryProvider` seam, registered in `RemoteConnectorCatalog`; genre → `Source` identity,
+  popularity-descending ordering stored as source configuration, licence carried to the track row.
+- **Free tier** — the provider joins the free-tier registry (FR-LIB-7, AT-FREE-\*).
+- `GenrePickerView` + model (mockup `ipad/15`): top-level genres, sub-genres, multi-select,
+  **skip equally weighted**, optional-credentials checkbox collapsed and gating nothing.
+- Failure honesty per §18A.6 — an unreachable catalogue says so; it never renders as an empty library.
+- Tests: `GenreLibraryTests` — **AT-GENRE-\***, against **recorded fixtures** (decision 21), no
+  live network in CI. Genre → source identity, sub-genres are distinct libraries, ordering,
+  no-account path, licence passthrough, FR-LIB-8 gate, failure surfacing, free-tier registry.
+- `xcodegen generate` **required** (touches `Sources/Domain` + `Sources/Remote`).
+- **FR-LIB-9/10, §18A, §41.1a, AT-GENRE-\*.**
+
+### Commit 5.7 — Demucs ODR + separation + cache + version stamp
+
+*(unchanged from the original plan — decisions 1, 5)* `ModelTag.stems` + `StemModelProviding` +
+deterministic fake model; `StemSeparator` chunk/overlap-add (pure, vDSP); `StemCache`
+content-addressed under `<contentHash>/<AnalysisVersions.stems>/`; `stem_cache` row in one
+transaction. Tests: `StemSeparatorTests` (reconstruction golden across chunk boundaries),
+`StemCacheTests` (content-addressing, version invalidation, eviction). **FR-ENG-3, §36.**
+
+### Commit 5.8 — stem voices live on decks, honest disabled state
+
+*(unchanged — decisions 3, 4)* `StemSet` armed as a second slot on `DeckState`; reader sums four
+voices at the shared playhead with smoothed gains; **a deck with no stem set is byte-for-byte the
+current reader**. `WorkspaceModel` per-deck stem state with the honest
+`prepared / separating / unavailable → full mix` status; `DeckModuleSlot` and the compact
+`BankDrawer` STEMS faders become live when prepared. Tests: frame-exact summing, bit-identical
+fallback, honest state machine. **FR-ENG-3, §35.1, §36.5, AT-STEM-\* (engine rows).**
+
+### Commit 5.9 — gig crates: promotion, budgeted separation, LRU eviction
+
+*(unchanged — decision 11)* `GigCrateRepository` promotion from a playlist with per-track
+readiness; `StorageBudgetService` (pure) budget + **LRU by `lastPerformedAt`**, eviction preview
+before any eviction, **mixes never evictable**; `StemService` crate-scoped queue with the
+performing fence and thermal abandon; `GigCrateView` (mockup `ipad/14`). Tests: `GigCrateTests`,
+`StorageBudgetTests`, `StemServiceTests`. **FR-PLIST-9, FR-ANL-9, FR-LIB-8.**
+
+### Commit 5.10 — record tap + encoder + segmented file
+
+*(unchanged — decision 7)* `RecordTap` RT-safe post-limiter copy into a pre-allocated ring under
+`RTGuard`; `Encoder` actor drains off-RT through `AVAudioConverter` (AAC 256 kbps) into a
+segmented M4A with periodic flush; `AudioGraph.Configuration.recordTapEnabled` default false keeps
+the reader harness bit-exact; `PerformanceEngine.startRecording/stopRecording` + the workspace
+record toggle (decision 14). Tests: tap → drain → finalize matches the rendered master buffer;
+tap idle leaves the reader bit-exact; the ring absorbs a dropped drain. **FR-ENG-7, §37.2.**
+
+### Commit 5.11 — journal + crash/interruption recovery + finalize
+
+*(unchanged)* `RecordingService` journal (`localState = 'recording'`), periodic segment flush,
+`reconcile()` on launch finalizing stale rows — **a crash loses at most the final segment**
+(NFR-REL-2). Interruption rides the §34A.4 session path (flush, wait, new segment; never auto-play).
+`finalize()` writes `mix`/`mix_asset`. Tests: `RecordingRecoveryTests`. **FR-REC-1/3, FR-ENG-8.**
+
+### Commit 5.12 — Finish + Mixes + timeline + export + the review listen
+
+- `MixTimeline` (§37.4) control-side event log → `mix_track_event` (decision 8).
+- `RecordingFinishView` (mockup `ipad/09`): title/notes, timeline, export to Files / share sheet
+  with the optional cue-sheet (FR-REC-4).
+- **The review listen (FR-REC-6)** — the finished mix is **playable in place, on this screen, the
+  moment it finalises**: transport, seekable waveform, transition markers to jump to. No export
+  step, no re-encode, no hunting in Mixes. This closes the loop the milestone narrative depends on.
+- **Attribution (§18A.5)** — genre-library tracks contribute artist + licence to the finish screen
+  and the exported cue-sheet, included in the share by default.
+- **Format honesty (FR-REC-7)** — the screen names M4A/AAC and never implies MP3 (decision 22).
+- `MixesView` (mockup `ipad/10`), local storage, FR-REC-5.
+- **FR-REC-1/4/5/6/7, §37.4, §41.11, §41.12, AT-REC-\*.**
+
+### Commit 5.13 — the transition coach
+
+`TransitionCoachView` + model (mockup `ipad/16`): the §35B five, each with description, when to
+use it, and **highlighting of the real controls in place**. Non-modal, decks keep playing, **no
+auto-mix affordance anywhere**, free tier. Tests: model-level — the control set each transition
+names matches §35B's table, and the panel changes no engine state (the 4.10 drawer precedent).
+**FR-TRANS-6, §41.18.**
 
 ## 6 · Testing strategy (spec §47, Appendix R)
 
-- **Pure kernels:** `StemSeparator` chunk/overlap-add (golden reconstruction), `StemCache`
-  versioning/eviction, `StorageBudgetService` budget + LRU accounting, `MixTimeline` ordering,
-  `RecordingService` recovery state machine — deterministic, no device.
+- **Pure kernels:** `BeatEcho` (delay maths, crossfade continuity, decay), `PhraseRibbon` span
+  maths, pyramid-level selection, `StemSeparator` overlap-add, `StemCache` versioning,
+  `StorageBudgetService` LRU, `MixTimeline` ordering, `RecordingService` recovery state machine —
+  deterministic, no device.
+- **Persistence:** `WaveformPersistenceTests` round-trips every §19.4 artifact through a temp pool.
 - **Engine (integration, deterministic):** the M4 offline harness — stem-set summing frame-exact,
-  full-mix fallback bit-identical to the single-source reader, record-tap → drain → M4A read-back
-  matching the rendered master buffer. The tap's `recordTapEnabled` configuration keeps the 4.3–4.5
-  reader tests untouched.
-- **Façade/actor:** `PerformanceEngine` stem/recording members through the ring; `StemService`
-  queue via injected fake model + fake clock/thermal; `RecordingService` reconcile/finalize via a
-  temp-directory pool.
-- **View models:** `GigCrateModel`, `RecordingModel`, `MixesModel`, the stem-fader state on
-  `WorkspaceModel` with fake engine/repository seams; views are thin and covered by model tests +
-  the app-smoke lane (the M2/M3 convention). UI regression lanes (§53) are **not** extended in M5.
-- **User-owned, post-M5:** real Demucs separation time and ANE/GPU thermal behaviour during a live
-  set (the AT-STEM on-device rows), and a physical route interruption mid-recording (AT-SESS-2's
-  hardware half) — deferred to the device pass (§2.12).
+  full-mix fallback bit-identical, record-tap → drain → M4A read-back, and **AT-TRANS-1..5's audio
+  half** as scripted command sequences with buffer assertions.
+- **Layout:** AT-TRANS's layout half plus the §41.9b/§42.7c geometry budgets, as pure model
+  assertions (the 4.10 `drawerXRange` precedent). No snapshot testing, no device.
+- **Remote:** `GenreLibraryTests` against **recorded fixtures** — no live network in CI (decision 21).
+- **View models:** fake engine/repository seams throughout; views stay thin. UI regression lanes
+  (§53) are **not** extended in M5.
+- **User-owned, post-M5:** real Demucs timing and ANE/GPU thermals during a live set; a physical
+  route interruption mid-recording; the §50.3 device rows (two coloured waveforms + two jogs inside
+  the §43.3 budget; the club-controller transfer test with three trained users); the catalogue
+  depth check; and **the milestone's own end-to-end narrative** (§1 exit row 5).
 
 ## 7 · Definition of done (per commit, §49.4)
 
-Tests green · acceptance IDs named in the message · no new dependency without an Appendix Q entry
-(none) · no new network host (none) · mockup coverage contract satisfied (mockups `ipad/08, 09,
-10, 14` already exist; `ipad/07` gains the live record control) · no `xcodegen generate` needed
-for DJ-only files (§3) · `#if os` confined to `Sources/DJ/Session/` (§2.3 of the M4 plan) ·
-StoreKit boundary intact · the free tier keeps everything it has (§2.4) · recordings are never
-auto-evicted (§43.6) · no silent fallback — the honest `prepared / separating / unavailable → full
-mix` state is explicit (FR-ENG-3, §46.2). **Ask before pushing** (push triggers CI + TestFlight).
+Tests green · acceptance IDs named in the message · **no new dependency** (still none — decision 22
+keeps MP3 out) · **one new network host, owner-authorised** (decision 20; already recorded in the
+spec at **Appendix Q.1a** with the FMA rejection, the CC attribution obligation and the
+fixtures-not-live-network rule) · mockup coverage contract satisfied (`ipad/15`, `ipad/16` created;
+`ipad/07` and `ipad/09` revised; §40.5/40.6 inventory updated) · `xcodegen generate` committed for
+5.1 and 5.6 (decision 25) · `#if os` confined to `Sources/DJ/Session/` · StoreKit boundary intact · the
+free tier keeps everything it has, and gains the genre connector and the coach · recordings never
+auto-evicted (§43.6) · **no silent fallback and no compute-then-discard** (§46.2, §49.3 rules 9–10).
+**Ask before pushing** (push triggers CI + TestFlight).
 
 ## 8 · Session protocol
 
-One commit per numbered task (5.1–5.6), each a fresh session reading this plan + the spec sections
+One commit per numbered task (5.1–5.13), each a fresh session reading this plan + the spec sections
 the commit names. Commit on `main`, allow ~5 min for the pre-commit suite. **Ask before pushing.**
 No `Co-Authored-By` trailer (owner preference).
 
@@ -316,10 +458,17 @@ _To be filled in as commits land: files changed, tests run, intentional deviatio
 
 | Commit | Status | Notes |
 |---|---|---|
-| Plan doc | in progress | M5 plan (Appendix M.6). Baseline recorded: `make test-swift` = **1224 tests, 0 failures** (8 skipped). Decisions: no committed `.mlpackage` (ODR seam + fake model, §2.1); stems are a source-level swap with the reader byte-identical when unstemmed (§2.3); recording tables + `stem_cache` land in `dj_v4` (§2.6); CloudKit mix-sync is M6 (§2.9); `current_status.md` moved to M5. |
-| 5.1 | pending | |
-| 5.2 | pending | |
-| 5.3 | pending | |
-| 5.4 | pending | |
-| 5.5 | pending | |
-| 5.6 | pending | |
+| Plan doc | in progress | M5 plan (Appendix M.6), **re-scoped** per §48.6. Baseline: `make test-swift` = **1224 tests, 0 failures** (8 skipped). New decisions 15–24: reachability + deck seam are 5.1 (§49.3a); analysis persistence is 5.2 (§19.4); `Canvas` renderer with Metal as a measured escape hatch; geometry tests updated not deleted; **Jamendo not FMA** (FMA API shut down + terms prohibit the use case); `client_id` is user-owned; **AAC not MP3** (no system encoder); one Beat FX; AT-TRANS has an audio half and a layout half. |
+| 5.1 | pending | reachability + deck load seam |
+| 5.2 | pending | analysis persistence (§19.4) |
+| 5.3 | pending | waveform render (§26A) |
+| 5.4 | pending | club ergonomics (§41.9b, §42.7c) |
+| 5.5 | pending | Beat FX echo + AT-TRANS-1..5 |
+| 5.6 | pending | genre libraries (§18A, §41.1a) |
+| 5.7 | pending | Demucs ODR + separation + cache |
+| 5.8 | pending | stem voices on decks |
+| 5.9 | pending | gig crates + storage budget |
+| 5.10 | pending | record tap + encoder |
+| 5.11 | pending | journal + recovery + finalize |
+| 5.12 | pending | Finish + Mixes + review listen |
+| 5.13 | pending | transition coach |

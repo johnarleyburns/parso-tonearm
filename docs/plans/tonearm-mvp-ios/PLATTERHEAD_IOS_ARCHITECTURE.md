@@ -43,7 +43,7 @@
 1. Vision and product thesis · 1.1 commercial position · 1.2 relationship to v1.0
 2. Product topology and the free/Pro line · 2.1 division by device · 2.2 iPhone *and* iPad · 2.3 what was deleted · **2.4 the free/Pro line (normative)**
 3. Personas and primary journeys
-4. Functional requirements — 4.1 `FR-LIB` · 4.2 `FR-ANL` (staged) · 4.3 `FR-SEM` (free) · **4.3a `FR-PLIST` (auto-playlists, free)** · 4.4 `FR-PREP` · 4.5 `FR-ENG` · **4.5a `FR-SESS`** · 4.6 `FR-REC` · 4.7 `FR-SYNC` · 4.8 `FR-HW` · **4.9 `FR-STORE`**
+4. Functional requirements — 4.1 `FR-LIB` · 4.2 `FR-ANL` (staged) · 4.3 `FR-SEM` (free) · **4.3a `FR-PLIST` (auto-playlists, free)** · 4.4 `FR-PREP` · **4.4a `FR-WAVE` (waveform display, new)** · 4.5 `FR-ENG` · **4.5a `FR-SESS`** · **4.5b `FR-TRANS` (the five transitions, new)** · 4.6 `FR-REC` · 4.7 `FR-SYNC` · 4.8 `FR-HW` · **4.9 `FR-STORE`**
 5. Non-functional requirements — `NFR-PERF` · **`NFR-THERM`** · `NFR-PRIV` · `NFR-REL` · `NFR-DET` · `NFR-A11Y`
 6. Constraints, assumptions, non-goals
 7. Glossary
@@ -62,10 +62,12 @@
 16. **Vector storage — a tiered strategy for a phone** — 16.0 the arithmetic · 16.1 two implementations · 16.2 brute-force vDSP · 16.3 sqlite-vec · 16.4 crate-scoped windows · 16.5 query shape · 16.6 quantization · 16.7 lifecycle
 17. Migrations and analysis versioning
 18. GRDB record and repository layer
+**18A. Genre libraries — the practice-material connector (new — M5)** — 18A.1 the problem · 18A.2 source selection (and why not FMA) · 18A.3 a genre is a library · 18A.4 the path to a deck · 18A.5 licensing obligations · 18A.6 failure and honesty
 
 **[Part IV — Offline Analysis Pipeline](#part-iv--offline-analysis-pipeline)**
-19. Analysis pipeline architecture
+19. Analysis pipeline architecture — **19.4 persisted analysis artifacts, the render contract (new — M5)**
 20.–26. Loudness · FFT/DSP · onset & tempo · beat & downbeat · key (Camelot) · phrase segmentation · waveform pyramid
+**26A. Performance waveform display (new — M5)** — 26A.1 data contract · 26A.2 frequency colouring · 26A.3 beat grid · 26A.4 the phrase ribbon · 26A.5 the three views · 26A.6 cues and loops · 26A.7 budget and degradation · 26A.8 the acceptance target
 27. CLAP semantic embeddings — **27.1a On-Demand Resource delivery** · 27.4 streaming pooling · 27.5 text, audio-to-audio and window search
 28. Recommendation and transition scoring
 **28A. Auto-playlist generation (new — free tier)** — 28A.1 the problem · 28A.2 cost terms · 28A.3 the algorithm · 28A.4 locks/rejects/regenerate · 28A.5 energy arcs · 28A.6 parsing the brief · 28A.7 gates
@@ -75,8 +77,10 @@
 34. Latency budget and buffer management — **granted vs requested; the route latency table**
 **34A. The audio session (new — iOS only)** — 34A.1 modes · 34A.2 negotiation · 34A.3 route changes · 34A.4 interruptions · 34A.5 graph rebuild · 34A.6 background & lifecycle · 34A.7 tests
 35. Deck and mixer architecture
+**35A. Beat FX — the beat-synced echo send (new — M5)** — 35A.1 why post-fader is the whole design · 35A.2 the kernel · 35A.3 controls and RT boundary · 35A.4 honest scope
+**35B. The five transitions (new — M5)** — the normative transition → control mapping
 36. Stem separation pipeline — **36.5 prepared-first policy**
-37. Recording pipeline
+37. Recording pipeline — **37.6 delivery format: why M4A and not MP3 (new — M5)**
 
 **[Part VI — Multi-Device Sync and the Watch Remote](#part-vi--multi-device-sync-and-the-watch-remote)**
 38. CloudKit sync protocol — 38.1 what syncs and what is re-derived · 38.2 record types · 38.4 cue merge
@@ -85,8 +89,8 @@
 
 **[Part VII — Presentation Layer](#part-vii--presentation-layer)**
 40. UI architecture pattern — **40.4 tier presentation rules** · 40.5 screen inventory · 40.6 mockup coverage contract · **40.7 the jog control model**
-41. iPad screens (14) — **41.9a the deck module slot**
-42. iPhone screens (10) — **42.1 the two postures** · **42.7a twin deck** · **42.7b momentary banks**
+41. iPad screens (16) — **41.1a the genre picker (new)** · **41.9a the deck module slot** · **41.9b club-standard control ergonomics (new — M5)** · **41.9c per-deck queues (new)** · **41.18 the transition coach (new)**
+42. iPhone screens (10) — **42.1 the two postures** · **42.7a twin deck** · **42.7b momentary banks** · **42.7c club conventions on a 393 pt screen (new — M5)**
 42A. Liquid Glass adoption · **42B. watchOS screen**
 
 **[Part VIII — Cross-Cutting Concerns](#part-viii--cross-cutting-concerns)**
@@ -97,8 +101,8 @@
 47. Testing strategy and acceptance criteria
 
 **[Part IX — Delivery](#part-ix--delivery)**
-48. Implementation roadmap — **three free releases before the paid feature exists**
-49. Coding-agent execution guide
+48. Implementation roadmap — **three free releases before the paid feature exists** · **48.6 M5, the milestone where it becomes a DJ app**
+49. Coding-agent execution guide — **49.3a reachability, the invariant M4 violated (new)**
 50. Risks and open questions
 
 **[Part X — Go-Live Defects and the UI Regression Suite](#part-x--go-live-defects-and-the-ui-regression-suite)**
@@ -107,7 +111,7 @@
 53. The UI regression suite — **run by hand, never in CI**
 54. Fixtures, servers, and credentials — `.test-credentials`, never committed
 
-**Appendices** — A records · B Camelot · C DSP constants · D Core ML conversion · E ER overview · F reference algorithms · G semantic subsystem · H worked traces · I interface index · J configuration · K concurrency · L traceability · M build manifest · N ADR log · O glossary · P state machines · Q dependencies & licensing · R test fixtures · S agent quick-start · **T entitlement, purchase, and the free-tier registry**
+**Appendices** — A records · B Camelot · C DSP constants · D Core ML conversion · E ER overview · F reference algorithms · G semantic subsystem · H worked traces · I interface index · J configuration · K concurrency · L traceability · M build manifest · N ADR log · O glossary · P state machines · Q dependencies & licensing · R test fixtures · S agent quick-start · **T entitlement, purchase, and the free-tier registry** (Q gains **Q.1a network hosts** — the one M5 exception)
 
 ---
 ---
@@ -414,6 +418,14 @@ Each requirement carries a tier marker: **[F]** free, **[P]** Pro.
 - **FR-LIB-8 [P]** *(new)* A track MUST be **fully cached locally before it can be loaded to a
   deck.** The real-time render path never waits on a network. The UI MUST show the caching
   state and MUST NOT present a partially-cached remote track as deck-ready.
+- **FR-LIB-9 [F]** *(new — M5)* The app MUST offer **genre libraries**: a remote source whose
+  unit of subscription is a *genre*, not a server. Each subscribed genre is an independent
+  library with its own track list, ordered by the provider's popularity/interest metric
+  **descending** by default. A genre library MUST work with **no account**; credentials are an
+  optional enhancement, never a precondition (§18A).
+- **FR-LIB-10 [F]** *(new — M5)* First run MUST offer a **genre picker** — top-level genres plus
+  sub-genres where the provider exposes them — and MUST create one genre library per selection.
+  Selecting nothing is valid and MUST NOT block onboarding (§41.1).
 
 ### 4.2 Analysis (`FR-ANL`)
 
@@ -510,6 +522,33 @@ This is the free tier's hero feature and the primary conversion surface. See §2
 - **FR-PREP-5 [P]** *(new)* Grid correction MUST be possible with **one thumb**: tap-to-set
   downbeat, drag-to-nudge with haptic detents at beat boundaries, and ×2 / ÷2 as buttons.
 
+### 4.4a Waveform display (`FR-WAVE`) — **new, M5**
+
+The waveform is the DJ's primary instrument surface. A club-trained user reads structure, phrase
+and bass content from it at a glance; a waveform that shows only amplitude is not a working
+surface. These requirements apply to **every** waveform in the product.
+
+- **FR-WAVE-1 [F]** *(new)* Every waveform MUST be rendered from **persisted analysis** — the
+  `waveform_pyramid`, `beat_grid`, `downbeat` and `phrase` rows — never by scanning audio at
+  draw time, and never from placeholder geometry (§19.4, §26A.1).
+- **FR-WAVE-2 [F]** *(new)* Waveforms MUST be **frequency-coloured** from the pyramid's
+  band-split RMS: low / mid / high map to three distinct hues so bass content is identifiable
+  without hearing it (§26A.2). Monochrome amplitude is not acceptable.
+- **FR-WAVE-3 [P]** *(new)* The performance waveform MUST draw the **beat grid**, with downbeats
+  emphasised over beats and bar numbers legible at performance zoom (§26A.3).
+- **FR-WAVE-4 [F]** *(new)* Every track surface MUST carry a **phrase ribbon** — the §25 phrase
+  segmentation as labelled, coloured spans (intro / build / drop / chorus / breakdown / outro),
+  so the user can see the drop coming (§26A.4). *Free — this is information about your music.*
+- **FR-WAVE-5 [P]** *(new)* Each deck MUST show both a **full-track overview** (whole track,
+  fixed) and a **scrolling detail waveform** (moving under a fixed playhead). Twin-deck surfaces
+  MUST stack the two decks' detail waveforms on **one shared playhead** so beat alignment is
+  visually verifiable (§26A.5).
+- **FR-WAVE-6 [P]** *(new)* Cue points, loop regions and the active loop MUST be drawn on both
+  the overview and the detail waveform, at sample-accurate positions (§26A.6).
+- **FR-WAVE-7 [P]** *(new)* The waveform MUST sustain the §43.3 frame budget on the
+  thermal-floor device with two decks rendering, and MUST degrade by reducing pyramid detail —
+  never by dropping frames or stalling audio (§26A.7, NFR-PERF-3).
+
 ### 4.5 Performance engine (`FR-ENG`) — **Pro**
 
 - **FR-ENG-1 [P]** Two independent decks MUST provide transport, waveform, cue memory, looping,
@@ -540,6 +579,10 @@ This is the free tier's hero feature and the primary conversion surface. See §2
 - **FR-ENG-12 [P]** *(new)* Control banks (EQ, stems, pads, cues) on the compact surface are
   **momentary**. No modal surface may occlude the crossfader, either waveform, the beat-phase
   meter, or the opposite deck's jog (§42.7b).
+- **FR-ENG-13 [P]** *(new — M5)* Each deck MUST have an independently selectable **source
+  playlist** — its queue — and loading the next track MUST be a one-gesture action from that
+  deck's own browse surface. The two decks MUST be able to draw from **different** playlists at
+  the same time (§41.9c). This is how a set is actually built: an A-list and a B-list, alternating.
 
 ### 4.5a Audio session (`FR-SESS`) — new, all tiers
 
@@ -557,6 +600,32 @@ This is the free tier's hero feature and the primary conversion surface. See §2
 - **FR-SESS-5** Background audio MUST continue for playback and for an active recording when the
   screen locks or the app backgrounds.
 
+### 4.5b Transitions and Beat FX (`FR-TRANS`) — **new, M5, Pro**
+
+The product's competence test is not a feature list — it is whether a DJ trained on a club
+controller can walk up and perform. We fix that target on the five transitions taught as the
+beginner core (§35B): **Bass Swap, Filter Transition, Echo Out, Fader Cut, Blend/Mix.**
+
+- **FR-TRANS-1 [P]** *(new)* All five transitions MUST be performable **on the default surface,
+  with no configuration, no menu, and no mode switch** — the controls each one needs are
+  present and reachable at all times (§41.9b, §42.7c).
+- **FR-TRANS-2 [P]** *(new)* The controls MUST occupy their **club-standard positions and
+  behaviours** (§41.9b): per-channel TRIM → HI → MID → LOW → FILTER above a vertical channel
+  fader; crossfader horizontal and bottom-centre; CUE left of PLAY at each deck's inner base;
+  jog centred in the deck; tempo fader on the deck's outer edge. Muscle memory from a
+  two-channel club controller MUST transfer without retraining.
+- **FR-TRANS-3 [P]** *(new)* The EQ MUST **kill** — LOW at minimum removes bass entirely, not
+  approximately — because Bass Swap depends on it (§35.2).
+- **FR-TRANS-4 [P]** *(new)* A **beat-synced echo** MUST be available per channel with on/off,
+  beat length (1/4 … 4 beats) and depth, positioned **post-fader** so its tail continues to
+  sound after the channel fader is cut — this is what makes Echo Out an exit rather than a
+  cut (§35A).
+- **FR-TRANS-5 [P]** *(new)* The crossfader MUST offer selectable curves (constant-power /
+  linear / sharp) so Fader Cut is a genuine cut, and the selection MUST persist (§35.4).
+- **FR-TRANS-6 [F]** *(new)* The app MUST include a **transition coach**: for each of the five,
+  a short in-app description of what it is, when to use it and which controls it moves, with
+  the controls highlighted in place (§41.18). *Free — it is teaching, not performing.*
+
 ### 4.6 Recording & mixes (`FR-REC`) — **Pro**
 
 - **FR-REC-1 [P]** On finishing, the user MUST be able to title and annotate the mix, review its
@@ -570,6 +639,14 @@ This is the free tier's hero feature and the primary conversion surface. See §2
 - **FR-REC-5 [P]** *(new)* A finished mix MUST appear in the **free player** as an ordinary
   playable item, including on the Watch. Losing Pro (e.g. restoring to a device where the
   purchase is not yet restored) MUST NOT make existing recordings unplayable.
+- **FR-REC-6 [P]** *(new — M5)* A finished mix MUST be playable **from inside the app the moment
+  it finalises**, with no export step, no re-encode and no wait — the review listen is part of
+  the recording flow, not a separate feature (§41.11).
+- **FR-REC-7 [P]** *(new — M5)* The share export MUST produce a file that plays on a recipient's
+  device without special software. **The shipped container is AAC in M4A**; the platform
+  provides no system MP3 *encoder*, so `.mp3` output would require vendoring a third-party
+  encoder and is explicitly **deferred to M6** behind a licensing review (§37.6, §50.3). The UI
+  MUST name the format it is actually producing and MUST NOT promise MP3.
 
 ### 4.7 Sync & multi-device (`FR-SYNC`) — **free, and optional**
 
@@ -2600,6 +2677,108 @@ public nonisolated func observeTracks(_ q: LibraryQuery) -> AsyncStream<[DJTrack
 
 # Part IV — Offline Analysis Pipeline
 
+## 18A. Genre libraries — the practice-material connector (new — M5)
+
+### 18A.1 The problem this solves
+
+M5's exit is a performance: *pick a genre, build two deck playlists, mix, record, listen, share.*
+That narrative dies at step one if the user has no music. The existing ten providers all assume
+the user **already owns a library** — a Plex server, a Subsonic instance, a Dropbox of files. A
+new DJ opening the app for the first time has none of that.
+
+A **genre library** inverts the unit of subscription: instead of connecting a *server*, the user
+subscribes to a *genre*, and gets a ready-made, ordered crate of legally usable tracks. Each genre
+is an independent library with its own list (FR-LIB-9), because that is how DJs actually think
+about practice material — you build a techno set from techno, not from "everything".
+
+### 18A.2 Source selection — and why not the Free Music Archive
+
+The Free Music Archive is the obvious candidate and was the original request. It cannot be used:
+
+> FMA's own app-developers page states they **"unfortunately had to shut down our API"**, and
+> further prohibits both of the things this feature would need — hotlinked playback ("directly
+> playing music hosted on FMA's servers") and scraped browsing ("it is not allowed to forward
+> search queries from your users to our search engine and scrape content"). Building against FMA
+> without written permission would violate the source's stated terms on two counts.
+
+**The shipped source is the Jamendo API** (`api.jamendo.com/v3.0`), which permits exactly this
+use: a documented public read API over a Creative-Commons catalogue, with tag/genre filtering and
+a popularity `order` parameter that provides the "most interesting, descending" ranking the
+product wants. The concrete endpoint shapes, parameter names and page limits MUST be verified
+against `developer.jamendo.com/v3.0` at implementation time rather than assumed from this
+document.
+
+Two constraints are recorded as decisions:
+
+- **`client_id` is an application credential, not a user login.** It is registered once by the
+  owner and travels in the build — so the feature satisfies FR-LIB-9's "works with no account".
+  The registration is a **user-owned step** and belongs on the same checklist as the Plex claim
+  token and the App Store Connect products (§50.3).
+- **A user account is optional and additive only.** The optional-credentials checkbox (§41.1)
+  unlocks per-user features (favourites, playlists) and MUST NOT gate browsing, playback, or
+  library creation. A user who never signs in loses nothing the milestone narrative needs.
+
+### 18A.3 Model — a genre is a library
+
+`SourceKind` gains one case, `jamendoGenre`. A subscribed genre is an ordinary `Source` row whose
+identity is the genre path, so everything downstream — caching, analysis, semantic search,
+playlists, gig crates — works with no special-casing:
+
+```
+Source(kind: .jamendoGenre, identifier: "electronic/techno", title: "Techno")
+  → tracks ordered by popularity DESC, paged
+  → each track: title, artist, duration, license, stream URL, download URL
+```
+
+- **Sub-genres are first-class.** Where the provider exposes a hierarchy (electronic, hip-hop),
+  the picker offers the children, and `electronic/techno` is a *different library* from
+  `electronic`. This is the point of the feature: a techno crate, not an electronica crate.
+- **Ordering is popularity descending by default**, and the chosen ordering is part of the
+  source's stored configuration so a refresh is reproducible.
+- **The provider is core-side, not DJ-side.** `SourceKind` lives in `Sources/Domain`; the provider
+  joins the existing `Sources/Remote/Providers` family behind `RemoteLibraryProvider`, is
+  registered in `RemoteConnectorCatalog`, and — like every other provider since M0 — is **free
+  tier** and MUST appear in the free-tier registry (FR-LIB-7, AT-FREE-\*).
+- **It is a normal remote-library type, available after onboarding.** Because it registers in the
+  catalogue, "add a genre library" MUST appear in **Add source** (§41.1's ordinary flow) alongside
+  Plex, Subsonic and the rest, with the same genre / sub-genre selector the first-run picker uses
+  and the same optional-credentials checkbox. The §41.1a picker is a **convenience at first run,
+  not the only door** — a user who skipped it, or who wants a fourth genre six months later, adds
+  one from Sources like any other library.
+
+### 18A.4 The path to a deck
+
+A genre track becomes performable through the **existing** remote pipeline, with no new mechanism:
+
+1. Browse — list pages fetched and cached as `Source` + `Track` rows.
+2. **Cache** — the audio is downloaded to the managed cache. FR-LIB-8 governs: a partially cached
+   track is **never** deck-ready, and the UI says so.
+3. **Analyse** — once cached, the track is an ordinary local asset and runs the full §19 pipeline,
+   producing the grid, phrases and pyramid that §26A draws.
+4. **Perform** — the track loads to a deck like any other.
+
+Steps 2–4 are already built. The connector's only job is to make step 1 produce rows the rest of
+the system already understands.
+
+### 18A.5 Licensing obligations are not optional
+
+The catalogue is Creative Commons; several licences require attribution and some prohibit
+commercial use. Therefore:
+
+- Each track MUST carry its **licence identifier** through to the library row, and the UI MUST
+  show artist and licence wherever the track is listed.
+- The **recording finish screen and exported cue-sheet MUST list attribution** for every genre
+  track that appeared in the mix (§41.11) — this is what makes a shared practice set safe to post.
+- The app MUST NOT strip or rewrite licence metadata on cached copies.
+
+### 18A.6 Failure and honesty
+
+Network failures follow the §46 convention already used by the other ten providers: an empty
+genre reports "couldn't reach the catalogue", never an empty-looking library; a failed page keeps
+the pages already fetched; and a genre whose tracks are not yet cached shows the caching state
+rather than a deck-ready affordance it cannot honour. The Part X defect register's D-9 lesson
+(a provider that returns nothing must say so) applies directly.
+
 ## 19. Analysis pipeline architecture
 
 Every imported track passes through an **immutable, staged, versioned** pipeline exactly once per analysis version. The pipeline is a directed acyclic graph of pure DSP kernels (L3) orchestrated by the `AnalysisCoordinator` actor (L4), which owns scheduling, persistence, and resumability.
@@ -2649,6 +2828,41 @@ public final class PCMBuffer: @unchecked Sendable {   // uniquely-owned; transfe
 ```
 
 Handing a `PCMBuffer` to another actor transfers ownership (the producer drops its reference). This gives zero-copy movement of large audio between decode → DSP → embedding → stems while keeping `Sendable` meaningful.
+
+### 19.4 Persisted analysis artifacts — the render contract (new — M5)
+
+> **Normative, and a correction to what shipped.** Through M4 the pipeline *computed* stage 6–10
+> outputs and then discarded all but scalars: `AnalyzeResult` carried `phraseCount: Int` and
+> `waveformLevels: Int`, the `phrase` and `waveform_pyramid` tables were created but never
+> written, no `downbeat` row was ever inserted, and `beat_grid` was written with
+> `firstBeatSample = 0, beatCount = 0` placeholders. Every waveform in the product was
+> consequently placeholder geometry. **This section closes that gap and is a prerequisite for
+> all of FR-WAVE and for M5's exit.**
+
+Step 12 of the pipeline ("Persist — single transaction") MUST write, for every analysed track,
+in one GRDB transaction (NFR-REL-1):
+
+| Artifact | Destination | Required content |
+|---|---|---|
+| Loudness | `loudness` | *(already shipped)* |
+| Key | `key_estimate`, `track.camelot`/`musicalKey` | *(already shipped)* |
+| Tempo | `beat_grid.bpm`, `track.bpm` | *(already shipped)* |
+| **Beat grid** | `beat_grid` + `beat_blob` | **real `firstBeatSample` and `beatCount`**; the per-beat sample positions as a `beat_blob` BLOB (§15.7). Placeholder zeros are a defect. |
+| **Downbeats** | `downbeat` | one row per bar start, the anchor for phrase display and bar numbering |
+| **Phrases** | `phrase` | one row per §25 phrase: `startSample`, `lengthBeats`, `type`, `energy`, `confidence` |
+| **Waveform pyramid** | `waveform_pyramid` | the packed multi-level BLOB (§15.7 `kind=0x05`), **including band-split low/mid/high RMS** — FR-WAVE-2 has no other source |
+| Energy curve | `energy_curve` | the per-beat curve BLOB backing the prep energy display |
+
+Three rules bind the implementation:
+
+1. **Compute-then-discard is a defect, not an optimisation.** Any pipeline stage whose output has
+   a destination table MUST write it. A `count`-only return type is the smell (§46.2's
+   silent-fallback principle applied to analysis).
+2. **Re-analysis is idempotent per (track, `analysis_version`)** — the artifact rows are replaced,
+   never appended (§19.1), and a version bump re-derives them.
+3. **Grid corrections never mutate these rows.** The §23.3 `grid_correction` override log remains
+   the authoritative user layer over an immutable analysis; the renderer composes
+   `beat_grid` + `grid_correction` at read time exactly as `GridCorrectionRepository` already does.
 
 ## 20. Decode, loudness, dynamic range
 
@@ -2978,6 +3192,124 @@ public enum WaveformPyramid {
 ### 26.2 Rendering contract
 
 The UI waveform renderer (a `MTKView` or Canvas, §41) is handed a slice of the appropriate pyramid level plus the beat grid and cue/loop positions; it draws bars from min/max and colors from band-split RMS. Because the pyramid is precomputed and memory-mappable, scrolling and zooming during preparation and performance are allocation-free and smooth (NFR-PERF-3). The playing deck's moving playhead is a simple offset into the same slice; the render never touches the audio buffer.
+
+## 26A. Performance waveform display (new — M5)
+
+§26 builds the pyramid; §19.4 persists it. This section specifies what is **drawn**, and it is
+normative because the waveform is the instrument surface a club-trained DJ actually reads. The
+target is explicit: a user who mixes on rekordbox with a two-channel controller should recognise
+this display and need no retraining to read structure, phrase and bass content from it.
+
+### 26A.1 Data contract — the renderer never touches audio
+
+The renderer is handed, per deck, a **`WaveformRenderModel`** assembled control-side:
+
+```swift
+public struct WaveformRenderModel: Sendable {
+    public let pyramidLevel: WaveformLevelSlice   // chosen for the zoom; min/max/rms + band RMS
+    public let beats: ArraySlice<Int64>           // sample positions, from beat_blob + corrections
+    public let downbeats: ArraySlice<Int64>       // bar starts
+    public let barNumberOrigin: Int               // bar 1 = first downbeat
+    public let phrases: ArraySlice<PhraseSpan>    // type + energy + sample range
+    public let cues: ArraySlice<CueMarker>        // hot cues, colour + label
+    public let activeLoop: SampleRange?
+    public let playhead: Int64                    // master-clock sample
+}
+```
+
+Three prohibitions, each a defect if violated (§46.2):
+
+- The renderer MUST NOT read the audio file, decode, or compute a reduction at draw time.
+- The renderer MUST NOT allocate per frame; the slices are views into memory-mapped BLOBs.
+- The renderer MUST NOT invent geometry when analysis is missing. An unanalysed track draws the
+  **honest empty state** ("not analysed yet" + an analyse action), never a synthetic wave.
+
+### 26A.2 Frequency colouring (FR-WAVE-2)
+
+Each pyramid bin carries low/mid/high RMS (§26.1 `bandSplit`). The bar for a bin is drawn as three
+stacked contributions, normalised to the bin's total energy:
+
+| Band | Split | Hue | Reads as |
+|---|---|---|---|
+| Low | < 200 Hz | blue / cyan | kick and bass — the band Bass Swap operates on |
+| Mid | 200 Hz – 2 kHz | amber / orange | body, vocal, chords |
+| High | > 2 kHz | pale / white | hats, air, transient detail |
+
+The band splits are **the same 200 Hz / 2 kHz crossovers as the mixer's three-band EQ** (§35.2).
+This is deliberate and normative: when the user pulls LOW, the blue is what leaves. A waveform
+whose colours do not correspond to the EQ bands teaches the wrong instrument.
+
+### 26A.3 Beat grid and bar numbering (FR-WAVE-3)
+
+- Beats draw as thin ticks; **downbeats draw at full height and heavier weight**.
+- At performance zoom, every fourth downbeat carries a bar number; at prep zoom, every downbeat.
+- The grid is drawn from `beat_blob` composed with the `grid_correction` log (§23.3) — what the
+  user sees is what the engine quantises to, always. A grid the engine does not use is a lie.
+- When `beat_grid.isConstantTempo` is false the grid follows the stored per-beat positions rather
+  than extrapolating from BPM.
+
+### 26A.4 The phrase ribbon (FR-WAVE-4)
+
+Above each waveform runs a **phrase ribbon**: the §25 segmentation as contiguous labelled spans.
+
+| Phrase | Colour role | Label |
+|---|---|---|
+| `intro` | muted / neutral | INTRO |
+| `build` | amber, rising tint with energy | BUILD |
+| `drop` | accent, highest saturation | DROP |
+| `chorus` | accent, sustained | CHORUS |
+| `breakdown` | cool / desaturated | BREAKDOWN |
+| `outro` | muted / neutral | OUTRO |
+
+Rules:
+
+- The ribbon spans the **overview** waveform (whole track) at all times, so the next drop is
+  visible before it arrives — this is the display's main tactical value.
+- Each span shows its length in **bars**, not seconds — DJs phrase in bars (`32` not `62 s`).
+- A span whose `confidence` is below the display threshold renders with a dashed edge rather than
+  being hidden; the honest signal is "boundary uncertain", not silence.
+- The ribbon is **free-tier** (FR-WAVE-4, matching FR-PREP-4's rationale — information about your
+  music, not a performance capability).
+
+### 26A.5 The three waveform views (FR-WAVE-5)
+
+1. **Overview** — the whole track at fixed scale, with the phrase ribbon, cues, and a position
+   cursor. Tapping seeks (quantised per §33). This is the "where am I in the arrangement" view.
+2. **Detail (performance)** — a scrolling window, typically 8–16 bars, moving under a **fixed
+   centre playhead**. Frequency-coloured, beat-gridded. This is the "am I in phase" view.
+3. **Detail (preparation)** — the same renderer with pinch-zoom to sample resolution and the §41.6
+   grid tools live (FR-PREP-1).
+
+On any surface showing both decks, the two **detail** waveforms stack vertically on **one shared
+playhead line** (§42.7a already establishes this for the compact twin deck). Beat alignment is
+then directly readable: when the grids line up across the shared playhead, the decks are in phase.
+The signed beat-phase meter (§32) remains the numeric confirmation, not the primary cue.
+
+### 26A.6 Cues, loops, and markers (FR-WAVE-6)
+
+Hot cues draw as full-height coloured markers with their pad letter on both overview and detail.
+The active loop draws as a translucent region with hard in/out edges; a loop being *set* draws its
+in-point immediately so the user sees the anchor before choosing the length. Markers are positioned
+from sample values, never from interpolated pixel time — a marker that drifts against the grid at
+high zoom is a defect.
+
+### 26A.7 Budget and degradation (FR-WAVE-7)
+
+Two decks rendering detail waveforms plus two jogs at display rate is the §43.3 worst case. The
+renderer:
+
+- Picks the **coarsest pyramid level whose bin width is ≤ 1 device pixel** — never a finer one.
+- Draws into a `Canvas`/Metal layer sized to the strip, not the screen.
+- Degrades under `.serious` thermal state by stepping **one pyramid level coarser** and halving
+  ribbon label density — visibly less detail, never a dropped frame and never audio impact
+  (NFR-THERM-2, §43.7's lane order).
+
+### 26A.8 What "rekordbox-class" means as an acceptance target
+
+The display is complete when, without audio, a user can answer all five from the screen alone:
+where the drop is, whether the bass is currently playing on each deck, whether the two decks'
+grids are aligned, how many bars until the next phrase boundary, and where their cues sit relative
+to that boundary. `AT-WAVE-*` (§47.3) tests exactly these.
 
 ## 27. CLAP semantic embeddings
 
@@ -3864,6 +4196,89 @@ Deck outputs are summed on the **master bus**, passed through a transparent **br
 
 Where feasible the chain uses **`AVAudioSourceNode` per deck** — the deck renders its own summed, EQ'd, filtered stereo block in its render block (all the DSP above executes there, lock-free), and AVAudioEngine handles device I/O and the master mix node. The limiter can be an `AVAudioUnit` (an Audio Unit effect) on the main mixer output, or hand-written in a final source/tap stage. This keeps sample-accurate control (§30) in our code while leaning on the engine for hardware plumbing (§29.3).
 
+## 35A. Beat FX — the beat-synced echo send (new — M5)
+
+M4 shipped EQ, filter, crossfader and limiter (§35.2–35.5). Four of the five core transitions
+(§35B) are performable with exactly those. The fifth — **Echo Out** — is not, and this section
+adds the one DSP block that closes the gap. The FX pads shipped as honest-unavailable in M4;
+this is what makes them live.
+
+### 35A.1 Why post-fader is the whole design
+
+An echo used as a *transition* must keep sounding after its source is removed. If the delay sits
+**pre-fader**, cutting the channel fader kills the source *and* the tail, and the transition
+collapses into a fader cut. The echo therefore sits **post-fader, pre-crossfader**, per channel:
+
+```
+stems → Σ → EQ → filter → trim → channel fader → ECHO SEND → crossfader → master → limiter
+                                                     ↑
+                                         tail survives the fader cut
+```
+
+This placement is normative (FR-TRANS-4). It is also why the echo cannot be a master-bus effect:
+the tail must belong to the outgoing channel while the incoming channel stays dry.
+
+### 35A.2 The kernel
+
+```swift
+public struct BeatEcho: Sendable {          // pure; one per channel
+    public var enabled: Bool                // ON/OFF — momentary or latched
+    public var beats: Double                // 1/4, 1/2, 1, 2, 4 — delay time in beats
+    public var depth: Float                 // 0…1 — wet mix
+    public var feedback: Float              // 0…0.85, clamped — tail length
+}
+```
+
+- **Delay time is derived from the master clock**, not a millisecond value:
+  `delayFrames = beats × (60 / effectiveBPM) × sampleRate`. A tempo change moves the echo with it;
+  a synced pair echoes in time with both decks.
+- The delay line is a **fixed-capacity ring allocated at graph construction**, sized for the
+  slowest supported tempo at 4 beats. The render thread never allocates (§12.3).
+- Changing `beats` **crossfades between read pointers over one buffer** rather than jumping —
+  a pointer jump clicks, and a click during a transition is audible in a way a DJ will not forgive.
+- Feedback is hard-clamped below unity so the tail always decays. A self-oscillating echo is a
+  defect, not a feature.
+- `enabled = false` **stops new input to the line but continues to read the tail** until it decays
+  below the noise floor, then bypasses entirely at zero cost. This is what "echo out" means: the
+  user turns the source off and the tail finishes on its own.
+
+### 35A.3 Controls and RT boundary
+
+`RTCommand` gains `setEchoEnabled` / `setEchoBeats` / `setEchoDepth` / `setEchoFeedback` — POD
+tags on the existing lock-free ring (§12), identical in shape to `setEQ`/`setFilter`. No new
+threading model, no new allocation path, and `RTGuard` covers the kernel exactly as it covers the
+mixer.
+
+### 35A.4 Honest scope
+
+M5 ships **one** Beat FX — the echo — because it is the one the beginner transition set requires.
+The FX module's remaining pads stay honestly unavailable (§36.5's convention) rather than shipping
+a filter-sweep pad that duplicates the filter knob. Additional Beat FX are M6.
+
+## 35B. The five transitions (new — M5)
+
+The product's usability target is stated as a performance, not a feature list: **a DJ who knows the
+five beginner transitions can perform all five here, on the default surface, with no
+configuration** (FR-TRANS-1). Each row below is a normative mapping from a transition to the
+controls that perform it, and each has an acceptance test (`AT-TRANS-*`, §47.3).
+
+| # | Transition | What the DJ does | Controls required | Status after M4 |
+|---|---|---|---|---|
+| 1 | **Bass Swap** | Incoming deck in with LOW killed; on the phrase boundary, swap — outgoing LOW down, incoming LOW up | Per-channel **LOW** with true kill (§35.2), channel faders, phrase ribbon to find the boundary | Engine ✅ · needs §41.9b layout + ribbon |
+| 2 | **Filter Transition** | Sweep the outgoing to high-pass as the incoming comes in; release both to centre | Per-channel **FILTER/CFX** knob, bypassed at centre (§35.3) | Engine ✅ · needs the knob in club position |
+| 3 | **Echo Out** | Echo on the outgoing, cut its fader, let the tail ring into the incoming | **Beat-synced echo, post-fader** (§35A), channel fader | ❌ **new DSP in M5** |
+| 4 | **Fader Cut** | Hard cut on the downbeat, crossfader or channel fader | Crossfader with **sharp curve** (§35.4), quantised visual downbeat from the grid | Engine ✅ · needs curve selection surfaced |
+| 5 | **Blend / Mix** | Long simultaneous blend, EQ trimmed to avoid mud | Channel faders, full 3-band EQ, beat-phase meter, shared-playhead waveforms | Engine ✅ · needs §26A.5 stacked waveforms |
+
+Two consequences the implementation must respect:
+
+- **Only row 3 is new engine work.** Rows 1, 2, 4 and 5 are already performable by the M4 engine —
+  what they lack is *ergonomics and display*, which is why §41.9b and §26A are in the same
+  milestone. The coder should not invent DSP for them.
+- **Each transition is a test, not a mode.** There is no "bass swap mode" in the UI. The five are
+  a coaching concept (FR-TRANS-6, §41.18) and an acceptance family; the surface simply has the
+  right controls in the right places at all times.
+
 ## 36. Stem separation pipeline
 
 ### 36.1 Two moments of stem use
@@ -3966,6 +4381,26 @@ On stop (mockup `ipad/09-recording-finish.html`):
 3. Offer **Keep on device** (done, and the default), **Also sync to my other devices** (marks the asset for optional CloudKit upload, §38.1 — off by default because a 90-minute set is ~170 MB of a 5 GB quota), and **Export / Share** to the Files app or the share sheet with an optional tracklist cue-sheet (FR-REC-4). The mix immediately appears in "Recorded Mixes" (mockup `ipad/10-mixes.html`) and in the free player's library (FR-REC-5).
 
 Recording defaults (format, bitrate, output folder) come from Settings (mockup `ipad/12-settings-storage.html`). The recorder never blocks the engine and never changes what the audience hears — the tap is read-only on the master signal.
+
+### 37.6 Delivery format — why M4A and not MP3 (new — M5)
+
+The natural request is "share it as an MP3", and it is worth recording precisely why the product
+does not, so the decision is not relitigated every milestone.
+
+- **The platform provides no MP3 encoder.** AVFoundation/AudioToolbox decode MP3 but do not
+  encode it. `AVAudioConverter` offers AAC, ALAC, and the uncompressed formats. There is no
+  system API that produces an `.mp3` file.
+- **Producing one requires vendoring a third-party encoder** (LAME being the practical choice),
+  which is a new dependency — a standing prohibition — and carries an LGPL review before it could
+  ship in a paid App Store binary. The repo has a precedent for vendoring C (`sqlite-vec.c`, §9.1),
+  so this is *possible*; it is not *free*, and it is not on M5's critical path.
+- **AAC in M4A satisfies the actual requirement.** The user-facing goal is "a file my friends can
+  play". M4A/AAC plays natively on iOS, Android, macOS, Windows, and in every messaging app a
+  practice set realistically travels through, at better quality per bit than MP3.
+
+**Decision:** M5 ships **AAC 256 kbps in M4A**, and the UI names that format honestly rather than
+promising MP3 (FR-REC-7). An MP3 export option is an **M6 candidate**, gated on the licensing
+review, and is recorded in §50.3 as a deferred item rather than dropped.
 
 
 # Part VI — Multi-Device Sync and the Watch Remote
@@ -4231,7 +4666,7 @@ A purchase flips it and views update; **no relaunch, no reload, no re-analysis**
 
 | Surface | Count | Mockup folder |
 |---|---|---|
-| iPad (regular size class) | 18 files / 14 screens | `mockups/ipad/` |
+| iPad (regular size class) | 20 files / 16 screens | `mockups/ipad/` |
 | iPhone (compact size class) | 12 files / 10 screens | `mockups/iphone/` |
 | watchOS | 1 file / 1 screen | `mockups/watch/` |
 
@@ -4254,7 +4689,12 @@ no CDN, no fonts, no scripts. The shared sheet replaces the previous spec's
 embedded-CSS-per-file convention because thirty files drifting apart visually is worse than one
 relative `<link>`.
 
-Current coverage: **iPad 14/14 · iPhone 10/10 · watchOS 1/1**.
+Current coverage: **iPad 16/16 · iPhone 10/10 · watchOS 1/1**.
+
+**M5 additions:** `ipad/15-genre-picker.html` (§41.1a) and `ipad/16-transitions.html` (§41.18).
+`ipad/07-dj-workspace.html` is **materially revised** by §41.9b — the channel-strip relayout and
+the §26A waveform stack — and its caption records what changed and why, so the M4 layout is not
+mistaken for current.
 
 ### 40.7 The jog control model (both size classes)
 
@@ -4352,6 +4792,23 @@ landscape-locked**; everything else rotates freely.
 - States what will happen next in plain numbers: "~4,200 tracks · about 3 hours of analysis ·
   we'll do it while you're charging."
 
+### 41.1a The genre picker (new — M5; mockup `ipad/15-genre-picker.html`; FR-LIB-10)
+
+First run gains a second, **skippable** step for the user who has no library yet — which is every
+new DJ, and the reason M5's exit narrative would otherwise stall at "open the app".
+
+- A grid of **top-level genres**, each expanding to **sub-genres** where the catalogue exposes
+  them (electronic → techno / house / drum & bass …; hip-hop → boom bap / trap / instrumental …).
+  Multi-select; each selection becomes **its own library** (§18A.3).
+- The step states plainly what it will do: *"Techno · about 400 tracks · we'll fetch the list now
+  and cache the audio you actually use."* Listing is cheap; audio caching is on demand.
+- **"Skip — I have my own music" is a first-class, equally weighted choice.** A user with a Plex
+  server must not be pushed through a picker they do not need.
+- **No account is requested here either**, preserving §41.1's promise. An "I have a
+  <catalogue> account" checkbox is available and collapsed by default; it unlocks favourites and
+  personal playlists and gates nothing (§18A.2).
+- Licence and attribution are stated once, up front, in one sentence — not buried in settings.
+
 ### 41.2 Library (mockup `ipad/02-library.html`)
 
 - **View ▸ VM ▸ data:** `LibraryView` ▸ `LibraryModel` ▸ `DJLibraryStore.tracks`,
@@ -4447,6 +4904,120 @@ what an existing user sees unless they ask for something else.
   it, release outside to cancel. A mistimed grab never changes a loop mid-phrase. This is the
   same idiom the compact surface uses (§42.7b, idiom 3), and the two must behave identically.
 
+### 41.9b Club-standard control ergonomics (new — M5; amends 41.9)
+
+**This subsection supersedes §41.9's centre-column description.** M4 shipped a centre column that
+was laid out to *fit*, not to *transfer*: two EQ groups stacked as "DECK A · EQ" over
+"DECK B · EQ", filters as horizontal sliders in a separate row, and no channel strip at all. That
+arrangement is legible but it is not the instrument a club-trained DJ has in their hands, and
+FR-TRANS-2 makes muscle-memory transfer a requirement rather than a nicety.
+
+**Reference idiom.** The two-channel Pioneer controller (DDJ-FLX4 class) paired with rekordbox.
+We adopt its *conventions* — control order, grouping, and position — not its industrial design,
+its branding, or its exact proportions.
+
+#### The normative arrangement
+
+```
+┌── DECK A ─────────────┐ ┌──── MIXER ────┐ ┌── DECK B ─────────────┐
+│ title · BPM · key     │ │  master meter │ │     title · BPM · key │
+│ overview + phrase     │ │ ┌─CH A─┬─CH B┐│ │     overview + phrase │
+│ ┌──────┐        ┌──┐  │ │ │ TRIM │TRIM ││ │  ┌──┐        ┌──────┐ │
+│ │ JOG  │        │T │  │ │ │  HI  │ HI  ││ │  │ T│        │ JOG  │ │
+│ │      │        │E │  │ │ │ MID  │ MID ││ │  │ E│        │      │ │
+│ └──────┘        │M │  │ │ │ LOW  │ LOW ││ │  │ M│        └──────┘ │
+│  8 perf pads    │P │  │ │ │FILTER│FILT ││ │  │ P│    8 perf pads  │
+│ CUE  PLAY       │O │  │ │ │ ▮▮▮  │ ▮▮▮ ││ │  │ O│      PLAY  CUE │
+│                 └──┘  │ │ │ CUE  │ CUE ││ │  └──┘                │
+│                       │ │ └──┬───┴──┬──┘│ │                      │
+│                       │ │   CROSSFADER  │ │                      │
+└───────────────────────┘ └───────────────┘ └──────────────────────┘
+```
+
+Binding rules, each traceable to FR-TRANS-2:
+
+1. **Per-channel vertical strips, side by side** — not per-function rows. Reading top to bottom
+   within one channel: **TRIM → HI → MID → LOW → FILTER → channel fader → CUE**. This is the
+   single most important change; it is the order every club mixer uses and the order the five
+   transitions are taught in.
+2. **The crossfader is horizontal, bottom-centre, and always visible.** It spans the mixer column
+   beneath both channel strips. It is never in a drawer, never behind a mode.
+3. **CUE sits to the left of PLAY** at each deck's inner base, both ≥ 54 pt. Deck B mirrors
+   horizontally so both decks' transports fall under the inner thumbs.
+4. **The jog is centred in the deck column**, with the **tempo fader on the deck's outer edge** —
+   away from the mixer, where the outer hand rests.
+5. **Eight performance pads**, two rows of four, directly below the jog, with the mode selector
+   (`HOT CUE · PAD FX · BEAT JUMP · SAMPLER`) immediately above them. M4 shipped four pads; eight
+   is the club standard and the pad row is where hot cues live during a transition.
+6. **The filter is a knob in the channel strip**, not a slider in a separate row. Centre-detented,
+   bypassed at centre (§35.3), high-pass right / low-pass left.
+7. **Beat FX (§35A) occupies a compact block below the crossfader**: ON/OFF, beat length, depth.
+   Reachable without leaving the mixer column, because Echo Out is performed with the other hand
+   already on the fader.
+
+#### The geometry, honestly
+
+§41.9's stacked-EQ argument was arithmetically correct for the layout it described — six 44 pt
+knobs in one row need 284 pt against 242 pt of inner width. The channel-strip arrangement does not
+have that problem, because each channel needs only **one knob of width**, not three:
+
+| | M4 (shipped) | M5 (this section) |
+|---|---|---|
+| Mixer column | 268 pt | **320 pt** |
+| Knobs across | 3 (one EQ group) | 2 (one per channel) — 2 × 44 = 88 pt |
+| Knobs down per channel | — | 4 × 44 = 176 pt + labels |
+| Deck column | ~442 pt | **~416 pt** |
+| Jog module (248 + bend columns) | fits | still fits (328 of 416) |
+
+**TRIM is compact.** Five full 44 pt knobs stacked exceed the column's height budget once channel
+faders, crossfader, master meter and the Beat FX block are placed. TRIM — the one control of the
+five not used *during* a transition — renders as a compact control at the strip head; HI, MID, LOW
+and FILTER keep full 44 pt targets (NFR-A11Y-6 is not negotiated away to make a layout fit).
+
+**This changes shipped geometry tests.** `WorkspaceModelTests`' column-budget assertions and
+`ModuleGeometry.jogModuleWidth` are written against `1fr 268px 1fr`; the M5 layout commit updates
+them and must not weaken them — the budget is still asserted, against the new numbers.
+
+**Sequencing note.** Re-laying out *before* the still-unrun §50.3 device pass is deliberate: the
+safe-area, thumb-arc and platter-size assumptions get validated once, against the layout that
+ships, instead of twice against two different layouts.
+
+### 41.9c Per-deck queues (new — M5; FR-ENG-13)
+
+The M5 narrative says "build a Deck A playlist and a Deck B playlist", and that needs a mechanism,
+not an assumption. It is deliberately the smallest one that works:
+
+- **A deck's queue is an ordinary playlist.** No new entity, no new table — the `playlist` /
+  `smart_crate` / `gig_crate` rows already exist and auto-playlists (§28A) already produce them.
+  A genre library (§18A) is itself browsable as a list, so "the techno crate" needs no promotion
+  step before it can feed a deck.
+- **Each deck has its own selector.** The deck's browse surface (the iPad crate strip, the compact
+  crate sheet §42.7) carries a source picker at its head; deck A and deck B may point at
+  **different** playlists simultaneously, which is the entire point.
+- **Loading is one gesture** from that surface, and it goes through the §49.3a/`DeckLoader` path —
+  including the FR-LIB-8 cached-audio gate, so a remote track that is not fully cached is visibly
+  not deck-ready rather than failing at load.
+- **The existing transition ranking is a sort, not a queue.** §28A.2's cost ranking against the
+  playing deck (already shipped in the crate strip) re-orders *within* the selected playlist. It
+  advises; it never picks, never auto-advances, and never overrides the user's order.
+
+Nothing here auto-mixes: there is no "next track plays automatically" behaviour on a deck. The
+queue is a shortlist the DJ loads from, which is what a DJ actually wants and the opposite of what
+a consumer player does.
+
+### 41.18 The transition coach (new — M5; mockup `ipad/16-transitions.html`)
+
+A free, non-modal teaching surface for the §35B five. For each transition: a one-paragraph
+description, when to reach for it, and a **control walkthrough that highlights the real controls
+in place** on the workspace rather than depicting them in an illustration. Rules:
+
+- It **never takes over the surface** — it is a side panel or an overlay the user dismisses; decks
+  keep playing (the §42.7b drawer discipline applies).
+- It **never performs the transition.** No auto-mix, no "do it for me" button. It shows where the
+  hands go; the user moves them. An app that performs the transition teaches nothing.
+- It is **free tier** (FR-TRANS-6) and available before purchase, because it is the honest
+  demonstration of what Pro does.
+
 ### 41.10 Stems & FX detail (mockup `ipad/08-dj-stems-fx.html`)
 
 - A focused view over one deck's four stems with per-stem gain, mute, solo and the cached-stem
@@ -4464,6 +5035,21 @@ what an existing user sees unless they ask for something else.
 - Destination: keep on device · also sync (with the size and the quota consequence stated) ·
   export to Files · share.
 - Offers a tracklist text/cue-sheet export (FR-REC-4).
+
+**New in M5 — the review listen (FR-REC-6).** The finished mix is **playable in place, on this
+screen, the instant it finalises** — a transport under the timeline, seekable, with the track
+events marked so the user can jump straight to the transition they want to hear. No export step,
+no re-encode, no "find it in Mixes". Closing the loop between performing and hearing yourself is
+the point of recording at this stage of learning, and a flow that makes the user hunt for the file
+breaks it.
+
+**New in M5 — attribution (§18A.5).** Where the mix contains tracks from a genre library, the
+finish screen lists artist and licence per track, and the exported cue-sheet carries the same.
+The share action includes it by default. This is what makes a practice set safe to post publicly.
+
+**Format honesty (FR-REC-7).** The screen names the container it is actually producing —
+**M4A / AAC 256 kbps** — and does not offer or imply MP3. The platform ships no system MP3
+encoder; `.mp3` output is deferred to M6 behind a third-party-encoder licensing review (§37.6).
 
 ### 41.12 Mixes (mockup `ipad/10-mixes.html`)
 
@@ -4725,6 +5311,46 @@ Stated because the design is worth less if it overclaims:
   for a surface that moves is not muscle memory.
 - **Simultaneous EQ on both decks.** 152 pt × 2 does not fit 202 pt and no gesture fixes it. This
   is a genuine capability the iPad has and the phone does not.
+
+### 42.7c Club conventions on a 393 pt screen (new — M5)
+
+§41.9b's arrangement assumes an iPad's width. The phone cannot hold two five-control channel
+strips and stay above 44 pt targets, and NFR-A11Y-6 forbids shrinking to make it fit. This
+subsection states what the compact surface keeps, what it moves, and — importantly — what it
+honestly does not attempt.
+
+**The transferable core, always visible** (never in a drawer, never behind a mode):
+
+- **Crossfader** — the §42.7a bottom-edge 1:1 relative surface. Already shipped; unchanged.
+- **Channel faders A/B** — flanking the mixer column, already in `TwinDeckView`.
+- **Filter per deck** — the screen-edge sliders (§42.7b rule 2). A knob does not fit; the edge
+  slider is always live and never occluded, which preserves Filter Transition (§35B row 2) as a
+  one-thumb move. This is a *substitution of form, not of function*, and is the one place the
+  compact surface deliberately departs from the club control shape.
+- **CUE left of PLAY** at each deck's inner base, ≥ 54 pt — identical to §41.9b rule 3.
+- **Jog** centred per deck, 168 pt (§42.7a).
+
+**Moved into the momentary bank drawer** (§42.7b, spring-loaded, dismisses on release):
+
+- **EQ — HI / MID / LOW as three 44 pt knobs**, which is what makes Bass Swap (§35B row 1)
+  performable on a phone. The drawer's spring-loading is the enabling idiom: press, kill the low,
+  release, and the drawer is gone within one frame with the kill still applied.
+- **TRIM**, pads, cues, and stems, per the existing bank tabs.
+
+**Beat FX (§35A)** gets a dedicated compact treatment: a single **ECHO** button in the always-visible
+band with a long-press flyout for beat length and depth, using the same release-to-commit idiom as
+LOOP (§42.7b idiom 3). Echo Out is a two-control transition — echo on, fader down — so both controls
+must be reachable without a drawer.
+
+**What the phone does not attempt.** It does not render two full channel strips, and it does not
+claim to. The honest statement in the UI and in the docs is that **the phone is a capable
+performance surface and the tablet is the training-transfer surface**; a user learning to move
+from a club controller should be pointed at the iPad layout (§41.9b). Pretending otherwise on a
+393 pt screen would fail FR-TRANS-2 quietly, which is worse than scoping it openly.
+
+**AT-TRANS-\* runs on both surfaces.** The five transitions are acceptance-tested against the
+compact surface as well, with the drawer interactions in the script — if Bass Swap cannot be
+performed on the phone, that is a finding, not an accepted limitation.
 
 ### 42.8 Stems & cue (mockup `iphone/06-stems-cue.html`)
 
@@ -5207,6 +5833,9 @@ Each functional-requirement family has explicit acceptance tests referenced thro
 | **AT-GRID-\*** | FR-PREP | Analyzed grids match golden BPM/downbeats within tolerance; manual `grid_correction` overrides without mutating immutable analysis and persists (`ipad/06`, §23.3). |
 | **AT-ENGINE-\*** (incl. **AT-ENGINE-SYNC-\***) | FR-ENG | Offline-rendered output shows sample-accurate cues/loops, correct time-stretch with key-lock, and phase-aligned sync; render-load stays within budget; no RT-unsafe calls (`ipad/07`, §30–34). |
 | **AT-TWIN-\*** | FR-ENG-10, FR-ENG-11, FR-ENG-12, NFR-A11Y-6 | **AT-TWIN-1** rotating to landscape mid-playback changes no engine state — both decks continue, sample-accurate; **AT-TWIN-2** with a bank drawer open the crossfader, both waveforms, the beat-phase meter and the opposite jog remain hit-testable; **AT-TWIN-3** releasing a held bank tab restores the jog within one frame and a pinned bank dismisses after 12 s idle; **AT-TWIN-4** no jog code executes on the render thread under the §46.3 shim (`iphone/05c`, `iphone/05d`, `ipad/07b`). |
+| **AT-WAVE-\*** *(new — M5)* | FR-WAVE | **AT-WAVE-1** analysis persists a beat grid with real `firstBeatSample`/`beatCount`, downbeat rows, phrase rows and a band-split pyramid — a re-read after analysis returns all four (§19.4); **AT-WAVE-2** the render model's colour split for a synthesised bass-only / mid-only / treble-only signal puts the energy in the expected band; **AT-WAVE-3** beat-grid positions composed with a `grid_correction` match what the engine quantises to, sample for sample; **AT-WAVE-4** the phrase ribbon's spans and bar lengths equal the persisted `phrase` rows, and a low-confidence span is marked, not hidden; **AT-WAVE-5** an unanalysed track renders the honest empty state and never synthetic geometry; **AT-WAVE-6** cue and loop markers land on their sample positions at every zoom level; **AT-WAVE-7** the renderer selects the coarsest pyramid level ≤ 1 px/bin and steps one level coarser at `.serious` (§26A.7). |
+| **AT-TRANS-1..5** *(new — M5)* | FR-TRANS, §35B | Each of the five beginner transitions is driven as a scripted command sequence against the **offline render** and asserted in the output buffer: **1 Bass Swap** — killing LOW removes the low band from that channel and the other channel's low is unaffected; **2 Filter Transition** — a full high-pass sweep on the outgoing leaves the incoming spectrum unchanged, and both filters at centre are bit-exact bypass; **3 Echo Out** — with the echo enabled and the channel fader taken to zero, the master bus **still contains a decaying tail** at the beat-synced interval, and the tail decays monotonically to silence (§35A.2); **4 Fader Cut** — a sharp-curve crossfader cut on a downbeat produces a sample-accurate transition with no zipper artefact; **5 Blend** — a simultaneous two-deck blend stays inside the limiter ceiling. Each also runs as a **layout assertion** on both surfaces: every control the transition needs is present, ≥ 44 pt, and not occluded (§41.9b, §42.7c). |
+| **AT-GENRE-\*** *(new — M5)* | FR-LIB-9, FR-LIB-10, §18A | A genre subscribes as its own `Source` with popularity-descending order; sub-genres are distinct libraries; **browsing and playback work with no account** and the optional-credentials path changes nothing about availability; a cached genre track analyses and loads to a deck through the ordinary path; a partially cached track is never deck-ready (FR-LIB-8); licence and attribution survive to the library row, the finish screen and the cue-sheet (§18A.5); a network failure reports itself rather than presenting an empty library (§18A.6); the connector appears in the free-tier registry (AT-FREE-\*). |
 | **AT-SESS-\*** | FR-SESS | Seven gates in §34A.7: route loss pauses rather than blasting the speaker, a phone call mid-recording costs at most one segment, media-services reset recovers in 300 ms, displayed latency equals granted latency on every route. |
 | **AT-THERM-\*** | NFR-THERM | A 90-minute two-deck session with prepared stems on battery at 50% brightness never reaches `.critical`, never drops a buffer, and sheds lanes in exactly the §43.7 order. **This is a shipping gate for M4.** |
 | **AT-MEM-\*** | NFR-REL-4 | The same session never crosses the §43.5 footprint ceiling and the app is never terminated by the watchdog. |
@@ -5249,7 +5878,7 @@ flowchart LR
     M1 --> M2["M2 Semantic<br/>CLAP ODR · vectors · search"]
     M2 --> M3["M3 Auto-playlists<br/>sequencer · arcs"]
     M3 --> M4["M4 Engine<br/>2 decks · sync · StoreKit"]
-    M4 --> M5["M5 Stems · recording<br/>gig crates"]
+    M4 --> M5["M5 Waveforms · club ergonomics<br/>genre libraries · stems · recording"]
     M5 --> M6["M6 Hardware · cue<br/>Watch · polish"]
     M2 -.->|"ship: 2.0 free"| R1((App Store))
     M3 -.->|"ship: 2.1 free"| R1
@@ -5328,13 +5957,61 @@ The milestone that makes a promise before it builds a feature.
 - **Exit:** AT-ENGINE-\* green, a 60-minute two-deck session inside NFR-THERM-1, and a purchase
   that unlocks the decks without a relaunch (AT-STORE-2). **Ship 3.0.**
 
-### 48.6 M5 — Stems, recording, gig crates
+### 48.6 M5 — **The milestone where it becomes a DJ app**
 
-- Demucs Core ML conversion, GPU/ANE scheduling and back-pressure, stem cache (§36).
-- Gig crates: promotion from a playlist, budgeted separation, LRU eviction (§41.17, FR-ANL-9).
-- Recording pipeline, segmented flush, crash recovery, finish flow, export (§37, §41.11).
-- **Exit:** AT-STEM-\* and AT-REC-\* green; a recording survives a forced termination with at
-  most the final segment lost (NFR-REL-2).
+M5 was scoped as "stems, recording, gig crates" — three subsystems. It is re-scoped here as an
+**outcome**, because the subsystems were on track to land without the product being usable: after
+M4 the engine is complete and correct, and yet no track can reach a deck, no waveform shows real
+audio, and nothing in the shipping app opens a performance surface at all.
+
+**The milestone is complete when the owner can perform this end to end, on a device, without
+developer assistance:**
+
+> Open the app → pick a genre (say **electronic → techno**) → get a library of current, legally
+> usable tracks ordered by interest → build a Deck A playlist and a Deck B playlist → open the
+> workspace → mix, using all five beginner transitions (Bass Swap, Filter, Echo Out, Fader Cut,
+> Blend) with the controls where a club-trained hand expects them → record a 20-minute set →
+> **listen to it immediately, in the app** → share it with a friend as a file that plays.
+
+Everything below serves that sentence.
+
+**Delivered:**
+
+- **The unblockers M4 left behind** — an app-side entry point into the DJ surfaces, and the
+  library → decode → deck load seam. Without these the narrative cannot start (§49.3a).
+- **Analysis persistence** (§19.4) — beat grid, downbeats, phrases and the band-split waveform
+  pyramid actually written, closing the gap that made every waveform placeholder geometry.
+- **Rekordbox-class waveform display** (§26A) — frequency-coloured, beat-gridded, phrase-ribboned,
+  overview + scrolling detail on a shared playhead (FR-WAVE-1..7).
+- **Club-standard control ergonomics** (§41.9b, §42.7c) — per-channel TRIM→HI→MID→LOW→FILTER
+  strips over vertical channel faders, bottom-centre crossfader, CUE left of PLAY, eight
+  performance pads, tempo fader on the outer edge (FR-TRANS-1/2).
+- **Beat FX: the post-fader beat-synced echo** (§35A) — the one piece of new DSP, and the only
+  thing standing between the M4 engine and all five transitions (FR-TRANS-4).
+- **Genre libraries** (§18A) — practice material with no account and no pre-existing collection
+  (FR-LIB-9/10), plus the first-run genre picker (§41.1a).
+- **Stems, recording, gig crates** — the original M5 scope, unchanged in substance: separation +
+  cache (§36), stem voices on decks (§35.1), gig crates (§41.17), the record tap → segmented M4A
+  → crash-recovery journal (§37), and **the review listen** (FR-REC-6, §41.11).
+- **The transition coach** (§41.18, FR-TRANS-6) — free, teaching, never performing.
+
+**Exit:**
+
+1. **AT-STEM-\*** and **AT-REC-\*** green; a recording survives a forced termination with at most
+   the final segment lost (NFR-REL-2).
+2. **AT-WAVE-\*** green — the waveform renders from persisted analysis, not placeholders.
+3. **AT-TRANS-1..5** green — each of the five transitions asserted in the offline render *and*
+   as a layout assertion on both the tablet and compact surfaces.
+4. **AT-GENRE-\*** green — a genre subscribes, caches, analyses and reaches a deck, with no account.
+5. **The narrative above, performed on a device by the owner** — one 20-minute recorded set using
+   all five transitions, played back in-app, exported and played on a second device. This is a
+   **user-owned shipping gate**, run in the post-M5 device pass alongside M4's deferred
+   AT-THERM-1 and AT-MEM-1. It is the gate that matters; the other four are how we know it will
+   pass.
+
+**Ships?** No — M5 remains an internal milestone. But it is the first build where the product's
+own thesis is testable, and the §50.3 device assumptions are validated against **this** layout,
+not M4's.
 
 ### 48.7 M6 — Hardware, cue, Watch, polish
 
@@ -5354,7 +6031,7 @@ The milestone that makes a promise before it builds a feature.
 | M2 | Semantic search | ✅ **2.0 free** | FR-SEM-3 |
 | M3 | Auto-playlists | ✅ **2.1 free** | FR-PLIST-2/8 |
 | M4 | Engine + StoreKit | ✅ **3.0 Pro launch** | AT-ENGINE-\*, NFR-THERM-1 |
-| M5 | Stems, recording, gig crates | — | AT-STEM-\*, AT-REC-\* |
+| **M5** | **Waveforms, club ergonomics, genre libraries, stems, recording** | — | AT-STEM-\*, AT-REC-\*, **AT-WAVE-\***, **AT-TRANS-1..5**, **AT-GENRE-\***, + the owner's end-to-end set |
 | M6 | Hardware, cue, Watch, polish | ✅ **3.1** | AT-MIDI-\*, AT-WATCH-\* |
 
 ## 49. Coding-agent execution guide
@@ -5394,6 +6071,29 @@ mechanism.
 7. **Analysis output must stay deterministic and cross-silicon-identical** (NFR-DET-3). No
    fast-math, no reassociation, no parallel reduction with nondeterministic ordering.
 8. **The thermal governor is never bypassed** to make a benchmark look better.
+9. *(new — M5)* **A computed artifact with a destination table gets written.** Returning a count
+   or a level number in place of the data is the analysis-layer form of a silent fallback (§19.4,
+   §46.2), and it is how every waveform in the product came to be placeholder geometry.
+10. *(new — M5)* **A control that a specified transition requires may not live behind a mode.**
+    §35B's five are performable from the default surface or the layout is wrong (FR-TRANS-1).
+
+### 49.3a Reachability — the invariant M4 violated (new — M5)
+
+Through M4 the entire DJ feature set compiled, linked into the app binary, and passed 1,183 tests
+while being **unreachable from the running app**: no view outside `Sources/DJ/` referenced any
+performance surface, and `WorkspaceModel` held no reference to the library. The engine was
+correct and the product was not usable.
+
+Two standing checks follow, and they apply to every milestone from here:
+
+1. **A feature is not done until it is reachable.** Every user-facing surface a milestone
+   delivers must have a navigable path from the app's root, exercised by a test or a UI regression
+   lane. "It compiles and its unit tests pass" is not delivery.
+2. **A feature is not done until real data flows through it.** A surface fed only by fakes and
+   placeholder geometry has not been integrated; the seam that carries real data is part of the
+   feature, not a follow-up.
+
+Both are M5 commit-1 work precisely because they are cheap to fix and expensive to keep deferring.
 
 ### 49.4 Definition of done (per commit)
 
@@ -5464,6 +6164,27 @@ the tier the change lands in.
 - That two jogs rendering at display rate stay inside the §43.3 GPU budget — measure on the
   thermal-floor device with Liquid Glass already forced off by an active separation (§42A), which
   is the worst case and the one a benchmark on an idle device will miss.
+
+**New in M5:**
+
+- That **two frequency-coloured detail waveforms plus two jogs** at display rate stay inside the
+  §43.3 budget — a harder case than the jog-only measurement above, and the one that decides
+  whether §26A.7's degradation ladder is enough. Validate in M5 on the thermal-floor device.
+- That the **channel-strip layout (§41.9b) actually transfers** — validate in M5 with three
+  people who mix on a two-channel club controller, by asking them to perform the five transitions
+  with no instruction. If they hunt for a control, that control is in the wrong place. This is a
+  measurement, not an argument, and it is why the layout lands before the device pass rather than
+  after it.
+- That the **Jamendo catalogue is deep enough per sub-genre** to build two usable deck playlists —
+  validate in M5 against the real API for the three genres the owner would actually practise
+  with. If a sub-genre returns a thin or stale list, the genre picker should not offer it.
+- That the **owner's `client_id` registration** and the catalogue's terms permit the shipped usage
+  pattern at the volumes a real user generates. User-owned, and a precondition of shipping §18A.
+- That **`grid_correction` composed at render time is fast enough** to redraw the grid at
+  performance zoom without a frame hitch on a track with many corrections (§26A.3).
+- **Deferred, recorded rather than dropped:** MP3 export via a vendored encoder (§37.6) — an M6
+  candidate contingent on an LGPL review. Revisit only if real users ask for `.mp3` specifically
+  rather than "a file I can send someone".
 
 ---
 ---
@@ -7128,29 +7849,63 @@ AT-TWIN-\*, and **AT-THERM-1 as a shipping gate** — a 60-minute two-deck sessi
 measured. The §50.3 device assumptions behind §42.7a (safe-area insets, thumb arc, platter size) are checked on the
 first TestFlight build of this milestone, before the layout is fixed.
 
-## M.6 Milestone M5 — Stems, recording & gig crates
+## M.6 Milestone M5 — Waveforms, club ergonomics, genre libraries, stems & recording
 
-**Plan:** `docs/plans/dj-phase-4-stems-recording.md`
+**Plan:** `docs/plans/dj-phase-4-stems-recording.md` (the appendix's original filename; the plan's
+scope is §48.6's re-scoped milestone).
+
+**Order matters here more than in any previous milestone.** The narrative in §48.6 is a chain, and
+the chain is only as useful as its first broken link: reachability → data seam → persistence →
+render → ergonomics → the missing DSP → material → then the original stems/recording scope.
+§49.2's rule (schema → pure kernels → façade → view model → view) applies *within* each commit.
 
 | File | Purpose |
 |---|---|
+| **`Sources/Features/…` (app-side, edit)** | **the DJ entry point** — a navigable route from the app root to the performance surfaces (§49.3a) |
+| **`Sources/DJ/Features/Workspace/DeckLoader.swift`** | **library → decode → `DeckSource` seam**; the FR-LIB-8 cached-audio gate |
+| **`Sources/DJ/Analysis/AnalysisCoordinator.swift` (edit)** | **persist phrases, downbeats, real beat grid + `beat_blob`, band-split pyramid** (§19.4) |
+| **`Sources/DJ/Data/WaveformRepository.swift`** | read side — pyramid slice + grid + phrases + cues → `WaveformRenderModel` (§26A.1) |
+| **`Sources/DJ/Features/Waveform/WaveformRenderer.swift`** | frequency-coloured, beat-gridded `Canvas` renderer; pyramid-level selection + thermal degradation (§26A.2/.7) |
+| **`Sources/DJ/Features/Waveform/PhraseRibbon.swift`** | labelled phrase spans, bar lengths, low-confidence marking (§26A.4) |
+| **`Sources/DJ/Engine/BeatEcho.swift`** | pure post-fader beat-synced delay kernel (§35A.2) |
+| `Sources/DJ/Engine/RTCommand.swift` (edit) | `setEcho*` tags; stem tags |
+| **`Sources/Domain/Entities.swift` (edit)** | `SourceKind.jamendoGenre` (§18A.3) |
+| **`Sources/Remote/Providers/JamendoGenreProvider.swift`** | genre listing, popularity ordering, licence passthrough (§18A) |
+| **`Sources/DJ/Features/Onboarding/GenrePickerView.swift`** + model | mockup `ipad/15-genre-picker.html` (§41.1a) |
+| **`Sources/DJ/Features/Coach/TransitionCoachView.swift`** + model | mockup `ipad/16-transitions.html` (§41.18) |
 | `Sources/DJ/Stems/StemSeparator.swift` | Demucs Core ML, chunk/overlap-add (§36) |
 | `Sources/DJ/Stems/StemCache.swift` | content-addressed `.caf` cache, versioned (§36.4) |
-| `Resources/DemucsStems.mlpackage` | bundled model (App. D) |
 | `Sources/DJ/Engine/StemVoices.swift` | four-voice deck summing (§35.1) |
 | `Sources/DJ/Recording/RecordTap.swift` | RT-safe master tap → ring (§37.2) |
 | `Sources/DJ/Recording/Encoder.swift` | encoder actor → segmented M4A (§37.2) |
 | `Sources/DJ/Recording/RecordingService.swift` | journal, finalize, recovery (§37) |
 | `Sources/DJ/Recording/MixTimeline.swift` | event log → `mix_track_event` (§37.4) |
-| `Sources/DJ/Features/Finish/RecordingFinishView.swift` + model | mockup `ipad/09-recording-finish.html` |
+| `Sources/DJ/Features/Finish/RecordingFinishView.swift` + model | mockup `ipad/09-recording-finish.html`; **the review listen** (FR-REC-6) |
 | `Sources/DJ/Features/Mixes/MixesView.swift` + model | mockup `ipad/10-mixes.html` |
-| `Tests/DJTests/RecordingRecoveryTests.swift`, `StemCacheTests.swift` | crash recovery + cache versioning |
+| `Tests/DJTests/{WaveformPersistenceTests,WaveformRenderTests,BeatEchoTests,TransitionTests,GenreLibraryTests,RecordingRecoveryTests,StemCacheTests}.swift` | AT-WAVE-\*, AT-TRANS-\*, AT-GENRE-\*, AT-REC-\*, AT-STEM-\* |
 
-**Commits:** (5.1) Demucs ODR + separation + cache + version stamp; (5.2) stem voices live on decks, with the honest
-disabled state when unprepared (§36.5); (5.3) **gig crates** — promotion from a playlist, budgeted separation,
-LRU eviction shown before it happens (§41.17); (5.4) record tap + encoder + segmented file;
-(5.5) journal + crash/interruption recovery + finalize; (5.6) Finish + Mixes screens + timeline + export.
-**Exit:** M5 (§48.6), AT-STEM-\*, AT-REC-\*.
+**Commits:**
+(5.1) **reachability + deck load seam** — the app-side entry point and library → deck path (§49.3a);
+(5.2) **analysis persistence** — phrases, downbeats, real beat grid, band-split pyramid (§19.4, AT-WAVE-1);
+(5.3) **waveform render** — colour, grid, phrase ribbon, overview + detail, shared playhead (§26A, AT-WAVE-2..7);
+(5.4) **club ergonomics** — the §41.9b channel-strip relayout, 8 pads, tempo faders, compact adaptation (§42.7c), geometry tests updated;
+(5.5) **Beat FX echo** — the post-fader beat-synced delay (§35A) + AT-TRANS-1..5 across both surfaces;
+(5.6) **genre libraries** — `SourceKind.jamendoGenre`, the provider, the first-run picker (§18A, §41.1a, AT-GENRE-\*);
+(5.7) Demucs ODR + separation + cache + version stamp;
+(5.8) stem voices live on decks, honest disabled state when unprepared (§36.5);
+(5.9) **gig crates** — promotion, budgeted separation, LRU eviction shown before it happens (§41.17);
+(5.10) record tap + encoder + segmented file;
+(5.11) journal + crash/interruption recovery + finalize;
+(5.12) Finish + Mixes + timeline + export + **review listen** + attribution (§41.11, FR-REC-6/7);
+(5.13) the transition coach (§41.18, FR-TRANS-6).
+
+**Sequencing note.** 5.1–5.3 are the unblockers and are worth landing before anything else in the
+milestone: until they exist, no other commit can be verified against a real track. 5.4's relayout
+lands *before* the deferred §50.3 device pass so the device assumptions are checked once, against
+the layout that ships.
+
+**Exit:** M5 (§48.6) — AT-STEM-\*, AT-REC-\*, **AT-WAVE-\***, **AT-TRANS-1..5**, **AT-GENRE-\***,
+plus the owner's end-to-end recorded set as the user-owned shipping gate.
 
 ## M.7 Milestone M6 — Hardware, cue, Watch, polish; v3.1
 
@@ -7376,6 +8131,35 @@ Because Platterhead ships as an open-source (GPL-3.0) application that also bund
 | **Apple frameworks** | AVFoundation, Accelerate/vDSP, CoreML, CoreMIDI, CoreAudio, CloudKit, SwiftUI | SDK | Apple SDK terms | Platform-native; the Apple-Silicon thesis (§1) |
 
 The **only** third-party Swift package additions beyond the platform are GRDB (already present) and the vendored sqlite-vec C target — a deliberately small, auditable surface (§45.5). No analytics/crash SDKs are present, which the zero-telemetry CI gate enforces (§45.3).
+
+### Q.1a Network hosts (new — M5)
+
+The app contacts no host of its own. Every network destination is either a **server the user
+supplied** (the ten remote-library providers) or the platform's own (CloudKit). M5 adds the first
+exception, and it is recorded here because "no new network hosts" is a standing rule that only an
+owner decision can lift (handoff §9).
+
+| Host | Role | Tier | Credential | Authorised |
+|---|---|---|---|---|
+| `api.jamendo.com` | Genre-library catalogue — listing, popularity ordering, licence metadata (§18A) | **Free** | `client_id`, an **application** credential registered once by the owner; no user account (§18A.2) | Owner decision, M5 |
+
+Three constraints ride with it:
+
+- **The Free Music Archive was evaluated and rejected**, not overlooked. FMA shut down their
+  public API, and their app-developers page prohibits both hotlinked playback and scraped browse
+  queries — the two operations this feature needs. Building against FMA requires written
+  permission from FMA first (§18A.2).
+- **The catalogue is Creative Commons**, so licence identifiers and attribution must survive to
+  the library row, the recording finish screen, and the exported cue-sheet (§18A.5). This is a
+  licensing obligation on *shipped user content*, not a nicety.
+- **CI never touches the live host.** Provider tests run against recorded fixtures (Appendix R);
+  the real `client_id` lives in `.test-credentials`, which is gitignored and never committed.
+
+**Deferred, and tracked here rather than dropped:** an **MP3 encoder** (LAME or equivalent) for
+FR-REC-7. The platform ships no system MP3 encoder, so `.mp3` export would be the first
+third-party *runtime* dependency since sqlite-vec, under LGPL, inside a GPL-3.0-distributed
+commercial binary. M5 ships AAC/M4A instead (§37.6); revisit in M6 only with a completed licence
+review.
 
 ## Q.2 Model weights (the licensing-sensitive part)
 

@@ -9,9 +9,11 @@ audit table §9).
 
 ## Milestone
 
-**M5 — stems, recording & gig crates** (spec §48.6, Appendix M.6), working from
-`docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; commits 5.1–5.6 to
-come. Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware)
+**M5 — the milestone where it becomes a DJ app** (spec §48.6 **re-scoped**, Appendix
+M.6 rewritten), working from
+`docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; commits **5.1–5.13** to
+come. Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware,
+the club-controller transfer test, and **the milestone's own end-to-end narrative**)
 are user-owned and defer to a post-M5 device pass. M4 — the two-deck engine,
 `AVAudioSession`, and StoreKit (the 3.0 Pro launch, spec §48.5, Appendix M.5) — is
 **complete**: plan `5e8b731` + commits 4.1–4.13 are all on `main`. Its user-owned ship gates
@@ -59,31 +61,60 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — plan committed, commits 5.1–5.6 ahead.** The stems / recording / gig-crate
-milestone (spec §48.6, Appendix M.6), working from
-`docs/plans/dj-phase-4-stems-recording.md` (plan commit in this entry):
+**M5 — re-scoped, plan rewritten, commits 5.1–5.13 ahead.** The milestone is no longer
+"stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
-- Commit sequence (§5 of the plan): **5.1** Demucs ODR + separation + cache + version
-  stamp; **5.2** stem voices live on decks with the honest disabled state when
-  unprepared (§36.5); **5.3** gig crates — promotion from a playlist, budgeted
-  separation, LRU eviction shown before it happens (§41.17); **5.4** record tap +
-  encoder + segmented file (§37.2); **5.5** journal + crash/interruption recovery +
-  finalize (NFR-REL-2); **5.6** Finish + Mixes screens + timeline + export (§41.11,
-  §41.12).
-- **Recorded decisions (plan §2):** no committed `DemucsStems.mlpackage` — the
-  separator runs against a `StemModelProviding` ODR seam (the M2 `ModelResourceService`
-  pattern) with a deterministic fake model in tests, and the real model conversion is
-  user-owned; stems are a **source-level swap** (`StemSet` armed like `DeckSource`) so
-  a deck with no stem set is byte-for-byte the existing single-source reader (every
-  4.3–4.5 frame-exact test stays valid); recording tables (`performance_session`,
-  `mix`, `mix_track_event`, `mix_asset`) + `stem_cache` land in a new **`dj_v4`**
-  migration (they are not in the repo's `dj_v1`); the record tap is a post-limiter
-  RT-safe ring copy drained by an encoder actor into a segmented M4A; the timeline is
-  fed control-side, never from the render thread; CloudKit mix-sync is M6 (local-only
-  with the honest `localOnly` default in M5); FR-REC-5 is satisfied structurally in
-  the DJ mixes library. No new dependency, no new network host, no `xcodegen generate`.
-- The on-device AT-STEM-\* rows and a real Demucs run are the user-owned post-M5 pass
-  (plan §2.12), joining M4's deferred AT-THERM-1/AT-MEM-1.
+> Open the app → pick a genre (**electronic → techno**) → get a library of current,
+> legally usable tracks ordered by interest → build a Deck A and a Deck B playlist →
+> mix, using all five beginner transitions with the controls where a club-trained hand
+> expects them → record a 20-minute set → **listen to it immediately, in the app** →
+> share it as a file that plays.
+
+**Why the re-scope.** After M4 the engine is complete and correct, and the product is
+not usable: verified on `main` — **nothing outside `Sources/DJ/` references any
+performance surface** (the only app-side `import TonearmDJ` is `AnalysisView`/
+`AnalysisModel`; `RootView` has no DJ route), **`WorkspaceModel` holds no library
+reference** so no real track can reach a deck, and **`AnalysisCoordinator.persist`
+writes nothing to `phrase`, `downbeat` or `waveform_pyramid`** while `beat_grid` gets
+`firstBeatSample: 0, beatCount: 0` — which is why every waveform in the product is
+placeholder geometry. The stems/recording work would have landed on top of all three.
+
+- **Commit sequence (plan §5).** Unblockers first: **5.1** app entry point + library →
+  deck seam (§49.3a); **5.2** analysis persistence (§19.4); **5.3** the §26A waveform
+  render; **5.4** club-standard control ergonomics (§41.9b, §42.7c); **5.5** Beat FX
+  echo + AT-TRANS-1..5 (§35A, §35B); **5.6** genre libraries (§18A, §41.1a). Then the
+  original scope: **5.7** Demucs ODR + cache; **5.8** stem voices on decks; **5.9** gig
+  crates + storage budget; **5.10** record tap + encoder; **5.11** journal + recovery;
+  **5.12** Finish + Mixes + **the review listen**; **5.13** the transition coach.
+- **New spec material** (all written, all cross-referenced): **§19.4** persisted
+  analysis artifacts · **§26A** rekordbox-class waveform display · **§35A** the
+  post-fader beat-synced echo · **§35B** the five transitions → control mapping ·
+  **§18A** genre libraries · **§41.1a** genre picker · **§41.9b** club ergonomics ·
+  **§42.7c** compact adaptation · **§41.18** transition coach · **§37.6** why M4A not
+  MP3 · **§49.3a** the reachability invariant. New FR families **FR-WAVE-1..7**,
+  **FR-TRANS-1..6**, FR-LIB-9/10, FR-REC-6/7. New AT families **AT-WAVE-\***,
+  **AT-TRANS-1..5**, **AT-GENRE-\***.
+- **Owner decisions taken this session (handoff §9 items):** the music source is
+  **Jamendo, not the Free Music Archive** — FMA shut down their public API and their
+  terms prohibit both hotlinked playback and scraped browsing, the two things the
+  feature needs; the export format is **AAC/M4A, not MP3** — the platform ships no
+  system MP3 encoder and `.mp3` would need a vendored LGPL encoder, deferred to M6.
+  **One new network host** (Jamendo), owner-authorised; **still no new dependency**.
+- **Only one piece of new DSP in the whole milestone:** the §35A echo. Four of the five
+  transitions are already performable by the M4 engine — what they lacked was
+  ergonomics and display, which is why the relayout and the waveforms are in the same
+  milestone. The coder should not invent DSP for the other four.
+- `xcodegen generate` **is** needed in 5.1 and 5.6 only (app-target + `Sources/Domain`/
+  `Sources/Remote` files); 5.2–5.5 and 5.7–5.13 are DJ-only (plan decision 25).
+- **Mockups:** `ipad/07-dj-workspace.html` rebuilt to the channel-strip layout with the
+  §26A waveform stack; `ipad/09-recording-finish.html` gains the review listen;
+  **new** `ipad/15-genre-picker.html` and `ipad/16-transitions.html`; `platterhead.css`
+  gains the waveform/ribbon/channel-strip idioms; index + README + §40.5/40.6 inventory
+  updated (iPad now 16/16).
+- The on-device rows — real Demucs timing, the club-controller transfer test with three
+  trained users, two coloured waveforms + two jogs inside the §43.3 budget, catalogue
+  depth per sub-genre, and **the end-to-end narrative itself** — are the user-owned
+  post-M5 pass, joining M4's deferred AT-THERM-1/AT-MEM-1.
 
 **M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
 The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
@@ -554,12 +585,16 @@ to keep it from failing in a clock-capped Low Power Mode state.
 
 ## Next
 
-- **M5 commits 5.1–5.6** (`docs/plans/dj-phase-4-stems-recording.md`, §5): stems
-  separation + cache (5.1), stem voices on decks (5.2), gig crates + storage budget
-  (5.3), record tap + encoder (5.4), journal + crash recovery (5.5), Finish + Mixes +
-  timeline + export (5.6). **Exit:** AT-STEM-\*, AT-REC-\* green; a recording survives
-  a forced termination with at most the final segment lost (NFR-REL-2). On-device rows
-  (real Demucs timing/thermal) defer to the post-M5 device pass.
+- **M5 commit 5.1 — app entry point + library → deck seam** (`docs/plans/dj-phase-4-stems-recording.md`
+  §5, spec §49.3a). Start here: a navigable Pro-gated route from `RootView` to the
+  performance surface, plus `DeckLoader` (resolve → FR-LIB-8 cached gate → decode →
+  `DeckSource`). **`xcodegen generate` required and committed.** Until this lands,
+  nothing else in M5 can be verified against a real track.
+- Then **5.2** analysis persistence → **5.3** waveform render → **5.4** club
+  ergonomics → **5.5** Beat FX echo + AT-TRANS → **5.6** genre libraries → **5.7–5.13**
+  the original stems/recording/gig-crate scope. **Exit:** AT-STEM-\*, AT-REC-\*,
+  AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\* green, plus the owner's end-to-end recorded
+  set as the user-owned shipping gate.
 - **Post-M4 device pass** (user-owned ship gates, one pass per handoff §8 and the M4
   plan §2.11): **AT-THERM-1** (60-minute two-deck session, battery, 50% brightness,
   never `.critical`, §43.7), **AT-MEM-1** (the same session never crosses the §43.5
@@ -576,9 +611,11 @@ to keep it from failing in a clock-capped Low Power Mode state.
   real-device FR-SEM-3 measurement.
 - **M1 exit-gate leftovers** (blocked, user-owned): paid products in App Store
   Connect; Plex claim token + cloud OAuth registrations into `.test-credentials`.
-- **M5** — stems (`StemSeparator` Demucs Core ML, §36) — **in progress**; the `dj_v4`
-  migration adds the recording tables + `stem_cache`; recording (§37) ships with M5;
-  then M6 hardware/Watch.
+- **M5** — **in progress**, re-scoped (see Working on). The `dj_v4` migration adds the
+  recording tables + `stem_cache`; `phrase`/`downbeat`/`waveform_pyramid`/`beat_blob`
+  already exist in `dj_v2` and only need writing (plan §4). Then M6 hardware/Watch.
+- **Deferred to M6, recorded not dropped:** MP3 export via a vendored encoder (§37.6),
+  contingent on an LGPL review; additional Beat FX beyond the echo (§35A.4).
 
 ## Standing rules in play
 
@@ -586,9 +623,12 @@ Work on `main`, one commit per numbered task, no `Co-Authored-By` trailer (owner
 preference). **Ask before `git push`** (push triggers CI + TestFlight). Every commit
 runs the full local suite in the pre-commit hook (allow ~5 min). `xcodegen generate`
 after project.yml changes (DJ-only file additions under `Sources/DJ/**` need no regen —
-the app target excludes `DJ/**`; TonearmDJ is the SPM target). No new network hosts,
-no new dependencies, no StoreKit outside `Sources/Pro/`, no `#if os(...)` around DJ
-core modules. Swift 6 language mode + strict concurrency, warning-free.
+the app target excludes `DJ/**`; TonearmDJ is the SPM target — **but M5 commits 5.1 and
+5.6 touch app-target / `Sources/Domain` / `Sources/Remote` files and DO need regen**).
+**One new network host is authorised for M5** — the Jamendo API, owner-approved under
+handoff §9, recorded in the plan (decision 20) and §18A.2; no others. Still **no new
+dependencies**, no StoreKit outside `Sources/Pro/`, no `#if os(...)` around DJ core
+modules. Swift 6 language mode + strict concurrency, warning-free.
 
 **Known flakes / environmental gates:**
 - ~~`OnsetTests.testNoiseDoesNotProduceSpuriousPeaks`~~ — **fixed in `1290b31`**: the

@@ -268,3 +268,112 @@ hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .seg span{flex:1;text-align:center;font-size:10.5px;font-weight:650;color:#9aa3b4;
   padding:5px 0;border-radius:7px}
 .seg span.on{background:#29233f;color:#fff}
+
+/* ══ M5 — §26A rekordbox-class waveform · §41.9b club channel strips ══════ */
+
+/* Frequency-coloured waveform (§26A.2). Band hues match the mixer's EQ
+   crossovers: low = cyan/blue, mid = amber, high = pale. The bars are static
+   gradients here; the shipped renderer draws them from the pyramid's
+   band-split RMS. */
+.rbwave{position:relative;border-radius:6px;overflow:hidden;background:#080b11;
+  border:1px solid #202634;display:flex;align-items:center;gap:1px;padding:0 1px}
+.rbwave i{display:block;flex:1;border-radius:1px;
+  background:linear-gradient(180deg,
+    #eef3ff 0 var(--hi,18%),
+    #ff9f45 var(--hi,18%) var(--mid,52%),
+    #28d7e5 var(--mid,52%) 100%)}
+.rbwave.h56{height:56px} .rbwave.h72{height:72px} .rbwave.h40{height:40px}
+/* beat grid — thin ticks, heavy downbeats (§26A.3) */
+.rbwave .grid{position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,#ffffff1f 0 1px,transparent 1px 21px)}
+.rbwave .bars{position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,#ffffff5c 0 2px,transparent 2px 84px)}
+.rbwave .ph{position:absolute;top:0;bottom:0;left:50%;width:2px;background:#fff;
+  box-shadow:0 0 12px #fff;z-index:3}
+.rbwave .ph.at22{left:22%}
+.rbwave .cue{position:absolute;top:0;bottom:0;width:2px;z-index:2}
+.rbwave .cue b{position:absolute;top:1px;left:2px;font-size:8px;font-weight:800;
+  padding:0 3px;border-radius:3px;color:#0a0b0e}
+.rbwave .loop{position:absolute;top:0;bottom:0;background:#42dc8824;
+  border-left:2px solid #42dc88;border-right:2px solid #42dc88;z-index:1}
+
+/* stacked twin waveforms on ONE shared playhead (§26A.5, FR-WAVE-5) */
+.wavestack{position:relative;border-radius:8px;overflow:hidden;border:1px solid #232a36;background:#0b0e14}
+.wavestack .rbwave{border:0;border-radius:0}
+.wavestack .rbwave .ph{display:none}
+.wavestack:after{content:'';position:absolute;left:50%;top:0;bottom:0;width:2px;
+  background:#fff;box-shadow:0 0 12px #fff;z-index:5}
+.wavestack .tag{position:absolute;z-index:6;left:6px;font-size:9px;font-weight:800;
+  letter-spacing:.8px;color:#cfd6e4;text-shadow:0 1px 3px #000}
+
+/* phrase ribbon (§26A.4) — labelled, bar-counted spans */
+.ribbon{height:17px;position:relative;border-radius:5px;overflow:hidden;background:#0d1017;
+  border:1px solid #1f2531;display:flex}
+.ribbon span{position:relative;display:flex;align-items:center;justify-content:center;
+  font-size:8.5px;font-weight:800;letter-spacing:.7px;color:#0a0b0e;
+  border-right:1px solid #0a0b0e66;overflow:hidden;white-space:nowrap}
+.ribbon .intro{background:#4a5468;color:#dfe5f0}
+.ribbon .build{background:#c8802f}
+.ribbon .drop{background:#7c5cff;color:#fff}
+.ribbon .chorus{background:#9580ff;color:#fff}
+.ribbon .brk{background:#28626e;color:#cdeef4}
+.ribbon .outro{background:#3c4252;color:#c3cad8}
+.ribbon .unsure{border:1px dashed #ffffff77}
+.ribbon .bars{position:absolute;bottom:1px;right:3px;font-size:7.5px;opacity:.75;font-weight:700}
+
+/* full-track overview strip (§26A.5 view 1) */
+.overview{height:26px;position:relative;border-radius:5px;overflow:hidden;background:#0a0d13;
+  border:1px solid #1f2531;display:flex;align-items:center;gap:1px;padding:0 1px}
+.overview i{display:block;flex:1;border-radius:1px;background:#38445c}
+.overview i.hot{background:#5d6b8c}
+.overview .pos{position:absolute;top:0;bottom:0;width:2px;background:#ffc857;z-index:3}
+
+/* §41.9b channel strip — TRIM → HI → MID → LOW → FILTER → fader → CUE */
+.strips{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.strip{display:flex;flex-direction:column;align-items:center;gap:6px}
+.strip .lab{font-size:8.5px;letter-spacing:1px;color:#727b8c;font-weight:800}
+.knob.sm{width:30px;height:30px;border-width:4px;font-size:8px}
+.knob.kill{border-top-color:var(--red)}
+.knob.cfx{border-top-color:var(--yellow)}
+/* vertical channel fader */
+.vfader{width:34px;height:104px;background:#161a22;border:1px solid #2b3140;border-radius:7px;
+  position:relative;display:flex;justify-content:center}
+.vfader i{position:absolute;left:14px;top:7px;bottom:7px;width:3px;background:#2b3140;border-radius:2px}
+.vfader b{position:absolute;left:4px;right:4px;height:15px;border-radius:4px;background:#d9dee8;
+  box-shadow:0 2px 9px #000a}
+.cuebtn{width:34px;height:24px;border-radius:6px;border:1px solid #3a4150;background:#1a1e27;
+  display:grid;place-items:center;font-size:8.5px;font-weight:800;color:#9aa3b4}
+.cuebtn.on{background:#30260f;border-color:#66511d;color:#ffe095}
+
+/* 8 performance pads, two rows of four (§41.9b rule 5) */
+.pads8{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);gap:6px}
+.pads8 .pad{height:34px;font-size:10px}
+
+/* vertical tempo fader on the deck's outer edge (§41.9b rule 4) */
+.tempo{width:40px;height:190px;background:#141821;border:1px solid #2b3140;border-radius:9px;
+  position:relative;display:flex;justify-content:center;align-items:center}
+.tempo i{position:absolute;top:10px;bottom:10px;width:3px;background:#2b3140;border-radius:2px}
+.tempo b{position:absolute;left:4px;right:4px;height:17px;border-radius:4px;background:#d9dee8;
+  box-shadow:0 2px 9px #000a}
+.tempo span{position:absolute;bottom:5px;font-size:8px;color:#8e97a8;font-weight:700}
+
+/* genre picker tiles (§41.1a) */
+.genres{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.genre{border:1px solid #313744;border-radius:11px;padding:11px 12px;background:#12161d;position:relative}
+.genre.on{border-color:var(--accent2);background:#1d1735}
+.genre h4{margin:0 0 3px;font-size:13px;font-weight:700}
+.genre .sub{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.genre .sub span{font-size:9.5px;padding:3px 7px;border-radius:999px;border:1px solid #3a4150;color:#9aa3b4}
+.genre .sub span.on{border-color:var(--accent2);background:#241d44;color:#e4ddff}
+.genre .tick{position:absolute;top:9px;right:10px;color:var(--accent2);font-weight:800}
+
+/* transition coach cards (§41.18) */
+.trans{border:1px solid #313744;border-radius:11px;padding:12px 13px;background:#12161d}
+.trans.on{border-color:var(--accent2);background:#191434}
+.trans h4{margin:0 0 5px;font-size:13px;font-weight:750;display:flex;gap:7px;align-items:center}
+.trans .n{width:19px;height:19px;border-radius:50%;background:#29233f;color:#cfc2ff;
+  display:grid;place-items:center;font-size:10px;font-weight:800;flex:none}
+.trans .ctl{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.trans .ctl span{font-size:9.5px;padding:3px 7px;border-radius:5px;background:#202634;
+  border:1px solid #39415280;color:#c3cad8;font-weight:650}
+.trans .ctl span.key{background:#241d44;border-color:#4c3b8f;color:#e4ddff}

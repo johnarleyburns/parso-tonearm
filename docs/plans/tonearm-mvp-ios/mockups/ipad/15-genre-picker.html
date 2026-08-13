@@ -1,0 +1,105 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width"><title>Platterhead — genre picker (iPad)</title>
+<link rel="stylesheet" href="../platterhead.css"></head><body>
+<div class="stage">
+<div class="ipad">
+  <div class="statusbar"><span>9:41 Mon 12 Oct</span>
+    <span class="small">Platterhead · first run · step 2 of 3</span><span>􀙇 􀛨 92%</span></div>
+
+  <section class="content" style="padding:26px 34px;display:flex;flex-direction:column;gap:16px">
+
+    <div>
+      <p class="kicker">Step 2 · optional</p>
+      <h1 style="font-size:27px;margin:5px 0 7px;font-weight:800">Want some music to practise with?</h1>
+      <p class="small" style="max-width:760px;font-size:13px">
+        Pick the genres you want to mix. Each one becomes its own library, ordered by what's most
+        interesting right now — so you can build a set from techno without wading through
+        everything else. <b>You don't need an account, and you can skip this entirely.</b></p>
+    </div>
+
+    <div class="genres">
+      <div class="genre on"><span class="tick">􀆅</span>
+        <h4>Electronic</h4><span class="tiny">~12,400 tracks</span>
+        <div class="sub">
+          <span class="on">Techno</span><span class="on">House</span><span>Drum &amp; Bass</span>
+          <span>Ambient</span><span>Breakbeat</span><span>Dubstep</span></div></div>
+
+      <div class="genre on"><span class="tick">􀆅</span>
+        <h4>Hip-Hop</h4><span class="tiny">~6,800 tracks</span>
+        <div class="sub">
+          <span class="on">Boom Bap</span><span>Trap</span><span>Instrumental</span>
+          <span>Lo-fi</span><span>Alternative</span></div></div>
+
+      <div class="genre"><h4>Rock</h4><span class="tiny">~9,100 tracks</span>
+        <div class="sub"><span>Indie</span><span>Punk</span><span>Post-Rock</span><span>Garage</span></div></div>
+
+      <div class="genre"><h4>Jazz</h4><span class="tiny">~3,200 tracks</span>
+        <div class="sub"><span>Nu-Jazz</span><span>Free Jazz</span><span>Swing</span></div></div>
+
+      <div class="genre"><h4>Soul · Funk</h4><span class="tiny">~2,700 tracks</span>
+        <div class="sub"><span>Funk</span><span>Disco</span><span>R&amp;B</span></div></div>
+
+      <div class="genre"><h4>Pop</h4><span class="tiny">~5,400 tracks</span>
+        <div class="sub"><span>Synth Pop</span><span>Dream Pop</span></div></div>
+
+      <div class="genre"><h4>International</h4><span class="tiny">~4,100 tracks</span>
+        <div class="sub"><span>Afrobeat</span><span>Latin</span><span>Balkan</span></div></div>
+
+      <div class="genre"><h4>Experimental</h4><span class="tiny">~2,900 tracks</span>
+        <div class="sub"><span>Noise</span><span>Drone</span><span>Musique Concrète</span></div></div>
+    </div>
+
+    <div class="card" style="padding:13px 15px">
+      <div class="row between">
+        <div>
+          <p style="margin:0 0 3px;font-size:13px;font-weight:650">
+            3 libraries · Techno, House, Boom Bap</p>
+          <p class="small" style="margin:0">
+            We'll fetch the track lists now — that's quick. Audio downloads only when you actually
+            play or prepare a track, so nothing fills your disk in the background.</p>
+        </div>
+        <span class="pill free">Free</span>
+      </div>
+      <hr>
+      <div class="row" style="gap:9px">
+        <div style="width:17px;height:17px;border-radius:4px;border:1px solid #3a4150;flex:none"></div>
+        <span class="small" style="flex:1">I have a catalogue account (optional) — signing in adds your
+          favourites and playlists. <b>Browsing and playing work without it.</b></span>
+      </div>
+      <p class="tiny" style="margin:10px 0 0;line-height:1.6">
+        These tracks are Creative-Commons licensed. Platterhead keeps each track's artist and licence
+        with it, and adds them to your mix's tracklist automatically — so a set you post is properly
+        credited.</p>
+    </div>
+
+    <div class="row" style="gap:11px;margin-top:auto">
+      <button class="button lg" style="min-width:210px">Skip — I have my own music</button>
+      <div class="grow"></div>
+      <span class="small">You can add or remove genres any time in Sources.</span>
+      <button class="button primary lg" style="min-width:210px">Add 3 libraries →</button>
+    </div>
+  </section>
+  <div class="home"></div>
+</div>
+
+<p class="caption"><b>§41.1a The genre picker · FR-LIB-9 / FR-LIB-10.</b>
+<code>GenrePickerView ▸ GenrePickerModel ▸ JamendoGenreProvider, SourceRepository</code>. <b>Free.</b>
+M5's exit is a performance — <i>pick a genre, build two deck playlists, mix, record, listen,
+share</i> — and it stalls at step one for the user this app most wants: a new DJ with no library.
+The existing ten providers all assume you <i>already own</i> a Plex server or a folder of files.
+A <b>genre library</b> inverts the unit of subscription: you subscribe to a genre, not a server,
+and each genre is an independent library with its own list (§18A.3), because that is how DJs think
+about practice material.
+<b>Three rules visible here.</b> <b>Skip is equally weighted</b> — a user with their own collection
+must not be herded through a picker they don't need. <b>No account is requested</b>, preserving
+§41.1's promise; the optional-credentials checkbox is collapsed and gates nothing (§18A.2).
+And <b>licensing is stated once, up front, in one sentence</b> rather than buried in settings —
+attribution follows the track into the mix's cue-sheet automatically (§18A.5), which is what makes
+a practice set safe to post.
+<b>Source note.</b> The Free Music Archive was the original candidate and cannot be used: FMA shut
+down their public API and their app-developers page prohibits both hotlinked playback and scraped
+browsing. The shipped source is the Jamendo API, which permits exactly this pattern and provides
+the popularity ordering this screen promises (§18A.2). The <code>client_id</code> is an application
+credential registered once by the owner — not a user login.</p>
+</div>
+</body></html>
