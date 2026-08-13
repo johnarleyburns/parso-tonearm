@@ -24,6 +24,11 @@ public struct PhraseConfig: Sendable, Equatable {
 
 /// A musical phrase (§25): a bar-aligned span of a track.
 public struct Phrase: Equatable, Sendable {
+    /// Sample position of the phrase's first beat (the `phrase.startSample`
+    /// row, §19.4 — the anchor the waveform renderer draws the label on).
+    public var startSample: Int64
+    /// Sample position of the phrase's last beat (`phrase.endSample`).
+    public var endSample: Int64
     /// Beat index of the phrase start.
     public var startBeat: Int
     /// Length in beats.
@@ -35,8 +40,11 @@ public struct Phrase: Equatable, Sendable {
     /// 0...1 boundary-confidence.
     public var confidence: Double
 
-    public init(startBeat: Int, lengthBeats: Int, type: PhraseType,
+    public init(startSample: Int64, endSample: Int64,
+                startBeat: Int, lengthBeats: Int, type: PhraseType,
                 energy: Float, confidence: Double) {
+        self.startSample = startSample
+        self.endSample = endSample
         self.startBeat = startBeat
         self.lengthBeats = lengthBeats
         self.type = type
@@ -291,7 +299,10 @@ public enum PhraseSegmenter {
             let length = end - start
             // Confidence from boundary novelty strength at the edges.
             let confidence = boundaryConfidence(features, start: start, end: end)
-            phrases.append(Phrase(startBeat: start, lengthBeats: length, type: type,
+            let startSample = beats[max(0, min(start, n - 1))]
+            let endSample = beats[max(start, min(end, n) - 1)]
+            phrases.append(Phrase(startSample: startSample, endSample: endSample,
+                                  startBeat: start, lengthBeats: length, type: type,
                                   energy: energy10, confidence: confidence))
         }
         return phrases

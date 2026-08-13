@@ -284,6 +284,43 @@ public enum GridCorrectionOp: String, CaseIterable, Sendable, Equatable {
     case shift
 }
 
+// MARK: - Persisted analysis artifacts (read side; §19.4, §10.1 façade)
+
+/// One `downbeat` row — a bar start, the anchor for phrase display and bar
+/// numbering (§15.3, §19.4).
+public struct DownbeatRecord: Codable, FetchableRecord, Equatable, Sendable {
+    public var beatIndex: Int
+    public var samplePosition: Int64
+    /// 1-based bar number, in the order the downbeats appear in the track.
+    public var barNumber: Int
+    public var confidence: Double?
+
+    public init(beatIndex: Int, samplePosition: Int64, barNumber: Int,
+                confidence: Double? = nil) {
+        self.beatIndex = beatIndex
+        self.samplePosition = samplePosition
+        self.barNumber = barNumber
+        self.confidence = confidence
+    }
+}
+
+/// The decoded `energy_curve` readout — the per-beat energy BLOB backing the
+/// prep energy display (§19.4, §15.7 `kind=0x04`).
+public struct EnergyCurve: Equatable, Sendable {
+    /// `beat|frame` — M5's pipeline always writes the per-beat curve.
+    public var resolution: String
+    /// The curve in `0...1`.
+    public var values: [Float]
+    /// The STFT hop-seconds the curve was built at.
+    public var hopSeconds: Double
+
+    public init(resolution: String, values: [Float], hopSeconds: Double) {
+        self.resolution = resolution
+        self.values = values
+        self.hopSeconds = hopSeconds
+    }
+}
+
 // MARK: - dj_v3 embedding rows (§15.4)
 
 /// Registry of embedding model sets; seeded by the `dj_v3` migration (§27.1).

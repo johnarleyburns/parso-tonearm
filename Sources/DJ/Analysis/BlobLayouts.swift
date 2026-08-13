@@ -196,6 +196,39 @@ public enum AnalysisBlobLayouts {
         return (levels, sampleRate, baseSamplesPerBin)
     }
 
+    // MARK: - BeatBlob
+
+    /// Layout: `{u32 magic=0x54414542, u16 version, u16 _reserved, u32 beatCount}`
+    /// then `beatCount × i64` sample positions, then `beatCount × f32` confidences
+    /// (§15.7 `kind=0x03`, repo's `AnalysisBlobLayouts` convention).
+    public static func encodeBeatBlob(_ samples: [Int64],
+                                      confidence: [Float],
+                                      version: Int) -> Data {
+        var data = Data()
+        appendMagic("BEAT", to: &data)
+        appendU16(UInt16(version), to: &data)
+        appendU16(0, to: &data)
+        appendU32(UInt32(samples.count), to: &data)
+        for s in samples { appendI64(s, to: &data) }
+        for c in confidence { appendF32(c, to: &data) }
+        return data
+    }
+
+    public static func decodeBeatBlob(_ data: Data) throws -> (count: Int, samples: [Int64], confidence: [Float]) {
+        var reader = DataReader(data)
+        guard let magic = reader.read4(), magic == "BEAT" else { throw BlobError.badMagic }
+        _ = try reader.u16()   // version
+        _ = try reader.u16()   // reserved
+        let count = Int(try reader.u32())
+        var samples: [Int64] = []
+        samples.reserveCapacity(count)
+        for _ in 0..<count { samples.append(try reader.i64()) }
+        var confidence: [Float] = []
+        confidence.reserveCapacity(count)
+        for _ in 0..<count { confidence.append(try reader.f32()) }
+        return (count, samples, confidence)
+    }
+
     // MARK: - Helpers
 
     public enum BlobError: Error { case badMagic }
@@ -214,6 +247,10 @@ public enum AnalysisBlobLayouts {
 
     private static func appendF32(_ v: Float, to data: inout Data) {
         withUnsafeBytes(of: v.bitPattern.littleEndian) { data.append(contentsOf: $0) }
+    }
+
+    private static func appendI64(_ v: Int64, to data: inout Data) {
+        withUnsafeBytes(of: v.littleEndian) { data.append(contentsOf: $0) }
     }
 
     private struct DataReader {
@@ -239,6 +276,13 @@ public enum AnalysisBlobLayouts {
             guard index + 4 <= data.count else { throw BlobError.badMagic }
             let v = data[index..<(index + 4)].withUnsafeBytes { $0.load(as: UInt32.self) }
             index += 4
+            return v.littleEndian
+        }
+
+        mutating func i64() throws -> Int64 {
+            guard index + 8 <= data.count else { throw BlobError.badMagic }
+            let v = data[index..<(index + 8)].withUnsafeBytes { $0.loadUnaligned(as: Int64.self) }
+            index += 8
             return v.littleEndian
         }
 

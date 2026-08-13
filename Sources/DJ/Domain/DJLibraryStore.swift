@@ -136,6 +136,137 @@ public actor DJLibraryStore {
         repository.observeAll(query)
     }
 
+    // MARK: - Analysis artifacts (§19.4, §10.1 façade)
+
+    /// Replace a track's `phrase` rows — DELETE-then-INSERT in one transaction,
+    /// so re-analysis is idempotent per (track, version) and never appends
+    /// (§19.4 rule 2).
+    public func savePhrases(_ phrases: [Phrase], for trackID: Int64) throws {
+        try pool.write { db in
+            try AnalysisArtifacts.writePhrases(phrases, trackID: trackID, db: db)
+        }
+    }
+
+    /// Replace the detected `beat_grid` header + `beat_blob` — real
+    /// `firstBeatSample`/`beatCount`, never placeholders (§19.4).
+    public func saveBeatGrid(_ grid: BeatGrid, for trackID: Int64) throws {
+        try pool.write { db in
+            try AnalysisArtifacts.writeBeatGrid(grid, trackID: trackID,
+                                                db: db, updatedAt: Date())
+        }
+    }
+
+    /// Replace a track's `downbeat` rows (§19.4).
+    public func saveDownbeats(_ downbeats: [Int], beatGrid: BeatGrid,
+                              for trackID: Int64) throws {
+        try pool.write { db in
+            try AnalysisArtifacts.writeDownbeats(downbeats, beatGrid: beatGrid,
+                                                 trackID: trackID, db: db)
+        }
+    }
+
+    /// Replace the band-split waveform pyramid BLOB (§19.4).
+    public func saveWaveform(_ pyramid: WaveformPyramid, for trackID: Int64) throws {
+        try pool.write { db in
+            try AnalysisArtifacts.writeWaveform(pyramid, trackID: trackID, db: db)
+        }
+    }
+
+    /// Replace the per-beat energy curve BLOB (§19.4).
+    public func saveEnergyCurve(_ curve: [Float], hopSeconds: Double,
+                                for trackID: Int64) throws {
+        try pool.write { db in
+            try AnalysisArtifacts.writeEnergyCurve(curve, hopSeconds: hopSeconds,
+                                                   trackID: trackID, db: db)
+        }
+    }
+
+    // MARK: - Analysis artifact reads (§19.4 — the `WaveformRepository` seam)
+
+    /// The track's stored phrases in beat order — the ribbon's spans and bar
+    /// counts (§26A.4). Empty when the track has not been analysed.
+    public func phrases(trackID: Int64) throws -> [Phrase] {
+        try pool.read { db in
+            try Row.fetchAll(db, sql: """
+                SELECT startSample, endSample, startBeat, lengthBeats, type, energy, confidence
+                FROM phrase WHERE trackID = ? ORDER BY startBeat, id
+                """, arguments: [trackID]).map { row in
+                Phrase(startSample: row["startSample"] as? Int64 ?? 0,
+                       endSample: row["endSample"] as? Int64 ?? 0,
+                       startBeat: Int(row["startBeat"] as? Int64 ?? 0),
+                       lengthBeats: Int(row["lengthBeats"] as? Int64 ?? 0),
+                       type: PhraseType(rawValue: row["type"] as? String ?? "") ?? .build,
+                       energy: Float(row["energy"] as? Double ?? 0),
+                       confidence: row["confidence"] as? Double ?? 0)
+            }
+        }
+    }
+
+    /// The detected beat grid (header + decoded `beat_blob`). `nil` when the
+    /// track has no grid. Corrections are NOT composed here — the read side
+    /// replays `grid_correction` over this (§23.3, §19.4 rule 3).
+    public func beatGrid(trackID: Int64) throws -> BeatGrid? {
+        try pool.read { db in
+            guard let header = try Row.fetchOne(db, sql: """
+                SELECT bpm, firstBeatSample, isConstantTempo
+                FROM beat_grid WHERE trackID = ?
+                """, arguments: [trackID]) else { return nil }
+            let bpm = header["bpm"] as? Double ?? 0
+            let firstBeat = header["firstBeatSample"] as? Int64 ?? 0
+            let constant = (header["isConstantTempo"] as? Int64 ?? 1) != 0
+            var samples: [Int64] = []
+            var confidence: [Float] = []
+            if let blob = try Data.fetchOne(db, sql: """
+                SELECT blob FROM beat_blob WHERE trackID = ?
+                """, arguments: [trackID]),
+               let decoded = try? AnalysisBlobLayouts.decodeBeatBlob(blob) {
+                samples = decoded.samples
+                confidence = decoded.confidence
+            }
+            return BeatGrid(firstBeatSample: firstBeat, bpm: bpm,
+                            beatSamples: samples, confidence: confidence,
+                            isConstantTempo: constant)
+        }
+    }
+
+    /// The track's bar-start rows, in beat order (§19.4).
+    public func downbeats(trackID: Int64) throws -> [DownbeatRecord] {
+        try pool.read { db in
+            try DownbeatRecord.fetchAll(db, sql: """
+                SELECT beatIndex, samplePosition, barNumber, confidence
+                FROM downbeat WHERE trackID = ? ORDER BY beatIndex
+                """, arguments: [trackID])
+        }
+    }
+
+    /// The decoded band-split waveform pyramid, or `nil` for an unanalysed
+    /// track (§26A.1 — an honest empty state, never synthetic geometry).
+    public func waveformPyramid(trackID: Int64) throws -> WaveformPyramid? {
+        try pool.read { db in
+            guard let blob = try Data.fetchOne(db, sql: """
+                SELECT blob FROM waveform_pyramid WHERE trackID = ?
+                """, arguments: [trackID]) else { return nil }
+            let decoded = try AnalysisBlobLayouts.decodeWaveformPyramid(blob)
+            return WaveformPyramid(levels: decoded.levels,
+                                   sampleRate: decoded.sampleRate,
+                                   baseSamplesPerBin: decoded.baseSamplesPerBin)
+        }
+    }
+
+    /// The decoded per-beat energy curve, or `nil` for an unanalysed track.
+    public func energyCurve(trackID: Int64) throws -> EnergyCurve? {
+        try pool.read { db in
+            guard let row = try Row.fetchOne(db, sql: """
+                SELECT resolution, blob FROM energy_curve WHERE trackID = ?
+                """, arguments: [trackID]),
+                  let blob = row["blob"] as? Data else { return nil }
+            let decoded = try AnalysisBlobLayouts.decodeEnergyCurve(blob)
+            return EnergyCurve(resolution: row["resolution"] as? String ?? "beat",
+                               values: decoded.values,
+                               hopSeconds: decoded.hopSeconds)
+        }
+    }
+
     // MARK: - Folder import
 
     /// Imports a music folder by reference (§13.1, FR-LIB-1): a security-scoped

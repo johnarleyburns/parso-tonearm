@@ -76,7 +76,7 @@ public enum AnalyzePipeline {
         let tempo = TempoAnalyzer.estimate(novelty: envelope, hopSeconds: hopSeconds).first
 
         var bpm: Double?
-        var beatSamples: [Int64] = []
+        var beatGrid: BeatGrid?
         var downbeatIndices: [Int] = []
         var beatFeatures: [BeatFeature] = []
         if let tempo {
@@ -84,7 +84,7 @@ public enum AnalyzePipeline {
             if let grid = BeatTracker.grid(novelty: envelope, hopSeconds: hopSeconds,
                                            sampleRate: stft.sampleRate,
                                            onsets: onsets, bpm: tempo.bpm) {
-                beatSamples = grid.beatSamples
+                beatGrid = grid
                 downbeatIndices = BeatTracker.downbeats(beatSamples: grid.beatSamples,
                                                         novelty: envelope,
                                                         hopSeconds: hopSeconds,
@@ -108,55 +108,82 @@ public enum AnalyzePipeline {
             key = KeyDetector.estimate(chromaFrames)
         }
 
-        // Energy curve + scalar.
+        // Energy curve + scalar (§19.4 `energy_curve` — carried, not discarded).
         var energy: Float?
-        if !beatSamples.isEmpty && !frames.isEmpty {
-            let curve = EnergyAnalyzer.curve(frames: frames, beatSamples: beatSamples,
-                                             frameRateHz: 1 / hopSeconds,
-                                             sampleRate: stft.sampleRate)
-            energy = EnergyAnalyzer.scalar(curve)
+        var energyCurve: [Float] = []
+        if let beatGrid, !frames.isEmpty {
+            energyCurve = EnergyAnalyzer.curve(frames: frames, beatSamples: beatGrid.beatSamples,
+                                               frameRateHz: 1 / hopSeconds,
+                                               sampleRate: stft.sampleRate)
+            energy = EnergyAnalyzer.scalar(energyCurve)
         }
 
         // Phrases.
-        var phraseCount = 0
-        if !beatFeatures.isEmpty && !downbeatIndices.isEmpty {
-            phraseCount = PhraseSegmenter.segment(features: beatFeatures,
-                                                  beats: beatSamples,
-                                                  downbeats: downbeatIndices,
-                                                  sampleRate: stft.sampleRate).count
+        var phrases: [Phrase] = []
+        if !beatFeatures.isEmpty && !downbeatIndices.isEmpty, let beatGrid {
+            phrases = PhraseSegmenter.segment(features: beatFeatures,
+                                              beats: beatGrid.beatSamples,
+                                              downbeats: downbeatIndices,
+                                              sampleRate: stft.sampleRate)
         }
 
         // Waveform pyramid.
-        var waveformLevels = 0
+        var waveform: WaveformPyramid?
         pcm.mono.withUnsafeBufferPointer { buf in
-            waveformLevels = WaveformPyramidBuilder.build(buf, sampleRate: stft.sampleRate).levels.count
+            waveform = WaveformPyramidBuilder.build(buf, sampleRate: stft.sampleRate)
         }
 
         return AnalyzeResult(loudness: loudness, bpm: bpm, key: key, energy: energy,
-                             phraseCount: phraseCount, waveformLevels: waveformLevels)
+                             beatGrid: beatGrid, downbeats: downbeatIndices,
+                             phrases: phrases, waveform: waveform,
+                             energyCurve: energyCurve, hopSeconds: hopSeconds)
     }
 
-    /// Non-fatal aggregate returned by the pipeline.
+    /// Non-fatal aggregate returned by the pipeline. Through M4 this carried
+    /// only scalars and the computed artifacts were dropped; §19.4 widens it to
+    /// the full render contract so `persist` can write every destination table.
     public struct AnalyzeResult: Sendable {
         public var loudness: LoudnessAnalyzer.LoudnessResult?
         public var bpm: Double?
         public var key: KeyEstimate?
         public var energy: Float?
-        public var phraseCount: Int
-        public var waveformLevels: Int
+        /// The detected beat grid — `beatSamples`/`confidence` feed `beat_blob`,
+        /// the header feeds `beat_grid` (§19.4).
+        public var beatGrid: BeatGrid?
+        /// The beat indices that start bars (§19.4 `downbeat` rows).
+        public var downbeats: [Int]
+        /// The bar-aligned phrase segmentation (§19.4 `phrase` rows).
+        public var phrases: [Phrase]
+        /// The band-split waveform pyramid (§19.4 `waveform_pyramid`).
+        public var waveform: WaveformPyramid?
+        /// The per-beat energy curve (§19.4 `energy_curve`).
+        public var energyCurve: [Float]
+        /// The STFT hop-seconds the curve was built at (`energy_curve` blob).
+        public var hopSeconds: Double
+
+        public var phraseCount: Int { phrases.count }
+        public var waveformLevels: Int { waveform?.levels.count ?? 0 }
 
         public init(loudness: LoudnessAnalyzer.LoudnessResult? = nil,
                     bpm: Double? = nil,
                     key: KeyEstimate? = nil,
                     energy: Float? = nil,
-                    phraseCount: Int = 0,
-                    waveformLevels: Int = 0) {
+                    beatGrid: BeatGrid? = nil,
+                    downbeats: [Int] = [],
+                    phrases: [Phrase] = [],
+                    waveform: WaveformPyramid? = nil,
+                    energyCurve: [Float] = [],
+                    hopSeconds: Double = 0) {
             self.loudness = loudness
             self.bpm = bpm
             self.key = key
             self.energy = energy
-            self.phraseCount = phraseCount
-            self.waveformLevels = waveformLevels
+            self.beatGrid = beatGrid
+            self.downbeats = downbeats
+            self.phrases = phrases
+            self.waveform = waveform
+            self.energyCurve = energyCurve
+            self.hopSeconds = hopSeconds
         }
     }
 
@@ -437,9 +464,11 @@ public actor AnalysisCoordinator {
     // MARK: - Persistence
 
     /// Single-transaction persist of every stage's rows + `track.analysisState`
-    /// roll-up (§19.1 "single-transaction persist"). Runs inside a `pool.write`
-    /// which already provides the transaction. Static so it runs inside the
-    /// write block without actor re-entrancy.
+    /// roll-up (§19.1 "single-transaction persist", §19.4's full render
+    /// contract). Runs inside a `pool.write` which already provides the
+    /// transaction. Static so it runs inside the write block without actor
+    /// re-entrancy. All five artifact writers go through `AnalysisArtifacts` so
+    /// the coordinator and the `DJLibraryStore` façade share one row shape.
     private static func persist(_ db: Database, trackID: Int64,
                                 result: AnalyzePipeline.AnalyzeResult) throws {
             let now = Date()
@@ -455,13 +484,13 @@ public actor AnalysisCoordinator {
                                      loudness.loudnessRangeLU, loudness.version])
             }
 
-            if let bpm = result.bpm {
-                try db.execute(sql: """
-                    INSERT OR REPLACE INTO beat_grid
-                    (trackID, syncID, bpm, firstBeatSample, beatCount, isConstantTempo,
-                     source, confidence, version, updatedAt)
-                    VALUES (?, ?, ?, ?, ?, ?, 'detected', NULL, 1, ?)
-                    """, arguments: [trackID, "g-\(trackID)", bpm, 0, 0, true, now])
+            // Real beat grid: header + per-beat blob + downbeat rows (§19.4 —
+            // placeholder zeros were the pre-M5 defect).
+            if let beatGrid = result.beatGrid {
+                try AnalysisArtifacts.writeBeatGrid(beatGrid, trackID: trackID,
+                                                    db: db, updatedAt: now)
+                try AnalysisArtifacts.writeDownbeats(result.downbeats, beatGrid: beatGrid,
+                                                     trackID: trackID, db: db)
             }
 
             if let key = result.key {
@@ -476,14 +505,27 @@ public actor AnalysisCoordinator {
 
             if let energy = result.energy {
                 try db.execute(sql: """
-                    UPDATE track SET energy = ?, camelot = ?, bpm = ?, musicalKey = ? WHERE id = ?
+                    UPDATE track SET energy = ?, camelot = ?, bpm = ?, musicalKey = ?,
+                    detectedBPM = ? WHERE id = ?
                     """, arguments: [energy, result.key?.camelot.code, result.bpm,
-                                     result.key?.musicalKey, trackID])
+                                     result.key?.musicalKey, result.beatGrid?.bpm, trackID])
             } else if result.key != nil || result.bpm != nil {
                 try db.execute(sql: """
-                    UPDATE track SET camelot = ?, bpm = ?, musicalKey = ? WHERE id = ?
+                    UPDATE track SET camelot = ?, bpm = ?, musicalKey = ?,
+                    detectedBPM = ? WHERE id = ?
                     """, arguments: [result.key?.camelot.code, result.bpm,
-                                     result.key?.musicalKey, trackID])
+                                     result.key?.musicalKey, result.beatGrid?.bpm, trackID])
+            }
+
+            // Phrases, waveform pyramid and energy curve (§19.4).
+            try AnalysisArtifacts.writePhrases(result.phrases, trackID: trackID, db: db)
+            if let waveform = result.waveform {
+                try AnalysisArtifacts.writeWaveform(waveform, trackID: trackID, db: db)
+            }
+            if !result.energyCurve.isEmpty {
+                try AnalysisArtifacts.writeEnergyCurve(result.energyCurve,
+                                                       hopSeconds: result.hopSeconds,
+                                                       trackID: trackID, db: db)
             }
 
             // analysis_run row: done.
