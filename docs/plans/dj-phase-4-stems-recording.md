@@ -459,7 +459,7 @@ _To be filled in as commits land: files changed, tests run, intentional deviatio
 | Commit | Status | Notes |
 |---|---|---|
 | Plan doc | in progress | M5 plan (Appendix M.6), **re-scoped** per §48.6. Baseline: `make test-swift` = **1224 tests, 0 failures** (8 skipped). New decisions 15–24: reachability + deck seam are 5.1 (§49.3a); analysis persistence is 5.2 (§19.4); `Canvas` renderer with Metal as a measured escape hatch; geometry tests updated not deleted; **Jamendo not FMA** (FMA API shut down + terms prohibit the use case); `client_id` is user-owned; **AAC not MP3** (no system encoder); one Beat FX; AT-TRANS has an audio half and a layout half. |
-| 5.1 | pending | reachability + deck load seam |
+| 5.1 | complete (`69814f6`) | reachability + deck load seam. `.dj` tab from the app root to the performance surface, Pro-gated (`ProCapability.isEnabled(.decks)`, §40.4 dimmed + lock chip); the §49.3a route table is `DJEntryModel.reachableDestinations` as a test; `DeckLoader` (FR-LIB-8 gate → decode off the main actor → `DeckSourceBox`, §12.2) + the authoritative grid composed at the 48 kHz decode space; `WorkspaceModel` per-deck queues (source picker at each browse surface's head, independent decks, one-gesture load, no auto-advance) with the 4.7 crate-sheet rows real; compact crate sheet + iPad per-deck queue panel. `xcodegen generate` committed. Tests: 8 `DeckLoaderTests` + 3 `DJEntryTests` + 6 `WorkspaceModelTests` queue rows. Suite 1224 → **1241 green**; Swift 6 guard OK; smoke tests pass. |
 | 5.2 | pending | analysis persistence (§19.4) |
 | 5.3 | pending | waveform render (§26A) |
 | 5.4 | pending | club ergonomics (§41.9b, §42.7c) |

@@ -28,6 +28,8 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.1** — `69814f6` `feat(dj): app entry point + library → deck seam (M5 commit 5.1)`.
+- **M5 plan (re-scope)** — `d108b09` `docs(dj): M5 re-scope — outcome milestone, reachability first, Jamendo/AAC (Appendix M.6)`.
 - **M4 4.13** — `01d4acb` `feat(dj): paywall, purchase flow, memory ceiling (M4 commit 4.13)`.
 - **Seed-fix** — `1290b31` `test(dj): seed the onset-noise test — fixes the SystemRandomNumberGenerator flake`.
 - **M4 4.10** — `f9e77c9` `feat(dj): bank drawers, edge sliders, bottom-edge crossfader (M4 commit 4.10)`.
@@ -61,7 +63,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten, commits 5.1–5.13 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1 landed, commits 5.2–5.13 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -585,13 +587,15 @@ to keep it from failing in a clock-capped Low Power Mode state.
 
 ## Next
 
-- **M5 commit 5.1 — app entry point + library → deck seam** (`docs/plans/dj-phase-4-stems-recording.md`
-  §5, spec §49.3a). Start here: a navigable Pro-gated route from `RootView` to the
-  performance surface, plus `DeckLoader` (resolve → FR-LIB-8 cached gate → decode →
-  `DeckSource`). **`xcodegen generate` required and committed.** Until this lands,
-  nothing else in M5 can be verified against a real track.
-- Then **5.2** analysis persistence → **5.3** waveform render → **5.4** club
-  ergonomics → **5.5** Beat FX echo + AT-TRANS → **5.6** genre libraries → **5.7–5.13**
+- **M5 commit 5.2 — analysis persistence** (`docs/plans/dj-phase-4-stems-recording.md`
+  §5, spec §19.4, AT-WAVE-1). Widen `AnalyzeResult` to carry `[Phrase]` + `WaveformPyramid`
+  + the beat samples/downbeats, and make `persist` write `phrase`, `downbeat`,
+  `waveform_pyramid`, `beat_blob`, `energy_curve` and **real** `beat_grid`
+  (firstBeatSample/beatCount — no placeholder zeros) in the one transaction. 5.1
+  (`69814f6`) is done: the app has a navigable, Pro-gated route to the workspace, the
+  `DeckLoader` seam, and the real crate-sheet rows.
+- Then **5.3** waveform render → **5.4** club ergonomics → **5.5** Beat FX echo +
+  AT-TRANS → **5.6** genre libraries → **5.7–5.13**
   the original stems/recording/gig-crate scope. **Exit:** AT-STEM-\*, AT-REC-\*,
   AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\* green, plus the owner's end-to-end recorded
   set as the user-owned shipping gate.
