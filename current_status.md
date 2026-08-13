@@ -53,6 +53,44 @@ governor) is fully committed.
 
 ## Working on
 
+**M4 commit 4.11 — iPad deck module slot, default `STEMS` — complete (`726884a`).**
+The §41.9a per-deck module slot (mockup `ipad/07b`, FR-ENG-1 — jog as a slot,
+AT-TWIN-2 — a module never occludes shared controls):
+
+- `Features/Workspace/DeckModuleSlot.swift` — the per-deck slot: a
+  `JOG · STEMS · PADS · FX` seg over the module content. STEMS (the default)
+  = the four honest-unavailable stem faders until M5 (plan §2.6); PADS = the
+  four pads; FX = honest-unavailable FX pads. **A module is a layout member
+  of its own deck column, never an overlay** — swapping modules changes no
+  engine state and structurally cannot reach the mixer column, either
+  waveform, the beat-phase meter or the opposite deck (AT-TWIN-2).
+- **JOG module** — the §41.9a **248 pt** jog flanked by ± pitch-bend buttons
+  (a momentary 0.4% bend routed through the jog's own `.nudge`/`.release`,
+  so a button bend is byte-for-byte a ring bend), the vinyl/CDJ platter
+  action selectable above and **shown inside the platter** so the mode is
+  never a guess. `JogGestureModel` gains `JogMode` (vinyl = scratch / CDJ =
+  nudge — a CDJ platter rotation emits `.nudge`, not `.scrub`, §40.7.3) and
+  `setSensitivity` (clamped to §40.7.4's 0.5–2.0); `JogView` gains
+  `mode`/`sensitivity`/`showsModeReadout` params (phone surfaces unchanged
+  via defaults), the iPad hub rendering the mode pill + BPM + a pure
+  `barBeat` bar/beat readout (§40.7.4's iPad compensation for no Taptic
+  engine).
+- `WorkspaceModel` — `DeckModuleSlot` + per-deck jog mode/sensitivity state;
+  the slot and mode **persist per deck** through injectable `UserDefaults`
+  (default `STEMS` / vinyl, §41.9a's "remembered per deck"), plus
+  `ModuleGeometry` (jog 248 + bend columns; `jogModuleWidth` fits the §41.9
+  `1fr 268px 1fr` deck column on the 1180 canvas). `WorkspaceView` — the deck
+  column's lower third is the module slot, LOOP is now the release-to-commit
+  flyout identical to the compact idiom (§42.7b idiom 3), and the mixer
+  column gains the per-deck jog-sensitivity faders.
+- Tests: 6 `WorkspaceModelTests` (default `STEMS`, per-deck slot + jog-mode
+  persistence across model instances, module/mode/sensitivity swap changes
+  **no** engine state, sensitivity clamps, `jogModuleWidth` fits the deck
+  column) + 6 `JogGestureModelTests` (vinyl default, CDJ platter nudges not
+  scratches, ring still bends in CDJ, nudge saturation, `setSensitivity`
+  clamp, `barBeat` golden). Full suite 1183 green (1171 baseline + 12);
+  Swift 6 guard OK; no `xcodegen generate`. **FR-ENG-1, AT-TWIN-2, §41.9a.**
+
 **M4 commit 4.10 — bank drawers, edge sliders, bottom-edge crossfader — complete (`f9e77c9`).**
 The five §42.7b modal idioms with their two normative rules over the one
 `WorkspaceModel` (mockup `iphone/05d`, FR-ENG-12, AT-TWIN-2/3/4):
@@ -387,16 +425,17 @@ to keep it from failing in a clock-capped Low Power Mode state.
 
 ## Next
 
-- **M4 commit 4.11** — iPad deck module slot, default `STEMS` (§41.9a,
-  mockup `ipad/07b`): per-deck slot `JOG · STEMS · PADS · FX`, persisted per
-  deck, default `STEMS` (honest disabled stem faders until M5), jog module at
-  248 pt with ± pitch-bend buttons and vinyl/CDJ mode shown inside the
-  platter, jog sensitivity in the centre column, `LOOP` release-to-commit
-  flyout identical to the 4.10 compact idiom. Then 4.12 (Track Prep + grid
-  corrections) … 4.13 (paywall + purchase + memory ceiling). Ship gates
-  AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the
-  user-owned shipping gate**, run after the milestone on a real device
-  (deferred per decision 4 of the M4 kickoff).
+- **M4 commit 4.12** — Track Prep + grid corrections (mockup `ipad/06`):
+  `Features/Prep/TrackPrepView.swift` + model — waveform with pinch-zoom, cue
+  pad row, grid tools (tap-to-set downbeat, tempo tap, correction undo),
+  written through `DJLibraryStore`'s existing `grid_correction` path
+  (authoritative override log, immutable analysis preserved — §23.3); free
+  users see the analysis readout only (FR-PREP-4), the grid tools gated by
+  `ProCapability.isEnabled(.preparation)` (Appendix T.3). Then 4.13 (paywall
+  + purchase + memory ceiling). Ship gates AT-ENGINE-\*, AT-SESS-\*,
+  AT-STORE-\*, AT-TWIN-\*; **AT-THERM-1 is the user-owned shipping gate**, run
+  after the milestone on a real device (deferred per decision 4 of the M4
+  kickoff).
 
 ## After M4
 
