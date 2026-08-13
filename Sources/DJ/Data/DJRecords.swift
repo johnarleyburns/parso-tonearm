@@ -227,6 +227,63 @@ extension DJImportEvent: FetchableRecord, MutablePersistableRecord {
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
+// MARK: - grid_correction (authoritative user override log; FR-ANL-5, §23.3)
+
+/// One row of the authoritative user grid-override log (§14.3, FR-ANL-5).
+/// Edits are **appended**, never in-place, so the immutable detected analysis
+/// survives and the corrections replay deterministically over it (§23.3) to
+/// produce the authoritative `beat_grid` (`source = corrected`).
+public struct GridCorrection: Codable, Identifiable, FetchableRecord,
+                              MutablePersistableRecord, Equatable, Sendable {
+    public var id: Int64?
+    public var syncID: String
+    public var trackID: Int64
+    /// The `GridCorrectionOp` raw value (`nudge|setDownbeat|doubleBPM|halveBPM|setBPM|shift`).
+    public var op: String
+    /// e.g. the new BPM for `setBPM`.
+    public var valueDouble: Double?
+    /// e.g. the sample offset for `nudge`/`shift`, the sample for `setDownbeat`.
+    public var valueInt: Int64?
+    public var appliedAt: Date
+
+    public init(id: Int64? = nil,
+                syncID: String,
+                trackID: Int64,
+                op: String,
+                valueDouble: Double? = nil,
+                valueInt: Int64? = nil,
+                appliedAt: Date) {
+        self.id = id
+        self.syncID = syncID
+        self.trackID = trackID
+        self.op = op
+        self.valueDouble = valueDouble
+        self.valueInt = valueInt
+        self.appliedAt = appliedAt
+    }
+
+    public static let databaseTableName = "grid_correction"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+}
+
+/// The grid-correction operations the prep surface can append (FR-PREP-5,
+/// §14.3): tap-to-set-downbeat, drag-to-nudge, ×2 / ÷2, set BPM (tempo tap)
+/// and the two-finger shift. Raw values are the `grid_correction.op` column.
+public enum GridCorrectionOp: String, CaseIterable, Sendable, Equatable {
+    /// Drag-nudge: shift the grid by a sample delta (`valueInt`).
+    case nudge
+    /// Tap-to-set-downbeat: make `valueInt` the sample of grid beat 0.
+    case setDownbeat
+    /// ×2 BPM.
+    case doubleBPM
+    /// ÷2 BPM.
+    case halveBPM
+    /// Set an explicit BPM (tempo tap) — `valueDouble`.
+    case setBPM
+    /// Two-finger nudge: shift the grid by a sample delta (`valueInt`).
+    case shift
+}
+
 // MARK: - dj_v3 embedding rows (§15.4)
 
 /// Registry of embedding model sets; seeded by the `dj_v3` migration (§27.1).

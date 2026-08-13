@@ -41,6 +41,58 @@ public struct DeckGrid: Sendable, Equatable {
     }
 }
 
+/// The §23.3 replay kernel: the detected `beat_grid` with every stored
+/// `grid_correction` replayed deterministically in order (by `appliedAt`, then
+/// `id`) to produce the **authoritative** `DeckGrid` — the one a deck loads.
+///
+/// Corrections are appended, never in-place, so the immutable detected analysis
+/// survives and re-analysis re-detects then re-applies the stored overrides on
+/// top (NFR-REL, FR-ANL-5). Pure and off-RT: called by the repository when a
+/// deck source is built, never on the render thread.
+public enum GridReplay {
+
+    /// The authoritative grid for a track: `base` (detected) with every
+    /// correction replayed in log order. Corrections that carry no usable value
+    /// for their op are skipped, so a malformed log degrades gracefully instead
+    /// of poisoning the grid.
+    public static func authoritativeGrid(base: DeckGrid,
+                                         corrections: [GridCorrection]) -> DeckGrid {
+        var grid = base
+        let ordered = corrections.sorted { a, b in
+            (a.appliedAt, a.id ?? 0) < (b.appliedAt, b.id ?? 0)
+        }
+        for correction in ordered {
+            switch correction.op {
+            case GridCorrectionOp.nudge.rawValue, GridCorrectionOp.shift.rawValue:
+                grid.referenceSample += Double(correction.valueInt ?? 0)
+            case GridCorrectionOp.setDownbeat.rawValue:
+                if let sample = correction.valueInt {
+                    grid.referenceSample = Double(sample)
+                }
+            case GridCorrectionOp.doubleBPM.rawValue:
+                grid.bpm *= 2
+            case GridCorrectionOp.halveBPM.rawValue:
+                grid.bpm /= 2
+            case GridCorrectionOp.setBPM.rawValue:
+                if let bpm = correction.valueDouble, bpm > 0 {
+                    grid.bpm = bpm
+                }
+            default:
+                break
+            }
+        }
+        return grid
+    }
+
+    /// The authoritative grid, or `nil` when the track has no detected grid yet
+    /// — a correction without a grid to correct is meaningless, so the prep
+    /// surface reports the honest "not analyzed" state instead.
+    public static func authoritativeGridIfAnalyzed(base: DeckGrid?,
+                                                   corrections: [GridCorrection]) -> DeckGrid? {
+        base.map { authoritativeGrid(base: $0, corrections: corrections) }
+    }
+}
+
 /// Quantize resolution — the grid division a quantized trigger lands on (§30.3).
 public enum QuantizeResolution: UInt8, Sendable {
     case halfBeat = 0

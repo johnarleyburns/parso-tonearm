@@ -82,6 +82,54 @@ public actor DJLibraryStore {
         }
     }
 
+    // MARK: - Grid corrections (§14.3, FR-ANL-5, §23.3)
+
+    /// The stored grid corrections for a track, in replay order (`appliedAt`,
+    /// then `id`) — the deterministic log §23.3 replays over the detected grid.
+    public func gridCorrections(trackID: Int64) throws -> [GridCorrection] {
+        try pool.read { db in
+            try GridCorrection
+                .filter(Column("trackID") == trackID)
+                .order(Column("appliedAt"), Column("id"))
+                .fetchAll(db)
+        }
+    }
+
+    /// Append one grid correction to the authoritative override log (FR-ANL-5,
+    /// FR-PREP-5). The detected analysis is never touched — the correction
+    /// replays over it (§23.3). Returns the persisted row.
+    @discardableResult
+    public func appendGridCorrection(trackID: Int64,
+                                     op: GridCorrectionOp,
+                                     valueDouble: Double? = nil,
+                                     valueInt: Int64? = nil) throws -> GridCorrection {
+        var correction = GridCorrection(syncID: UUID().uuidString,
+                                        trackID: trackID,
+                                        op: op.rawValue,
+                                        valueDouble: valueDouble,
+                                        valueInt: valueInt,
+                                        appliedAt: Date())
+        try pool.write { db in
+            try correction.insert(db)
+        }
+        return correction
+    }
+
+    /// Pop the newest grid correction for a track — the prep surface's "undo"
+    /// (FR-PREP-5's correction undo). Because the log replays over the detected
+    /// grid, removing an entry restores exactly the prior authoritative grid.
+    @discardableResult
+    public func undoLastGridCorrection(trackID: Int64) throws -> GridCorrection? {
+        try pool.write { db in
+            guard let newest = try GridCorrection
+                .filter(Column("trackID") == trackID)
+                .order(Column("appliedAt").desc, Column("id").desc)
+                .fetchOne(db) else { return nil }
+            try newest.delete(db)
+            return newest
+        }
+    }
+
     /// Reactive track listing (§18.3). Non-isolated because it touches only the
     /// immutable, Sendable `repository`.
     public nonisolated func observeTracks(_ query: LibraryQuery) -> AsyncStream<[DJTrackRow]> {
