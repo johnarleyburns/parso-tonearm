@@ -81,6 +81,12 @@ public struct SplitMix64: Sendable {
     }
 }
 
+extension SplitMix64: RandomNumberGenerator {
+    /// SplitMix64's `next()` already yields full 64-bit words, so the type is
+    /// a drop-in `RandomNumberGenerator` — the standard `random(in:using:)`
+    /// family becomes deterministic too (NFR-DET-3).
+}
+
 // MARK: - Beam search (§28A.3)
 
 extension PlaylistSequencer {

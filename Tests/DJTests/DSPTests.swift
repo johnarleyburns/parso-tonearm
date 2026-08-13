@@ -164,7 +164,10 @@ final class OnsetTests: XCTestCase {
     func testNoiseDoesNotProduceSpuriousPeaks() {
         let config = STFTConfig(fftSize: 4096, hopSize: 2048)
         let kernel = STFTKernel(config: config)
-        var rng = SystemRandomNumberGenerator()
+        // Seeded, not ambient entropy — this test failed intermittently when
+        // a SystemRandomNumberGenerator draw happened to exceed the < 3 peaks
+        // budget (NFR-DET-3, current_status.md's known flake).
+        var rng = SplitMix64(seed: 0x0A1B_2C3D)
         var noise = [Float](repeating: 0, count: 48_000)
         for i in noise.indices { noise[i] = Float.random(in: -0.005...0.005, using: &rng) }
         let spectra = noise.withUnsafeBufferPointer { kernel.spectra($0) }
