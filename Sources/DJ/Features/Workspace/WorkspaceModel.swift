@@ -164,6 +164,13 @@ public final class WorkspaceModel: ObservableObject {
     @Published public var crossfader: Float = 0
     @Published public var crossfaderCurve: CrossfaderCurve = .constantPower
 
+    /// The per-deck tempo fader position (§41.9b rule 4): the deck's rate as
+    /// a signed fraction off unity, in the ±8% `ClubGeometry.tempoFaderRange`.
+    /// Mirrored here (like the EQ/fader state) so the shared session VM — not a
+    /// view — owns where the fader sits.
+    @Published public var tempoA: Double = 0
+    @Published public var tempoB: Double = 0
+
     /// The iPad module slot each deck occupies (§41.9a) — the per-deck
     /// remembered `JOG · STEMS · PADS · FX` choice, **default `STEMS`** so §41.9
     /// is what an existing user sees unless they ask for something else. The
@@ -518,6 +525,55 @@ public final class WorkspaceModel: ObservableObject {
         engine.setCrossfader(position, curve: curve)
         crossfader = position
         crossfaderCurve = curve
+    }
+
+    // MARK: - §41.9b tempo fader (rule 4)
+
+    /// A deck's tempo-fader position: the signed fraction off unity in
+    /// `ClubGeometry.tempoFaderRange`.
+    public func tempo(_ deck: PerformanceEngine.Deck) -> Double {
+        deck == .a ? tempoA : tempoB
+    }
+
+    /// Move a deck's tempo fader (§41.9b rule 4). The fader sets the deck's
+    /// rate directly (`rate = 1 + fraction`), clamped to the ±8% range. A
+    /// synced deck's continuous rate tracking may override it, exactly as a
+    /// pitch fader on club gear overrides sync while it is moved.
+    public func setTempo(_ deck: PerformanceEngine.Deck, fraction: Double) {
+        let clamped = min(ClubGeometry.tempoFaderRange.upperBound,
+                          max(ClubGeometry.tempoFaderRange.lowerBound, fraction))
+        switch deck {
+        case .a: tempoA = clamped
+        case .b: tempoB = clamped
+        }
+        engine.setRate(deck, rate: Float(1 + clamped))
+    }
+
+    // MARK: - Master clock bar:beat readout (§53.11)
+
+    /// The master clock's bar and beat (1-indexed) at an absolute master
+    /// sample position: `bar = floor(samples / samplesPerBar) + 1`, `beat`
+    /// the offset within the bar. `nil` until a master clock exists (no deck
+    /// loaded / no tempo). Pure so the regression driver's bar scheduling
+    /// (`waitForBar`) is pinned to the same math the UI renders (§53.11's
+    /// `dj.master.bar`).
+    public static func masterBarBeat(masterSample: Int64,
+                                     bpm: Double,
+                                     sampleRate: Double) -> (bar: Int, beat: Int)? {
+        guard bpm > 0, sampleRate > 0 else { return nil }
+        let samplesPerBeat = sampleRate * 60 / bpm
+        let samplesPerBar = 4 * samplesPerBeat
+        let bar = Int(Double(masterSample) / samplesPerBar) + 1
+        let inBar = Double(masterSample).truncatingRemainder(dividingBy: samplesPerBar)
+        let beat = min(4, Int(inBar / samplesPerBeat) + 1)
+        return (bar, beat)
+    }
+
+    /// The master clock's current bar:beat, rendered by `dj.master.bar`.
+    public var masterBarBeat: (bar: Int, beat: Int)? {
+        Self.masterBarBeat(masterSample: telemetry.masterSample,
+                           bpm: telemetry.masterBPM,
+                           sampleRate: engine.sampleRate)
     }
 
     // MARK: - Compact posture (§42.1, §42.6–42.7)
@@ -996,11 +1052,16 @@ public final class WorkspaceModel: ObservableObject {
         defaults.string(forKey: jogModeKey(deck)) == "cdj" ? .cdj : .vinyl
     }
 
-    /// §41.9a's module geometry. The jog module is the widest module — a 248 pt
-    /// jog flanked by the ± pitch-bend columns — and must fit its deck column
-    /// without pushing into the mixer column (AT-TWIN-2: a module never
-    /// occludes shared controls; it is a layout member of its own column, not
-    /// an overlay).
+    /// §41.9a/§41.9b module and club geometry. The jog module is the widest
+    /// module — a 248 pt jog flanked by the ± pitch-bend columns — and must fit
+    /// its deck column without pushing into the mixer column (AT-TWIN-2: a
+    /// module never occludes shared controls; it is a layout member of its own
+    /// column, not an overlay). §41.9b widens the mixer column to 320 pt and
+    /// narrows each deck column to ~416 pt; the 392 pt jog module still fits
+    /// the deck column alone (the module slot's JOG option), and the deck
+    /// column's permanent §41.9b jog is the plain 248 pt platter beside the
+    /// tempo fader, which also fits (decision 19: the geometry tests are
+    /// updated against the new numbers, never weakened).
     public enum ModuleGeometry {
         /// The §41.9a jog diameter: 248 pt ≈ 48 mm at the iPad's 131 pt/in — a
         /// whole-hand control rather than the iPhone's thumb control.
@@ -1014,18 +1075,54 @@ public final class WorkspaceModel: ObservableObject {
         public static var jogModuleWidth: CGFloat {
             jogSize + 2 * bendColumnWidth + 2 * bendGap
         }
-        /// The §41.9a mixer column width (the iPad centre column, mockup `07`).
-        public static let mixerColumnWidth: CGFloat = 268
+        /// The §41.9b mixer column width (mockup `07`'s `320px` — widened from
+        /// M4's 268 so the two channel strips fit side by side).
+        public static let mixerColumnWidth: CGFloat = 320
+        /// The §41.9b normative deck column width (~416 pt; the mockup grid
+        /// `1fr 320px 1fr`'s flexible fraction on a 1180 canvas is 406 pt after
+        /// padding, and the 328 pt jog module fits both).
+        public static let deckColumnWidth: CGFloat = 416
+        /// The §41.9b tempo fader's column width on the deck's outer edge
+        /// (rule 4). The fader rides beside the jog module: 416 − 328 − gap ≥
+        /// this, so the pair fits the deck column.
+        public static let tempoFaderWidth: CGFloat = 58
         /// The workspace's column gap and outer padding (mockup `07`'s 12 px).
         public static let columnGap: CGFloat = 12
         public static let outerPadding: CGFloat = 12
 
-        /// A deck column's width on a `canvas`-wide workspace — the §41.9
-        /// grid `1fr 268px 1fr`. The module slot is a member of its deck
-        /// column, so `jogModuleWidth ≤ deckColumnWidth` is what keeps the jog
-        /// module from ever reaching the mixer column (AT-TWIN-2).
+        /// A deck column's width on a `canvas`-wide workspace — the §41.9b
+        /// grid `1fr 320px 1fr`. The jog module is a member of its deck column,
+        /// so `jogModuleWidth ≤ deckColumnWidth` is what keeps it from ever
+        /// reaching the mixer column (AT-TWIN-2).
         public static func deckColumnWidth(canvas: CGFloat) -> CGFloat {
             max(0, (canvas - 2 * outerPadding - mixerColumnWidth - 2 * columnGap) / 2)
         }
+    }
+
+    /// The §41.9b club arrangement's normative constants — the things the
+    /// layout and the FR-TRANS-2 layout assertions pin down off-device:
+    /// per-channel strip order, CUE-left-of-PLAY, the tempo fader's range, and
+    /// the eight pads under their mode selector (rule 5).
+    public enum ClubGeometry {
+        /// §41.9b rule 1: the channel strip's reading order, top to bottom.
+        public static let channelStripOrder: [String] =
+            ["TRIM", "HI", "MID", "LOW", "FILTER", "FADER", "CUE"]
+        /// §41.9b rule 3: CUE sits to the LEFT of PLAY at each deck's inner
+        /// base, both ≥ 54 pt. Deck B mirrors horizontally (PLAY nearest the
+        /// mixer on both decks — the inner thumb).
+        public static let deckTransportOrder: [String] = ["CUE", "PLAY"]
+        /// §41.9b rule 4: the tempo fader's range, ±8% — the §31.2 range
+        /// "typical in beatmatching" (FR-ENG-6).
+        public static let tempoFaderRange: ClosedRange<Double> = -0.08...0.08
+        /// §41.9b rule 5: eight performance pads, two rows of four.
+        public static let padColumns = 4
+        public static let padRows = 2
+        public static let padCount = padColumns * padRows
+        /// §41.9b rule 5: the pad mode selector, immediately above the pads.
+        public static let padModes: [String] = ["HOT CUE", "PAD FX", "BEAT JUMP", "SAMPLER"]
+        /// §41.9b rule 7 / §35A: the beat-synced echo's beat lengths. The
+        /// engine lands in commit 5.5; until then the Beat FX block renders the
+        /// honest unavailable state (the stems convention).
+        public static let echoBeats: [Double] = [0.25, 0.5, 1, 2, 4]
     }
 }

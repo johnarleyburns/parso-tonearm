@@ -129,10 +129,13 @@ struct BankDrawerView: View {
         VStack(spacing: 8) {
             HStack(spacing: 7) {
                 EQKnobWithReadout(label: "HI", knob: eq.high,
+                                  identifier: "dj.deck.\(deckID).eq.high",
                                   onChanged: { model.setEQKnobs(deck, low: eq.low, mid: eq.mid, high: $0) })
                 EQKnobWithReadout(label: "MID", knob: eq.mid,
+                                  identifier: "dj.deck.\(deckID).eq.mid",
                                   onChanged: { model.setEQKnobs(deck, low: eq.low, mid: $0, high: eq.high) })
                 EQKnobWithReadout(label: "LOW", knob: eq.low,
+                                  identifier: "dj.deck.\(deckID).eq.low",
                                   onChanged: { model.setEQKnobs(deck, low: $0, mid: eq.mid, high: eq.high) })
             }
 
@@ -153,6 +156,8 @@ struct BankDrawerView: View {
         }
         .padding(.top, 2)
     }
+
+    private var deckID: String { deck == .a ? "a" : "b" }
 
     private var trimGain: Float {
         deck == .a ? model.channelA : model.channelB
@@ -181,6 +186,7 @@ struct BankDrawerView: View {
             )
         }
         .frame(height: 26)
+        .accessibilityIdentifier("dj.deck.\(deckID).fader")
     }
 
     // MARK: STEMS — two live faders, the §2.1 iPhone budget (honest until M5)
@@ -264,14 +270,16 @@ struct BankDrawerView: View {
 }
 
 /// An `EQKnob` with the mockup's per-band readout (kill end stop reads KILL).
+/// `identifier` carries the §53.11 accessibility identifier.
 private struct EQKnobWithReadout: View {
     let label: String
     let knob: Float
+    var identifier: String?
     let onChanged: (Float) -> Void
 
     var body: some View {
         VStack(spacing: 3) {
-            EQKnob(label: label, value: knob, onChanged: onChanged)
+            EQKnob(label: label, value: knob, identifier: identifier, onChanged: onChanged)
             Text(readout)
                 .font(.system(size: 8.5, design: .monospaced))
                 .foregroundStyle(readoutColor)

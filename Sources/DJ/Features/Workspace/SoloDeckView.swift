@@ -113,8 +113,9 @@ public struct SoloDeckView: View {
             .background(.thinMaterial, in: Capsule())
     }
 
-    /// The §42.6 readout band: thermal state, granted buffer and render load
-    /// sit inline because on a phone there is no menu bar to hide them in.
+    /// The §42.6 readout band: thermal state, granted buffer, the master
+    /// bar:beat readout and render load sit inline because on a phone there is
+    /// no menu bar to hide them in.
     private var telemetryRow: some View {
         HStack {
             HStack(spacing: 6) {
@@ -130,11 +131,28 @@ public struct SoloDeckView: View {
                     .padding(.vertical, 2)
                     .background(Color.cyan.opacity(0.14), in: Capsule())
                     .foregroundStyle(.cyan)
+                masterBarReadout
             }
             Spacer()
             Text("CPU \(Int(model.telemetry.renderLoad * 100))%")
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    /// The `dj.master.bar` readout (§53.11) — the regression driver polls it
+    /// to schedule gestures on phrase boundaries.
+    private var masterBarReadout: some View {
+        Group {
+            if let barBeat = model.masterBarBeat {
+                Text("BAR \(barBeat.bar) · \(barBeat.beat)")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Color.white.opacity(0.08), in: Capsule())
+                    .accessibilityLabel("\(barBeat.bar):\(barBeat.beat)")
+                    .accessibilityIdentifier("dj.master.bar")
+            }
         }
     }
 
@@ -161,21 +179,27 @@ public struct SoloDeckView: View {
     /// The always-visible crossfader bottom bar (§42.1: the one control you
     /// must never have to navigate to). Rendered last in the ZStack so the
     /// crate sheet slides *behind* it and can never cover the crossfader
-    /// (§42.7). The whole strip is a 1:1 relative drag surface.
+    /// (§42.7). The whole strip is a 1:1 relative drag surface. The §42.7c
+    /// ECHO button lives here too — Echo Out needs both controls reachable
+    /// without a drawer (§42.7c, §41.9b rule 7).
     private var crossfaderBar: some View {
         VStack(spacing: 6) {
             crossfaderStrip
 
-            Button {
-                model.raiseCrateSheet()
-            } label: {
-                Label("Crate", systemImage: "square.stack")
-                    .font(.system(size: 12, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 44)
-                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            HStack(spacing: 8) {
+                EchoButton(model: model, deck: model.focusedDeck)
+
+                Button {
+                    model.raiseCrateSheet()
+                } label: {
+                    Label("Crate", systemImage: "square.stack")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
+                        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -216,8 +240,38 @@ public struct SoloDeckView: View {
                         model.setCrossfader(Float(t) * 2 - 1, curve: model.crossfaderCurve)
                     }
             )
+            .accessibilityIdentifier("dj.mixer.crossfader")
         }
         .frame(height: 44)
+    }
+}
+
+/// The §42.7c **ECHO button** in the always-visible band: Echo Out is a
+/// two-control transition, so ECHO sits beside the crossfader and is reachable
+/// without a drawer. The echo *engine* and its long-press release-to-commit
+/// flyout land in commit 5.5; until then the button renders the honest
+/// unavailable state with its §53.11 identifier so the regression suite can
+/// target `dj.fx.echo`.
+private struct EchoButton: View {
+    @ObservedObject var model: WorkspaceModel
+    let deck: PerformanceEngine.Deck
+
+    var body: some View {
+        Button {
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("ECHO")
+                    .font(.system(size: 12, weight: .bold))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 44)
+            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .disabled(true)
+        .accessibilityIdentifier("dj.fx.echo")
     }
 }
 
@@ -246,6 +300,8 @@ private struct SoloDeckColumnView: View {
     }
 
     private var synced: Bool { model.isSynced(deck) }
+
+    private var deckID: String { deck == .a ? "a" : "b" }
 
     private var eq: (low: Float, mid: Float, high: Float) {
         deck == .a ? (model.eqALow, model.eqAMid, model.eqAHigh)
@@ -388,13 +444,15 @@ private struct SoloDeckColumnView: View {
 
     private var transport: some View {
         HStack(spacing: 7) {
-            TransportButton(title: "CUE") {
+            TransportButton(title: "CUE",
+                            identifier: "dj.deck.\(deckID).cue") {
                 model.cue(deck)
             } onRelease: {
                 model.releaseCue(deck)
             }
             TransportButton(title: telemetryDeck.playing ? "PAUSE" : "PLAY",
-                            emphasized: true) {
+                            emphasized: true,
+                            identifier: "dj.deck.\(deckID).play") {
                 if telemetryDeck.playing {
                     model.pause(deck)
                 } else {
@@ -448,7 +506,7 @@ private struct SoloDeckColumnView: View {
         case .stems:
             stemsBlock
         case .eq:
-            EQGroup(title: "EQ",
+            EQGroup(title: "EQ", deckID: deckID,
                     low: eq.low, mid: eq.mid, high: eq.high) { low, mid, high in
                 model.setEQKnobs(deck, low: low, mid: mid, high: high)
             }
@@ -459,6 +517,7 @@ private struct SoloDeckColumnView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 VerticalSlider(value: deck == .a ? model.filterA : model.filterB,
+                               identifier: "dj.deck.\(deckID).filter",
                                onChanged: { model.setFilter(deck, knob: $0) })
                     .frame(height: 96)
             }

@@ -74,8 +74,10 @@ struct DeckModuleSlotView: View {
 /// never a guess. The jog's intents reach the transport through the same
 /// lazily-created `JogTransport` seam as the compact surfaces (FR-ENG-11,
 /// AT-TWIN-4), and the bend buttons route through the same `.nudge`/`.release`
-/// pair, so a momentary bend behaves identically to a ring bend.
-private struct JogModuleView: View {
+/// pair, so a momentary bend behaves identically to a ring bend. Reused by the
+/// §41.9b deck column as the permanent jog (the module slot's JOG option and
+/// the club column share the same jog module).
+struct JogModuleView: View {
     @ObservedObject var model: WorkspaceModel
     let deck: PerformanceEngine.Deck
     let onJogIntent: (JogGestureModel.Intent) -> Void
@@ -181,10 +183,13 @@ private struct BendButton: View {
 
 /// The four stem faders, the honest-unavailable state until the M5 separator
 /// lands (plan §2.6). This is the slot's default — §41.9's stems block moved
-/// into the module slot so the choice is per deck.
+/// into the module slot so the choice is per deck. The rows are deliberately
+/// compact: the §41.9b deck column keeps the club geometry (jog + pads +
+/// transport), and the stem surface that ships in 5.8 is the §41.10 focused
+/// view.
 private struct StemsModuleView: View {
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 3) {
             HStack {
                 Text("Stems")
                     .font(.subheadline.weight(.semibold))
@@ -196,8 +201,8 @@ private struct StemsModuleView: View {
             ForEach(["Vocals", "Drums", "Bass", "Other"], id: \.self) { stem in
                 HStack(spacing: 6) {
                     Text(stem)
-                        .font(.system(size: 11))
-                        .frame(width: 52, alignment: .leading)
+                        .font(.system(size: 10))
+                        .frame(width: 48, alignment: .leading)
                     GeometryReader { proxy in
                         Capsule().fill(Color.white.opacity(0.08))
                             .overlay(alignment: .leading) {
@@ -205,14 +210,9 @@ private struct StemsModuleView: View {
                                     .frame(width: proxy.size.width * 0.8)
                             }
                     }
-                    .frame(height: 4)
+                    .frame(height: 3)
                 }
             }
-            Text("The four stem faders land with the M5 separator — until then "
-                 + "this is the honest unavailable state (plan §2.6)")
-                .font(.system(size: 8.5))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
         }
     }
 }

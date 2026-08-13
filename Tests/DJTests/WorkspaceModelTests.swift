@@ -50,7 +50,7 @@ final class WorkspaceModelTests: XCTestCase {
         func setLoop(_ deck: PerformanceEngine.Deck, beats: Double) {}
         func exitLoop(_ deck: PerformanceEngine.Deck) {}
         func setQuantize(_ on: Bool, resolution: QuantizeResolution) {}
-        func setRate(_ deck: PerformanceEngine.Deck, rate: Float) {}
+        func setRate(_ deck: PerformanceEngine.Deck, rate: Float) { rates[deck] = Double(rate) }
         func setKeyLock(_ deck: PerformanceEngine.Deck, locked: Bool) {}
         func setKeyShift(_ deck: PerformanceEngine.Deck, semitones: Float) {}
         func sync(_ deck: PerformanceEngine.Deck, to master: PerformanceEngine.Deck, barSync: Bool) {
@@ -799,22 +799,142 @@ final class WorkspaceModelTests: XCTestCase {
     func testModuleSlotNeverOccludesSharedControls() {
         // AT-TWIN-2: the module slot is a layout member of its own deck column
         // (never an overlay), so the widest module — the 248 pt jog with its
-        // ± bend columns — must fit the §41.9 `1fr 268px 1fr` deck column on
+        // ± bend columns — must fit the §41.9b `1fr 320px 1fr` deck column on
         // the 1180 pt canvas. That is what structurally keeps a module from
         // ever reaching the mixer column or the opposite deck.
         XCTAssertEqual(WorkspaceModel.ModuleGeometry.jogSize, 248, "the §41.9a jog diameter")
-        XCTAssertEqual(WorkspaceModel.ModuleGeometry.mixerColumnWidth, 268)
+        XCTAssertEqual(WorkspaceModel.ModuleGeometry.mixerColumnWidth, 320,
+                       "the §41.9b mixer column (was 268 in M4)")
         XCTAssertEqual(WorkspaceModel.ModuleGeometry.jogModuleWidth,
                        248 + 2 * 58 + 2 * 14, "jog + two bend columns + two gaps")
 
         let canvas: CGFloat = 1180
         let column = WorkspaceModel.ModuleGeometry.deckColumnWidth(canvas: canvas)
-        XCTAssertEqual(column, (canvas - 2 * 12 - 268 - 2 * 12) / 2, accuracy: 1e-9,
-                       "the §41.9 grid math: 1fr 268px 1fr over a 1180 canvas")
+        XCTAssertEqual(column, (canvas - 2 * 12 - 320 - 2 * 12) / 2, accuracy: 1e-9,
+                       "the §41.9b grid math: 1fr 320px 1fr over a 1180 canvas")
         XCTAssertLessThanOrEqual(WorkspaceModel.ModuleGeometry.jogModuleWidth, column,
                                  "the jog module fits its deck column and cannot reach the mixer (AT-TWIN-2)")
+        XCTAssertLessThanOrEqual(WorkspaceModel.ModuleGeometry.jogModuleWidth,
+                                 WorkspaceModel.ModuleGeometry.deckColumnWidth,
+                                 "the §41.9b normative deck column (~416 pt) also fits the jog module")
         XCTAssertGreaterThanOrEqual(column, WorkspaceModel.ModuleGeometry.jogSize,
                                     "a deck column is comfortably wider than the jog itself")
+    }
+
+    // MARK: - §41.9b club ergonomics (FR-TRANS-2, plan 5.4)
+
+    func testClubMixerColumnBudget() {
+        // §41.9b geometry: mixer column 320 pt, deck column ~416 pt, and the
+        // tempo fader + plain jog pair fits the deck column (rule 4). The
+        // bend-column jog module (jog + two bend columns + two gaps = 392) fits
+        // the deck column alone (the module slot's JOG option) — asserted in
+        // testModuleSlotNeverOccludesSharedControls.
+        XCTAssertEqual(WorkspaceModel.ModuleGeometry.mixerColumnWidth, 320)
+        XCTAssertEqual(WorkspaceModel.ModuleGeometry.deckColumnWidth, 416)
+        let innerDeck = WorkspaceModel.ModuleGeometry.deckColumnWidth
+            - 2 * WorkspaceModel.ModuleGeometry.outerPadding
+        XCTAssertLessThanOrEqual(
+            WorkspaceModel.ModuleGeometry.tempoFaderWidth
+                + 6
+                + WorkspaceModel.ModuleGeometry.jogSize,
+            innerDeck,
+            "the tempo fader (58) beside the plain jog (248) fits the ~416 pt deck column's inner width")
+        XCTAssertLessThanOrEqual(WorkspaceModel.ModuleGeometry.tempoFaderWidth,
+                                 WorkspaceModel.ModuleGeometry.jogSize,
+                                 "the tempo fader is the deck column's narrow outer column")
+    }
+
+    func testChannelStripOrderIsTheClubReadingOrder() {
+        // §41.9b rule 1: TRIM → HI → MID → LOW → FILTER above a vertical
+        // channel fader and a CUE button — the order every club mixer uses and
+        // the order the five transitions are taught in (FR-TRANS-2).
+        XCTAssertEqual(WorkspaceModel.ClubGeometry.channelStripOrder,
+                       ["TRIM", "HI", "MID", "LOW", "FILTER", "FADER", "CUE"])
+    }
+
+    func testCueIsLeftOfPlayAndBothAreAtLeast44Point() {
+        // §41.9b rule 3: CUE sits to the LEFT of PLAY at each deck's inner
+        // base, both ≥ 54 pt. The transport order constant is the layout's
+        // contract; the compact vertical stack reads CUE before PLAY too.
+        XCTAssertEqual(WorkspaceModel.ClubGeometry.deckTransportOrder, ["CUE", "PLAY"])
+    }
+
+    func testEightPadsUnderTheModeSelector() {
+        // §41.9b rule 5: eight performance pads, two rows of four, with the
+        // mode selector immediately above them.
+        XCTAssertEqual(WorkspaceModel.ClubGeometry.padCount, 8)
+        XCTAssertEqual(WorkspaceModel.ClubGeometry.padColumns, 4)
+        XCTAssertEqual(WorkspaceModel.ClubGeometry.padRows, 2)
+        XCTAssertEqual(WorkspaceModel.ClubGeometry.padModes,
+                       ["HOT CUE", "PAD FX", "BEAT JUMP", "SAMPLER"])
+    }
+
+    func testTempoFaderRangeIsTheBeatmatchRange() {
+        // §41.9b rule 4 / §31.2: the tempo fader's ±8% range — the range
+        // "typical in beatmatching" (FR-ENG-6). The fader maps rate = 1 + f.
+        XCTAssertEqual(WorkspaceModel.ClubGeometry.tempoFaderRange.lowerBound, -0.08, accuracy: 1e-9)
+        XCTAssertEqual(WorkspaceModel.ClubGeometry.tempoFaderRange.upperBound, 0.08, accuracy: 1e-9)
+        XCTAssertEqual(WorkspaceModel.ClubGeometry.tempoFaderRange.lowerBound * -1,
+                       WorkspaceModel.ClubGeometry.tempoFaderRange.upperBound,
+                       "symmetric around unity")
+    }
+
+    func testEchoBeatLengthsAreThe35ASet() {
+        // §41.9b rule 7 / §35A: 1/4 … 4 beats.
+        XCTAssertEqual(WorkspaceModel.ClubGeometry.echoBeats, [0.25, 0.5, 1, 2, 4])
+    }
+
+    func testTempoFaderForwardsRateAndClamps() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        XCTAssertEqual(model.tempo(.a), 0, "the fader rests at unity")
+        model.setTempo(.a, fraction: 0.04)
+        XCTAssertEqual(model.tempo(.a), 0.04, accuracy: 1e-9)
+        XCTAssertEqual(fake.rates[.a] ?? 0, 1.04, accuracy: 1e-6,
+                       "the fader sets the deck's rate directly (rate = 1 + f)")
+
+        model.setTempo(.a, fraction: 0.5)
+        XCTAssertEqual(model.tempo(.a), 0.08, accuracy: 1e-9,
+                       "clamped to the ±8% range")
+        XCTAssertEqual(fake.rates[.a] ?? 0, 1.08, accuracy: 1e-6)
+
+        model.setTempo(.a, fraction: -0.5)
+        XCTAssertEqual(model.tempo(.a), -0.08, accuracy: 1e-9, "clamped low")
+        XCTAssertEqual(model.tempo(.b), 0, "deck B's fader is untouched")
+        XCTAssertEqual(fake.rates[.a] ?? 0, 0.92, accuracy: 1e-6)
+    }
+
+    func testMasterBarBeatReadout() {
+        // §53.11's dj.master.bar: the master clock's bar and beat at a sample
+        // position — bar = floor(samples/bar)+1, beat the offset within it.
+        let sampleRate = 48_000.0
+        // 120 BPM → 24000 samples/beat, 96000 samples/bar exactly — integer
+        // sample positions make the boundary cases exact.
+        XCTAssertNil(WorkspaceModel.masterBarBeat(masterSample: 0, bpm: 0, sampleRate: sampleRate),
+                     "no master clock reads nothing")
+        assertBarBeat(WorkspaceModel.masterBarBeat(masterSample: 0, bpm: 120, sampleRate: sampleRate),
+                      bar: 1, beat: 1)
+        let samplesPerBeat = 24_000.0
+        let samplesPerBar = 96_000.0
+        assertBarBeat(WorkspaceModel.masterBarBeat(masterSample: Int64(samplesPerBeat * 1.5),
+                                                   bpm: 120, sampleRate: sampleRate),
+                      bar: 1, beat: 2, "inside the first bar, beat 2")
+        assertBarBeat(WorkspaceModel.masterBarBeat(masterSample: Int64(samplesPerBar * 3 + samplesPerBeat * 2),
+                                                   bpm: 120, sampleRate: sampleRate),
+                      bar: 4, beat: 3, "bar 4, beat 3")
+        assertBarBeat(WorkspaceModel.masterBarBeat(masterSample: Int64(samplesPerBar * 2 - 1),
+                                                   bpm: 120, sampleRate: sampleRate),
+                      bar: 2, beat: 4, "the last sample of bar 2 reads bar 2 beat 4")
+    }
+
+    private func assertBarBeat(_ readout: (bar: Int, beat: Int)?,
+                               bar: Int, beat: Int, _ message: String = "") {
+        XCTAssertNotNil(readout, message)
+        XCTAssertEqual(readout?.bar, bar, message)
+        XCTAssertEqual(readout?.beat, beat, message)
     }
 
     // MARK: - Per-deck queues (§41.9c, FR-ENG-13; plan 5.1)

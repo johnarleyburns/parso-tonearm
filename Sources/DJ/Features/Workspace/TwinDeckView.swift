@@ -107,10 +107,12 @@ public struct TwinDeckView: View {
                     EdgeSlider(value: model.filterA,
                                onChanged: { model.setFilter(.a, knob: $0) })
                         .frame(width: WorkspaceModel.DrawerGeometry.edgeSliderWidth)
+                        .accessibilityIdentifier("dj.deck.a.filter")
                     Spacer()
                     EdgeSlider(value: model.filterB,
                                onChanged: { model.setFilter(.b, knob: $0) })
                         .frame(width: WorkspaceModel.DrawerGeometry.edgeSliderWidth)
+                        .accessibilityIdentifier("dj.deck.b.filter")
                 }
                 .padding(.top, bandTop + 20)
                 .frame(height: max(0, proxy.size.height - bandTop - 40))
@@ -159,7 +161,9 @@ public struct TwinDeckView: View {
     }
 
     /// The §42.7a telemetry band: the correctness readouts stay inline because
-    /// on a phone there is no menu bar to hide them in.
+    /// on a phone there is no menu bar to hide them in. The `dj.master.bar`
+    /// readout (§53.11) lives here so the regression driver can schedule
+    /// gestures on phrase boundaries.
     private var telemetryRow: some View {
         HStack(spacing: 5) {
             Text(thermalText)
@@ -181,6 +185,7 @@ public struct TwinDeckView: View {
                 .background(Color.accentColor.opacity(0.14), in: Capsule())
                 .foregroundStyle(Color.accentColor)
             Spacer()
+            masterBarReadout
             Text("CPU \(Int(model.telemetry.renderLoad * 100))%")
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(.secondary)
@@ -222,6 +227,22 @@ public struct TwinDeckView: View {
         }
         .frame(height: 38)
         .padding(.horizontal, 20)
+    }
+
+    /// The `dj.master.bar` readout (§53.11): the master clock's bar:beat,
+    /// exposed for the regression driver's bar-aware gesture scheduling.
+    private var masterBarReadout: some View {
+        Group {
+            if let barBeat = model.masterBarBeat {
+                Text("BAR \(barBeat.bar) · \(barBeat.beat)")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.white.opacity(0.08), in: Capsule())
+                    .accessibilityLabel("\(barBeat.bar):\(barBeat.beat)")
+                    .accessibilityIdentifier("dj.master.bar")
+            }
+        }
     }
 
     /// The control band: deck A (jog + transport) · mixer · deck B (transport
@@ -300,11 +321,14 @@ private struct TwinDeckColumnView: View {
     }
 
     /// The 54×54 transport: CUE · PLAY/PAUSE · LOOP (54×48), with the loop's
-    /// release-to-commit flyout (§42.7b idiom 3). SYNC lives in the mixer
-    /// column, not here (§42.7a).
+    /// release-to-commit flyout (§42.7b idiom 3). CUE reads before PLAY at the
+    /// deck's inner base (§41.9b rule 3's compact adaptation — the vertical
+    /// stack is the §42.7a budget's answer to a 54 pt column). SYNC lives in
+    /// the mixer column, not here (§42.7a).
     private var transportStack: some View {
         VStack(spacing: 6) {
-            TransportButton(title: "CUE") {
+            TransportButton(title: "CUE",
+                            identifier: "dj.deck.\(deckID).cue") {
                 model.cue(deck)
             } onRelease: {
                 model.releaseCue(deck)
@@ -313,7 +337,8 @@ private struct TwinDeckColumnView: View {
                    height: WorkspaceModel.TwinGeometry.transportWidth)
 
             TransportButton(title: telemetryDeck.playing ? "PAUSE" : "PLAY",
-                            emphasized: true) {
+                            emphasized: true,
+                            identifier: "dj.deck.\(deckID).play") {
                 if telemetryDeck.playing {
                     model.pause(deck)
                 } else {
@@ -326,6 +351,8 @@ private struct TwinDeckColumnView: View {
             LoopReleaseToCommitButton(model: model, deck: deck)
         }
     }
+
+    private var deckID: String { deck == .a ? "a" : "b" }
 }
 
 /// The bank tab (§42.7b): a 44 pt-hit-region strip overlaid on the jog's lower
@@ -549,14 +576,22 @@ private struct TwinMixerColumnView: View {
 
             HStack(alignment: .center, spacing: 12) {
                 ChannelFader(label: "CH A", value: model.channelA,
+                             identifier: "dj.deck.a.fader",
                              onChanged: { model.setChannelFader(.a, gain: $0) })
                 syncButton
                 ChannelFader(label: "CH B", value: model.channelB,
+                             identifier: "dj.deck.b.fader",
                              onChanged: { model.setChannelFader(.b, gain: $0) })
             }
             .padding(.top, 2)
 
             crossfaderBox
+
+            // §42.7c: the ECHO button in the always-visible band — Echo Out is
+            // a two-control transition (echo on, fader down), so both must be
+            // reachable without a drawer. The echo engine lands in 5.5; until
+            // then this is the honest unavailable state with the §53.11 id.
+            EchoTwinButton(model: model)
         }
     }
 
@@ -637,6 +672,7 @@ private struct TwinMixerColumnView: View {
                         model.setCrossfader(Float(t) * 2 - 1, curve: model.crossfaderCurve)
                     }
                 )
+                .accessibilityIdentifier("dj.mixer.crossfader")
             }
             .frame(height: 34)
         }
@@ -648,6 +684,33 @@ private struct TwinMixerColumnView: View {
 
     private static func clampUnit(_ value: CGFloat) -> CGFloat {
         max(0, min(1, value))
+    }
+}
+
+/// The §42.7c ECHO button in the twin surface's always-visible mixer column.
+/// The echo *engine* lands in commit 5.5; until then the button renders the
+/// honest unavailable state with its §53.11 identifier so the regression suite
+/// can target `dj.fx.echo`.
+private struct EchoTwinButton: View {
+    @ObservedObject var model: WorkspaceModel
+
+    var body: some View {
+        Button {
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("ECHO · M5")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 34)
+            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+            .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .disabled(true)
+        .accessibilityIdentifier("dj.fx.echo")
     }
 }
 
@@ -681,10 +744,12 @@ private struct PhaseErrorMeter: View {
 }
 
 /// A 44 pt-minimum channel fader (trim gain, §35.4). Unity at the top, full
-/// kill at the bottom; the whole 34×64 strip is the drag surface.
+/// kill at the bottom; the whole 34×64 strip is the drag surface. `identifier`
+/// carries the §53.11 accessibility identifier.
 private struct ChannelFader: View {
     let label: String
     let value: Float
+    var identifier: String?
     let onChanged: (Float) -> Void
 
     var body: some View {
@@ -710,10 +775,21 @@ private struct ChannelFader: View {
                 .foregroundStyle(.secondary)
         }
         .frame(width: 44, height: 44, alignment: .top)
+        .accessibilityIdentifierIfPresent(identifier)
     }
 
     private static func clamp01(_ value: CGFloat) -> CGFloat {
         max(0, min(1, value))
+    }
+}
+
+/// Apply a §53.11 accessibility identifier only when one is supplied.
+private extension View {
+    func accessibilityIdentifierIfPresent(_ identifier: String?) -> some View {
+        if let identifier {
+            return AnyView(self.accessibilityIdentifier(identifier))
+        }
+        return AnyView(self)
     }
 }
 
