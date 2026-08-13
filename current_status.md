@@ -28,6 +28,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.2** — `f8f9db1` `feat(dj): analysis persistence — phrases, downbeats, real beat grid, band-split pyramid (M5 commit 5.2)`.
 - **M5 5.1** — `69814f6` `feat(dj): app entry point + library → deck seam (M5 commit 5.1)`.
 - **M5 plan (re-scope)** — `d108b09` `docs(dj): M5 re-scope — outcome milestone, reachability first, Jamendo/AAC (Appendix M.6)`.
 - **M4 4.13** — `01d4acb` `feat(dj): paywall, purchase flow, memory ceiling (M4 commit 4.13)`.
@@ -63,7 +64,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1 landed, commits 5.2–5.13 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.2 landed, commits 5.3–5.13 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -80,6 +81,34 @@ reference** so no real track can reach a deck, and **`AnalysisCoordinator.persis
 writes nothing to `phrase`, `downbeat` or `waveform_pyramid`** while `beat_grid` gets
 `firstBeatSample: 0, beatCount: 0` — which is why every waveform in the product is
 placeholder geometry. The stems/recording work would have landed on top of all three.
+
+**M5 commit 5.2 — analysis persistence — complete (`f8f9db1`).** §19.4's render
+contract is closed: the pipeline's computed artifacts now reach every destination
+table instead of being dropped (FR-WAVE-1, AT-WAVE-1, §49.3 rule 9):
+
+- `AnalyzeResult` widened from counts to the full contract — `BeatGrid`, downbeat
+  indices, `[Phrase]`, `WaveformPyramid`, `energyCurve` + hopSeconds; `persist`
+  writes them all in the **one existing transaction** (NFR-REL-1).
+- New `Data/AnalysisArtifacts.swift` — the shared SQL writers (single source of
+  row shapes) used by both the coordinator's single-transaction persist and the
+  `DJLibraryStore` façade: `phrase`/`downbeat` are DELETE-then-INSERT, the
+  single-row tables INSERT OR REPLACE, so **re-analysis is idempotent per version**
+  and `grid_correction` never touches the immutable rows (§19.4 rules 2–3).
+- **Real `beat_grid.firstBeatSample`/`beatCount`** (plus mean confidence) — the
+  placeholder-zero defect is gone; the per-beat `beat_blob` (new `BEAT` layout,
+  i64 samples + f32 confidences, §15.7 kind=0x03); `downbeat` rows anchor bar
+  numbers; the band-split pyramid BLOB is FR-WAVE-2's only source.
+- `Phrase` gains `startSample`/`endSample` so `phrase` rows are the §25 spans the
+  ribbon draws; `track.detectedBPM` is now written from the real grid.
+- `DJLibraryStore` gains `savePhrases` + the sibling artifact writers (the §10.1
+  façade, never implemented through M4) and the read accessors `WaveformRepository`
+  needs (`phrases`/`beatGrid`/`downbeats`/`waveformPyramid`/`energyCurve`).
+- Tests: 3 `WaveformPersistenceTests` — **AT-WAVE-1** (a real click-track WAV is
+  analysed and re-read: all five artifacts present with values equal to the
+  deterministic pipeline output, `beat_grid` never carries placeholder zeros),
+  re-analysis idempotence, and grid corrections still override without mutating
+  the immutable rows. DJ-only — no `xcodegen generate` (plan decision 25). Full
+  suite **1244 green** (1241 baseline + 3).
 
 - **Commit sequence (plan §5).** Unblockers first: **5.1** app entry point + library →
   deck seam (§49.3a); **5.2** analysis persistence (§19.4); **5.3** the §26A waveform
@@ -587,14 +616,18 @@ to keep it from failing in a clock-capped Low Power Mode state.
 
 ## Next
 
-- **M5 commit 5.2 — analysis persistence** (`docs/plans/dj-phase-4-stems-recording.md`
-  §5, spec §19.4, AT-WAVE-1). Widen `AnalyzeResult` to carry `[Phrase]` + `WaveformPyramid`
-  + the beat samples/downbeats, and make `persist` write `phrase`, `downbeat`,
-  `waveform_pyramid`, `beat_blob`, `energy_curve` and **real** `beat_grid`
-  (firstBeatSample/beatCount — no placeholder zeros) in the one transaction. 5.1
-  (`69814f6`) is done: the app has a navigable, Pro-gated route to the workspace, the
-  `DeckLoader` seam, and the real crate-sheet rows.
-- Then **5.3** waveform render → **5.4** club ergonomics → **5.5** Beat FX echo +
+- **M5 commit 5.3 — the waveform render** (`docs/plans/dj-phase-4-stems-recording.md`
+  §5, spec §26A, AT-WAVE-2..7). `Data/WaveformRepository` → `WaveformRenderModel`
+  (§26A.1: pyramid-level selection, grid composed with `grid_correction`, phrase
+  spans, cues, active loop, playhead) over the §19.4 rows 5.2 started writing; the
+  `Canvas`-based band-split renderer, `PhraseRibbon` (bar counts not seconds,
+  dashed low-confidence edges), `OverviewStrip`; stacked twin waveforms share one
+  playhead; honest empty state for unanalysed tracks; thermal degradation (one
+  pyramid level coarser at `.serious`). Wire into `TrackPrepView`, `WorkspaceView`,
+  `SoloDeckView`, `TwinDeckView`, replacing the 4.7/4.9 placeholder strips. 5.2
+  (`f8f9db1`) is done: the persisted artifacts are real, so the renderer draws
+  from analysis, never synthetic geometry.
+- Then **5.4** club ergonomics → **5.5** Beat FX echo +
   AT-TRANS → **5.6** genre libraries → **5.7–5.13**
   the original stems/recording/gig-crate scope. **Exit:** AT-STEM-\*, AT-REC-\*,
   AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\* green, plus the owner's end-to-end recorded
