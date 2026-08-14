@@ -28,6 +28,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.10** — `1f07de9` `feat(dj): record tap + encoder + segmented M4A, §37.2, FR-ENG-7 (M5 commit 5.10)`.
 - **M5 5.9** — `6dc5f80` `feat(dj): gig crates — promotion, budgeted separation, LRU eviction, §41.17, §43.6, FR-PLIST-9, FR-ANL-9, FR-LIB-8 (M5 commit 5.9)`.
 - **M5 5.8** — `118320d` `feat(dj): stem voices live on decks — StemSet summing reader, honest prepared state, live faders, §35.1, §36.5, FR-ENG-3 (M5 commit 5.8)`.
 - **M5 5.7** — `0a90d68` `feat(dj): Demucs ODR + separation + content-addressed cache, §36, FR-ENG-3 (M5 commit 5.7)`.
@@ -72,7 +73,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.9 landed, commits 5.10–5.14 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.10 landed, commits 5.11–5.14 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -207,7 +208,7 @@ sequence stays stable:
   crates + storage budget; **5.10** record tap + encoder;
   **5.11** journal + recovery;
   **5.12** Finish + Mixes + **the review listen**; **5.13** the transition coach.
-  *(5.1–5.9 landed; 5.10–5.13 ahead.)*
+  *(5.1–5.10 landed; 5.11–5.13 ahead.)*
 - **New spec material** (all written, all cross-referenced): **§19.4** persisted
   analysis artifacts · **§26A** rekordbox-class waveform display · **§35A** the
   post-fader beat-synced echo · **§35B** the five transitions → control mapping ·
@@ -454,6 +455,48 @@ FR-PLIST-9, FR-ANL-9, FR-LIB-8 — **AT-STEM-\***):
   on-demand caching. Suite 1340 → **1373 green** (8 skipped); Swift 6 guard OK; app builds
   (xcodebuild verified); smoke tests pass in the pre-commit hook. DJ-only — no `xcodegen
   generate` (decision 25). **FR-PLIST-9, FR-ANL-9, FR-LIB-8, §41.17, §43.6, AT-STEM-\*.**
+
+**M5 commit 5.10 — the record tap + encoder + segmented M4A — complete (`1f07de9`).**
+The §37.2 recording path and the milestone's record toggle (plan decision 14, FR-ENG-7):
+
+- `Recording/RecordTap.swift` — the **RT-safe, post-limiter master-bus copy** (§37.2): a
+  pre-allocated lock-free SPSC ring the render closures write into **after** the limiter —
+  what the audience hears is exactly what the recording captures. `write` copies and nothing
+  else (no encode, no I/O, no allocation, no locks); **idle unless recording**
+  (`setRecording` gates the copy, so a graph built with `recordTapEnabled: true` but not
+  recording is still bit-exact — the reader harness). **When the ring is full it drops the
+  incoming block and counts it** — "the ring absorbs a dropped drain": a slow encoder costs
+  the tail of the recording, never the live performance.
+- `Recording/RecordingEncoder.swift` — the **off-RT encoder actor**: drains the ring, writes
+  AAC 256 kbps into a **segmented M4A** (`segment-NNN.m4a`, each a complete playable file —
+  periodic flush so a crash or interruption costs at most the in-flight segment, NFR-REL-2);
+  `finalize()` closes the final segment and returns `RecordingOutput` (segment URLs, total
+  frames, sample rate, `format = "m4a-aac-256"` — the FR-REC-7 honest name). `drain`/`start`/
+  `flushSegment`/`finalize` are the whole §37.2 state machine, deterministic on any host.
+- `AudioGraph.Configuration.recordTapEnabled` **defaults to false** — the frame-exact reader
+  harness never constructs a tap at all and stays bit-exact; the graph copies the
+  post-limiter master into the tap when enabled (read-only on the signal, §37.2).
+- `PerformanceEngine.startRecording` / `stopRecording` — creates the per-session directory
+  under `DJDatabase.mixesDirectory`, starts the tap + encoder + an off-RT drain loop, stops
+  and finalizes; a graph with no tap is the honest `tapNotRecording` state, never a silent
+  no-op. `DJDatabase.mixesDirectory` is **user content, never a cache**: Application Support,
+  **not** backup-excluded, `mixesEvictable = false` always (§43.6).
+- **Workspace record toggle (decision 14):** `WorkspaceModel` mirrors `isRecording` +
+  `recordingElapsed` (elapsed = `(masterSample − start) / sampleRate` — the recorded frames
+  are exactly the tap's frames, §37.2) as shared session VM state; the mixer column's
+  `recordControl` chip (mockup `ipad/07`'s "■ Stop & save · 00:18:42") carries the
+  `dj.transport.record` identifier the regression suite drives (§53.11, dj-regression-suite.md
+  hook 5.10). The retained `AudioSessionCoordinator` responses are consumed by the
+  recording/service commits (5.10/5.11).
+- Tests: 7 `RecordTapTests` (tap → drain matches the rendered master **bit-exact**; an idle
+  tap leaves the reader bit-exact; the tiny ring absorbs a dropped drain — the render never
+  blocks and stays correct, overflow counted; encoder finalize → a **playable** segmented M4A
+  whose decoded duration + dominant frequency match; segment flush on budget; engine
+  start/stop; the honest no-tap refusal) + 3 `WorkspaceModelTests` (toggle forwards, single
+  toggle never restarts, elapsed tracks the master clock and freezes on stop). Suite 1373 →
+  **1383 green** (8 skipped); Swift 6 guard OK; app builds; smoke tests pass in the
+  pre-commit hook. DJ-only — no `xcodegen generate` (decision 25). **FR-ENG-7, §37.2,
+  decision 14, dj.transport.record.**
 
 **M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
 The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
@@ -1030,8 +1073,20 @@ into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible t
   (real cache rows removed, `evicted` marked), mid-run abandonment, the performing fence.
   Suite 1340 → **1373 green** (8 skipped); Swift 6 guard OK; app builds; no regen. **FR-PLIST-9,
   FR-ANL-9, FR-LIB-8, §41.17, §43.6, AT-STEM-\*.**
-- **Then 5.10** record
-  tap + encoder → **5.11** journal + recovery → **5.12** Finish + Mixes + the review listen →
+- **M5 commit 5.10 — the record tap + encoder + segmented M4A — complete (`1f07de9`).** The
+  §37.2 recording path + the milestone's record toggle (decision 14, FR-ENG-7): `RecordTap`
+  (RT-safe post-limiter master copy into a pre-allocated SPSC ring — idle unless recording,
+  full ring **drops and counts** so a slow encoder never stalls the live performance) +
+  `RecordingEncoder` (off-RT actor, AAC 256 kbps segmented M4A with periodic flush,
+  `finalize()` → `RecordingOutput`). `recordTapEnabled` defaults false so the reader harness
+  stays bit-exact. `PerformanceEngine.startRecording/stopRecording` under
+  `DJDatabase.mixesDirectory` (user content, never a cache, §43.6). `WorkspaceModel`
+  `isRecording` + `recordingElapsed` session state; the mixer-column record chip carries
+  `dj.transport.record` (the regression-suite hook 5.10). Tests: 7 `RecordTapTests` (bit-exact
+  tap match, idle bit-exact, dropped-drain absorption, playable segmented M4A round-trip,
+  flush on budget, start/stop, honest no-tap) + 3 `WorkspaceModelTests`. Suite 1373 → **1383
+  green**; DJ-only, no regen. **FR-ENG-7, §37.2.**
+- **Then 5.11** journal + recovery → **5.12** Finish + Mixes + the review listen →
   **5.13** the transition coach → **5.14 the DJ regression suite**.
   **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
   **AT-MIX-1..8** green, plus the owner's end-to-end recorded set as the user-owned
