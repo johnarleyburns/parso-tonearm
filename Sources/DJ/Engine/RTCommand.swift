@@ -69,6 +69,20 @@ public struct RTCommand: @unchecked Sendable, Equatable {
         case setEchoDepth
         /// Set the deck's §35A echo feedback — `f0` = tail length, 0…0.85.
         case setEchoFeedback
+        /// Arm a prepared `StemSet` for the deck — `ptr` carries it (may be
+        /// nil to disarm). A deck with no stem set plays the single full-mix
+        /// source, byte-for-byte (§35.1, plan decision 3).
+        case armStemSet
+        /// Set a stem voice's gain target — `i0` = `StemKind.index`, `f0` =
+        /// linear gain (§35.1). Per-voice gains are smoothed so fader moves
+        /// never click.
+        case setStemGain
+        /// Mute a stem voice — `i0` = `StemKind.index`, `f0` = on. A muted
+        /// voice's gain target drops to 0 through the same one-pole ramp.
+        case setStemMute
+        /// Solo a stem voice — `i0` = `StemKind.index`, `f0` = on. When any
+        /// voice is soloed, only soloed voices sound; the rest sit at 0.
+        case setStemSolo
     }
 
     public var tag: Tag
@@ -212,5 +226,27 @@ public struct RTCommand: @unchecked Sendable, Equatable {
     /// unity, §35A.2).
     public static func setEchoFeedback(deck: UInt8, feedback: Float) -> RTCommand {
         RTCommand(tag: .setEchoFeedback, deck: deck, f0: feedback)
+    }
+
+    /// Arm a prepared `StemSet` for the deck — `ptr` is the boxed set, `nil`
+    /// disarms it. A disarmed deck reads the single full-mix source (§35.1).
+    public static func armStemSet(deck: UInt8, stemSet: UnsafeRawPointer?) -> RTCommand {
+        RTCommand(tag: .armStemSet, deck: deck, ptr: stemSet)
+    }
+
+    /// Set a stem voice's gain target — a linear gain, smoothed by the
+    /// render-side one-pole ramp (§35.1).
+    public static func setStemGain(deck: UInt8, stem: StemKind, gain: Float) -> RTCommand {
+        RTCommand(tag: .setStemGain, deck: deck, i0: Int64(stem.index), f0: gain)
+    }
+
+    /// Mute a stem voice — its gain target drops to 0 through the same ramp.
+    public static func setStemMute(deck: UInt8, stem: StemKind, muted: Bool) -> RTCommand {
+        RTCommand(tag: .setStemMute, deck: deck, i0: Int64(stem.index), f0: muted ? 1 : 0)
+    }
+
+    /// Solo a stem voice — when any voice is soloed, only soloed voices sound.
+    public static func setStemSolo(deck: UInt8, stem: StemKind, soloed: Bool) -> RTCommand {
+        RTCommand(tag: .setStemSolo, deck: deck, i0: Int64(stem.index), f0: soloed ? 1 : 0)
     }
 }

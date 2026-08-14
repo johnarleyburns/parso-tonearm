@@ -74,6 +74,104 @@ public final class DeckSourceBox: @unchecked Sendable {
     }
 }
 
+// MARK: - Stem set ownership (§35.1, plan decision 3)
+
+/// Owns the four decoded stem voices' PCM and exposes the pure-value `StemSet`
+/// the engine boxes (§12.2 ownership-transfer, the `DeckSourceBox` convention).
+/// The caller MUST keep the box alive while the deck plays the set; the
+/// `WorkspaceModel` keeps one box per deck alongside its `DeckSourceBox`.
+///
+/// Voices are downmixed to the deck's mono sample space at build time — the
+/// cache stores stereo `.caf` files, and the engine's mono reader takes each
+/// voice's mono sum, exactly like the full-mix decode path.
+public final class StemSetBox: @unchecked Sendable {
+    public let stemSet: StemSet
+    private let vocalsStorage: UnsafeMutableBufferPointer<Float>
+    private let drumsStorage: UnsafeMutableBufferPointer<Float>
+    private let bassStorage: UnsafeMutableBufferPointer<Float>
+    private let otherStorage: UnsafeMutableBufferPointer<Float>
+
+    public init(vocals: UnsafeBufferPointer<Float>, drums: UnsafeBufferPointer<Float>,
+                bass: UnsafeBufferPointer<Float>, other: UnsafeBufferPointer<Float>,
+                sampleRate: Double, grid: DeckGrid) {
+        vocalsStorage = Self.box(vocals)
+        drumsStorage = Self.box(drums)
+        bassStorage = Self.box(bass)
+        otherStorage = Self.box(other)
+        stemSet = StemSet(
+            vocals: DeckSource(pcm: UnsafeRawPointer(vocalsStorage.baseAddress!),
+                               frameCount: Int64(vocals.count), channelCount: 1,
+                               sampleRate: sampleRate, grid: grid),
+            drums: DeckSource(pcm: UnsafeRawPointer(drumsStorage.baseAddress!),
+                              frameCount: Int64(drums.count), channelCount: 1,
+                              sampleRate: sampleRate, grid: grid),
+            bass: DeckSource(pcm: UnsafeRawPointer(bassStorage.baseAddress!),
+                             frameCount: Int64(bass.count), channelCount: 1,
+                             sampleRate: sampleRate, grid: grid),
+            other: DeckSource(pcm: UnsafeRawPointer(otherStorage.baseAddress!),
+                              frameCount: Int64(other.count), channelCount: 1,
+                              sampleRate: sampleRate, grid: grid))
+    }
+
+    private static func box(_ buffer: UnsafeBufferPointer<Float>) -> UnsafeMutableBufferPointer<Float> {
+        let storage = UnsafeMutableBufferPointer<Float>.allocate(capacity: buffer.count)
+        storage.baseAddress!.update(from: buffer.baseAddress!, count: buffer.count)
+        return storage
+    }
+
+    deinit {
+        vocalsStorage.deallocate()
+        drumsStorage.deallocate()
+        bassStorage.deallocate()
+        otherStorage.deallocate()
+    }
+}
+
+// MARK: - The prepared-stems seam (§36.5, plan decision 3)
+
+/// The stem seam the workspace talks to (plan 5.8, decision 3): resolve a
+/// loaded track's prepared (cached, version-matched) stem set, or the honest
+/// absence. `StemLoader` conforms; tests inject a fake so the model's per-deck
+/// stem status and fader forwarding are exercised deterministically (§47.2).
+public protocol StemProviding: Sendable {
+    /// The four voices for a prepared track, or nil when none is prepared — the
+    /// deck then plays the full mix (§36.5, FR-ENG-3's fallback). `grid` is the
+    /// deck's authoritative grid, so the four voices share the deck's sample
+    /// space and quantize/sync math (§23.3).
+    func preparedStems(trackID: Int64, grid: DeckGrid) async throws -> StemSetBox?
+}
+
+/// Loads a track's prepared stem set from the content-addressed `StemCache`
+/// (§36.4, plan decision 5): resolve the four `.caf` URLs → decode each to the
+/// deck's mono sample space → box the set. Returns nil when no version-matched
+/// set is cached — the honest absence (§36.5), never a partial set.
+public struct StemLoader: StemProviding, Sendable {
+    public let cache: StemCache
+
+    public init(cache: StemCache = StemCache(pool: DJLibraryStore.shared.pool)) {
+        self.cache = cache
+    }
+
+    public func preparedStems(trackID: Int64, grid: DeckGrid) async throws -> StemSetBox? {
+        guard let urls = try await cache.load(trackID: trackID,
+                                              modelVersion: AnalysisVersions.stems) else {
+            return nil
+        }
+        var voices: [StemKind: (buffer: UnsafeBufferPointer<Float>, count: Int)] = [:]
+        for kind in StemKind.allCases {
+            guard let url = urls[kind] else { return nil }
+            let decoded = try AudioDecoder.decode(url)
+            guard decoded.mono.baseAddress != nil, decoded.frameCount > 0 else { return nil }
+            voices[kind] = (decoded.mono, decoded.frameCount)
+        }
+        let rate = AudioDecoder.workingSampleRate
+        guard let v = voices[.vocals], let d = voices[.drums],
+              let b = voices[.bass], let o = voices[.other] else { return nil }
+        return StemSetBox(vocals: v.buffer, drums: d.buffer, bass: b.buffer, other: o.buffer,
+                          sampleRate: rate, grid: grid)
+    }
+}
+
 // MARK: - Per-deck queues (§41.9c, FR-ENG-13)
 
 /// A selectable queue for a deck. **No new entity**: a deck's queue is an
@@ -252,7 +350,7 @@ public struct DeckLoader: DeckLibraryServicing, Sendable {
         let corrections = (try? await store.gridCorrections(trackID: trackID)) ?? []
         var detectedBPM: Double?
         var firstBeatSample: Int64 = 0
-        if let row = try? await pool.read({ db in
+        if let row = try? pool.read({ db in
             try Row.fetchOne(db, sql: """
                 SELECT bpm, firstBeatSample FROM beat_grid WHERE trackID = ?
                 """, arguments: [trackID])

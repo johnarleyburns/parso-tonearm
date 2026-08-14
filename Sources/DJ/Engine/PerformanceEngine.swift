@@ -26,6 +26,7 @@ public final class PerformanceEngine {
 
     public let graph: AudioGraph
     private let registry = SourceBoxRegistry()
+    private let stemRegistry = StemSetRegistry()
 
     public init(graph: AudioGraph) {
         self.graph = graph
@@ -37,6 +38,7 @@ public final class PerformanceEngine {
 
     deinit {
         registry.reclaimAll()
+        stemRegistry.reclaimAll()
     }
 
     // MARK: - Engine lifecycle
@@ -220,6 +222,41 @@ public final class PerformanceEngine {
         _ = graph.commandRing.tryPush(.setEchoFeedback(deck: deck.rawValue, feedback: feedback))
     }
 
+    // MARK: - Stems (§35.1, plan 5.8)
+
+    /// Arm a prepared `StemSet` for a deck, or disarm it with `nil` (§35.1,
+    /// plan decision 3). Ownership of the set's PCM memory stays with the
+    /// caller; the engine boxes only the (pure-value) descriptor, exactly like
+    /// `load(_:source:)`. A disarmed deck reads the single full-mix source,
+    /// byte-for-byte.
+    public func armStemSet(_ deck: Deck, stemSet: StemSet?) {
+        if let stemSet {
+            let box = UnsafeMutablePointer<StemSet>.allocate(capacity: 1)
+            box.initialize(to: stemSet)
+            stemRegistry.replace(deck, with: box)
+            _ = graph.commandRing.tryPush(.armStemSet(deck: deck.rawValue, stemSet: UnsafeRawPointer(box)))
+        } else {
+            stemRegistry.replace(deck, with: nil)
+            _ = graph.commandRing.tryPush(.armStemSet(deck: deck.rawValue, stemSet: nil))
+        }
+    }
+
+    /// Set a stem voice's gain target — a linear gain, smoothed render-side so
+    /// a fader move never clicks (§35.1).
+    public func setStemGain(_ deck: Deck, stem: StemKind, gain: Float) {
+        _ = graph.commandRing.tryPush(.setStemGain(deck: deck.rawValue, stem: stem, gain: gain))
+    }
+
+    /// Mute a stem voice — its gain target drops to 0 through the same ramp.
+    public func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool) {
+        _ = graph.commandRing.tryPush(.setStemMute(deck: deck.rawValue, stem: stem, muted: muted))
+    }
+
+    /// Solo a stem voice — when any voice is soloed, only soloed voices sound.
+    public func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool) {
+        _ = graph.commandRing.tryPush(.setStemSolo(deck: deck.rawValue, stem: stem, soloed: soloed))
+    }
+
     // MARK: - Sync (§32, FR-ENG-4)
 
     /// Engage beat sync: tempo-match `deck` to `master` and phase-align its
@@ -338,6 +375,30 @@ private final class SourceBoxRegistry: @unchecked Sendable {
 
     func box(_ deck: PerformanceEngine.Deck) -> UnsafeMutablePointer<DeckSource>? {
         boxes[deck]
+    }
+
+    func reclaimAll() {
+        for box in boxes.values {
+            box.deinitialize(count: 1)
+            box.deallocate()
+        }
+        boxes.removeAll()
+    }
+}
+
+/// The control side owns the boxed `StemSet` allocations (the §12.2
+/// ownership-transfer contract), exactly like `SourceBoxRegistry` for deck
+/// sources. This registry keeps them alive for the render thread's duration
+/// and reclaims them when a set is replaced/disarmed or the engine deallocates.
+private final class StemSetRegistry: @unchecked Sendable {
+    private var boxes: [PerformanceEngine.Deck: UnsafeMutablePointer<StemSet>] = [:]
+
+    func replace(_ deck: PerformanceEngine.Deck, with box: UnsafeMutablePointer<StemSet>?) {
+        if let old = boxes[deck] {
+            old.deinitialize(count: 1)
+            old.deallocate()
+        }
+        boxes[deck] = box
     }
 
     func reclaimAll() {

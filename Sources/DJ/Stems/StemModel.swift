@@ -12,6 +12,31 @@ public enum StemKind: String, CaseIterable, Sendable, Equatable, Codable {
 
     /// The on-disk file name for this voice in the stem cache (`vocals.caf`, …).
     public var fileName: String { "\(rawValue).caf" }
+
+    /// The fixed index of this voice in `StemKind.allCases` order (§35.1).
+    /// This is the compact payload the `RTCommand` stem tags carry (the raw
+    /// value is a String, which has no place on the render ring) and the index
+    /// into the deck's per-voice gain/mute/solo state (§12.2).
+    public var index: Int {
+        switch self {
+        case .vocals: return 0
+        case .drums: return 1
+        case .bass: return 2
+        case .other: return 3
+        }
+    }
+
+    /// The voice at a fixed index; out-of-range indices clamp to `.other` so a
+    /// malformed command payload degrades instead of crashing the render
+    /// thread (§46.2).
+    public init(index: Int) {
+        switch index {
+        case 0: self = .vocals
+        case 1: self = .drums
+        case 2: self = .bass
+        default: self = .other
+        }
+    }
 }
 
 // MARK: - Audio shapes

@@ -505,13 +505,13 @@ final class RenderGraphState: @unchecked Sendable {
             return
         }
         let master = decks[0]
-        guard let masterSource = master.source() else {
+        guard let masterGrid = master.referenceGrid() else {
             masterBPMAromic.store(0, ordering: .relaxed)
             downbeatPhaseAtomic.store(0, ordering: .relaxed)
             return
         }
-        masterBPMAromic.store(Float(masterSource.grid.bpm * master.rate), ordering: .relaxed)
-        downbeatPhaseAtomic.store(Float(masterSource.grid.barPhase(at: master.playhead)),
+        masterBPMAromic.store(Float(masterGrid.bpm * master.rate), ordering: .relaxed)
+        downbeatPhaseAtomic.store(Float(masterGrid.barPhase(at: master.playhead)),
                                   ordering: .relaxed)
     }
 
@@ -538,20 +538,22 @@ final class RenderGraphState: @unchecked Sendable {
         for deck in decks where deck.syncedToMaster >= 0 {
             let masterIndex = deck.syncedToMaster
             guard decks.indices.contains(masterIndex),
-                  let masterSource = decks[masterIndex].source(),
-                  let syncedSource = deck.source() else { continue }
+                  let masterGrid = decks[masterIndex].referenceGrid(),
+                  let syncedGrid = deck.referenceGrid() else { continue }
             deck.rate = SyncEngine.continuousRate(masterRate: decks[masterIndex].rate,
-                                                  masterBPM: masterSource.grid.bpm,
-                                                  syncedBPM: syncedSource.grid.bpm)
+                                                  masterBPM: masterGrid.bpm,
+                                                  syncedBPM: syncedGrid.bpm)
         }
     }
 
     /// The master clock's effective tempo — the master deck's grid BPM × rate
     /// (deck A is the master, §30.1), falling back to the nominal tempo before
-    /// any deck is loaded so the echo delay stays well-defined (§35A.2).
+    /// any deck is loaded so the echo delay stays well-defined (§35A.2). The
+    /// grid is the armed source's or the armed stem set's — both are the same
+    /// track in the same sample space (§35.1).
     func effectiveMasterBPM() -> Double {
-        guard let masterSource = decks[0].source() else { return BeatEcho.nominalBPM }
-        let bpm = masterSource.grid.bpm * decks[0].rate
+        guard let masterGrid = decks[0].referenceGrid() else { return BeatEcho.nominalBPM }
+        let bpm = masterGrid.bpm * decks[0].rate
         return bpm > 0 ? bpm : BeatEcho.nominalBPM
     }
 
@@ -616,11 +618,16 @@ final class RenderGraphState: @unchecked Sendable {
                             frames: Int, frameStart: Int64) {
         deck.peak = 0
         guard deck.playing else { return } // paused: silence, playhead frozen
-        guard let source = deck.source() else {
+        guard let reference = deck.referenceSource() else {
             deck.starved = true
             starvedAtomic.add(UInt64(frames), ordering: .relaxed)
             return
         }
+        // The armed stem set, when present: the reader sums the four voices at
+        // the shared playhead instead of reading the single full-mix source
+        // (§35.1, plan decision 3). A deck with no stem set is byte-for-byte
+        // the current reader.
+        let stems = deck.stemSet()
 
         var f = 0
         while f < frames {
@@ -646,7 +653,11 @@ final class RenderGraphState: @unchecked Sendable {
             }
 
             let count = boundary - f
-            readChunk(deck, source, into: list, at: f, count: count)
+            if let stems {
+                readStemChunk(deck, stems, into: list, at: f, count: count)
+            } else {
+                readChunk(deck, reference, into: list, at: f, count: count)
+            }
             f = boundary
             deck.playhead += Double(count) * deck.rate
 
@@ -656,7 +667,7 @@ final class RenderGraphState: @unchecked Sendable {
             }
         }
 
-        if Int64(deck.playhead) >= source.frameCount {
+        if Int64(deck.playhead) >= reference.frameCount {
             deck.starved = true
             starvedAtomic.add(UInt64(frames), ordering: .relaxed)
         }
@@ -691,6 +702,54 @@ final class RenderGraphState: @unchecked Sendable {
             }
         }
     }
+
+    /// Sum the armed `StemSet`'s four voices at the shared playhead into the
+    /// output at `frame`, then run each channel's EQ/filter/fader/crossfader
+    /// chain **once** over the summed voice (§35.1). Per-voice gains are
+    /// smoothed one-pole ramps that fold in mute/solo and advance once per
+    /// sample (shared across channels, so L/R stay coherent). Frames past a
+    /// voice's EOF render silence for that voice, never an out-of-bounds read
+    /// (§46.2). Accumulates (`+=`) so both decks sum.
+    ///
+    /// The render thread must not allocate (§12.3): the per-channel sum lands
+    /// in the deck's pre-allocated `stemScratch`, and `StemKind.allCases` is a
+    /// static buffer — no arrays are built here.
+    private func readStemChunk(_ deck: DeckState, _ stems: StemSet,
+                               into list: UnsafeMutableAudioBufferListPointer,
+                               at frame: Int, count: Int) {
+        guard count > 0 else { return }
+        let start = deck.playhead
+        let rate = deck.rate
+        let outputChannels = Int(list.count)
+        for i in 0..<count {
+            let track = Int64(start + Double(i) * rate)
+            guard track >= 0 else { continue }
+            for c in 0..<outputChannels { deck.stemScratch[c] = 0 }
+            var anyVoice = false
+            for kind in StemKind.allCases {
+                let voice = stems.source(kind)
+                let gain = deck.stemGainNext(kind)
+                guard gain > 0, track < voice.frameCount else { continue }
+                let base = voice.pcm.assumingMemoryBound(to: Float.self)
+                let srcChannels = voice.channelCount
+                for c in 0..<outputChannels {
+                    guard list[c].mData != nil else { continue }
+                    let srcChannel = srcChannels == 1 ? 0 : min(c, srcChannels - 1)
+                    deck.stemScratch[c] += base[Int(track) * srcChannels + srcChannel] * gain
+                }
+                anyVoice = true
+            }
+            guard anyVoice else { continue }
+            for c in 0..<outputChannels {
+                guard let mData = list[c].mData else { continue }
+                let out = mData.assumingMemoryBound(to: Float.self)
+                let processed = deck.mixers[c].process(deck.stemScratch[c])
+                out[frame + i] += processed
+                let magnitude = abs(processed)
+                if magnitude > deck.peak { deck.peak = magnitude }
+            }
+        }
+    }
 }
 
 /// The render-thread-private deck state (§12.2). Only the render block mutates
@@ -707,6 +766,10 @@ final class DeckState: @unchecked Sendable {
     /// Ownership-transfer marker for the armed `DeckSource` (control side keeps
     /// the boxed allocation alive; §12.2).
     var sourcePointer: UnsafeRawPointer?
+    /// Ownership-transfer marker for the armed `StemSet` (nil = none — the
+    /// deck reads the single full-mix source, byte-for-byte; §35.1, plan
+    /// decision 3). The control side keeps the boxed allocation alive.
+    var stemSetPointer: UnsafeRawPointer?
     var playing = false
     var playhead: Double = 0
     var rate: Double = 1
@@ -733,6 +796,18 @@ final class DeckState: @unchecked Sendable {
     /// The per-channel EQ/filter/fader/echo/crossfader chain (§35.1). Only the
     /// render thread mutates it.
     var mixers: [DeckMixer]
+    /// The per-voice smoothed gain targets, indexed by `StemKind.index`
+    /// (§35.1). One ramp per voice — the four voices share the ramp across
+    /// channels, so a gain move applies to both L and R. Starts at unity.
+    var stemGains: [SmoothedGain]
+    /// Per-voice mute state, indexed by `StemKind.index`.
+    var stemMuted = [Bool](repeating: false, count: StemKind.allCases.count)
+    /// Per-voice solo state, indexed by `StemKind.index`. When any voice is
+    /// soloed, only soloed voices sound.
+    var stemSoloed = [Bool](repeating: false, count: StemKind.allCases.count)
+    /// A fixed-size scratch for the stem-summing pass — pre-allocated so the
+    /// render thread never allocates (§12.3). One Float per output channel.
+    var stemScratch: [Float]
     private let sampleRate: Double
 
     init(sampleRate: Double, channelCount: Int,
@@ -742,6 +817,8 @@ final class DeckState: @unchecked Sendable {
             DeckMixer(sampleRate: sampleRate, echoCapacity: echoCapacity,
                       echoCrossfadeFrames: echoCrossfadeFrames)
         }
+        stemGains = StemKind.allCases.map { _ in SmoothedGain(sampleRate: sampleRate) }
+        stemScratch = [Float](repeating: 0, count: channelCount)
     }
 
     /// Read the armed source without retaining anything (§12.3).
@@ -750,10 +827,34 @@ final class DeckState: @unchecked Sendable {
         return pointer.load(as: DeckSource.self)
     }
 
+    /// Read the armed `StemSet` without retaining anything, or nil when no set
+    /// is armed (§35.1).
+    func stemSet() -> StemSet? {
+        guard let pointer = stemSetPointer else { return nil }
+        return pointer.load(as: StemSet.self)
+    }
+
+    /// The deck's reference source for the reader: the armed full-mix source,
+    /// or the stem set's first voice when only stems are armed (they are the
+    /// same track in the same sample space). Used for the playhead/loop
+    /// boundary math and the end-of-track guard — never for audio bytes.
+    func referenceSource() -> DeckSource? {
+        source() ?? stemSet()?.vocals
+    }
+
+    /// The deck's authoritative grid — the armed full-mix source's, else the
+    /// armed stem set's (all voices share the track grid), else nil. The grid
+    /// surface the master clock, sync and echo read (§30.1, §32.1, §35A.2);
+    /// nil means no source at all.
+    func referenceGrid() -> DeckGrid? {
+        source()?.grid ?? stemSet()?.grid
+    }
+
     /// The deck's beat grid; falls back to a nominal grid before any source is
-    /// loaded so quantize math stays well-defined.
+    /// loaded so quantize math stays well-defined. A stem set's grid is the
+    /// deck's grid (all voices are the same track in the same sample space).
     private func grid() -> DeckGrid {
-        source()?.grid ?? DeckGrid(sampleRate: sampleRate)
+        referenceGrid() ?? DeckGrid(sampleRate: sampleRate)
     }
 
     func apply(_ command: RTCommand, masterSample: Int64) {
@@ -837,6 +938,14 @@ final class DeckState: @unchecked Sendable {
         case .setEchoFeedback:
             echo.feedback = command.f0
             applyEchoParams()
+        case .armStemSet:
+            stemSetPointer = command.ptr
+        case .setStemGain:
+            stemGains[StemKind(index: Int(command.i0)).index].target = command.f0
+        case .setStemMute:
+            stemMuted[StemKind(index: Int(command.i0)).index] = command.f0 >= 0.5
+        case .setStemSolo:
+            stemSoloed[StemKind(index: Int(command.i0)).index] = command.f0 >= 0.5
         }
     }
 
@@ -845,6 +954,29 @@ final class DeckState: @unchecked Sendable {
     /// from the master clock by `applyEchoMasterBPM` (§35A.2).
     private func applyEchoParams() {
         for c in mixers.indices { mixers[c].echo.setParams(echo) }
+    }
+
+    /// Whether any stem voice is soloed — when one is, only soloed voices
+    /// sound (§35.1, the mockup's swap idiom).
+    var anyStemSolo: Bool {
+        stemSoloed.contains(true)
+    }
+
+    /// Advance one voice's smoothed gain one sample and return the current
+    /// gain. The effective target folds in mute and solo: a muted voice ramps
+    /// to 0; when any voice is soloed, only soloed voices sound at their gain
+    /// and the rest sit at 0. Called once per sample per voice — never
+    /// per-channel — so the ramp is shared across L/R (§35.1).
+    func stemGainNext(_ kind: StemKind) -> Float {
+        let i = kind.index
+        let target: Float
+        if anyStemSolo {
+            target = stemSoloed[i] ? stemGains[i].target : 0
+        } else {
+            target = stemMuted[i] ? 0 : stemGains[i].target
+        }
+        stemGains[i].target = target
+        return stemGains[i].next()
     }
 
     /// Retune every channel's echo delay from the master tempo — called once

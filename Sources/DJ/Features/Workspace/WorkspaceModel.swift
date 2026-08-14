@@ -48,6 +48,15 @@ public protocol WorkspaceEngine: AnyObject {
     func setEchoBeats(_ deck: PerformanceEngine.Deck, beats: Double)
     func setEchoDepth(_ deck: PerformanceEngine.Deck, depth: Float)
     func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float)
+    /// Arm a prepared `StemSet` for a deck, or disarm it with `nil` (§35.1,
+    /// plan 5.8). A disarmed deck reads the single full-mix source.
+    func armStemSet(_ deck: PerformanceEngine.Deck, stemSet: StemSet?)
+    /// Set a stem voice's gain target — a linear gain, smoothed render-side.
+    func setStemGain(_ deck: PerformanceEngine.Deck, stem: StemKind, gain: Float)
+    /// Mute a stem voice — its gain target ramps to 0.
+    func setStemMute(_ deck: PerformanceEngine.Deck, stem: StemKind, muted: Bool)
+    /// Solo a stem voice — when any voice is soloed, only soloed voices sound.
+    func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool)
     func sampleTelemetry() -> EngineTelemetry
     func pushTelemetry()
 }
@@ -79,6 +88,59 @@ public enum DeckLoadState: Equatable, Sendable {
         if case .loading = self { return true }
         return false
     }
+}
+
+/// The honest per-deck stem status (§36.5, FR-ENG-3; plan decision 4). The
+/// stem faders are **live only when `.prepared`** — any other state renders
+/// the honest disabled label, never a fader that looks live and does nothing.
+public enum DeckStemStatus: Equatable, Sendable {
+    /// No prepared set is on the deck — the deck plays the full mix (§36.5's
+    /// fallback; "stems not prepared").
+    case unavailable
+    /// A separation job for the deck's track is in flight (§36.3) — the faders
+    /// stay disabled until the set lands and is armed.
+    case separating
+    /// A cached, version-matched set is armed on the deck — the faders are live.
+    case prepared
+
+    /// The honest one-line label the surfaces render (§36.5).
+    public var label: String {
+        switch self {
+        case .unavailable: return "stems not prepared"
+        case .separating: return "separating…"
+        case .prepared: return "stems ready"
+        }
+    }
+}
+
+/// The per-deck stem control state the shared session VM owns — the four
+/// voices' gains plus the mute/solo sets, mirrored here (like the EQ/fader
+/// state) so every surface's STEMS faders read and write the same state.
+public struct StemControlState: Equatable, Sendable {
+    /// Per-voice linear gain targets, indexed by `StemKind`. Defaults to unity.
+    public var gains: [StemKind: Float]
+    /// The muted voices.
+    public var muted: Set<StemKind>
+    /// The soloed voices.
+    public var soloed: Set<StemKind>
+
+    public init(gains: [StemKind: Float] = StemControlState.unityGains,
+                muted: Set<StemKind> = [],
+                soloed: Set<StemKind> = []) {
+        self.gains = gains
+        self.muted = muted
+        self.soloed = soloed
+    }
+
+    /// Unity gains for all four voices.
+    public static var unityGains: [StemKind: Float] {
+        Dictionary(uniqueKeysWithValues: StemKind.allCases.map { ($0, Float(1)) })
+    }
+
+    /// The stem fader's full-travel gain (1.5× = +3.5 dB boost). The faders
+    /// span 0…this; the render side hard-clamps nothing — the smoothed gain
+    /// and the master limiter (§35.5) keep the sum honest.
+    public static let maxGain: Float = 1.5
 }
 
 /// The one session view model for every performance surface (plan §2.9, 4.6;
@@ -127,6 +189,15 @@ public final class WorkspaceModel: ObservableObject {
         injectedWaveformRepository ?? WaveformRepository(pool: DJLibraryStore.shared.pool)
     }
     private let injectedWaveformRepository: (any WaveformRendering)?
+    /// The stem seam (plan 5.8, decision 3): resolve a loaded track's prepared
+    /// stem set, or the honest absence. `StemLoader` conforms; tests inject a
+    /// fake so the per-deck stem status and fader forwarding are exercised
+    /// deterministically (§47.2). Resolved lazily so a model that never loads
+    /// a track with prepared stems costs no database I/O.
+    public var stemProvider: any StemProviding {
+        injectedStemProvider ?? StemLoader()
+    }
+    private let injectedStemProvider: (any StemProviding)?
     /// The track currently loaded on each deck — what the deck's waveform is
     /// built from. Cleared when the deck is reloaded.
     private var loadedTrackIDs: [PerformanceEngine.Deck: Int64] = [:]
@@ -194,6 +265,19 @@ public final class WorkspaceModel: ObservableObject {
     @Published public var echoFeedbackA: Float = 0.7
     @Published public var echoFeedbackB: Float = 0.7
 
+    /// The per-deck stem status (§36.5, plan decision 4): `prepared` makes the
+    /// STEMS faders live; `unavailable` / `separating` render the honest
+    /// disabled label. Computed when a track loads, driven to `.separating` by
+    /// the §36.3 service (5.9).
+    @Published public private(set) var stemStatusA: DeckStemStatus = .unavailable
+    @Published public private(set) var stemStatusB: DeckStemStatus = .unavailable
+    /// The per-deck stem controls — the four voices' gains and the mute/solo
+    /// sets, mirrored here like the mixer knobs so every surface reads and
+    /// writes the same session state. Forwarding is clamped and never touches
+    /// the engine when the deck's stems are not prepared.
+    @Published public private(set) var stemControlsA = StemControlState()
+    @Published public private(set) var stemControlsB = StemControlState()
+
     /// The iPad module slot each deck occupies (§41.9a) — the per-deck
     /// remembered `JOG · STEMS · PADS · FX` choice, **default `STEMS`** so §41.9
     /// is what an existing user sees unless they ask for something else. The
@@ -227,6 +311,10 @@ public final class WorkspaceModel: ObservableObject {
     /// the previous source — the offline harness is synchronous, so the engine
     /// has already retired it.
     private var sourceBoxes: [PerformanceEngine.Deck: DeckSourceBox] = [:]
+    /// The §12.2 ownership-transfer boxes for armed stem sets: the model keeps
+    /// each deck's prepared set alive until the deck reloads. Dropping the box
+    /// disarms nothing by itself — `resolveStems` disarms first.
+    private var stemSetBoxes: [PerformanceEngine.Deck: StemSetBox] = [:]
 
     public init(engine: any WorkspaceEngine,
                 store: EntitlementStore,
@@ -235,11 +323,13 @@ public final class WorkspaceModel: ObservableObject {
                 defaults: UserDefaults = .standard,
                 library: (any DeckLibraryServicing)? = nil,
                 waveformRepository: (any WaveformRendering)? = nil,
+                stemProvider: (any StemProviding)? = nil,
                 session: AudioSessionCoordinator? = nil) {
         self.engine = engine
         self.store = store
         self.injectedLibrary = library
         self.injectedWaveformRepository = waveformRepository
+        self.injectedStemProvider = stemProvider
         self.session = session
         self.isPro = store.isPro
         self.pinnedDrawerIdle = pinnedDrawerIdle
@@ -361,7 +451,10 @@ public final class WorkspaceModel: ObservableObject {
     /// The one gesture that loads a library track to a deck (FR-ENG-13,
     /// §41.9c): resolve → FR-LIB-8 gate → decode off the main actor → hand the
     /// `DeckSource` to the engine, keeping the §12.2 box alive. The engine is
-    /// touched **only** on a successful load.
+    /// touched **only** on a successful load. After the full mix is armed, the
+    /// deck's stems are resolved (§36.5): a prepared set is armed and the
+    /// faders go live; otherwise the deck plays the full mix with the honest
+    /// `unavailable` status.
     public func load(_ deck: PerformanceEngine.Deck, trackID: Int64) async {
         setLoadState(.loading(trackID: trackID), for: deck)
         switch await library.load(trackID: trackID) {
@@ -371,11 +464,117 @@ public final class WorkspaceModel: ObservableObject {
             loadedTrackIDs[deck] = trackID
             setLoadState(.loaded(trackID: trackID), for: deck)
             rebuildWaveform(for: deck)
+            await resolveStems(for: deck, trackID: trackID, grid: box.source.grid)
         case .refused(let readiness):
             let reason = Self.unavailableReason(readiness)
             setLoadState(.refused(trackID: trackID, reason: reason), for: deck)
         case .failed(let failure):
             setLoadState(.failed(trackID: trackID, message: failure.message), for: deck)
+        }
+    }
+
+    // MARK: - Per-deck stems (§36.5, §35.1; plan 5.8)
+
+    /// The deck's stem status — `prepared` makes the STEMS faders live.
+    public func stemStatus(_ deck: PerformanceEngine.Deck) -> DeckStemStatus {
+        deck == .a ? stemStatusA : stemStatusB
+    }
+
+    /// A stem voice's gain target (0…1.5, unity default).
+    public func stemGain(_ deck: PerformanceEngine.Deck, stem: StemKind) -> Float {
+        controls(deck).gains[stem] ?? 1
+    }
+
+    /// Whether a stem voice is muted.
+    public func stemIsMuted(_ deck: PerformanceEngine.Deck, stem: StemKind) -> Bool {
+        controls(deck).muted.contains(stem)
+    }
+
+    /// Whether a stem voice is soloed.
+    public func stemIsSoloed(_ deck: PerformanceEngine.Deck, stem: StemKind) -> Bool {
+        controls(deck).soloed.contains(stem)
+    }
+
+    /// Move a stem voice's gain fader (0…1.5). Forwarded — and mirrored — only
+    /// when the deck's stems are prepared: an unprepared fader is **fully
+    /// inert**, because a fader that moves while doing nothing is §36.5's exact
+    /// prohibition ("never a fader that looks live and does nothing").
+    public func setStemGain(_ deck: PerformanceEngine.Deck, stem: StemKind, gain: Float) {
+        guard stemStatus(deck) == .prepared else { return }
+        let clamped = min(StemControlState.maxGain, max(0, gain))
+        setControls(deck) { $0.gains[stem] = clamped }
+        engine.setStemGain(deck, stem: stem, gain: clamped)
+    }
+
+    /// Mute a stem voice — its gain target ramps to 0. Inert unless prepared
+    /// (§36.5's honest-fader rule).
+    public func setStemMute(_ deck: PerformanceEngine.Deck, stem: StemKind, muted: Bool) {
+        guard stemStatus(deck) == .prepared else { return }
+        setControls(deck) {
+            if muted { $0.muted.insert(stem) } else { $0.muted.remove(stem) }
+        }
+        engine.setStemMute(deck, stem: stem, muted: muted)
+    }
+
+    /// Solo a stem voice — when any voice is soloed, only soloed voices sound.
+    /// Inert unless prepared.
+    public func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool) {
+        guard stemStatus(deck) == .prepared else { return }
+        setControls(deck) {
+            if soloed { $0.soloed.insert(stem) } else { $0.soloed.remove(stem) }
+        }
+        engine.setStemSolo(deck, stem: stem, soloed: soloed)
+    }
+
+    /// The deck's stem control state (the mirrored gain/mute/solo state).
+    private func controls(_ deck: PerformanceEngine.Deck) -> StemControlState {
+        deck == .a ? stemControlsA : stemControlsB
+    }
+
+    /// Reassign a deck's control state through a mutation, publishing the new
+    /// value so the faders follow.
+    private func setControls(_ deck: PerformanceEngine.Deck,
+                             _ mutate: (inout StemControlState) -> Void) {
+        var state = controls(deck)
+        mutate(&state)
+        switch deck {
+        case .a: stemControlsA = state
+        case .b: stemControlsB = state
+        }
+    }
+
+    /// Resolve a just-loaded deck's stems (§36.5): a cached, version-matched
+    /// set is armed and the status goes `prepared`; otherwise the deck plays
+    /// the full mix with the honest `unavailable` status. The engine is armed
+    /// or disarmed exactly once per load.
+    private func resolveStems(for deck: PerformanceEngine.Deck, trackID: Int64,
+                              grid: DeckGrid) async {
+        setStemStatus(.unavailable, for: deck)
+        engine.armStemSet(deck, stemSet: nil)
+        stemSetBoxes[deck] = nil
+        setControls(deck) { state in
+            state = StemControlState()
+        }
+        guard let prepared = try? await stemProvider.preparedStems(trackID: trackID, grid: grid)
+        else {
+            return // honest unavailable → full mix, faders disabled
+        }
+        engine.armStemSet(deck, stemSet: prepared.stemSet)
+        stemSetBoxes[deck] = prepared
+        setStemStatus(.prepared, for: deck)
+    }
+
+    /// Report that a separation job for the deck's loaded track has started
+    /// (driven by the §36.3 service in 5.9). The faders stay disabled — the
+    /// honest `separating` status renders until the set is prepared and armed.
+    public func markStemSeparation(_ deck: PerformanceEngine.Deck) {
+        setStemStatus(.separating, for: deck)
+    }
+
+    private func setStemStatus(_ status: DeckStemStatus, for deck: PerformanceEngine.Deck) {
+        switch deck {
+        case .a: stemStatusA = status
+        case .b: stemStatusB = status
         }
     }
 

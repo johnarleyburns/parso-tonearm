@@ -59,7 +59,7 @@ struct DeckModuleSlotView: View {
     @ViewBuilder
     private var content: some View {
         switch slot {
-        case .stems: StemsModuleView()
+        case .stems: StemsModuleView(model: model, deck: deck)
         case .jog: JogModuleView(model: model, deck: deck, onJogIntent: onJogIntent)
         case .pads: PadsModuleView()
         case .fx: FXModuleView(model: model, deck: deck)
@@ -182,39 +182,121 @@ private struct BendButton: View {
 
 // MARK: - STEMS module (default, §41.9)
 
-/// The four stem faders, the honest-unavailable state until the M5 separator
-/// lands (plan §2.6). This is the slot's default — §41.9's stems block moved
-/// into the module slot so the choice is per deck. The rows are deliberately
-/// compact: the §41.9b deck column keeps the club geometry (jog + pads +
-/// transport), and the stem surface that ships in 5.8 is the §41.10 focused
-/// view.
+/// The four stem faders (§35.1), **live only when the deck's stems are
+/// prepared** (plan 5.8): a prepared set renders draggable gain faders with
+/// tap-to-mute; an unprepared deck renders the honest disabled state ("stems
+/// not prepared" / "separating…") — never a fader that looks live and does
+/// nothing (§36.5, FR-ENG-3). This is the slot's default — §41.9's stems block
+/// moved into the module slot so the choice is per deck. The rows are
+/// deliberately compact: the §41.9b deck column keeps the club geometry (jog +
+/// pads + transport).
 private struct StemsModuleView: View {
+    @ObservedObject var model: WorkspaceModel
+    let deck: PerformanceEngine.Deck
+
+    private var status: DeckStemStatus { model.stemStatus(deck) }
+    private var deckID: String { deck == .a ? "a" : "b" }
+
     var body: some View {
-        VStack(spacing: 3) {
+        VStack(spacing: 4) {
             HStack {
                 Text("Stems")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
-                Text("unavailable · M5")
+                Text(status.label)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(status == .prepared ? Color.green : .secondary)
             }
-            ForEach(["Vocals", "Drums", "Bass", "Other"], id: \.self) { stem in
-                HStack(spacing: 6) {
-                    Text(stem)
-                        .font(.system(size: 10))
-                        .frame(width: 48, alignment: .leading)
-                    GeometryReader { proxy in
-                        Capsule().fill(Color.white.opacity(0.08))
-                            .overlay(alignment: .leading) {
-                                Capsule().fill(Color.white.opacity(0.2))
-                                    .frame(width: proxy.size.width * 0.8)
-                            }
+            if status == .prepared {
+                ForEach(StemKind.allCases, id: \.self) { stem in
+                    StemFaderRow(label: title(stem),
+                                 gain: model.stemGain(deck, stem: stem),
+                                 muted: model.stemIsMuted(deck, stem: stem),
+                                 identifier: "dj.deck.\(deckID).stem.\(stem.rawValue)") { gain in
+                        model.setStemGain(deck, stem: stem, gain: gain)
+                    } onMuteToggled: {
+                        model.setStemMute(deck, stem: stem,
+                                          muted: !model.stemIsMuted(deck, stem: stem))
                     }
-                    .frame(height: 3)
+                }
+            } else {
+                // The honest disabled state: unity bars, dimmed — the status
+                // label is carried by the header. Never a live-looking fader
+                // that does nothing (§36.5).
+                ForEach(StemKind.allCases, id: \.self) { stem in
+                    HStack(spacing: 6) {
+                        Text(title(stem))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 48, alignment: .leading)
+                        Capsule().fill(Color.white.opacity(0.06))
+                            .frame(height: 12)
+                    }
                 }
             }
         }
+    }
+
+    private func title(_ stem: StemKind) -> String {
+        switch stem {
+        case .vocals: return "Vocals"
+        case .drums: return "Drums"
+        case .bass: return "Bass"
+        case .other: return "Other"
+        }
+    }
+}
+
+// MARK: - Stem fader row (shared by the module slot and the compact drawer)
+
+/// A live per-voice stem fader for the STEMS surfaces (§35.1, plan 5.8): the
+/// gain capsule is a drag surface mapping 0…`StemControlState.maxGain`, and
+/// tapping the label toggles mute (the row dims). Only rendered when the
+/// deck's stems are prepared — an unprepared deck shows the honest disabled
+/// row instead (§36.5).
+struct StemFaderRow: View {
+    let label: String
+    let gain: Float
+    let muted: Bool
+    let identifier: String
+    let onGainChanged: (Float) -> Void
+    let onMuteToggled: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button(action: onMuteToggled) {
+                Text(label)
+                    .font(.system(size: 10))
+                    .frame(width: 48, alignment: .leading)
+                    .foregroundStyle(muted ? Color.secondary : Color.primary)
+            }
+            .buttonStyle(.plain)
+
+            GeometryReader { proxy in
+                let width = proxy.size.width
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.08))
+                        .frame(height: 12)
+                    Capsule().fill(Color.accentColor.opacity(muted ? 0.15 : 0.65))
+                        .frame(width: max(8, width * CGFloat(gainFraction)),
+                               height: 12)
+                }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0).onChanged { value in
+                        let t = Float(min(1, max(0, value.location.x / max(width, 1))))
+                        onGainChanged(t * StemControlState.maxGain)
+                    }
+                )
+            }
+            .frame(height: 14)
+        }
+        .accessibilityIdentifier(identifier)
+    }
+
+    /// The filled fraction of the gain capsule (0…1).
+    private var gainFraction: Float {
+        min(1, max(0, gain / StemControlState.maxGain))
     }
 }
 

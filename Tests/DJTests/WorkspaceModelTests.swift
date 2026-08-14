@@ -34,6 +34,11 @@ final class WorkspaceModelTests: XCTestCase {
         private(set) var echoBeats: [PerformanceEngine.Deck: Double] = [:]
         private(set) var echoDepth: [PerformanceEngine.Deck: Float] = [:]
         private(set) var echoFeedback: [PerformanceEngine.Deck: Float] = [:]
+        private(set) var armedStemSets: [PerformanceEngine.Deck: StemSet] = [:]
+        private(set) var disarmedStemSets: Set<PerformanceEngine.Deck> = []
+        private(set) var stemGains: [PerformanceEngine.Deck: [StemKind: Float]] = [:]
+        private(set) var stemMutes: [PerformanceEngine.Deck: Set<StemKind>] = [:]
+        private(set) var stemSolos: [PerformanceEngine.Deck: Set<StemKind>] = [:]
 
         func start() throws { started = true }
         func stop() { stopped = true }
@@ -84,6 +89,24 @@ final class WorkspaceModelTests: XCTestCase {
         }
         func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float) {
             echoFeedback[deck] = feedback
+        }
+        func armStemSet(_ deck: PerformanceEngine.Deck, stemSet: StemSet?) {
+            if let stemSet {
+                armedStemSets[deck] = stemSet
+                disarmedStemSets.remove(deck)
+            } else {
+                armedStemSets[deck] = nil
+                disarmedStemSets.insert(deck)
+            }
+        }
+        func setStemGain(_ deck: PerformanceEngine.Deck, stem: StemKind, gain: Float) {
+            stemGains[deck, default: [:]][stem] = gain
+        }
+        func setStemMute(_ deck: PerformanceEngine.Deck, stem: StemKind, muted: Bool) {
+            if muted { stemMutes[deck, default: []].insert(stem) } else { stemMutes[deck]?.remove(stem) }
+        }
+        func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool) {
+            if soloed { stemSolos[deck, default: []].insert(stem) } else { stemSolos[deck]?.remove(stem) }
         }
         func sampleTelemetry() -> EngineTelemetry { current }
         func pushTelemetry() { stream.push(current) }
@@ -137,6 +160,42 @@ final class WorkspaceModelTests: XCTestCase {
             requested.append(trackID)
             return models[trackID]
         }
+    }
+
+    /// A fake prepared-stems seam (plan 5.8): canned stem sets per track, so
+    /// the model's per-deck stem status and fader forwarding are exercised
+    /// deterministically without a database (§47.2).
+    @MainActor
+    private final class FakeStemProvider: StemProviding {
+        var sets: [Int64: StemSetBox] = [:]
+        var requested: [Int64] = []
+
+        func preparedStems(trackID: Int64, grid: DeckGrid) async throws -> StemSetBox? {
+            requested.append(trackID)
+            return sets[trackID]
+        }
+    }
+
+    /// A tiny prepared stem set the fake hands back as prepared — four owned
+    /// mono voice buffers (the §12.2 boxes). The box copies the voices into its
+    /// own storage; the temporaries are freed when this returns.
+    private func makeStemBox(frames: Int = 480) -> StemSetBox {
+        func voice(_ value: Float) -> UnsafeMutableBufferPointer<Float> {
+            let storage = UnsafeMutableBufferPointer<Float>.allocate(capacity: frames)
+            for i in 0..<frames { storage[i] = value }
+            return storage
+        }
+        let v = voice(0.5), d = voice(0.25), b = voice(0.1), o = voice(0.05)
+        defer {
+            v.deallocate()
+            d.deallocate()
+            b.deallocate()
+            o.deallocate()
+        }
+        return StemSetBox(vocals: UnsafeBufferPointer(v), drums: UnsafeBufferPointer(d),
+                          bass: UnsafeBufferPointer(b), other: UnsafeBufferPointer(o),
+                          sampleRate: 48_000,
+                          grid: DeckGrid(bpm: 120, sampleRate: 48_000))
     }
 
     private func makeStore(isPro: Bool) -> EntitlementStore {
@@ -945,6 +1004,133 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(model.echoFeedback(.a), 0)
     }
 
+    // MARK: - Per-deck stems (§36.5, §35.1; plan 5.8)
+
+    func testLoadArmsPreparedStemsAndLivesTheFaders() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        let box = makeLoadedBox()
+        library.outcomes[5] = .loaded(box)
+        let stems = FakeStemProvider()
+        stems.sets[5] = makeStemBox()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library, stemProvider: stems)
+        try model.begin()
+        defer { model.end() }
+
+        XCTAssertEqual(model.stemStatus(.a), .unavailable, "no deck loaded → nothing prepared")
+        await model.load(.a, trackID: 5)
+        XCTAssertEqual(stems.requested, [5])
+        XCTAssertEqual(model.stemStatus(.a), .prepared,
+                       "a prepared set → the status is prepared and the faders go live")
+        XCTAssertNotNil(fake.armedStemSets[.a],
+                        "the prepared set is armed on the deck (§36.5)")
+        XCTAssertFalse(fake.disarmedStemSets.contains(.a))
+
+        // Faders forward to the engine now that the deck is prepared.
+        model.setStemGain(.a, stem: .vocals, gain: 0.75)
+        XCTAssertEqual(fake.stemGains[.a]?[.vocals], 0.75, "a live fader crosses the ring")
+        XCTAssertEqual(model.stemGain(.a, stem: .vocals), 0.75, "the VM mirrors the fader")
+        model.setStemMute(.a, stem: .bass, muted: true)
+        XCTAssertTrue(fake.stemMutes[.a]?.contains(.bass) == true)
+        XCTAssertTrue(model.stemIsMuted(.a, stem: .bass))
+        model.setStemSolo(.a, stem: .drums, soloed: true)
+        XCTAssertTrue(fake.stemSolos[.a]?.contains(.drums) == true)
+        XCTAssertTrue(model.stemIsSoloed(.a, stem: .drums))
+
+        XCTAssertEqual(model.stemStatus(.b), .unavailable,
+                       "deck B's stems are untouched by deck A's load (FR-ENG-13)")
+        XCTAssertNil(fake.armedStemSets[.b], "deck B is never armed by deck A's load")
+    }
+
+    func testLoadWithoutPreparedStemsKeepsFullMixAndDisablesFaders() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        library.outcomes[7] = .loaded(makeLoadedBox())
+        let stems = FakeStemProvider() // no sets → nothing prepared
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library, stemProvider: stems)
+        try model.begin()
+        defer { model.end() }
+
+        await model.load(.a, trackID: 7)
+        XCTAssertEqual(model.stemStatus(.a), .unavailable,
+                       "the honest unavailable state — the deck plays the full mix (§36.5)")
+        XCTAssertTrue(fake.disarmedStemSets.contains(.a), "the deck is disarmed, never armed")
+
+        // A fader that is not live must never do anything (§36.5's honest-fader
+        // rule — inert, not a mirror that lies).
+        model.setStemGain(.a, stem: .vocals, gain: 0.4)
+        XCTAssertEqual(fake.stemGains[.a], nil,
+                       "an unprepared deck's fader does not cross the ring")
+        XCTAssertEqual(model.stemGain(.a, stem: .vocals), 1,
+                       "an unprepared fader does not even move — it is inert, not decorative")
+        model.setStemMute(.a, stem: .drums, muted: true)
+        XCTAssertEqual(fake.stemMutes[.a], nil, "mute is forwarded only when prepared")
+        XCTAssertFalse(model.stemIsMuted(.a, stem: .drums))
+    }
+
+    func testMarkStemSeparationIsTheHonestSeparatingState() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        library.outcomes[9] = .loaded(makeLoadedBox())
+        let stems = FakeStemProvider()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library, stemProvider: stems)
+        try model.begin()
+        defer { model.end() }
+
+        await model.load(.a, trackID: 9)
+        XCTAssertEqual(model.stemStatus(.a), .unavailable)
+        model.markStemSeparation(.a)
+        XCTAssertEqual(model.stemStatus(.a), .separating,
+                       "the service's in-flight report renders the honest separating state (§36.3)")
+        XCTAssertEqual(model.stemStatus(.a).label, "separating…")
+
+        // A separating deck's faders are still not live.
+        model.setStemGain(.a, stem: .vocals, gain: 0.9)
+        XCTAssertEqual(fake.stemGains[.a], nil,
+                       "separating is not prepared — the faders stay disabled")
+        XCTAssertTrue(fake.disarmedStemSets.contains(.a))
+    }
+
+    func testStemStatusLabelRendersTheHonestState() {
+        XCTAssertEqual(DeckStemStatus.unavailable.label, "stems not prepared")
+        XCTAssertEqual(DeckStemStatus.prepared.label, "stems ready")
+    }
+
+    func testStemControlStateUnityDefaultsAndGainClamp() {
+        let state = StemControlState()
+        XCTAssertEqual(state.gains.count, StemKind.allCases.count)
+        for stem in StemKind.allCases {
+            XCTAssertEqual(state.gains[stem], 1, "unity is the armed default (§35.1)")
+        }
+        XCTAssertTrue(state.muted.isEmpty)
+        XCTAssertTrue(state.soloed.isEmpty)
+        XCTAssertEqual(StemControlState.maxGain, 1.5)
+    }
+
+    func testStemGainClampsToTheControlRange() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        library.outcomes[5] = .loaded(makeLoadedBox())
+        let stems = FakeStemProvider()
+        stems.sets[5] = makeStemBox()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library, stemProvider: stems)
+        try model.begin()
+        defer { model.end() }
+
+        await model.load(.a, trackID: 5)
+        XCTAssertEqual(model.stemStatus(.a), .prepared)
+        model.setStemGain(.a, stem: .vocals, gain: 3)
+        XCTAssertEqual(model.stemGain(.a, stem: .vocals), StemControlState.maxGain,
+                       "the gain clamps to the fader's full travel")
+        XCTAssertEqual(fake.stemGains[.a]?[.vocals], StemControlState.maxGain)
+        model.setStemGain(.a, stem: .vocals, gain: -1)
+        XCTAssertEqual(model.stemGain(.a, stem: .vocals), 0, "clamped at the bottom")
+    }
+
     func testEchoFlyoutReleaseResolvesToTheChip() {
         // §42.7c: the compact ECHO flyout is release-to-commit — release over
         // a channel, a beat chip or the depth track commits; sliding out
@@ -1121,8 +1307,10 @@ final class WorkspaceModelTests: XCTestCase {
         let box = makeLoadedBox()
         library.outcomes[5] = .loaded(box)
         let waveforms = FakeWaveformRepository()
+        let stems = FakeStemProvider()
         let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
-                                   library: library, waveformRepository: waveforms)
+                                   library: library, waveformRepository: waveforms,
+                                   stemProvider: stems)
         try model.begin()
         defer { model.end() }
 
@@ -1136,6 +1324,11 @@ final class WorkspaceModelTests: XCTestCase {
         for _ in 0..<50 { await Task.yield() }
         XCTAssertEqual(waveforms.requested, [5], "a loaded deck asks its §26A render model")
         XCTAssertNil(model.waveform(for: .a), "the fake has no model → the honest empty state")
+        XCTAssertEqual(stems.requested, [5], "a loaded deck asks its prepared stems (§36.5)")
+        XCTAssertEqual(model.stemStatus(.a), .unavailable,
+                       "no prepared set → the deck plays the full mix, faders disabled")
+        XCTAssertTrue(fake.disarmedStemSets.contains(.a),
+                      "no prepared set → the deck is disarmed (full mix), never left armed")
     }
 
     func testRefusedLoadNeverArmsTheEngine() async throws {

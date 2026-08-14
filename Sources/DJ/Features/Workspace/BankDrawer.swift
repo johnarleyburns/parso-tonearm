@@ -189,7 +189,7 @@ struct BankDrawerView: View {
         .accessibilityIdentifier("dj.deck.\(deckID).fader")
     }
 
-    // MARK: STEMS — two live faders, the §2.1 iPhone budget (honest until M5)
+    // MARK: STEMS — the §2.1 iPhone budget (two live faders when prepared)
 
     private var stemsContent: some View {
         VStack(spacing: 8) {
@@ -197,29 +197,50 @@ struct BankDrawerView: View {
                 Text("Stems")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
-                Text("unavailable · M5")
+                Text(model.stemStatus(deck).label)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(model.stemStatus(deck) == .prepared ? Color.green : .secondary)
             }
             .padding(.horizontal, 4)
 
-            ForEach(["Vocals", "Drums"], id: \.self) { stem in
-                HStack(spacing: 6) {
-                    Text(stem)
-                        .font(.system(size: 11))
-                        .frame(width: 52, alignment: .leading)
-                    GeometryReader { proxy in
-                        Capsule().fill(Color.white.opacity(0.08))
-                            .overlay(alignment: .leading) {
-                                Capsule().fill(Color.white.opacity(0.2))
-                                    .frame(width: proxy.size.width * 0.75)
-                            }
+            if model.stemStatus(deck) == .prepared {
+                // §2.1's budget: two live stem faders on iPhone — the two
+                // voices that matter for a transition (the full four stay
+                // available from cache and on the iPad's STEMS module).
+                StemFaderRow(label: "Vocals",
+                             gain: model.stemGain(deck, stem: .vocals),
+                             muted: model.stemIsMuted(deck, stem: .vocals),
+                             identifier: "dj.deck.\(deckID).stem.vocals") { gain in
+                    model.setStemGain(deck, stem: .vocals, gain: gain)
+                } onMuteToggled: {
+                    model.setStemMute(deck, stem: .vocals,
+                                      muted: !model.stemIsMuted(deck, stem: .vocals))
+                }
+                StemFaderRow(label: "Drums",
+                             gain: model.stemGain(deck, stem: .drums),
+                             muted: model.stemIsMuted(deck, stem: .drums),
+                             identifier: "dj.deck.\(deckID).stem.drums") { gain in
+                    model.setStemGain(deck, stem: .drums, gain: gain)
+                } onMuteToggled: {
+                    model.setStemMute(deck, stem: .drums,
+                                      muted: !model.stemIsMuted(deck, stem: .drums))
+                }
+            } else {
+                // The honest disabled state: unity bars, dimmed — never a
+                // live-looking fader that does nothing (§36.5).
+                ForEach(["Vocals", "Drums"], id: \.self) { stem in
+                    HStack(spacing: 6) {
+                        Text(stem)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .leading)
+                        Capsule().fill(Color.white.opacity(0.06))
+                            .frame(height: 12)
                     }
-                    .frame(height: 4)
                 }
             }
 
-            Text("§2.1's budget: two live stem faders on iPhone — the full four land with the M5 prep surface")
+            Text("§2.1's budget: two live stem faders on iPhone — the full four land on the iPad's STEMS module")
                 .font(.system(size: 8.5))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
