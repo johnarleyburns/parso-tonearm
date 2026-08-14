@@ -59,14 +59,21 @@ public protocol WorkspaceEngine: AnyObject {
     func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool)
     /// Start recording the post-limiter master bus (§37.2, plan 5.10). The
     /// record toggle (decision 14) forwards this; the engine starts the tap +
-    /// encoder. Throws when the graph has no record tap (built with
-    /// `recordTapEnabled: false`) — an honest unavailable state, never a
-    /// silent no-op.
-    func startRecording() async throws
+    /// encoder. Returns the per-session output directory — 5.11's journal
+    /// derives the `mix_asset` path from it. Throws when the graph has no
+    /// record tap (built with `recordTapEnabled: false`) — an honest
+    /// unavailable state, never a silent no-op.
+    func startRecording() async throws -> URL
     /// Stop recording and return the finished recording (segments + metadata).
     func stopRecording() async throws -> RecordingEncoder.RecordingOutput?
     /// Whether a recording is currently in flight (decision 14's session state).
     var isRecording: Bool { get }
+    /// §34A.4 `.began` (plan 5.11): flush the active recording's current
+    /// segment so it is a complete playable M4A — NFR-REL-2's critical line.
+    func interruptRecordingForInterruption() async throws
+    /// §34A.4 `.ended` with `.shouldResume` (plan 5.11): open a **new** segment,
+    /// never the flushed one. Decks are never auto-played here.
+    func resumeRecordingFromInterruption() async throws
     func sampleTelemetry() -> EngineTelemetry
     func pushTelemetry()
 }
@@ -176,10 +183,17 @@ public final class WorkspaceModel: ObservableObject {
     public let store: EntitlementStore
     /// The audio session coordinator the app entered before building the engine
     /// (§34A.2, plan 5.4a). Retained for the workspace's lifetime so its route /
-    /// interruption marshalling survives; the responses are consumed by the
-    /// recording/service commits (5.10/5.11). `nil` when the session was never
-    /// entered (tests inject none).
+    /// interruption marshalling survives; the responses are consumed here (plan
+    /// 5.11) — `.began` flushes the recording segment, `.ended` opens a new one,
+    /// never auto-playing (§34A.4). `nil` when the session was never entered
+    /// (tests inject none).
     private let session: AudioSessionCoordinator?
+    /// The §37.3 recording journal + recovery service (plan 5.11): the record
+    /// toggle's `begin`/`finalize` write the `mix`/`mix_asset` rows, and
+    /// `reconcile` runs on workspace appear to salvage crashed recordings.
+    /// Injectable so the model's wiring is testable with a fake; nil in the
+    /// model-level tests that predate the journal.
+    private let recordingService: (any RecordingJournaling)?
     /// The library → deck seam (plan 5.1, decision 16): the per-deck queues
     /// (§41.9c, FR-ENG-13) and the one gesture that loads a track to a deck
     /// through the FR-LIB-8 gate and the decode path. Injectable so the model's
@@ -218,6 +232,9 @@ public final class WorkspaceModel: ObservableObject {
     private let pump: TelemetryPump?
     private var telemetryTask: Task<Void, Never>?
     private var anyDeckPlaying = false
+    /// The §34A.4 session-response consumer (plan 5.11): flushes the recording
+    /// segment on `.began`, opens a new one on `.ended` — never auto-plays.
+    private var interruptionTask: Task<Void, Never>?
 
     /// Where the per-deck module-slot / jog-mode choices are remembered
     /// (§41.9a, plan 4.11). Injectable so tests isolate the persistence.
@@ -344,12 +361,14 @@ public final class WorkspaceModel: ObservableObject {
                 library: (any DeckLibraryServicing)? = nil,
                 waveformRepository: (any WaveformRendering)? = nil,
                 stemProvider: (any StemProviding)? = nil,
+                recordingService: (any RecordingJournaling)? = nil,
                 session: AudioSessionCoordinator? = nil) {
         self.engine = engine
         self.store = store
         self.injectedLibrary = library
         self.injectedWaveformRepository = waveformRepository
         self.injectedStemProvider = stemProvider
+        self.recordingService = recordingService
         self.session = session
         self.isPro = store.isPro
         self.pinnedDrawerIdle = pinnedDrawerIdle
@@ -373,7 +392,9 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     /// Start the engine, the display-rate pump, and the telemetry subscription.
-    /// The view calls this on appear and `end()` on disappear.
+    /// The view calls this on appear and `end()` on disappear. Also consumes the
+    /// §34A.4 session responses (the recording flush/new-segment path) and
+    /// reconciles any crashed recordings (plan 5.11).
     public func begin() throws {
         try engine.start()
         telemetryTask?.cancel()
@@ -384,11 +405,17 @@ public final class WorkspaceModel: ObservableObject {
             }
         }
         pump?.start()
+        startConsumingSessionResponses()
+        Task { [weak self] in
+            await self?.reconcileRecordings()
+        }
     }
 
     public func end() {
         telemetryTask?.cancel()
         telemetryTask = nil
+        interruptionTask?.cancel()
+        interruptionTask = nil
         drawerIdleTask?.cancel()
         drawerIdleTask = nil
         pump?.stop()
@@ -746,25 +773,93 @@ public final class WorkspaceModel: ObservableObject {
 
     /// Start recording: forward to the engine, then mirror the session state
     /// (decision 14). A graph without a record tap is an honest unavailable
-    /// state — the chip stays off, it never lies about recording.
+    /// state — the chip stays off, it never lies about recording. Once the tap
+    /// + encoder are live, the §37.3 journal opens the in-progress `mix` row —
+    /// a journal failure aborts the recording rather than running journal-less
+    /// (a crash would then lose a recording the app believes is safe).
     public func startRecording() async {
         guard !isRecording else { return }
+        let directory: URL
         do {
-            try await engine.startRecording()
+            directory = try await engine.startRecording()
         } catch {
             return
         }
         guard engine.isRecording else { return }
+        if let recordingService {
+            do {
+                try await recordingService.begin(outputDirectory: directory)
+            } catch {
+                // The engine is live but nothing will be recoverable — unwind
+                // honestly instead of recording silently without a journal.
+                _ = try? await engine.stopRecording()
+                return
+            }
+        }
         recordingStartSample = engine.masterSample
         recordingElapsed = 0
         isRecording = true
     }
 
-    /// Stop recording: forward, finalize, and mirror the session state off.
+    /// Stop recording: forward, finalize, write the `mix`/`mix_asset` rows and
+    /// join the segments (plan 5.11), then mirror the session state off.
     public func stopRecording() async {
         guard isRecording else { return }
-        _ = try? await engine.stopRecording()
+        let output = try? await engine.stopRecording()
+        if let output, let recordingService {
+            let journal = recordingJournalConfiguration()
+            try? await recordingService.finalize(output: output, journal: journal)
+        }
         isRecording = engine.isRecording
+    }
+
+    /// Recover every crashed recording — the §37.3 `reconcile()` on workspace
+    /// appear (plan 5.11, NFR-REL-2): stale `recording` rows become `complete`
+    /// (segments joined) or `corrupt`. Idempotent; the result is surfaced by
+    /// 5.12's Mixes view, not here.
+    public func reconcileRecordings() async {
+        guard let recordingService else { return }
+        _ = try? await recordingService.reconcile()
+    }
+
+    /// The engine configuration in force — the self-describing payload for the
+    /// regression suite's `mix-journal.json` (dj-regression-suite §7, hook 5.11).
+    private func recordingJournalConfiguration() -> RecordingJournalConfiguration {
+        RecordingJournalConfiguration(sampleRate: engine.sampleRate,
+                                      limiterCeiling: engine.limiterCeiling,
+                                      masterBPM: telemetry.masterBPM,
+                                      echoBeatsA: echoBeatsA,
+                                      echoBeatsB: echoBeatsB)
+    }
+
+    /// Consume the §34A.4 session responses (plan 5.11): `.began` flushes the
+    /// recording segment so the interruption costs at most the in-flight one
+    /// (NFR-REL-2); `.ended` opens a **new** segment. Decks are never
+    /// auto-played — the resume is the human's call (§34A.4). Route-change
+    /// responses are the engine's concern, not the journal's.
+    private func startConsumingSessionResponses() {
+        guard let session, interruptionTask == nil else { return }
+        interruptionTask = Task { [weak self] in
+            let responses = await session.responses
+            for await response in responses {
+                await self?.handleSession(response)
+            }
+        }
+    }
+
+    /// The recording's half of one session response. Only the two §34A.4 rows
+    /// touch a recording; everything else is deliberately ignored here (decks
+    /// pause/renegotiate elsewhere, and an interruption never resumes playback).
+    func handleSession(_ response: SessionPolicy.Response) async {
+        guard isRecording else { return }
+        switch response {
+        case .flushSegmentAndCapturePlayheads:
+            try? await engine.interruptRecordingForInterruption()
+        case .resume:
+            try? await engine.resumeRecordingFromInterruption()
+        default:
+            break
+        }
     }
 
     // MARK: - Sync (§32)

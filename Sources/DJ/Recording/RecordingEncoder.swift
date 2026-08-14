@@ -50,14 +50,17 @@ public actor RecordingEncoder {
         public let segmentURLs: [URL]
         public let totalFrames: Int
         public let sampleRate: Double
+        public let channelCount: Int
         public let format: String
 
         public init(outputDirectory: URL, segmentURLs: [URL],
-                    totalFrames: Int, sampleRate: Double, format: String) {
+                    totalFrames: Int, sampleRate: Double, channelCount: Int,
+                    format: String) {
             self.outputDirectory = outputDirectory
             self.segmentURLs = segmentURLs
             self.totalFrames = totalFrames
             self.sampleRate = sampleRate
+            self.channelCount = channelCount
             self.format = format
         }
 
@@ -95,6 +98,8 @@ public actor RecordingEncoder {
 
     /// The format string the `mix.format` row records (FR-REC-7 honesty).
     public static let formatName = "m4a-aac-256"
+    /// The bit rate the `mix.bitrateKbps` row records — `formatName`'s `256`.
+    public static let bitRateKbps = 256
 
     private let tap: RecordTap
     private let configuration: Configuration
@@ -108,6 +113,11 @@ public actor RecordingEncoder {
     private var framesInSegment = 0
     private var totalFrames = 0
     private var isStarted = false
+    /// §34A.4 interruption state (plan 5.11): `interruptSegment()` closed the
+    /// current file and the encoder is **waiting** — `drain` returns 0 and the
+    /// next write goes to a fresh segment opened by `resumeSegment()`, never the
+    /// flushed one.
+    private var isInterrupted = false
 
     /// Interleaved scratch — read from the tap, de-interleaved into the
     /// file's processing-format buffer. Fixed size, allocated once (§12.3
@@ -145,10 +155,12 @@ public actor RecordingEncoder {
 
     /// Drain up to `maxFrames` frames from the tap, encode them to AAC and
     /// write them to the current segment; flush a completed segment. Returns
-    /// the number of frames written (0 when the ring is empty or idle).
+    /// the number of frames written (0 when the ring is empty, idle, or the
+    /// encoder is interrupted — §34A.4's wait).
     @discardableResult
     public func drain(maxFrames: Int) throws -> Int {
         guard isStarted else { throw RecordingError.notStarted }
+        guard !isInterrupted else { return 0 }
         guard let scratchPointer = scratch.pointer else { throw RecordingError.notStarted }
         let n = tap.read(maxFrames: maxFrames, into: scratchPointer)
         guard n > 0 else { return 0 }
@@ -191,20 +203,54 @@ public actor RecordingEncoder {
         try openSegment(segmentIndex)
     }
 
+    /// §34A.4 `.began` — the critical line behind NFR-REL-2 (plan 5.11):
+    /// drain whatever pre-interruption audio is still in the ring into the
+    /// current segment, then close it so it is a **complete, playable M4A**.
+    /// The encoder then **waits**: no new segment is opened (the system paused
+    /// the engine; there is nothing to record into it), and `drain` returns 0
+    /// until `resumeSegment()`.
+    public func interruptSegment() throws {
+        guard isStarted else { throw RecordingError.notStarted }
+        guard !isInterrupted else { return }
+        if currentFile != nil {
+            while tap.availableFrames > 0 {
+                _ = try drain(maxFrames: scratchFrames)
+            }
+            currentFile?.close()
+            currentFile = nil
+        }
+        framesInSegment = 0
+        isInterrupted = true
+    }
+
+    /// §34A.4 `.ended` with `.shouldResume` — open a **fresh** segment and never
+    /// reopen the flushed one; the interruption's gap is a separate segment
+    /// boundary, exactly what the timeline shows as a gap (§34A.4).
+    public func resumeSegment() throws {
+        guard isStarted else { throw RecordingError.notStarted }
+        guard isInterrupted else { return }
+        segmentIndex += 1
+        try openSegment(segmentIndex)
+        isInterrupted = false
+    }
+
     /// Drain the ring to empty, close the final segment and return the
     /// finished recording.
     public func finalize() throws -> RecordingOutput {
         guard isStarted else { throw RecordingError.notStarted }
-        while tap.availableFrames > 0 {
-            _ = try drain(maxFrames: scratchFrames)
+        if !isInterrupted, currentFile != nil {
+            while tap.availableFrames > 0 {
+                _ = try drain(maxFrames: scratchFrames)
+            }
+            currentFile?.close()
+            currentFile = nil
         }
-        currentFile?.close()
-        currentFile = nil
         isStarted = false
         return RecordingOutput(outputDirectory: configuration.outputDirectory,
                                segmentURLs: segmentURLs,
                                totalFrames: totalFrames,
                                sampleRate: configuration.sampleRate,
+                               channelCount: configuration.channelCount,
                                format: Self.formatName)
     }
 

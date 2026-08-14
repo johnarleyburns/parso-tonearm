@@ -81,6 +81,13 @@ public enum DJWorkspaceAssembly {
                                                                        recordTapEnabled: true)) else {
             return nil
         }
-        return WorkspaceModel(engine: engine, store: store, session: session)
+        // The §37.3 journal (plan 5.11): writes the `mix`/`mix_asset` rows and
+        // reconciles crashed recordings. `-uiRegression` is the hand-run DJ
+        // suite's launch flag (dj-regression-suite hook 5.11) — only then does
+        // finalize export `mix-journal.json` beside the M4A.
+        let journal = RecordingService(
+            exportJournalMetadata: ProcessInfo.processInfo.arguments.contains("-uiRegression"))
+        return WorkspaceModel(engine: engine, store: store,
+                              recordingService: journal, session: session)
     }
 }

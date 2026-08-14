@@ -365,18 +365,22 @@ public final class PerformanceEngine {
         return Array(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength)))
     }
 
-    // MARK: - Recording (§37.2, FR-ENG-7; plan 5.10)
+    // MARK: - Recording (§37.2, FR-ENG-7; plan 5.10, 5.11)
 
     /// Start recording the post-limiter master bus (§37.2). Creates the
     /// `RecordingEncoder` for a fresh per-session subdirectory, starts it,
-    /// enables the tap, and kicks off the off-RT drain loop. Throws when the
-    /// graph has no record tap (built with `recordTapEnabled: false`) — an
-    /// honest unavailable state, never a silent no-op.
-    public func startRecording() async throws {
+    /// enables the tap, and kicks off the off-RT drain loop. Returns the
+    /// per-session output directory — 5.11's `RecordingService` journals it
+    /// (the `mix_asset.localRelPath` derives from it). Throws when the graph
+    /// has no record tap (built with `recordTapEnabled: false`) — an honest
+    /// unavailable state, never a silent no-op.
+    public func startRecording() async throws -> URL {
         guard let tap = graph.recordTap else {
             throw RecordingEncoder.RecordingError.tapNotRecording
         }
-        guard recordingEncoder == nil else { return }
+        guard recordingEncoder == nil else {
+            return recordingDirectory.appendingPathComponent("already-recording")
+        }
         let sessionDir = recordingDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let encoder = try RecordingEncoder(
@@ -395,10 +399,11 @@ public final class PerformanceEngine {
             }
         }
         self.drainTask = drainTask
+        return sessionDir
     }
 
     /// Stop recording: stop the tap, drain and finalize, and return the
-    /// finished recording (segments + metadata for 5.11's `mix`/`mix_asset`
+    /// finished recording (segments + metadata for the `mix`/`mix_asset`
     /// rows). Nil when nothing was recording.
     public func stopRecording() async throws -> RecordingEncoder.RecordingOutput? {
         guard let encoder = recordingEncoder else { return nil }
@@ -407,6 +412,22 @@ public final class PerformanceEngine {
         drainTask = nil
         recordingEncoder = nil
         return try await encoder.finalize()
+    }
+
+    /// §34A.4 `.began` (plan 5.11): flush the active recording's current
+    /// segment so it is a complete playable M4A — the critical line behind
+    /// NFR-REL-2. A no-op when nothing is recording (nothing to flush).
+    public func interruptRecordingForInterruption() async throws {
+        guard let encoder = recordingEncoder else { return }
+        try await encoder.interruptSegment()
+    }
+
+    /// §34A.4 `.ended` with `.shouldResume` (plan 5.11): open a **new** segment,
+    /// never the flushed one. A no-op when nothing is recording. Decks are
+    /// never auto-played here — the resume is the human's call (§34A.4).
+    public func resumeRecordingFromInterruption() async throws {
+        guard let encoder = recordingEncoder else { return }
+        try await encoder.resumeSegment()
     }
 
     /// Whether a recording is currently in flight (the workspace's record

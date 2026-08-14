@@ -18,6 +18,18 @@ public enum DJImportError: LocalizedError {
     }
 }
 
+/// The §37.3 journal's DB-side failure (plan 5.11). Small and internal — the
+/// journal's file-side failures are `RecordingService`'s, not the store's.
+public enum RecordingJournalError: LocalizedError {
+    case missingMixID
+
+    public var errorDescription: String? {
+        switch self {
+        case .missingMixID: return "The recording journal row did not receive an id."
+        }
+    }
+}
+
 public struct ImportSummary: Sendable, Equatable {
     public let added: Int
     public let updated: Int
@@ -264,6 +276,98 @@ public actor DJLibraryStore {
             return EnergyCurve(resolution: row["resolution"] as? String ?? "beat",
                                values: decoded.values,
                                hopSeconds: decoded.hopSeconds)
+        }
+    }
+
+    // MARK: - Recording journal (§37.3, NFR-REL-2; plan 5.11)
+
+    /// Open the §37.3 recording journal: the `mix` row **in-progress**
+    /// (`localState = "recording"`) plus its `mix_asset` row, in one transaction
+    /// (NFR-REL-1). `localRelPath` is the eventual joined M4A relative to
+    /// `DJDatabase.mixesDirectory` (e.g. `<sessionUUID>/mix.m4a`). Returns the
+    /// `mix` row's id — the handle `finalize`/`reconcile` update.
+    @discardableResult
+    public func beginRecordingMix(syncID: String,
+                                  title: String,
+                                  format: String,
+                                  bitrateKbps: Int?,
+                                  localRelPath: String,
+                                  recordedAt: Date) throws -> Int64 {
+        try pool.write { db in
+            var mix = DJMix(syncID: syncID,
+                            title: title,
+                            durationSec: 0,
+                            trackCount: 0,
+                            format: format,
+                            bitrateKbps: bitrateKbps,
+                            recordedAt: recordedAt,
+                            localState: MixLocalState.recording.rawValue)
+            try mix.insert(db)
+            guard let mixID = mix.id else {
+                throw RecordingJournalError.missingMixID
+            }
+            var asset = DJMixAsset(mixID: mixID,
+                                   localRelPath: localRelPath,
+                                   totalBytes: 0)
+            try asset.insert(db)
+            return mixID
+        }
+    }
+
+    /// Promote a journal `recording` row to `complete` with the finished mix's
+    /// real header + the asset's real size, in one transaction (§37.5 step 1).
+    public func finalizeRecordingMix(mixID: Int64,
+                                     durationSec: Double,
+                                     sizeBytes: Int64,
+                                     trackCount: Int) throws {
+        try pool.write { db in
+            guard var mix = try DJMix.fetchOne(db, key: mixID) else { return }
+            mix.localState = MixLocalState.complete.rawValue
+            mix.durationSec = durationSec
+            mix.sizeBytes = sizeBytes
+            mix.trackCount = trackCount
+            try mix.update(db)
+            if var asset = try DJMixAsset.fetchOne(db, key: mixID) {
+                asset.totalBytes = sizeBytes
+                try asset.update(db)
+            }
+        }
+    }
+
+    /// Mark a journal row `corrupt` — the recording could not be salvaged
+    /// (nothing recoverable on disk, or the join failed). Honest, never a
+    /// silently-dropped row (§37.3, §46.2's no-silent-fallback rule).
+    public func markRecordingMixCorrupt(mixID: Int64) throws {
+        try pool.write { db in
+            guard var mix = try DJMix.fetchOne(db, key: mixID) else { return }
+            mix.localState = MixLocalState.corrupt.rawValue
+            try mix.update(db)
+        }
+    }
+
+    /// Every journal row still marked `recording` — a crash or interrupted
+    /// stop left them in-flight. `reconcile()`'s input (§37.3).
+    public func staleRecordingMixes() throws -> [DJMix] {
+        try pool.read { db in
+            try DJMix
+                .filter(Column("localState") == MixLocalState.recording.rawValue)
+                .order(Column("recordedAt"))
+                .fetchAll(db)
+        }
+    }
+
+    /// A mix's asset row — `reconcile` resolves the session directory from it.
+    public func mixAsset(mixID: Int64) throws -> DJMixAsset? {
+        try pool.read { db in
+            try DJMixAsset.fetchOne(db, key: mixID)
+        }
+    }
+
+    /// A mix row by id — the post-`finalize`/`reconcile` read (the journal's
+    /// finished state, for the Mixes view and the tests).
+    public func mix(mixID: Int64) throws -> DJMix? {
+        try pool.read { db in
+            try DJMix.fetchOne(db, key: mixID)
         }
     }
 

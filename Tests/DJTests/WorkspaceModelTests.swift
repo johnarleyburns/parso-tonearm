@@ -41,7 +41,11 @@ final class WorkspaceModelTests: XCTestCase {
         private(set) var stemSolos: [PerformanceEngine.Deck: Set<StemKind>] = [:]
         private(set) var recordingStarts = 0
         private(set) var recordingStops = 0
+        private(set) var interruptionFlushes = 0
+        private(set) var interruptionResumes = 0
         private(set) var isRecording = false
+        private(set) var lastStartDirectory: URL?
+        var lastStopOutput: RecordingEncoder.RecordingOutput?
 
         func start() throws { started = true }
         func stop() { stopped = true }
@@ -111,17 +115,46 @@ final class WorkspaceModelTests: XCTestCase {
         func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool) {
             if soloed { stemSolos[deck, default: []].insert(stem) } else { stemSolos[deck]?.remove(stem) }
         }
-        func startRecording() async throws {
+        func startRecording() async throws -> URL {
             recordingStarts += 1
             isRecording = true
+            let dir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            lastStartDirectory = dir
+            return dir
         }
         func stopRecording() async throws -> RecordingEncoder.RecordingOutput? {
             recordingStops += 1
             isRecording = false
-            return nil
+            return lastStopOutput
         }
+        func interruptRecordingForInterruption() async throws { interruptionFlushes += 1 }
+        func resumeRecordingFromInterruption() async throws { interruptionResumes += 1 }
         func sampleTelemetry() -> EngineTelemetry { current }
         func pushTelemetry() { stream.push(current) }
+    }
+
+    /// The §37.3 journal seam (plan 5.11) — a recording fake so the model's
+    /// begin/finalize/reconcile wiring is exercised deterministically.
+    private final class FakeRecordingJournal: RecordingJournaling, @unchecked Sendable {
+        var beginCalls: [URL] = []
+        var finalizeCalls: [(output: RecordingEncoder.RecordingOutput,
+                             journal: RecordingJournalConfiguration?)] = []
+        var reconcileCount = 0
+        var throwOnBegin = false
+
+        func begin(outputDirectory: URL) async throws {
+            beginCalls.append(outputDirectory)
+            if throwOnBegin { throw RecordingJournalError.missingMixID }
+        }
+        func finalize(output: RecordingEncoder.RecordingOutput,
+                      journal: RecordingJournalConfiguration?) async throws {
+            finalizeCalls.append((output, journal))
+        }
+        func reconcile() async throws -> [RecoveredMix] {
+            reconcileCount += 1
+            return []
+        }
     }
 
     private struct EmptyEntitlementSource: EntitlementSource {
@@ -1382,6 +1415,102 @@ final class WorkspaceModelTests: XCTestCase {
         for _ in 0..<50 { await Task.yield() }
         XCTAssertEqual(model.recordingElapsed, 1.0, accuracy: 1e-9,
                        "elapsed freezes when recording stops")
+    }
+
+    // MARK: - Recording journal + interruption (plan 5.11)
+
+    func testRecordingStartAndStopWriteTheJournal() async throws {
+        let fake = FakeWorkspaceEngine()
+        let journal = FakeRecordingJournal()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   recordingService: journal)
+        try model.begin()
+        defer { model.end() }
+
+        await model.startRecording()
+        XCTAssertEqual(journal.beginCalls.count, 1, "start forwards the output directory to the journal")
+        XCTAssertEqual(journal.beginCalls.first, fake.lastStartDirectory,
+                       "the journal rows the same directory the engine writes into")
+
+        let output = RecordingEncoder.RecordingOutput(
+            outputDirectory: fake.lastStartDirectory!,
+            segmentURLs: [], totalFrames: 24_000, sampleRate: 48_000,
+            channelCount: 1, format: RecordingEncoder.formatName)
+        fake.lastStopOutput = output
+        await model.stopRecording()
+        XCTAssertEqual(journal.finalizeCalls.count, 1, "stop forwards the finished recording to the journal")
+        XCTAssertEqual(journal.finalizeCalls.first?.output, output)
+        XCTAssertNotNil(journal.finalizeCalls.first?.journal,
+                        "stop carries the engine configuration for the self-describing journal")
+        XCTAssertEqual(journal.finalizeCalls.first?.journal?.sampleRate, fake.sampleRate)
+    }
+
+    func testRecordingStartAbortsWhenTheJournalFails() async throws {
+        let fake = FakeWorkspaceEngine()
+        let journal = FakeRecordingJournal()
+        journal.throwOnBegin = true
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   recordingService: journal)
+        try model.begin()
+        defer { model.end() }
+
+        await model.startRecording()
+        XCTAssertEqual(model.isRecording, false,
+                       "a journal failure aborts the recording rather than running journal-less")
+        XCTAssertEqual(fake.recordingStops, 1, "the engine's recording is unwound")
+        XCTAssertEqual(journal.beginCalls.count, 1)
+    }
+
+    func testSessionResponsesFlushAndResumeTheRecording() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+        await model.startRecording()
+
+        await model.handleSession(.flushSegmentAndCapturePlayheads)
+        XCTAssertEqual(fake.interruptionFlushes, 1,
+                       ".began flushes the recording segment (NFR-REL-2's critical line)")
+        XCTAssertEqual(fake.interruptionResumes, 0)
+
+        await model.handleSession(.resume(rebuildGraph: false))
+        XCTAssertEqual(fake.interruptionResumes, 1,
+                       ".ended opens a new segment, never the flushed one (§34A.4)")
+
+        // A `.began`/`.ended` pair while nothing is recording is a no-op.
+        await model.stopRecording()
+        await model.handleSession(.flushSegmentAndCapturePlayheads)
+        await model.handleSession(.resume(rebuildGraph: true))
+        XCTAssertEqual(fake.interruptionFlushes, 1)
+        XCTAssertEqual(fake.interruptionResumes, 1)
+    }
+
+    func testInterruptionNeverAutoPlays() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+        await model.startRecording()
+
+        await model.handleSession(.flushSegmentAndCapturePlayheads)
+        await model.handleSession(.resume(rebuildGraph: false))
+        await model.handleSession(.remainPausedOfferResume)
+
+        XCTAssertTrue(fake.played.isEmpty,
+                      "an interruption resume never auto-plays a deck (§34A.4)")
+        XCTAssertTrue(fake.paused.isEmpty,
+                      "the model's recording path touches no transport at all")
+    }
+
+    func testReconcileRecordingsForwardsToTheService() async throws {
+        let fake = FakeWorkspaceEngine()
+        let journal = FakeRecordingJournal()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   recordingService: journal)
+
+        await model.reconcileRecordings()
+        XCTAssertEqual(journal.reconcileCount, 1,
+                       "the explicit reconcile (and begin's launch reconcile) forwards to the service")
     }
 
     func testLoadForwardsThroughTheLoaderAndArmsTheEngine() async throws {
