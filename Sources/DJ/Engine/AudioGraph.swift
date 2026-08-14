@@ -242,7 +242,9 @@ public final class AudioGraph: @unchecked Sendable {
         let graphState = RenderGraphState(sampleRate: sampleRate,
                                           channelCount: Int(channelCount),
                                           limiterCeiling: configuration.limiterCeiling,
-                                          limiterLookaheadFrames: configuration.limiterLookaheadFrames)
+                                          limiterLookaheadFrames: configuration.limiterLookaheadFrames,
+                                          echoCapacity: BeatEcho.maxDelayFrames(sampleRate: sampleRate) + 1,
+                                          echoCrossfadeFrames: Int(configuration.maximumFrameCount))
         // Captured by the render closures so they can stay one body across the
         // two drivers (§53.11) — the realtime driver needs the clock advanced
         // inside the callback, the offline driver advances it in `render`.
@@ -433,11 +435,16 @@ final class RenderGraphState: @unchecked Sendable {
     let master: MasterStage
 
     init(sampleRate: Double, channelCount: Int,
-         limiterCeiling: Float?, limiterLookaheadFrames: Int) {
+         limiterCeiling: Float?, limiterLookaheadFrames: Int,
+         echoCapacity: Int, echoCrossfadeFrames: Int) {
         clock = DeckClock(sampleRate: sampleRate)
         self.limiterCeiling = limiterCeiling
-        decks = [DeckState(sampleRate: sampleRate, channelCount: channelCount),
-                 DeckState(sampleRate: sampleRate, channelCount: channelCount)]
+        decks = [DeckState(sampleRate: sampleRate, channelCount: channelCount,
+                           echoCapacity: echoCapacity,
+                           echoCrossfadeFrames: echoCrossfadeFrames),
+                 DeckState(sampleRate: sampleRate, channelCount: channelCount,
+                           echoCapacity: echoCapacity,
+                           echoCrossfadeFrames: echoCrossfadeFrames)]
         master = MasterStage(channelCount: channelCount, sampleRate: sampleRate,
                              ceiling: limiterCeiling, lookaheadFrames: limiterLookaheadFrames)
     }
@@ -469,7 +476,13 @@ final class RenderGraphState: @unchecked Sendable {
         let (gainA, gainB) = master.gains()
         decks[0].setCrossfaderGain(gainA)
         decks[1].setCrossfaderGain(gainB)
+        // §35A.2: the echo delay is derived from the master clock, so it is
+        // retuned once per callback from the master deck's effective tempo —
+        // a tempo change moves the echo with it, crossfading between read
+        // pointers over one buffer rather than jumping.
+        let masterBPM = effectiveMasterBPM()
         for deck in decks {
+            deck.applyEchoMasterBPM(masterBPM)
             renderDeck(deck, into: list, frames: frames, frameStart: frameStart)
         }
         master.limit(into: list, frames: frames)
@@ -533,6 +546,15 @@ final class RenderGraphState: @unchecked Sendable {
         }
     }
 
+    /// The master clock's effective tempo — the master deck's grid BPM × rate
+    /// (deck A is the master, §30.1), falling back to the nominal tempo before
+    /// any deck is loaded so the echo delay stays well-defined (§35A.2).
+    func effectiveMasterBPM() -> Double {
+        guard let masterSource = decks[0].source() else { return BeatEcho.nominalBPM }
+        let bpm = masterSource.grid.bpm * decks[0].rate
+        return bpm > 0 ? bpm : BeatEcho.nominalBPM
+    }
+
     /// Publish a deck's playhead/rate/level/play/sync state through its relaxed
     /// atomics (§30.1).
     func publishDeckTelemetry(_ deck: Int) {
@@ -566,6 +588,10 @@ final class RenderGraphState: @unchecked Sendable {
             guard let data = m.mData else { continue }
             memset(data, 0, frames * MemoryLayout<Float>.size)
         }
+        // §35A.2: the per-callback echo retune from the master deck's tempo
+        // (the master clock is the delay reference for both decks — a synced
+        // pair echoes in time with both).
+        decks[deck].applyEchoMasterBPM(effectiveMasterBPM())
         renderDeck(decks[deck], into: list, frames: frames,
                    frameStart: clock.masterSample)
         publishDeckTelemetry(deck)
@@ -701,14 +727,21 @@ final class DeckState: @unchecked Sendable {
     var syncedToMaster: Int = -1
     /// Post-chain peak level (0…1) for the current callback's telemetry.
     var peak: Float = 0
-    /// The per-channel EQ/filter/fader/crossfader chain (§35.1). Only the
+    /// The §35A post-fader echo's control value — the per-deck target pushed
+    /// into every channel's line by the `setEcho*` commands (§35A.3).
+    var echo = BeatEcho()
+    /// The per-channel EQ/filter/fader/echo/crossfader chain (§35.1). Only the
     /// render thread mutates it.
     var mixers: [DeckMixer]
     private let sampleRate: Double
 
-    init(sampleRate: Double, channelCount: Int) {
+    init(sampleRate: Double, channelCount: Int,
+         echoCapacity: Int, echoCrossfadeFrames: Int) {
         self.sampleRate = sampleRate
-        mixers = (0..<channelCount).map { _ in DeckMixer(sampleRate: sampleRate) }
+        mixers = (0..<channelCount).map { _ in
+            DeckMixer(sampleRate: sampleRate, echoCapacity: echoCapacity,
+                      echoCrossfadeFrames: echoCrossfadeFrames)
+        }
     }
 
     /// Read the armed source without retaining anything (§12.3).
@@ -792,7 +825,36 @@ final class DeckState: @unchecked Sendable {
             // (§32.1).
             pendingJump = PendingJump(atSample: masterSample,
                                       targetSample: Int64(playhead) + command.i0)
+        case .setEchoEnabled:
+            echo.enabled = command.f0 >= 0.5
+            applyEchoParams()
+        case .setEchoBeats:
+            echo.beats = Double(command.f0)
+            applyEchoParams()
+        case .setEchoDepth:
+            echo.depth = command.f0
+            applyEchoParams()
+        case .setEchoFeedback:
+            echo.feedback = command.f0
+            applyEchoParams()
         }
+    }
+
+    /// Push the deck's echo control value into every channel's line (clamped
+    /// by the line's `setParams`). The delay itself is retuned each callback
+    /// from the master clock by `applyEchoMasterBPM` (§35A.2).
+    private func applyEchoParams() {
+        for c in mixers.indices { mixers[c].echo.setParams(echo) }
+    }
+
+    /// Retune every channel's echo delay from the master tempo — called once
+    /// per callback. A tempo change moves the echo with it; the line
+    /// crossfades between read pointers over one buffer rather than jumping
+    /// (§35A.2).
+    func applyEchoMasterBPM(_ bpm: Double) {
+        let frames = BeatEcho.delayFrames(beats: echo.beats, bpm: bpm,
+                                          sampleRate: sampleRate)
+        for c in mixers.indices { mixers[c].echo.setDelayFrames(frames) }
     }
 
     /// Set the per-channel crossfader gain target (applied each callback from

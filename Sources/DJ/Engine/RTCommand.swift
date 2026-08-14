@@ -61,6 +61,14 @@ public struct RTCommand: @unchecked Sendable, Equatable {
         /// (positive = forward). Applied as a scheduled, sample-accurate jump
         /// at the current callback boundary (§32.1).
         case syncNudge
+        /// Set the deck's §35A echo on/off — `f0` = on (§35A.3).
+        case setEchoEnabled
+        /// Set the deck's §35A echo beat length — `f0` = beats (§35A.2).
+        case setEchoBeats
+        /// Set the deck's §35A echo wet depth — `f0` = depth, 0…1.
+        case setEchoDepth
+        /// Set the deck's §35A echo feedback — `f0` = tail length, 0…0.85.
+        case setEchoFeedback
     }
 
     public var tag: Tag
@@ -183,5 +191,26 @@ public struct RTCommand: @unchecked Sendable, Equatable {
     /// (§32.1).
     public static func syncNudge(deck: UInt8, shiftSamples: Int64) -> RTCommand {
         RTCommand(tag: .syncNudge, deck: deck, i0: shiftSamples)
+    }
+
+    /// Set the deck's §35A beat-synced echo on/off (§35A.3).
+    public static func setEchoEnabled(deck: UInt8, enabled: Bool) -> RTCommand {
+        RTCommand(tag: .setEchoEnabled, deck: deck, f0: enabled ? 1 : 0)
+    }
+
+    /// Set the deck's §35A echo beat length (1/4 … 4, §35A.2).
+    public static func setEchoBeats(deck: UInt8, beats: Double) -> RTCommand {
+        RTCommand(tag: .setEchoBeats, deck: deck, f0: Float(beats))
+    }
+
+    /// Set the deck's §35A echo wet depth (0…1, §35A.2).
+    public static func setEchoDepth(deck: UInt8, depth: Float) -> RTCommand {
+        RTCommand(tag: .setEchoDepth, deck: deck, f0: depth)
+    }
+
+    /// Set the deck's §35A echo feedback — tail length, 0…0.85 (clamped below
+    /// unity, §35A.2).
+    public static func setEchoFeedback(deck: UInt8, feedback: Float) -> RTCommand {
+        RTCommand(tag: .setEchoFeedback, deck: deck, f0: feedback)
     }
 }

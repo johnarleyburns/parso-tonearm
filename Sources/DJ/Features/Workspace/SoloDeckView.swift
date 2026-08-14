@@ -187,7 +187,8 @@ public struct SoloDeckView: View {
             crossfaderStrip
 
             HStack(spacing: 8) {
-                EchoButton(model: model, deck: model.focusedDeck)
+                EchoReleaseToCommitButton(model: model, deck: model.focusedDeck,
+                                          showsChannelSelector: false)
 
                 Button {
                     model.raiseCrateSheet()
@@ -243,35 +244,6 @@ public struct SoloDeckView: View {
             .accessibilityIdentifier("dj.mixer.crossfader")
         }
         .frame(height: 44)
-    }
-}
-
-/// The §42.7c **ECHO button** in the always-visible band: Echo Out is a
-/// two-control transition, so ECHO sits beside the crossfader and is reachable
-/// without a drawer. The echo *engine* and its long-press release-to-commit
-/// flyout land in commit 5.5; until then the button renders the honest
-/// unavailable state with its §53.11 identifier so the regression suite can
-/// target `dj.fx.echo`.
-private struct EchoButton: View {
-    @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
-
-    var body: some View {
-        Button {
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "waveform")
-                    .font(.system(size: 12, weight: .semibold))
-                Text("ECHO")
-                    .font(.system(size: 12, weight: .bold))
-            }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 44)
-            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        }
-        .buttonStyle(.plain)
-        .disabled(true)
-        .accessibilityIdentifier("dj.fx.echo")
     }
 }
 

@@ -315,16 +315,24 @@ public final class LookaheadLimiter: @unchecked Sendable {
 
 // MARK: - Graph wiring
 
-/// The per-deck mixer chain (§35.1): EQ → filter → channel fader → crossfader
-/// gain, one instance per output channel (each channel carries its own filter
-/// state). Pure value; only the render thread mutates it; the control side
-/// changes targets through `DeckState.apply`/`setCrossfaderGain`.
+/// The per-deck mixer chain (§35.1): EQ → filter → channel fader → **echo
+/// send** → crossfader gain, one instance per output channel (each channel
+/// carries its own filter and echo state). Pure value; only the render thread
+/// mutates it; the control side changes targets through
+/// `DeckState.apply`/`setCrossfaderGain`.
+///
+/// The echo sits **post-fader, pre-crossfader** (§35A.1, normative FR-TRANS-4):
+/// an echo used as a transition must keep sounding after its source is removed,
+/// so the tail survives a channel-fader cut while the incoming channel stays
+/// dry. This is the whole design — a pre-fader echo dies with the fader and
+/// Echo Out collapses into Fader Cut.
 ///
 /// The chain is transparent until a mixer control is touched: the EQ is
 /// bypassed until the first `setEQ`, the filter at its centre detent, the
-/// fader at unity and the crossfader until positioned. An untouched deck is
-/// therefore a bit-exact pass-through, which keeps the deck reader's
-/// frame-exactness assertions valid while the mixer is in the path (§35.1).
+/// fader at unity, the echo dry until enabled, and the crossfader until
+/// positioned. An untouched deck is therefore a bit-exact pass-through, which
+/// keeps the deck reader's frame-exactness assertions valid while the mixer is
+/// in the path (§35.1).
 struct DeckMixer {
     var eq: ThreeBandEQ
     /// True once a `setEQ` has armed the chain — the LR4's unity sum is an
@@ -332,12 +340,16 @@ struct DeckMixer {
     var eqEngaged = false
     var filter: SweepFilter
     var fader: SmoothedGain
+    /// The §35A post-fader echo send — one line per channel.
+    var echo: BeatEchoLine
     var crossfaderGain: SmoothedGain
 
-    init(sampleRate: Double) {
+    init(sampleRate: Double, echoCapacity: Int, echoCrossfadeFrames: Int) {
         eq = ThreeBandEQ(sampleRate: sampleRate)
         filter = SweepFilter(sampleRate: sampleRate)
         fader = SmoothedGain(sampleRate: sampleRate)
+        echo = BeatEchoLine(capacity: echoCapacity, sampleRate: sampleRate,
+                            crossfadeFrames: echoCrossfadeFrames)
         crossfaderGain = SmoothedGain(sampleRate: sampleRate)
     }
 
@@ -346,6 +358,7 @@ struct DeckMixer {
         var s = eqEngaged ? eq.process(x) : x
         s = filter.process(s)
         s = fader.next() * s
+        s = echo.process(s)
         s = crossfaderGain.next() * s
         return s
     }

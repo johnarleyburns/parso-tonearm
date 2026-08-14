@@ -15,7 +15,8 @@ import SwiftUI
 /// - **JOG** — the 248 pt jog with ± pitch-bend buttons and the vinyl/CDJ
 ///   platter mode shown inside the platter (§41.9a);
 /// - **PADS** — four performance pads;
-/// - **FX** — honest-unavailable FX until a later milestone.
+/// - **FX** — ECHO live (the §35A beat-synced echo, plan 5.5); RVB/FLTR/CRUSH
+///   honestly unavailable until a later milestone (§35A.4).
 struct DeckModuleSlotView: View {
     @ObservedObject var model: WorkspaceModel
     let deck: PerformanceEngine.Deck
@@ -61,7 +62,7 @@ struct DeckModuleSlotView: View {
         case .stems: StemsModuleView()
         case .jog: JogModuleView(model: model, deck: deck, onJogIntent: onJogIntent)
         case .pads: PadsModuleView()
-        case .fx: FXModuleView()
+        case .fx: FXModuleView(model: model, deck: deck)
         }
     }
 }
@@ -237,22 +238,27 @@ private struct PadsModuleView: View {
 
 // MARK: - FX module
 
-/// Honest-unavailable FX until a later milestone: the four FX pads render the
-/// disabled state rather than a fake effect set (the waveform/stems baseline
-/// convention).
+/// The FX module: **ECHO is live** (the §35A beat-synced echo, the one Beat FX
+/// M5 ships — plan decision 23); the other three pads stay honestly unavailable
+/// rather than shipping a filter-sweep pad that duplicates the filter knob
+/// (§35A.4, the stems convention).
 private struct FXModuleView: View {
+    @ObservedObject var model: WorkspaceModel
+    let deck: PerformanceEngine.Deck
+
     var body: some View {
         VStack(spacing: 6) {
             HStack {
                 Text("FX")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
-                Text("unavailable")
+                Text("ECHO live · M5")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             HStack(spacing: 6) {
-                ForEach(["ECHO", "RVB", "FLTR", "CRUSH"], id: \.self) { fx in
+                echoPad
+                ForEach(["RVB", "FLTR", "CRUSH"], id: \.self) { fx in
                     Text(fx)
                         .font(.system(size: 10, weight: .bold))
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -261,5 +267,23 @@ private struct FXModuleView: View {
                 }
             }
         }
+    }
+
+    /// The live ECHO pad — a tap toggles the deck's §35A echo. Highlighted
+    /// while on so the state is never a guess.
+    private var echoPad: some View {
+        let on = model.echoEnabled(deck)
+        return Button {
+            model.setEchoEnabled(deck, enabled: !on)
+        } label: {
+            Text("ECHO")
+                .font(.system(size: 10, weight: .bold))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(
+                    on ? Color.accentColor.opacity(0.35) : Color.white.opacity(0.05),
+                    in: RoundedRectangle(cornerRadius: 8))
+                .foregroundStyle(on ? Color.accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
     }
 }

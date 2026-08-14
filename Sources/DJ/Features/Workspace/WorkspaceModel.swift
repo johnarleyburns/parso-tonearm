@@ -44,6 +44,10 @@ public protocol WorkspaceEngine: AnyObject {
     func setFilter(_ deck: PerformanceEngine.Deck, knob: Float)
     func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float)
     func setCrossfader(_ position: Float, curve: CrossfaderCurve)
+    func setEchoEnabled(_ deck: PerformanceEngine.Deck, enabled: Bool)
+    func setEchoBeats(_ deck: PerformanceEngine.Deck, beats: Double)
+    func setEchoDepth(_ deck: PerformanceEngine.Deck, depth: Float)
+    func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float)
     func sampleTelemetry() -> EngineTelemetry
     func pushTelemetry()
 }
@@ -176,6 +180,19 @@ public final class WorkspaceModel: ObservableObject {
     /// view — owns where the fader sits.
     @Published public var tempoA: Double = 0
     @Published public var tempoB: Double = 0
+
+    /// The §35A post-fader echo's per-deck control state (plan 5.5,
+    /// FR-TRANS-4): enabled/beats/depth/feedback, mirrored here so the shared
+    /// session VM owns where every surface's Beat FX controls sit — the same
+    /// convention as the mixer knobs and the tempo faders.
+    @Published public var echoEnabledA: Bool = false
+    @Published public var echoEnabledB: Bool = false
+    @Published public var echoBeatsA: Double = 1
+    @Published public var echoBeatsB: Double = 1
+    @Published public var echoDepthA: Float = 0.6
+    @Published public var echoDepthB: Float = 0.6
+    @Published public var echoFeedbackA: Float = 0.7
+    @Published public var echoFeedbackB: Float = 0.7
 
     /// The iPad module slot each deck occupies (§41.9a) — the per-deck
     /// remembered `JOG · STEMS · PADS · FX` choice, **default `STEMS`** so §41.9
@@ -533,6 +550,72 @@ public final class WorkspaceModel: ObservableObject {
         engine.setCrossfader(position, curve: curve)
         crossfader = position
         crossfaderCurve = curve
+    }
+
+    // MARK: - Beat FX — the §35A post-fader echo (FR-TRANS-4, plan 5.5)
+
+    /// Whether a deck's echo is currently on.
+    public func echoEnabled(_ deck: PerformanceEngine.Deck) -> Bool {
+        deck == .a ? echoEnabledA : echoEnabledB
+    }
+
+    /// A deck's echo beat length (1/4 … 4, §35A.2).
+    public func echoBeats(_ deck: PerformanceEngine.Deck) -> Double {
+        deck == .a ? echoBeatsA : echoBeatsB
+    }
+
+    /// A deck's echo wet depth (0…1, §35A.2).
+    public func echoDepth(_ deck: PerformanceEngine.Deck) -> Float {
+        deck == .a ? echoDepthA : echoDepthB
+    }
+
+    /// A deck's echo feedback — tail length, 0…0.85 (clamped below unity).
+    public func echoFeedback(_ deck: PerformanceEngine.Deck) -> Float {
+        deck == .a ? echoFeedbackA : echoFeedbackB
+    }
+
+    /// Turn a deck's echo on/off. Disabling stops new input to the line but
+    /// the tail keeps ringing until it decays, then bypasses (§35A.2) — this
+    /// is what makes Echo Out an exit rather than a cut (FR-TRANS-4).
+    public func setEchoEnabled(_ deck: PerformanceEngine.Deck, enabled: Bool) {
+        engine.setEchoEnabled(deck, enabled: enabled)
+        switch deck {
+        case .a: echoEnabledA = enabled
+        case .b: echoEnabledB = enabled
+        }
+    }
+
+    /// Set a deck's echo beat length, clamped into the §35A.2 range (1/4 … 4).
+    /// The delay is derived from the master clock, so a tempo change moves the
+    /// echo with it.
+    public func setEchoBeats(_ deck: PerformanceEngine.Deck, beats: Double) {
+        let clamped = min(BeatEcho.maxBeats, max(BeatEcho.minBeats, beats))
+        engine.setEchoBeats(deck, beats: clamped)
+        switch deck {
+        case .a: echoBeatsA = clamped
+        case .b: echoBeatsB = clamped
+        }
+    }
+
+    /// Set a deck's echo wet depth, clamped into 0…1.
+    public func setEchoDepth(_ deck: PerformanceEngine.Deck, depth: Float) {
+        let clamped = min(BeatEcho.maxDepth, max(0, depth))
+        engine.setEchoDepth(deck, depth: clamped)
+        switch deck {
+        case .a: echoDepthA = clamped
+        case .b: echoDepthB = clamped
+        }
+    }
+
+    /// Set a deck's echo feedback, clamped into 0…0.85 — always below unity so
+    /// the tail always decays (§35A.2).
+    public func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float) {
+        let clamped = min(BeatEcho.maxFeedback, max(BeatEcho.minFeedback, feedback))
+        engine.setEchoFeedback(deck, feedback: clamped)
+        switch deck {
+        case .a: echoFeedbackA = clamped
+        case .b: echoFeedbackB = clamped
+        }
     }
 
     // MARK: - §41.9b tempo fader (rule 4)
@@ -1132,5 +1215,144 @@ public final class WorkspaceModel: ObservableObject {
         /// engine lands in commit 5.5; until then the Beat FX block renders the
         /// honest unavailable state (the stems convention).
         public static let echoBeats: [Double] = [0.25, 0.5, 1, 2, 4]
+    }
+
+    // MARK: - §35B transition → control mapping (AT-TRANS layout half, plan 5.5)
+
+    /// The role a §35B transition needs from a performance surface. The table
+    /// is the §35B five (rows) × their control sets (columns), encoded once so
+    /// the AT-TRANS layout assertions and the transition coach (5.13) read the
+    /// same mapping. `FR-TRANS-1` — all five performable on the default surface
+    /// with no configuration — is asserted against these sets.
+    public enum TransitionRole: String, CaseIterable, Sendable {
+        case lowEQ
+        case midEQ
+        case highEQ
+        case channelFader
+        case phraseRibbon
+        case filter
+        case echo
+        case crossfader
+        case beatPhase
+        case sharedWaveform
+    }
+
+    /// The §35B five, each with the controls that perform it (the normative
+    /// mapping; "a transition is a test, not a mode").
+    public static let transitionRoleSets: [(transition: String, roles: Set<TransitionRole>)] = [
+        ("Bass Swap", [.lowEQ, .channelFader, .phraseRibbon]),
+        ("Filter Transition", [.filter, .channelFader]),
+        ("Echo Out", [.echo, .channelFader]),
+        ("Fader Cut", [.crossfader]),
+        ("Blend / Mix", [.channelFader, .lowEQ, .midEQ, .highEQ, .beatPhase, .sharedWaveform])
+    ]
+
+    /// The controls the §41.9b iPad surface keeps **always visible** — nothing
+    /// a transition needs is behind a mode on the tablet (FR-TRANS-1/2).
+    public static let tabletAlwaysVisibleRoles: Set<TransitionRole> =
+        Set(TransitionRole.allCases)
+
+    /// The controls the §42.7c compact surface keeps **always visible**, never
+    /// in a drawer: the transferable core — crossfader, channel faders, edge
+    /// filters, CUE-left-of-PLAY, jog, shared waveforms, and the **ECHO button**
+    /// (Echo Out is a two-control transition, so echo and the fader must both
+    /// be reachable without a drawer, §42.7c).
+    public static let compactAlwaysVisibleRoles: Set<TransitionRole> = [
+        .channelFader, .filter, .echo, .crossfader, .beatPhase,
+        .sharedWaveform, .phraseRibbon
+    ]
+
+    /// The controls the compact surface reaches through the §42.7b momentary
+    /// bank drawer (EQ — the spring-loading idiom makes Bass Swap performable:
+    /// press, kill the low, release, drawer gone within one frame).
+    public static let compactDrawerRoles: Set<TransitionRole> = [
+        .lowEQ, .midEQ, .highEQ
+    ]
+
+    /// Everything the compact surface can reach — always-visible plus drawer.
+    public static var compactReachableRoles: Set<TransitionRole> {
+        compactAlwaysVisibleRoles.union(compactDrawerRoles)
+    }
+
+    // MARK: - §42.7c / §35A compact ECHO release-to-commit flyout
+
+    /// The §42.7c compact **ECHO** treatment: a long-press flyout for beat
+    /// length, depth and channel, using the same release-to-commit idiom as
+    /// LOOP (§42.7b idiom 3). The flyout's geometry and release resolution are
+    /// pure so the commit/cancel decision is pinned off-device — nothing
+    /// changes on the way out, the engine is touched only on a release inside a
+    /// commit target.
+    public enum EchoFlyout {
+        public static let beats: [Double] = ClubGeometry.echoBeats
+        public static let width: CGFloat = 190
+        public static let headerHeight: CGFloat = 24
+        public static let topPadding: CGFloat = 6
+        public static let channelChipWidth: CGFloat = 44
+        public static let channelChipHeight: CGFloat = 26
+        public static let channelGap: CGFloat = 6
+        public static let beatsRowTop: CGFloat =
+            headerHeight + topPadding + channelChipHeight + 6
+        public static let chipWidth: CGFloat = 30
+        public static let chipHeight: CGFloat = 28
+        public static let chipGap: CGFloat = 5
+        public static let depthTop: CGFloat = beatsRowTop + chipHeight + 8
+        public static let depthHeight: CGFloat = 26
+        public static let horizontalPadding: CGFloat = 8
+        public static let bottomPadding: CGFloat = 8
+
+        public static var height: CGFloat {
+            depthTop + depthHeight + bottomPadding
+        }
+
+        /// The two channel chips (A/B) in the flyout's header row.
+        public static func channelChipFrame(index: Int) -> CGRect {
+            let total = 2 * channelChipWidth + channelGap
+            let x0 = (width - total) / 2
+            return CGRect(x: x0 + CGFloat(index) * (channelChipWidth + channelGap),
+                          y: headerHeight + topPadding,
+                          width: channelChipWidth, height: channelChipHeight)
+        }
+
+        /// A beat-length chip's frame, centred in the flyout.
+        public static func chipFrame(index: Int) -> CGRect {
+            let total = CGFloat(beats.count) * chipWidth
+                + CGFloat(max(0, beats.count - 1)) * chipGap
+            let x0 = (width - total) / 2
+            return CGRect(x: x0 + CGFloat(index) * (chipWidth + chipGap),
+                          y: beatsRowTop,
+                          width: chipWidth, height: chipHeight)
+        }
+
+        /// The depth strip's frame (0 at its left edge … 1 at its right).
+        public static func depthTrackFrame() -> CGRect {
+            CGRect(x: horizontalPadding, y: depthTop,
+                   width: width - 2 * horizontalPadding, height: depthHeight)
+        }
+
+        /// What a release point commits, `nil` when it slides out (nothing
+        /// changes on the way out).
+        public enum EchoAction: Equatable {
+            /// `0` = deck A, `1` = deck B.
+            case channel(Int)
+            case beats(Double)
+            case depth(Float)
+        }
+
+        /// Resolve a release point to the commit it lands on: the channel
+        /// chips, a beat chip, the depth track, or `nil` outside all of them.
+        public static func releasedAction(at point: CGPoint) -> EchoAction? {
+            for index in 0..<2 where channelChipFrame(index: index).contains(point) {
+                return .channel(index)
+            }
+            for (index, beats) in beats.enumerated() where chipFrame(index: index).contains(point) {
+                return .beats(beats)
+            }
+            if depthTrackFrame().contains(point) {
+                let track = depthTrackFrame()
+                let t = min(1, max(0, (point.x - track.minX) / max(1, track.width)))
+                return .depth(Float(t))
+            }
+            return nil
+        }
     }
 }

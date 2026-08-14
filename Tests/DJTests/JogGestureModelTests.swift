@@ -434,6 +434,10 @@ private final class JogFakeEngine: WorkspaceEngine {
     func setFilter(_ deck: PerformanceEngine.Deck, knob: Float) {}
     func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float) {}
     func setCrossfader(_ position: Float, curve: CrossfaderCurve) {}
+    func setEchoEnabled(_ deck: PerformanceEngine.Deck, enabled: Bool) {}
+    func setEchoBeats(_ deck: PerformanceEngine.Deck, beats: Double) {}
+    func setEchoDepth(_ deck: PerformanceEngine.Deck, depth: Float) {}
+    func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float) {}
     func deckRate(_ deck: PerformanceEngine.Deck) -> Double { rates[deck] ?? 1.0 }
     func sampleTelemetry() -> EngineTelemetry { current }
     func pushTelemetry() { stream.push(current) }

@@ -589,9 +589,10 @@ private struct TwinMixerColumnView: View {
 
             // §42.7c: the ECHO button in the always-visible band — Echo Out is
             // a two-control transition (echo on, fader down), so both must be
-            // reachable without a drawer. The echo engine lands in 5.5; until
-            // then this is the honest unavailable state with the §53.11 id.
-            EchoTwinButton(model: model)
+            // reachable without a drawer. The shared button's flyout carries
+            // the A/B channel chips (the twin's single ECHO serves either
+            // channel).
+            EchoReleaseToCommitButton(model: model, deck: .a)
         }
     }
 
@@ -684,33 +685,6 @@ private struct TwinMixerColumnView: View {
 
     private static func clampUnit(_ value: CGFloat) -> CGFloat {
         max(0, min(1, value))
-    }
-}
-
-/// The §42.7c ECHO button in the twin surface's always-visible mixer column.
-/// The echo *engine* lands in commit 5.5; until then the button renders the
-/// honest unavailable state with its §53.11 identifier so the regression suite
-/// can target `dj.fx.echo`.
-private struct EchoTwinButton: View {
-    @ObservedObject var model: WorkspaceModel
-
-    var body: some View {
-        Button {
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "waveform")
-                    .font(.system(size: 10, weight: .semibold))
-                Text("ECHO · M5")
-                    .font(.system(size: 9, weight: .bold))
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 34)
-            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
-            .foregroundStyle(.secondary)
-        }
-        .buttonStyle(.plain)
-        .disabled(true)
-        .accessibilityIdentifier("dj.fx.echo")
     }
 }
 

@@ -195,6 +195,31 @@ public final class PerformanceEngine {
         _ = graph.commandRing.tryPush(.setCrossfader(position: position, curve: curve))
     }
 
+    // MARK: - Beat FX — the §35A post-fader echo (FR-TRANS-4, plan 5.5)
+
+    /// Turn the deck's §35A echo on/off. Disabling stops new input to the line
+    /// but the tail keeps ringing until it decays, then bypasses (§35A.2).
+    public func setEchoEnabled(_ deck: Deck, enabled: Bool) {
+        _ = graph.commandRing.tryPush(.setEchoEnabled(deck: deck.rawValue, enabled: enabled))
+    }
+
+    /// Set the deck's §35A echo beat length (1/4 … 4 beats). The delay is
+    /// derived from the master clock, so a tempo change moves the echo with it.
+    public func setEchoBeats(_ deck: Deck, beats: Double) {
+        _ = graph.commandRing.tryPush(.setEchoBeats(deck: deck.rawValue, beats: beats))
+    }
+
+    /// Set the deck's §35A echo wet depth (0…1).
+    public func setEchoDepth(_ deck: Deck, depth: Float) {
+        _ = graph.commandRing.tryPush(.setEchoDepth(deck: deck.rawValue, depth: depth))
+    }
+
+    /// Set the deck's §35A echo feedback — tail length, 0…0.85 (clamped below
+    /// unity so the tail always decays).
+    public func setEchoFeedback(_ deck: Deck, feedback: Float) {
+        _ = graph.commandRing.tryPush(.setEchoFeedback(deck: deck.rawValue, feedback: feedback))
+    }
+
     // MARK: - Sync (§32, FR-ENG-4)
 
     /// Engage beat sync: tempo-match `deck` to `master` and phase-align its

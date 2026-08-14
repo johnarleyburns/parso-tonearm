@@ -30,6 +30,10 @@ final class WorkspaceModelTests: XCTestCase {
         private(set) var eqKnobs: [PerformanceEngine.Deck: (low: Float, mid: Float, high: Float)] = [:]
         private var syncedState: [PerformanceEngine.Deck: Bool] = [:]
         private(set) var rates: [PerformanceEngine.Deck: Double] = [:]
+        private(set) var echoEnabled: [PerformanceEngine.Deck: Bool] = [:]
+        private(set) var echoBeats: [PerformanceEngine.Deck: Double] = [:]
+        private(set) var echoDepth: [PerformanceEngine.Deck: Float] = [:]
+        private(set) var echoFeedback: [PerformanceEngine.Deck: Float] = [:]
 
         func start() throws { started = true }
         func stop() { stopped = true }
@@ -69,6 +73,18 @@ final class WorkspaceModelTests: XCTestCase {
         func setFilter(_ deck: PerformanceEngine.Deck, knob: Float) {}
         func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float) {}
         func setCrossfader(_ position: Float, curve: CrossfaderCurve) {}
+        func setEchoEnabled(_ deck: PerformanceEngine.Deck, enabled: Bool) {
+            echoEnabled[deck] = enabled
+        }
+        func setEchoBeats(_ deck: PerformanceEngine.Deck, beats: Double) {
+            echoBeats[deck] = beats
+        }
+        func setEchoDepth(_ deck: PerformanceEngine.Deck, depth: Float) {
+            echoDepth[deck] = depth
+        }
+        func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float) {
+            echoFeedback[deck] = feedback
+        }
         func sampleTelemetry() -> EngineTelemetry { current }
         func pushTelemetry() { stream.push(current) }
     }
@@ -882,6 +898,117 @@ final class WorkspaceModelTests: XCTestCase {
     func testEchoBeatLengthsAreThe35ASet() {
         // §41.9b rule 7 / §35A: 1/4 … 4 beats.
         XCTAssertEqual(WorkspaceModel.ClubGeometry.echoBeats, [0.25, 0.5, 1, 2, 4])
+    }
+
+    func testEchoStateForwardsToTheEnginePerDeck() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        XCTAssertFalse(model.echoEnabled(.a), "the echo starts off")
+        XCTAssertEqual(model.echoBeats(.a), 1, "one beat is the default length")
+        XCTAssertEqual(model.echoDepth(.a), 0.6)
+        XCTAssertEqual(model.echoFeedback(.a), 0.7)
+
+        model.setEchoEnabled(.a, enabled: true)
+        model.setEchoBeats(.a, beats: 2)
+        model.setEchoDepth(.a, depth: 0.8)
+        model.setEchoFeedback(.a, feedback: 0.5)
+
+        XCTAssertEqual(fake.echoEnabled[.a], true, "the enabled state crosses the ring")
+        XCTAssertEqual(fake.echoBeats[.a], 2)
+        XCTAssertEqual(fake.echoDepth[.a], 0.8)
+        XCTAssertEqual(fake.echoFeedback[.a], 0.5)
+        XCTAssertEqual(model.echoEnabled(.a), true, "the shared VM mirrors the deck's echo state")
+        XCTAssertEqual(model.echoEnabled(.b), false, "deck B's echo is untouched")
+        XCTAssertEqual(model.echoBeats(.b), 1)
+    }
+
+    func testEchoStateClampsToThe35ARange() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        model.setEchoBeats(.a, beats: 8)
+        XCTAssertEqual(model.echoBeats(.a), 4, "clamped to the §35A.2 maximum (4 beats)")
+        XCTAssertEqual(fake.echoBeats[.a], 4)
+        model.setEchoBeats(.a, beats: 0.1)
+        XCTAssertEqual(model.echoBeats(.a), 0.25, "clamped to the §35A.2 minimum (1/4)")
+        model.setEchoDepth(.a, depth: 2)
+        XCTAssertEqual(model.echoDepth(.a), 1, "depth clamped to 0…1")
+        model.setEchoFeedback(.a, feedback: 0.99)
+        XCTAssertEqual(model.echoFeedback(.a), 0.85,
+                       "feedback clamped below unity — the tail always decays (§35A.2)")
+        model.setEchoFeedback(.a, feedback: -1)
+        XCTAssertEqual(model.echoFeedback(.a), 0)
+    }
+
+    func testEchoFlyoutReleaseResolvesToTheChip() {
+        // §42.7c: the compact ECHO flyout is release-to-commit — release over
+        // a channel, a beat chip or the depth track commits; sliding out
+        // cancels. Nothing changes on the way out.
+        let a = WorkspaceModel.EchoFlyout.channelChipFrame(index: 0)
+        XCTAssertEqual(WorkspaceModel.EchoFlyout.releasedAction(at: CGPoint(x: a.midX, y: a.midY)),
+                       .channel(0), "release over the A chip selects channel A")
+        let b = WorkspaceModel.EchoFlyout.channelChipFrame(index: 1)
+        XCTAssertEqual(WorkspaceModel.EchoFlyout.releasedAction(at: CGPoint(x: b.midX, y: b.midY)),
+                       .channel(1), "release over the B chip selects channel B")
+
+        let four = WorkspaceModel.EchoFlyout.chipFrame(index: 2)
+        XCTAssertEqual(WorkspaceModel.EchoFlyout.releasedAction(at: CGPoint(x: four.midX, y: four.midY)),
+                       .beats(1), "release over the third chip commits 1 beat")
+        let half = WorkspaceModel.EchoFlyout.chipFrame(index: 0)
+        XCTAssertEqual(WorkspaceModel.EchoFlyout.releasedAction(at: CGPoint(x: half.midX, y: half.midY)),
+                       .beats(0.25), "release over the first chip commits 1/4")
+        let eight = WorkspaceModel.EchoFlyout.chipFrame(index: 4)
+        XCTAssertEqual(WorkspaceModel.EchoFlyout.releasedAction(at: CGPoint(x: eight.midX, y: eight.midY)),
+                       .beats(4), "release over the last chip commits 4 beats")
+
+        let track = WorkspaceModel.EchoFlyout.depthTrackFrame()
+        assertDepth(WorkspaceModel.EchoFlyout.releasedAction(at: CGPoint(x: track.minX, y: track.midY)),
+                    expected: 0, accuracy: 1e-6, "release over the depth track's left edge reads 0")
+        assertDepth(WorkspaceModel.EchoFlyout.releasedAction(at: CGPoint(x: track.maxX - 1, y: track.midY)),
+                    expected: 1, accuracy: 0.02, "release over the depth track's right edge reads ~1")
+        assertDepth(WorkspaceModel.EchoFlyout.releasedAction(at: CGPoint(x: track.midX, y: track.midY)),
+                    expected: 0.5, accuracy: 1e-6, "release over the depth track's centre reads 0.5")
+
+        // Sliding out — below the flyout, to its side, off its top — cancels.
+        XCTAssertNil(WorkspaceModel.EchoFlyout.releasedAction(
+            at: CGPoint(x: four.midX, y: WorkspaceModel.EchoFlyout.height + 20)))
+        XCTAssertNil(WorkspaceModel.EchoFlyout.releasedAction(
+            at: CGPoint(x: WorkspaceModel.EchoFlyout.width + 20, y: four.midY)))
+        XCTAssertNil(WorkspaceModel.EchoFlyout.releasedAction(
+            at: CGPoint(x: four.midX, y: -20)))
+    }
+
+    private func assertDepth(_ action: WorkspaceModel.EchoFlyout.EchoAction?,
+                             expected: Float, accuracy: Float = 1e-6, _ message: String) {
+        guard case .depth(let depth)? = action else {
+            return XCTFail("expected a .depth commit — \(message)")
+        }
+        XCTAssertEqual(depth, expected, accuracy: accuracy, message)
+    }
+
+    func testEchoFlyoutGeometryFitsTheCompactMixerColumn() {
+        // The flyout is anchored over the compact surfaces' always-visible
+        // band; its width must fit the §42.7a twin mixer column (202 pt) and
+        // every chip row stays inside it.
+        XCTAssertLessThanOrEqual(WorkspaceModel.EchoFlyout.width,
+                                 WorkspaceModel.TwinGeometry.mixerColumnWidth,
+                                 "the flyout fits the twin mixer column")
+        XCTAssertEqual(WorkspaceModel.EchoFlyout.beats, WorkspaceModel.ClubGeometry.echoBeats,
+                       "the flyout's beat lengths are the §35A set")
+        for index in 0..<5 {
+            let frame = WorkspaceModel.EchoFlyout.chipFrame(index: index)
+            XCTAssertGreaterThanOrEqual(frame.minX, 0, "chip \(index) stays inside the flyout")
+            XCTAssertLessThanOrEqual(frame.maxX, WorkspaceModel.EchoFlyout.width)
+        }
+        let track = WorkspaceModel.EchoFlyout.depthTrackFrame()
+        XCTAssertGreaterThanOrEqual(track.minX, 0)
+        XCTAssertLessThanOrEqual(track.maxX, WorkspaceModel.EchoFlyout.width)
+        XCTAssertLessThanOrEqual(track.maxY, WorkspaceModel.EchoFlyout.height)
     }
 
     func testTempoFaderForwardsRateAndClamps() throws {
