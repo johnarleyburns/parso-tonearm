@@ -11,8 +11,8 @@ audit table §9).
 
 **M5 — the milestone where it becomes a DJ app** (spec §48.6 **re-scoped**, Appendix
 M.6 rewritten), working from
-`docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; commits **5.1–5.12 landed,
-5.13 to come**. Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware,
+`docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; commits **5.1–5.13 landed,
+5.14 (the DJ regression suite) to come**. Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware,
 the club-controller transfer test, and **the milestone's own end-to-end narrative**)
 are user-owned and defer to a post-M5 device pass. M4 — the two-deck engine,
 `AVAudioSession`, and StoreKit (the 3.0 Pro launch, spec §48.5, Appendix M.5) — is
@@ -28,6 +28,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.13** — `f3d3047` `feat(dj): transition coach — the five transitions, highlighted in place, §41.18, FR-TRANS-6 (M5 commit 5.13)`.
 - **M5 5.12** — `4cbbf04` `feat(dj): finish + mixes + timeline + review listen + export, §37.4, §41.11-41.12, §18A.5, FR-REC-1/4/5/6/7 (M5 commit 5.12)`.
 - **M5 5.11** — `c83fd84` `feat(dj): recording journal, crash/interruption recovery, finalize, §37.3-37.5, §34A.4, FR-REC-1/3, FR-ENG-8 (M5 commit 5.11)`.
 - **M5 5.10** — `1f07de9` `feat(dj): record tap + encoder + segmented M4A, §37.2, FR-ENG-7 (M5 commit 5.10)`.
@@ -75,7 +76,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.12 landed, commit 5.13 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.13 landed, commit 5.14 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -210,7 +211,7 @@ sequence stays stable:
   crates + storage budget; **5.10** record tap + encoder;
   **5.11** journal + recovery;
   **5.12** Finish + Mixes + **the review listen**; **5.13** the transition coach.
-  *(5.1–5.12 landed; 5.13 ahead.)*
+  *(5.1–5.13 landed; 5.14 ahead.)*
 - **New spec material** (all written, all cross-referenced): **§19.4** persisted
   analysis artifacts · **§26A** rekordbox-class waveform display · **§35A** the
   post-fader beat-synced echo · **§35B** the five transitions → control mapping ·
@@ -604,6 +605,50 @@ The §37.4 timeline, the §41.11 finish screen, and the §41.12 mixes library (F
   per-track licence/source link), so §18A.5's attribution ships as per-track artist credits on the
   finish screen + cue-sheet with the uniform CC licence line stated once; and the timeline logs
   track starts (the `mix_track_event` shape), not every cue/loop/crossfader move.*
+
+**M5 commit 5.13 — the transition coach — complete (`f3d3047`).**
+The §41.18 transition coach (plan 5.13, FR-TRANS-6, mockup `ipad/16-transitions.html`) — the
+§35B five as teaching lessons, **each highlighting the real controls in place** on the
+performance surface rather than depicting them in an illustration:
+
+- **`Features/Coach/TransitionCoachModel.swift`** — the model (a plain `ObservableObject`, **no
+  engine reference**): `Lesson` (id = the §35B row, summary, when-to-use, steps) + `allLessons`,
+  the §35B five in table order; `roles` **MUST equal §35B's table** (`WorkspaceModel.
+  transitionRoleSets` — the AT-TRANS layout assertions and the coach read the *same* mapping, so
+  the coach cannot teach a transition the surface cannot perform). The highlight is the point:
+  `Lesson.controlIdentifiers` is computed from `roles` through one pure role → §53.11 identifier
+  map (`controlIdentifiers(for:)` — `dj.deck.a/b.eq.low|mid|high`, `dj.deck.a/b.fader`,
+  `dj.deck.a/b.filter`, `dj.fx.echo`, `dj.mixer.crossfader`, `dj.phrase`, `dj.waveform`,
+  `dj.master.phase`; a per-deck role lights **both** decks). Presentation is view-only:
+  `present()`/`dismiss()`/`select(_:)` (out-of-range ignored), `isPresented`/`selectedIndex`,
+  `highlightedIdentifiers` = the set the surface lights while the panel is open.
+- **`Features/Coach/CoachHighlight.swift`** — `coachHighlights` (a `Set<String>` in the
+  environment, empty while closed) + `coachGlow(identifier:)`, the §41.18 ring treatment; a
+  control with a nil or non-highlighted identifier draws nothing, so the glow can never be
+  wrong.
+- **`Features/Coach/TransitionCoachView.swift` + `TransitionCoachAccessory.swift`** — the panel
+  per the mockup (Free pill header, the lesson list, the selected lesson's description /
+  when-to-reach-for-it / control chips / the "the coach never does it for you" note — "there is
+  no auto-mix button here and there never will be") with wide + compact layouts
+  (`dj.coach.panel`); the **free, always-tappable "Transitions" entry pill** (`dj.coach`) that
+  floats the dismissible panel over the still-playing surface — it never takes over (the §42.7b
+  drawer discipline, the 4.10 precedent) and never performs the transition.
+- **Wired into all three surfaces** — `WorkspaceView` (iPad) + `CompactPerformanceView`
+  (iPhone solo/twin): `@StateObject` coach, `.overlay` accessory, `.environment(\.coachHighlights,
+  …)`, and `coachGlow` on the real controls — transport, EQ knobs, channel faders, filters,
+  crossfader, echo, trim fader, phrase ribbon, and the beat-phase meters, which gained the
+  §53.11 `dj.master.phase`/`dj.phrase`/`dj.waveform` identifiers they now carry.
+- **Free tier** (FR-TRANS-6 `[F]`): the model holds no store and no gate — the entry sits outside
+  the Pro gate's dimmed, non-interactive surface, reachable before purchase, and the panel
+  renders identically for free and Pro users.
+- Tests: 14 `TransitionCoachTests` (the five in table order; **each lesson's roles equal §35B's
+  table**; every §35B role is taught; copy present per lesson; the highlight set names only real
+  `dj.*` identifiers; per-transition spot checks incl. Bass Swap's both-deck LOWs, Fader Cut =
+  `dj.mixer.crossfader` only, Echo Out has **no** crossfader; free tier with no entitlement seam;
+  **the 4.10 drawer precedent — present/select/dismiss adds zero calls to a recording
+  `WorkspaceModel` engine**; selection clamping; highlight set follows the selection). Suite
+  1433 → **1447 green** (8 skipped); Swift 6 guard OK; app builds; smoke pass in the pre-commit
+  hook. DJ-only — no `xcodegen generate` (decision 25). **FR-TRANS-6, §41.18, §35B, §53.11.**
 
 **M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
 The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
@@ -1206,8 +1251,17 @@ into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible t
   3 + 3 + 2 new + `DJEntryTests`/`WorkspaceModelTests` updated. Suite 1397 → **1433 green** (8
   skipped); Swift 6 guard OK; app builds; smoke pass in the pre-commit hook; DJ-only, no regen.
   **FR-REC-1/4/5/6/7, §37.4, §41.11, §41.12, §18A.5, AT-REC-\*.**
-- **Then 5.13** the transition coach →
-  **5.14 the DJ regression suite**.
+- **M5 commit 5.13 — the transition coach — complete (`f3d3047`).** The §41.18 coach
+  (FR-TRANS-6, mockup `ipad/16-transitions.html`): `TransitionCoachModel` (no engine reference)
+  teaching the §35B five with **highlight sets that name the real §53.11 controls in place** —
+  each lesson's `roles` equal the §35B table (`WorkspaceModel.transitionRoleSets`), the highlights
+  derive from the one pure role → identifier map, and `coachGlow`/`coachHighlights` light the real
+  controls on all three surfaces (EQ knobs, channel faders, filters, crossfader, echo, phrase
+  ribbon, waveforms, beat-phase meters). A free, always-tappable "Transitions" pill opens the
+  dismissible panel; it never takes over (decks keep playing) and never performs the transition.
+  14 `TransitionCoachTests` incl. the 4.10 drawer precedent — present/select/dismiss add zero
+  engine calls. Suite 1433 → **1447 green** (8 skipped); DJ-only, no regen. **FR-TRANS-6, §41.18.**
+- **Then 5.14 the DJ regression suite**.
   **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
   **AT-MIX-1..8** green, plus the owner's end-to-end recorded set as the user-owned
   shipping gate.
