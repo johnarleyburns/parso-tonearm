@@ -28,6 +28,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.7** — `0a90d68` `feat(dj): Demucs ODR + separation + content-addressed cache, §36, FR-ENG-3 (M5 commit 5.7)`.
 - **M5 5.6** — `dee6a57` `feat(dj): genre libraries — Jamendo connector, curated genre picker, AT-GENRE-* (M5 commit 5.6)`.
 - **M5 5.5** — `559b23a` `feat(dj): Beat FX echo — post-fader beat-synced delay, §35B transitions, AT-TRANS-1..5 (M5 commit 5.5)`.
 - **M5 5.4a** — `495780f` `feat(dj): real-time render pump — .realtime mode, one render-closure body, session-first entry (M5 commit 5.4a)`.
@@ -69,7 +70,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.6 landed, commits 5.7–5.14 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.7 landed, commits 5.8–5.14 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -327,6 +328,47 @@ connector that makes M5's exit narrative startable (§18A, §41.1a, FR-LIB-9/10)
   decision 25 — the regenerated pbxproj also carries the sitting 5.14 lane references,
   consistent with the documented scaffold state). **FR-LIB-9/10, §18A, §41.1a,
   AT-GENRE-\*, AT-FREE-\*.**
+
+**M5 commit 5.7 — Demucs ODR + separation + cache + version stamp — complete (`0a90d68`).**
+The §36 pipeline's delivery seam and its testable kernel (plan decisions 1, 5; §36, FR-ENG-3):
+
+- `ModelTag.stems` joins the ODR tags and the existing `BundleResourceProvider` carries
+  `DemucsStems.mlpackage`; `AnalysisVersions.stems = 1` (the cache-keyed version — a model
+  upgrade invalidates cleanly, like `analysis_version`). New `Sources/DJ/Stems/` module:
+  **`StemModel.swift`** — `StemKind` (vocals/drums/bass/other), `StemChunk` (a stereo Float32
+  pair at a sample rate), the four-voice `StemSeparation`, the **`StemModelProviding` seam**
+  (`version` / `isAvailable` / `separate(chunk:)` — **absence is a value, never an error**,
+  FR-SEM-6, so the deck plays the full mix per §36.5), and the ODR `DemucsStemModel` shell
+  that is honestly absent until the `.mlpackage` is registered and throws an explicit
+  `conversionPending` for a present-but-unwired model (ADR-10 — the real conversion + ODR
+  registration is the user-owned post-M5 step, like M2's `42cb3fd`).
+- **`StemSeparator.swift`** — the pure chunk/overlap-add kernel (`StemChunking`: fixed 2¹⁷-frame
+  chunks, 50% overlap, a **periodic Hann generated here because `vDSP_HANN_NORM` is
+  energy-normalized and does not satisfy first-power COLA**; the window's `w[i] + w[i+hop] == 1`
+  is what makes reconstruction exact), with vDSP doing the multiply/accumulate, and the
+  pipeline `separate(pcm:)` (slice → model → window → overlap-add → four full-length voices;
+  nil when the model is absent; empty-input, wrong-length voices and a mid-run disappearance
+  are all **loud**, never a silent partial result).
+- **`StemCache.swift`** — content-addressed, model-versioned: four 48 kHz stereo `.caf` files
+  under `Caches/TonearmDJ/Stems/<contentHash>/<version>/` (backup-excluded, §13.1), the
+  `stem_cache` row written in **one transaction** (INSERT OR REPLACE — re-store is idempotent);
+  `load` resolves from the row's recorded relative paths and returns nil when a file is gone
+  (**a row without files is absence, never corruption**); `evict` removes the on-disk directory
+  only once no remaining row references it (content-hash sharing across tracks is honoured).
+- **`DJMigrations+v4.swift`** — `stem_cache` plus §15.5's recording DDL **verbatim**
+  (`performance_session`, `mix`, `mix_track_event`, `mix_asset`; decision 6), `dj_v4`
+  registered in the migration order. The recording tables are unused until 5.10–5.12 but the
+  migration is complete per the plan.
+- Tests: 11 `StemSeparatorTests` (**the reconstruction golden across chunk boundaries** — a
+  passthrough model reconstructs its input exactly in the interior; the pipeline is bit-for-bit
+  the pure kernel; absence → nil; wrong-length and mid-run disappearance throw) + 9
+  `StemCacheTests` (content-addressing incl. distinct-hash isolation, an exact 9600-frame voice
+  round-trip through the CAF files — AVAudioFile drops a trailing partial block, so the writer
+  chunks into ≤ 4096-frame calls, verified on host — idempotent re-store, **version
+  invalidation**, row-without-files = absence, eviction incl. the shared-directory refcount) +
+  2 new `DJSchemaTests` (v4 tables/indexes + the composite `stem_cache` PK). Suite 1305 →
+  **1327 green** (8 skipped); Swift 6 guard OK; app builds (xcodebuild verified). DJ-only — no
+  `xcodegen generate` (decision 25). **FR-ENG-3, §36.**
 
 **M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
 The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
@@ -870,10 +912,23 @@ into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible t
   recorded fixtures, no live network). Suite 1289 → **1305 green**; app builds;
   **`xcodegen generate` committed** (decision 25). **FR-LIB-9/10, §18A, §41.1a,
   AT-GENRE-\*, AT-FREE-\*.**
-- **Then 5.7** Demucs ODR + separation + cache → **5.8** stem voices on decks → **5.9**
-  gig crates + storage budget → **5.10** record tap + encoder → **5.11** journal +
-  recovery → **5.12** Finish + Mixes + the review listen → **5.13** the transition
-  coach → **5.14 the DJ regression suite**.
+- **M5 commit 5.7 — Demucs ODR + separation + cache — complete (`0a90d68`).** The §36
+  delivery seam and its pure kernel (plan decisions 1, 5): `ModelTag.stems` +
+  `DemucsStems.mlpackage` ODR tag; `AnalysisVersions.stems = 1`; the
+  `StemModelProviding` seam + honest-absence ODR `DemucsStemModel` (the real model
+  conversion is the owner's post-M5 step); `StemChunking` — periodic-Hann chunk/overlap-add
+  with exact first-power COLA at 50% overlap (vDSP multiply/accumulate) — and the
+  `StemSeparator` pipeline; `StemCache` content-addressed under
+  `Stems/<contentHash>/<stemsVersion>/` with the `stem_cache` row in one transaction,
+  row-without-files = honest absence, refcount-aware eviction; `dj_v4` adds `stem_cache` +
+  §15.5 recording DDL verbatim. Tests: 11 `StemSeparatorTests` (the reconstruction golden
+  across chunk boundaries + the honest/loud failure rows) + 9 `StemCacheTests`
+  (content-addressing, exact CAF round-trip, version invalidation, eviction incl. the shared
+  dir) + 2 new schema tests. Suite 1305 → **1327 green**; Swift 6 guard OK; app builds;
+  DJ-only, no regen. **FR-ENG-3, §36.**
+- **Then 5.8** stem voices on decks → **5.9** gig crates + storage budget → **5.10** record
+  tap + encoder → **5.11** journal + recovery → **5.12** Finish + Mixes + the review listen →
+  **5.13** the transition coach → **5.14 the DJ regression suite**.
   **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
   **AT-MIX-1..8** green, plus the owner's end-to-end recorded set as the user-owned
   shipping gate.
