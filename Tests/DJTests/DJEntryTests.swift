@@ -49,13 +49,19 @@ final class DJEntryTests: XCTestCase {
 
     // MARK: - The workspace constructs and gates
 
-    func testAssemblyBuildsAWorkspaceThatGatesOnTheStore() throws {
-        let pro = try XCTUnwrap(DJWorkspaceAssembly.makeModel(store: makeStore(isPro: true)))
+    func testAssemblyBuildsAWorkspaceThatGatesOnTheStore() async throws {
+        let proModel = await makeModel(isPro: true)
+        let pro = try XCTUnwrap(proModel)
         XCTAssertTrue(pro.isDecksEnabled, "a Pro user reaches the live decks (App. T.3)")
 
-        let free = try XCTUnwrap(DJWorkspaceAssembly.makeModel(store: makeStore(isPro: false)))
+        let freeModel = await makeModel(isPro: false)
+        let free = try XCTUnwrap(freeModel)
         XCTAssertFalse(free.isDecksEnabled,
                        "a free user sees the real dimmed surface + lock chip (§40.4)")
         XCTAssertFalse(free.isPro)
+    }
+
+    private func makeModel(isPro: Bool) async -> WorkspaceModel? {
+        await DJWorkspaceAssembly.makeModel(store: makeStore(isPro: isPro))
     }
 }

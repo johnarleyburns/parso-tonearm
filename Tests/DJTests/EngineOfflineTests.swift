@@ -485,6 +485,20 @@ final class EngineOfflineTests: XCTestCase {
                           "render load must leave headroom below the buffer period")
     }
 
+    // MARK: - Real-time driver (commit 5.4a, §53.11)
+
+    func testRealtimeModeRefusesOfflineRender() throws {
+        // A `.realtime` graph has no manual-rendering mode; the offline pull is
+        // meaningless there (§53.11). The existing offline suite keeps its
+        // meaning because the `.offline` default is untouched.
+        let engine = try makeEngine(rendering: .realtime)
+        try engine.start()
+        defer { engine.stop() }
+        XCTAssertThrowsError(try engine.render(128)) { error in
+            XCTAssertEqual(error as? AudioGraphError, .renderingUnavailableInRealtimeMode)
+        }
+    }
+
     // MARK: - Mixer (commit 4.4, §35)
 
     func testEQKillThroughGraphIsSilent() throws {
@@ -887,9 +901,11 @@ final class EngineOfflineTests: XCTestCase {
     private func makeEngine(ringCapacity: Int = 16,
                             limiterCeiling: Float? = nil,
                             limiterLookaheadFrames: Int = 0,
-                            timePitch: Bool = false) throws -> PerformanceEngine {
+                            timePitch: Bool = false,
+                            rendering: AudioGraphRenderingMode = .offline) throws -> PerformanceEngine {
         try PerformanceEngine(configuration: .init(sampleRate: 48_000, channelCount: 1,
                                                    ringCapacity: ringCapacity,
+                                                   rendering: rendering,
                                                    limiterCeiling: limiterCeiling,
                                                    limiterLookaheadFrames: limiterLookaheadFrames,
                                                    timePitch: timePitch))

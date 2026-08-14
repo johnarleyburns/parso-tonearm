@@ -98,6 +98,12 @@ public final class WorkspaceModel: ObservableObject {
     /// the performance surfaces can hand it to the paywall (`PaywallModel`),
     /// which buys through the *same* store that unlocks the decks (AT-STORE-2).
     public let store: EntitlementStore
+    /// The audio session coordinator the app entered before building the engine
+    /// (§34A.2, plan 5.4a). Retained for the workspace's lifetime so its route /
+    /// interruption marshalling survives; the responses are consumed by the
+    /// recording/service commits (5.10/5.11). `nil` when the session was never
+    /// entered (tests inject none).
+    private let session: AudioSessionCoordinator?
     /// The library → deck seam (plan 5.1, decision 16): the per-deck queues
     /// (§41.9c, FR-ENG-13) and the one gesture that loads a track to a deck
     /// through the FR-LIB-8 gate and the decode path. Injectable so the model's
@@ -211,11 +217,13 @@ public final class WorkspaceModel: ObservableObject {
                 pinnedDrawerIdle: Duration = .seconds(12),
                 defaults: UserDefaults = .standard,
                 library: (any DeckLibraryServicing)? = nil,
-                waveformRepository: (any WaveformRendering)? = nil) {
+                waveformRepository: (any WaveformRendering)? = nil,
+                session: AudioSessionCoordinator? = nil) {
         self.engine = engine
         self.store = store
         self.injectedLibrary = library
         self.injectedWaveformRepository = waveformRepository
+        self.session = session
         self.isPro = store.isPro
         self.pinnedDrawerIdle = pinnedDrawerIdle
         self.defaults = defaults

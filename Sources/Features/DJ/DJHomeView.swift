@@ -42,20 +42,27 @@ struct DJHomeView: View {
 }
 
 /// The performance surface the app root routes to (§49.3a). Built through
-/// `DJWorkspaceAssembly` — the engine and the entitlement store it gates on —
-/// and presented on the device-appropriate surface: the iPad workspace or the
-/// iPhone compact solo/twin-deck surface. A nil model (the engine cannot be
-/// constructed) is an honest unavailable state, never a dead surface.
+/// `DJWorkspaceAssembly` — the session, the engine, and the entitlement store
+/// it gates on — and presented on the device-appropriate surface: the iPad
+/// workspace or the iPhone compact solo/twin-deck surface. The assembly is
+/// async (it enters the audio session before building the graph, §34A.2), so
+/// the surface has an honest loading state; a nil result (the session or engine
+/// cannot be constructed) is an honest unavailable state, never a dead surface.
 struct DJPerformanceSurface: View {
-    @State private var model: WorkspaceModel?
-
-    init() {
-        _model = State(initialValue: DJWorkspaceAssembly.makeModel())
+    private enum LoadState {
+        case loading
+        case ready(WorkspaceModel)
+        case unavailable
     }
+
+    @State private var load: LoadState = .loading
 
     var body: some View {
         Group {
-            if let model {
+            switch load {
+            case .loading:
+                ProgressView()
+            case .ready(let model):
                 #if os(iOS)
                 if UIDevice.current.userInterfaceIdiom == .pad {
                     WorkspaceView(model: model)
@@ -65,12 +72,19 @@ struct DJPerformanceSurface: View {
                 #else
                 WorkspaceView(model: model)
                 #endif
-            } else {
+            case .unavailable:
                 ContentUnavailableView {
                     Label("Decks unavailable", systemImage: "slider.horizontal.3")
                 } description: {
-                    Text("The audio engine could not be started.")
+                    Text("The audio session or engine could not be started.")
                 }
+            }
+        }
+        .task {
+            if let model = await DJWorkspaceAssembly.makeModel() {
+                load = .ready(model)
+            } else {
+                load = .unavailable
             }
         }
     }

@@ -50,12 +50,36 @@ public final class DJEntryModel: ObservableObject {
 /// store it gates on — is testable off-device (§49.3a: reachable *and* built
 /// with real dependencies).
 public enum DJWorkspaceAssembly {
-    /// The app-root's one way into the decks. Returns nil when the engine
-    /// cannot be constructed — an honest absence, never a crash: the route
-    /// then shows an unavailable state instead of a dead surface.
+    /// The app-root's one way into the decks. Returns nil when the session
+    /// cannot be entered or the engine cannot be constructed — an honest
+    /// absence, never a crash: the route then shows an unavailable state
+    /// instead of a dead surface.
+    ///
+    /// **Plan 5.4a (§53.11):** the engine runs in `.realtime` rendering mode and
+    /// the audio session is entered in the §34A.2 normative order — **category →
+    /// preferences → activate → read back → build the graph** — so the engine is
+    /// negotiated against the active session. On hosts with no `AVAudioSession`
+    /// (macOS tests/previews) the coordinator is unavailable and the engine is
+    /// still built: CoreAudio drives the realtime graph there.
     @MainActor
-    public static func makeModel(store: EntitlementStore = .shared) -> WorkspaceModel? {
-        guard let engine = try? PerformanceEngine() else { return nil }
-        return WorkspaceModel(engine: engine, store: store)
+    public static func makeModel(store: EntitlementStore = .shared,
+                                 session: AudioSessionCoordinator = AudioSessionCoordinator(),
+                                 allowBluetooth: Bool = false) async -> WorkspaceModel? {
+        do {
+            _ = try await session.enter(.performing, allowBluetooth: allowBluetooth)
+        } catch AudioSessionCoordinator.SessionError.unavailableOnThisPlatform {
+            // macOS: no `AVAudioSession` to enter; the realtime graph still
+            // works, so continue rather than refusing the surface.
+        } catch {
+            // A refused Bluetooth route or an activate failure is an honest
+            // unavailable state — a graph built against an unactivated session
+            // would be silent or misconfigured (§34A.2).
+            return nil
+        }
+        guard let engine = try? PerformanceEngine(configuration: .init(maximumFrameCount: 128,
+                                                                       rendering: .realtime)) else {
+            return nil
+        }
+        return WorkspaceModel(engine: engine, store: store, session: session)
     }
 }

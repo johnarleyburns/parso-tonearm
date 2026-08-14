@@ -6,18 +6,41 @@ public enum AudioGraphError: Error, Equatable {
     case failedToEnableManualRendering
     case failedToAllocateRenderBuffer
     case renderFailed(status: AVAudioEngineManualRenderingStatus)
+    /// `render(_:)` was called on a graph in `.realtime` mode — the offline
+    /// pull is meaningless when the device output owns the callback.
+    case renderingUnavailableInRealtimeMode
 }
 
-/// The offline `AVAudioEngine` graph (plan §2.5, commit 4.1; §29 from 4.3).
+/// How the graph's render closures are driven (§53.11, commit 5.4a).
+///
+/// The closures themselves are shared — one render-closure body, two drivers —
+/// so the realtime path cannot grow its own copy of the deck reader. The mode
+/// only changes *who pulls*: the manual `render(_:)` pull (deterministic,
+/// test-only) or the device output.
+public enum AudioGraphRenderingMode: Sendable, Equatable {
+    /// Manual-rendering mode: the graph is pulled by `render(_:)` calls. The
+    /// offline harness's mode — today's behaviour, unchanged, still the test
+    /// default (§53.11).
+    case offline
+    /// Device-output mode: the graph is driven by CoreAudio's real-time pull;
+    /// `start()` connects the source nodes through the main mixer to the
+    /// output node and the render closures run on the audio thread.
+    case realtime
+}
+
+/// The `AVAudioEngine` graph (plan §2.5, commit 4.1; §29 from 4.3; the
+/// `.realtime` driver from 5.4a).
 ///
 /// The graph hosts two decks, each backed by a `DeckState` (the deck reader):
 /// a pre-decoded PCM source is armed via `loadArm`, and the render block walks
 /// the output buffer splitting it at sample-accurate loop and cue boundaries
 /// (§30.2), exactly as the §30.2 pseudocode specifies. Control never touches
-/// render state directly — only `RTCommand`s cross the boundary (§12.2). The
-/// engine runs in `.offline` manual-rendering mode, so the harness is fully
+/// render state directly — only `RTCommand`s cross the boundary (§12.2).
+///
+/// In `.offline` mode the engine runs manual rendering, so the harness is fully
 /// deterministic on the `swift test` macOS host — no hardware (§47.2 "engine
-/// integration, deterministic" tier).
+/// integration, deterministic" tier). In `.realtime` mode the same render
+/// closures run on the device output's audio thread (§53.11).
 ///
 /// The render block runs under the `RTGuard` shim and meters itself with
 /// `RenderLoad`. The callback deliberately captures the ring/snapshot/load/
@@ -37,6 +60,10 @@ public final class AudioGraph: @unchecked Sendable {
         public var channelCount: AVAudioChannelCount
         public var maximumFrameCount: AVAudioFrameCount
         public var ringCapacity: Int
+        /// How the render closures are driven (§53.11, commit 5.4a): `.offline`
+        /// is the manual-rendering harness's mode (unchanged, the test default);
+        /// `.realtime` runs the same closures on the device output.
+        public var rendering: AudioGraphRenderingMode
         /// Master limiter ceiling; `nil` leaves the limiter out of the path.
         /// The offline deck-reader harness runs without one so its assertions
         /// stay frame-exact; mixer tests configure it explicitly (§35.5).
@@ -58,6 +85,7 @@ public final class AudioGraph: @unchecked Sendable {
                     channelCount: AVAudioChannelCount = 1,
                     maximumFrameCount: AVAudioFrameCount = 4096,
                     ringCapacity: Int = 8,
+                    rendering: AudioGraphRenderingMode = .offline,
                     limiterCeiling: Float? = nil,
                     limiterLookaheadFrames: Int = 0,
                     timePitch: Bool = false) {
@@ -65,6 +93,7 @@ public final class AudioGraph: @unchecked Sendable {
             self.channelCount = channelCount
             self.maximumFrameCount = maximumFrameCount
             self.ringCapacity = ringCapacity
+            self.rendering = rendering
             self.limiterCeiling = limiterCeiling
             self.limiterLookaheadFrames = limiterLookaheadFrames
             self.timePitch = timePitch
@@ -186,6 +215,8 @@ public final class AudioGraph: @unchecked Sendable {
     private let manualRenderingFormat: AVAudioFormat
     private let guardProbe: GuardActiveProbe
     private let graphState: RenderGraphState
+    /// The driver mode this graph was constructed for (§53.11).
+    private let renderingMode: AudioGraphRenderingMode
 
     public init(configuration: Configuration = Configuration()) throws {
         let sampleRate = configuration.sampleRate
@@ -196,8 +227,13 @@ public final class AudioGraph: @unchecked Sendable {
                                          channels: configuration.channelCount) else {
             throw AudioGraphError.failedToEnableManualRendering
         }
-        try engine.enableManualRenderingMode(.offline, format: format,
-                                             maximumFrameCount: configuration.maximumFrameCount)
+        if configuration.rendering == .offline {
+            // The deterministic harness's mode: the graph is pulled by
+            // `render(_:)`. `.realtime` skips manual rendering and is driven by
+            // the device output instead (§53.11).
+            try engine.enableManualRenderingMode(.offline, format: format,
+                                                 maximumFrameCount: configuration.maximumFrameCount)
+        }
 
         let ring = CommandRing(capacity: configuration.ringCapacity)
         let snap = EngineSnapshot()
@@ -207,6 +243,10 @@ public final class AudioGraph: @unchecked Sendable {
                                           channelCount: Int(channelCount),
                                           limiterCeiling: configuration.limiterCeiling,
                                           limiterLookaheadFrames: configuration.limiterLookaheadFrames)
+        // Captured by the render closures so they can stay one body across the
+        // two drivers (§53.11) — the realtime driver needs the clock advanced
+        // inside the callback, the offline driver advances it in `render`.
+        let renderingMode = configuration.rendering
 
         let sourceNodes: [AVAudioSourceNode]
         let timePitchUnits: [TimePitchUnit]
@@ -251,6 +291,18 @@ public final class AudioGraph: @unchecked Sendable {
                     graphState.renderDeckIntoOutput(1,
                                                     into: UnsafeMutableAudioBufferListPointer(outputData),
                                                     frames: frames)
+                    if renderingMode == .realtime {
+                        // Real-time driver: the deck-B source node is pulled
+                        // last per callback (the main mixer pulls its input
+                        // buses in order), so it advances the master clock once
+                        // per callback after both decks have read the same
+                        // pre-advance `frameStart`. The offline driver keeps
+                        // today's advance in `render(_:)`.
+                        graphState.clock.advance(by: Int64(frames))
+                        graphState.publishMasterClock()
+                        graphState.publishDeckTelemetry(0)
+                        graphState.publishDeckTelemetry(1)
+                    }
                 }
                 return 0
             }
@@ -288,6 +340,16 @@ public final class AudioGraph: @unchecked Sendable {
             timePitchUnits = []
         }
 
+        if configuration.rendering == .realtime {
+            // The real-time driver: the source nodes already feed the main
+            // mixer; route the mixer's output to the hardware output node so
+            // `start()` pulls the graph on the audio thread. The `nil` format
+            // lets AVAudioEngine insert the converter to the hardware rate.
+            // Never done in `.offline` mode — manual rendering has no output
+            // node in the path.
+            engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
+        }
+
         self.sampleRate = sampleRate
         self.maximumFrameCount = configuration.maximumFrameCount
         self.engine = engine
@@ -298,6 +360,7 @@ public final class AudioGraph: @unchecked Sendable {
         self.renderLoad = load
         self.guardProbe = probe
         self.graphState = graphState
+        self.renderingMode = renderingMode
         self.manualRenderingFormat = format
     }
 
@@ -316,8 +379,12 @@ public final class AudioGraph: @unchecked Sendable {
 
     /// Render `frameCount` frames into a fresh buffer. The source node's render
     /// block runs synchronously inside this call (offline mode — no hardware).
+    /// Only meaningful in `.offline` mode.
     @discardableResult
     public func render(_ frameCount: AVAudioFrameCount) throws -> AVAudioPCMBuffer {
+        guard renderingMode == .offline else {
+            throw AudioGraphError.renderingUnavailableInRealtimeMode
+        }
         guard let buffer = AVAudioPCMBuffer(pcmFormat: manualRenderingFormat,
                                             frameCapacity: frameCount) else {
             throw AudioGraphError.failedToAllocateRenderBuffer
