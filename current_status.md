@@ -11,8 +11,8 @@ audit table §9).
 
 **M5 — the milestone where it becomes a DJ app** (spec §48.6 **re-scoped**, Appendix
 M.6 rewritten), working from
-`docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; commits **5.1–5.9 landed,
-5.10–5.13 to come**. Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware,
+`docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; commits **5.1–5.12 landed,
+5.13 to come**. Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware,
 the club-controller transfer test, and **the milestone's own end-to-end narrative**)
 are user-owned and defer to a post-M5 device pass. M4 — the two-deck engine,
 `AVAudioSession`, and StoreKit (the 3.0 Pro launch, spec §48.5, Appendix M.5) — is
@@ -28,6 +28,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.12** — `4cbbf04` `feat(dj): finish + mixes + timeline + review listen + export, §37.4, §41.11-41.12, §18A.5, FR-REC-1/4/5/6/7 (M5 commit 5.12)`.
 - **M5 5.11** — `c83fd84` `feat(dj): recording journal, crash/interruption recovery, finalize, §37.3-37.5, §34A.4, FR-REC-1/3, FR-ENG-8 (M5 commit 5.11)`.
 - **M5 5.10** — `1f07de9` `feat(dj): record tap + encoder + segmented M4A, §37.2, FR-ENG-7 (M5 commit 5.10)`.
 - **M5 5.9** — `6dc5f80` `feat(dj): gig crates — promotion, budgeted separation, LRU eviction, §41.17, §43.6, FR-PLIST-9, FR-ANL-9, FR-LIB-8 (M5 commit 5.9)`.
@@ -74,7 +75,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.11 landed, commits 5.12–5.14 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.12 landed, commit 5.13 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -209,7 +210,7 @@ sequence stays stable:
   crates + storage budget; **5.10** record tap + encoder;
   **5.11** journal + recovery;
   **5.12** Finish + Mixes + **the review listen**; **5.13** the transition coach.
-  *(5.1–5.11 landed; 5.12–5.13 ahead.)*
+  *(5.1–5.12 landed; 5.13 ahead.)*
 - **New spec material** (all written, all cross-referenced): **§19.4** persisted
   analysis artifacts · **§26A** rekordbox-class waveform display · **§35A** the
   post-fader beat-synced echo · **§35B** the five transitions → control mapping ·
@@ -551,6 +552,58 @@ finalize (FR-REC-1/3, NFR-REL-2, FR-ENG-8):
   OK; app builds (xcodebuild verified); iPhone + watch smoke pass in the pre-commit hook.
   DJ-only — no `xcodegen generate` (decision 25). **FR-REC-1/3, FR-ENG-8, NFR-REL-2, §37.3,
   §37.5, §34A.4, mix-journal.json hook.**
+
+**M5 commit 5.12 — Finish + Mixes + timeline + the review listen — complete (`4cbbf04`).**
+The §37.4 timeline, the §41.11 finish screen, and the §41.12 mixes library (FR-REC-1/4/5/6/7,
+§18A.5 — **AT-REC-***):
+
+- **`Recording/MixTimeline.swift`** — the §37.4 pure value: `MixTimelineEntry`
+  (trackID/deck/startOffsetSec) + `MixTimeline` (ordered entries, a 10 s same-deck same-track
+  pause/blip suppression so a genuine replay still logs). **Decision 8 satisfied control-side:**
+  `WorkspaceModel` logs a deck's not-playing → playing edge while recording — offset is the tap's
+  own master frames (§37.2), and a deck already playing at record time logs its track at ~0:00
+  (mockup `ipad/09`'s "0:00 … opened"). `RecordingJournaling.finalize` gains `timeline:` and
+  **returns the finished `DJMix`**: `RecordingService` resolves each track's title/artist/BPM/key
+  snapshot from the store and writes the `mix_track_event` rows + `trackCount` in the journal's
+  **one** transaction (NFR-REL-1; DELETE-then-INSERT so re-finalize is idempotent). Reconcile
+  salvages with `events: []` — a crash lost the in-memory timeline; the audio is the NFR-REL-2
+  point, the tracklist is not.
+- **`Data/MixRepository.swift`** — the `MixServicing` seam + `MixRepository` over the single-writer
+  store + `DJDatabase.mixesDirectory`: `completedMixes()` (complete + honestly-corrupt, newest
+  first — §46.2's never-silently-dropped), `mixTrackEvents`, `mixAssetURL` (row-without-file =
+  absence, never corruption), `updateMix` (FR-REC-1), `deleteMix` (row + the session directory's
+  file — recordings are user content, §43.6), `mixStorageBytes` (the §41.12 storage readout).
+- **The review listen (FR-REC-6)** — `Recording/MixPlayback.swift`: the `MixPlayback` seam + an
+  `AVAudioPlayerMixPlayer` (settable `currentTime` = seekable), `MixWaveformModel` +
+  `MixWaveformAccumulator` (the pure streaming peak kernel — O(bins) memory, so a 20-minute mix is
+  never buffered for an overview) + `MixWaveformBuilder` (AVAudioFile streaming decode of the M4A).
+- **`RecordingFinishModel`/`RecordingFinishView`** (mockup `ipad/09`): title/notes (FR-REC-1),
+  the pills (duration, **M4A · AAC 256 kbps** — FR-REC-7 honesty, size, kHz/stereo), the review
+  listen (transport + seekable waveform with **green tappable transition markers** from the
+  timeline), the timeline table, attribution (§18A.5 — per-track "Artist — Title" + the CC licence
+  line, carried to the cue-sheet), export (Save to Files via `fileExporter`, Share via `ShareLink`
+  with the optional cue-sheet, FR-REC-4), honest corrupt/absence states, and Delete. The sheet is
+  presented from `model.finishedMix` on the iPad workspace **and** the compact surfaces the moment a
+  recording finalises.
+- **`Features/Mixes/`** (mockup `ipad/10`): the **free, un-gated** `MixesView` (FR-REC-5) — cards
+  (title/date/duration/tracks/size/state), the storage + playback cards, the empty state, delete,
+  and replay through the finish screen. Reachability: `DJDestination.mixes` added to the route
+  table (§49.3a) + the app-root `DJHomeView` row (`dj.mixes`).
+- Tests: 7 `MixTimelineTests` (suppression, replay, per-deck, cue-sheet golden, timestamp, the
+  accumulator's bins/non-integral/empty, a real file decode) + 7 `MixRepositoryTests` (ordering,
+  corrupt honesty, events order, update, asset resolve/absence, **delete removes row + file +
+  cascaded rows**, storage sum) + 10 `RecordingFinishModelTests` (load, honest absence, corrupt
+  never plays, transport forwarding, tick, save, delete, attribution, cue-sheet, share items) + 3
+  `MixesModelTests` + 3 `WorkspaceModelTests` (playing-edge capture, already-playing-at-record,
+  finishedMix surfaced + dismissed) + 2 `RecordingRecoveryTests` (timeline rows with resolved
+  snapshots, replace-on-refinalize) + `DJEntryTests` updated. Suite 1397 → **1433 green** (8
+  skipped); Swift 6 guard OK; app builds (xcodebuild verified); iPhone + watch smoke pass in the
+  pre-commit hook. DJ-only — no `xcodegen generate` (decision 25; the app-side `DJHomeView` edit is
+  an existing file). **FR-REC-1/4/5/6/7, §37.4, §41.11, §41.12, §18A.5, AT-REC-\*.**
+  *Recorded deviation: the DJ schema carries licence at the source level (the 5.6 deviation — no
+  per-track licence/source link), so §18A.5's attribution ships as per-track artist credits on the
+  finish screen + cue-sheet with the uniform CC licence line stated once; and the timeline logs
+  track starts (the `mix_track_event` shape), not every cue/loop/crossfader move.*
 
 **M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
 The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
@@ -1140,19 +1193,21 @@ into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible t
   tap match, idle bit-exact, dropped-drain absorption, playable segmented M4A round-trip,
   flush on budget, start/stop, honest no-tap) + 3 `WorkspaceModelTests`. Suite 1373 → **1383
   green**; DJ-only, no regen. **FR-ENG-7, §37.2.**
-- **M5 commit 5.11 — the journal + crash/interruption recovery + finalize — complete (`c83fd84`).**
-  The §37.3 journal + §34A.4 interruption path + §37.5 single-file finalize (FR-REC-1/3,
-  NFR-REL-2, FR-ENG-8): `RecordingService` (`begin` writes the in-progress `recording` row,
-  `finalize` joins the segments into the single `mix.m4a` + `complete` rows + deletes the
-  intermediates + exports `mix-journal.json` under `-uiRegression`, `reconcile` salvages stale
-  rows to complete/corrupt); `M4AJoiner` (segment → one playable M4A, undecodable segments
-  skipped); `RecordingEncoder.interruptSegment/resumeSegment` (flush + wait, fresh segment,
-  never auto-play); `PerformanceEngine` start returns the session dir + the interruption seam;
-  `WorkspaceModel` consumes the session responses and writes the journal. Tests: 9
-  `RecordingRecoveryTests` + 5 `WorkspaceModelTests`. Suite 1383 → **1397 green**; DJ-only, no
-  regen. **FR-REC-1/3, FR-ENG-8, NFR-REL-2.**
-- **Then 5.12** Finish + Mixes + the review listen →
-  **5.13** the transition coach → **5.14 the DJ regression suite**.
+- **M5 commit 5.12 — Finish + Mixes + the review listen — complete (`4cbbf04`).** The §37.4
+  timeline (decision 8, control-side: `WorkspaceModel` logs a deck's playing edge while recording;
+  `finalize` gains `timeline:` + returns the finished `DJMix`, writing `mix_track_event` rows +
+  `trackCount` in the journal's one transaction) + `MixRepository` (completed/corrupt listing,
+  events, asset URL, update, delete, storage) + **the review listen** (FR-REC-6: `MixPlayback`
+  seam + AVAudioPlayer, the streaming `MixWaveformBuilder` overview, seekable waveform with tappable
+  transition markers) + `RecordingFinishView` (mockup `ipad/09`: title/notes, pills naming
+  **M4A · AAC 256 kbps**, timeline table, attribution §18A.5, export with the optional cue-sheet,
+  honest corrupt/absence, Delete) presented off `model.finishedMix` on all three surfaces + the
+  free `MixesView` (mockup `ipad/10`, FR-REC-5) via the new `dj.mixes` route. Tests: 7 + 7 + 10 +
+  3 + 3 + 2 new + `DJEntryTests`/`WorkspaceModelTests` updated. Suite 1397 → **1433 green** (8
+  skipped); Swift 6 guard OK; app builds; smoke pass in the pre-commit hook; DJ-only, no regen.
+  **FR-REC-1/4/5/6/7, §37.4, §41.11, §41.12, §18A.5, AT-REC-\*.**
+- **Then 5.13** the transition coach →
+  **5.14 the DJ regression suite**.
   **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
   **AT-MIX-1..8** green, plus the owner's end-to-end recorded set as the user-owned
   shipping gate.
