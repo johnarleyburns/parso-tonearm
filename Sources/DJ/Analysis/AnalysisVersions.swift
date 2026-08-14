@@ -13,6 +13,11 @@ public enum AnalysisVersions {
     /// Stage 2 (M2): music-CLAP semantic embeddings. Lands at 1 in commit 2.1,
     /// when the real model is in-repo and the embedding lane is runnable.
     public static let embedding = 1
+    /// Stage 3 (M5): Demucs 4-stem separation (§36). Keyed into the stem-cache
+    /// directory layout so a model upgrade invalidates cleanly, like
+    /// `analysis_version` (§36.4, plan decision 5). The real model conversion +
+    /// ODR tag registration is a user-owned step (plan decision 1).
+    public static let stems = 1
 
     /// Human note for each stage, registered in `analysis_version` so the
     /// registry row says what the version actually is.
@@ -24,5 +29,6 @@ public enum AnalysisVersions {
         "phrase": "self-similarity + energy contour segmentation, bar-aligned",
         "waveform": "multi-resolution min/max/RMS pyramid",
         "embedding": "music-CLAP HTSAT-base FP16, log-mel 48k 64b, 10s/5s attention-pooled 512-D",
+        "stems": "Demucs 4-stem (vocals/drums/bass/other), chunked Core ML, content-addressed cache",
     ]
 }

@@ -5,8 +5,8 @@ import GRDB
 
 final class DJSchemaTests: XCTestCase {
     func testMigrationOrderIsAppendOnly() {
-        XCTAssertEqual(DJSchema.migrationOrder, ["dj_v1", "dj_v2", "dj_v3"])
-        XCTAssertEqual(DJSchema.migrator().migrations, ["dj_v1", "dj_v2", "dj_v3"])
+        XCTAssertEqual(DJSchema.migrationOrder, ["dj_v1", "dj_v2", "dj_v3", "dj_v4"])
+        XCTAssertEqual(DJSchema.migrator().migrations, ["dj_v1", "dj_v2", "dj_v3", "dj_v4"])
     }
 
     func testApplyingAllMigrationsCreatesRelationalCoreTables() throws {
@@ -70,6 +70,37 @@ final class DJSchemaTests: XCTestCase {
                 XCTAssertTrue(try db.tableExists(table), "missing table \(table)")
             }
         }
+    }
+
+    func testV4CreatesStemAndRecordingTables() throws {
+        let db = try DatabaseQueue()
+        try DJSchema.migrator().migrate(db)
+
+        let expectedTables = [
+            "stem_cache", "performance_session", "mix",
+            "mix_track_event", "mix_asset",
+        ]
+        try db.read { db in
+            for table in expectedTables {
+                XCTAssertTrue(try db.tableExists(table), "missing table \(table)")
+            }
+            for index in ["idx_mix_recordedAt", "idx_mte_mix"] {
+                let exists = try Int.fetchOne(db, sql: """
+                    SELECT 1 FROM sqlite_master
+                    WHERE type = 'index' AND name = ?
+                    """, arguments: [index]) != nil
+                XCTAssertTrue(exists, "missing index \(index)")
+            }
+        }
+    }
+
+    func testStemCachePrimaryKeyIsTrackAndVersion() throws {
+        let db = try DatabaseQueue()
+        try DJSchema.migrator().migrate(db)
+        let pk = try db.read { db in
+            try db.primaryKey("stem_cache").columns
+        }
+        XCTAssertEqual(pk, ["trackID", "modelVersion"])
     }
 
     func testTrackDefaultsMatchDDL() throws {

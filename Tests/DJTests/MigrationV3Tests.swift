@@ -6,8 +6,8 @@ import GRDB
 final class MigrationV3Tests: XCTestCase {
 
     func testMigrationOrderIsAppendOnly() {
-        XCTAssertEqual(DJSchema.migrationOrder, ["dj_v1", "dj_v2", "dj_v3"])
-        XCTAssertEqual(DJSchema.migrator().migrations, ["dj_v1", "dj_v2", "dj_v3"])
+        XCTAssertEqual(DJSchema.migrationOrder, ["dj_v1", "dj_v2", "dj_v3", "dj_v4"])
+        XCTAssertEqual(DJSchema.migrator().migrations, ["dj_v1", "dj_v2", "dj_v3", "dj_v4"])
     }
 
     func testV3CreatesEmbeddingTables() throws {

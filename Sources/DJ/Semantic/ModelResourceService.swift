@@ -1,9 +1,12 @@
 import Foundation
 
-/// The ODR tags that carry the CLAP encoders (§27.1a, FR-SEM-6).
+/// The ODR tags that carry the CLAP encoders (§27.1a, FR-SEM-6) and the Demucs
+/// stem model (§36.2, plan decision 1). Absence is honest — a tag that has not
+/// been fetched simply never becomes available (FR-SEM-6).
 public enum ModelTag: String, Sendable, CaseIterable {
     case clapText = "clap-text"
     case clapAudio = "clap-audio"
+    case stems = "demucs-stems"
 }
 
 /// A snapshot of one tag's state for the UI (§41.3 / FR-SEM-6 honesty).
@@ -70,6 +73,7 @@ public struct BundleResourceProvider: ModelResourceProviding {
     public init(tagFileNames: [ModelTag: String] = [
         .clapText: "CLAPTextEncoder.mlpackage",
         .clapAudio: "CLAPAudioEncoder.mlpackage",
+        .stems: "DemucsStems.mlpackage",
     ]) {
         self.tagFileNames = tagFileNames
         self.state = State()
@@ -117,6 +121,7 @@ public struct BundleResourceProvider: ModelResourceProviding {
     public init(tagFileNames: [ModelTag: String] = [
         .clapText: "CLAPTextEncoder.mlpackage",
         .clapAudio: "CLAPAudioEncoder.mlpackage",
+        .stems: "DemucsStems.mlpackage",
     ]) {
         self.tagFileNames = tagFileNames
     }
