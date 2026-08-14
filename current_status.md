@@ -11,8 +11,8 @@ audit table §9).
 
 **M5 — the milestone where it becomes a DJ app** (spec §48.6 **re-scoped**, Appendix
 M.6 rewritten), working from
-`docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; commits **5.1–5.13** to
-come. Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware,
+`docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; commits **5.1–5.9 landed,
+5.10–5.13 to come**. Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware,
 the club-controller transfer test, and **the milestone's own end-to-end narrative**)
 are user-owned and defer to a post-M5 device pass. M4 — the two-deck engine,
 `AVAudioSession`, and StoreKit (the 3.0 Pro launch, spec §48.5, Appendix M.5) — is
@@ -28,6 +28,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.9** — `6dc5f80` `feat(dj): gig crates — promotion, budgeted separation, LRU eviction, §41.17, §43.6, FR-PLIST-9, FR-ANL-9, FR-LIB-8 (M5 commit 5.9)`.
 - **M5 5.8** — `118320d` `feat(dj): stem voices live on decks — StemSet summing reader, honest prepared state, live faders, §35.1, §36.5, FR-ENG-3 (M5 commit 5.8)`.
 - **M5 5.7** — `0a90d68` `feat(dj): Demucs ODR + separation + content-addressed cache, §36, FR-ENG-3 (M5 commit 5.7)`.
 - **M5 5.6** — `dee6a57` `feat(dj): genre libraries — Jamendo connector, curated genre picker, AT-GENRE-* (M5 commit 5.6)`.
@@ -71,7 +72,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.8 landed, commits 5.9–5.14 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.9 landed, commits 5.10–5.14 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -203,9 +204,10 @@ sequence stays stable:
   real-time render pump (§53.11); **5.5** Beat FX
   echo + AT-TRANS-1..5 (§35A, §35B); **5.6** genre libraries (§18A, §41.1a). Then the
   original scope: **5.7** Demucs ODR + cache; **5.8** stem voices on decks; **5.9** gig
-  crates + storage budget; **5.10** record tap + encoder; **5.11** journal + recovery;
+  crates + storage budget; **5.10** record tap + encoder;
+  **5.11** journal + recovery;
   **5.12** Finish + Mixes + **the review listen**; **5.13** the transition coach.
-  *(5.1–5.8 landed; 5.9–5.13 ahead.)*
+  *(5.1–5.9 landed; 5.10–5.13 ahead.)*
 - **New spec material** (all written, all cross-referenced): **§19.4** persisted
   analysis artifacts · **§26A** rekordbox-class waveform display · **§35A** the
   post-fader beat-synced echo · **§35B** the five transitions → control mapping ·
@@ -410,6 +412,48 @@ FR-ENG-3, §36.5 — **AT-STEM-\* engine rows**):
   → **1340 green** (8 skipped); Swift 6 guard OK; app builds (xcodebuild verified); smoke tests
   pass in the pre-commit hook. DJ-only — no `xcodegen generate` (decision 25).
   **FR-ENG-3, §35.1, §36.5, AT-STEM-\* (engine rows).**
+
+**M5 commit 5.9 — gig crates: promotion, budgeted separation, LRU eviction — complete (`6dc5f80`).**
+The §41.17 surface, the §43.6 disk budget, and the §36.3 lane (plan decisions 2, 11;
+FR-PLIST-9, FR-ANL-9, FR-LIB-8 — **AT-STEM-\***):
+
+- `Data/GigCrateRepository.swift` — `GigCrate`/`GigCrateTrack` records + the `GigCrateRow`/
+  `GigCrateDetail`/`GigCrateTrackRow` read models. **Promotion from a playlist (FR-PLIST-9)** in
+  one transaction: create the `gig_crate` row, copy the playlist's ordered items into
+  `gig_crate_track`, stamping each track's **FR-LIB-8 `audioCached` flag** at promotion time
+  (the `DeckLoader` file-exists probe — a partially-cached remote track is never deck-ready).
+  `markPerformed` stamps `lastPerformedAt` (the LRU clock); `setStemsState`/`setAudioCached`/
+  `refreshAudioCached`; `cratesByLRU` (oldest first; never-performed = oldest) +
+  `evictableCrates` for the budget.
+- `Perf/StorageBudgetService.swift` — the **pure** §43.6 policy (no I/O, fully testable):
+  per-device-class stem budgets (iPhone 4 GB / iPad 12 GB) + waveform budgets (300/600 MB),
+  the ~13 MB/track projection, **`mixesEvictable = false` always** (mixes are user content,
+  never auto-evicted — the app asks, never chooses), and
+  `plan(addingBytes:budget:currentStemsBytes:usages:protectedIDs:)` → a `StemPlan` whose
+  `evictions` list is the **preview shown before any eviction** — LRU by `lastPerformedAt`,
+  protected crates (the crate being prepared, crates backing a loaded deck) never candidates,
+  `fits` honest when even full eviction can't close the gap.
+- `Stems/StemService.swift` — the **§36.3 actor lane**: `planPreparation` (the preview),
+  `evict(crateID:)` (removes the cache sets + marks the crate's tracks `evicted`),
+  **`runCrateLane`** (budget → evict LRU crates to make room → serialize the pending tracks;
+  pauses under the FR-ANL-2 performing fence, **abandons the instant the `.stems` governor
+  lane is shed** §43.7 — a mid-run flip leaves the rest `pending`; per track `running` →
+  decode → separate → cache.store → `ready` + bytes in one transaction, a real failure →
+  `failed`, **model absence → stays `pending`**, never a fake failure), and `separateOnDemand`
+  (§36.5, best-effort, cached so the next load is instant, never blocks the deck). Newest-1
+  `observeProgress()` stream + `StemProgress`.
+- `Features/GigCrate/GigCrateModel.swift` + `GigCrateView.swift` (mockup `ipad/14`): the crate
+  list, the four header stat cards (audio cached / analyzed / stems separated / storage for
+  this crate), the governor panel, the track table (stems-state pill, FR-LIB-8 Local/Caching
+  pill), the amber **"One track can't go on a deck yet"** FR-LIB-8 notice, and the **"Making
+  room" card that shows the eviction preview before any eviction** (§41.17, decision 11).
+- Tests: 7 `GigCrateTests` + 11 `StorageBudgetTests` + 10 `StemServiceTests` + 5
+  `GigCrateModelTests` — promotion order + honest FR-LIB-8 (no-asset / deleted-file),
+  roll-ups, LRU ordering, **the lane evicting the LRU crate to make room** (real cache rows
+  removed, `evicted` marked, budget reclaimed), mid-run abandonment, the performing fence,
+  on-demand caching. Suite 1340 → **1373 green** (8 skipped); Swift 6 guard OK; app builds
+  (xcodebuild verified); smoke tests pass in the pre-commit hook. DJ-only — no `xcodegen
+  generate` (decision 25). **FR-PLIST-9, FR-ANL-9, FR-LIB-8, §41.17, §43.6, AT-STEM-\*.**
 
 **M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
 The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
@@ -967,7 +1011,26 @@ into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible t
   arm/disarm, gain/mute/solo, armed-grid master clock) + 6 `WorkspaceModelTests` (honest state
   machine). Suite 1327 → **1340 green**; Swift 6 guard OK; app builds; no regen. **FR-ENG-3,
   §35.1, §36.5, AT-STEM-\* (engine rows).**
-- **Then 5.9** gig crates + storage budget → **5.10** record
+- **M5 commit 5.9 — gig crates + storage budget — complete (`6dc5f80`).** The §41.17 surface
+  (mockup `ipad/14`), the §43.6 disk budget, and the §36.3 lane (plan decisions 2, 11;
+  FR-PLIST-9, FR-ANL-9, FR-LIB-8, **AT-STEM-\***). `GigCrateRepository`: promotion from a
+  playlist in one transaction, stamping each track's FR-LIB-8 `audioCached` flag at promotion
+  time; `markPerformed` (the LRU clock); roll-up list/detail; `cratesByLRU`. The pure
+  `StorageBudgetService`: per-device-class stem budgets (4/12 GB), the ~13 MB/track
+  projection, `mixesEvictable = false` always, and `plan(...)` → the eviction **preview shown
+  before any eviction** (LRU by `lastPerformedAt`, protected crates never candidates).
+  `StemService`: the crate-scoped lane — budget → evict LRU crates to make room → serialize
+  pending tracks; pauses under the FR-ANL-2 performing fence, abandons when the `.stems`
+  governor lane is shed (mid-run flip leaves the rest `pending`), model absence stays
+  `pending` (never a fake failure); `separateOnDemand` (§36.5) caches so the next load is
+  instant. `GigCrateModel`/`GigCrateView`: stat cards, governor panel, track table with the
+  FR-LIB-8 Local/Caching pill, the "One track can't go on a deck yet" notice, and the
+  "Making room" eviction preview. Tests: 7 `GigCrateTests` + 11 `StorageBudgetTests` + 10
+  `StemServiceTests` + 5 `GigCrateModelTests` — the lane evicting the LRU crate to make room
+  (real cache rows removed, `evicted` marked), mid-run abandonment, the performing fence.
+  Suite 1340 → **1373 green** (8 skipped); Swift 6 guard OK; app builds; no regen. **FR-PLIST-9,
+  FR-ANL-9, FR-LIB-8, §41.17, §43.6, AT-STEM-\*.**
+- **Then 5.10** record
   tap + encoder → **5.11** journal + recovery → **5.12** Finish + Mixes + the review listen →
   **5.13** the transition coach → **5.14 the DJ regression suite**.
   **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
