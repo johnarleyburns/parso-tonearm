@@ -28,6 +28,8 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.6** — `dee6a57` `feat(dj): genre libraries — Jamendo connector, curated genre picker, AT-GENRE-* (M5 commit 5.6)`.
+- **M5 5.5** — `559b23a` `feat(dj): Beat FX echo — post-fader beat-synced delay, §35B transitions, AT-TRANS-1..5 (M5 commit 5.5)`.
 - **M5 5.4a** — `495780f` `feat(dj): real-time render pump — .realtime mode, one render-closure body, session-first entry (M5 commit 5.4a)`.
 - **M5 5.4** — `a6d59f3` `feat(dj): club ergonomics — per-channel strips, tempo faders, eight pads, CUE-left-of-PLAY, §53.11 identifiers (M5 commit 5.4)`.
 - **M5 5.3** — `9bd2db6` `feat(dj): waveform render — band-split colour, composed grid, phrase ribbon, overview (M5 commit 5.3)`.
@@ -67,7 +69,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.4a landed, commits 5.5–5.14 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.6 landed, commits 5.7–5.14 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -230,6 +232,101 @@ sequence stays stable:
   trained users, two coloured waveforms + two jogs inside the §43.3 budget, catalogue
   depth per sub-genre, and **the end-to-end narrative itself** — are the user-owned
   post-M5 pass, joining M4's deferred AT-THERM-1/AT-MEM-1.
+
+**M5 commit 5.5 — the §35A post-fader beat-synced echo + AT-TRANS-1..5 — complete (`559b23a`).**
+The one Beat FX M5 ships (decision 23) and the milestone's transition family
+(§35A, §35B — FR-TRANS-3/4/5):
+
+- `Engine/BeatEcho.swift` — the **pure §35A.2 control value** (`BeatEcho`: `enabled`/
+  `beats`/`depth`/`feedback`, delay math `beats × 60/effectiveBPM × sampleRate` with a
+  nominal-tempo fallback so the render thread never divides by zero, feedback
+  **hard-clamped at 0.85** — a self-oscillating echo is a defect, not a feature) and the
+  render-thread `BeatEchoLine` (fixed-capacity ring allocated at graph construction, a
+  **read-pointer crossfade on beat-length change** — a pointer jump clicks — and
+  `enabled = false` **continues reading the tail** until it decays below the noise floor,
+  then bypasses at zero cost. This is what "echo out" means).
+- **Graph placement is post-fader, pre-crossfader, per channel (§35A.1) — the whole
+  design.** A pre-fader echo dies with the fader and Echo Out collapses into Fader Cut.
+  `RTCommand` gains `setEchoEnabled/Beats/Depth/Feedback`; `PerformanceEngine` façade
+  methods; `DeckState` pushes the control value into every channel's line and retunes the
+  delay **once per callback from the master clock's effective tempo** (`applyEchoMasterBPM`
+  — a tempo change moves the echo with it; a synced pair echoes in time with both decks).
+- **Surfaces:** the mixer column's Beat FX block is **live** (per-channel A/B selector,
+  the five §35A beat lengths, a drag depth track, the `dj.fx.echo` ON/OFF toggle); the iPad
+  FX module slot's **ECHO pad is live** (RVB/FLTR/CRUSH stay honestly unavailable);
+  the compact surfaces swap the honest-unavailable `EchoButton` for
+  `EchoReleaseToCommitButton` — a single always-visible button whose **long-press
+  release-to-commit flyout** carries channel/beats/depth (§42.7b idiom 3). Echo Out is a
+  two-control transition, so ECHO and the fader are both reachable without a drawer. The
+  flyout's frames and `releasedAction(at:)` are pure on `WorkspaceModel.EchoFlyout` — the
+  engine is touched only on a release inside a commit target, nothing changes on the way
+  out.
+- Tests: 8 `BeatEchoTests` (delay length vs BPM, crossfade continuity — max sample delta
+  stays inside the signal's own slope — monotonic decay, tail-then-bypass bit-exact,
+  re-enable clears the bypass) + 7 `TransitionTests` — **AT-TRANS-1..5 in both halves**
+  (decision 24): the **audio half** as scripted offline-render sequences with Goertzel
+  band assertions (Bass Swap kills A's low while B's low and A's mid pass untouched,
+  AT-TRANS-1; the filter sweep high-passes the outgoing deck and leaves the incoming
+  spectrum unchanged, AT-TRANS-2; **the echo tail rings at the beat interval after the
+  fader cut and decays monotonically to silence**, AT-TRANS-3, plus the disabled-path
+  tail; the sharp-curve Fader Cut is a bounded no-zipper ramp, AT-TRANS-4; the hot
+  two-deck Blend never exceeds the limiter ceiling and genuinely sums both decks,
+  AT-TRANS-5) and the **layout half** asserting every transition's controls are present
+  and reachable on both the §41.9b tablet and §42.7c compact surfaces (Echo Out's two
+  controls never behind a drawer; Bass Swap's LOW lives in the spring-loaded bank drawer)
+  + 4 `WorkspaceModelTests` (per-deck echo forwarding, §35A clamping, flyout release
+  resolution incl. the slide-out cancel paths, flyout geometry fits the twin mixer
+  column). Full suite **1289 green** (1262 baseline + 27); Swift 6 guard OK; app builds;
+  smoke tests pass in the pre-commit hook. DJ-only — no `xcodegen generate` (decision 25).
+  **FR-TRANS-3/4/5, §35A, §35B, AT-TRANS-1..5.**
+
+**M5 commit 5.6 — genre libraries — complete (`dee6a57`).** The practice-material
+connector that makes M5's exit narrative startable (§18A, §41.1a, FR-LIB-9/10) —
+**free tier** (FR-LIB-7, `remoteLibraryJamendo` joins the registry):
+
+- `SourceKind.jamendoGenre` (`Sources/Domain`); `JamendoGenreProvider` + `JamendoAPI` +
+  the curated `JamendoGenreTree` behind the existing `RemoteLibraryProvider` seam,
+  registered in `RemoteConnectorCatalog` (`jamendoGenre`, guided, no credentials).
+  **Verified against the live API** (decision 20): Jamendo v3.0 exposes **no `/genres`
+  method** — the read methods are albums/artists/autocomplete/feeds/playlists/radios/
+  reviews/tracks/users and `GET /v3.0/genres` returns code 7 — so genre data is free-form
+  `musicinfo.tags.genres` and the hierarchy is **curated here**, each node filtering the
+  catalogue through `tags=` with `order=popularity_total` + `fullcount=true` +
+  `include=musicinfo` + `audioformat=mp32` (all param shapes probe-verified).
+- **A genre is an ordinary `Source(kind: .jamendoGenre, iaIdentifier: <path>)` row**
+  (§18A.3): `electronic/techno` and `electronic` are different libraries; `browse(path:)`
+  returns the popularity-ordered page; `resolve` hands back the stream URL; tracks flow
+  through `RemoteTrackRowFactory` so FR-LIB-8 caching / analysis / decks need **no
+  special-casing** (§18A.4). Sub-genre track IDs are exact fixture assertions.
+- **Licence** travels at the source level (`licenseText: "Creative Commons — attribution
+  kept"`) per the existing IA/built-in pattern — the schema has no per-track licence
+  column; per-track artist/album/genre travel in each row (**deviation recorded**:
+  §18A.5's per-track carry is satisfied structurally, to be revisited with 5.12's
+  attribution). **`client_id` is an application credential** read from Info.plist
+  (`JamendoClientID` / `TONEARM_JAMENDO_CLIENT_ID` build setting, added to `project.yml`);
+  an unconfigured build is the honest `.notConfigured` state, never an empty library
+  (§18A.6, the D-9 lesson).
+- `GenrePickerModel` + `GenrePickerView` (mockup `ipad/15`): the curated top-level genres
+  with expandable sub-genres, multi-select, lazily-fetched `fullcount` counts, the
+  **equally-weighted Skip/Cancel**, the collapsed gating-nothing account checkbox, and the
+  one-line licence/attribution note (§41.1a). Two doors: a **first-run onboarding page**
+  (step 2, before local files) and the **Add source** flow (AddServerSheet presents the
+  picker sheet for the jamendo connector). `AppState.addGenreLibrary` validates
+  reachability before inserting. The picker model surfaces the honest catalogue error and
+  refuses to silently no-op if the host never set its create seam.
+- Tests: 16 `GenreLibraryTests` — **AT-GENRE-1..7** against **recorded fixtures**
+  (decision 21, `Fixtures/jamendo/{techno,house,electronic,api-error}.json` served by a
+  tag-keyed URLProtocol stub, no live network): genre→source identity, sub-genre
+  distinctness, popularity-descending ordering (+ the request carries `order=popularity_total`),
+  metadata/artwork/resolve, no-account request shape, unconfigured honest unavailable,
+  licence/row passthrough, the standard-row-factory path to a deck, API-envelope and
+  transport failure honesty, fullcount counts, free-tier registry + catalog, and the
+  picker-model selection/add/probe/toggle tests. Suite 1289 → **1305 green**; Swift 6
+  guard OK; app builds (xcodebuild verified); smoke tests pass in the pre-commit hook.
+  **`xcodegen generate` committed** (project.yml + `Sources/Domain` + `Sources/Remote`,
+  decision 25 — the regenerated pbxproj also carries the sitting 5.14 lane references,
+  consistent with the documented scaffold state). **FR-LIB-9/10, §18A, §41.1a,
+  AT-GENRE-\*, AT-FREE-\*.**
 
 **M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
 The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
@@ -703,7 +800,7 @@ to keep it from failing in a clock-capped Low Power Mode state.
 **Nothing here is committed.** It is one coherent change: the design *and* the scaffold
 for the DJ regression suite, written ahead of its place in the sequence so the hooks it
 needs can land with the commits that build the surfaces rather than being retrofitted.
-It is safe to commit as-is, or to leave sitting while 5.4/5.4a proceed.
+It is safe to commit as-is, or to leave sitting while 5.5/5.6 and the remaining 5.7–5.13 proceed.
 
 Verified before writing: `xcodegen generate` has been run and the three new lanes are in
 `project.pbxproj`; `xcodebuild build-for-testing -scheme TonearmUIRegression` compiles
@@ -743,38 +840,40 @@ into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible t
 
 ## Next
 
-- **M5 commit 5.4 — complete (`a6d59f3`)**. Club-standard ergonomics (§41.9b, §42.7c):
-  the workspace now matches mockup `ipad/07` — shared waveforms on one playhead,
-  per-channel vertical strips (TRIM → HI → MID → LOW → FILTER → fader → CUE), a
-  320 pt mixer column with the crossfader bottom-centre, the deck columns with
-  tempo fader on the outer edge + jog centred + eight pads under the mode
-  selector + CUE left of PLAY; the §53.11 accessibility identifiers on every
-  performance control. **Geometry tests updated, not deleted** (decision 19).
-- **M5 commit 5.4a — the real-time render pump — complete (`495780f`).** The
-  **app now makes sound.** `AudioGraph.Configuration` gains
-  `rendering: .offline` (today's behaviour, unchanged, still the test default) /
-  `.realtime`; `.realtime` skips manual rendering and connects the existing source
-  nodes through `mainMixerNode → outputNode`, with **one render-closure body, two
-  drivers** — the direct topology already advances the master clock inside
-  `renderDecks`, and the time-pitch topology's deck-B node advances it once per
-  callback in realtime (the offline driver keeps its advance in `render`, so every
-  existing acceptance test keeps its meaning). `render(_:)` refuses in realtime
-  with a dedicated error. `DJWorkspaceAssembly.makeModel` (now async) enters the
-  `AudioSessionCoordinator` in the §34A.2 normative order — category → preferences
-  → activate → read back → build the graph — then builds a `.realtime` engine
-  (128-frame `maximumFrameCount`, matching the §34A.1 performing buffer), and
-  `WorkspaceModel` retains the coordinator so its route/interruption marshalling
-  survives for the recording/service commits (5.10/5.11). `DJPerformanceSurface`
-  gains an honest loading/unavailable split. Tests: `testRealtimeModeRefusesOfflineRender`
-  (deterministic) + the suite green; app target builds; the realtime pull was
-  verified on the macOS host — a loaded deck advanced the master clock 1024 → 13312
-  in 0.25 s with audio on the master bus (the automated "the app makes sound"
-  proxy). Full-suite run: 1262/1263 green, the one failure the documented
-  `SequencerTests` environmental gate (machine clock-capped; passed on re-run at
-  3.33 s once the load cleared). **A topology switch, not a rewrite (decision 26,
-  spec §53.11).**
-- **Then 5.5** Beat FX echo + AT-TRANS → **5.6** genre libraries → **5.7–5.13** the
-  original stems/recording/gig-crate scope → **5.14 the DJ regression suite**.
+- **M5 commit 5.5 — the §35A echo + AT-TRANS-1..5 — complete (`559b23a`).** The one
+  Beat FX M5 ships (decision 23): `BeatEcho` (pure control value + `BeatEchoLine` ring
+  DSP — fixed-capacity, **crossfaded read-pointer on delay change**, feedback clamped
+  below unity, disabled continues the tail then bypasses) placed **post-fader,
+  pre-crossfader, per channel** (§35A.1 — the whole design); `setEcho*` RTCommands +
+  façade; the delay retuned per callback from the master clock. Surfaces: the mixer
+  column's Beat FX block live (A/B channel, five beat lengths, drag depth, `dj.fx.echo`),
+  the iPad FX slot's ECHO pad live, and the compact **`EchoReleaseToCommitButton`** — an
+  always-visible ECHO with a release-to-commit flyout (channel/beats/depth, pure frames +
+  `releasedAction(at:)`, engine touched only on a commit release). Tests: 8 `BeatEchoTests`
+  + 7 `TransitionTests` (**AT-TRANS-1..5** — audio half as scripted offline-render
+  sequences with Goertzel band assertions, layout half asserting reachability on both
+  surfaces) + 4 `WorkspaceModelTests`. Suite 1262 → **1289 green**; DJ-only, no regen.
+  **FR-TRANS-3/4/5, §35A, §35B, AT-TRANS-1..5.**
+- **M5 commit 5.6 — genre libraries — complete (`dee6a57`).** The practice-material
+  connector (§18A, §41.1a, FR-LIB-9/10, **free tier**). `SourceKind.jamendoGenre`;
+  `JamendoGenreProvider` + `JamendoAPI` + the curated `JamendoGenreTree` (Jamendo v3.0
+  has **no `/genres` method** — verified live; the hierarchy is curated and filters via
+  `tags=` + `order=popularity_total` + `fullcount=true` + `include=musicinfo`);
+  registered in `RemoteConnectorCatalog`; a genre is an ordinary Source row whose
+  identity is the genre path, flowing through the standard row factory so FR-LIB-8 /
+  cache / analysis / decks need no special-casing. `client_id` is an app credential
+  (`JamendoClientID` / `TONEARM_JAMENDO_CLIENT_ID`, Info.plist); an unconfigured build is
+  the honest `.notConfigured` state (§18A.6). `GenrePickerModel`/`GenrePickerView`
+  (mockup `ipad/15`): curated tree, multi-select, lazy fullcount counts, equally-weighted
+  Skip, gating-nothing account checkbox, licence stated once. Two doors — first-run
+  onboarding page + Add source. Tests: 16 `GenreLibraryTests` (**AT-GENRE-1..7** against
+  recorded fixtures, no live network). Suite 1289 → **1305 green**; app builds;
+  **`xcodegen generate` committed** (decision 25). **FR-LIB-9/10, §18A, §41.1a,
+  AT-GENRE-\*, AT-FREE-\*.**
+- **Then 5.7** Demucs ODR + separation + cache → **5.8** stem voices on decks → **5.9**
+  gig crates + storage budget → **5.10** record tap + encoder → **5.11** journal +
+  recovery → **5.12** Finish + Mixes + the review listen → **5.13** the transition
+  coach → **5.14 the DJ regression suite**.
   **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
   **AT-MIX-1..8** green, plus the owner's end-to-end recorded set as the user-owned
   shipping gate.
