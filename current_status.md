@@ -28,6 +28,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.4a** — `495780f` `feat(dj): real-time render pump — .realtime mode, one render-closure body, session-first entry (M5 commit 5.4a)`.
 - **M5 5.4** — `a6d59f3` `feat(dj): club ergonomics — per-channel strips, tempo faders, eight pads, CUE-left-of-PLAY, §53.11 identifiers (M5 commit 5.4)`.
 - **M5 5.3** — `9bd2db6` `feat(dj): waveform render — band-split colour, composed grid, phrase ribbon, overview (M5 commit 5.3)`.
 - **M5 5.2** — `f8f9db1` `feat(dj): analysis persistence — phrases, downbeats, real beat grid, band-split pyramid (M5 commit 5.2)`.
@@ -66,7 +67,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.4 landed, commits 5.4a–5.14 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.4a landed, commits 5.5–5.14 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -154,9 +155,48 @@ arrangement lands over mockup `ipad/07` (FR-TRANS-1/2, §42.7c, NFR-A11Y-6):
   watch smoke tests pass in the pre-commit hook. No `xcodegen generate` (DJ-only,
   decision 25). **FR-TRANS-1/2, §41.9b, §42.7c, §53.11.**
 
+**M5 commit 5.4a — the real-time render pump — complete (`495780f`).** The
+**app now makes sound** (decision 26, §53.11) — the prerequisite found while
+designing the regression suite, lettered `5.4a` so the recorded 5.5–5.13
+sequence stays stable:
+
+- `AudioGraph.Configuration` gains `rendering: .offline` (today's behaviour,
+  unchanged, still the test default) and `.realtime`. `.realtime` skips manual
+  rendering and connects the existing source nodes through
+  `mainMixerNode → outputNode` (`format: nil`, so AVAudioEngine inserts the
+  converter to the hardware rate); `start()` then pulls the graph on the audio
+  thread. **One render-closure body, two drivers** — the closures are shared; the
+  direct topology already advances the master clock inside `renderDecks`, and the
+  time-pitch topology's deck-B node advances it once per callback in realtime
+  (both decks read the same pre-advance `frameStart`; the offline driver keeps
+  today's advance in `render`, so every existing acceptance test keeps its
+  meaning). `render(_:)` refuses on a realtime graph with a dedicated
+  `renderingUnavailableInRealtimeMode` error.
+- **Session-first (§34A.2):** `DJWorkspaceAssembly.makeModel` (now async) enters
+  the `AudioSessionCoordinator` in the normative order — category → preferences →
+  activate → read back → build the graph — then builds a `.realtime` engine with a
+  128-frame `maximumFrameCount` (matching the §34A.1 performing buffer, so the
+  workspace's buffer-period/render-load readouts are honest). An unenterable
+  session (refused Bluetooth route, activate failure) is an honest unavailable
+  state, never a silently dead graph; on macOS (no `AVAudioSession`) the engine
+  is still built — CoreAudio drives the realtime graph. `WorkspaceModel` retains
+  the coordinator so its route/interruption marshalling survives (responses are
+  consumed by the recording/service commits 5.10/5.11); `DJPerformanceSurface`
+  gains an honest loading/unavailable split for the async assembly.
+- Tests: `EngineOfflineTests.testRealtimeModeRefusesOfflineRender` (deterministic
+  — a realtime graph refuses the offline pull) + the existing suite green
+  unchanged; app target builds (the `DJHomeView` change is app-target code).
+  The realtime pull was verified on the macOS host as the "app makes sound"
+  proxy: a loaded deck advanced the master clock **1024 → 13312 in 0.25 s** with
+  audio on the master bus. Full-suite run: **1262/1263 green** — the one failure
+  the documented `SequencerTests` environmental gate (machine clock-capped by
+  load; passed on re-run at 3.33 s once the machine settled). No `xcodegen
+  generate` (edits existing files only, decision 25). **§53.11, decision 26.**
+
 - **Commit sequence (plan §5).** Unblockers first: **5.1** app entry point + library →
   deck seam (§49.3a); **5.2** analysis persistence (§19.4); **5.3** the §26A waveform
-  render; **5.4** club-standard control ergonomics (§41.9b, §42.7c); **5.5** Beat FX
+  render; **5.4** club-standard control ergonomics (§41.9b, §42.7c); **5.4a** the
+  real-time render pump (§53.11); **5.5** Beat FX
   echo + AT-TRANS-1..5 (§35A, §35B); **5.6** genre libraries (§18A, §41.1a). Then the
   original scope: **5.7** Demucs ODR + cache; **5.8** stem voices on decks; **5.9** gig
   crates + storage budget; **5.10** record tap + encoder; **5.11** journal + recovery;
@@ -710,36 +750,34 @@ into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible t
   tempo fader on the outer edge + jog centred + eight pads under the mode
   selector + CUE left of PLAY; the §53.11 accessibility identifiers on every
   performance control. **Geometry tests updated, not deleted** (decision 19).
-- **Then 5.4a — the real-time render pump. ⚠ Do not skip past it: the app makes no
-  sound today.** `AudioGraph.init` enables manual `.offline` rendering
-  unconditionally (`Sources/DJ/Engine/AudioGraph.swift:199`) and the only callers of
-  `render()`/`renderMono()` anywhere in `Sources/` are unit tests, so the shipped app
-  dispatches UI commands into a graph nobody pulls: **PLAY advances no clock and
-  emits no audio.** Not a regression — 5.1 delivered reachability of the *surface*,
-  and every acceptance test is honest about running offline — but it sits underneath
-  the whole exit gate, and 5.5 onward cannot be verified without it. Add `.realtime`
-  beside `.offline` in `AudioGraph.Configuration`; connect the existing source nodes
-  through `mainMixerNode → outputNode`; advance the master clock in the render
-  callback. **One render-closure body, two drivers** — if the realtime path grows its
-  own copy, every offline test stops proving anything about what ships. Enter
-  `AudioSessionCoordinator` first, in the §34A.2 order. Acceptance: the existing
-  suite stays green unchanged **and** the app makes sound. A topology switch, not a
-  rewrite (decision 26, spec §53.11).
-- Then **5.5** Beat FX echo + AT-TRANS → **5.6** genre libraries → **5.7–5.13** the
+- **M5 commit 5.4a — the real-time render pump — complete (`495780f`).** The
+  **app now makes sound.** `AudioGraph.Configuration` gains
+  `rendering: .offline` (today's behaviour, unchanged, still the test default) /
+  `.realtime`; `.realtime` skips manual rendering and connects the existing source
+  nodes through `mainMixerNode → outputNode`, with **one render-closure body, two
+  drivers** — the direct topology already advances the master clock inside
+  `renderDecks`, and the time-pitch topology's deck-B node advances it once per
+  callback in realtime (the offline driver keeps its advance in `render`, so every
+  existing acceptance test keeps its meaning). `render(_:)` refuses in realtime
+  with a dedicated error. `DJWorkspaceAssembly.makeModel` (now async) enters the
+  `AudioSessionCoordinator` in the §34A.2 normative order — category → preferences
+  → activate → read back → build the graph — then builds a `.realtime` engine
+  (128-frame `maximumFrameCount`, matching the §34A.1 performing buffer), and
+  `WorkspaceModel` retains the coordinator so its route/interruption marshalling
+  survives for the recording/service commits (5.10/5.11). `DJPerformanceSurface`
+  gains an honest loading/unavailable split. Tests: `testRealtimeModeRefusesOfflineRender`
+  (deterministic) + the suite green; app target builds; the realtime pull was
+  verified on the macOS host — a loaded deck advanced the master clock 1024 → 13312
+  in 0.25 s with audio on the master bus (the automated "the app makes sound"
+  proxy). Full-suite run: 1262/1263 green, the one failure the documented
+  `SequencerTests` environmental gate (machine clock-capped; passed on re-run at
+  3.33 s once the load cleared). **A topology switch, not a rewrite (decision 26,
+  spec §53.11).**
+- **Then 5.5** Beat FX echo + AT-TRANS → **5.6** genre libraries → **5.7–5.13** the
   original stems/recording/gig-crate scope → **5.14 the DJ regression suite**.
   **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
   **AT-MIX-1..8** green, plus the owner's end-to-end recorded set as the user-owned
   shipping gate.
-- **⚠ 5.4a — the app currently makes no sound.** `AudioGraph` enables manual
-  `.offline` rendering unconditionally (`Sources/DJ/Engine/AudioGraph.swift:199`)
-  and the only callers of `render()` are unit tests, so the shipped app dispatches
-  UI commands into a graph nobody pulls: **PLAY advances no clock and emits no
-  audio.** Not a regression in anything committed — 5.1 delivered reachability of
-  the *surface*, and every acceptance test is honest about running offline — but it
-  sits underneath the whole M5 exit gate. Found while designing the regression
-  suite; recorded as plan decision 26 and spec §53.11. `.realtime` is added as a
-  configuration mode with **one render-closure body and two drivers**; the
-  `.offline` path is preserved exactly so the existing suite keeps its meaning.
 - **5.14 — the DJ regression suite** (`docs/plans/dj-regression-suite.md`, spec
   §53.7–53.12). The M5 exit narrative driven through the real UI and asserted
   against **the recording the app produces**, because `XCUITest` cannot hear and a
