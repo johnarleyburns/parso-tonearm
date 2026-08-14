@@ -442,6 +442,9 @@ private final class JogFakeEngine: WorkspaceEngine {
     func setStemGain(_ deck: PerformanceEngine.Deck, stem: StemKind, gain: Float) {}
     func setStemMute(_ deck: PerformanceEngine.Deck, stem: StemKind, muted: Bool) {}
     func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool) {}
+    func startRecording() async throws {}
+    func stopRecording() async throws -> RecordingEncoder.RecordingOutput? { nil }
+    var isRecording: Bool { false }
     func deckRate(_ deck: PerformanceEngine.Deck) -> Double { rates[deck] ?? 1.0 }
     func sampleTelemetry() -> EngineTelemetry { current }
     func pushTelemetry() { stream.push(current) }

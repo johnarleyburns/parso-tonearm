@@ -77,7 +77,8 @@ public enum DJWorkspaceAssembly {
             return nil
         }
         guard let engine = try? PerformanceEngine(configuration: .init(maximumFrameCount: 128,
-                                                                       rendering: .realtime)) else {
+                                                                       rendering: .realtime,
+                                                                       recordTapEnabled: true)) else {
             return nil
         }
         return WorkspaceModel(engine: engine, store: store, session: session)

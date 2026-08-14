@@ -27,13 +27,26 @@ public final class PerformanceEngine {
     public let graph: AudioGraph
     private let registry = SourceBoxRegistry()
     private let stemRegistry = StemSetRegistry()
+    /// Where recordings land (plan 5.10): the parent directory per-recording
+    /// subdirectories are created under. Defaults to the DJ Mixes directory;
+    /// tests inject a temp directory.
+    public let recordingDirectory: URL
+    /// The §37.2 encoder currently draining (plan 5.10, FR-ENG-7). `nil` while
+    /// not recording.
+    private var recordingEncoder: RecordingEncoder?
+    /// The off-RT drain loop for the active recording.
+    private var drainTask: Task<Void, Never>?
 
-    public init(graph: AudioGraph) {
+    public init(graph: AudioGraph,
+                recordingDirectory: URL = DJDatabase.mixesDirectory) {
         self.graph = graph
+        self.recordingDirectory = recordingDirectory
     }
 
-    public convenience init(configuration: AudioGraph.Configuration = .init()) throws {
-        self.init(graph: try AudioGraph(configuration: configuration))
+    public convenience init(configuration: AudioGraph.Configuration = .init(),
+                            recordingDirectory: URL = DJDatabase.mixesDirectory) throws {
+        self.init(graph: try AudioGraph(configuration: configuration),
+                  recordingDirectory: recordingDirectory)
     }
 
     deinit {
@@ -350,6 +363,56 @@ public final class PerformanceEngine {
         let buffer = try graph.render(frameCount)
         guard let channel = buffer.floatChannelData?[0] else { return [] }
         return Array(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength)))
+    }
+
+    // MARK: - Recording (§37.2, FR-ENG-7; plan 5.10)
+
+    /// Start recording the post-limiter master bus (§37.2). Creates the
+    /// `RecordingEncoder` for a fresh per-session subdirectory, starts it,
+    /// enables the tap, and kicks off the off-RT drain loop. Throws when the
+    /// graph has no record tap (built with `recordTapEnabled: false`) — an
+    /// honest unavailable state, never a silent no-op.
+    public func startRecording() async throws {
+        guard let tap = graph.recordTap else {
+            throw RecordingEncoder.RecordingError.tapNotRecording
+        }
+        guard recordingEncoder == nil else { return }
+        let sessionDir = recordingDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let encoder = try RecordingEncoder(
+            tap: tap,
+            configuration: .init(sampleRate: graph.sampleRate,
+                                 channelCount: Int(graph.channelCount),
+                                 segmentFrames: 30 * Int(graph.sampleRate),
+                                 outputDirectory: sessionDir))
+        try await encoder.start()
+        recordingEncoder = encoder
+        tap.setRecording(true)
+        let drainTask = Task.detached { [encoder] in
+            while !Task.isCancelled {
+                _ = try? await encoder.drain(maxFrames: 8192)
+                try? await Task.sleep(for: .milliseconds(2))
+            }
+        }
+        self.drainTask = drainTask
+    }
+
+    /// Stop recording: stop the tap, drain and finalize, and return the
+    /// finished recording (segments + metadata for 5.11's `mix`/`mix_asset`
+    /// rows). Nil when nothing was recording.
+    public func stopRecording() async throws -> RecordingEncoder.RecordingOutput? {
+        guard let encoder = recordingEncoder else { return nil }
+        graph.recordTap?.setRecording(false)
+        drainTask?.cancel()
+        drainTask = nil
+        recordingEncoder = nil
+        return try await encoder.finalize()
+    }
+
+    /// Whether a recording is currently in flight (the workspace's record
+    /// toggle state, decision 14).
+    public var isRecording: Bool {
+        recordingEncoder != nil
     }
 
     private func currentGrid(_ deck: Deck) -> DeckGrid {

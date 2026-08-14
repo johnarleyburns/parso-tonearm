@@ -57,6 +57,16 @@ public protocol WorkspaceEngine: AnyObject {
     func setStemMute(_ deck: PerformanceEngine.Deck, stem: StemKind, muted: Bool)
     /// Solo a stem voice — when any voice is soloed, only soloed voices sound.
     func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool)
+    /// Start recording the post-limiter master bus (§37.2, plan 5.10). The
+    /// record toggle (decision 14) forwards this; the engine starts the tap +
+    /// encoder. Throws when the graph has no record tap (built with
+    /// `recordTapEnabled: false`) — an honest unavailable state, never a
+    /// silent no-op.
+    func startRecording() async throws
+    /// Stop recording and return the finished recording (segments + metadata).
+    func stopRecording() async throws -> RecordingEncoder.RecordingOutput?
+    /// Whether a recording is currently in flight (decision 14's session state).
+    var isRecording: Bool { get }
     func sampleTelemetry() -> EngineTelemetry
     func pushTelemetry()
 }
@@ -223,6 +233,16 @@ public final class WorkspaceModel: ObservableObject {
     @Published public var telemetry = EngineTelemetry()
     @Published public private(set) var isPro: Bool
 
+    /// Recording session state (plan 5.10, decision 14): `isRecording` mirrors
+    /// whether the engine's tap + encoder are live, and `recordingElapsed` is
+    /// the recorded duration in seconds. Session VM state, not a view's — the
+    /// record/elapsed chip is shared across every performance surface.
+    @Published public private(set) var isRecording = false
+    @Published public private(set) var recordingElapsed: Double = 0
+    /// The master-clock sample position when recording started — `elapsed` is
+    /// `(masterSample − start) / sampleRate`, which equals the recorded frames.
+    private var recordingStartSample: Int64 = 0
+
     /// Each deck's §26A render model — the analysis-driven waveform. `nil`
     /// until the deck loads an analysed track, or for an unanalysed track
     /// (the honest empty state, §26A.1). Built off the main actor when the
@@ -388,6 +408,12 @@ public final class WorkspaceModel: ObservableObject {
 
     private func apply(_ value: EngineTelemetry) {
         telemetry = value
+        if isRecording {
+            // Decision 14's elapsed chip: the recorded frames are exactly the
+            // master-clock frames captured by the tap (§37.2), so elapsed is
+            // `(masterSample − start) / sampleRate`.
+            recordingElapsed = Double(value.masterSample - recordingStartSample) / engine.sampleRate
+        }
         let playing = value.deckA.playing || value.deckB.playing
         if playing != anyDeckPlaying {
             anyDeckPlaying = playing
@@ -700,6 +726,45 @@ public final class WorkspaceModel: ObservableObject {
 
     public func setKeyShift(_ deck: PerformanceEngine.Deck, semitones: Float) {
         engine.setKeyShift(deck, semitones: semitones)
+    }
+
+    // MARK: - Recording (§37.2, FR-ENG-7; plan 5.10, decision 14)
+
+    /// The record toggle every performance surface drives (decision 14): starts
+    /// the §37.2 tap + encoder, or stops and finalizes. Forwarding is async —
+    /// the engine's encoder is an actor and `stopRecording` returns the
+    /// finished recording (5.11 consumes it for the `mix` rows).
+    public func toggleRecording() {
+        Task {
+            if isRecording {
+                await stopRecording()
+            } else {
+                await startRecording()
+            }
+        }
+    }
+
+    /// Start recording: forward to the engine, then mirror the session state
+    /// (decision 14). A graph without a record tap is an honest unavailable
+    /// state — the chip stays off, it never lies about recording.
+    public func startRecording() async {
+        guard !isRecording else { return }
+        do {
+            try await engine.startRecording()
+        } catch {
+            return
+        }
+        guard engine.isRecording else { return }
+        recordingStartSample = engine.masterSample
+        recordingElapsed = 0
+        isRecording = true
+    }
+
+    /// Stop recording: forward, finalize, and mirror the session state off.
+    public func stopRecording() async {
+        guard isRecording else { return }
+        _ = try? await engine.stopRecording()
+        isRecording = engine.isRecording
     }
 
     // MARK: - Sync (§32)

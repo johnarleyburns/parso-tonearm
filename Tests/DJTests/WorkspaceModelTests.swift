@@ -39,6 +39,9 @@ final class WorkspaceModelTests: XCTestCase {
         private(set) var stemGains: [PerformanceEngine.Deck: [StemKind: Float]] = [:]
         private(set) var stemMutes: [PerformanceEngine.Deck: Set<StemKind>] = [:]
         private(set) var stemSolos: [PerformanceEngine.Deck: Set<StemKind>] = [:]
+        private(set) var recordingStarts = 0
+        private(set) var recordingStops = 0
+        private(set) var isRecording = false
 
         func start() throws { started = true }
         func stop() { stopped = true }
@@ -107,6 +110,15 @@ final class WorkspaceModelTests: XCTestCase {
         }
         func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool) {
             if soloed { stemSolos[deck, default: []].insert(stem) } else { stemSolos[deck]?.remove(stem) }
+        }
+        func startRecording() async throws {
+            recordingStarts += 1
+            isRecording = true
+        }
+        func stopRecording() async throws -> RecordingEncoder.RecordingOutput? {
+            recordingStops += 1
+            isRecording = false
+            return nil
         }
         func sampleTelemetry() -> EngineTelemetry { current }
         func pushTelemetry() { stream.push(current) }
@@ -1299,6 +1311,77 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertNil(fake.loadedSource, "queue selection and refresh never arm a deck — no auto-play-next (§41.9c)")
         XCTAssertEqual(model.loadState(for: .a), .idle)
         XCTAssertEqual(model.queue(for: .a).rows.map(\.trackID), [1])
+    }
+
+    // MARK: - Recording (§37.2, FR-ENG-7; plan 5.10, decision 14)
+
+    func testRecordToggleForwardsStartAndStop() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        XCTAssertFalse(model.isRecording)
+        await model.startRecording()
+        XCTAssertEqual(fake.recordingStarts, 1, "the toggle forwards startRecording (decision 14)")
+        XCTAssertTrue(fake.isRecording)
+        XCTAssertTrue(model.isRecording, "the model mirrors the engine's recording state")
+
+        await model.stopRecording()
+        XCTAssertEqual(fake.recordingStops, 1, "the toggle forwards stopRecording")
+        XCTAssertFalse(fake.isRecording)
+        XCTAssertFalse(model.isRecording)
+    }
+
+    func testRecordToggleIsASingleToggle() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        model.toggleRecording()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(fake.recordingStarts, 1, "one toggle starts recording once")
+        XCTAssertTrue(model.isRecording)
+
+        model.toggleRecording()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(fake.recordingStops, 1, "the second toggle stops recording once")
+        XCTAssertFalse(model.isRecording)
+        XCTAssertEqual(fake.recordingStarts, 1, "a stop never restarts")
+    }
+
+    func testRecordingElapsedTracksTheMasterClock() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+
+        await model.startRecording()
+        XCTAssertEqual(model.recordingElapsed, 0, accuracy: 1e-9)
+
+        // Decision 14's elapsed chip: recorded frames = master-clock frames
+        // captured by the tap (§37.2), so elapsed = masterSample/sampleRate.
+        // The telemetry stream is async — let the model's task reach its
+        // `for await` (bufferingNewest(1) drops a value yielded before the
+        // subscriber is live), then push and yield for it to apply.
+        for _ in 0..<50 { await Task.yield() }
+        fake.current.masterSample = 24_000
+        model.pumpTelemetryNow()
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(model.recordingElapsed, 0.5, accuracy: 1e-9)
+
+        fake.current.masterSample = 48_000
+        model.pumpTelemetryNow()
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(model.recordingElapsed, 1.0, accuracy: 1e-9)
+
+        await model.stopRecording()
+        fake.current.masterSample = 96_000
+        model.pumpTelemetryNow()
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(model.recordingElapsed, 1.0, accuracy: 1e-9,
+                       "elapsed freezes when recording stops")
     }
 
     func testLoadForwardsThroughTheLoaderAndArmsTheEngine() async throws {

@@ -713,6 +713,8 @@ private struct MixerColumnView: View {
 
             masterMeter
 
+            recordControl
+
             HStack(alignment: .top, spacing: 6) {
                 ChannelStripView(model: model, deck: .a)
                 ChannelStripView(model: model, deck: .b)
@@ -801,6 +803,42 @@ private struct MixerColumnView: View {
             }
         }
         .frame(height: 8)
+    }
+
+    /// The §37.2 record control (mockup `ipad/07`'s "■ Stop & save ·
+    /// 00:18:42", plan 5.10, decision 14). The record/elapsed chip is session
+    /// VM state shared across every performance surface; the engine's tap +
+    /// encoder start on tap-to-record and finalize on tap-to-stop. Carries the
+    /// `dj.transport.record` identifier the regression suite drives (§53.11,
+    /// dj-regression-suite.md 5.10).
+    private var recordControl: some View {
+        Button {
+            model.toggleRecording()
+        } label: {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(model.isRecording ? Color.red : Color.white.opacity(0.25))
+                    .frame(width: 9, height: 9)
+                if model.isRecording {
+                    Text("Stop & save · \(Self.elapsedText(model.recordingElapsed))")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                } else {
+                    Text("REC")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05)))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("dj.transport.record")
+    }
+
+    private static func elapsedText(_ seconds: Double) -> String {
+        let total = Int(seconds)
+        return String(format: "%02d:%02d", total / 60, total % 60)
     }
 
     /// The crossfader, horizontal and bottom-centre (§41.9b rule 2) — never in

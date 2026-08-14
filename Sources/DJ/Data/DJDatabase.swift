@@ -39,4 +39,17 @@ public enum DJDatabase {
         try? base.setResourceValues(values)
         return base
     }
+
+    /// Recorded mixes (plan 5.10, §15.5's `Mixes/<uuid>.m4a`). This is **user
+    /// content, never a cache**: recordings are never auto-evicted (§43.6,
+    /// `mixesEvictable = false`), so it lives beside the database under
+    /// Application Support — not in `Caches/` — and is **not** backup-excluded.
+    public static var mixesDirectory: URL {
+        let fm = FileManager.default
+        let dir = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Tonearm", isDirectory: true)
+            .appendingPathComponent("Mixes", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
 }

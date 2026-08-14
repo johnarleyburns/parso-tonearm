@@ -80,6 +80,19 @@ public final class AudioGraph: @unchecked Sendable {
         /// (crossfader/limiter, §35.5) is exercised by the direct topology, so
         /// `limiterCeiling` is not applied here. Default `false`.
         public var timePitch: Bool
+        /// Whether to construct the §37.2 record tap (plan 5.10, FR-ENG-7).
+        ///
+        /// Default `false`: the frame-exact reader harness never constructs a
+        /// tap at all, so it stays bit-exact. When `true` the graph allocates a
+        /// `RecordTap` and the render closures copy the **post-limiter** master
+        /// output into it — the tap is read-only on the signal and idle unless
+        /// recording (`RecordTap.setRecording`), so even an enabled tap never
+        /// changes what the reader produces.
+        public var recordTapEnabled: Bool
+        /// The record tap's ring capacity in frames (plan 5.10: sized to absorb
+        /// encoder scheduling jitter — a slow drain costs recording, never the
+        /// live performance). Ignored when `recordTapEnabled` is false.
+        public var recordTapCapacityFrames: Int
 
         public init(sampleRate: Double = 48_000,
                     channelCount: AVAudioChannelCount = 1,
@@ -88,7 +101,9 @@ public final class AudioGraph: @unchecked Sendable {
                     rendering: AudioGraphRenderingMode = .offline,
                     limiterCeiling: Float? = nil,
                     limiterLookaheadFrames: Int = 0,
-                    timePitch: Bool = false) {
+                    timePitch: Bool = false,
+                    recordTapEnabled: Bool = false,
+                    recordTapCapacityFrames: Int = 96_000) {
             self.sampleRate = sampleRate
             self.channelCount = channelCount
             self.maximumFrameCount = maximumFrameCount
@@ -97,6 +112,8 @@ public final class AudioGraph: @unchecked Sendable {
             self.limiterCeiling = limiterCeiling
             self.limiterLookaheadFrames = limiterLookaheadFrames
             self.timePitch = timePitch
+            self.recordTapEnabled = recordTapEnabled
+            self.recordTapCapacityFrames = recordTapCapacityFrames
         }
     }
 
@@ -104,6 +121,10 @@ public final class AudioGraph: @unchecked Sendable {
     public let channelCount: AVAudioChannelCount
     /// The manual-rendering maximum frame count per callback (§34.1).
     public let maximumFrameCount: AVAudioFrameCount
+    /// The §37.2 record tap — the post-limiter master-bus copy the render
+    /// closures write into (plan 5.10). `nil` when `recordTapEnabled` is false
+    /// (the frame-exact reader harness); the encoder drains this ring off-RT.
+    public let recordTap: RecordTap?
     /// The control channel: commands are enqueued here and drained by the
     /// render thread (§12.2).
     public let commandRing: CommandRing
@@ -239,12 +260,17 @@ public final class AudioGraph: @unchecked Sendable {
         let snap = EngineSnapshot()
         let load = RenderLoad()
         let probe = GuardActiveProbe()
+        let recordTap: RecordTap? = configuration.recordTapEnabled
+            ? RecordTap(sampleRate: sampleRate, channelCount: Int(channelCount),
+                        capacityFrames: configuration.recordTapCapacityFrames)
+            : nil
         let graphState = RenderGraphState(sampleRate: sampleRate,
                                           channelCount: Int(channelCount),
                                           limiterCeiling: configuration.limiterCeiling,
                                           limiterLookaheadFrames: configuration.limiterLookaheadFrames,
                                           echoCapacity: BeatEcho.maxDelayFrames(sampleRate: sampleRate) + 1,
-                                          echoCrossfadeFrames: Int(configuration.maximumFrameCount))
+                                          echoCrossfadeFrames: Int(configuration.maximumFrameCount),
+                                          recordTap: recordTap)
         // Captured by the render closures so they can stay one body across the
         // two drivers (§53.11) — the realtime driver needs the clock advanced
         // inside the callback, the offline driver advances it in `render`.
@@ -357,6 +383,7 @@ public final class AudioGraph: @unchecked Sendable {
         self.engine = engine
         self.sourceNodes = sourceNodes
         self.timePitchUnits = timePitchUnits
+        self.recordTap = recordTap
         self.commandRing = ring
         self.snapshot = snap
         self.renderLoad = load
@@ -433,12 +460,18 @@ final class RenderGraphState: @unchecked Sendable {
     let limiterCeiling: Float?
     let decks: [DeckState]
     let master: MasterStage
+    /// The §37.2 record tap (plan 5.10): the render closures copy the
+    /// **post-limiter** master output into this ring when recording. `nil`
+    /// when `recordTapEnabled` is false — the frame-exact reader harness.
+    let recordTap: RecordTap?
 
     init(sampleRate: Double, channelCount: Int,
          limiterCeiling: Float?, limiterLookaheadFrames: Int,
-         echoCapacity: Int, echoCrossfadeFrames: Int) {
+         echoCapacity: Int, echoCrossfadeFrames: Int,
+         recordTap: RecordTap?) {
         clock = DeckClock(sampleRate: sampleRate)
         self.limiterCeiling = limiterCeiling
+        self.recordTap = recordTap
         decks = [DeckState(sampleRate: sampleRate, channelCount: channelCount,
                            echoCapacity: echoCapacity,
                            echoCrossfadeFrames: echoCrossfadeFrames),
@@ -486,6 +519,11 @@ final class RenderGraphState: @unchecked Sendable {
             renderDeck(deck, into: list, frames: frames, frameStart: frameStart)
         }
         master.limit(into: list, frames: frames)
+        // §37.2 (plan 5.10): the post-limiter master bus is what the audience
+        // hears AND what the recording captures. Copy it into the record tap
+        // (idle unless recording — a no-op otherwise, so the reader harness
+        // stays bit-exact). The tap is read-only on the signal.
+        recordTap?.write(into: list, frames: frames)
         publishMasterLevel(into: list, frames: frames)
         clock.advance(by: Int64(frames))
         publishMasterClock()
