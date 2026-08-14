@@ -28,6 +28,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.11** — `c83fd84` `feat(dj): recording journal, crash/interruption recovery, finalize, §37.3-37.5, §34A.4, FR-REC-1/3, FR-ENG-8 (M5 commit 5.11)`.
 - **M5 5.10** — `1f07de9` `feat(dj): record tap + encoder + segmented M4A, §37.2, FR-ENG-7 (M5 commit 5.10)`.
 - **M5 5.9** — `6dc5f80` `feat(dj): gig crates — promotion, budgeted separation, LRU eviction, §41.17, §43.6, FR-PLIST-9, FR-ANL-9, FR-LIB-8 (M5 commit 5.9)`.
 - **M5 5.8** — `118320d` `feat(dj): stem voices live on decks — StemSet summing reader, honest prepared state, live faders, §35.1, §36.5, FR-ENG-3 (M5 commit 5.8)`.
@@ -73,7 +74,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.10 landed, commits 5.11–5.14 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.11 landed, commits 5.12–5.14 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -208,7 +209,7 @@ sequence stays stable:
   crates + storage budget; **5.10** record tap + encoder;
   **5.11** journal + recovery;
   **5.12** Finish + Mixes + **the review listen**; **5.13** the transition coach.
-  *(5.1–5.10 landed; 5.11–5.13 ahead.)*
+  *(5.1–5.11 landed; 5.12–5.13 ahead.)*
 - **New spec material** (all written, all cross-referenced): **§19.4** persisted
   analysis artifacts · **§26A** rekordbox-class waveform display · **§35A** the
   post-fader beat-synced echo · **§35B** the five transitions → control mapping ·
@@ -497,6 +498,59 @@ The §37.2 recording path and the milestone's record toggle (plan decision 14, F
   **1383 green** (8 skipped); Swift 6 guard OK; app builds; smoke tests pass in the
   pre-commit hook. DJ-only — no `xcodegen generate` (decision 25). **FR-ENG-7, §37.2,
   decision 14, dj.transport.record.**
+
+**M5 commit 5.11 — the recording journal + crash/interruption recovery + finalize — complete
+(`c83fd84`).** The §37.3 journal, the §34A.4 interruption path, and §37.5's single-file
+finalize (FR-REC-1/3, NFR-REL-2, FR-ENG-8):
+
+- **`Recording/RecordingService.swift`** — the §37.3 side-car actor. `begin(outputDirectory:)`
+  writes the in-progress journal the moment recording starts (`mix.localState = recording` +
+  `mix_asset.localRelPath = <sessionUUID>/mix.m4a`, one transaction, NFR-REL-1) so a crash
+  leaves a recoverable row behind. `finalize(output:journal:)` **joins the segments into the
+  single `mix.m4a`** (§37.5 step 1), promotes the rows to `complete` with the real
+  duration/size, deletes the intermediate segments, and — **only under `-uiRegression`** —
+  exports `mix-journal.json` beside the M4A carrying the engine configuration in force
+  (limiter ceiling, master BPM, echo division, sample rate — the self-describing hook the
+  regression suite's analyzer reads, dj-regression-suite §7 hook 5.11). **`reconcile()` on
+  workspace appear** (NFR-REL-2, §37.3): every stale `recording` row whose flushed segments
+  join is salvaged to `complete`; one with nothing recoverable is marked **`corrupt`** — a
+  crash loses at most the in-flight segment, and it is never silently dropped (§46.2).
+- **`Recording/M4AJoiner.swift`** — concatenates the encoder's segment M4As into one playable
+  `mix.m4a` (the same `AVAudioFile` PCM→AAC path the encoder uses, deterministic on any
+  host). A segment that is absent/empty/undecodable is **skipped, not fatal** — that is the
+  crashed in-flight segment the journal is built around. `probeFormat` lets reconcile join
+  without the engine's metadata.
+- **`Recording/RecordingEncoder.swift`** — the §34A.4 interruption state machine:
+  `interruptSegment()` drains whatever pre-interruption audio is still in the ring, closes
+  the current segment as a **complete playable M4A** (the critical line behind NFR-REL-2) and
+  **waits** (`drain` returns 0 while interrupted); `resumeSegment()` opens a **fresh** segment,
+  never the flushed one. `RecordingOutput` gains `channelCount` (the joiner needs it).
+- **`PerformanceEngine`** — `startRecording()` returns the per-session output directory (the
+  journal derives the asset path from it); `interruptRecordingForInterruption()` /
+  `resumeRecordingFromInterruption()` forward to the encoder (no-ops when not recording).
+- **`WorkspaceModel`** — consumes the retained `AudioSessionCoordinator.responses` (the
+  "consumed by the recording/service commits" from 5.4a): `.began` flushes the recording
+  segment, `.ended` opens a new one, **never auto-playing** (§34A.4). `startRecording`/
+  `stopRecording` write the journal (a journal failure aborts the recording rather than
+  running journal-less); `reconcileRecordings()` runs on workspace appear; the journal JSON's
+  engine configuration is assembled at stop. `DJEntryModel.makeModel` wires the real
+  `RecordingService` (detecting `-uiRegression`).
+- **Schema records** — `DJMix`/`DJMixAsset`/`DJMixTrackEvent`/`DJPerformanceSession` +
+  `MixLocalState` (`recording|complete|corrupt`) in `DJRecords.swift`; `DJMixTrackEvent` is
+  5.12's timeline row (the §7 journal's shape), present now so the schema is complete.
+- Tests: 9 `RecordingRecoveryTests` (journal begin/finalize state machine against a real
+  store over a temp pool; **finalize joins real segments into a playable `mix.m4a`** whose
+  duration matches and deletes the intermediates; the `-uiRegression` JSON round-trip and its
+  absence otherwise; **reconcile salvages a crashed recording** from its flushed segments —
+  the removed in-flight segment is the NFR-REL-2 loss — salvages an already-joined M4A when
+  only it survives, marks corrupt when nothing recoverable, no-ops when nothing is stale; the
+  encoder's interrupt→wait→resume-into-a-new-segment state machine; finalize without begin is
+  the honest error) + 5 `WorkspaceModelTests` (start/stop write the journal, a journal failure
+  aborts honestly, the `.began`/`.ended` flush/resume forwarding, **interruption never
+  auto-plays**, reconcile forwards). Suite 1383 → **1397 green** (8 skipped); Swift 6 guard
+  OK; app builds (xcodebuild verified); iPhone + watch smoke pass in the pre-commit hook.
+  DJ-only — no `xcodegen generate` (decision 25). **FR-REC-1/3, FR-ENG-8, NFR-REL-2, §37.3,
+  §37.5, §34A.4, mix-journal.json hook.**
 
 **M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
 The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
@@ -1086,7 +1140,18 @@ into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible t
   tap match, idle bit-exact, dropped-drain absorption, playable segmented M4A round-trip,
   flush on budget, start/stop, honest no-tap) + 3 `WorkspaceModelTests`. Suite 1373 → **1383
   green**; DJ-only, no regen. **FR-ENG-7, §37.2.**
-- **Then 5.11** journal + recovery → **5.12** Finish + Mixes + the review listen →
+- **M5 commit 5.11 — the journal + crash/interruption recovery + finalize — complete (`c83fd84`).**
+  The §37.3 journal + §34A.4 interruption path + §37.5 single-file finalize (FR-REC-1/3,
+  NFR-REL-2, FR-ENG-8): `RecordingService` (`begin` writes the in-progress `recording` row,
+  `finalize` joins the segments into the single `mix.m4a` + `complete` rows + deletes the
+  intermediates + exports `mix-journal.json` under `-uiRegression`, `reconcile` salvages stale
+  rows to complete/corrupt); `M4AJoiner` (segment → one playable M4A, undecodable segments
+  skipped); `RecordingEncoder.interruptSegment/resumeSegment` (flush + wait, fresh segment,
+  never auto-play); `PerformanceEngine` start returns the session dir + the interruption seam;
+  `WorkspaceModel` consumes the session responses and writes the journal. Tests: 9
+  `RecordingRecoveryTests` + 5 `WorkspaceModelTests`. Suite 1383 → **1397 green**; DJ-only, no
+  regen. **FR-REC-1/3, FR-ENG-8, NFR-REL-2.**
+- **Then 5.12** Finish + Mixes + the review listen →
   **5.13** the transition coach → **5.14 the DJ regression suite**.
   **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
   **AT-MIX-1..8** green, plus the owner's end-to-end recorded set as the user-owned
