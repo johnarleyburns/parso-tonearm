@@ -187,6 +187,7 @@ struct BankDrawerView: View {
         }
         .frame(height: 26)
         .accessibilityIdentifier("dj.deck.\(deckID).fader")
+        .coachGlow(identifier: "dj.deck.\(deckID).fader")
     }
 
     // MARK: STEMS — the §2.1 iPhone budget (two live faders when prepared)

@@ -242,6 +242,7 @@ public struct SoloDeckView: View {
                     }
             )
             .accessibilityIdentifier("dj.mixer.crossfader")
+            .coachGlow(identifier: "dj.mixer.crossfader")
         }
         .frame(height: 44)
     }

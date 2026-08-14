@@ -92,6 +92,7 @@ struct EchoReleaseToCommitButton: View {
         )
         .foregroundStyle(on ? Color.accentColor : .primary)
         .accessibilityIdentifier("dj.fx.echo")
+        .coachGlow(identifier: "dj.fx.echo")
     }
 
     private func dragGesture(flyoutFrame: CGRect) -> some Gesture {

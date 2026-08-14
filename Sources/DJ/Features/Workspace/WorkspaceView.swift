@@ -37,6 +37,11 @@ public struct WorkspaceView: View {
     /// The review-listen sheet (FR-REC-6, plan 5.12): presented the moment a
     /// recording finalises (`model.finishedMix`), cleared on dismiss.
     @State private var finishMix: DJMix?
+    /// The §41.18 transition coach (plan 5.13, FR-TRANS-6) — **free tier**, so
+    /// its entry sits outside the Pro gate's dimmed surface and is reachable
+    /// before purchase. When open, the workspace lights the real controls the
+    /// selected lesson moves (§41.18).
+    @StateObject private var coach = TransitionCoachModel()
 
     public init(model: WorkspaceModel) {
         _model = StateObject(wrappedValue: model)
@@ -61,6 +66,13 @@ public struct WorkspaceView: View {
                 }
             }
         }
+        .overlay {
+            // The §41.18 coach: a free, always-tappable "Transitions" pill and,
+            // when open, the dismissible panel over the still-playing surface.
+            TransitionCoachAccessory(model: coach)
+        }
+        .environment(\.coachHighlights,
+                      coach.isPresented ? coach.highlightedIdentifiers : [])
         .preferredColorScheme(.dark)
         #if os(iOS)
         .defersSystemGestures(on: .bottom)
@@ -667,6 +679,7 @@ struct TransportButton: View {
             DragGesture(minimumDistance: 0).onEnded { _ in onRelease() }
         )
         .accessibilityIdentifierIfPresent(identifier)
+        .coachGlow(identifier: identifier)
     }
 }
 
@@ -884,6 +897,7 @@ private struct MixerColumnView: View {
                     }
                 )
                 .accessibilityIdentifier("dj.mixer.crossfader")
+                .coachGlow(identifier: "dj.mixer.crossfader")
             }
             .frame(height: 34)
         }
@@ -1035,6 +1049,7 @@ private struct BeatFXBlock: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("dj.fx.echo")
+        .coachGlow(identifier: "dj.fx.echo")
     }
 
     private func echoLabel(_ beats: Double) -> String {
@@ -1232,6 +1247,7 @@ struct EQKnob: View {
         }
         .frame(width: 44, height: 44)
         .accessibilityIdentifierIfPresent(identifier)
+        .coachGlow(identifier: identifier)
     }
 }
 
@@ -1260,11 +1276,14 @@ struct VerticalSlider: View {
             )
         }
         .accessibilityIdentifierIfPresent(identifier)
+        .coachGlow(identifier: identifier)
     }
 }
 
 /// The beat-phase meter: the master's downbeat phase as four beat segments
-/// (mockup `ipad/07`'s centre-column readout).
+/// (mockup `ipad/07`'s centre-column readout). Carries the §53.11
+/// `dj.master.phase` identifier so the §41.18 coach can light it as the Blend
+/// transition's beat-phase role (§35B row 5).
 private struct BeatPhaseMeter: View {
     let phase: Double
     private let beatsPerBar = 4
@@ -1279,6 +1298,8 @@ private struct BeatPhaseMeter: View {
                     .frame(maxWidth: .infinity, maxHeight: 8)
             }
         }
+        .accessibilityIdentifier("dj.master.phase")
+        .coachGlow(identifier: "dj.master.phase")
     }
 }
 

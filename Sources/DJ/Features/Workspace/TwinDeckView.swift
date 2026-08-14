@@ -108,11 +108,13 @@ public struct TwinDeckView: View {
                                onChanged: { model.setFilter(.a, knob: $0) })
                         .frame(width: WorkspaceModel.DrawerGeometry.edgeSliderWidth)
                         .accessibilityIdentifier("dj.deck.a.filter")
+                        .coachGlow(identifier: "dj.deck.a.filter")
                     Spacer()
                     EdgeSlider(value: model.filterB,
                                onChanged: { model.setFilter(.b, knob: $0) })
                         .frame(width: WorkspaceModel.DrawerGeometry.edgeSliderWidth)
                         .accessibilityIdentifier("dj.deck.b.filter")
+                        .coachGlow(identifier: "dj.deck.b.filter")
                 }
                 .padding(.top, bandTop + 20)
                 .frame(height: max(0, proxy.size.height - bandTop - 40))
@@ -674,6 +676,7 @@ private struct TwinMixerColumnView: View {
                     }
                 )
                 .accessibilityIdentifier("dj.mixer.crossfader")
+                .coachGlow(identifier: "dj.mixer.crossfader")
             }
             .frame(height: 34)
         }
@@ -714,6 +717,8 @@ private struct PhaseErrorMeter: View {
         }
         .frame(height: 14)
         .frame(width: 120)
+        .accessibilityIdentifier("dj.master.phase")
+        .coachGlow(identifier: "dj.master.phase")
     }
 }
 
@@ -750,6 +755,7 @@ private struct ChannelFader: View {
         }
         .frame(width: 44, height: 44, alignment: .top)
         .accessibilityIdentifierIfPresent(identifier)
+        .coachGlow(identifier: identifier)
     }
 
     private static func clamp01(_ value: CGFloat) -> CGFloat {
@@ -788,6 +794,10 @@ public struct CompactPerformanceView: View {
     /// The review-listen sheet (FR-REC-6, plan 5.12) — presented the moment a
     /// recording finalises, exactly as on the iPad workspace.
     @State private var finishMix: DJMix?
+    /// The §41.18 transition coach (plan 5.13, FR-TRANS-6) — free, so its entry
+    /// sits outside the Pro gate and is reachable before purchase; when open it
+    /// lights the real controls the selected lesson moves.
+    @StateObject private var coach = TransitionCoachModel()
 
     public init(model: WorkspaceModel) {
         _model = StateObject(wrappedValue: model)
@@ -802,6 +812,14 @@ public struct CompactPerformanceView: View {
                 TwinDeckView(model: model, managesLifecycle: false)
             }
         }
+        .overlay {
+            // The §41.18 coach — a free "Transitions" pill on both compact
+            // postures; opening it floats the dismissible panel over the
+            // still-playing surface.
+            TransitionCoachAccessory(model: coach)
+        }
+        .environment(\.coachHighlights,
+                      coach.isPresented ? coach.highlightedIdentifiers : [])
         .preferredColorScheme(.dark)
         #if os(iOS)
         .defersSystemGestures(on: .bottom)

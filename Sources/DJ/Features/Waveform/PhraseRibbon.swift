@@ -86,6 +86,8 @@ public struct PhraseRibbon: View {
             }
             .clipped()
         }
+        .accessibilityIdentifier("dj.phrase")
+        .coachGlow(identifier: "dj.phrase")
     }
 
     /// The §26A.4 colour roles.

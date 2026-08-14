@@ -229,6 +229,8 @@ public struct WaveformDetailView: View {
             }
             .clipped()
         }
+        .accessibilityIdentifier("dj.waveform")
+        .coachGlow(identifier: "dj.waveform")
     }
 }
 
