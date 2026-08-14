@@ -260,6 +260,21 @@ public final class WorkspaceModel: ObservableObject {
     /// `(masterSample − start) / sampleRate`, which equals the recorded frames.
     private var recordingStartSample: Int64 = 0
 
+    /// The finished mix the review listen opens from (FR-REC-6, plan 5.12):
+    /// set when recording stops and the §37.3 journal finalizes, cleared by
+    /// `dismissFinishedMix()` once the finish sheet is dismissed. The
+    /// performance surfaces present `RecordingFinishView` off this.
+    @Published public private(set) var finishedMix: DJMix?
+    /// The §37.4 timeline being accumulated while recording (plan 5.12): a deck
+    /// starting to play logs "this track, on this deck, at this offset". Cleared
+    /// when a recording starts, handed to `finalize` when it stops.
+    private var recordingTimeline = MixTimeline()
+    /// The per-deck playing state the timeline's rising-edge detector reads.
+    /// Reset when a recording starts so a deck already playing at record time
+    /// logs its current track at ~0:00 (mockup `ipad/09`'s "0:00 … opened").
+    private var wasDeckAPlaying = false
+    private var wasDeckBPlaying = false
+
     /// Each deck's §26A render model — the analysis-driven waveform. `nil`
     /// until the deck loads an analysed track, or for an unanalysed track
     /// (the honest empty state, §26A.1). Built off the main actor when the
@@ -440,7 +455,17 @@ public final class WorkspaceModel: ObservableObject {
             // master-clock frames captured by the tap (§37.2), so elapsed is
             // `(masterSample − start) / sampleRate`.
             recordingElapsed = Double(value.masterSample - recordingStartSample) / engine.sampleRate
+            // §37.4 (plan 5.12): a deck's not-playing → playing edge is a
+            // track start — log it for the mix's timeline.
+            if value.deckA.playing && !wasDeckAPlaying {
+                recordTimelineEvent(for: .a)
+            }
+            if value.deckB.playing && !wasDeckBPlaying {
+                recordTimelineEvent(for: .b)
+            }
         }
+        wasDeckAPlaying = value.deckA.playing
+        wasDeckBPlaying = value.deckB.playing
         let playing = value.deckA.playing || value.deckB.playing
         if playing != anyDeckPlaying {
             anyDeckPlaying = playing
@@ -454,6 +479,15 @@ public final class WorkspaceModel: ObservableObject {
             lastWaveformThermal = thermal
             rebuildAllWaveforms()
         }
+    }
+
+    /// Log "the deck started playing its loaded track" into the §37.4 timeline
+    /// (plan 5.12). The offset is the recording's own frames (§37.2).
+    private func recordTimelineEvent(for deck: PerformanceEngine.Deck) {
+        guard let trackID = loadedTrackIDs[deck] else { return }
+        recordingTimeline.record(trackID: trackID,
+                                 deck: deck == .a ? "A" : "B",
+                                 startOffsetSec: recordingElapsed)
     }
 
     // MARK: - Transport / loading
@@ -798,19 +832,39 @@ public final class WorkspaceModel: ObservableObject {
         }
         recordingStartSample = engine.masterSample
         recordingElapsed = 0
+        // A fresh §37.4 timeline (§37.4, plan 5.12), and the playing-edge
+        // detector reset so a deck already playing at record time logs its
+        // current track at ~0:00.
+        recordingTimeline = MixTimeline()
+        wasDeckAPlaying = false
+        wasDeckBPlaying = false
+        finishedMix = nil
         isRecording = true
     }
 
     /// Stop recording: forward, finalize, write the `mix`/`mix_asset` rows and
-    /// join the segments (plan 5.11), then mirror the session state off.
+    /// join the segments (plan 5.11), persist the §37.4 timeline (plan 5.12),
+    /// then mirror the session state off and surface the finished mix for the
+    /// review listen (FR-REC-6).
     public func stopRecording() async {
         guard isRecording else { return }
         let output = try? await engine.stopRecording()
         if let output, let recordingService {
             let journal = recordingJournalConfiguration()
-            try? await recordingService.finalize(output: output, journal: journal)
+            finishedMix = try? await recordingService.finalize(
+                output: output, journal: journal, timeline: recordingTimeline)
         }
         isRecording = engine.isRecording
+        recordingTimeline = MixTimeline()
+        wasDeckAPlaying = false
+        wasDeckBPlaying = false
+    }
+
+    /// Clear the finished mix — the performance surfaces call this when the
+    /// review-listen sheet is dismissed, so a finished recording is presented
+    /// exactly once.
+    public func dismissFinishedMix() {
+        finishedMix = nil
     }
 
     /// Recover every crashed recording — the §37.3 `reconcile()` on workspace

@@ -833,6 +833,23 @@ public struct DJMixAsset: Codable, FetchableRecord,
     public static let databaseTableName = "mix_asset"
 }
 
+/// The snapshot `RecordingService` resolves for a timeline track at finalize
+/// (§37.4, plan 5.12): the `mix_track_event` title/artist/BPM/key columns are
+/// filled from it so the timeline survives track deletion (§15.5).
+public struct TrackTimelineSnapshot: Sendable, Equatable {
+    public let title: String
+    public let artist: String?
+    public let bpm: Double?
+    public let camelot: String?
+
+    public init(title: String, artist: String?, bpm: Double?, camelot: String?) {
+        self.title = title
+        self.artist = artist
+        self.bpm = bpm
+        self.camelot = camelot
+    }
+}
+
 /// One `mix_track_event` row — the recorded journal of *what happened when*
 /// (§37.4, FR-REC-2, dj-regression-suite §7). Written by 5.12's `MixTimeline`;
 /// the record ships here so the schema is complete and the regression suite's

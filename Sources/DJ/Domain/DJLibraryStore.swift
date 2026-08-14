@@ -315,22 +315,32 @@ public actor DJLibraryStore {
     }
 
     /// Promote a journal `recording` row to `complete` with the finished mix's
-    /// real header + the asset's real size, in one transaction (§37.5 step 1).
+    /// real header, the asset's real size, and the §37.4 timeline's
+    /// `mix_track_event` rows — all in **one** transaction (§37.5 step 1,
+    /// NFR-REL-1). `events` replaces any prior rows (idempotent re-finalize).
+    /// Returns the finished row (the finish screen opens from it).
+    @discardableResult
     public func finalizeRecordingMix(mixID: Int64,
                                      durationSec: Double,
                                      sizeBytes: Int64,
-                                     trackCount: Int) throws {
+                                     events: [DJMixTrackEvent]) throws -> DJMix? {
         try pool.write { db in
-            guard var mix = try DJMix.fetchOne(db, key: mixID) else { return }
+            guard var mix = try DJMix.fetchOne(db, key: mixID) else { return nil }
             mix.localState = MixLocalState.complete.rawValue
             mix.durationSec = durationSec
             mix.sizeBytes = sizeBytes
-            mix.trackCount = trackCount
+            mix.trackCount = events.count
             try mix.update(db)
             if var asset = try DJMixAsset.fetchOne(db, key: mixID) {
                 asset.totalBytes = sizeBytes
                 try asset.update(db)
             }
+            try DJMixTrackEvent.filter(Column("mixID") == mixID).deleteAll(db)
+            for event in events {
+                var event = event
+                try event.insert(db)
+            }
+            return mix
         }
     }
 
@@ -369,6 +379,79 @@ public actor DJLibraryStore {
         try pool.read { db in
             try DJMix.fetchOne(db, key: mixID)
         }
+    }
+
+    // MARK: - Mix library (§41.12, FR-REC-1/5; plan 5.12)
+
+    /// Every finished mix — `complete` and `corrupt` — newest first (§41.12's
+    /// "Recorded Mixes"). A `corrupt` row is shown honestly (never silently
+    /// dropped, §46.2) with its state and a delete affordance.
+    public func completedMixes() throws -> [DJMix] {
+        try pool.read { db in
+            try DJMix
+                .filter(Column("localState") != MixLocalState.recording.rawValue)
+                .order(Column("recordedAt").desc)
+                .fetchAll(db)
+        }
+    }
+
+    /// The total on-device size of finished mixes — the §41.12 "Mixes on this
+    /// iPad" readout (recordings are user content, never evicted, §43.6).
+    public func mixStorageBytes() throws -> Int64 {
+        try pool.read { db in
+            try Int64.fetchOne(db, sql: """
+                SELECT COALESCE(SUM(sizeBytes), 0) FROM mix
+                WHERE localState != ?
+                """, arguments: [MixLocalState.recording.rawValue]) ?? 0
+        }
+    }
+
+    /// A mix's §37.4 timeline rows in `position` order — the finish screen's
+    /// tracklist and the review-listen markers (§41.11).
+    public func mixTrackEvents(mixID: Int64) throws -> [DJMixTrackEvent] {
+        try pool.read { db in
+            try DJMixTrackEvent
+                .filter(Column("mixID") == mixID)
+                .order(Column("position"))
+                .fetchAll(db)
+        }
+    }
+
+    /// The title/notes a finished mix keeps — FR-REC-1's "title and annotate".
+    public func updateMix(mixID: Int64, title: String, notes: String?) throws {
+        try pool.write { db in
+            guard var mix = try DJMix.fetchOne(db, key: mixID) else { return }
+            mix.title = title
+            mix.notes = notes
+            try mix.update(db)
+        }
+    }
+
+    /// Remove a mix row (cascade-deleting its `mix_track_event`/`mix_asset`
+    /// rows). Returns the asset's `localRelPath` so the caller can delete the
+    /// user-content file (the file is not the store's concern).
+    @discardableResult
+    public func deleteMix(mixID: Int64) throws -> String? {
+        try pool.write { db in
+            let path = try DJMixAsset.fetchOne(db, key: mixID)?.localRelPath
+            try DJMix.filter(key: mixID).deleteAll(db)
+            return path
+        }
+    }
+
+    /// Resolve the timeline's per-track snapshots in one grouped read — the
+    /// `mix_track_event` title/artist/BPM/key columns (§37.4, plan 5.12).
+    public func trackTimelineSnapshots(trackIDs: [Int64]) throws -> [Int64: TrackTimelineSnapshot] {
+        let rows = try repository.tracks(ids: trackIDs)
+        var byTrack: [Int64: TrackTimelineSnapshot] = [:]
+        for row in rows {
+            byTrack[row.id] = TrackTimelineSnapshot(
+                title: row.title,
+                artist: row.artistNames.isEmpty ? nil : row.artistNames,
+                bpm: row.bpm,
+                camelot: row.camelot)
+        }
+        return byTrack
     }
 
     // MARK: - Folder import

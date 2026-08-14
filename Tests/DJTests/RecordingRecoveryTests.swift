@@ -47,17 +47,15 @@ final class RecordingRecoveryTests: XCTestCase {
         let service = RecordingService(store: store, mixesRoot: root)
         let sessionDir = root.appendingPathComponent("rec-1", isDirectory: true)
         try await service.begin(outputDirectory: sessionDir)
-        let stale = try await store.staleRecordingMixes()
-        let mixID = try XCTUnwrap(stale.first?.id)
 
         let output = try await makeRecording(segmentFrames: 12_000, outputDirectory: sessionDir)
         XCTAssertGreaterThanOrEqual(output.segmentURLs.count, 3,
                                     "~1 s at a 0.25 s budget → several flushed segments")
-        try await service.finalize(output: output, journal: nil)
+        let finished = try await service.finalize(output: output, journal: nil,
+                                                  timeline: MixTimeline())
 
-        let finished = try await store.mix(mixID: mixID)
         let mix = try XCTUnwrap(finished)
-        XCTAssertEqual(mix.state, .complete, "finalize promotes the journal row")
+        XCTAssertEqual(mix.state, .complete, "finalize promotes the journal row and returns the row")
         XCTAssertEqual(mix.durationSec, 1.0, accuracy: 0.15)
         XCTAssertGreaterThan(mix.sizeBytes ?? 0, 0)
 
@@ -85,7 +83,7 @@ final class RecordingRecoveryTests: XCTestCase {
         let plain = RecordingService(store: store, mixesRoot: root)
         try await plain.begin(outputDirectory: sessionDir)
         let output = try await makeRecording(segmentFrames: 24_000, outputDirectory: sessionDir)
-        try await plain.finalize(output: output, journal: config)
+        _ = try await plain.finalize(output: output, journal: config, timeline: MixTimeline())
         XCTAssertFalse(FileManager.default.fileExists(
             atPath: sessionDir.appendingPathComponent("mix-journal.json").path),
             "mix-journal.json is a -uiRegression hook, never written otherwise")
@@ -96,7 +94,8 @@ final class RecordingRecoveryTests: XCTestCase {
         let sessionDir2 = root.appendingPathComponent("rec-3", isDirectory: true)
         try await uiRegression.begin(outputDirectory: sessionDir2)
         let output2 = try await makeRecording(segmentFrames: 24_000, outputDirectory: sessionDir2)
-        try await uiRegression.finalize(output: output2, journal: config)
+        _ = try await uiRegression.finalize(output: output2, journal: config,
+                                            timeline: MixTimeline())
 
         let jsonURL = sessionDir2.appendingPathComponent("mix-journal.json")
         XCTAssertTrue(FileManager.default.fileExists(atPath: jsonURL.path))
@@ -118,11 +117,77 @@ final class RecordingRecoveryTests: XCTestCase {
             totalFrames: 0, sampleRate: 48_000, channelCount: 1,
             format: RecordingEncoder.formatName)
         do {
-            try await service.finalize(output: output, journal: nil)
+            _ = try await service.finalize(output: output, journal: nil, timeline: MixTimeline())
             XCTFail("finalize without a begin must be the honest noActiveRecording error")
         } catch RecordingService.ServiceError.noActiveRecording {
             // expected
         }
+    }
+
+    // MARK: - §37.4 timeline persistence (plan 5.12)
+
+    func testFinalizeWritesTheTimelineRowsWithSnapshots() async throws {
+        let (store, root) = try makeStoreAndRoot()
+        let trackA = try insertTrack(title: "Neon Circuit", artist: "Kora Mechanism",
+                                     bpm: 124, camelot: "8A", store: store)
+        let trackB = try insertTrack(title: "Warehouse Line", artist: "Nils Anberg",
+                                     bpm: 128, camelot: "9A", store: store)
+
+        let service = RecordingService(store: store, mixesRoot: root)
+        let sessionDir = root.appendingPathComponent("tl-1", isDirectory: true)
+        try await service.begin(outputDirectory: sessionDir)
+        let output = try await makeRecording(segmentFrames: 24_000, outputDirectory: sessionDir)
+
+        var timeline = MixTimeline()
+        timeline.record(trackID: trackA, deck: "A", startOffsetSec: 0)
+        timeline.record(trackID: trackB, deck: "B", startOffsetSec: 5)
+        let finished = try await service.finalize(output: output, journal: nil, timeline: timeline)
+
+        let mix = try XCTUnwrap(finished)
+        XCTAssertEqual(mix.trackCount, 2, "the timeline's length is the mix's track count")
+
+        let mixID = try XCTUnwrap(mix.id)
+        let events = try await store.mixTrackEvents(mixID: mixID)
+        XCTAssertEqual(events.map(\.title), ["Neon Circuit", "Warehouse Line"],
+                       "snapshots are resolved from the DJ library at finalize (§37.4)")
+        XCTAssertEqual(events.map(\.artist), ["Kora Mechanism", "Nils Anberg"])
+        XCTAssertEqual(events.map(\.deck), ["A", "B"])
+        XCTAssertEqual(events.map(\.startOffsetSec), [0, 5])
+        XCTAssertEqual(events.map(\.bpmAtPlay), [124, 128])
+        XCTAssertEqual(events.map(\.camelotAtPlay), ["8A", "9A"])
+        XCTAssertEqual(events.map(\.position), [1, 2])
+    }
+
+    func testFinalizeReplacesPriorTimelineRows() async throws {
+        let (store, root) = try makeStoreAndRoot()
+        let track = try insertTrack(title: "Only One", artist: nil, bpm: nil, camelot: nil, store: store)
+        let service = RecordingService(store: store, mixesRoot: root)
+        let sessionDir = root.appendingPathComponent("tl-2", isDirectory: true)
+        try await service.begin(outputDirectory: sessionDir)
+        let output = try await makeRecording(segmentFrames: 24_000, outputDirectory: sessionDir)
+
+        var first = MixTimeline()
+        first.record(trackID: track, deck: "A", startOffsetSec: 0)
+        let finalized = try await service.finalize(output: output, journal: nil, timeline: first)
+        let mix = try XCTUnwrap(finalized)
+        let mixID = try XCTUnwrap(mix.id)
+
+        // A re-finalize replaces the rows rather than appending (the DELETE-
+        // then-INSERT convention) — the timeline and header can never disagree
+        // (NFR-REL-1).
+        let replaced = [
+            DJMixTrackEvent(mixID: mixID, trackID: track, title: "Only One", artist: nil,
+                            deck: "B", startOffsetSec: 3, bpmAtPlay: nil,
+                            camelotAtPlay: nil, position: 1),
+        ]
+        _ = try await store.finalizeRecordingMix(mixID: mixID, durationSec: 1,
+                                                 sizeBytes: 1, events: replaced)
+
+        let events = try await store.mixTrackEvents(mixID: mixID)
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.deck, "B")
+        let offset = try XCTUnwrap(events.first?.startOffsetSec)
+        XCTAssertEqual(offset, 3, accuracy: 1e-9)
     }
 
     // MARK: - Reconcile (crash recovery)
@@ -214,7 +279,7 @@ final class RecordingRecoveryTests: XCTestCase {
         let sessionDir = root.appendingPathComponent("done", isDirectory: true)
         try await service.begin(outputDirectory: sessionDir)
         let output = try await makeRecording(segmentFrames: 24_000, outputDirectory: sessionDir)
-        try await service.finalize(output: output, journal: nil)
+        _ = try await service.finalize(output: output, journal: nil, timeline: MixTimeline())
 
         let recovered = try await service.reconcile()
         XCTAssertTrue(recovered.isEmpty, "a finished mix is not stale")
@@ -275,6 +340,35 @@ final class RecordingRecoveryTests: XCTestCase {
         try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
         let store = try DJLibraryStore(path: tmp.appendingPathComponent("dj.sqlite"))
         return (store, tmp.appendingPathComponent("Mixes", isDirectory: true))
+    }
+
+    /// Insert a DJ-library track (plus a primary artist when given) directly
+    /// through the pool — the snapshot the §37.4 timeline resolves at finalize.
+    private func insertTrack(title: String, artist: String?,
+                             bpm: Double?, camelot: String?,
+                             store: DJLibraryStore) throws -> Int64 {
+        let pool = store.pool
+        var track = DJTrack(syncID: UUID().uuidString,
+                            title: title,
+                            contentHash: UUID().uuidString,
+                            sortKey: title,
+                            bpm: bpm,
+                            camelot: camelot,
+                            addedAt: Date(),
+                            updatedAt: Date())
+        try pool.write { db in
+            try track.insert(db)
+            if let artist, let trackID = track.id {
+                var row = DJArtist(syncID: UUID().uuidString, name: artist,
+                                   sortName: artist.lowercased(), createdAt: Date())
+                try row.insert(db)
+                try db.execute(sql: """
+                    INSERT INTO track_artist (trackID, artistID, role, position)
+                    VALUES (?, ?, 'primary', 0)
+                    """, arguments: [trackID, row.id ?? 0])
+            }
+        }
+        return track.id!
     }
 
     /// A ~1 s recording through the real encoder: 1 s of 440 Hz tone into the

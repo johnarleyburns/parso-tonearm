@@ -34,6 +34,9 @@ public struct WorkspaceView: View {
     /// The contextual paywall sheet (mockup `ipad/13b`, plan 4.13) — presented
     /// only when the user taps the lock chip (FR-STORE-5, §40.4).
     @State private var showingPaywall = false
+    /// The review-listen sheet (FR-REC-6, plan 5.12): presented the moment a
+    /// recording finalises (`model.finishedMix`), cleared on dismiss.
+    @State private var finishMix: DJMix?
 
     public init(model: WorkspaceModel) {
         _model = StateObject(wrappedValue: model)
@@ -67,8 +70,15 @@ public struct WorkspaceView: View {
         .onChange(of: scenePhase) { _, phase in
             model.setPumpPaused(phase != .active)
         }
+        .onChange(of: model.finishedMix) { _, mix in
+            if let mix { finishMix = mix }
+        }
         .sheet(isPresented: $showingPaywall) {
             PaywallView(model: PaywallModel(store: model.store))
+        }
+        .sheet(item: $finishMix) { mix in
+            RecordingFinishView(mix: mix)
+                .onDisappear { model.dismissFinishedMix() }
         }
     }
 

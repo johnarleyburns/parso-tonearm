@@ -135,21 +135,27 @@ final class WorkspaceModelTests: XCTestCase {
     }
 
     /// The §37.3 journal seam (plan 5.11) — a recording fake so the model's
-    /// begin/finalize/reconcile wiring is exercised deterministically.
+    /// begin/finalize/reconcile wiring is exercised deterministically. The
+    /// §37.4 timeline (plan 5.12) is captured: finalize receives the model's
+    /// accumulated `MixTimeline`.
     private final class FakeRecordingJournal: RecordingJournaling, @unchecked Sendable {
         var beginCalls: [URL] = []
         var finalizeCalls: [(output: RecordingEncoder.RecordingOutput,
-                             journal: RecordingJournalConfiguration?)] = []
+                             journal: RecordingJournalConfiguration?,
+                             timeline: MixTimeline)] = []
         var reconcileCount = 0
         var throwOnBegin = false
+        var finishedMix: DJMix?
 
         func begin(outputDirectory: URL) async throws {
             beginCalls.append(outputDirectory)
             if throwOnBegin { throw RecordingJournalError.missingMixID }
         }
         func finalize(output: RecordingEncoder.RecordingOutput,
-                      journal: RecordingJournalConfiguration?) async throws {
-            finalizeCalls.append((output, journal))
+                      journal: RecordingJournalConfiguration?,
+                      timeline: MixTimeline) async throws -> DJMix? {
+            finalizeCalls.append((output, journal, timeline))
+            return finishedMix
         }
         func reconcile() async throws -> [RecoveredMix] {
             reconcileCount += 1
@@ -1511,6 +1517,117 @@ final class WorkspaceModelTests: XCTestCase {
         await model.reconcileRecordings()
         XCTAssertEqual(journal.reconcileCount, 1,
                        "the explicit reconcile (and begin's launch reconcile) forwards to the service")
+    }
+
+    // MARK: - §37.4 timeline + the review listen (plan 5.12)
+
+    func testRecordingTimelineCapturesDeckPlayStarts() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        library.outcomes[5] = .loaded(makeLoadedBox())
+        let journal = FakeRecordingJournal()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library, recordingService: journal)
+        try model.begin()
+        defer { model.end() }
+
+        await model.load(.a, trackID: 5)
+        await model.startRecording()
+
+        // A deck's not-playing → playing edge logs "track 5 on A at this
+        // offset" (§37.4). The offset is the recording's frames: master sample
+        // 48000 at 48 kHz = 1.0 s.
+        for _ in 0..<50 { await Task.yield() }
+        fake.current.masterSample = 48_000
+        fake.current.deckA.playing = true
+        model.pumpTelemetryNow()
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(model.recordingElapsed, 1.0, accuracy: 1e-9)
+
+        // A pause → resume blip of the same track inside the suppression
+        // window is NOT a second event (MixTimeline.duplicateSuppressionSeconds).
+        fake.current.deckA.playing = false
+        model.pumpTelemetryNow()
+        for _ in 0..<50 { await Task.yield() }
+        fake.current.masterSample = 60_000
+        fake.current.deckA.playing = true
+        model.pumpTelemetryNow()
+        for _ in 0..<50 { await Task.yield() }
+
+        let output = RecordingEncoder.RecordingOutput(
+            outputDirectory: fake.lastStartDirectory!,
+            segmentURLs: [], totalFrames: 60_000, sampleRate: 48_000,
+            channelCount: 1, format: RecordingEncoder.formatName)
+        fake.lastStopOutput = output
+        await model.stopRecording()
+
+        let timeline = try XCTUnwrap(journal.finalizeCalls.last?.timeline)
+        XCTAssertEqual(timeline.entries.map(\.trackID), [5],
+                       "one track start is logged; the pause/resume blip is suppressed")
+        XCTAssertEqual(timeline.entries.first?.deck, "A")
+        XCTAssertEqual(timeline.entries.first?.startOffsetSec ?? 0, 1.0, accuracy: 1e-6)
+    }
+
+    func testRecordingTimelineLogsTheAlreadyPlayingDeckAtZero() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        library.outcomes[7] = .loaded(makeLoadedBox())
+        let journal = FakeRecordingJournal()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library, recordingService: journal)
+        try model.begin()
+        defer { model.end() }
+
+        await model.load(.a, trackID: 7)
+        // The deck is already playing when recording starts — the first sample
+        // after record logs its track at ~0:00 (mockup `ipad/09`'s "0:00 …
+        // opened").
+        for _ in 0..<50 { await Task.yield() }
+        fake.current.deckA.playing = true
+        model.pumpTelemetryNow()
+        for _ in 0..<50 { await Task.yield() }
+
+        await model.startRecording()
+        fake.current.masterSample = 1000
+        model.pumpTelemetryNow()
+        for _ in 0..<50 { await Task.yield() }
+
+        fake.lastStopOutput = RecordingEncoder.RecordingOutput(
+            outputDirectory: fake.lastStartDirectory!,
+            segmentURLs: [], totalFrames: 1000, sampleRate: 48_000,
+            channelCount: 1, format: RecordingEncoder.formatName)
+        await model.stopRecording()
+
+        let timeline = try XCTUnwrap(journal.finalizeCalls.last?.timeline)
+        XCTAssertEqual(timeline.entries.map(\.trackID), [7])
+        XCTAssertEqual(timeline.entries.first?.startOffsetSec ?? 9, 1000.0 / 48_000.0, accuracy: 1e-6)
+    }
+
+    func testStopRecordingSurfacesTheFinishedMixForTheReviewListen() async throws {
+        let fake = FakeWorkspaceEngine()
+        let journal = FakeRecordingJournal()
+        var finished = DJMix(syncID: "mix-1", title: "Friday set", durationSec: 60,
+                             trackCount: 2, format: RecordingEncoder.formatName,
+                             recordedAt: Date(), localState: MixLocalState.complete.rawValue)
+        finished.id = 1
+        journal.finishedMix = finished
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   recordingService: journal)
+        try model.begin()
+        defer { model.end() }
+
+        await model.startRecording()
+        XCTAssertNil(model.finishedMix, "nothing is finished while recording")
+        fake.lastStopOutput = RecordingEncoder.RecordingOutput(
+            outputDirectory: fake.lastStartDirectory!,
+            segmentURLs: [], totalFrames: 24_000, sampleRate: 48_000,
+            channelCount: 1, format: RecordingEncoder.formatName)
+        await model.stopRecording()
+
+        XCTAssertEqual(model.finishedMix?.id, 1,
+                       "stop surfaces the finalized mix — the review listen opens in place (FR-REC-6)")
+        model.dismissFinishedMix()
+        XCTAssertNil(model.finishedMix, "dismiss clears the finished mix so it is presented once")
     }
 
     func testLoadForwardsThroughTheLoaderAndArmsTheEngine() async throws {

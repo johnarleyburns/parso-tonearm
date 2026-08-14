@@ -11,10 +11,13 @@ public protocol RecordingJournaling: AnyObject, Sendable {
     /// recording whose encoder writes into `outputDirectory`.
     func begin(outputDirectory: URL) async throws
     /// Join the recording's segments into the single `mix.m4a`, write the
-    /// `mix`/`mix_asset` rows to `complete`, and (under the regression harness)
-    /// export the self-describing `mix-journal.json`.
+    /// `mix`/`mix_asset` rows to `complete`, persist the §37.4 timeline's
+    /// `mix_track_event` rows + `trackCount` (plan 5.12), and (under the
+    /// regression harness) export the self-describing `mix-journal.json`.
+    /// Returns the finished row — the review listen opens from it (FR-REC-6).
     func finalize(output: RecordingEncoder.RecordingOutput,
-                  journal: RecordingJournalConfiguration?) async throws
+                  journal: RecordingJournalConfiguration?,
+                  timeline: MixTimeline) async throws -> DJMix?
     /// Recover every stale `recording` row left by a crash/interrupted stop —
     /// join the flushed segments into `complete`, or mark `corrupt`.
     func reconcile() async throws -> [RecoveredMix]
@@ -122,7 +125,8 @@ public actor RecordingService: RecordingJournaling {
     }
 
     public func finalize(output: RecordingEncoder.RecordingOutput,
-                         journal: RecordingJournalConfiguration?) async throws {
+                         journal: RecordingJournalConfiguration?,
+                         timeline: MixTimeline) async throws -> DJMix? {
         guard let mixID = activeMixID else { throw ServiceError.noActiveRecording }
         defer { activeMixID = nil }
         let finalURL = output.outputDirectory.appendingPathComponent("mix.m4a")
@@ -132,10 +136,18 @@ public actor RecordingService: RecordingJournaling {
                                             sampleRate: output.sampleRate,
                                             channelCount: output.channelCount)
             let size = Self.fileSize(finalURL)
-            try await store.finalizeRecordingMix(mixID: mixID,
-                                                 durationSec: Double(frames) / output.sampleRate,
-                                                 sizeBytes: size,
-                                                 trackCount: 0)
+            // The §37.4 timeline: resolve each track's snapshot and build the
+            // `mix_track_event` rows. The rows are written in the journal's
+            // one transaction (NFR-REL-1), so the tracklist and the header can
+            // never disagree.
+            let events = try await Self.trackEvents(mixID: mixID,
+                                                    timeline: timeline,
+                                                    store: store)
+            let finished = try await store.finalizeRecordingMix(
+                mixID: mixID,
+                durationSec: Double(frames) / output.sampleRate,
+                sizeBytes: size,
+                events: events)
             // The segments are intermediate artifacts of this recording — the
             // joined mix.m4a is the user content (§43.6 protects the mix, not
             // the segments). Removed only after the rows committed.
@@ -144,6 +156,7 @@ public actor RecordingService: RecordingJournaling {
                 try Self.writeJournalJSON(journal, format: output.format,
                                           into: output.outputDirectory)
             }
+            return finished
         } catch {
             try? await store.markRecordingMixCorrupt(mixID: mixID)
             throw error
@@ -187,16 +200,43 @@ public actor RecordingService: RecordingJournaling {
                 recovered.append(.corrupt(mix))
                 continue
             }
+            // A crash lost the in-memory §37.4 timeline — reconcile has no
+            // track events to restore (the tracklist is a nice-to-have; the
+            // audio is the NFR-REL-2 point). `events: []` keeps the journal's
+            // one-transaction finalize the only write path.
             try await store.finalizeRecordingMix(mixID: mixID,
                                                  durationSec: saved.durationSec,
                                                  sizeBytes: saved.sizeBytes ?? 0,
-                                                 trackCount: 0)
+                                                 events: [])
             recovered.append(.salvaged(saved))
         }
         return recovered
     }
 
     // MARK: - Helpers
+
+    /// Build the §37.4 `mix_track_event` rows for a finished mix, resolving
+    /// each timeline track's title/artist/BPM/key snapshot from the store
+    /// (§15.5 — the snapshots survive track deletion). `position` is 1..n in
+    /// the order the tracks started playing.
+    private static func trackEvents(mixID: Int64, timeline: MixTimeline,
+                                    store: DJLibraryStore) async throws -> [DJMixTrackEvent] {
+        let trackIDs = timeline.entries.map(\.trackID)
+        let snapshots = try await store.trackTimelineSnapshots(trackIDs: trackIDs)
+        return timeline.entries.enumerated().map { index, entry in
+            let snapshot = snapshots[entry.trackID]
+            return DJMixTrackEvent(
+                mixID: mixID,
+                trackID: entry.trackID,
+                title: snapshot?.title ?? "Unknown track",
+                artist: snapshot?.artist,
+                deck: entry.deck,
+                startOffsetSec: entry.startOffsetSec,
+                bpmAtPlay: snapshot?.bpm,
+                camelotAtPlay: snapshot?.camelot,
+                position: index + 1)
+        }
+    }
 
     private static func salvaged(_ mix: DJMix, url: URL) -> DJMix {
         var saved = mix

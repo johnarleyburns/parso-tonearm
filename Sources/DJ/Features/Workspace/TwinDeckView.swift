@@ -785,6 +785,9 @@ public struct CompactPerformanceView: View {
     @StateObject private var model: WorkspaceModel
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.scenePhase) private var scenePhase
+    /// The review-listen sheet (FR-REC-6, plan 5.12) — presented the moment a
+    /// recording finalises, exactly as on the iPad workspace.
+    @State private var finishMix: DJMix?
 
     public init(model: WorkspaceModel) {
         _model = StateObject(wrappedValue: model)
@@ -813,6 +816,13 @@ public struct CompactPerformanceView: View {
         }
         .onChange(of: verticalSizeClass) { _, _ in
             applyPosture()
+        }
+        .onChange(of: model.finishedMix) { _, mix in
+            if let mix { finishMix = mix }
+        }
+        .sheet(item: $finishMix) { mix in
+            RecordingFinishView(mix: mix)
+                .onDisappear { model.dismissFinishedMix() }
         }
     }
 

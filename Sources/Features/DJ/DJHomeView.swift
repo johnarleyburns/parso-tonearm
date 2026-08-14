@@ -26,6 +26,10 @@ struct DJHomeView: View {
                         Label("Music", systemImage: "music.note.list")
                             .accessibilityIdentifier("dj.library")
                     }
+                    NavigationLink(value: DJDestination.mixes) {
+                        Label("Recorded Mixes", systemImage: "waveform.badge.record")
+                            .accessibilityIdentifier("dj.mixes")
+                    }
                 }
             }
             .navigationTitle("Platterhead DJ")
@@ -35,6 +39,8 @@ struct DJHomeView: View {
                     DJPerformanceSurface()
                 case .library:
                     LibraryView()
+                case .mixes:
+                    MixesView()
                 }
             }
         }
