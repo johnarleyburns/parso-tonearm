@@ -28,6 +28,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.8** — `118320d` `feat(dj): stem voices live on decks — StemSet summing reader, honest prepared state, live faders, §35.1, §36.5, FR-ENG-3 (M5 commit 5.8)`.
 - **M5 5.7** — `0a90d68` `feat(dj): Demucs ODR + separation + content-addressed cache, §36, FR-ENG-3 (M5 commit 5.7)`.
 - **M5 5.6** — `dee6a57` `feat(dj): genre libraries — Jamendo connector, curated genre picker, AT-GENRE-* (M5 commit 5.6)`.
 - **M5 5.5** — `559b23a` `feat(dj): Beat FX echo — post-fader beat-synced delay, §35B transitions, AT-TRANS-1..5 (M5 commit 5.5)`.
@@ -70,7 +71,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.7 landed, commits 5.8–5.14 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.8 landed, commits 5.9–5.14 ahead.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -204,6 +205,7 @@ sequence stays stable:
   original scope: **5.7** Demucs ODR + cache; **5.8** stem voices on decks; **5.9** gig
   crates + storage budget; **5.10** record tap + encoder; **5.11** journal + recovery;
   **5.12** Finish + Mixes + **the review listen**; **5.13** the transition coach.
+  *(5.1–5.8 landed; 5.9–5.13 ahead.)*
 - **New spec material** (all written, all cross-referenced): **§19.4** persisted
   analysis artifacts · **§26A** rekordbox-class waveform display · **§35A** the
   post-fader beat-synced echo · **§35B** the five transitions → control mapping ·
@@ -366,9 +368,48 @@ The §36 pipeline's delivery seam and its testable kernel (plan decisions 1, 5; 
   round-trip through the CAF files — AVAudioFile drops a trailing partial block, so the writer
   chunks into ≤ 4096-frame calls, verified on host — idempotent re-store, **version
   invalidation**, row-without-files = absence, eviction incl. the shared-directory refcount) +
-  2 new `DJSchemaTests` (v4 tables/indexes + the composite `stem_cache` PK). Suite 1305 →
-  **1327 green** (8 skipped); Swift 6 guard OK; app builds (xcodebuild verified). DJ-only — no
-  `xcodegen generate` (decision 25). **FR-ENG-3, §36.**
+   2 new `DJSchemaTests` (v4 tables/indexes + the composite `stem_cache` PK). Suite 1305 →
+   **1327 green** (8 skipped); Swift 6 guard OK; app builds (xcodebuild verified). DJ-only — no
+   `xcodegen generate` (decision 25). **FR-ENG-3, §36.**
+
+**M5 commit 5.8 — stem voices live on decks, honest disabled state — complete (`118320d`).**
+The §35.1 reader's second slot and the model's honest stem status (plan decisions 3–4;
+FR-ENG-3, §36.5 — **AT-STEM-\* engine rows**):
+
+- `Engine/StemVoices.swift` — the pure **`StemSet`**: four `DeckSource`s of one track at the
+  shared playhead with one shared grid, `@unchecked Sendable` exactly like `DeckSource`
+  (§12.2). `DeckState` gains the **second armed slot** (`stemSetPointer`), per-voice smoothed
+  gains + mute/solo state (fixed `StemKind.index` arrays), and a pre-allocated `stemScratch` so
+  the render thread never allocates (§12.3). `RTCommand` gains `armStemSet` / `setStemGain` /
+  `setStemMute` / `setStemSolo`; `PerformanceEngine` gains the façade methods + a
+  `StemSetRegistry` (ownership-transfer boxes, the `SourceBoxRegistry` pattern).
+- **The reader branches on the armed set** (§35.1): a deck with **no** stem set is byte-for-byte
+  the current single-source reader (`readChunk` unchanged); an armed set sums the four voices
+  through `readStemChunk` — per-voice one-pole gains advance once per sample (shared across
+  channels, so L/R stay coherent), fold in mute/solo, then the EQ/filter/fader/echo/crossfader
+  chain runs **once** over the summed voice. `referenceSource()`/`referenceGrid()` fall back to
+  the armed set, so a stems-only deck still renders and the master clock, sync and echo read the
+  set's grid (verified: 124 BPM from an armed set with no full-mix source).
+- `WorkspaceModel` per-deck stem state — **`DeckStemStatus`** `unavailable / separating /
+  prepared` with honest `label`s, and **`StemControlState`** (gains/mute/solo, `maxGain` 1.5).
+  `resolveStems` on load queries the **`StemProviding` seam** (`StemLoader`: StemCache → decode
+  each `.caf` to mono → `StemSetBox`); a cached version-matched set is **armed** and the status
+  goes `prepared` (faders live), otherwise the deck is **disarmed** and plays the full mix with
+  the honest `unavailable` status. **Fader setters are inert unless `.prepared`** — a disabled
+  fader neither forwards nor moves (§36.5's "never a fader that looks live and does nothing").
+  `markStemSeparation` renders `.separating` (driven by 5.9's §36.3 service).
+- **Views:** the iPad STEMS module slot and the compact bank drawer's STEMS (the §2.1 two-fader
+  budget) become **live when prepared** — a shared `StemFaderRow` (drag gain, tap-to-mute,
+  `dj.deck.<a|b>.stem.<voice>` identifiers) — and render the honest disabled rows otherwise.
+- Tests: 7 `StemVoiceTests` (**frame-exact four-voice summing at unity**, the **bit-identical
+  fallback** — arming a passthrough set then disarming is sample-transparent and the no-stem
+  path equals the reference; a stems-only deck reads its voices; gain/mute/solo settle correctly
+  after the one-pole ramp; the armed set's grid drives the master clock) + 6 new
+  `WorkspaceModelTests` (prepared load arms + live faders, unavailable load keeps full mix +
+  **inert** faders, the separating state, status labels, unity defaults, gain clamp). Suite 1327
+  → **1340 green** (8 skipped); Swift 6 guard OK; app builds (xcodebuild verified); smoke tests
+  pass in the pre-commit hook. DJ-only — no `xcodegen generate` (decision 25).
+  **FR-ENG-3, §35.1, §36.5, AT-STEM-\* (engine rows).**
 
 **M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
 The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
@@ -912,21 +953,21 @@ into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible t
   recorded fixtures, no live network). Suite 1289 → **1305 green**; app builds;
   **`xcodegen generate` committed** (decision 25). **FR-LIB-9/10, §18A, §41.1a,
   AT-GENRE-\*, AT-FREE-\*.**
-- **M5 commit 5.7 — Demucs ODR + separation + cache — complete (`0a90d68`).** The §36
-  delivery seam and its pure kernel (plan decisions 1, 5): `ModelTag.stems` +
-  `DemucsStems.mlpackage` ODR tag; `AnalysisVersions.stems = 1`; the
-  `StemModelProviding` seam + honest-absence ODR `DemucsStemModel` (the real model
-  conversion is the owner's post-M5 step); `StemChunking` — periodic-Hann chunk/overlap-add
-  with exact first-power COLA at 50% overlap (vDSP multiply/accumulate) — and the
-  `StemSeparator` pipeline; `StemCache` content-addressed under
-  `Stems/<contentHash>/<stemsVersion>/` with the `stem_cache` row in one transaction,
-  row-without-files = honest absence, refcount-aware eviction; `dj_v4` adds `stem_cache` +
-  §15.5 recording DDL verbatim. Tests: 11 `StemSeparatorTests` (the reconstruction golden
-  across chunk boundaries + the honest/loud failure rows) + 9 `StemCacheTests`
-  (content-addressing, exact CAF round-trip, version invalidation, eviction incl. the shared
-  dir) + 2 new schema tests. Suite 1305 → **1327 green**; Swift 6 guard OK; app builds;
-  DJ-only, no regen. **FR-ENG-3, §36.**
-- **Then 5.8** stem voices on decks → **5.9** gig crates + storage budget → **5.10** record
+- **M5 commit 5.8 — stem voices live on decks — complete (`118320d`).** The §35.1 reader's
+  second slot + the model's honest status (plan decisions 3–4, FR-ENG-3, §36.5): the pure
+  `StemSet` (four `DeckSource`s, one shared grid); `DeckState`'s armed `StemSet` slot with
+  per-voice smoothed gains + mute/solo; `armStemSet`/`setStemGain`/`setStemMute`/`setStemSolo`
+  RTCommands + façade; **a deck with no stem set is byte-for-byte the current reader**, an armed
+  set sums the four voices then runs the chain once; the master clock/sync/echo read the set's
+  grid. `DeckStemStatus` (`unavailable/separating/prepared`), `StemControlState`, the
+  `StemProviding` seam + `StemLoader` (cache → `StemSetBox`); load arms a prepared set
+  (`.prepared`, faders live) or disarms to full mix (`.unavailable`, **inert** faders — §36.5's
+  honest rule); the iPad STEMS module + compact drawer faders go live when prepared. Tests: 7
+  `StemVoiceTests` (frame-exact summing, bit-identical fallback + sample-transparent
+  arm/disarm, gain/mute/solo, armed-grid master clock) + 6 `WorkspaceModelTests` (honest state
+  machine). Suite 1327 → **1340 green**; Swift 6 guard OK; app builds; no regen. **FR-ENG-3,
+  §35.1, §36.5, AT-STEM-\* (engine rows).**
+- **Then 5.9** gig crates + storage budget → **5.10** record
   tap + encoder → **5.11** journal + recovery → **5.12** Finish + Mixes + the review listen →
   **5.13** the transition coach → **5.14 the DJ regression suite**.
   **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
