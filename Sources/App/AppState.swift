@@ -440,6 +440,35 @@ final class AppState: ObservableObject {
         try await remoteProvider(for: source).browse(path: path)
     }
 
+    /// Subscribe to a genre library (§18A, FR-LIB-9): validate the catalogue
+    /// is reachable first — an unreachable catalogue must say so, never render
+    /// as an empty library (§18A.6) — then insert an ordinary
+    /// `Source(kind: .jamendoGenre)` row whose identity is the genre path.
+    /// Free tier; no account (FR-LIB-7, §18A.2).
+    func addGenreLibrary(path: String, name: String) async throws {
+        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else { throw URLError(.badURL) }
+        let provider = JamendoGenreProvider(clientID: JamendoAppConfig.clientID,
+                                            sourcePath: trimmedPath)
+        _ = try await provider.catalogueCount(path: trimmedPath)
+
+        var source = Source(
+            id: nil,
+            kind: .jamendoGenre,
+            iaIdentifier: trimmedPath,
+            originalURL: nil,
+            title: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            addedAt: Date(),
+            lastResolvedAt: Date(),
+            followUpdates: false,
+            licenseText: "Creative Commons — attribution kept",
+            memberCapHit: false
+        )
+        source = try await store.insertSource(source)
+        await reload()
+        tab = .sources
+    }
+
     func renameSource(_ source: Source, title: String) async {
         guard let id = source.id else { return }
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)

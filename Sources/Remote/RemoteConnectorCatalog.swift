@@ -206,6 +206,23 @@ public enum RemoteConnectorCatalog {
             guide: cloudGuide("pCloud", permission: "pCloud file listing and download access")
         ),
         RemoteConnector(
+            sourceKinds: [.jamendoGenre],
+            connectorID: "jamendoGenre",
+            title: "Jamendo genres",
+            proDisplayName: "Jamendo genre libraries",
+            subtitle: "Free Creative-Commons music by genre",
+            tier: .guided,
+            authKind: .urlOnly,
+            icon: "music.note.list",
+            guide: guide(
+                "Add a Genre Library",
+                prerequisites: "Nothing — genre libraries are free and need no account (§18A.2).",
+                steps: "Pick one or more genres. Each becomes its own library, ordered by what's most interesting right now. Platterhead fetches the track list; audio downloads only when you play or prepare a track.",
+                troubleshooting: "If a genre reports it can't reach the catalogue, check the network connection and try again — the app never renders an unreachable catalogue as an empty library.",
+                privacy: "No account or credentials are needed. Platterhead reads the public Creative-Commons catalogue; attribution travels with each track."
+            )
+        ),
+        RemoteConnector(
             sourceKinds: [.iaItem, .iaList, .iaCollection, .iaFavorites],
             connectorID: "iaPublicList",
             title: "archive.org",

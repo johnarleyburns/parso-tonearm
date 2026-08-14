@@ -210,6 +210,7 @@ struct SourceDetailView: View {
 
     private var badgeText: String {
         if source.kind == .local { return "on device" }
+        if source.kind == .jamendoGenre { return "Jamendo · \(source.licenseText ?? "Creative Commons")" }
         if isArchiveSource { return "archive.org · \(source.licenseText ?? "streams permitted")" }
         if isRemoteLibrary { return "\(remoteProviderName) · private library" }
         return "archive.org · \(source.licenseText ?? "streams permitted")"

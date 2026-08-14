@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 import TonearmCore
+import TonearmDJ
 
 struct AddServerSheet: View {
     @EnvironmentObject var appState: AppState
@@ -19,6 +20,7 @@ struct AddServerSheet: View {
     @State private var isConnecting = false
     @State private var showSMBPicker = false
     @State private var showGuide = false
+    @State private var showGenrePicker = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,7 +42,11 @@ struct AddServerSheet: View {
 
             Spacer(minLength: 12)
 
-            if connectorKind == .smb {
+            if isJamendoGenre {
+                Button { showGenrePicker = true } label: {
+                    actionLabel(title: "Choose Genres", icon: "music.note.list")
+                }
+            } else if connectorKind == .smb {
                 Button { showSMBPicker = true } label: {
                     actionLabel(title: "Choose Folder", icon: "folder.badge.plus")
                 }
@@ -78,6 +84,11 @@ struct AddServerSheet: View {
         .sheet(isPresented: $showGuide) {
             RemoteConnectorGuideView(guide: connector.guide)
         }
+        .sheet(isPresented: $showGenrePicker) {
+            GenrePickerSheet(context: .addSource) { genre in
+                try await appState.addGenreLibrary(path: genre.path, name: genre.name)
+            }
+        }
         .fileImporter(isPresented: $showSMBPicker, allowedContentTypes: [.folder]) { result in
             guard case .success(let url) = result else { return }
             Task { await connectSMB(url) }
@@ -90,6 +101,10 @@ struct AddServerSheet: View {
 
     private var connectorKind: SourceKind {
         connector.sourceKind
+    }
+
+    private var isJamendoGenre: Bool {
+        connector.connectorID == "jamendoGenre"
     }
 
     private var authKind: RemoteConnectorAuthKind {
@@ -169,6 +184,22 @@ struct AddServerSheet: View {
 
     private var fields: some View {
         VStack(spacing: 10) {
+            if isJamendoGenre {
+                HStack(spacing: 10) {
+                    Image(systemName: "music.note.list")
+                        .font(.system(size: 15)).foregroundStyle(Palette.brass)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Free Creative-Commons music by genre")
+                            .font(.system(size: 13.5))
+                        Text("Pick one or more genres. Each becomes its own library. No account needed.")
+                            .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12)))
+            }
             if needsURL {
                 textField(label: isIAConnector ? "ARCHIVE.ORG URL" : "SERVER URL",
                           prompt: isIAConnector ? "https://archive.org/details/…" : connectorKind == .plex ? "https://plex.example.com:32400" : "https://music.example.com",
@@ -303,6 +334,9 @@ struct AddServerSheet: View {
     }
 
     private var footerText: String {
+        if isJamendoGenre {
+            return "No credentials needed. Platterhead reads the public Creative-Commons catalogue and keeps attribution with every track."
+        }
         if isIAPublicList {
             return "Platterhead streams this music directly from archive.org. Nothing is stored permanently."
         }

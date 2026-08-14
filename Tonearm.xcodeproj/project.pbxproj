@@ -27,6 +27,7 @@
 		2AF3605F104466A0A619CC31 /* OAuthClientConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD37144613B3E4468ED3D2 /* OAuthClientConfiguration.swift */; };
 		2B12111CBDF1D49C39714944 /* ListenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97FF4E2C42647407E4F4E0F /* ListenView.swift */; };
 		2BDD7EA40A22BF33622364F5 /* Tonearm.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 2B9AB52221643622272FFDB6 /* Tonearm.storekit */; };
+		2F705BB32D52E4FD9F00C074 /* DJLiveMixRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E23D54D7D96BBFF33E8A3158 /* DJLiveMixRegressionUITests.swift */; };
 		2FB5EA4A4EEFB59CEBA07B8F /* WatchPlaylistsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */; };
 		30487CE5289BB55F2472813F /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB454D89725B61725520B04A /* NowPlayingView.swift */; };
 		34532A4505591A95D2765EFF /* OAuthSignInCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD5669565C3C31C5DAB9A3D3 /* OAuthSignInCoordinator.swift */; };
@@ -59,6 +60,7 @@
 		782717264F729A5B9089D729 /* WatchSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD1B4DD87021743D84C9830 /* WatchSessionAdapter.swift */; };
 		796967ED51F8C7841F6FC270 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 25DC295C778B26F9C30D320D /* TonearmCore */; };
 		7971FCD80BE7D612C09F9B60 /* RemoteLibraryRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D198A526169E0BB94CA5DC01 /* RemoteLibraryRegressionUITests.swift */; };
+		79BCD50B20279F25B1863C6B /* DJPerformanceDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEB9AA0FA0FD051052CCF160 /* DJPerformanceDriver.swift */; };
 		7A2800C8675EA20C3EFA4988 /* DJHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01FC8C9CC6EF9060CBDEEDB5 /* DJHomeView.swift */; };
 		7A3B9D3BDEBED8D945FA809F /* ATTRIBUTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */; };
 		7EC0CA2A51F83AC350BF5AEE /* TonearmWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -73,6 +75,7 @@
 		9E573BB60815F1EB9B85148D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50DA465263A2171C1396F13F /* RootView.swift */; };
 		9EC1A5D1F71874F5419FC2BE /* merges.txt in Resources */ = {isa = PBXBuildFile; fileRef = 3907EDDD5DF96CE5ABA29E5D /* merges.txt */; };
 		A874CDAAE6139A6C31115E30 /* WatchFixtureSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */; };
+		ACADB9883B99AE686E0CD3AE /* DJMixRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F53F18142069FEFFAA2E2EF /* DJMixRegressionUITests.swift */; };
 		AD8AF503F7EE66FABFD99B86 /* TonearmShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B05161851F3AEADE6DD18515 /* RemoteConnectorGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22000483380D73EC6205A4B9 /* RemoteConnectorGuideView.swift */; };
 		B72DE992BD62735CB370A71F /* SourceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9894FCBA2B17EE64A57067E8 /* SourceDetailView.swift */; };
@@ -180,6 +183,7 @@
 		089C841BE7459AF20665F7B0 /* Tonearm.Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.Debug.entitlements; sourceTree = "<group>"; };
 		0A0EA57A9A9BC3350FCC805C /* GlassSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSurface.swift; sourceTree = "<group>"; };
 		0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPlaylistsView.swift; sourceTree = "<group>"; };
+		0F53F18142069FEFFAA2E2EF /* DJMixRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJMixRegressionUITests.swift; sourceTree = "<group>"; };
 		0F6CE09CD175F8D1AF3F2958 /* WatchSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncHandler.swift; sourceTree = "<group>"; };
 		0FFCDEBB114755DD71B0E074 /* WatchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WatchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		11F034B4AB152DB439603498 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -257,12 +261,14 @@
 		D198A526169E0BB94CA5DC01 /* RemoteLibraryRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteLibraryRegressionUITests.swift; sourceTree = "<group>"; };
 		D80C464F1FF08824183F765F /* PlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsView.swift; sourceTree = "<group>"; };
 		E08FD7930B1AABFA3C2825E0 /* SourcesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcesView.swift; sourceTree = "<group>"; };
+		E23D54D7D96BBFF33E8A3158 /* DJLiveMixRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJLiveMixRegressionUITests.swift; sourceTree = "<group>"; };
 		E38162EF6D932D8762B6D123 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E38CB1BF7D38667CEFEBA735 /* ambient-rain.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-rain.wav"; sourceTree = "<group>"; };
 		E51C6DE97A7D128E05BB1604 /* GlassDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassDock.swift; sourceTree = "<group>"; };
 		E8C8B4A708B46F295FFFBBCD /* WatchStorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStorageView.swift; sourceTree = "<group>"; };
 		EB1AF5D1419772A497355BF0 /* AnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisView.swift; sourceTree = "<group>"; };
 		EBD1B4DD87021743D84C9830 /* WatchSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSessionAdapter.swift; sourceTree = "<group>"; };
+		EEB9AA0FA0FD051052CCF160 /* DJPerformanceDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJPerformanceDriver.swift; sourceTree = "<group>"; };
 		F1BAAB8C1EDFCC23544B7B03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F264152278DB935FBFB188F5 /* WatchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchComponents.swift; sourceTree = "<group>"; };
 		F42E2045814F52BC75F1609F /* UpNextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpNextView.swift; sourceTree = "<group>"; };
@@ -445,6 +451,9 @@
 		4F40D3F081E378CA589B6C79 /* UIRegressionTests */ = {
 			isa = PBXGroup;
 			children = (
+				E23D54D7D96BBFF33E8A3158 /* DJLiveMixRegressionUITests.swift */,
+				0F53F18142069FEFFAA2E2EF /* DJMixRegressionUITests.swift */,
+				EEB9AA0FA0FD051052CCF160 /* DJPerformanceDriver.swift */,
 				8386CD93C2E826E9FE11D810 /* NowPlayingRegressionUITests.swift */,
 				738E22304AC5FEF3B6449D27 /* PlaylistRegressionUITests.swift */,
 				D198A526169E0BB94CA5DC01 /* RemoteLibraryRegressionUITests.swift */,
@@ -997,6 +1006,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2F705BB32D52E4FD9F00C074 /* DJLiveMixRegressionUITests.swift in Sources */,
+				ACADB9883B99AE686E0CD3AE /* DJMixRegressionUITests.swift in Sources */,
+				79BCD50B20279F25B1863C6B /* DJPerformanceDriver.swift in Sources */,
 				8EFDAFC9161AF1157C608B60 /* NowPlayingRegressionUITests.swift in Sources */,
 				454FB64833CD47C43EB2FF38 /* PlaylistRegressionUITests.swift in Sources */,
 				7971FCD80BE7D612C09F9B60 /* RemoteLibraryRegressionUITests.swift in Sources */,
@@ -1308,6 +1320,7 @@
 				SWIFT_VERSION = 6.0;
 				TONEARM_DROPBOX_CLIENT_ID = "";
 				TONEARM_GOOGLE_DRIVE_CLIENT_ID = "";
+				TONEARM_JAMENDO_CLIENT_ID = "";
 				TONEARM_ONEDRIVE_CLIENT_ID = "";
 				TONEARM_PCLOUD_CLIENT_ID = "";
 				TONEARM_PCLOUD_CLIENT_SECRET = "";
@@ -1445,6 +1458,7 @@
 				SWIFT_VERSION = 6.0;
 				TONEARM_DROPBOX_CLIENT_ID = "";
 				TONEARM_GOOGLE_DRIVE_CLIENT_ID = "";
+				TONEARM_JAMENDO_CLIENT_ID = "";
 				TONEARM_ONEDRIVE_CLIENT_ID = "";
 				TONEARM_PCLOUD_CLIENT_ID = "";
 				TONEARM_PCLOUD_CLIENT_SECRET = "";

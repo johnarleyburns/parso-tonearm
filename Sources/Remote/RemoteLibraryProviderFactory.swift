@@ -20,6 +20,9 @@ public enum RemoteLibraryProviderFactory {
             return try PlexProvider.from(source: source, credentialStore: credentialStore)
         case .dropbox, .googleDrive, .oneDrive, .pCloud:
             return try CloudDriveProvider.from(source: source, credentialStore: credentialStore)
+        case .jamendoGenre:
+            return JamendoGenreProvider(clientID: JamendoAppConfig.clientID,
+                                        sourcePath: source.iaIdentifier)
         default:
             throw URLError(.unsupportedURL)
         }

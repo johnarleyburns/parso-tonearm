@@ -43,8 +43,8 @@ browse by artist, album and genre · queue and playlist editing · local import 
 Shortcuts, share extension · listening stats · scrobbling · lyrics · iCloud Sync (Music,
 playlists, favorites, artwork, presets) · parametric EQ · crossfeed · convolution ·
 bit-perfect output · smart playlists · tag editor · bulk edits · duplicate detection ·
-**all 10 remote-library providers (archive.org, Dropbox, Google Drive, OneDrive, pCloud,
-Subsonic/Navidrome, WebDAV, Jellyfin, Plex and SMB)** · semantic vibe search ·
+**all 11 remote-library providers (archive.org, Dropbox, Google Drive, OneDrive, pCloud,
+Subsonic/Navidrome, WebDAV, Jellyfin, Plex, SMB and Jamendo genre libraries)** · semantic vibe search ·
 auto-generated playlists · analysis stages 1–2 (BPM, key, energy) · zero telemetry, no
 account.
 
@@ -82,6 +82,7 @@ routes your music through a Tonearm server.
 | Subsonic/Navidrome | Guided | URL + username/password | Enter your server URL and account credentials. |
 | WebDAV | Guided | URL + username/password | Use a WebDAV endpoint for Nextcloud, ownCloud, rclone, or a NAS. |
 | Jellyfin | Guided | URL + username/password | Enter the Jellyfin URL and an account with music-library access. |
+| Jamendo genre libraries | Guided | none | Pick a genre (free, Creative-Commons music); each becomes its own library. Requires a Jamendo application `client_id` in `TONEARM_JAMENDO_CLIENT_ID`. |
 | Plex | Advanced | URL + Plex token | Enter the direct Plex server URL and account token. |
 | SMB | Advanced | iOS Files folder grant | Connect SMB in Files first, then choose the shared folder in Tonearm. |
 
@@ -93,6 +94,7 @@ before using the production sign-in buttons:
 - `TONEARM_ONEDRIVE_CLIENT_ID`
 - `TONEARM_PCLOUD_CLIENT_ID`
 - `TONEARM_PCLOUD_CLIENT_SECRET` when your pCloud app requires it
+- `TONEARM_JAMENDO_CLIENT_ID` — the Jamendo application credential (register at devportal.jamendo.com); it is an application key, not a user login.
 
 Register the `tonearm://oauth/<provider>` redirect for each OAuth app, where `<provider>` is
 `dropbox`, `googleDrive`, `oneDrive`, or `pCloud`.

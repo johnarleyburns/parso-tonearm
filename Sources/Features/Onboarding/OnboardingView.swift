@@ -1,5 +1,6 @@
 import SwiftUI
 import TonearmCore
+import TonearmDJ
 
 struct OnboardingSourceOption: Identifiable {
     enum Kind {
@@ -29,6 +30,10 @@ struct OnboardingView: View {
     @State private var localAddedCount = 0
     @State private var pickedFolder: URL?
     @State private var pickedFolderBookmark: Data?
+    /// The §41.1a genre picker (plan 5.6) — a skippable, free, no-account
+    /// step for the DJ who has no library yet. `createSource` is wired in
+    /// `.task` (appState is an environment object, not available in init).
+    @StateObject private var genreModel = GenrePickerModel()
     @State private var options: [OnboardingSourceOption] = [
         .init(kind: .archiveOrg,
               title: "Chopin — Musopen",
@@ -77,8 +82,9 @@ struct OnboardingView: View {
                     ForEach(Array(intros.enumerated()), id: \.offset) { idx, intro in
                         introPage(intro).tag(idx)
                     }
-                    localPage.tag(intros.count)
-                    sourcesPage.tag(intros.count + 1)
+                    genrePage.tag(intros.count)
+                    localPage.tag(intros.count + 1)
+                    sourcesPage.tag(intros.count + 2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .always))
                 .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -88,6 +94,17 @@ struct OnboardingView: View {
         }
         .foregroundStyle(Palette.ink)
         .interactiveDismissDisabled()
+        .task {
+            genreModel.createSource = { genre in
+                try await appState.addGenreLibrary(path: genre.path, name: genre.name)
+            }
+        }
+        .onAppear {
+            // The §18A.6 reachability probe — one cheap count fetch on show.
+            if let first = genreModel.roots.first {
+                Task { await genreModel.loadCount(for: first) }
+            }
+        }
         .fileImporter(isPresented: $showFolderImporter, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result {
                 _ = url.startAccessingSecurityScopedResource()
@@ -115,7 +132,39 @@ struct OnboardingView: View {
         }
     }
 
-    private var lastPage: Int { intros.count + 1 }
+    private var lastPage: Int { intros.count + 2 }
+
+    /// The §41.1a genre step (mockup `ipad/15`): embed the shared
+    /// `GenrePickerContent` — the picker's own Skip/Add footer is the sheet's;
+    /// here the onboarding footer (Continue / Get Started) navigates, so the
+    /// step stays equally weighted with "Skip for now".
+    private var genrePage: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 6) {
+                Text("Step 2 · optional")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.ink3)
+                    .padding(.top, 30)
+                Text("Want some music to practise with?")
+                    .font(.system(size: 24, weight: .heavy)).kerning(-0.5)
+                    .multilineTextAlignment(.center)
+                Text("Pick the genres you want to mix. Each one becomes its own "
+                     + "library, ordered by what's most interesting right now. "
+                     + "You don't need an account, and you can skip this entirely.")
+                    .font(.system(size: 13)).foregroundStyle(Palette.ink2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 28)
+            }
+
+            ScrollView {
+                GenrePickerContent(model: genreModel)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 14)
+                    .padding(.bottom, 10)
+            }
+        }
+        .foregroundStyle(Palette.ink)
+    }
 
     private func introPage(_ intro: (icon: String, title: String, body: String)) -> some View {
         VStack(spacing: 20) {
@@ -241,6 +290,15 @@ struct OnboardingView: View {
         let archiveURLs = selected.filter { $0.kind == .archiveOrg }.map { $0.url }
         if !archiveURLs.isEmpty {
             await appState.completeOnboarding(sourceURLs: archiveURLs)
+        }
+        // §41.1a: the genre step's selections become their own libraries.
+        let genres = genreModel.selectedGenres
+        for genre in genres {
+            do {
+                try await appState.addGenreLibrary(path: genre.path, name: genre.name)
+            } catch {
+                print("onboarding add genre library \(genre.path) error: \(error)")
+            }
         }
         for option in selected {
             switch option.kind {

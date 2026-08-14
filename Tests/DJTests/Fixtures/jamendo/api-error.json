@@ -1,0 +1,10 @@
+{
+  "headers": {
+    "status": "failed",
+    "code": 5,
+    "error_message": "Jamendo Api Invalid Client Id Error: Your credential is not authorized.",
+    "warnings": "",
+    "results_count": 0
+  },
+  "results": []
+}

@@ -1,0 +1,58 @@
+{
+  "headers": {
+    "status": "success",
+    "code": 0,
+    "error_message": "",
+    "warnings": "",
+    "results_count": 2,
+    "results_fullcount": 190
+  },
+  "results": [
+    {
+      "id": "1100001",
+      "name": "Terrace Morning",
+      "duration": 247,
+      "artist_id": "210001",
+      "artist_name": "June Vox",
+      "album_id": "310001",
+      "album_name": "Sun Grid",
+      "license_ccurl": "http://creativecommons.org/licenses/by/3.0/",
+      "releasedate": "2024-02-19",
+      "album_image": "https://usercontent.jamendo.com?type=album&id=310001&width=300&trackid=1100001",
+      "audio": "https://prod-1.storage.jamendo.com/?trackid=1100001&format=mp32&from=app-test",
+      "audiodownload": "https://prod-1.storage.jamendo.com/download/track/1100001/mp32/",
+      "audiodownload_allowed": true,
+      "musicinfo": {
+        "vocalinstrumental": "instrumental",
+        "speed": "high",
+        "tags": {
+          "genres": ["house", "electronic"],
+          "instruments": ["piano", "drums"]
+        }
+      }
+    },
+    {
+      "id": "1100002",
+      "name": "Deep Water Taxi",
+      "duration": 302,
+      "artist_id": "210002",
+      "artist_name": "Port Civic",
+      "album_id": "310002",
+      "album_name": "Harbour Sets",
+      "license_ccurl": "http://creativecommons.org/licenses/by-nc-sa/3.0/",
+      "releasedate": "2023-09-30",
+      "album_image": "https://usercontent.jamendo.com?type=album&id=310002&width=300&trackid=1100002",
+      "audio": "https://prod-1.storage.jamendo.com/?trackid=1100002&format=mp32&from=app-test",
+      "audiodownload": "https://prod-1.storage.jamendo.com/download/track/1100002/mp32/",
+      "audiodownload_allowed": true,
+      "musicinfo": {
+        "vocalinstrumental": "instrumental",
+        "speed": "medium",
+        "tags": {
+          "genres": ["house"],
+          "instruments": ["bass"]
+        }
+      }
+    }
+  ]
+}

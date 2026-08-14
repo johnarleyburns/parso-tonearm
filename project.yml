@@ -25,6 +25,7 @@ settings:
     TONEARM_ONEDRIVE_CLIENT_ID: ""
     TONEARM_PCLOUD_CLIENT_ID: ""
     TONEARM_PCLOUD_CLIENT_SECRET: ""
+    TONEARM_JAMENDO_CLIENT_ID: ""
 
 targets:
   Tonearm:
@@ -113,6 +114,7 @@ targets:
           pCloud: "$(TONEARM_PCLOUD_CLIENT_ID)"
         TonearmOAuthClientSecrets:
           pCloud: "$(TONEARM_PCLOUD_CLIENT_SECRET)"
+        JamendoClientID: "$(TONEARM_JAMENDO_CLIENT_ID)"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: guru.parso.tonearm

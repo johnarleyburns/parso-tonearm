@@ -65,6 +65,7 @@ final class FreeTierRegistryTests: XCTestCase {
             "remoteLibraryJellyfin",
             "remoteLibraryPlex",
             "remoteLibrarySMB",
+            "remoteLibraryJamendo",
             "semanticSearch",
             "smartCrates",
             "autoPlaylists",

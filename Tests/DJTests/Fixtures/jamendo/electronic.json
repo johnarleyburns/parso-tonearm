@@ -1,0 +1,81 @@
+{
+  "headers": {
+    "status": "success",
+    "code": 0,
+    "error_message": "",
+    "warnings": "",
+    "results_count": 3,
+    "results_fullcount": 12360
+  },
+  "results": [
+    {
+      "id": "1200001",
+      "name": "Chrome Shore",
+      "duration": 233,
+      "artist_id": "220001",
+      "artist_name": "Bedroom Interiors",
+      "album_id": "320001",
+      "album_name": "Beachware",
+      "license_ccurl": "http://creativecommons.org/licenses/by/3.0/",
+      "releasedate": "2024-04-11",
+      "album_image": "https://usercontent.jamendo.com?type=album&id=320001&width=300&trackid=1200001",
+      "audio": "https://prod-1.storage.jamendo.com/?trackid=1200001&format=mp32&from=app-test",
+      "audiodownload": "https://prod-1.storage.jamendo.com/download/track/1200001/mp32/",
+      "audiodownload_allowed": true,
+      "musicinfo": {
+        "vocalinstrumental": "instrumental",
+        "speed": "medium",
+        "tags": {
+          "genres": ["electronic"],
+          "instruments": ["synthesizer"]
+        }
+      }
+    },
+    {
+      "id": "1200002",
+      "name": "Low Orbit Wavetable",
+      "duration": 277,
+      "artist_id": "220002",
+      "artist_name": "Halo Index",
+      "album_id": "320002",
+      "album_name": "Orbital States",
+      "license_ccurl": "http://creativecommons.org/licenses/by/3.0/",
+      "releasedate": "2024-01-05",
+      "album_image": "https://usercontent.jamendo.com?type=album&id=320002&width=300&trackid=1200002",
+      "audio": "https://prod-1.storage.jamendo.com/?trackid=1200002&format=mp32&from=app-test",
+      "audiodownload": "https://prod-1.storage.jamendo.com/download/track/1200002/mp32/",
+      "audiodownload_allowed": true,
+      "musicinfo": {
+        "vocalinstrumental": "instrumental",
+        "speed": "high",
+        "tags": {
+          "genres": ["electronic", "idm"],
+          "instruments": ["synthesizer"]
+        }
+      }
+    },
+    {
+      "id": "1200003",
+      "name": "Airport Piano Loop",
+      "duration": 221,
+      "artist_id": "220003",
+      "artist_name": "Fern Ticket",
+      "album_id": "320003",
+      "album_name": "Gate Sounds",
+      "license_ccurl": "http://creativecommons.org/licenses/by-nc/3.0/",
+      "releasedate": "2023-12-17",
+      "album_image": "https://usercontent.jamendo.com?type=album&id=320003&width=300&trackid=1200003",
+      "audio": "https://prod-1.storage.jamendo.com/?trackid=1200003&format=mp32&from=app-test",
+      "audiodownload": "https://prod-1.storage.jamendo.com/download/track/1200003/mp32/",
+      "audiodownload_allowed": true,
+      "musicinfo": {
+        "vocalinstrumental": "instrumental",
+        "speed": "low",
+        "tags": {
+          "genres": ["electronic", "ambient"],
+          "instruments": ["piano"]
+        }
+      }
+    }
+  ]
+}

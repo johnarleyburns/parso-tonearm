@@ -1,0 +1,104 @@
+{
+  "headers": {
+    "status": "success",
+    "code": 0,
+    "error_message": "",
+    "warnings": "",
+    "results_count": 4,
+    "results_fullcount": 430
+  },
+  "results": [
+    {
+      "id": "1000001",
+      "name": "Neon Circuit",
+      "duration": 284,
+      "artist_id": "200001",
+      "artist_name": "Kora Mechanism",
+      "album_id": "300001",
+      "album_name": "Signal Paths",
+      "license_ccurl": "http://creativecommons.org/licenses/by/3.0/",
+      "releasedate": "2024-03-14",
+      "album_image": "https://usercontent.jamendo.com?type=album&id=300001&width=300&trackid=1000001",
+      "audio": "https://prod-1.storage.jamendo.com/?trackid=1000001&format=mp32&from=app-test",
+      "audiodownload": "https://prod-1.storage.jamendo.com/download/track/1000001/mp32/",
+      "audiodownload_allowed": true,
+      "musicinfo": {
+        "vocalinstrumental": "instrumental",
+        "speed": "high",
+        "tags": {
+          "genres": ["techno", "electronic"],
+          "instruments": ["synthesizer", "drums"]
+        }
+      }
+    },
+    {
+      "id": "1000002",
+      "name": "Warehouse Line",
+      "duration": 318,
+      "artist_id": "200002",
+      "artist_name": "Lina Scope",
+      "album_id": "300002",
+      "album_name": "Night Routes",
+      "license_ccurl": "http://creativecommons.org/licenses/by-nc-nd/3.0/",
+      "releasedate": "2024-01-27",
+      "album_image": "https://usercontent.jamendo.com?type=album&id=300002&width=300&trackid=1000002",
+      "audio": "https://prod-1.storage.jamendo.com/?trackid=1000002&format=mp32&from=app-test",
+      "audiodownload": "https://prod-1.storage.jamendo.com/download/track/1000002/mp32/",
+      "audiodownload_allowed": true,
+      "musicinfo": {
+        "vocalinstrumental": "instrumental",
+        "speed": "high",
+        "tags": {
+          "genres": ["techno"],
+          "instruments": ["bass"]
+        }
+      }
+    },
+    {
+      "id": "1000003",
+      "name": "Fourth Machine",
+      "duration": 301,
+      "artist_id": "200003",
+      "artist_name": "Dust Monomers",
+      "album_id": "300003",
+      "album_name": "Conveyor EP",
+      "license_ccurl": "http://creativecommons.org/licenses/by/3.0/",
+      "releasedate": "2023-11-08",
+      "album_image": "https://usercontent.jamendo.com?type=album&id=300003&width=300&trackid=1000003",
+      "audio": "https://prod-1.storage.jamendo.com/?trackid=1000003&format=mp32&from=app-test",
+      "audiodownload": "https://prod-1.storage.jamendo.com/download/track/1000003/mp32/",
+      "audiodownload_allowed": true,
+      "musicinfo": {
+        "vocalinstrumental": "instrumental",
+        "speed": "veryhigh",
+        "tags": {
+          "genres": ["techno", "industrial"],
+          "instruments": ["synthesizer"]
+        }
+      }
+    },
+    {
+      "id": "1000004",
+      "name": "Dampened Hall",
+      "duration": 268,
+      "artist_id": "200004",
+      "artist_name": "Amber Static",
+      "album_id": "300004",
+      "album_name": "Shortwave",
+      "license_ccurl": "http://creativecommons.org/licenses/by-nc/3.0/",
+      "releasedate": "2024-05-02",
+      "album_image": "https://usercontent.jamendo.com?type=album&id=300004&width=300&trackid=1000004",
+      "audio": "https://prod-1.storage.jamendo.com/?trackid=1000004&format=mp32&from=app-test",
+      "audiodownload": "https://prod-1.storage.jamendo.com/download/track/1000004/mp32/",
+      "audiodownload_allowed": true,
+      "musicinfo": {
+        "vocalinstrumental": "instrumental",
+        "speed": "high",
+        "tags": {
+          "genres": ["techno"],
+          "instruments": ["piano"]
+        }
+      }
+    }
+  ]
+}
