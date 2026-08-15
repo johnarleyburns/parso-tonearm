@@ -11,10 +11,11 @@ audit table §9).
 
 **M5 — the milestone where it becomes a DJ app** (spec §48.6 **re-scoped**, Appendix
 M.6 rewritten), working from
-`docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; commits **5.1–5.13 landed,
-5.14 (the DJ regression suite) sits complete and uncommitted in the working tree** — the
-lanes run green and the analyzer verifies all five §53.9 signatures against the journal, at
-both `MIX_MINUTES=6` and the 20-minute soak (see "Uncommitted in the working tree"). Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware,
+`docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; **commits 5.1–5.14 are all
+landed** — 5.14, the DJ regression suite, closed the milestone's agent-side work: the lanes
+run green and the analyzer verifies all five §53.9 signatures against the journal, at both
+`MIX_MINUTES=6` and the 20-minute soak. What is left of M5 is **user-owned**: the owner's own
+end-to-end recorded set, and the device pass below. Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware,
 the club-controller transfer test, and **the milestone's own end-to-end narrative**)
 are user-owned and defer to a post-M5 device pass. M4 — the two-deck engine,
 `AVAudioSession`, and StoreKit (the 3.0 Pro launch, spec §48.5, Appendix M.5) — is
@@ -30,6 +31,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M5 5.14** — `e838cfb` `feat(dj): the DJ regression suite — the exit sentence, performed and proved in the recording, §53.7-53.12 (M5 commit 5.14)`.
 - **M5 5.13** — `f3d3047` `feat(dj): transition coach — the five transitions, highlighted in place, §41.18, FR-TRANS-6 (M5 commit 5.13)`.
 - **M5 5.12** — `4cbbf04` `feat(dj): finish + mixes + timeline + review listen + export, §37.4, §41.11-41.12, §18A.5, FR-REC-1/4/5/6/7 (M5 commit 5.12)`.
 - **M5 5.11** — `c83fd84` `feat(dj): recording journal, crash/interruption recovery, finalize, §37.3-37.5, §34A.4, FR-REC-1/3, FR-ENG-8 (M5 commit 5.11)`.
@@ -1119,14 +1121,12 @@ gate sits at 2.5 s (still under the 3 s budget).
 **2.5 s → 4.0 s** (`SequencerTests.testThirtyThousandCandidateBeamStaysInsideBudget`)
 to keep it from failing in a clock-capped Low Power Mode state.
 
-## Uncommitted in the working tree — the DJ regression suite (commit 5.14, ready to commit)
+## M5 commit 5.14 — the DJ regression suite — complete (`e838cfb`)
 
-**Nothing here is committed, and it is no longer inert scaffold.** The tree holds the whole
-of 5.14 — the suite, and **the product fixes the suite found** — as one coherent change
-across ~36 modified files plus eight new paths. **`make test-ui-regression LANES=djmix` now
-runs green end to end and the analyzer verifies all five §53.9 signatures against the
-journal**, which is the §13 Definition of Done's items (1)–(3); the `MIX_MINUTES=20` soak
-(4) and the `djlive` skip (5) are recorded below.
+One commit: the suite, and **the product fixes the suite found** — 44 files, +4756/−163.
+**`make test-ui-regression LANES=djmix` runs green end to end and the analyzer verifies all
+five §53.9 signatures against the journal**; the §13 Definition of Done holds on every item
+(1)–(6), recorded below. The working tree is clean.
 
 | Path | What it is |
 |---|---|
@@ -1356,24 +1356,17 @@ into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible t
   dismissible panel; it never takes over (decks keep playing) and never performs the transition.
   14 `TransitionCoachTests` incl. the 4.10 drawer precedent — present/select/dismiss add zero
   engine calls. Suite 1433 → **1447 green** (8 skipped); DJ-only, no regen. **FR-TRANS-6, §41.18.**
-- **Then 5.14 the DJ regression suite** — **the current work, complete and sitting
-  uncommitted**: the four `djmix` lanes are green (531.8 s, a real 363.6 s recording) and the
-  analyzer verifies **all five** §53.9 signatures against the journal, at the default six
-  minutes and across the `MIX_MINUTES=20` soak (1205.0 s recorded, ~508 MB peak footprint).
-  `LANES=djlive` skips with its remedy stated. Details in "Uncommitted in the working tree"
-  above.
-  **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
-  **AT-MIX-1..8** green, plus the owner's end-to-end recorded set as the user-owned
-  shipping gate.
-- **5.14 — the DJ regression suite** (`docs/plans/dj-regression-suite.md`, spec
-  §53.7–53.12). The M5 exit narrative driven through the real UI and asserted
-  against **the recording the app produces**, because `XCUITest` cannot hear and a
-  lane that asserts "the deck row says Playing" is the D-10 false green exactly.
-  Synthetic **tone-identity** fixtures (deck A 55/611/5300 Hz, deck B
-  87/1290/8900 Hz) make band energy attributable to a specific deck, which is what
-  turns "did the bass swap?" into a question with a crisp answer. `LANES=djmix`
-  gates the milestone; `LANES=djlive` hits real Jamendo and informs it. **By hand,
-  never in CI** (§53.2).
+- **M5 commit 5.14 — the DJ regression suite — complete (`e838cfb`).** The four `djmix` lanes
+  are green (531.8 s, a real 363.6 s recording) and the analyzer verifies **all five** §53.9
+  signatures against the journal, at the default six minutes and across the `MIX_MINUTES=20`
+  soak (1205.0 s recorded, ~508 MB peak footprint). `LANES=djlive` skips with its remedy
+  stated. Details in the 5.14 section above.
+  **M5 exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
+  **AT-MIX-1..8** all green — the remaining gate is **the owner's own end-to-end recorded
+  set**, which is user-owned by design.
+- **Next, unstarted:** the `AVAudioEngineConfigurationChange` / `engine.isRunning` follow-up
+  the suite found and did not fix (NFR-REL-2 — a stopped engine leaves a recording that is
+  dead behind a running timer). Its own commit, its own tests, per plan §14.
 - **Post-M4 device pass** (user-owned ship gates, one pass per handoff §8 and the M4
   plan §2.11): **AT-THERM-1** (60-minute two-deck session, battery, 50% brightness,
   never `.critical`, §43.7), **AT-MEM-1** (the same session never crosses the §43.5
