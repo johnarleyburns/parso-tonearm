@@ -56,6 +56,8 @@ public struct SoloDeckView: View {
                 }
             }
         }
+        // NFR-REL-2: a stopped graph makes every readout below false at once.
+        .engineStoppedBanner(model)
         .preferredColorScheme(.dark)
         #if os(iOS)
         .defersSystemGestures(on: .bottom)

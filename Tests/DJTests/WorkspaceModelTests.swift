@@ -132,6 +132,26 @@ final class WorkspaceModelTests: XCTestCase {
         func resumeRecordingFromInterruption() async throws { interruptionResumes += 1 }
         func sampleTelemetry() -> EngineTelemetry { current }
         func pushTelemetry() { stream.push(current) }
+
+        // Liveness (NFR-REL-2, plan 6.1). `isGraphRunning` is settable so a
+        // test can reproduce the two ways a graph dies: reporting itself
+        // stopped, and the worse one — going on claiming to run while its
+        // clock stands still.
+        var isGraphRunning = true
+        private(set) var recoveries = 0
+        var recoveryError: Error?
+        private var configurationContinuation: AsyncStream<Void>.Continuation?
+        func configurationChanges() -> AsyncStream<Void> {
+            let (stream, continuation) = AsyncStream<Void>.makeStream()
+            configurationContinuation = continuation
+            return stream
+        }
+        func postConfigurationChange() { configurationContinuation?.yield(()) }
+        func recoverGraph() throws {
+            recoveries += 1
+            if let recoveryError { throw recoveryError }
+            isGraphRunning = true
+        }
     }
 
     /// The §37.3 journal seam (plan 5.11) — a recording fake so the model's
@@ -1388,6 +1408,139 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(fake.recordingStops, 1, "the second toggle stops recording once")
         XCTAssertFalse(model.isRecording)
         XCTAssertEqual(fake.recordingStarts, 1, "a stop never restarts")
+    }
+
+    // MARK: - Engine liveness (NFR-REL-2, §34A.5, plan 6.1)
+
+    /// The incident, reproduced: the clock freezes mid-recording while the
+    /// engine goes on claiming to run. The app must stop claiming to record.
+    func testAStalledGraphStopsTheRecordingTimerLying() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   engineStallSeconds: 0.2)
+        try model.begin()
+        defer { model.end() }
+
+        await model.startRecording()
+        for _ in 0..<50 { await Task.yield() }
+        fake.current.deckA.playing = true
+        fake.current.masterSample = 48_000
+        model.pumpTelemetryNow()
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(model.recordingElapsed, 1.0, accuracy: 1e-9)
+        XCTAssertNil(model.engineStopped, "a healthy graph reports nothing")
+
+        // The graph stops being rendered. `isGraphRunning` keeps answering true,
+        // exactly as AVAudioEngine did — the clock standing still is the only
+        // honest signal, and it is the one being tested here.
+        try await Task.sleep(nanoseconds: 250_000_000)
+        model.pumpTelemetryNow()
+        for _ in 0..<80 { await Task.yield() }
+
+        XCTAssertEqual(model.engineStopped, .renderStalled,
+                       "a frozen clock under a playing deck is a stopped graph")
+        XCTAssertEqual(model.recordingElapsed, 1.0, accuracy: 1e-9,
+                       "the elapsed timer freezes rather than running on a dead clock")
+        XCTAssertEqual(fake.recordingStops, 1,
+                       "the recording is closed out, so the audio already on disk is kept")
+        XCTAssertNotNil(model.engineStopRecordingOutcome,
+                        "the user is told what became of the recording, not just that it stopped")
+    }
+
+    /// A late telemetry sample must not resurrect the timer: once stopped, the
+    /// model stops believing the clock at all.
+    func testAStoppedGraphIgnoresLaterTelemetry() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   engineStallSeconds: 0.2)
+        try model.begin()
+        defer { model.end() }
+
+        await model.startRecording()
+        for _ in 0..<50 { await Task.yield() }
+        fake.current.deckA.playing = true
+        fake.isGraphRunning = false
+        model.pumpTelemetryNow()
+        for _ in 0..<80 { await Task.yield() }
+        XCTAssertEqual(model.engineStopped, .notRunning)
+
+        fake.current.masterSample = 480_000
+        model.pumpTelemetryNow()
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(model.recordingElapsed, 0, accuracy: 1e-9,
+                       "a stopped graph's clock is not evidence of anything")
+    }
+
+    func testConfigurationChangeOnAStoppedEngineSurfacesItsReason() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+        for _ in 0..<50 { await Task.yield() }
+
+        // AVAudioEngine posts the notification *after* stopping itself.
+        fake.isGraphRunning = false
+        fake.postConfigurationChange()
+        for _ in 0..<80 { await Task.yield() }
+
+        XCTAssertEqual(model.engineStopped, .configurationChange,
+                       "the notification names the reason the stall detector could only guess at")
+    }
+
+    func testAConfigurationChangeTheGraphAbsorbedIsNotReported() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+        for _ in 0..<50 { await Task.yield() }
+
+        // Still running: the change was absorbed. A banner here would train the
+        // user to ignore banners.
+        fake.postConfigurationChange()
+        for _ in 0..<80 { await Task.yield() }
+        XCTAssertNil(model.engineStopped)
+    }
+
+    func testRecoveryRestartsTheGraphAndClearsTheState() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+        for _ in 0..<50 { await Task.yield() }
+
+        fake.isGraphRunning = false
+        model.pumpTelemetryNow()
+        for _ in 0..<80 { await Task.yield() }
+        XCTAssertEqual(model.engineStopped, .notRunning)
+
+        await model.recoverEngine()
+        XCTAssertEqual(fake.recoveries, 1)
+        XCTAssertNil(model.engineStopped, "a recovered graph clears the banner")
+        XCTAssertNil(model.engineStopRecordingOutcome)
+        XCTAssertFalse(model.isRecoveringEngine)
+    }
+
+    func testAFailedRecoveryStaysStoppedAndSaysSo() async throws {
+        struct Dead: Error, LocalizedError {
+            var errorDescription: String? { "the audio server is gone" }
+        }
+        let fake = FakeWorkspaceEngine()
+        fake.recoveryError = Dead()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        try model.begin()
+        defer { model.end() }
+        for _ in 0..<50 { await Task.yield() }
+
+        fake.isGraphRunning = false
+        model.pumpTelemetryNow()
+        for _ in 0..<80 { await Task.yield() }
+
+        await model.recoverEngine()
+        XCTAssertEqual(model.engineStopped, .notRunning,
+                       "a failed restart leaves the honest stopped state in place")
+        XCTAssertEqual(model.engineStopRecordingOutcome?
+            .contains("could not be restarted"), true,
+                       "and says why, rather than silently retrying forever")
     }
 
     func testRecordingElapsedTracksTheMasterClock() async throws {

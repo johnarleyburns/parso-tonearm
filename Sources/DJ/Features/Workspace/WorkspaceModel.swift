@@ -72,6 +72,13 @@ public protocol WorkspaceEngine: AnyObject {
     /// the recording lost while the live performance carried on. Carried into
     /// the journal so a starved drain names itself.
     var droppedRecordFrames: UInt64 { get }
+    /// Whether the graph reports itself running (NFR-REL-2, §34A.5). Necessary
+    /// but not sufficient — see `EngineLiveness`.
+    var isGraphRunning: Bool { get }
+    /// `AVAudioEngineConfigurationChange` for this engine's graph.
+    func configurationChanges() -> AsyncStream<Void>
+    /// Restart a stopped graph in place (§34A.5).
+    func recoverGraph() throws
     /// §34A.4 `.began` (plan 5.11): flush the active recording's current
     /// segment so it is a complete playable M4A — NFR-REL-2's critical line.
     func interruptRecordingForInterruption() async throws
@@ -87,6 +94,13 @@ public extension WorkspaceEngine {
     /// every offline harness and test double (§47.2), so only the real graph
     /// has to answer this.
     var droppedRecordFrames: UInt64 { 0 }
+
+    /// An offline harness is running by definition — it is pulled by the test,
+    /// not by hardware — and has no configuration to change. Only the realtime
+    /// graph can lose liveness, so only it has to answer these.
+    var isGraphRunning: Bool { true }
+    func configurationChanges() -> AsyncStream<Void> { AsyncStream { $0.finish() } }
+    func recoverGraph() throws {}
 }
 
 extension PerformanceEngine: WorkspaceEngine {}
@@ -267,6 +281,31 @@ public final class WorkspaceModel: ObservableObject {
     /// record/elapsed chip is shared across every performance surface.
     @Published public private(set) var isRecording = false
     @Published public private(set) var recordingElapsed: Double = 0
+
+    /// The graph's liveness (NFR-REL-2, §34A.5) — `nil` while it is live, and
+    /// the reason it stopped otherwise.
+    ///
+    /// Published because **every surface has to stop claiming things that are no
+    /// longer true** the moment this is set: the record chip stops running its
+    /// timer, the decks stop showing themselves as playing, and a banner says
+    /// what happened and what became of the recording. The suite's incident is
+    /// the specification here — an app that displays `Stop · 5:07` over a dead
+    /// engine for fourteen minutes has told the user a lie that costs them
+    /// their set.
+    @Published public private(set) var engineStopped: EngineLiveness.StopReason?
+    /// What became of an in-flight recording when the engine stopped — surfaced
+    /// beside the reason, because "the engine stopped" and "your recording is
+    /// safe" are two different pieces of news and the user needs both.
+    @Published public private(set) var engineStopRecordingOutcome: String?
+    /// True while a recovery attempt is in flight, so the button cannot be
+    /// pressed twice into two concurrent restarts.
+    @Published public private(set) var isRecoveringEngine = false
+
+    /// The stall window is injectable for the same reason `pinnedDrawerIdle`
+    /// is: a test that has to sleep two seconds to watch a watchdog fire is a
+    /// test nobody runs.
+    private var liveness: EngineLivenessMonitor
+    private var configurationChangeTask: Task<Void, Never>?
     /// The master-clock sample position when recording started — `elapsed` is
     /// `(masterSample − start) / sampleRate`, which equals the recorded frames.
     private var recordingStartSample: Int64 = 0
@@ -394,8 +433,10 @@ public final class WorkspaceModel: ObservableObject {
                 waveformRepository: (any WaveformRendering)? = nil,
                 stemProvider: (any StemProviding)? = nil,
                 recordingService: (any RecordingJournaling)? = nil,
-                session: AudioSessionCoordinator? = nil) {
+                session: AudioSessionCoordinator? = nil,
+                engineStallSeconds: Double = 2.0) {
         self.engine = engine
+        self.liveness = EngineLivenessMonitor(stallSeconds: engineStallSeconds)
         self.store = store
         self.injectedLibrary = library
         self.injectedWaveformRepository = waveformRepository
@@ -438,8 +479,30 @@ public final class WorkspaceModel: ObservableObject {
         }
         pump?.start()
         startConsumingSessionResponses()
+        startObservingConfigurationChanges()
         Task { [weak self] in
             await self?.reconcileRecordings()
+        }
+    }
+
+    /// `AVAudioEngineConfigurationChange` (§34A.5) — the fast path to the same
+    /// honest state the stall detector reaches on its own, arriving with a
+    /// reason attached instead of two seconds later without one.
+    private func startObservingConfigurationChanges() {
+        configurationChangeTask?.cancel()
+        configurationChangeTask = Task { [weak self] in
+            guard let self else { return }
+            for await _ in self.engine.configurationChanges() {
+                // AVAudioEngine posts this *after* stopping itself. If it is
+                // somehow still running, the graph absorbed the change and
+                // there is nothing to report — saying otherwise would train the
+                // user to ignore the banner.
+                guard !self.engine.isGraphRunning else { continue }
+                self.liveness.report(.configurationChange)
+                if self.engineStopped == nil {
+                    self.handleEngineStopped(.configurationChange)
+                }
+            }
         }
     }
 
@@ -448,6 +511,8 @@ public final class WorkspaceModel: ObservableObject {
         telemetryTask = nil
         interruptionTask?.cancel()
         interruptionTask = nil
+        configurationChangeTask?.cancel()
+        configurationChangeTask = nil
         drawerIdleTask?.cancel()
         drawerIdleTask = nil
         pump?.stop()
@@ -465,8 +530,88 @@ public final class WorkspaceModel: ObservableObject {
         pump?.setPaused(paused)
     }
 
+    /// Fold the telemetry sample into the liveness watchdog (NFR-REL-2).
+    ///
+    /// Runs on every sample, before anything else reads the telemetry, because
+    /// the state it produces changes what the rest of `apply` is allowed to
+    /// claim — most of all the recording timer.
+    private func observeLiveness(_ value: EngineTelemetry, now: Date = Date()) {
+        let playing = value.deckA.playing || value.deckB.playing
+        let state = liveness.observe(masterSample: value.masterSample,
+                                     anyDeckPlaying: playing,
+                                     isRunning: engine.isGraphRunning,
+                                     now: now)
+        switch state {
+        case .live:
+            return
+        case .stopped(let reason):
+            guard engineStopped == nil else { return }
+            handleEngineStopped(reason)
+        }
+    }
+
+    /// The graph stopped. Tell the truth, then save what can be saved.
+    ///
+    /// Order matters: the flags that make the UI stop lying are set *first* and
+    /// synchronously, so there is no window in which the timer keeps running
+    /// while an async finalize is in flight. Only then does the recording get
+    /// closed out — and it is closed out rather than abandoned, because the
+    /// encoder's flushed segments are a real recording (NFR-REL-2) and the user
+    /// should get the twenty minutes that did happen instead of nothing.
+    private func handleEngineStopped(_ reason: EngineLiveness.StopReason) {
+        engineStopped = reason
+        let wasRecording = isRecording
+        if wasRecording {
+            engineStopRecordingOutcome = "Saving what was recorded up to that point…"
+            Task { [weak self] in
+                guard let self else { return }
+                await self.finalizeRecordingAfterEngineStop()
+            }
+        }
+        IdleTimerScope.update(anyDeckPlaying: false)
+    }
+
+    /// Close out a recording whose engine died under it. The audio already on
+    /// disk is the guarantee §37.3 was built around, so this is the ordinary
+    /// stop path — not a special case — and its failure is reported rather than
+    /// swallowed.
+    private func finalizeRecordingAfterEngineStop() async {
+        await stopRecording()
+        // `stopRecording` publishes the finished mix when the join and the
+        // journal both succeeded. When it did not, the flushed segments are
+        // still on disk and §37.3's `reconcile()` salvages them on next
+        // appear — so the honest message is "recovered later", never "lost".
+        engineStopRecordingOutcome = finishedMix == nil
+            ? "The recording could not be finalised now — Recorded Mixes will recover it."
+            : "The recording was saved up to the moment the engine stopped."
+    }
+
+    /// Try to bring the graph back (§34A.5). Never automatic: a set that
+    /// restarts itself mid-transition is worse than one that waits to be told,
+    /// and the human is standing right there.
+    public func recoverEngine() async {
+        guard !isRecoveringEngine else { return }
+        isRecoveringEngine = true
+        defer { isRecoveringEngine = false }
+        do {
+            try engine.recoverGraph()
+            liveness.recovered()
+            engineStopped = nil
+            engineStopRecordingOutcome = nil
+        } catch {
+            engineStopRecordingOutcome =
+                "The engine could not be restarted (\(error.localizedDescription)). "
+                + "Leave the decks and come back to rebuild the audio graph."
+        }
+    }
+
     private func apply(_ value: EngineTelemetry) {
         telemetry = value
+        observeLiveness(value)
+        // A stopped graph renders nothing, so nothing below this line is true
+        // of it: the elapsed timer would run on a stale clock and the timeline
+        // would log track starts that never sounded.
+        if engineStopped != nil { return }
         if isRecording {
             // Decision 14's elapsed chip: the recorded frames are exactly the
             // master-clock frames captured by the tap (§37.2), so elapsed is

@@ -406,6 +406,66 @@ public final class AudioGraph: @unchecked Sendable {
         engine.stop()
     }
 
+    /// An observer registration on its way to `removeObserver`.
+    ///
+    /// `NotificationCenter`'s token is `any NSObjectProtocol`, which Swift 6
+    /// will not let cross into the stream's `@Sendable` termination handler. The
+    /// box is not a waiver: the token is created once, never read, never
+    /// mutated, and used for exactly one call — there is no shared state here to
+    /// race on.
+    private final class ObserverToken: @unchecked Sendable {
+        let value: any NSObjectProtocol
+        init(_ value: any NSObjectProtocol) { self.value = value }
+    }
+
+    /// Whether `AVAudioEngine` believes it is running.
+    ///
+    /// Necessary but **not sufficient** as a liveness signal: it reports whether
+    /// the engine was told to run, not whether the hardware is pulling the
+    /// render callback. `EngineLivenessMonitor` is what closes that gap.
+    public var isRunning: Bool {
+        engine.isRunning
+    }
+
+    /// Restart a stopped realtime graph in place (§34A.5's restart, short of a
+    /// full topology rebuild — the node graph is unchanged, so this is the
+    /// cheap half). Idempotent: starting a running engine is a no-op rather
+    /// than an error, so a coalesced double recovery cannot throw.
+    public func restart() throws {
+        guard renderingMode == .realtime else {
+            throw AudioGraphError.renderingUnavailableInRealtimeMode
+        }
+        if engine.isRunning { return }
+        // `prepare()` re-allocates the render resources the stop released. On a
+        // media-services reset the engine object is stale and `start()` throws —
+        // which is the honest outcome, surfaced rather than swallowed.
+        engine.prepare()
+        try engine.start()
+    }
+
+    /// `AVAudioEngineConfigurationChange` for **this** engine — the fast path in
+    /// `EngineLivenessMonitor`'s hierarchy, and the only signal that names a
+    /// reason. AVAudioEngine posts it after it has already stopped itself, so a
+    /// receiver's job is to recover, not to prevent.
+    ///
+    /// The observation is handed out as a stream rather than a callback so the
+    /// consumer (`WorkspaceModel`) marshals it the same way it already marshals
+    /// session responses (§34A.4) — one idiom for "the system interrupted us".
+    public func configurationChanges() -> AsyncStream<Void> {
+        AsyncStream { continuation in
+            let token = ObserverToken(NotificationCenter.default.addObserver(
+                forName: .AVAudioEngineConfigurationChange,
+                object: engine,
+                queue: nil
+            ) { _ in
+                continuation.yield(())
+            })
+            continuation.onTermination = { _ in
+                NotificationCenter.default.removeObserver(token.value)
+            }
+        }
+    }
+
     /// Render `frameCount` frames into a fresh buffer. The source node's render
     /// block runs synchronously inside this call (offline mode — no hardware).
     /// Only meaningful in `.offline` mode.

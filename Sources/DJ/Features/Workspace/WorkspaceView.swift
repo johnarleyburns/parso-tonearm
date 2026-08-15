@@ -71,6 +71,8 @@ public struct WorkspaceView: View {
             // when open, the dismissible panel over the still-playing surface.
             TransitionCoachAccessory(model: coach)
         }
+        // NFR-REL-2: a stopped graph makes every readout below false at once.
+        .engineStoppedBanner(model)
         .environment(\.coachHighlights,
                       coach.isPresented ? coach.highlightedIdentifiers : [])
         .preferredColorScheme(.dark)

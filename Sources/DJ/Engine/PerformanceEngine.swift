@@ -423,6 +423,24 @@ public final class PerformanceEngine {
         graph.recordTap?.droppedFrames ?? 0
     }
 
+    // MARK: - Liveness (NFR-REL-2, §34A.5)
+
+    /// Whether the graph reports itself running. See `EngineLiveness` for why
+    /// this is necessary but not sufficient.
+    public var isGraphRunning: Bool { graph.isRunning }
+
+    /// `AVAudioEngineConfigurationChange` for this engine's graph.
+    public func configurationChanges() -> AsyncStream<Void> {
+        graph.configurationChanges()
+    }
+
+    /// Restart a stopped graph in place (§34A.5). Throws if the engine cannot
+    /// be restarted — a stale engine after a media-services reset is a real
+    /// failure and the caller must show it, not retry it silently forever.
+    public func recoverGraph() throws {
+        try graph.restart()
+    }
+
     /// §34A.4 `.began` (plan 5.11): flush the active recording's current
     /// segment so it is a complete playable M4A — the critical line behind
     /// NFR-REL-2. A no-op when nothing is recording (nothing to flush).
