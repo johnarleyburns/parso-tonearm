@@ -652,6 +652,128 @@ public actor DJLibraryStore {
         }
     }
 
+    // MARK: - Genre-crate ingestion (plan 5.6, dj-regression-suite §8.1)
+
+    /// One already-downloaded file the app wants in the DJ library as an
+    /// ordinary `track`/`asset` row — the genre-crate seam (§18A.4): a remote
+    /// genre track, cached locally, becomes a deck-ready DJ library track with
+    /// no special-casing. The asset holds a bookmark to the downloaded file, so
+    /// FR-LIB-8's fully-local gate and the decode path treat it exactly like a
+    /// folder import.
+    public struct DownloadedTrackItem: Sendable, Equatable {
+        public let localURL: URL
+        public let title: String
+        public let artist: String?
+        public let durationSec: Double?
+        public let codec: String
+
+        public init(localURL: URL, title: String, artist: String? = nil,
+                    durationSec: Double? = nil, codec: String = "WAV") {
+            self.localURL = localURL
+            self.title = title
+            self.artist = artist
+            self.durationSec = durationSec
+            self.codec = codec
+        }
+    }
+
+    /// Ingest downloaded files as `track`/`asset` rows in one transaction
+    /// (NFR-REL-1), deduplicating by content hash. Returns the track IDs in
+    /// item order — the caller uses them to build a crate playlist.
+    public func importDownloadedTracks(_ items: [DownloadedTrackItem]) async throws -> [Int64] {
+        try await pool.write { db in
+            var trackIDs: [Int64] = []
+            for item in items {
+                let now = Date()
+                let trackID: Int64
+                let hash = Self.sha256(of: item.localURL) ?? item.localURL.lastPathComponent
+                if let existing = try DJTrack.filter(Column("contentHash") == hash).fetchOne(db),
+                   let id = existing.id {
+                    trackID = id
+                    // Idempotent: a track that already has a local asset is not
+                    // given a second copy of the same file.
+                    let alreadyStored = try DJAsset
+                        .filter(Column("trackID") == id)
+                        .fetchCount(db) > 0
+                    if alreadyStored {
+                        trackIDs.append(id)
+                        continue
+                    }
+                } else {
+                    var track = DJTrack(
+                        syncID: UUID().uuidString,
+                        title: item.title,
+                        durationSec: item.durationSec,
+                        codec: item.codec,
+                        contentHash: hash,
+                        sortKey: item.localURL.lastPathComponent,
+                        addedAt: now,
+                        updatedAt: now)
+                    try track.insert(db)
+                    guard let id = track.id else { continue }
+                    trackID = id
+                    var metadata = ImportMetadata()
+                    metadata.title = item.title
+                    metadata.artist = item.artist
+                    try Self.attachArtists(to: trackID, metadata: metadata, in: db)
+                    var event = DJImportEvent(trackID: trackID, kind: "download",
+                                              detail: "genre crate", at: now)
+                    try event.insert(db)
+                }
+                var asset = DJAsset(trackID: trackID,
+                                    folderID: nil,
+                                    bookmark: BookmarkVault.makeBookmark(for: item.localURL),
+                                    relPath: item.localURL.lastPathComponent,
+                                    sizeBytes: Self.fileSize(of: item.localURL),
+                                    fileModifiedAt: Self.modificationDate(of: item.localURL),
+                                    unsupportedReason: nil)
+                try asset.insert(db)
+                trackIDs.append(trackID)
+            }
+            return trackIDs
+        }
+    }
+
+    /// Save (or replace) a crate playlist: a `DJPlaylist` named `title` holding
+    /// exactly `trackIDs` in order. Re-saving the same title replaces the old
+    /// row so a re-import never stacks duplicate crates.
+    public func saveCrate(title: String, trackIDs: [Int64]) async throws -> Int64 {
+        try await pool.write { db in
+            let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let effective = trimmed.isEmpty ? "Crate" : trimmed
+            let now = Date()
+            if let existing = try DJPlaylist.filter(Column("title") == effective).fetchOne(db),
+               let existingID = existing.id {
+                try DJPlaylistItem.filter(Column("playlistID") == existingID).deleteAll(db)
+                for (position, trackID) in trackIDs.enumerated() {
+                    var item = DJPlaylistItem(playlistID: existingID,
+                                              trackID: trackID,
+                                              position: position)
+                    try item.insert(db)
+                }
+                var updated = existing
+                updated.title = effective
+                updated.updatedAt = now
+                try updated.update(db)
+                return existingID
+            }
+            var playlist = DJPlaylist(syncID: UUID().uuidString,
+                                      title: effective,
+                                      kind: "manual",
+                                      createdAt: now,
+                                      updatedAt: now)
+            try playlist.insert(db)
+            guard let playlistID = playlist.id else { throw DJImportError.failedToInsertFolder }
+            for (position, trackID) in trackIDs.enumerated() {
+                var item = DJPlaylistItem(playlistID: playlistID,
+                                          trackID: trackID,
+                                          position: position)
+                try item.insert(db)
+            }
+            return playlistID
+        }
+    }
+
     // MARK: - File helpers
 
     private static func relPath(_ url: URL, relativeTo folder: URL) -> String {

@@ -414,6 +414,15 @@ public final class PerformanceEngine {
         return try await encoder.finalize()
     }
 
+    /// Frames the record tap dropped because the ring was full (§37.2). Zero
+    /// on a graph with no tap. The tap drops rather than blocking — the live
+    /// performance is never held up by a slow encoder — so this is the honest
+    /// count of what the recording lost, and the journal carries it so the
+    /// analyzer can name a starved drain instead of puzzling over a hole.
+    public var droppedRecordFrames: UInt64 {
+        graph.recordTap?.droppedFrames ?? 0
+    }
+
     /// §34A.4 `.began` (plan 5.11): flush the active recording's current
     /// segment so it is a complete playable M4A — the critical line behind
     /// NFR-REL-2. A no-op when nothing is recording (nothing to flush).

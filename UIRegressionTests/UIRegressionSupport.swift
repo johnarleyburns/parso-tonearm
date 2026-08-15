@@ -66,6 +66,19 @@ extension XCUIApplication {
         return candidate
     }
 
+    /// Wait until an element is gone — a sheet that must fully dismiss before the
+    /// next tap (a button behind a dismissing sheet exists but is not hittable).
+    @discardableResult
+    func waitForNonExistence(_ identifier: String, _ timeout: TimeInterval = 15,
+                             file: StaticString = #filePath,
+                             line: UInt = #line) -> XCUIElement {
+        let candidate = element(identifier)
+        XCTAssertTrue(candidate.waitForNonExistence(timeout: timeout),
+                      "expected '\(identifier)' to disappear within \(Int(timeout))s",
+                      file: file, line: line)
+        return candidate
+    }
+
     /// The suite's definition of "a track actually played": the transport reports
     /// playing AND the elapsed time advances. Either alone has produced false
     /// greens before — a remote library can show a loaded track that never decodes,

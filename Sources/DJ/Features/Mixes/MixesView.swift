@@ -14,33 +14,37 @@ public struct MixesView: View {
         _model = StateObject(wrappedValue: model)
     }
 
+    /// **No `NavigationStack` here.** This screen is a destination of the DJ
+    /// route's stack (§49.3a), and a stack nested inside another stack's
+    /// `navigationDestination` trapped in SwiftUI's own navigation state the
+    /// moment the screen appeared — the app did not merely misdraw the mixes
+    /// list, it terminated on the way to it. The title belongs to the host
+    /// stack, which is where a pushed screen's title belongs anyway.
     public var body: some View {
-        NavigationStack {
-            Group {
-                if model.isEmpty && model.isLoaded {
-                    ContentUnavailableView {
-                        Label("No recorded mixes", systemImage: "waveform.badge.record")
-                    } description: {
-                        Text("Record a set from the workspace and it appears here, ready to play.")
-                    }
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 14)],
-                                  spacing: 14) {
-                            ForEach(model.rows) { row in
-                                mixCard(row)
-                            }
+        Group {
+            if model.isEmpty && model.isLoaded {
+                ContentUnavailableView {
+                    Label("No recorded mixes", systemImage: "waveform.badge.record")
+                } description: {
+                    Text("Record a set from the workspace and it appears here, ready to play.")
+                }
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 14)],
+                              spacing: 14) {
+                        ForEach(model.rows) { row in
+                            mixCard(row)
                         }
-                        .padding(16)
-
-                        storageCards
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 24)
                     }
+                    .padding(16)
+
+                    storageCards
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 24)
                 }
             }
-            .navigationTitle("Recorded mixes")
         }
+        .navigationTitle("Recorded mixes")
         .preferredColorScheme(.dark)
         .task { await model.begin() }
         .sheet(item: $detailMix) { mix in
@@ -92,6 +96,7 @@ public struct MixesView: View {
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.08), lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("dj.mix.\(mix.title)")
         .contextMenu {
             Button {
                 detailMix = mix

@@ -102,8 +102,43 @@ services:
       timeout: 5s
       retries: 30
 
+  # ── AT-MIX-1..8 · DJ fixture media ───────────────────────────────────────
+  # The tone-identity tracks the deterministic DJ lane mixes (§53.8, §54.6):
+  # per-deck frequencies inside each EQ band, so band energy in the recording is
+  # attributable to a specific deck. Real music cannot support that assertion,
+  # which is why the gating lane does not use it.
+  dj-fixture-media:
+    image: python:3.12-slim
+    command: ["python", "/srv/make-dj-fixture-media.py", "/media"]
+    volumes:
+      - ./scripts/ui-regression:/srv:ro
+      - dj-fixture-media:/media
+
+  # ── AT-MIX-1..8 · mock catalogue ─────────────────────────────────────────
+  # Stands in for api.jamendo.com so the real browse UI path runs deterministically
+  # and offline. The live lane (LANES=djlive) is what checks the real endpoint
+  # shapes. No credential lives here (§54.2).
+  jamendo-mock:
+    image: python:3.12-slim
+    depends_on:
+      dj-fixture-media:
+        condition: service_completed_successfully
+    command: ["python", "/srv/jamendo-mock/serve.py", "--media", "/media", "--port", "18092"]
+    ports:
+      - "18092:18092"
+    volumes:
+      - ./scripts/ui-regression:/srv:ro
+      - dj-fixture-media:/media:ro
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:18092/health')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
 volumes:
   fixture-media:
+  dj-fixture-media:
   plex-config:
   jellyfin-config:
   jellyfin-cache:

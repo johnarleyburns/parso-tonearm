@@ -71,3 +71,14 @@ fastlane/test_output
 .test-credentials
 *.local.sh
 .test-results/
+
+# UI regression artifacts. The DJ lane keeps its recorded mix here so a human can
+# listen to it and judge whether the analyzer's thresholds are tuned right (§53.9);
+# it is wiped at the start of every DJ run. Never committed — it is generated audio.
+build/ui-regression/
+
+# Local compose-run artifacts (navidrome config written by a backing-server run).
+data/
+
+# Byte-compiled fixture/analyzer scripts.
+__pycache__/

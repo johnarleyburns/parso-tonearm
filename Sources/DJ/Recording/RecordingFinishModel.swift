@@ -82,6 +82,11 @@ public final class RecordingFinishModel: ObservableObject {
     @Published public var notes: String
     /// The export card's "Include tracklist / cue sheet" toggle (FR-REC-4).
     @Published public var includeCueSheet = true
+    /// The container path the `-uiRegression` export was written to (hook 5.12),
+    /// nil until the harness share action runs. The runner reads it via
+    /// `simctl get_app_container`; the finish screen publishes it on
+    /// `dj.export.path`.
+    @Published public private(set) var regressionExportPath: String?
 
     /// FR-REC-7 honesty: the mix's real format label — "M4A · AAC 256 kbps".
     public var formatLabel: String {
@@ -303,6 +308,46 @@ public final class RecordingFinishModel: ObservableObject {
         return url
     }
 
+    /// The `-uiRegression` export (dj-regression-suite hook 5.12): the share
+    /// action is unautomatable, so under the harness it writes the M4A (plus the
+    /// cue sheet and the session's `mix-journal.json`) to the app's
+    /// `Documents/uiRegression/export/` container path and publishes it on
+    /// `dj.export.path`. The runner pulls it with `simctl get_app_container`.
+    public func exportForRegression() async {
+        guard regressionExportPath == nil, let assetURL else { return }
+        let fm = FileManager.default
+        let documents = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let exportDirectory = documents
+            .appendingPathComponent("uiRegression", isDirectory: true)
+            .appendingPathComponent("export", isDirectory: true)
+        do {
+            try fm.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
+            let mixDestination = exportDirectory.appendingPathComponent("dj-mix.m4a")
+            fm.removeItemIfPresent(mixDestination)
+            try fm.copyItem(at: assetURL, to: mixDestination)
+
+            // The journal the engine wrote beside the M4A (hook 5.11) travels
+            // with the export so the host-side analyzer can cross-check it.
+            let journalSource = assetURL.deletingLastPathComponent()
+                .appendingPathComponent("mix-journal.json")
+            if fm.fileExists(atPath: journalSource.path) {
+                let journalDestination = exportDirectory.appendingPathComponent("mix-journal.json")
+                fm.removeItemIfPresent(journalDestination)
+                try fm.copyItem(at: journalSource, to: journalDestination)
+            }
+
+            if includeCueSheet, let cueSheet = cueSheetURL() {
+                let destination = exportDirectory.appendingPathComponent(cueSheet.lastPathComponent)
+                fm.removeItemIfPresent(destination)
+                try fm.copyItem(at: cueSheet, to: destination)
+            }
+            regressionExportPath = mixDestination.path
+        } catch {
+            // An export failure is honest, not fatal — the path stays nil and
+            // the runner reports the missing artifact rather than a false pass.
+        }
+    }
+
     // MARK: - Assembly
 
     /// The real finish-screen stack: the single-writer mixes data layer and an
@@ -317,5 +362,11 @@ public final class RecordingFinishModel: ObservableObject {
             repository: repository ?? MixRepository(),
             player: player ?? AVAudioPlayerMixPlayer(),
             waveformLoader: waveformLoader ?? MixWaveformBuilder())
+    }
+}
+
+private extension FileManager {
+    func removeItemIfPresent(_ url: URL) {
+        try? removeItem(at: url)
     }
 }

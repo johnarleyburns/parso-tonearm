@@ -118,6 +118,10 @@ public struct WorkspaceView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(.thinMaterial, in: Capsule())
+            // §53.11: present exactly when the surface is gated — so a run
+            // that lost its entitlement fails as "the decks are locked"
+            // rather than as a hundred gestures landing on an inert view.
+            .accessibilityIdentifier("dj.paywall.lock")
     }
 }
 
@@ -896,7 +900,8 @@ private struct MixerColumnView: View {
                         model.setCrossfader(Float(u) * 2 - 1, curve: model.crossfaderCurve)
                     }
                 )
-                .accessibilityIdentifier("dj.mixer.crossfader")
+                .performanceControl("dj.mixer.crossfader", label: "Crossfader",
+                                    value: model.crossfader)
                 .coachGlow(identifier: "dj.mixer.crossfader")
             }
             .frame(height: 34)
@@ -1246,7 +1251,7 @@ struct EQKnob: View {
             )
         }
         .frame(width: 44, height: 44)
-        .accessibilityIdentifierIfPresent(identifier)
+        .performanceControl(identifier, label: label, value: value)
         .coachGlow(identifier: identifier)
     }
 }
@@ -1275,7 +1280,7 @@ struct VerticalSlider: View {
                 }
             )
         }
-        .accessibilityIdentifierIfPresent(identifier)
+        .performanceControl(identifier, label: "Fader", value: value)
         .coachGlow(identifier: identifier)
     }
 }
@@ -1306,4 +1311,31 @@ private struct BeatPhaseMeter: View {
 /// Clamp a value into a closed range.
 private func clamp<T: Comparable>(_ minimum: T, _ value: T, _ maximum: T) -> T {
     min(max(value, minimum), maximum)
+}
+
+
+/// One accessibility element per continuous performance control, carrying its
+/// §53.11 identifier **and its current position**. Shared by all three
+/// performance surfaces.
+///
+/// Two things depend on it. VoiceOver otherwise reads a knob that says nothing
+/// about where it is set. And the DJ regression lanes can tell a gesture that
+/// moved a control from one that landed on scenery: a synthesised drag on a
+/// control that is present but unreachable is silent, and with no value to
+/// compare it stays silent all the way to a missing transition signature in the
+/// recording, hours later (§53.5).
+///
+/// `children: .ignore` is what makes it *one* element. A decorated control
+/// otherwise scatters its identifier across every label inside it, and a driver
+/// that takes the first match ends up dragging within a 7-point letter "A".
+extension View {
+    func performanceControl(_ identifier: String?, label: String, value: Float) -> some View {
+        let element = accessibilityElement(children: .ignore)
+            .accessibilityLabel(label)
+            .accessibilityValue(String(format: "%.3f", value))
+        if let identifier {
+            return AnyView(element.accessibilityIdentifier(identifier))
+        }
+        return AnyView(element)
+    }
 }

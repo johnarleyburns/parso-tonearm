@@ -94,7 +94,10 @@ final class TransitionTests: XCTestCase {
         let bBefore = try steadyMagnitudes(engine, windows: 2)
         engine.play(.a)
 
-        engine.setFilter(.a, knob: 1) // a full high-pass sweep on the outgoing deck
+        // A high-pass sweep on the outgoing deck, up to a ~300 Hz corner: enough
+        // to take its low out while its mid still passes. Full right is a 6 kHz
+        // corner, which would take the mid with it (§35.3).
+        engine.setFilter(.a, knob: 0.475)
 
         engine.pause(.b)
         let aAfter = try steadyMagnitudes(engine, windows: 2)

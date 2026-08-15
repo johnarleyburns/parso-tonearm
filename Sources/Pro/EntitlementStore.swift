@@ -241,6 +241,24 @@ public final class EntitlementStore: ObservableObject {
         return ok
     }
 
+    /// The UI-regression grant (spec §53.11, `UI_TESTING_ENABLE_PRO`).
+    ///
+    /// The hand-run DJ lanes perform on the Pro surfaces, and a StoreKit
+    /// purchase cannot be driven from XCUITest. The app's launch-argument
+    /// branch is the only caller, so a shipped launch never reaches it.
+    ///
+    /// It exists because the older `ProEntitlement` defaults flag the app also
+    /// seeds is **not** what any Pro capability reads: `ProCapability` gates on
+    /// this store's `isPro`, whose offline source of truth is the entitlement
+    /// cache file (T.2 rule 2). Seeding only the defaults flag left every DJ
+    /// surface dimmed and `allowsHitTesting(false)` under automation — a whole
+    /// lane of gestures landing on an inert surface.
+    public func grantForUITesting() {
+        isPro = true
+        source = .purchased
+        cacheStore.save(EntitlementCache(isPro: true, source: .purchased, timestamp: Date()))
+    }
+
     /// Restores prior purchases via the App Store account, then re-derives the
     /// grant (FR-STORE-3). The paywall's Restore button calls this.
     public func restore() async {

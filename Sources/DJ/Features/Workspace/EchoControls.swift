@@ -56,7 +56,16 @@ struct EchoReleaseToCommitButton: View {
             .contentShape(Rectangle())
             .gesture(dragGesture(flyoutFrame: flyoutFrame))
         }
-        .frame(minHeight: 44)
+        // **A fixed height, not a minimum.** `GeometryReader` is greedy: it
+        // takes every point its parent offers, and `minHeight` is a floor, not
+        // a ceiling. Inside the compact surface's bottom bar that made the
+        // button — and therefore the bar, and therefore the bar's opaque
+        // background — grow to nearly the whole screen, painting over the deck
+        // column and the crate sheet. Both stayed in the accessibility tree, so
+        // every automated assertion about them still passed while the surface
+        // was, to a finger, a dead slab: taps landed on the bar covering them.
+        // The button is a 44 pt control (NFR-A11Y-3); say so.
+        .frame(height: 44)
         // A deck change (the solo surface's focus swap) re-arms the button's
         // channel; the flyout's channel chips override it on the twin.
         .onChange(of: deck) { _, newDeck in

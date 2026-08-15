@@ -36,17 +36,54 @@ public struct RecordingJournalConfiguration: Sendable, Equatable, Codable {
     /// The §35A echo division in force per deck (beats).
     public let echoBeatsA: Double
     public let echoBeatsB: Double
+    /// Frames the record tap dropped because the ring was full — the §37.2
+    /// "the ring absorbs a dropped drain" counter. Exported so the analyzer can
+    /// **name** a starved encoder instead of reporting the hole it left as a
+    /// transition that did not happen (spec §53.10's dropout budget).
+    public let droppedFrames: Int64
+    /// The transition events recorded during the mix, in recording-relative
+    /// samples — the journal's "what happened when" (dj-regression-suite §7).
+    public let events: [RecordingJournalEvent]
 
     public init(sampleRate: Double,
                 limiterCeiling: Float?,
                 masterBPM: Double,
                 echoBeatsA: Double,
-                echoBeatsB: Double) {
+                echoBeatsB: Double,
+                droppedFrames: Int64 = 0,
+                events: [RecordingJournalEvent] = []) {
         self.sampleRate = sampleRate
         self.limiterCeiling = limiterCeiling
         self.masterBPM = masterBPM
         self.echoBeatsA = echoBeatsA
         self.echoBeatsB = echoBeatsB
+        self.droppedFrames = droppedFrames
+        self.events = events
+    }
+}
+
+/// One recorded gesture, exported in `mix-journal.json`'s `events` array
+/// (dj-regression-suite §7). The analyzer reads `kind` + `atSample` and verifies
+/// the acoustic signature is present at that point — the app claims *where*
+/// something happened; the audio proves it. `outgoing`/`incoming` are the deck
+/// identities (`"a"`/`"b"`); `atSample` is recording-relative
+/// (`masterSample − recordingStart`), the same basis `mix_track_event` uses.
+public struct RecordingJournalEvent: Sendable, Equatable, Codable {
+    public let kind: String
+    public let atSample: Int64
+    public let outgoing: String?
+    public let incoming: String?
+    /// The echo division (beats) in force for `transition.echoOut`.
+    public let echoDivision: Double?
+
+    public init(kind: String, atSample: Int64,
+                outgoing: String? = nil, incoming: String? = nil,
+                echoDivision: Double? = nil) {
+        self.kind = kind
+        self.atSample = atSample
+        self.outgoing = outgoing
+        self.incoming = incoming
+        self.echoDivision = echoDivision
     }
 }
 
@@ -153,7 +190,8 @@ public actor RecordingService: RecordingJournaling {
             // the segments). Removed only after the rows committed.
             Self.removeSegments(output.segmentURLs)
             if exportJournalMetadata, let journal {
-                try Self.writeJournalJSON(journal, format: output.format,
+                try Self.writeJournalJSON(journal, frames: Int64(frames),
+                                          format: output.format,
                                           into: output.outputDirectory)
             }
             return finished
@@ -285,8 +323,7 @@ public actor RecordingService: RecordingJournaling {
         return formatter
     }()
 
-    private struct JournalPayload: Codable {
-        let format: String
+    private struct EnginePayload: Codable {
         let sampleRate: Double
         let limiterCeiling: Double?
         let masterBPM: Double
@@ -294,15 +331,53 @@ public actor RecordingService: RecordingJournaling {
         let echoBeatsB: Double
     }
 
+    /// What the app believes it wrote. The analyzer decodes the file and
+    /// compares: an encoder that lost the tail, or a tap that dropped blocks
+    /// under a slow drain, otherwise shows up much later as a transition that
+    /// mysteriously is not where the journal says it is.
+    private struct RecordingPayload: Codable {
+        let frames: Int64
+        let durationSeconds: Double
+        let droppedFrames: Int64
+        let format: String
+    }
+
+    private struct EventPayload: Codable {
+        let kind: String
+        let atSample: Int64
+        let outgoing: String?
+        let incoming: String?
+        let echoDivision: Double?
+    }
+
+    private struct JournalPayload: Codable {
+        let engine: EnginePayload
+        let recording: RecordingPayload
+        let events: [EventPayload]
+    }
+
     private static func writeJournalJSON(_ config: RecordingJournalConfiguration,
+                                         frames: Int64,
                                          format: String,
                                          into directory: URL) throws {
-        let payload = JournalPayload(format: format,
-                                     sampleRate: config.sampleRate,
-                                     limiterCeiling: config.limiterCeiling.map(Double.init),
-                                     masterBPM: config.masterBPM,
-                                     echoBeatsA: config.echoBeatsA,
-                                     echoBeatsB: config.echoBeatsB)
+        let payload = JournalPayload(
+            engine: EnginePayload(sampleRate: config.sampleRate,
+                                  limiterCeiling: config.limiterCeiling.map(Double.init),
+                                  masterBPM: config.masterBPM,
+                                  echoBeatsA: config.echoBeatsA,
+                                  echoBeatsB: config.echoBeatsB),
+            recording: RecordingPayload(
+                frames: frames,
+                durationSeconds: config.sampleRate > 0 ? Double(frames) / config.sampleRate : 0,
+                droppedFrames: config.droppedFrames,
+                format: format),
+            events: config.events.map { event in
+                EventPayload(kind: event.kind,
+                             atSample: event.atSample,
+                             outgoing: event.outgoing,
+                             incoming: event.incoming,
+                             echoDivision: event.echoDivision)
+            })
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(payload)

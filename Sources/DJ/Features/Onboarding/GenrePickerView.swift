@@ -171,52 +171,56 @@ public struct GenrePickerContent: View {
         let count = model.counts[node.path]
 
         return VStack(spacing: 0) {
-            Button {
-                model.toggle(node)
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20))
-                        .foregroundStyle(selected ? Color(red: 0.93, green: 0.70, blue: 0.36)
-                                                  : Color.secondary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(node.name)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Color.primary)
-                        if let count {
-                            Text("about \(count) tracks")
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer()
-                    if !node.children.isEmpty {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.18)) {
-                                if expanded { expandedPaths.remove(node.path) }
-                                else { expandedPaths.insert(node.path) }
-                                Task { await model.loadCount(for: node) }
+            HStack(spacing: 0) {
+                Button {
+                    model.toggle(node)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 20))
+                            .foregroundStyle(selected ? Color(red: 0.93, green: 0.70, blue: 0.36)
+                                                      : Color.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(node.name)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Color.primary)
+                            if let count {
+                                Text("about \(count) tracks")
+                                    .font(.system(size: 11.5))
+                                    .foregroundStyle(.secondary)
                             }
-                        } label: {
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(expanded ? 180 : 0))
-                                .frame(width: 28, height: 28)
-                                .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("genre.expand.\(node.path)")
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .contentShape(Rectangle())
                 }
-                .padding(14)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(node.name)\(selected ? ", selected" : "")")
+                .accessibilityValue(selected ? "selected" : "not selected")
+                .accessibilityIdentifier("genre.\(node.path)")
+
+                if !node.children.isEmpty {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            if expanded { expandedPaths.remove(node.path) }
+                            else { expandedPaths.insert(node.path) }
+                            Task { await model.loadCount(for: node) }
+                        }
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(expanded ? 180 : 0))
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
+                            .padding(.trailing, 14)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("genre.expand.\(node.path)")
+                }
             }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(node.name)\(selected ? ", selected" : "")")
-            .accessibilityValue(selected ? "selected" : "not selected")
-            .accessibilityIdentifier("genre.\(node.path)")
 
             if expanded && !node.children.isEmpty {
                 HStack(spacing: 6) {

@@ -12,7 +12,9 @@ audit table §9).
 **M5 — the milestone where it becomes a DJ app** (spec §48.6 **re-scoped**, Appendix
 M.6 rewritten), working from
 `docs/plans/dj-phase-4-stems-recording.md`. Plan is on `main`; commits **5.1–5.13 landed,
-5.14 (the DJ regression suite) to come**. Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware,
+5.14 (the DJ regression suite) sits complete and uncommitted in the working tree** — the
+lanes run green and the analyzer verifies all five §53.9 signatures against the journal, at
+both `MIX_MINUTES=6` and the 20-minute soak (see "Uncommitted in the working tree"). Its on-device rows (real Demucs separation timing/thermal, AT-STEM-\* hardware,
 the club-controller transfer test, and **the milestone's own end-to-end narrative**)
 are user-owned and defer to a post-M5 device pass. M4 — the two-deck engine,
 `AVAudioSession`, and StoreKit (the 3.0 Pro launch, spec §48.5, Appendix M.5) — is
@@ -76,7 +78,7 @@ governor) is fully committed.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.13 landed, commit 5.14 ahead.** The milestone is no longer
+**M5 — re-scoped, plan rewritten; 5.1–5.13 landed, commit 5.14 in progress.** The milestone is no longer
 "stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -211,7 +213,7 @@ sequence stays stable:
   crates + storage budget; **5.10** record tap + encoder;
   **5.11** journal + recovery;
   **5.12** Finish + Mixes + **the review listen**; **5.13** the transition coach.
-  *(5.1–5.13 landed; 5.14 ahead.)*
+  *(5.1–5.13 landed; 5.14 in progress in the working tree.)*
 - **New spec material** (all written, all cross-referenced): **§19.4** persisted
   analysis artifacts · **§26A** rekordbox-class waveform display · **§35A** the
   post-fader beat-synced echo · **§35B** the five transitions → control mapping ·
@@ -1117,34 +1119,127 @@ gate sits at 2.5 s (still under the 3 s budget).
 **2.5 s → 4.0 s** (`SequencerTests.testThirtyThousandCandidateBeamStaysInsideBudget`)
 to keep it from failing in a clock-capped Low Power Mode state.
 
-## Uncommitted in the working tree — the DJ regression suite (commit 5.14, scaffolded early)
+## Uncommitted in the working tree — the DJ regression suite (commit 5.14, ready to commit)
 
-**Nothing here is committed.** It is one coherent change: the design *and* the scaffold
-for the DJ regression suite, written ahead of its place in the sequence so the hooks it
-needs can land with the commits that build the surfaces rather than being retrofitted.
-It is safe to commit as-is, or to leave sitting while 5.5/5.6 and the remaining 5.7–5.13 proceed.
-
-Verified before writing: `xcodegen generate` has been run and the three new lanes are in
-`project.pbxproj`; `xcodebuild build-for-testing -scheme TonearmUIRegression` compiles
-**clean, zero warnings**; `verify-mix.py` was validated against synthesized audio — it
-passes a real bass swap (37 dB out / 37 dB in, mids held) and **fails a fake one** where
-the mids drop too, reporting "that is a cut, not a swap". The discriminating assertion is
-real, not decorative.
+**Nothing here is committed, and it is no longer inert scaffold.** The tree holds the whole
+of 5.14 — the suite, and **the product fixes the suite found** — as one coherent change
+across ~36 modified files plus eight new paths. **`make test-ui-regression LANES=djmix` now
+runs green end to end and the analyzer verifies all five §53.9 signatures against the
+journal**, which is the §13 Definition of Done's items (1)–(3); the `MIX_MINUTES=20` soak
+(4) and the `djlive` skip (5) are recorded below.
 
 | Path | What it is |
 |---|---|
-| `docs/plans/dj-regression-suite.md` | **new** — the coder brief: oracle rationale, fixture design, the five signature definitions, lane inventory, commit hooks, traps |
-| `UIRegressionTests/DJPerformanceDriver.swift` | **new** — bar-aware gesture driver (`waitForBar`, `sweep`), the §53.11 identifier constants, `MIX_MINUTES` |
-| `UIRegressionTests/DJMixRegressionUITests.swift` | **new** — `AT-MIX-1..8`, bodies `XCTSkip` per the §53.6 precedent |
+| `docs/plans/dj-regression-suite.md` | **new** — the coder brief: oracle rationale, fixture design, the five signature definitions, lane inventory, commit hooks, §13 Definition of Done, §14 what it caught |
+| `UIRegressionTests/DJPerformanceDriver.swift` | **new** — the bar-aware gesture driver: `waitForBar`/**`waitBars`** (relative scheduling), `sweep`, `ensurePlaying`, `startRecording`, `holdMix`, the §53.11 identifier constants, `MIX_MINUTES` |
+| `UIRegressionTests/DJMixRegressionUITests.swift` | **new** — `AT-MIX-1..8`, **bodies real** (the `XCTSkip` scaffold is gone) |
 | `UIRegressionTests/DJLiveMixRegressionUITests.swift` | **new** — `AT-MIX-9..10`, live Jamendo, skips without a `client_id` |
-| `scripts/ui-regression/make-dj-fixture-media.py` | **new** — tone-identity fixtures; runs, writes 8 WAVs + a manifest |
-| `scripts/ui-regression/verify-mix.py` | **new** — the host-side analyzer; pure stdlib, targeted windows around journal marks |
+| `scripts/ui-regression/make-dj-fixture-media.py` | **new** — twelve byte-distinct tone-identity fixtures at 122 BPM, ~5.2 min each (10–11 phrases) |
+| `scripts/ui-regression/verify-mix.py` | **new** — the host-side analyzer; pure stdlib, **settled-state** windows around the journal's marks, plus the length cross-check and the §53.10 dropout budget |
 | `scripts/ui-regression/jamendo-mock/serve.py` | **new** — canned catalogue + fixture media over HTTP |
+| `Sources/Features/Sources/GenreCrateImporter.swift` | **new** — the crate-import seam the lanes drive |
+| `Sources/DJ/Engine/Mixer.swift`, `Sources/Pro/EntitlementStore.swift`, `Sources/Features/RootView.swift`, `Sources/DJ/Features/Workspace/*` | **product fixes**, not test plumbing — see "what it caught" below |
 | `docker-compose.ui-regression.yml` | + `dj-fixture-media`, `jamendo-mock` services |
-| `scripts/run-ui-regression.sh` | + `djmix`/`djlive` lanes, container artifact pull, analyzer invocation, artifact policy |
+| `scripts/run-ui-regression.sh` | + `djmix`/`djlive` lanes, **Release** build under a `caffeinate -dims` assertion, container artifact pull, freshness marker, analyzer invocation, artifact policy |
 | `Makefile`, `.gitignore` | + `MIX_MINUTES`; ignore `build/ui-regression/` |
 | `.test-credentials.example` | + `[jamendo]` — **key name only**, no value |
 | spec, M5 plan, HANDOFF, this file | §53.7–53.12, §54.6, `AT-MIX-*`, decisions 26–30, commits 5.4a/5.14 |
+
+**What it caught — six product defects live on `main` with 1447 logic tests green.** Every
+one invisible to layers 1 and 2, which is the argument for layer 3 existing at all: the
+compact performance surface was a **dead slab** (a greedy `GeometryReader` in
+`EchoReleaseToCommitButton` grew the bottom bar over the deck column and the crate sheet —
+everything stayed in the accessibility tree, so every layout assertion still passed while a
+finger could not reach anything); the app dock sat over the crossfader, REC and Crate;
+`UI_TESTING_ENABLE_PRO` seeded a defaults flag **no Pro capability reads**, so the DJ
+surfaces stayed dimmed under automation; the shipped app ran with **no master limiter** (the
+assembly never passed a ceiling); the sweep filter was **inverted on its high-pass side**,
+backwards from §35.3 and from every club mixer; and opening Recorded Mixes **terminated the
+app** on a `NavigationStack` nested inside the DJ route's own stack. Seven more defects in
+the suite's own plumbing are written up in the plan's §14.
+
+**The last thing between a green run and a verified one was measurement placement, not
+DSP and not thresholds.** Run six had all four lanes green with a real 364.6 s recording, and
+the analyzer verified only 2 of 5 signatures. The kept mix was decoded on the host and traced
+band by band: **every transition was physically present and correct**, the journal's marks
+matched the analyzer's reported times sample-for-sample, tempo was constant and no audio was
+missing. The fault was timing — the lane scheduled gestures against **absolute** bar numbers,
+each gesture consumes bars while it executes, so a later `waitForBar(N)` returned immediately
+and the musical spacing silently collapsed (intended bar 18→26 = 16 s; observed **6.15 s**).
+The dense early transitions then landed inside each other's measurement windows while the
+well-separated late ones passed. Two fixes, and **no threshold was touched**:
+
+- **`waitBars(n)`** — every gap in the script is counted from the bar the previous gesture
+  *finished* on. Absolute scheduling assumes instantaneous gestures, and pays for each one
+  out of the gap that was meant to follow it.
+- **Settled-state windows in `verify-mix.py`** — a journal mark is where the app *recognised*
+  a gesture, which for a bass swap (the second deck's knob still to reach) or a filter sweep
+  (the sweep still to travel) is where it **began**. Each check now names the bar offsets it
+  measures over: settled before, settled once the movement has landed, and a mark that fires
+  at a movement's *completion* (the return to bypass) needs only a guard bar. Recorded in
+  spec §53.10 and plan §6.1.
+
+One §53.9 wording alignment came out of the soak: the filter's shape check demanded that
+**all four** quarter-means of the sweep rise, while both §53.9 and the plan's own table say
+**three of four**. The window has to be long enough for a slow sweep, so it usually outlasts
+a quick one and the last quarter measures the hold, where the beat envelope moves the
+centroid by tens of hertz either way (observed: +437, +180, −56 Hz, with the settled rise a
+clean +499 Hz). The code now implements the documented criterion; the magnitude claims —
+which are what say the filter opened up the top — were passing throughout.
+
+**Green, with the evidence (2026-08-15).** `make test-ui-regression LANES=djmix` **exits 0**:
+four lanes in **531.8 s**, a genuine **363.6 s recording** kept at
+`build/ui-regression/dj/dj-mix.m4a`, and
+
+```
+recording: 363.6s @ 48000 Hz · master 120.000 BPM · ceiling 0.950
+  length: 363.6s, within 0.02s of the 363.6s the app recorded
+
+  PASS  Bass Swap                 @  13.5s  low 34 dB out / 28 dB in, mids held
+  PASS  Filter Transition         @  55.5s  centroid +499 Hz once settled, low -24 dB, high held
+  PASS  Filter — centre is bypass @  77.0s  low returned within 0.0 dB of pre-sweep
+  PASS  Echo Out                  @  95.2s  12 repeats at the beat-synced interval, decaying 30 dB
+  PASS  Fader Cut                 @ 127.9s  -39 dB inside one beat, no broadband transient
+  PASS  Blend / Mix               @ 153.6s  both decks present 100% of 8 bars, peak 0.292
+all 5 required transitions verified against the journal
+```
+
+No dropped-frame line, because the tap dropped none: the §37.2 ring kept up for the whole
+six minutes, and had it not, the count would be in the journal and in that table.
+
+**The `MIX_MINUTES=20` soak (DoD 4) is green**: four lanes in 1373.6 s, the transitions lane
+alone 1250.7 s, **1205.0 s of recording** (20.08 minutes — the recording never dropped), all
+five signatures verified on the same 20-minute file. The app's peak resident footprint,
+sampled every 15 s on the host through the run, was **~508 MB** — under the §43.5 iPad-class
+ceiling the simulator's RAM selects (2.0 GB) and under the strictest device ceiling in the
+table (1.0 GB, the 6 GB iPhone). The on-device AT-MEM-1/AT-THERM-1 measurement remains the
+user-owned device pass; this is the simulator's number, not a substitute for it.
+**`LANES=djlive` (DoD 5)** skips both lanes with the remedy stated ("missing
+PH_TEST_JAMENDO_CLIENT_ID") and exits 0.
+
+**Two false greens closed in the runner, found while closing the above.** Both are the §14
+stale-export failure mode wearing a different hat — a gate that reports success without
+having checked anything: (1) `simctl get_app_container` refuses on a shut-down device, and
+xcodebuild leaves the device shut down whenever it booted it itself, so the recording could
+not be pulled and the run **exited 0 having verified nothing**; the runner now resolves the
+named device, boots it, and treats an unretrievable export or a missing `mix-journal.json`
+as a **failure**, because the lanes only perform the mix — the analyzer is the assertion.
+(2) That same rule must not fire when every lane *skipped* (no `client_id`, no Docker):
+those runs record nothing legitimately, so the runner now distinguishes "ran" from "skipped"
+from the lanes' own output.
+
+**The journal gained a `recording` block** — frames, duration, dropped frames, format — so
+DoD item (3) ("the export decodes and its duration matches the journal within a bar") is
+actually asserted rather than assumed, and §53.10's promised **dropout budget** exists: the
+§37.2 tap drops blocks rather than stalling the render, and the count now travels into the
+journal so a starved drain names itself instead of surfacing later as a transition that is
+mysteriously not where the journal says it is.
+
+**Left deliberately open, recorded as its own follow-up in §14:** the app never observes
+`AVAudioEngineConfigurationChange` and never checks `engine.isRunning`, so a stopped engine
+leaves a recording that is dead while the chip still shows a running timer (NFR-REL-2). The
+trigger that exposed it was external to the app (the host slept mid-run), so the recovery
+machinery is not a rider on the suite that found it.
 
 **The recorded mix is kept on purpose.** `build/ui-regression/dj/` holds exactly one audio
 file so a human can play it and judge whether the analyzer's thresholds are tuned right —
@@ -1261,7 +1356,12 @@ into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible t
   dismissible panel; it never takes over (decks keep playing) and never performs the transition.
   14 `TransitionCoachTests` incl. the 4.10 drawer precedent — present/select/dismiss add zero
   engine calls. Suite 1433 → **1447 green** (8 skipped); DJ-only, no regen. **FR-TRANS-6, §41.18.**
-- **Then 5.14 the DJ regression suite**.
+- **Then 5.14 the DJ regression suite** — **the current work, complete and sitting
+  uncommitted**: the four `djmix` lanes are green (531.8 s, a real 363.6 s recording) and the
+  analyzer verifies **all five** §53.9 signatures against the journal, at the default six
+  minutes and across the `MIX_MINUTES=20` soak (1205.0 s recorded, ~508 MB peak footprint).
+  `LANES=djlive` skips with its remedy stated. Details in "Uncommitted in the working tree"
+  above.
   **Exit:** AT-STEM-\*, AT-REC-\*, AT-WAVE-\*, AT-TRANS-1..5, AT-GENRE-\*,
   **AT-MIX-1..8** green, plus the owner's end-to-end recorded set as the user-owned
   shipping gate.

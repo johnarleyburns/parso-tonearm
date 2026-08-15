@@ -48,6 +48,13 @@ final class AppState: ObservableObject {
     @Published var listeningStats: ListeningStats.Summary = .empty
     @Published var searchText: String = ""
     @Published var searchResults: [TrackRow] = []
+    /// True while a full-screen performance surface owns the display (§42.6,
+    /// §42.7a). The DJ decks put the crossfader on the true bottom edge and the
+    /// spec is explicit that it is always visible and never occluded — but the
+    /// app's dock (mini player + tabs) is a root-level overlay, so it sat on top
+    /// of the crossfader, REC and Crate, and a tap on any of them reached the
+    /// dock instead. The surface raises this while it is on screen.
+    @Published var isPerformanceSurfaceFullScreen = false
     @Published var showAddMenu = false
     @Published var showNowPlaying = false
     @Published var showAddSource = false

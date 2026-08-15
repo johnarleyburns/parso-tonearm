@@ -111,6 +111,10 @@ public struct SoloDeckView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(.thinMaterial, in: Capsule())
+            // §53.11: present exactly when the surface is gated — so a run
+            // that lost its entitlement fails as "the decks are locked"
+            // rather than as a hundred gestures landing on an inert view.
+            .accessibilityIdentifier("dj.paywall.lock")
     }
 
     /// The §42.6 readout band: thermal state, granted buffer, the master
@@ -187,6 +191,24 @@ public struct SoloDeckView: View {
             crossfaderStrip
 
             HStack(spacing: 8) {
+                Button {
+                    model.toggleRecording()
+                } label: {
+                    Label(
+                        model.isRecording
+                            ? "Stop · \(Self.elapsedText(model.recordingElapsed))"
+                            : "REC",
+                        systemImage: model.isRecording ? "stop.circle.fill" : "record.circle"
+                    )
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(model.isRecording ? .red : .white)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 44)
+                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("dj.transport.record")
+
                 EchoReleaseToCommitButton(model: model, deck: model.focusedDeck,
                                           showsChannelSelector: false)
 
@@ -200,6 +222,7 @@ public struct SoloDeckView: View {
                         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("dj.crate")
             }
         }
         .padding(.horizontal, 16)
@@ -241,10 +264,17 @@ public struct SoloDeckView: View {
                         model.setCrossfader(Float(t) * 2 - 1, curve: model.crossfaderCurve)
                     }
             )
-            .accessibilityIdentifier("dj.mixer.crossfader")
+            .performanceControl("dj.mixer.crossfader", label: "Crossfader",
+                                value: model.crossfader)
             .coachGlow(identifier: "dj.mixer.crossfader")
         }
         .frame(height: 44)
+    }
+
+    /// "mm:ss" — the record chip's elapsed readout, shared across surfaces.
+    private static func elapsedText(_ seconds: Double) -> String {
+        let total = Int(seconds)
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 
@@ -294,6 +324,9 @@ private struct SoloDeckColumnView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("dj.deck.\(deckID).loaded")
+                .accessibilityLabel(model.loadedTrackTitle(for: deck) ?? "Nothing loaded")
                 Spacer()
                 VStack(alignment: .trailing, spacing: 0) {
                     Text(playheadText)
@@ -495,6 +528,18 @@ private struct SoloDeckColumnView: View {
                     .frame(height: 96)
             }
             .padding(.horizontal, 8)
+        case .fader:
+            HStack {
+                Text("CH")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                GainVerticalSlider(value: deck == .a ? model.channelA : model.channelB,
+                                   identifier: "dj.deck.\(deckID).fader",
+                                   onChanged: { model.setChannelFader(deck, gain: $0) })
+                    .frame(height: 96)
+            }
+            .padding(.horizontal, 8)
         case .cues:
             HStack(spacing: 6) {
                 ForEach(["A", "B", "C", "D"], id: \.self) { pad in
@@ -561,8 +606,38 @@ private enum SoloBank: String, CaseIterable {
     case stems = "Stems"
     case eq = "EQ"
     case filter = "Filter"
+    case fader = "Fader"
     case cues = "Cues"
     case jog = "Jog"
+}
+
+/// A vertical channel-fader drag (gain 0…1, §35.4) for the compact surface —
+/// the twin's `ChannelFader` in a bank. `identifier` carries the §53.11
+/// accessibility identifier.
+private struct GainVerticalSlider: View {
+    let value: Float
+    var identifier: String?
+    let onChanged: (Float) -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            let height = proxy.size.height
+            ZStack(alignment: .bottom) {
+                Capsule().fill(Color.white.opacity(0.08))
+                Capsule().fill(Color.accentColor.opacity(0.85))
+                    .frame(height: max(4, height * CGFloat(clampUnit(CGFloat(value)))))
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0).onChanged { gesture in
+                    let t = 1 - gesture.location.y / height
+                    onChanged(Float(clampUnit(t)))
+                }
+            )
+        }
+        .performanceControl(identifier, label: "Channel fader", value: value)
+        .coachGlow(identifier: identifier)
+    }
 }
 
 // MARK: - The other deck in a strip
@@ -668,6 +743,53 @@ private struct SoloStripView: View {
 /// loading through `WorkspaceModel.load(_:trackID:)` with the FR-LIB-8
 /// readiness shown per row (mockup `iphone/05b`'s dimmed caching row — a
 /// track that is not deck-ready says so, it never fails on the tap).
+/// The §41.9c per-deck source picker (FR-ENG-13), deliberately holding **values**
+/// rather than the workspace model.
+///
+/// `Equatable` is the point: the crate sheet re-renders at telemetry cadence, and
+/// a `Menu` whose subtree is rebuilt underneath it closes. Comparing equal across
+/// frames where the crates and the selection have not changed keeps a presented
+/// menu on screen — the difference between a picker you can use while the decks
+/// run and one that snaps shut in your hand.
+struct QueueSourcePicker: View, Equatable {
+    let deckID: String
+    let sources: [DeckQueueSource]
+    let current: DeckQueueSource
+    let select: (DeckQueueSource) -> Void
+
+    /// `nonisolated` because SwiftUI compares view values off the main actor:
+    /// only the immutable inputs are read, never the action closure.
+    nonisolated static func == (lhs: QueueSourcePicker, rhs: QueueSourcePicker) -> Bool {
+        lhs.deckID == rhs.deckID && lhs.sources == rhs.sources && lhs.current == rhs.current
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(sources, id: \.self) { source in
+                Button {
+                    select(source)
+                } label: {
+                    if source == current {
+                        Label(source.title, systemImage: "checkmark")
+                    } else {
+                        Text(source.title)
+                    }
+                }
+                .accessibilityIdentifier("dj.queue.\(source.title)")
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "square.stack")
+                Text(current.title)
+                    .lineLimit(1)
+            }
+            .font(.system(size: 14, weight: .bold))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("dj.deck.\(deckID).queue")
+    }
+}
+
 private struct CrateSheetView: View {
     @ObservedObject var model: WorkspaceModel
 
@@ -713,28 +835,18 @@ private struct CrateSheetView: View {
             VStack(alignment: .leading, spacing: 2) {
                 // The §41.9c source picker at the browse surface's head — the
                 // deck's queue is any selectable source; the other deck is
-                // untouched (FR-ENG-13).
-                Menu {
-                    ForEach(model.availableQueues, id: \.self) { source in
-                        Button {
-                            Task { await model.selectQueue(source, for: deck) }
-                        } label: {
-                            if source == queue.source {
-                                Label(source.title, systemImage: "checkmark")
-                            } else {
-                                Text(source.title)
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "square.stack")
-                        Text(queue.source.title)
-                            .lineLimit(1)
-                    }
-                    .font(.system(size: 14, weight: .bold))
+                // untouched (FR-ENG-13). It takes plain values and compares
+                // equal across telemetry frames on purpose: this sheet observes
+                // the model, whose telemetry publishes at display rate, so a
+                // picker rebuilt from that would dismiss its own open menu
+                // within a frame or two — browse-while-performing means the
+                // crate list has to stay open while the decks run.
+                QueueSourcePicker(deckID: deck == .a ? "a" : "b",
+                                  sources: model.availableQueues,
+                                  current: queue.source) { source in
+                    Task { await model.selectQueue(source, for: deck) }
                 }
-                .buttonStyle(.plain)
+                .equatable()
                 Text("\(queue.rows.count) tracks · ranked against DECK \(deck == .a ? "A" : "B") · browse while performing")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -749,6 +861,7 @@ private struct CrateSheetView: View {
                     .background(Color.white.opacity(0.06), in: Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("dj.crate.close")
         }
         .padding(.horizontal, 15)
         .padding(.bottom, 10)
@@ -783,6 +896,7 @@ private struct CrateSheetView: View {
         .buttonStyle(.plain)
         .disabled(!isReady)
         .opacity(isReady ? 1 : 0.5)
+        .accessibilityIdentifier("dj.queue.row.\(row.title)")
     }
 
     @ViewBuilder

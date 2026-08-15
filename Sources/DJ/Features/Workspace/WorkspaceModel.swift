@@ -68,6 +68,10 @@ public protocol WorkspaceEngine: AnyObject {
     func stopRecording() async throws -> RecordingEncoder.RecordingOutput?
     /// Whether a recording is currently in flight (decision 14's session state).
     var isRecording: Bool { get }
+    /// Frames the record tap dropped because the ring was full (§37.2) — what
+    /// the recording lost while the live performance carried on. Carried into
+    /// the journal so a starved drain names itself.
+    var droppedRecordFrames: UInt64 { get }
     /// §34A.4 `.began` (plan 5.11): flush the active recording's current
     /// segment so it is a complete playable M4A — NFR-REL-2's critical line.
     func interruptRecordingForInterruption() async throws
@@ -76,6 +80,13 @@ public protocol WorkspaceEngine: AnyObject {
     func resumeRecordingFromInterruption() async throws
     func sampleTelemetry() -> EngineTelemetry
     func pushTelemetry()
+}
+
+public extension WorkspaceEngine {
+    /// An engine with no record tap dropped nothing — the honest default for
+    /// every offline harness and test double (§47.2), so only the real graph
+    /// has to answer this.
+    var droppedRecordFrames: UInt64 { 0 }
 }
 
 extension PerformanceEngine: WorkspaceEngine {}
@@ -274,6 +285,12 @@ public final class WorkspaceModel: ObservableObject {
     /// logs its current track at ~0:00 (mockup `ipad/09`'s "0:00 … opened").
     private var wasDeckAPlaying = false
     private var wasDeckBPlaying = false
+    /// The recorded transition gestures (dj-regression-suite §7, hook 5.11):
+    /// control moves that the workspace recognises as a DJ Blakey transition,
+    /// stamped with their recording-relative sample and handed to the journal
+    /// at `finalize` so `verify-mix.py` can cross-check each claim against the
+    /// audio. Reset when a recording starts. Only ever filled while recording.
+    private var transitionEvents: [RecordingJournalEvent] = []
 
     /// Each deck's §26A render model — the analysis-driven waveform. `nil`
     /// until the deck loads an analysed track, or for an unanalysed track
@@ -513,6 +530,15 @@ public final class WorkspaceModel: ObservableObject {
     /// The deck's current load state — the crate rows render it.
     public func loadState(for deck: PerformanceEngine.Deck) -> DeckLoadState {
         deck == .a ? loadStateA : loadStateB
+    }
+
+    /// The loaded track's title for a deck, resolved from its queue's rows
+    /// (which carry the same `trackID` the load gesture used). `nil` until a
+    /// track is loaded — the honest "nothing loaded" state, surfaced on the
+    /// surface's accessibility tree as `dj.deck.<a|b>.loaded`.
+    public func loadedTrackTitle(for deck: PerformanceEngine.Deck) -> String? {
+        guard let id = loadedTrackIDs[deck] else { return nil }
+        return queue(for: deck).rows.first { $0.trackID == id }?.title
     }
 
     /// Refresh the selectable queues and re-read each deck's current queue's
@@ -838,6 +864,7 @@ public final class WorkspaceModel: ObservableObject {
         recordingTimeline = MixTimeline()
         wasDeckAPlaying = false
         wasDeckBPlaying = false
+        transitionEvents = []
         finishedMix = nil
         isRecording = true
     }
@@ -883,7 +910,160 @@ public final class WorkspaceModel: ObservableObject {
                                       limiterCeiling: engine.limiterCeiling,
                                       masterBPM: telemetry.masterBPM,
                                       echoBeatsA: echoBeatsA,
-                                      echoBeatsB: echoBeatsB)
+                                      echoBeatsB: echoBeatsB,
+                                      droppedFrames: Int64(engine.droppedRecordFrames),
+                                      events: transitionEvents)
+    }
+
+    // MARK: - Transition journal (dj-regression-suite §7)
+
+    /// The recording-relative master-clock sample — the same basis §37.4's
+    /// timeline entries use, so a journal event and a `mix_track_event` are
+    /// comparable against the same recording.
+    private var currentRecordingSample: Int64 {
+        engine.masterSample - recordingStartSample
+    }
+
+    /// Append one transition event, but only while recording — a gesture made
+    /// before the record light is on is a rehearsal, not part of the mix.
+    private func recordTransition(_ event: RecordingJournalEvent) {
+        guard isRecording else { return }
+        transitionEvents.append(event)
+    }
+
+    /// Where a control was when the **gesture** now moving it began.
+    ///
+    /// A transition is a movement, not a value. A finger dragging an EQ knob to
+    /// the kill sends dozens of small changes on the way down, and comparing
+    /// each one only against the one before it never sees a fall from unity to
+    /// kill — it sees thirty tiny steps and recognises nothing. So changes
+    /// arriving in quick succession are treated as one gesture, holding the
+    /// value the control had when it started, and each gesture may only announce
+    /// itself once.
+    private var gestures: [String: (origin: Float, touched: Date, fired: Bool)] = [:]
+    /// The quiet gap that separates one gesture from the next. Comfortably
+    /// longer than a drag's frame interval and far shorter than the musical
+    /// distance between two transitions.
+    private static let gestureGap: TimeInterval = 0.4
+
+    private func gestureOrigin(_ key: String, current: Float, now: Date = Date()) -> Float {
+        if let entry = gestures[key], now.timeIntervalSince(entry.touched) <= Self.gestureGap {
+            gestures[key] = (entry.origin, now, entry.fired)
+            return entry.origin
+        }
+        gestures[key] = (current, now, false)
+        return current
+    }
+
+    private func gestureHasFired(_ key: String) -> Bool { gestures[key]?.fired ?? false }
+
+    private func markGestureFired(_ key: String) {
+        guard let entry = gestures[key] else { return }
+        gestures[key] = (entry.origin, entry.touched, true)
+    }
+
+    private func deckID(_ deck: PerformanceEngine.Deck) -> String {
+        deck == .a ? "a" : "b"
+    }
+
+    /// The Bass Swap (§26A.3, transition 1): one deck's low band is killed
+    /// while the other's low is already killed — the low end changes hands and
+    /// the mids stay put. The `outgoing` deck is the one whose low falls.
+    private func detectBassSwap(deck: PerformanceEngine.Deck, newLow: Float) {
+        let key = "eq.low.\(deckID(deck))"
+        let previous = gestureOrigin(key, current: deck == .a ? eqALow : eqBLow)
+        let other = deck == .a ? eqBLow : eqALow
+        guard !gestureHasFired(key), previous >= -0.25, newLow <= -0.75, other <= -0.25 else {
+            return
+        }
+        markGestureFired(key)
+        recordTransition(RecordingJournalEvent(kind: "transition.bassSwap",
+                                               atSample: currentRecordingSample,
+                                               outgoing: deckID(deck),
+                                               incoming: deckID(deck == .a ? .b : .a)))
+    }
+
+    /// The Filter Transition (transition 2): a sweep leaving centre toward the
+    /// high-pass side (`filter` fires at the sweep's top), then the return to
+    /// centre — the hard bypass (§35.3) — as its own event so the analyzer can
+    /// prove low returns to its pre-sweep level. The return is caught by
+    /// *state* (the filter was engaged, now it is in the bypass region) rather
+    /// than a crossing threshold, because a real sweep's last step can land
+    /// anywhere in the bypass band.
+    private func detectFilter(deck: PerformanceEngine.Deck, newKnob: Float) {
+        let engaged = deck == .a ? filterEngagedA : filterEngagedB
+        // Mark the sweep where it **starts** — the knob leaving the bypass band
+        // is the moment the DJ began moving it, and a filter transition is the
+        // movement, so marking the far end would put the whole sweep before its
+        // own mark where nothing measuring it can see it (§53.9 row 2). The
+        // engaged flag is what makes it fire once: a sweep arrives as a long
+        // run of small changes, and every one of them crosses some threshold.
+        // 0.05 is the knob leaving the bypass band, which is where the hand
+        // started moving — mark any later and the low is already going by the
+        // time the mark lands, so nothing measuring the sweep forward from it
+        // sees the sweep.
+        if !engaged, newKnob >= 0.05 {
+            setFilterEngaged(true, for: deck)
+            recordTransition(RecordingJournalEvent(kind: "transition.filter",
+                                                   atSample: currentRecordingSample,
+                                                   outgoing: deckID(deck)))
+        } else if engaged, newKnob < 0.02 {
+            // The return to centre is its own mark: §35.3 says centre is a hard
+            // bypass, and the analyzer proves the low came back to exactly
+            // where it was.
+            setFilterEngaged(false, for: deck)
+            recordTransition(RecordingJournalEvent(kind: "transition.filterBypass",
+                                                   atSample: currentRecordingSample,
+                                                   outgoing: deckID(deck)))
+        }
+    }
+
+    private var filterEngagedA = false
+    private var filterEngagedB = false
+    private func setFilterEngaged(_ value: Bool, for deck: PerformanceEngine.Deck) {
+        switch deck {
+        case .a: filterEngagedA = value
+        case .b: filterEngagedB = value
+        }
+    }
+
+    /// The Fader Cut (transition 4) vs Echo Out (transition 3): a channel
+    /// fader dropped to the floor is an Echo Out when that deck's §35A echo is
+    /// running (the tail is post-fader and keeps ringing), else a plain cut.
+    private func detectChannelFader(deck: PerformanceEngine.Deck, newGain: Float) {
+        let key = "fader.\(deckID(deck))"
+        let previous = gestureOrigin(key, current: deck == .a ? channelA : channelB)
+        guard !gestureHasFired(key), previous >= 0.5, newGain <= 0.05 else { return }
+        markGestureFired(key)
+        if echoEnabled(deck) {
+            recordTransition(RecordingJournalEvent(kind: "transition.echoOut",
+                                                   atSample: currentRecordingSample,
+                                                   outgoing: deckID(deck),
+                                                   echoDivision: echoBeats(deck)))
+        } else {
+            recordTransition(RecordingJournalEvent(kind: "transition.faderCut",
+                                                   atSample: currentRecordingSample,
+                                                   outgoing: deckID(deck)))
+        }
+    }
+
+    /// The Blend (transition 5): the crossfader sweeping **into the centre
+    /// region** from either side (§35.4), where both decks are audible. Caught
+    /// by the new position landing in `|x| ≤ 0.1` while the previous position
+    /// was beyond it on that deck's side — so a stepped sweep fires exactly
+    /// once as it reaches centre, and a park *away* from centre never does.
+    private func detectCrossfader(_ newPosition: Float) {
+        let previous = crossfader
+        let centered = abs(newPosition) <= 0.1
+        if centered, previous <= -0.1 {
+            recordTransition(RecordingJournalEvent(kind: "transition.blend",
+                                                   atSample: currentRecordingSample,
+                                                   outgoing: "a", incoming: "b"))
+        } else if centered, previous >= 0.1 {
+            recordTransition(RecordingJournalEvent(kind: "transition.blend",
+                                                   atSample: currentRecordingSample,
+                                                   outgoing: "b", incoming: "a"))
+        }
     }
 
     /// Consume the §34A.4 session responses (plan 5.11): `.began` flushes the
@@ -934,6 +1114,7 @@ public final class WorkspaceModel: ObservableObject {
     // MARK: - Mixer (§35)
 
     public func setEQKnobs(_ deck: PerformanceEngine.Deck, low: Float, mid: Float, high: Float) {
+        detectBassSwap(deck: deck, newLow: low)
         engine.setEQKnobs(deck, low: low, mid: mid, high: high)
         switch deck {
         case .a:
@@ -944,6 +1125,7 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     public func setFilter(_ deck: PerformanceEngine.Deck, knob: Float) {
+        detectFilter(deck: deck, newKnob: knob)
         engine.setFilter(deck, knob: knob)
         switch deck {
         case .a: filterA = knob
@@ -952,6 +1134,7 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     public func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float) {
+        detectChannelFader(deck: deck, newGain: gain)
         engine.setChannelFader(deck, gain: gain)
         switch deck {
         case .a: channelA = gain
@@ -960,6 +1143,7 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     public func setCrossfader(_ position: Float, curve: CrossfaderCurve) {
+        detectCrossfader(position)
         engine.setCrossfader(position, curve: curve)
         crossfader = position
         crossfaderCurve = curve

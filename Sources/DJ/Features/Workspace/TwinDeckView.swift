@@ -82,6 +82,10 @@ public struct TwinDeckView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(.thinMaterial, in: Capsule())
+            // §53.11: present exactly when the surface is gated — so a run
+            // that lost its entitlement fails as "the decks are locked"
+            // rather than as a hundred gestures landing on an inert view.
+            .accessibilityIdentifier("dj.paywall.lock")
     }
 
     private var surface: some View {
@@ -188,12 +192,33 @@ public struct TwinDeckView: View {
                 .foregroundStyle(Color.accentColor)
             Spacer()
             masterBarReadout
+            Button {
+                model.toggleRecording()
+            } label: {
+                Text(model.isRecording
+                     ? "Stop \(Self.elapsedText(model.recordingElapsed))"
+                     : "REC")
+                    .font(.system(size: 10, weight: .bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(model.isRecording ? Color.red.opacity(0.2)
+                                                  : Color.red.opacity(0.55),
+                                in: Capsule())
+                    .foregroundStyle(model.isRecording ? .red : .white)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("dj.transport.record")
             Text("CPU \(Int(model.telemetry.renderLoad * 100))%")
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(.secondary)
         }
         .frame(height: 20)
         .padding(.horizontal, 2)
+    }
+
+    private static func elapsedText(_ seconds: Double) -> String {
+        let total = Int(seconds)
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     private var thermalText: String {
@@ -675,7 +700,8 @@ private struct TwinMixerColumnView: View {
                         model.setCrossfader(Float(t) * 2 - 1, curve: model.crossfaderCurve)
                     }
                 )
-                .accessibilityIdentifier("dj.mixer.crossfader")
+                .performanceControl("dj.mixer.crossfader", label: "Crossfader",
+                                    value: model.crossfader)
                 .coachGlow(identifier: "dj.mixer.crossfader")
             }
             .frame(height: 34)

@@ -101,12 +101,24 @@ final class RecordingRecoveryTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: jsonURL.path))
         let decoded = try JSONDecoder().decode(JournalPayload.self,
                                                from: Data(contentsOf: jsonURL))
-        XCTAssertEqual(decoded.format, RecordingEncoder.formatName)
-        XCTAssertEqual(decoded.sampleRate, 48_000, accuracy: 1)
-        XCTAssertEqual(try XCTUnwrap(decoded.limiterCeiling), 0.95, accuracy: 1e-6)
-        XCTAssertEqual(decoded.masterBPM, 122.0, accuracy: 1e-6)
-        XCTAssertEqual(decoded.echoBeatsA, 1.0, accuracy: 1e-6)
-        XCTAssertEqual(decoded.echoBeatsB, 0.5, accuracy: 1e-6)
+        XCTAssertEqual(decoded.engine.sampleRate, 48_000, accuracy: 1)
+        XCTAssertEqual(try XCTUnwrap(decoded.engine.limiterCeiling), 0.95, accuracy: 1e-6)
+        XCTAssertEqual(decoded.engine.masterBPM, 122.0, accuracy: 1e-6)
+        XCTAssertEqual(decoded.engine.echoBeatsA, 1.0, accuracy: 1e-6)
+        XCTAssertEqual(decoded.engine.echoBeatsB, 0.5, accuracy: 1e-6)
+        XCTAssertTrue(decoded.events.isEmpty)
+
+        // The recording block: what the app believes it wrote, so the analyzer
+        // can hold the file against it (§53.10's length check and its dropout
+        // budget). The joined M4A is a whole second of 48 kHz audio here.
+        let recording = decoded.recording
+        XCTAssertEqual(Double(recording.frames) / 48_000, 1.0, accuracy: 0.15)
+        XCTAssertEqual(recording.durationSeconds, Double(recording.frames) / 48_000,
+                       accuracy: 1e-9, "the duration is the frames, not a second opinion")
+        XCTAssertEqual(recording.droppedFrames, 1_920,
+                       "the tap's dropped-frame count travels into the journal")
+        XCTAssertEqual(recording.format, RecordingEncoder.formatName,
+                       "the journal names the format the encoder actually produced (FR-REC-7)")
     }
 
     func testFinalizeWithoutAnActiveRecordingThrows() async throws {
@@ -332,7 +344,8 @@ final class RecordingRecoveryTests: XCTestCase {
                                                        limiterCeiling: 0.95,
                                                        masterBPM: 122.0,
                                                        echoBeatsA: 1.0,
-                                                       echoBeatsB: 0.5)
+                                                       echoBeatsB: 0.5,
+                                                       droppedFrames: 1_920)
 
     private func makeStoreAndRoot() throws -> (DJLibraryStore, URL) {
         let tmp = FileManager.default.temporaryDirectory
@@ -448,11 +461,21 @@ final class RecordingRecoveryTests: XCTestCase {
 
     /// The `mix-journal.json` payload shape the harness exports (hook 5.11).
     private struct JournalPayload: Codable {
-        let format: String
-        let sampleRate: Double
-        let limiterCeiling: Double?
-        let masterBPM: Double
-        let echoBeatsA: Double
-        let echoBeatsB: Double
+        struct Engine: Codable {
+            let sampleRate: Double
+            let limiterCeiling: Double?
+            let masterBPM: Double
+            let echoBeatsA: Double
+            let echoBeatsB: Double
+        }
+        struct Recording: Codable {
+            let frames: Int64
+            let durationSeconds: Double
+            let droppedFrames: Int64
+            let format: String
+        }
+        let engine: Engine
+        let recording: Recording
+        let events: [RecordingJournalEvent]
     }
 }

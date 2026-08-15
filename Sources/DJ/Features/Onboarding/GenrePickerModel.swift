@@ -41,7 +41,8 @@ public final class GenrePickerModel: ObservableObject {
     private let api: JamendoAPI
 
     public init(api: JamendoAPI? = nil) {
-        self.api = api ?? JamendoAPI(clientID: JamendoAppConfig.clientID)
+        self.api = api ?? JamendoAPI(clientID: JamendoAppConfig.clientID,
+                                     baseURL: JamendoAppConfig.baseURL)
         self.roots = JamendoGenreTree.roots
     }
 

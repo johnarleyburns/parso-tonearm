@@ -79,8 +79,16 @@ public enum DJWorkspaceAssembly {
             // would be silent or misconfigured (§34A.2).
             return nil
         }
+        // The master limiter is part of the shipped signal path (§35.5): two
+        // decks blended hot sum past full scale, and without a ceiling that
+        // clips into the speakers *and* into the recording. The offline reader
+        // harness omits it to stay frame-exact — the app must not. 0.95 is
+        // `LookaheadLimiter`'s own default; 240 frames of lookahead is the
+        // value the §35.5 acceptance tests exercise.
         guard let engine = try? PerformanceEngine(configuration: .init(maximumFrameCount: 128,
                                                                        rendering: .realtime,
+                                                                       limiterCeiling: 0.95,
+                                                                       limiterLookaheadFrames: 240,
                                                                        recordTapEnabled: true)) else {
             return nil
         }

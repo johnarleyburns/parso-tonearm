@@ -22,7 +22,15 @@ test-integration:
 # prerequisites skip rather than fail.
 #   make test-ui-regression
 #   make test-ui-regression LANES=remote
+#
+# The DJ live-mix lanes (§53.7–53.12) additionally need a real-time audio device
+# and minutes of wall clock, which is exactly why they are not in CI either:
+#   make test-ui-regression LANES=djmix                  # gates M5
+#   make test-ui-regression LANES=djmix MIX_MINUTES=20   # pre-release soak
+#   make test-ui-regression LANES=djlive                 # real Jamendo; informs only
+# djmix keeps its recorded mix at build/ui-regression/dj/ so you can listen to it.
 LANES ?= all
+MIX_MINUTES ?= 6
 
 test-ui-regression:
-	LANES=$(LANES) scripts/run-ui-regression.sh
+	LANES=$(LANES) MIX_MINUTES=$(MIX_MINUTES) scripts/run-ui-regression.sh

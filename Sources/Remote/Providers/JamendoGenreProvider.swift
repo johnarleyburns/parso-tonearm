@@ -54,9 +54,41 @@ public enum JamendoGenreError: LocalizedError, Equatable, Sendable {
 /// credential — it travels in the build and is read from the app's Info.plist,
 /// exactly like the OAuth client IDs. It is not a user login (§18A.2).
 public enum JamendoAppConfig {
+    /// The application `client_id`. In a normal build it comes from the app's
+    /// Info.plist; an empty value is the honest "not configured" state
+    /// (§18A.6). Under `-uiRegression` a `-jamendoClientID <id>` launch
+    /// argument supplies it (the live lane's credential, from `.test-credentials`);
+    /// absent that, the canned `jamendo-mock` accepts a placeholder — it ignores
+    /// whatever is passed, and the gate must not make the deterministic lane
+    /// unavailable.
     public static var clientID: String {
-        (Bundle.main.object(forInfoDictionaryKey: "JamendoClientID") as? String)?
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-uiRegression") {
+            if let index = arguments.firstIndex(of: "-jamendoClientID"),
+               arguments.indices.contains(index + 1),
+               !arguments[index + 1].isEmpty {
+                return arguments[index + 1]
+            }
+            return "ui-regression"
+        }
+        return (Bundle.main.object(forInfoDictionaryKey: "JamendoClientID") as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    /// The catalogue base URL. The `-jamendoBaseURL <url>` launch argument
+    /// overrides it **only** under `-uiRegression` (dj-regression-suite hook
+    /// 5.6) so the canned `jamendo-mock` can stand in for the live API. In a
+    /// normal build the override is never honoured.
+    public static var baseURL: URL {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-uiRegression"),
+           let index = arguments.firstIndex(of: "-jamendoBaseURL"),
+           arguments.indices.contains(index + 1),
+           let override = URL(string: arguments[index + 1]),
+           override.scheme != nil {
+            return override
+        }
+        return URL(string: "https://api.jamendo.com/v3.0")!
     }
 }
 
@@ -281,7 +313,8 @@ public struct JamendoGenreProvider: RemoteLibraryProvider {
     public var sourceKind: SourceKind { .jamendoGenre }
 
     public init(clientID: String, session: URLSession = .shared, sourcePath: String? = nil) {
-        self.api = JamendoAPI(clientID: clientID, session: session)
+        self.api = JamendoAPI(clientID: clientID, session: session,
+                              baseURL: JamendoAppConfig.baseURL)
         self.genrePath = sourcePath
     }
 

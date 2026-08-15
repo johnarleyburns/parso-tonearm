@@ -157,6 +157,14 @@ public struct SweepFilter: Sendable {
     public static let centerBypass: Float = 0.001
     public static let maxCutoffHz: Float = 12_000
     public static let minCutoffHz: Float = 300
+    /// The high-pass side's transparent end: below the audible band, so a knob
+    /// just off centre colours the sound rather than emptying it.
+    public static let hpMinCutoffHz: Float = 20
+    /// The high-pass side's far end. Held to an eighth of the sample rate: this
+    /// is a Chamberlin state-variable filter, whose coefficient goes unstable
+    /// as the cutoff approaches a sixth of the sample rate — a corner up at
+    /// 12 kHz does not filter, it produces NaN.
+    public static let hpMaxCutoffHz: Float = 6_000
 
     public let sampleRate: Double
     public private(set) var knob: Float = 0
@@ -172,11 +180,28 @@ public struct SweepFilter: Sendable {
     }
 
     /// The filter cutoff for a knob position (−1 … 1).
+    ///
+    /// **The two sides sweep in opposite directions**, because "transparent"
+    /// means opposite things for a low-pass and a high-pass. Turning left, the
+    /// low-pass corner falls from 12 kHz (everything through) to 300 Hz (dark);
+    /// turning right, the high-pass corner *rises* from 20 Hz (everything
+    /// through) to 6 kHz (only the top left). Both therefore start neutral at
+    /// the centre detent and reach maximum effect at the extremes, which is what
+    /// §35.3's "low-pass left, neutral centre, high-pass right" describes and
+    /// what a hand trained on any club mixer expects.
+    ///
+    /// Sharing one curve across both sides — as this did — inverts the
+    /// high-pass: a knob nudged just off centre jumped to a 12 kHz high-pass,
+    /// removing very nearly everything, and sweeping further *restored* content
+    /// until full-right was the mildest setting on that side.
     public static func cutoffHz(forKnob knob: Float) -> Float {
         let k = min(max(knob, -1), 1)
-        let magnitude = abs(k)
-        guard magnitude > centerBypass else { return maxCutoffHz }
-        return maxCutoffHz * powf(minCutoffHz / maxCutoffHz, min(magnitude, 1))
+        let magnitude = min(abs(k), 1)
+        guard magnitude > centerBypass else { return k < 0 ? maxCutoffHz : hpMinCutoffHz }
+        if k < 0 {
+            return maxCutoffHz * powf(minCutoffHz / maxCutoffHz, magnitude)
+        }
+        return hpMinCutoffHz * powf(hpMaxCutoffHz / hpMinCutoffHz, magnitude)
     }
 
     private static func freqCoefficient(cutoffHz: Float, sampleRate: Double) -> Float {

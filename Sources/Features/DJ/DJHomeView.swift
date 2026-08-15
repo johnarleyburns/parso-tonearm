@@ -61,6 +61,7 @@ struct DJPerformanceSurface: View {
         case unavailable
     }
 
+    @EnvironmentObject private var appState: AppState
     @State private var load: LoadState = .loading
 
     var body: some View {
@@ -93,5 +94,11 @@ struct DJPerformanceSurface: View {
                 load = .unavailable
             }
         }
+        // The decks are a full-screen instrument: the app's dock would otherwise
+        // cover the crossfader and the transport chips on the bottom edge, which
+        // §42.7a forbids — and a covered control is not merely hidden, it is
+        // unreachable, because the overlay takes the touch.
+        .onAppear { appState.isPerformanceSurfaceFullScreen = true }
+        .onDisappear { appState.isPerformanceSurfaceFullScreen = false }
     }
 }

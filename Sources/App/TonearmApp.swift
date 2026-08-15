@@ -1,5 +1,6 @@
 import SwiftUI
 import TonearmCore
+import TonearmDJ
 
 @main
 struct TonearmApp: App {
@@ -13,11 +14,19 @@ struct TonearmApp: App {
         let isUITesting = launchArguments.contains("UI_TESTING")
         let shouldSeedProForUITesting = isUITesting && launchArguments.contains("UI_TESTING_ENABLE_PRO")
 
+        if launchArguments.contains("-resetLibrary") {
+            Self.resetLibraryForRegression()
+        }
         if isUITesting {
             UserDefaults.standard.set(true, forKey: "didOnboard")
         }
         if shouldSeedProForUITesting {
             ProEntitlement.persist(.verified(transactionID: 1, purchaseDate: Date(timeIntervalSince1970: 0)))
+            // The defaults flag above is the older entitlement record; every
+            // Pro capability (App. T.3) gates on `EntitlementStore.isPro`,
+            // which reads its own cache. Seed both, or the DJ surfaces stay
+            // dimmed and inert for the whole run.
+            EntitlementStore.shared.grantForUITesting()
         }
         if launchArguments.contains("UI_TESTING_RESET_PRO") {
             ProEntitlement.clear()
@@ -28,6 +37,27 @@ struct TonearmApp: App {
         }
         AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
         AudioPlayer.shared.persistor.cloudBackend = CloudPlaybackBackend()
+    }
+
+    /// The `-resetLibrary` harness hook (dj-regression-suite §8.1): wipe the
+    /// app's library state so a regression run always starts from the same
+    /// empty slate — the main store, the DJ database (tracks, crates, the
+    /// mixes journal), recorded mixes, genre-crate downloads and the DJ caches.
+    /// Runs before any store is opened, so it is safe to delete the DB files.
+    private static func resetLibraryForRegression() {
+        let fm = FileManager.default
+        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        for suffix in ["", "-shm", "-wal"] {
+            try? fm.removeItem(at: appSupport.appendingPathComponent("library\(suffix).sqlite"))
+        }
+        guard let djDatabase = try? DJDatabase.defaultDatabaseURL() else { return }
+        for suffix in ["", "-shm", "-wal"] {
+            try? fm.removeItem(at: URL(fileURLWithPath: djDatabase.path + suffix))
+        }
+        try? fm.removeItem(at: DJDatabase.mixesDirectory)
+        let documents = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        try? fm.removeItem(at: documents.appendingPathComponent("GenreCrates", isDirectory: true))
+        try? fm.removeItem(at: DJDatabase.cachesDirectory)
     }
 
     var body: some Scene {

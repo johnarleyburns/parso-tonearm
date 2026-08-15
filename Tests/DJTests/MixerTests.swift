@@ -141,19 +141,33 @@ final class MixerTests: XCTestCase {
 
     func testFilterHighPassAttenuatesLowAndPassesHigh() {
         var hp = SweepFilter(sampleRate: 48_000)
-        hp.setKnob(1)
+        // The 300 Hz corner now sits partway up the high-pass side, because the
+        // sweep runs from transparent at the centre detent to maximum at the
+        // extreme (§35.3) rather than the other way round.
+        hp.setKnob(0.475)
         let lowGain = steadyGain(of: &hp, toneHz: 100)
         let highGain = steadyGain(of: &hp, toneHz: 8_000)
         XCTAssertLessThan(lowGain, 0.2, "HP at 300 Hz strongly attenuates a 100 Hz tone")
         XCTAssertEqual(highGain, 1, accuracy: 0.2, "HP at 300 Hz passes an 8 kHz tone")
     }
 
+    /// §35.3: neutral at the centre detent, maximum effect at each extreme.
+    /// The two sides sweep in opposite directions — a transparent low-pass sits
+    /// above the band and a transparent high-pass sits below it — and the knob
+    /// must get *more* filtered the further it travels, on both sides.
     func testFilterCutoffMappingEndpoints() {
-        XCTAssertEqual(SweepFilter.cutoffHz(forKnob: 1), SweepFilter.minCutoffHz, accuracy: 1e-4)
+        // Low-pass side: 12 kHz (through) at centre, 300 Hz (dark) at full left.
         XCTAssertEqual(SweepFilter.cutoffHz(forKnob: -1), SweepFilter.minCutoffHz, accuracy: 1e-4)
-        XCTAssertEqual(SweepFilter.cutoffHz(forKnob: 0), SweepFilter.maxCutoffHz, accuracy: 1e-4)
-        XCTAssertGreaterThan(SweepFilter.cutoffHz(forKnob: 0.1), 1_000,
-                             "just off centre the cutoff is near-transparent")
+        XCTAssertGreaterThan(SweepFilter.cutoffHz(forKnob: -0.1), 1_000,
+                             "just off centre the low-pass is near-transparent")
+        // High-pass side: 20 Hz (through) at centre, 6 kHz (only the top) full
+        // right — the far end is held inside the SVF's stable range.
+        XCTAssertEqual(SweepFilter.cutoffHz(forKnob: 1), SweepFilter.hpMaxCutoffHz, accuracy: 1e-4)
+        XCTAssertLessThan(SweepFilter.cutoffHz(forKnob: 0.1), 100,
+                          "just off centre the high-pass is near-transparent")
+        // Monotonic in both directions: further out is always more filtering.
+        XCTAssertLessThan(SweepFilter.cutoffHz(forKnob: -0.6), SweepFilter.cutoffHz(forKnob: -0.3))
+        XCTAssertGreaterThan(SweepFilter.cutoffHz(forKnob: 0.6), SweepFilter.cutoffHz(forKnob: 0.3))
     }
 
     // MARK: - Master limiter (§35.5)

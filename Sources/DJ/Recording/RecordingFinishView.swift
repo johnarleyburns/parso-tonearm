@@ -279,14 +279,42 @@ public struct RecordingFinishView: View {
                 }
                 .buttonStyle(.bordered)
 
-                ShareLink(items: model.shareItems) {
-                    Label("Share…", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
+                if Self.isUIRegression {
+                    // The share sheet is unautomatable (hook 5.12): under the
+                    // harness the share action writes the container export and
+                    // publishes it on `dj.export.path`.
+                    Button {
+                        Task { await model.exportForRegression() }
+                    } label: {
+                        Label("Share…", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("dj.export.run")
+                } else {
+                    ShareLink(items: model.shareItems) {
+                        Label("Share…", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
             }
             .disabled(model.assetURLForExport == nil)
+
+            if Self.isUIRegression {
+                // The harness reads the container export path from this element
+                // (hook 5.12) — nil until the share action above runs.
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityElement()
+                    .accessibilityIdentifier("dj.export.path")
+                    .accessibilityLabel(model.regressionExportPath ?? "Not exported")
+            }
         }
+    }
+
+    private static var isUIRegression: Bool {
+        ProcessInfo.processInfo.arguments.contains("-uiRegression")
     }
 
     private var actions: some View {

@@ -23,8 +23,13 @@ struct RootView: View {
                 }
             }
 
-            GlassDock()
-                .padding(.bottom, 8)
+            // The dock steps aside for a performance surface: the decks own the
+            // bottom edge (§42.7a), and an overlay there is not merely untidy —
+            // it swallows the crossfader's touches.
+            if !appState.isPerformanceSurfaceFullScreen {
+                GlassDock()
+                    .padding(.bottom, 8)
+            }
 
             if showSplash && appState.didOnboard {
                 AnimatedSplashView(isPresented: $showSplash)

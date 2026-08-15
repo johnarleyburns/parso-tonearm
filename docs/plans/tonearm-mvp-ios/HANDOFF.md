@@ -212,7 +212,9 @@ Blocking items no agent can do — expect to be asked (§6.5, §54.5):
   `make test-ui-regression` (spec §53) is run **by hand** before a release. It needs Docker, a
   simulator, and third-party demo servers, so wiring it into CI or a pre-commit/pre-push hook
   would make every commit depend on someone else's uptime. This is a requirement, not an
-  oversight — do not "helpfully" automate it.
+  oversight — do not "helpfully" automate it. **This now includes the M5 DJ lanes**
+  (`LANES=djmix|djlive`, spec §53.7–53.12, plan `docs/plans/dj-regression-suite.md`), which
+  additionally need a real-time audio device and up to 20 minutes. Same answer.
 - **Never commit `.test-credentials`.** Real values live there (gitignored);
   `.test-credentials.example` carries key names only and is committed. No credential may appear
   in a test file, a compose file, a script, or the spec (§54.2).
@@ -469,7 +471,7 @@ Milestone order and gates:
 | M2 | Semantic search (CLAP ODR, tiered vectors) | ✅ **2.0 free** | FR-SEM-3 (≤120 ms @ 30k) |
 | M3 | Auto-playlists (sequencer, arcs) | ✅ **2.1 free** | FR-PLIST-2 (±5%), FR-PLIST-8 (≤3 s) |
 | M4 | Engine + `AVAudioSession` + StoreKit | ✅ **3.0 Pro launch** | AT-ENGINE-\*, AT-SESS-\*, **AT-THERM-1** |
-| **M5** | **Waveforms, club ergonomics, genre libraries, stems, recording** | — | AT-STEM-\*, AT-REC-\*, **AT-WAVE-\***, **AT-TRANS-1..5**, **AT-GENRE-\***, + the owner's end-to-end set |
+| **M5** | **Waveforms, club ergonomics, genre libraries, stems, recording** | — | AT-STEM-\*, AT-REC-\*, **AT-WAVE-\***, **AT-TRANS-1..5**, **AT-GENRE-\***, **AT-MIX-1..8**, + the owner's end-to-end set |
 | M6 | Hardware, split cue, Watch, polish | ✅ **3.1** | AT-MIDI-\*, AT-WATCH-\* |
 
 > **M5 was re-scoped** (spec §48.6, Appendix M.6, plan `docs/plans/dj-phase-4-stems-recording.md`).
@@ -478,6 +480,11 @@ Milestone order and gates:
 > in-app → share. The original stems/recording/gig-crate scope is intact and lands in commits
 > 5.7–5.13; commits **5.1–5.6** are the unblockers M4 left behind (app entry point, library→deck
 > seam, analysis persistence, waveform render, ergonomics, Beat FX echo, genre libraries).
+> Two commits were added after the regression-suite design: **5.4a**, the **real-time render
+> pump** — `AudioGraph` enabled manual `.offline` rendering unconditionally and only unit tests
+> pulled it, so the shipped app made no sound (plan decision 26, §53.11) — and **5.14**, the **DJ
+> regression suite** (`docs/plans/dj-regression-suite.md`), which executes the exit narrative
+> through the real UI and proves it in the recorded artifact.
 > **Read §48.6 and the plan before starting any M5 commit** — this table is a summary, not the spec.
 
 ## 9. When to stop and ask

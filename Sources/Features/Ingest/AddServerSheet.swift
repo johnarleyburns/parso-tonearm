@@ -80,7 +80,15 @@ struct AddServerSheet: View {
             .accessibilityIdentifier("Close Add Remote Library")
             .padding(.top, 12)
         }
-        .onChange(of: selectedConnectorID) { _, _ in error = nil }
+        .onChange(of: selectedConnectorID) { _, newValue in
+            error = nil
+            // Picking the genre connector is choosing the genre picker — open it
+            // directly so one tap on the pill leads straight to the genres
+            // (§41.1a): no intermediate "Choose Genres" button to miss.
+            if RemoteConnectorCatalog.connector(byID: newValue)?.sourceKind == .jamendoGenre {
+                showGenrePicker = true
+            }
+        }
         .sheet(isPresented: $showGuide) {
             RemoteConnectorGuideView(guide: connector.guide)
         }

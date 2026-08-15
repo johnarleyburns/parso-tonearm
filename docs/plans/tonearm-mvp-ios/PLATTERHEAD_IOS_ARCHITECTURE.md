@@ -4168,6 +4168,8 @@ The crossover topology gives flat magnitude at unity and musical, phase-coherent
 
 A single per-channel **resonant filter** knob sweeps from low-pass (turn left) through neutral (center detent, bypassed) to high-pass (turn right), the standard DJ-mixer color filter. Implemented as a state-variable filter with a mapped cutoff and mild resonance; bypassed exactly at center to avoid coloring the neutral position.
 
+**The two sides sweep in opposite directions**, because "transparent" means opposite things for a low-pass and a high-pass: turning left the low-pass corner *falls* from 12 kHz to 300 Hz, and turning right the high-pass corner *rises* from 20 Hz to 6 kHz (held below the state-variable filter's stability limit of a sixth of the sample rate). Both therefore start neutral at the detent and reach maximum effect at the extreme. One curve shared across both sides inverts the high-pass — a knob nudged just off centre jumps to a 12 kHz high-pass and sweeping further *restores* content — which is what shipped through M4 and what the DJ regression lane's §53.9 row 2 caught.
+
 ### 35.4 Crossfader and channel faders
 
 The **channel fader** (trim) sets each deck's contribution; the **crossfader** blends decks A↔B with a selectable curve (constant-power for smooth blends, or sharp for scratch-style cuts). Both use equal-power or linear laws as configured, with smoothing:
@@ -5836,6 +5838,7 @@ Each functional-requirement family has explicit acceptance tests referenced thro
 | **AT-WAVE-\*** *(new — M5)* | FR-WAVE | **AT-WAVE-1** analysis persists a beat grid with real `firstBeatSample`/`beatCount`, downbeat rows, phrase rows and a band-split pyramid — a re-read after analysis returns all four (§19.4); **AT-WAVE-2** the render model's colour split for a synthesised bass-only / mid-only / treble-only signal puts the energy in the expected band; **AT-WAVE-3** beat-grid positions composed with a `grid_correction` match what the engine quantises to, sample for sample; **AT-WAVE-4** the phrase ribbon's spans and bar lengths equal the persisted `phrase` rows, and a low-confidence span is marked, not hidden; **AT-WAVE-5** an unanalysed track renders the honest empty state and never synthetic geometry; **AT-WAVE-6** cue and loop markers land on their sample positions at every zoom level; **AT-WAVE-7** the renderer selects the coarsest pyramid level ≤ 1 px/bin and steps one level coarser at `.serious` (§26A.7). |
 | **AT-TRANS-1..5** *(new — M5)* | FR-TRANS, §35B | Each of the five beginner transitions is driven as a scripted command sequence against the **offline render** and asserted in the output buffer: **1 Bass Swap** — killing LOW removes the low band from that channel and the other channel's low is unaffected; **2 Filter Transition** — a full high-pass sweep on the outgoing leaves the incoming spectrum unchanged, and both filters at centre are bit-exact bypass; **3 Echo Out** — with the echo enabled and the channel fader taken to zero, the master bus **still contains a decaying tail** at the beat-synced interval, and the tail decays monotonically to silence (§35A.2); **4 Fader Cut** — a sharp-curve crossfader cut on a downbeat produces a sample-accurate transition with no zipper artefact; **5 Blend** — a simultaneous two-deck blend stays inside the limiter ceiling. Each also runs as a **layout assertion** on both surfaces: every control the transition needs is present, ≥ 44 pt, and not occluded (§41.9b, §42.7c). |
 | **AT-GENRE-\*** *(new — M5)* | FR-LIB-9, FR-LIB-10, §18A | A genre subscribes as its own `Source` with popularity-descending order; sub-genres are distinct libraries; **browsing and playback work with no account** and the optional-credentials path changes nothing about availability; a cached genre track analyses and loads to a deck through the ordinary path; a partially cached track is never deck-ready (FR-LIB-8); licence and attribution survive to the library row, the finish screen and the cue-sheet (§18A.5); a network failure reports itself rather than presenting an empty library (§18A.6); the connector appears in the free-tier registry (AT-FREE-\*). |
+| **AT-MIX-\*** *(new — M5, §53.7–53.12)* | §48.6, the whole milestone | The **DJ regression lanes** — the M5 exit narrative driven through the real UI and asserted against **the recording the app produces** (§53.8), not against UI state. **AT-MIX-1** genre picker → genre library → two different deck playlists; **AT-MIX-2** both decks draw from *different* playlists at once (FR-ENG-13) and both playheads advance; **AT-MIX-3..7** the five transitions performed **inside one continuous recording** and verified by their §53.9 acoustic signatures, cross-checked against the exported `mix-journal.json`; **AT-MIX-8** record → finalize → review listen → export decodes with a duration matching the journal. **AT-MIX-9..10** repeat the journey against the live Jamendo API with weaker assertions. Run **by hand, never in CI** (§53.2); `djmix` gates the milestone, `djlive` informs it. |
 | **AT-SESS-\*** | FR-SESS | Seven gates in §34A.7: route loss pauses rather than blasting the speaker, a phone call mid-recording costs at most one segment, media-services reset recovers in 300 ms, displayed latency equals granted latency on every route. |
 | **AT-THERM-\*** | NFR-THERM | A 90-minute two-deck session with prepared stems on battery at 50% brightness never reaches `.critical`, never drops a buffer, and sheds lanes in exactly the §43.7 order. **This is a shipping gate for M4.** |
 | **AT-MEM-\*** | NFR-REL-4 | The same session never crosses the §43.5 footprint ceiling and the app is never terminated by the watchdog. |
@@ -6003,10 +6006,14 @@ Everything below serves that sentence.
 3. **AT-TRANS-1..5** green — each of the five transitions asserted in the offline render *and*
    as a layout assertion on both the tablet and compact surfaces.
 4. **AT-GENRE-\*** green — a genre subscribes, caches, analyses and reaches a deck, with no account.
-5. **The narrative above, performed on a device by the owner** — one 20-minute recorded set using
+5. **AT-MIX-1..8 green** — `make test-ui-regression LANES=djmix`, the whole narrative driven
+   through the real UI and proved in the recorded artifact (§53.7–53.12), including one
+   `MIX_MINUTES=20` soak. This is the machine-checkable form of step 6, and it is what makes the
+   difference between "every part was tested" and "the thing works".
+6. **The narrative above, performed on a device by the owner** — one 20-minute recorded set using
    all five transitions, played back in-app, exported and played on a second device. This is a
    **user-owned shipping gate**, run in the post-M5 device pass alongside M4's deferred
-   AT-THERM-1 and AT-MEM-1. It is the gate that matters; the other four are how we know it will
+   AT-THERM-1 and AT-MEM-1. It is the gate that matters; the other five are how we know it will
    pass.
 
 **Ships?** No — M5 remains an internal milestone. But it is the first build where the product's
@@ -6536,6 +6543,162 @@ services, and every lane as a named test with its defect ID. Lane **bodies** are
 `TODO(D-n)` and skip. They are written before the fixes on purpose — the fix commit
 for `D-n` fills in lane `D-n`, and "the lane is green" is what closes the defect.
 
+### 53.7 The DJ live-mix lanes (new — M5)
+
+The M5 exit (§48.6) is stated as a performance the owner must be able to give, end
+to end. **The DJ lanes are that sentence executed by a machine**: browse a genre,
+build two deck playlists, mix with all five transitions (§35B), record, listen back,
+export a file that plays. The full coder brief is
+[`docs/plans/dj-regression-suite.md`](../dj-regression-suite.md).
+
+They are a **third layer**, and each layer below is blind to what it catches:
+
+| Layer | Where | Proves |
+|---|---|---|
+| 1 · kernels + offline render | `swift test` (CI) | the DSP is correct (`AT-TRANS-*` audio half) |
+| 2 · layout assertions | `swift test` (CI) | the controls exist, are ≥ 44 pt, un-occluded |
+| 3 · **the DJ lanes** | by hand | the **wiring** — gesture → ring → engine → recording → export |
+
+Layer 3 exists because of §49.3a. The M4 engine was correct, tested, and entirely
+unreachable; every layer-1 and layer-2 test was green while the feature did not
+exist in the shipped binary. **These lanes are that invariant made into a standing
+guard** rather than a lesson remembered for one milestone.
+
+### 53.8 The recorded artifact is the oracle
+
+`XCUITest` cannot hear. A lane asserting that a deck row reads *Playing* is the
+D-10 failure mode exactly (§53.5). So the DJ lanes assert against **the recording
+the app itself produces**: the suite drives the real UI in real time, the app
+records its master bus and exports it (§37), the runner pulls the file off the
+simulator, and a **host-side analyzer** proves the transitions are acoustically
+present in it.
+
+The artifact is the right oracle because it is independent of the app's opinion of
+itself, because it is the actual M5 deliverable rather than a proxy for it, and
+because it exercises the whole chain at once. Engine telemetry exposed through
+accessibility MAY corroborate and MUST be used for gesture timing; it MUST NOT be
+the sole evidence that audio happened.
+
+**Deterministic-lane fixtures carry per-deck tone identity.** Each synthetic track
+is three sine tones, one per EQ band, and the two decks use *different* frequencies
+within the same band (deck A 55/611/5300 Hz, deck B 87/1290/8900 Hz), chosen in
+non-integer ratios and sitting unambiguously inside the same 200 Hz / 2 kHz
+crossovers the three-band EQ uses (§26A.2). Band energy therefore becomes
+**attributable to a specific deck**, which is what turns "the low band changed
+somehow" into "deck A's low went away and deck B's arrived". Real music cannot
+support these assertions; that is why the gating lane does not use it.
+
+### 53.9 Transition signatures
+
+Each row is what MUST be true of the recorded file for the transition to have
+happened. `E(f)` is energy in a narrow band around tone `f`.
+
+| # | Transition | Required signature |
+|---|---|---|
+| 1 | Bass Swap | `E(55)` falls ≥ 24 dB and `E(87)` rises ≥ 24 dB across the journal mark, **and both mid tones stay within ±3 dB** — the mids persisting is what distinguishes a swap from a cut. Measured on the **settled** state either side (§53.10): the mark is the outgoing low being killed, and the incoming low comes back when the hand gets to the other deck's knob |
+| 2 | Filter | the outgoing deck's tone-weighted centroid **climbs across the sweep** — measured as four means spanning it, **three of the four rising** (per-window monotonicity is not measurable: each tone's beat envelope moves the centroid by hundreds of hertz frame to frame, and the last quarter is usually measuring the hold after the hand stopped) — and rises ≥ 300 Hz **settled to settled**, which is the claim that the filter opened up the top; `E(55)` falls ≥ 18 dB while `E(5300)` holds within ±6 dB; on release to centre `E(55)` returns within ±3 dB — **centre is bypass** (§35.3). The mark is the moment the knob **leaves** the bypass band, so the sweep lies after it |
+| 3 | Echo Out | after the fader reaches zero the master **still carries the outgoing deck's tones**; the tail's repeats land at the beat-synced interval within ±5% and decay ≥ 20 dB across them. Decay is measured **relative to the tail's own first repeat**, over the run of repeats before one stops falling — not against an absolute floor: the other deck is still playing, which is the entire point of an Echo Out, so the master never goes silent and the peaks below the tail's own bleed floor belong to that other deck. This lane is what proves the echo is **post-fader** (§35A) — a pre-fader echo leaves no tail at all |
+| 4 | Fader Cut | outgoing RMS falls ≥ 30 dB inside one beat period, with no broadband impulse at the cut |
+| 5 | Blend | both decks' tones present for ≥ 8 bars, master true peak never exceeds `Limiter.ceiling`, and beat-rate autocorrelation stays single-peaked — phase-locked, not flamming |
+
+Thresholds shared with `AT-TRANS-*` MUST be read from one definition, not restated,
+so the two layers cannot drift out of agreement.
+
+**The signatures are cross-checked against the journal.** Under `-uiRegression` the
+app exports `mix-journal.json` (the §37 `MixTrackEvent` record) beside the M4A. The
+analyzer reads it to learn where each transition *claims* to be, verifies the
+signature *is* there, and verifies no unexplained transition-scale event exists
+elsewhere. The journal alone proves only that the app believes it acted; the audio
+alone proves only that something happened. Together they prove it did what it says.
+
+The journal MUST also carry the **engine configuration in force** — limiter ceiling,
+master BPM, echo division, sample rate — so the recording is self-describing. That
+is the mechanism behind "thresholds are read from one definition": the analyzer runs
+on the host and cannot import `Limiter.ceiling`, so the app writes the value it
+actually used and the analyzer reads it rather than hardcoding a copy that a later
+retune would silently invalidate.
+
+### 53.10 Tolerance — ratio-based and bar-tolerant, never sample-exact
+
+Sample-exactness is **layer 1's** job, against a deterministic offline render. The
+DJ lanes run in real time on a simulator that can underrun, behind gestures whose
+timing is approximate. Every assertion here MUST therefore be **relative** (dB
+changes and ratios between tones, never absolute levels), **bar-tolerant** (whole
+bars around the journal mark, never a sample offset), and **allowed a stated dropout
+budget** — underruns are reported as a simulator condition, not a product defect.
+
+An analyzer that demands sample precision from a simulator is red for reasons
+nobody can fix, and §53.4 exists because a suite that is red for unfixable reasons
+stops being read.
+
+**Windows sit on the settled state, never on the movement.** A journal mark is
+where the app *recognised* the gesture, and for a multi-step transition that is
+where the gesture **began** — a bass swap's mark is the first knob, with the second
+deck's knob still to reach; a filter sweep's mark is the knob leaving the bypass
+band, with the sweep still to travel. A window placed a bar past such a mark
+measures the transition mid-flight and reports a correct transition as a
+half-failure. So each check MUST name the bar offsets it measures over — settled
+before, settled once the gesture has landed — and a mark that fires at a movement's
+*completion* (the return to bypass) needs only a guard bar. This is a
+measurement-placement question and MUST NOT be answered by loosening a threshold.
+
+**The lane MUST schedule every gesture relative to the bar the previous one
+finished on**, never against an absolute bar grid, because the spacing those
+windows assume has to actually exist. A gesture consumes bars; against an absolute
+grid each one is paid for out of the gap that was meant to follow it, a later wait
+for a bar already passed returns immediately, and the transitions bunch up until no
+window can read them apart — sixteen intended seconds between two transitions
+measured as six, on the run that found this.
+
+### 53.11 What the app MUST expose for the lanes to exist
+
+These are product affordances, not test scaffolding, and they land in the commits
+that build the surfaces rather than in the suite:
+
+- **Accessibility identifiers on every performance control**, to a stated
+  convention (`dj.deck.<a|b>.<play|cue|filter|fader>`, `dj.deck.<a|b>.eq.<low|mid|high>`,
+  `dj.mixer.crossfader`, `dj.fx.echo`), plus `dj.master.bar` exposing `bar:beat` so
+  gestures can be scheduled on phrase boundaries.
+- A **`-jamendoBaseURL` override honoured only under `-uiRegression`**, so a mock
+  catalogue can stand in for the live API.
+- **The share sheet is unautomatable.** Under `-uiRegression` the share action MUST
+  write the export to a known container path and publish it on `dj.export.path`;
+  the runner retrieves it with `xcrun simctl get_app_container`. Driving
+  `UIActivityViewController` is not attempted.
+
+A **real-time render topology is a prerequisite** for all of this: through commit
+5.2 `AudioGraph` enabled manual `.offline` rendering unconditionally and nothing in
+the app pulled `render()`, so the shipped app accepted commands into a graph that
+never produced audio. Commit 5.4a adds the `.realtime` mode — the same render
+closures driven by the device output rather than by a pull — and the `.offline` path
+is preserved unchanged so every existing acceptance test keeps its meaning.
+
+### 53.12 Two lanes; only the deterministic one gates
+
+`LANES=djmix` — fixture media and a mock catalogue, tight assertions, `AT-MIX-1..8`
+performed **inside one continuous recording**. This is the gating lane, because it
+means the same thing on every run.
+
+`LANES=djlive` — the same journey against the live Jamendo API with deliberately
+weaker assertions (tracks browse, load and play; the recording reaches duration; the
+export decodes). Its job is to catch a changed endpoint, a paging bug or a rejected
+audio format. It **informs but does not gate**: it depends on a third party, and per
+§53.4 an unreachable API skips.
+
+Duration is a parameter — `MIX_MINUTES` defaults to 6 and the pre-release soak is
+`MIX_MINUTES=20`. Twenty real-time simulator minutes as the default would be a flake
+generator, and a flaky suite gets switched off.
+
+**The recorded mix MUST be kept, and a human is meant to listen to it.** Every
+§53.9 threshold is a judgement call, and the numbers have to stay tunable against
+what the mix actually sounds like — a failing signature over a mix that sounds wrong
+means the app is broken, while a failing signature over a mix that sounds right means
+the *threshold* is wrong, and without the audio those are indistinguishable. The
+runner therefore keeps exactly one audio file at `build/ui-regression/dj/`: the
+directory is wiped at the **start** of every DJ run so a rerun never leaves the
+previous mix behind, intermediates are deleted at the end, and the surviving file is
+always the current run's. It is gitignored — generated audio never enters the repo.
+
 ## 54. Fixtures, servers, and credentials
 
 ### 54.1 Fixture media is generated, never committed
@@ -6568,6 +6731,8 @@ disclosure harms anyone.
 | D-13 | `demo.jellyfin.org/stable` | ✅ needs only the internet |
 | D-14 | Plex container | ⛔ needs a claim token (§54.5) |
 | D-17 | Dropbox / Drive / OneDrive / pCloud | ⛔ needs app registrations (§54.5) |
+| **AT-MIX-1..8** | `jamendo-mock` container + generated DJ fixtures | ✅ needs Docker + a simulator audio device |
+| **AT-MIX-9..10** | `api.jamendo.com` (Appendix Q.1a) | ⛔ needs a `client_id` (§54.5) |
 
 ### 54.4 Migrate the credential that is protected only by luck
 
@@ -6585,8 +6750,23 @@ D-10.
   record the client IDs → `[cloud-oauth]` (D-17).
 - Decide whether the archive.org account used for D-16 should have its password
   rotated before go-live.
+- Register a Jamendo application and record its `client_id` → `[jamendo]`
+  (§18A, `AT-MIX-9..10`). It is an *application* credential, not a user login —
+  FR-LIB-9's "works with no account" is unaffected.
 
 Until each is done, its lane skips with that instruction as the reason.
+
+### 54.6 DJ fixtures carry tone identity, and no third-party audio is ever committed
+
+`scripts/ui-regression/make-dj-fixture-media.py` generates the §53.8 tone-identity
+tracks — six or more WAVs at exactly 122.000 BPM (plus a 124.000 BPM pair for the
+sync lane), each three sine tones with beat-rate amplitude modulation and 16-bar
+phrase structure, peaking at −12 dBFS.
+
+Generated rather than committed, for the §54.1 reasons and one more: **Jamendo's
+catalogue is Creative Commons, and CC is not a licence to vendor audio into a git
+repository.** The live lane streams and retains nothing; the gating lane uses
+synthetic tones that belong to no one.
 
 ---
 ---
@@ -7867,6 +8047,7 @@ render → ergonomics → the missing DSP → material → then the original ste
 | **`Sources/DJ/Data/WaveformRepository.swift`** | read side — pyramid slice + grid + phrases + cues → `WaveformRenderModel` (§26A.1) |
 | **`Sources/DJ/Features/Waveform/WaveformRenderer.swift`** | frequency-coloured, beat-gridded `Canvas` renderer; pyramid-level selection + thermal degradation (§26A.2/.7) |
 | **`Sources/DJ/Features/Waveform/PhraseRibbon.swift`** | labelled phrase spans, bar lengths, low-confidence marking (§26A.4) |
+| **`Sources/DJ/Engine/AudioGraph.swift` (edit)** | **the `.realtime` render mode** — device output instead of a pull, `.offline` preserved unchanged (§53.11, commit 5.4a) |
 | **`Sources/DJ/Engine/BeatEcho.swift`** | pure post-fader beat-synced delay kernel (§35A.2) |
 | `Sources/DJ/Engine/RTCommand.swift` (edit) | `setEcho*` tags; stem tags |
 | **`Sources/Domain/Entities.swift` (edit)** | `SourceKind.jamendoGenre` (§18A.3) |
@@ -7888,7 +8069,8 @@ render → ergonomics → the missing DSP → material → then the original ste
 (5.1) **reachability + deck load seam** — the app-side entry point and library → deck path (§49.3a);
 (5.2) **analysis persistence** — phrases, downbeats, real beat grid, band-split pyramid (§19.4, AT-WAVE-1);
 (5.3) **waveform render** — colour, grid, phrase ribbon, overview + detail, shared playhead (§26A, AT-WAVE-2..7);
-(5.4) **club ergonomics** — the §41.9b channel-strip relayout, 8 pads, tempo faders, compact adaptation (§42.7c), geometry tests updated;
+(5.4) **club ergonomics** — the §41.9b channel-strip relayout, 8 pads, tempo faders, compact adaptation (§42.7c), geometry tests updated, **+ the §53.11 accessibility identifiers on every performance control**;
+(5.4a) **the real-time render pump** — `AudioGraph` gains a `.realtime` mode beside today's `.offline` one, driven by the device output instead of a pull, with **one render-closure body and two drivers** (§53.11). Through 5.2 manual `.offline` rendering was enabled unconditionally and only tests called `render()`, so the shipped app dispatched commands into a graph nobody pulled: **PLAY made no sound.** Prerequisite for every commit below;
 (5.5) **Beat FX echo** — the post-fader beat-synced delay (§35A) + AT-TRANS-1..5 across both surfaces;
 (5.6) **genre libraries** — `SourceKind.jamendoGenre`, the provider, the first-run picker (§18A, §41.1a, AT-GENRE-\*);
 (5.7) Demucs ODR + separation + cache + version stamp;
@@ -7897,7 +8079,8 @@ render → ergonomics → the missing DSP → material → then the original ste
 (5.10) record tap + encoder + segmented file;
 (5.11) journal + crash/interruption recovery + finalize;
 (5.12) Finish + Mixes + timeline + export + **review listen** + attribution (§41.11, FR-REC-6/7);
-(5.13) the transition coach (§41.18, FR-TRANS-6).
+(5.13) the transition coach (§41.18, FR-TRANS-6);
+(5.14) **the DJ regression suite** — `AT-MIX-1..10`, the exit narrative driven through the real UI and proved in the recorded artifact (§53.7–53.12; brief: `docs/plans/dj-regression-suite.md`). By hand, never in CI.
 
 **Sequencing note.** 5.1–5.3 are the unblockers and are worth landing before anything else in the
 milestone: until they exist, no other commit can be verified against a real track. 5.4's relayout
