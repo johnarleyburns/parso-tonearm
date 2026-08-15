@@ -69,6 +69,14 @@ fastlane/test_output
 
 # Local test credentials — never committed. See .test-credentials.example.
 .test-credentials
+
+# Application credentials the owner supplies locally. The Jamendo client id is
+# an *application* credential, so unlike .test-credentials it has to reach a
+# shipped build — it does so through an untracked xcconfig (Config/Secrets.xcconfig)
+# and, for TestFlight, a CI secret. Never through a tracked file (§54.2).
+.jamendo_client_id
+.jamendo_client_secret
+Config/Secrets.xcconfig
 *.local.sh
 .test-results/
 
