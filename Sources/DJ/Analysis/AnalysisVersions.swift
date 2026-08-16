@@ -15,9 +15,10 @@ public enum AnalysisVersions {
     public static let embedding = 1
     /// Stage 3 (M5): Demucs 4-stem separation (§36). Keyed into the stem-cache
     /// directory layout so a model upgrade invalidates cleanly, like
-    /// `analysis_version` (§36.4, plan decision 5). The real model conversion +
-    /// ODR tag registration is a user-owned step (plan decision 1).
-    public static let stems = 1
+    /// `analysis_version` (§36.4, plan decision 5). **2 since S5** — the model
+    /// is wired (DemucsStemModel runs Core ML, FP32) and every stem_cache row
+    /// written by the conversionPending shell (version 1) must be invalidated.
+    public static let stems = 2
 
     /// Human note for each stage, registered in `analysis_version` so the
     /// registry row says what the version actually is.

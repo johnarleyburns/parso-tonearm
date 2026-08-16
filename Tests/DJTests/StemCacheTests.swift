@@ -85,7 +85,8 @@ final class StemCacheTests: XCTestCase {
         let separation = makeSeparation()
         try await env.cache.store(separation, trackID: env.trackID, contentHash: "hash-a")
 
-        let base = env.root.appendingPathComponent("hash-a").appendingPathComponent("1")
+        let base = env.root.appendingPathComponent("hash-a")
+            .appendingPathComponent(String(AnalysisVersions.stems))
         for kind in StemKind.allCases {
             let url = base.appendingPathComponent(kind.fileName)
             XCTAssertTrue(FileManager.default.fileExists(atPath: url.path),
@@ -106,10 +107,10 @@ final class StemCacheTests: XCTestCase {
         XCTAssertGreaterThan(record["totalBytes"] as? Int64 ?? 0, 0)
         let paths = try JSONDecoder().decode(StemCachePaths.self,
                                              from: Data((record["pathsJSON"] as? String ?? "").utf8))
-        XCTAssertEqual(paths.vocals, "hash-a/1/vocals.caf")
-        XCTAssertEqual(paths.drums, "hash-a/1/drums.caf")
-        XCTAssertEqual(paths.bass, "hash-a/1/bass.caf")
-        XCTAssertEqual(paths.other, "hash-a/1/other.caf")
+        XCTAssertEqual(paths.vocals, "hash-a/\(AnalysisVersions.stems)/vocals.caf")
+        XCTAssertEqual(paths.drums, "hash-a/\(AnalysisVersions.stems)/drums.caf")
+        XCTAssertEqual(paths.bass, "hash-a/\(AnalysisVersions.stems)/bass.caf")
+        XCTAssertEqual(paths.other, "hash-a/\(AnalysisVersions.stems)/other.caf")
     }
 
     func testTwoHashesNeverShareADirectory() async throws {
@@ -140,9 +141,9 @@ final class StemCacheTests: XCTestCase {
         try await cache.store(separation, trackID: bID, contentHash: "hash-b")
 
         XCTAssertTrue(FileManager.default.fileExists(
-            atPath: root.appendingPathComponent("hash-a/1/vocals.caf").path))
+            atPath: root.appendingPathComponent("hash-a/\(AnalysisVersions.stems)/vocals.caf").path))
         XCTAssertTrue(FileManager.default.fileExists(
-            atPath: root.appendingPathComponent("hash-b/1/vocals.caf").path))
+            atPath: root.appendingPathComponent("hash-b/\(AnalysisVersions.stems)/vocals.caf").path))
     }
 
     // MARK: - Round trip
@@ -226,7 +227,7 @@ final class StemCacheTests: XCTestCase {
         try await upgraded.store(makeSeparation(frames: 2048, seed: 9),
                                  trackID: env.trackID, contentHash: "hash-a")
         XCTAssertTrue(FileManager.default.fileExists(
-            atPath: env.root.appendingPathComponent("hash-a/1/vocals.caf").path))
+            atPath: env.root.appendingPathComponent("hash-a/\(AnalysisVersions.stems)/vocals.caf").path))
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: env.root.appendingPathComponent("hash-a/2/vocals.caf").path))
         let v1After = try await env.cache.isCached(trackID: env.trackID, modelVersion: 1)
@@ -320,7 +321,7 @@ final class StemCacheTests: XCTestCase {
         let bCached = try await cache.isCached(trackID: bID, modelVersion: AnalysisVersions.stems)
         XCTAssertTrue(bCached, "track B still references the shared directory")
         XCTAssertTrue(FileManager.default.fileExists(
-            atPath: root.appendingPathComponent("shared/1/vocals.caf").path),
+            atPath: root.appendingPathComponent("shared/\(AnalysisVersions.stems)/vocals.caf").path),
             "the shared files survive eviction of one referencer")
 
         try await cache.evict(trackID: bID, modelVersion: AnalysisVersions.stems)
