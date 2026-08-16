@@ -416,4 +416,80 @@ final class MidiMappingTests: XCTestCase {
                        .pickup)
         XCTAssertEqual(loaded.binding(for: pad)?.takeover, .jump)
     }
+
+    // MARK: - The guided learn walkthrough (plan dj-midi-alpha M4)
+
+    /// Every step the walkthrough offers must be actually bindable — a step
+    /// that offers something the learn UI refuses would dead-end the flow.
+    func testEverySetupStepIsBindable() {
+        let bindable = Set(EngineAction.bindableActions)
+        for step in MidiSettingsModel.setupSteps {
+            XCTAssertTrue(bindable.contains(step.action),
+                          "the walkthrough teaches \(step.action.target), which is not "
+                          + "offered by the learn UI")
+        }
+        // And it is the full essential set in performance order — the first
+        // step is the crossfader, the last is record.
+        XCTAssertEqual(MidiSettingsModel.setupSteps.first?.action, .crossfader)
+        XCTAssertEqual(MidiSettingsModel.setupSteps.last?.action, .record)
+    }
+
+    /// Skipping a step leaves the bindings made before it intact, and advances
+    /// to the next step — an exitable-at-any-point flow.
+    func testSkippingLeavesEarlierBindingsIntact() async throws {
+        let (pool, _) = try makePool()
+        let store = ControllerProfileStore(pool: pool)
+        let model = MidiSettingsModel(hardware: HardwareService(), store: store)
+        model.startSetup()
+        await settle()
+
+        // Bind the first step (the crossfader).
+        model.hardware.receive(MidiMessage(address: fader, value: 127))
+        await settle()
+        XCTAssertEqual(model.capturedAddress, fader)
+        model.commitLearning()
+
+        // Skip the second step.
+        let second = model.currentSetupStep
+        XCTAssertEqual(second?.action, .channelFader(deck: .a))
+        model.skipSetupStep()
+
+        XCTAssertEqual(model.currentSetupStep?.action, .channelFader(deck: .b),
+                       "skipping advances to the following step")
+        XCTAssertEqual(model.profile.binding(for: fader)?.action, .crossfader,
+                       "the mapping made before the skip is intact")
+        XCTAssertTrue(model.isRunningSetup, "the walkthrough continues after a skip")
+    }
+
+    /// Driving the walkthrough to completion writes one profile with the
+    /// expected number of bindings — the profile a fresh user ships with.
+    func testCompletingTheWalkthroughWritesOneProfileWithTheExpectedCount() async throws {
+        let (pool, _) = try makePool()
+        let store = ControllerProfileStore(pool: pool)
+        let model = MidiSettingsModel(hardware: HardwareService(), store: store)
+        model.startSetup()
+        await settle()
+
+        var number = 1
+        while let step = model.currentSetupStep {
+            let address = MidiAddress(type: .cc, channel: 1, number: number)
+            model.hardware.receive(MidiMessage(address: address, value: 64 + number % 3))
+            await settle()
+            XCTAssertEqual(model.capturedAddress, address,
+                           "step \(number) (\(step.action.target)) never captured a control")
+            model.commitLearning()
+            number += 1
+        }
+
+        XCTAssertNil(model.currentSetupStep, "the walkthrough completed")
+        XCTAssertEqual(model.profile.bindings.count, MidiSettingsModel.setupSteps.count,
+                       "every step bound one control")
+        let stored = try XCTUnwrap(store.activeProfile())
+        XCTAssertEqual(stored.bindings.count, MidiSettingsModel.setupSteps.count,
+                       "and the profile was written through to the database")
+    }
+
+    private func settle() async {
+        for _ in 0..<6 { await Task.yield() }
+    }
 }

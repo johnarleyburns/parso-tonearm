@@ -17,6 +17,9 @@ public final class MidiSettingsModel: ObservableObject {
     /// is the control they meant before it is bound.
     @Published public private(set) var capturedAddress: MidiAddress?
     @Published public private(set) var statusMessage: String?
+    /// The index into `setupSteps` while the guided walkthrough is running
+    /// (plan dj-midi-alpha M4); nil when it is not.
+    @Published public private(set) var setupStepIndex: Int?
 
     public let hardware: HardwareService
     private let store: ControllerProfileStore?
@@ -47,6 +50,8 @@ public final class MidiSettingsModel: ObservableObject {
 
     public var bindableActions: [EngineAction] { EngineAction.bindableActions }
 
+    public var isRunningSetup: Bool { setupStepIndex != nil }
+
     public func binding(for action: EngineAction) -> MidiBinding? {
         profile.bindings.first { $0.action == action }
     }
@@ -65,9 +70,19 @@ public final class MidiSettingsModel: ObservableObject {
 
     /// Start listening for the next control the user moves.
     public func beginLearning(_ action: EngineAction) {
+        // While the walkthrough owns the learn flow, a manual Learn tap is
+        // ignored: the walkthrough's commit would otherwise advance a step the
+        // user did not ask to move (plan M4).
+        guard !isRunningSetup else { return }
+        beginLearningInternal(action)
+    }
+
+    private func beginLearningInternal(_ action: EngineAction) {
         learningAction = action
         capturedAddress = nil
-        statusMessage = "Move the control you want for \(action.displayName)."
+        statusMessage = isRunningSetup
+            ? (currentSetupStep?.prompt ?? "Move the control you want for \(action.displayName).")
+            : "Move the control you want for \(action.displayName)."
         hardware.beginLearning()
         listenForMessages()
     }
@@ -91,11 +106,133 @@ public final class MidiSettingsModel: ObservableObject {
         capturedAddress = nil
         hardware.endLearning()
         persist()
+        if isRunningSetup { advanceSetup() }
     }
 
     public func clearBinding(_ action: EngineAction) {
         profile.bindings.removeAll { $0.action == action }
         persist()
+    }
+
+    // MARK: - The guided learn walkthrough (plan dj-midi-alpha M4)
+
+    /// One step of the "Set up my controller" walkthrough: the action being
+    /// taught, and what the control does **in DJ words** — never `EngineAction`
+    /// words, which assume the user already knows the app.
+    public struct MidiSetupStep: Sendable, Equatable, Identifiable {
+        public let action: EngineAction
+        public let prompt: String
+        public var id: EngineAction { action }
+
+        public init(action: EngineAction, prompt: String) {
+            self.action = action
+            self.prompt = prompt
+        }
+    }
+
+    /// The essential set in performance order (plan M4): crossfader → channel
+    /// faders → transport → cue → EQ → filter → tempo → jog → record. Exitable
+    /// at any point with a usable partial mapping.
+    public static let setupSteps: [MidiSetupStep] = [
+        .init(action: .crossfader,
+              prompt: "The crossfader — sweep it fully to one side and back."),
+        .init(action: .channelFader(deck: .a),
+              prompt: "Deck A's channel fader — lower it and back."),
+        .init(action: .channelFader(deck: .b),
+              prompt: "Deck B's channel fader — lower it and back."),
+        .init(action: .play(deck: .a),
+              prompt: "Deck A's play/pause button."),
+        .init(action: .play(deck: .b),
+              prompt: "Deck B's play/pause button."),
+        .init(action: .cue(deck: .a),
+              prompt: "Deck A's cue button — the one that jumps back to the cue point."),
+        .init(action: .cue(deck: .b),
+              prompt: "Deck B's cue button."),
+        .init(action: .headphoneCue(deck: .a),
+              prompt: "Deck A's headphone cue — the pre-listen button."),
+        .init(action: .headphoneCue(deck: .b),
+              prompt: "Deck B's headphone cue."),
+        .init(action: .eq(deck: .a, band: .low),
+              prompt: "Deck A's low EQ knob."),
+        .init(action: .eq(deck: .a, band: .mid),
+              prompt: "Deck A's mid EQ knob."),
+        .init(action: .eq(deck: .a, band: .high),
+              prompt: "Deck A's high EQ knob."),
+        .init(action: .eq(deck: .b, band: .low),
+              prompt: "Deck B's low EQ knob."),
+        .init(action: .eq(deck: .b, band: .mid),
+              prompt: "Deck B's mid EQ knob."),
+        .init(action: .eq(deck: .b, band: .high),
+              prompt: "Deck B's high EQ knob."),
+        .init(action: .filter(deck: .a),
+              prompt: "Deck A's sweep filter."),
+        .init(action: .filter(deck: .b),
+              prompt: "Deck B's sweep filter."),
+        .init(action: .tempo(deck: .a),
+              prompt: "Deck A's tempo fader."),
+        .init(action: .tempo(deck: .b),
+              prompt: "Deck B's tempo fader."),
+        .init(action: .jog(deck: .a),
+              prompt: "Deck A's jog wheel — turn it a few notches."),
+        .init(action: .jogTouch(deck: .a),
+              prompt: "Deck A's jog touch — touch the platter and let go."),
+        .init(action: .jog(deck: .b),
+              prompt: "Deck B's jog wheel — turn it a few notches."),
+        .init(action: .jogTouch(deck: .b),
+              prompt: "Deck B's jog touch — touch the platter and let go."),
+        .init(action: .record,
+              prompt: "The record button — tap it once."),
+    ]
+
+    /// The step the walkthrough is currently on, or nil when it is not running.
+    public var currentSetupStep: MidiSetupStep? {
+        guard let index = setupStepIndex, Self.setupSteps.indices.contains(index) else { return nil }
+        return Self.setupSteps[index]
+    }
+
+    /// "3 of 24", shown as the walkthrough advances.
+    public var setupProgressText: String? {
+        guard let index = setupStepIndex else { return nil }
+        return "\(index + 1) of \(Self.setupSteps.count)"
+    }
+
+    /// Begin the guided walkthrough at the first step.
+    public func startSetup() {
+        guard !isRunningSetup else { return }
+        setupStepIndex = 0
+        statusMessage = nil
+        beginLearningInternal(Self.setupSteps[0].action)
+    }
+
+    /// Skip the current step without binding it; the earlier bindings stay.
+    public func skipSetupStep() {
+        guard isRunningSetup else { return }
+        cancelLearning()
+        advanceSetup()
+    }
+
+    /// Stop the walkthrough, keeping whatever has been mapped so far.
+    public func endSetup() {
+        guard isRunningSetup else { return }
+        setupStepIndex = nil
+        cancelLearning()
+        if profile.bindings.isEmpty {
+            statusMessage = nil
+        } else {
+            statusMessage = "Setup stopped — \(profile.bindings.count) controls mapped so far."
+        }
+    }
+
+    private func advanceSetup() {
+        guard let index = setupStepIndex else { return }
+        let next = index + 1
+        if next < Self.setupSteps.count {
+            setupStepIndex = next
+            beginLearningInternal(Self.setupSteps[next].action)
+        } else {
+            setupStepIndex = nil
+            statusMessage = "Setup complete — \(profile.bindings.count) controls mapped."
+        }
     }
 
     private func listenForMessages() {

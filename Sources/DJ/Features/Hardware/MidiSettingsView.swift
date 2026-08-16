@@ -20,6 +20,49 @@ public struct MidiSettingsView: View {
 
     public var body: some View {
         List {
+            Section("Set up my controller") {
+                if model.isRunningSetup {
+                    Text(model.setupProgressText ?? "")
+                        .font(.footnote.weight(.semibold))
+                        .accessibilityIdentifier("midi.setup.progress")
+                    if let step = model.currentSetupStep {
+                        // The step's prompt is in DJ words — the user should not
+                        // need to know the app's vocabulary to map their controller.
+                        Text(step.prompt)
+                            .font(.body)
+                            .accessibilityIdentifier("midi.setup.prompt")
+                    }
+                    if let captured = model.capturedAddress {
+                        Text("Captured: \(captured.type.rawValue) \(captured.number) "
+                             + "· channel \(captured.channel)")
+                            .font(.footnote.monospaced())
+                            .accessibilityIdentifier("midi.setup.captured")
+                    }
+                    HStack {
+                        Button("Bind & continue") { model.commitLearning() }
+                            .disabled(model.capturedAddress == nil)
+                            .accessibilityIdentifier("midi.setup.commit")
+                        Spacer()
+                        Button("Skip") { model.skipSetupStep() }
+                            .accessibilityIdentifier("midi.setup.skip")
+                        Spacer()
+                        Button("Exit", role: .cancel) { model.endSetup() }
+                            .accessibilityIdentifier("midi.setup.exit")
+                    }
+                    Text("Everything mapped so far is kept. You can exit any time.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("Set up my controller") { model.startSetup() }
+                        .accessibilityIdentifier("midi.setup.start")
+                    Text("A guided walkthrough of the essential controls — crossfader, "
+                         + "faders, transport, EQ, tempo and the jog — in about a minute. "
+                         + "You can stop at any point and keep what you have mapped.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Controllers") {
                 if model.hardware.endpoints.isEmpty {
                     // Honest empty state: nothing is wrong, there is simply no
@@ -59,7 +102,7 @@ public struct MidiSettingsView: View {
                 }
             }
 
-            if let action = model.learningAction {
+            if let action = model.learningAction, !model.isRunningSetup {
                 Section("Learning") {
                     Text(model.statusMessage ?? "Move a control.")
                         .font(.footnote)
