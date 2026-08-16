@@ -14,9 +14,12 @@ they do not depend on each other:
   works and is verified, the Swift STFT/ISTFT is golden-tested, the separator runs at
   the model's own geometry, `DemucsStemModel` runs Core ML, and the ODR tag ships.
   What remains is the user-owned on-device measurement (S7's gate).
-- **MIDI** — `docs/plans/dj-midi-alpha.md`. The M6 stack is complete and **connected to
-  nothing**: `attachMidi` has no call sites and learned mappings are never persisted. Plus soft
-  takeover, jog bindings and a guided learn walkthrough.
+- **MIDI** — `docs/plans/dj-midi-alpha.md`. **M1–M4 landed** (below): the stack is now
+  **connected** — a mapping persists and a controller reaches the engine (`attachMidi`
+  has real call sites), soft takeover stops a stale fader slamming the channel, the jog
+  wheels are bindable, and the guided learn walkthrough ships. What remains is M5–M8
+  (LED output, 14-bit CC, multi-device honesty, factory profiles) and the owner's
+  on-device pass.
 
 ## Milestone
 
@@ -42,6 +45,10 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **MIDI M4** — `de19f56` `feat(dj): MIDI M4 — the guided learn walkthrough, from nothing to a playable mapping (plan dj-midi-alpha)`.
+- **MIDI M3** — `31ffec0` `feat(dj): MIDI M3 — the jog wheels: bindable, mapped through one shared transport (plan dj-midi-alpha)`.
+- **MIDI M2** — `1cfa079` `feat(dj): MIDI M2 — soft takeover, so a stale fader never slams the channel (plan dj-midi-alpha)` — also recovers `DJMigrations+v5.swift` (the `dj_v5` MIDI schema had never shipped: an unanchored `data/` gitignore pattern silently excluded every new file under `Sources/DJ/Data/`; the pattern is now anchored).
+- **MIDI M1** — `6b9247b` `feat(dj): MIDI M1 — the two wires: a mapping persists and a controller reaches the engine (plan dj-midi-alpha)`.
 - **Stems S8** — `7deee39` `feat(dj): S8 — the stem faders tell the truth, and the djstem regression lane (plan dj-stems-model)`.
 - **Stems S7** — `31e2a97` `feat(dj): S7 — the honest stems ceiling, and the measurement numbers (plan dj-stems-model)`.
 - **Stems S6** — `9c419bd` `feat(dj): S6 — ODR packaging for the stems model (plan dj-stems-model)`.
@@ -166,9 +173,75 @@ model plan (`docs/plans/dj-stems-model.md`, **S1–S8**) is landed too — see
 "Stems landed" above. What is left of stems is the **user-owned device pass**
 (S7's gate): place `Resources/Models/DemucsStems.mlpackage`, time one
 343 980-frame segment, measure the real peak footprint, and run `LANES=djstem`
-by hand. The other open workstream is **MIDI** (`docs/plans/dj-midi-alpha.md`).
+by hand. **MIDI** (`docs/plans/dj-midi-alpha.md`) — **M1–M4 landed** (below):
+the wiring, soft takeover, jog bindings and the guided learn walkthrough are
+all on `main` and AT-HW-06 is green; what remains is M5–M8 (LED output, 14-bit
+CC, multi-device honesty, factory profiles) and the owner's on-device pass.
 The historical M5 narrative below is kept for reference; it is no longer the
 current work.
+
+## MIDI landed (plan `dj-midi-alpha.md`, M1–M4)
+
+The M6 6.5 stack — parsing, mapping, routing, learn, profiles, `dj_v5` — was
+complete and **connected to nothing**. M1–M4 make it a feature: a mapped
+controller reaches the engine, the mapping survives a relaunch, a stale fader
+never slams the channel, the jog wheels work, and a fresh user is walked from
+nothing to a playable mapping. **`LANES=djhw` ran green end to end on
+2026-08-16** — including **AT-HW-06**, which injects a CC through
+`HardwareService.receive` (a real seam, not a mock) and watches the live
+surface's crossfader move. What remains is M5–M8 (below) and hardware time.
+
+- **M1 — the two wires (`6b9247b`).** `DJHomeView` builds the MIDI screen with a
+  store-backed model (`MidiSettingsModel.live()` — loads the active profile at
+  construction, writes every learn through to the DJ database), and
+  `DJWorkspaceAssembly.makeModel` attaches the `HardwareService` when an active
+  profile exists (explicit and conditional — no profile, no MIDI client; held by
+  the workspace and detached when the surface goes away). The latent
+  `attachMidi` bug is fixed: the binding is looked up once, an unbound address
+  returns before any value is read. `ControllerProfileStore` now sits on the
+  app's `DatabasePool` (the single writer). New `MidiInjectionHook` +
+  `-midiSeedProfile`/`-midiInjectCC` launch hooks drive the AT-HW-06 lane.
+  Tests: 3 wiring tests (receive → crossfader, unbound silent, detach stops) +
+  the store-backed-model load test. **A pre-existing repo defect was found and
+  fixed here**: an unanchored `data/` gitignore pattern was silently excluding
+  **every new file under `Sources/DJ/Data/`** — including `DJMigrations+v5.swift`,
+  the entire `dj_v5` MIDI schema, which had never shipped in any commit. The
+  pattern is now anchored (`/data/`) and the migration file is committed.
+- **M2 — soft takeover (`1cfa079`).** `Takeover` (`jump`/`pickup`/`scale`) as a
+  per-binding property (default: `pickup` for every continuous absolute
+  control); the pure `MidiRouter` gains `takeover: inout TakeoverState` and the
+  `.awaitingPickup(action, distance:)` intent; the workspace owns the state,
+  resets it when a finger drives an action on the touchscreen, and shows a
+  **catch indicator** (which control, which way) on all three surfaces.
+  `dj_v6` adds the `takeover` column (existing rows default `jump` — what they
+  did before); a pre-M2 profile JSON without the key still imports. Tests: the
+  crossing claims in both directions, tolerance at the ends of travel, scale's
+  proportional mapping, reset-requires-a-new-crossing, DB round-trip.
+- **M3 — the jog wheels (`31ffec0`).** `EngineAction.jog`/`.jogTouch` are
+  bindable (`deckA.jog`, `deckA.jogTouch`). `JogTransport` moved to its own file
+  and is now **owned by the workspace, one per deck** — a MIDI nudge and a
+  finger nudge share the same `bendBaseRate`. A relative encoder's ticks bend
+  the deck (an idle timer releases exactly once); the platter touch sensor
+  holds/releases; in vinyl mode a touched jog scrubs instead of nudging. Tests:
+  tick→nudge magnitude, idle→exactly one release, touch hold/release, the
+  shared-base-rate no-fight assertion, vinyl scrub seek math.
+- **M4 — the guided learn walkthrough (`de19f56`).** A "Set up my controller"
+  flow walks the essential set in performance order (24 steps: crossfader →
+  channel faders → transport → cue → headphone cue → EQ → filter → tempo → jog +
+  jog touch → record), reusing the two-step `beginLearning`/`commitLearning`
+  capture-then-confirm, showing progress ("6 of 24"), naming each control **in
+  DJ words**, skippable and exitable at any point with what is mapped so far
+  kept. Tests: every step is bindable, skipping keeps earlier bindings,
+  completing writes one profile with the expected count.
+
+**What remains (plan §5/§7, all below the alpha cut line):** **M5** LED output
+(buttons only, throttled), **M6** 14-bit CC pairs, **M7** multi-device
+honesty, **M8** factory profiles for hardware physically verified against the
+app. Everything here is unverified on physical hardware — the claims are about
+`HardwareService.receive`, not CoreMIDI. **Write into the tester note:** no
+factory profiles (a controller must be MIDI-learned — the walkthrough covers
+it); hot cues are still not bindable (nothing reads stored cue points yet); no
+LED feedback, so the controller's lights will not reflect app state.
 
 **M5's remit** (per the rewritten §48.6) was an outcome rather than three subsystems:
 
@@ -1394,9 +1467,11 @@ silent lie.
    other people get builds, not after. **Owner-owned.**
 
 **Limits to write into the tester note** (all now honest states in the app rather than
-surprises): no stems (model unconverted); **MIDI is not connected to the engine at all** (see
-below); hot cues are not bindable because nothing reads stored cue points yet; and split cue
-makes the master mono, which the app says where the mode is chosen.
+surprises): no stems (model unconverted); **MIDI works but with limits** — no factory
+profiles (a controller must be MIDI-learned — the guided walkthrough covers it), hot cues
+are not bindable because nothing reads stored cue points yet, no LED feedback (the
+controller's lights will not reflect app state), and split cue makes the master mono,
+which the app says where the mode is chosen.
 
 ## The two open workstreams — stems and MIDI (plans on disk, 2026-08-15)
 
@@ -1438,26 +1513,34 @@ Two things the investigation turned up that are not conversion problems:
 ### MIDI — `docs/plans/dj-midi-alpha.md`
 
 M6 6.5 landed a well-built stack — parsing, mapping, routing, learn, profiles, `dj_v5`,
-19 tests — and **none of it is connected**. Two wires are missing:
+19 tests — and **none of it was connected**. Two wires were missing:
 
-- `WorkspaceModel.attachMidi` (`WorkspaceModel.swift:1312`) has **zero call sites** — not the
-  app, not the tests, not the lane. A mapped control does nothing during a set.
-- `DJHomeView.swift:86` builds `MidiSettingsView()` with the default store-less model, so
-  `persist()` is a no-op and **a learned mapping is never written to the `dj_v5` tables**.
+- `WorkspaceModel.attachMidi` had **zero call sites** — not the app, not the tests, not
+  the lane. A mapped control did nothing during a set.
+- `DJHomeView.swift:86` built `MidiSettingsView()` with the default store-less model, so
+  `persist()` was a no-op and **a learned mapping was never written to the `dj_v5` tables**.
 
 Neither could have been caught: AT-HW-03/04 test that the *screen* is reachable and honest, and
-`MidiMappingTests` tests the pure translation — nothing follows a message into the engine, and
-nothing asserts a mapping survives a relaunch. Those two tests are part of the fix.
+`MidiMappingTests` tests the pure translation — nothing followed a message into the engine, and
+nothing asserted a mapping survives a relaunch. **Both are fixed in M1–M4** (see "MIDI landed"
+above), and **AT-HW-06 now follows a CC through `HardwareService.receive` into the live
+surface's crossfader** — the test whose absence let the feature ship disconnected.
 
-Beyond the wiring, three gaps decide whether an alpha is usable: **no soft takeover** (a fader
-at the wrong position slams the channel on first touch), **no jog action** at all (the biggest
-surface on every controller is unbindable), and **no guided learn**, so a tester must map ~30
-controls by hand before their first mix. Below the cut line: no MIDI output port anywhere, so no
-LED ever lights; no 14-bit CC, so the tempo fader steps at 0.125 %; and `connectedEndpointID` is
-a single value although `connect` supports several devices.
+Beyond the wiring, three gaps decided whether an alpha was usable — **no soft takeover** (a
+fader at the wrong position slams the channel on first touch), **no jog action** at all (the
+biggest surface on every controller was unbindable), and **no guided learn**, so a tester had to
+map ~30 controls by hand before their first mix. **All three shipped in M2–M4.** Below the cut
+line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fader steps at
+0.125 %), multi-device honesty (`connectedEndpointID` is a single value), and factory profiles.
 
 ## Next
 
+- **MIDI M5–M8 (plan `dj-midi-alpha.md`, all below the alpha cut line):** **M5** LED
+  output (an output port + destination, feedback for toggle/trigger bindings only,
+  throttled), **M6** 14-bit CC pairs (opt-in per binding, offered in learn only when a
+  pair was observed), **M7** multi-device honesty (`connectedEndpointID` → a set), **M8**
+  factory profiles for hardware physically verified against the app. Each is its own
+  commit with tests; M5–M7 need no hardware, M8 does.
 - **M5 commit 5.5 — the §35A echo + AT-TRANS-1..5 — complete (`559b23a`).** The one
   Beat FX M5 ships (decision 23): `BeatEcho` (pure control value + `BeatEchoLine` ring
   DSP — fixed-capacity, **crossfaded read-pointer on delay change**, feedback clamped
