@@ -502,8 +502,36 @@ def spectral_flatness(samples, start: int, rate: int) -> float:
     return geo / arith if arith > 0 else 0.0
 
 
+def check_stem_fader(samples, rate, bpm, event, tones):
+    """The DJ stem lane's mark (S8): a stem fader pulled to the floor changed
+    the recorded audio.
+
+    The mark fires where the fader lands (the gesture's completion, like the
+    filter bypass), so one guard bar is enough and the two claims are both
+    made on the **settled** state — the deck's mid band a few bars before the
+    mark (fader up) versus a few bars after it (fader down). The mid band is
+    where a vocal fader's content lives; vocals pulling out is audible there.
+    Threshold: a first cut, to be tuned against a real separated fixture on
+    the device pass — the honest claim being made is "the fader move changed
+    the audio", not a dB figure from a synthesiser.
+    """
+    deck = event.get("outgoing")
+    band = tones.get(deck) if deck else None
+    if band is None:
+        raise VerificationError(f"stem.fader names deck {deck!r}, which has no tone set")
+    at = event["atSample"]
+    pre = band_level(samples, rate, bpm, at, band["mid"], SETTLED_PRE_BARS)
+    post = band_level(samples, rate, bpm, at, band["mid"], SETTLED_POST_BARS)
+    ok = pre - post >= 6.0
+    return ok, (f"deck {deck} mid band {pre - post:.1f} dB down after the fader pulled it out"
+                if ok else
+                f"deck {deck} mid band moved only {pre - post:+.1f} dB — the fader did not "
+                "change the recorded audio")
+
+
 def check_blend(samples, rate, bpm, event, tones, ceiling):
     a = tones[event["outgoing"]]
+    b = tones[event["incoming"]]
     b = tones[event["incoming"]]
     at = event["atSample"]
     seconds_per_bar = 4.0 * 60.0 / bpm
@@ -541,6 +569,9 @@ CHECKS = {
     "transition.echoOut": ("Echo Out", check_echo_out),
     "transition.faderCut": ("Fader Cut", check_fader_cut),
     "transition.blend": ("Blend / Mix", check_blend),
+    # S8's stem lane — not in REQUIRED: only the djstem lane performs it, so
+    # the djmix gate must not fail for its absence.
+    "stem.fader": ("Stem fader", check_stem_fader),
 }
 
 REQUIRED = ["transition.bassSwap", "transition.filter", "transition.echoOut",

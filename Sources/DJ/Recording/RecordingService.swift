@@ -75,18 +75,20 @@ public struct RecordingJournalEvent: Sendable, Equatable, Codable {
     public let incoming: String?
     /// The echo division (beats) in force for `transition.echoOut`.
     public let echoDivision: Double?
+    /// The stem voice for `stem.fader` (S8) — the DJ stem lane's gesture.
+    public let stem: String?
 
     public init(kind: String, atSample: Int64,
                 outgoing: String? = nil, incoming: String? = nil,
-                echoDivision: Double? = nil) {
+                echoDivision: Double? = nil, stem: String? = nil) {
         self.kind = kind
         self.atSample = atSample
         self.outgoing = outgoing
         self.incoming = incoming
         self.echoDivision = echoDivision
+        self.stem = stem
     }
 }
-
 /// One stale journal row's fate after `reconcile()` (plan 5.11, §37.3): the
 /// flushed segments were joined into a playable `mix.m4a` (`salvaged`), or
 /// nothing recoverable was on disk (`corrupt`).

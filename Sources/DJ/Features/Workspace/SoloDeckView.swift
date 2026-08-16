@@ -578,33 +578,56 @@ private struct SoloDeckColumnView: View {
         jogTransport?.route(intent)
     }
 
-    /// The honest unavailable stem faders until the M5 separator lands
-    /// (plan §2.6).
+    /// The honest stem faders (§36.5, plan S8): the status is the real
+    /// `DeckStemStatus` (unavailable / separating / prepared) and the faders
+    /// are live `StemFaderRow`s when prepared — never the hardcoded
+    /// "unavailable · M5" placeholder, and never a fader that looks live and
+    /// does nothing.
     private var stemsBlock: some View {
         VStack(spacing: 6) {
             HStack {
                 Text("Stems")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
-                Text("unavailable · M5")
+                Text(model.stemStatus(deck).label)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(model.stemStatus(deck) == .prepared ? Color.green : .secondary)
             }
-            ForEach(["Vocals", "Drums", "Bass", "Other"], id: \.self) { stem in
-                HStack(spacing: 6) {
-                    Text(stem)
-                        .font(.system(size: 11))
-                        .frame(width: 52, alignment: .leading)
-                    GeometryReader { proxy in
-                        Capsule().fill(Color.white.opacity(0.08))
-                            .overlay(alignment: .leading) {
-                                Capsule().fill(Color.white.opacity(0.2))
-                                    .frame(width: proxy.size.width * 0.8)
-                            }
+            if model.stemStatus(deck) == .prepared {
+                ForEach(StemKind.allCases, id: \.self) { stem in
+                    StemFaderRow(label: title(stem),
+                                 gain: model.stemGain(deck, stem: stem),
+                                 muted: model.stemIsMuted(deck, stem: stem),
+                                 identifier: "dj.deck.\(deckID).stem.\(stem.rawValue)") { gain in
+                        model.setStemGain(deck, stem: stem, gain: gain)
+                    } onMuteToggled: {
+                        model.setStemMute(deck, stem: stem,
+                                          muted: !model.stemIsMuted(deck, stem: stem))
                     }
-                    .frame(height: 4)
+                }
+            } else {
+                // The honest disabled state: unity bars, dimmed — never a
+                // live-looking fader that does nothing (§36.5).
+                ForEach(StemKind.allCases, id: \.self) { stem in
+                    HStack(spacing: 6) {
+                        Text(title(stem))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 48, alignment: .leading)
+                        Capsule().fill(Color.white.opacity(0.06))
+                            .frame(height: 12)
+                    }
                 }
             }
+        }
+    }
+
+    private func title(_ stem: StemKind) -> String {
+        switch stem {
+        case .vocals: return "Vocals"
+        case .drums: return "Drums"
+        case .bass: return "Bass"
+        case .other: return "Other"
         }
     }
 }

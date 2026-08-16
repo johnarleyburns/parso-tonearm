@@ -775,8 +775,19 @@ public final class WorkspaceModel: ObservableObject {
     public func setStemGain(_ deck: PerformanceEngine.Deck, stem: StemKind, gain: Float) {
         guard stemStatus(deck) == .prepared else { return }
         let clamped = min(StemControlState.maxGain, max(0, gain))
+        let previous = controls(deck).gains[stem] ?? 0
         setControls(deck) { $0.gains[stem] = clamped }
         engine.setStemGain(deck, stem: stem, gain: clamped)
+        // S8: the DJ stem lane's journal mark — a fader pulled to the floor
+        // while recording is the gesture the host analyzer measures
+        // (`stem.fader`, §53.9 settled-state band check). Fires once, on the
+        // downward crossing, so a drag sends exactly one mark.
+        if isRecording, previous > 0.1, clamped <= 0.1 {
+            recordTransition(RecordingJournalEvent(kind: "stem.fader",
+                                                   atSample: currentRecordingSample,
+                                                   outgoing: deckID(deck),
+                                                   stem: stem.rawValue))
+        }
     }
 
     /// Mute a stem voice — its gain target ramps to 0. Inert unless prepared

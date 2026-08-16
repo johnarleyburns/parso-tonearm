@@ -82,6 +82,7 @@
 		B05161851F3AEADE6DD18515 /* RemoteConnectorGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22000483380D73EC6205A4B9 /* RemoteConnectorGuideView.swift */; };
 		B72DE992BD62735CB370A71F /* SourceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9894FCBA2B17EE64A57067E8 /* SourceDetailView.swift */; };
 		B85A66E82620EA180EAF7A67 /* LoopingVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B148C78FDABC2A552953E74 /* LoopingVideoView.swift */; };
+		B934D2D3E843B5A817373F83 /* DJStemRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A9DA824381E60D7446F2C3 /* DJStemRegressionUITests.swift */; };
 		BE20C9CFF3CB74BB6864F917 /* ArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE86C3C1F56FA212DBB6D8F0 /* ArtworkStore.swift */; };
 		C0D5BE09D689D61435BEDCA1 /* WidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */; };
 		C0E3EB7AB1D02FA2309CE3B2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */; };
@@ -263,6 +264,7 @@
 		BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotPublisher.swift; sourceTree = "<group>"; };
 		C114ED8EAE6B45F219A551DA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C2E864A5E5944F80ADE5A869 /* DemucsStems.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DemucsStems.mlpackage; path = Resources/Models/DemucsStems.mlpackage; sourceTree = SOURCE_ROOT; };
+		C4A9DA824381E60D7446F2C3 /* DJStemRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJStemRegressionUITests.swift; sourceTree = "<group>"; };
 		CDA5510BE764F39731C1901D /* Tonearm.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tonearm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CEB1F70B1E36FCA6BCADAB6B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CF21CDA1D35FD0F742088DF3 /* AddServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddServerSheet.swift; sourceTree = "<group>"; };
@@ -464,6 +466,7 @@
 				E23D54D7D96BBFF33E8A3158 /* DJLiveMixRegressionUITests.swift */,
 				0F53F18142069FEFFAA2E2EF /* DJMixRegressionUITests.swift */,
 				EEB9AA0FA0FD051052CCF160 /* DJPerformanceDriver.swift */,
+				C4A9DA824381E60D7446F2C3 /* DJStemRegressionUITests.swift */,
 				8386CD93C2E826E9FE11D810 /* NowPlayingRegressionUITests.swift */,
 				738E22304AC5FEF3B6449D27 /* PlaylistRegressionUITests.swift */,
 				D198A526169E0BB94CA5DC01 /* RemoteLibraryRegressionUITests.swift */,
@@ -1036,6 +1039,7 @@
 				2F705BB32D52E4FD9F00C074 /* DJLiveMixRegressionUITests.swift in Sources */,
 				ACADB9883B99AE686E0CD3AE /* DJMixRegressionUITests.swift in Sources */,
 				79BCD50B20279F25B1863C6B /* DJPerformanceDriver.swift in Sources */,
+				B934D2D3E843B5A817373F83 /* DJStemRegressionUITests.swift in Sources */,
 				8EFDAFC9161AF1157C608B60 /* NowPlayingRegressionUITests.swift in Sources */,
 				454FB64833CD47C43EB2FF38 /* PlaylistRegressionUITests.swift in Sources */,
 				7971FCD80BE7D612C09F9B60 /* RemoteLibraryRegressionUITests.swift in Sources */,

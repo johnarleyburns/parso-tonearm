@@ -180,7 +180,11 @@ case "$LANES" in
   # through the real UI. They record nothing, so they are not a DJ_LANE — there
   # is no mix to pull or verify, and demanding one would fail every run.
   djhw)       FILTER=(-only-testing:TonearmUIRegressionTests/DJHardwareRegressionUITests) ;;
-  *)          echo "Usage: LANES=[all|nowplaying|playlists|remote|djmix|djlive|djhw] $0" >&2; exit 2 ;;
+  # The stems lane (plan S8): separates a real track and proves the vocal
+  # fader moves the recorded audio. It records, so it is a DJ_LANE — skipped
+  # honestly when the ODR tag is absent, verified by the analyzer when present.
+  djstem)     FILTER=(-only-testing:TonearmUIRegressionTests/DJStemRegressionUITests); DJ_LANE=1 ;;
+  *)          echo "Usage: LANES=[all|nowplaying|playlists|remote|djmix|djlive|djhw|djstem] $0" >&2; exit 2 ;;
 esac
 
 # Wipe the DJ artifacts BEFORE the run, so a rerun can never leave you auditioning
