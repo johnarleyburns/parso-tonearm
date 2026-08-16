@@ -31,8 +31,6 @@ public struct TwinDeckView: View {
     @Environment(\.scenePhase) private var scenePhase
     private let managesLifecycle: Bool
 
-    @State private var jogATransport: JogTransport?
-    @State private var jogBTransport: JogTransport?
     /// The contextual paywall sheet (mockup `iphone/08`, plan 4.13) —
     /// presented only when the user taps the lock chip (FR-STORE-5, §40.4).
     @State private var showingPaywall = false
@@ -284,22 +282,16 @@ public struct TwinDeckView: View {
     /// the mixer carries only what must be shared and continuous.
     private var controlBand: some View {
         HStack(spacing: WorkspaceModel.TwinGeometry.columnGap) {
-            TwinDeckColumnView(model: model, deck: .a, transportFirst: false,
-                               jogATransport: jogATransport,
-                               jogBTransport: jogBTransport) { intent in
-                if jogATransport == nil { jogATransport = JogTransport(engine: model.engine, deck: .a) }
-                jogATransport?.route(intent)
+            TwinDeckColumnView(model: model, deck: .a, transportFirst: false) { intent in
+                model.jogTransport(for: .a).route(intent)
             }
             .frame(width: WorkspaceModel.TwinGeometry.deckColumnWidth)
 
             TwinMixerColumnView(model: model)
                 .frame(width: WorkspaceModel.TwinGeometry.mixerColumnWidth)
 
-            TwinDeckColumnView(model: model, deck: .b, transportFirst: true,
-                               jogATransport: jogATransport,
-                               jogBTransport: jogBTransport) { intent in
-                if jogBTransport == nil { jogBTransport = JogTransport(engine: model.engine, deck: .b) }
-                jogBTransport?.route(intent)
+            TwinDeckColumnView(model: model, deck: .b, transportFirst: true) { intent in
+                model.jogTransport(for: .b).route(intent)
             }
             .frame(width: WorkspaceModel.TwinGeometry.deckColumnWidth)
         }
@@ -317,8 +309,6 @@ private struct TwinDeckColumnView: View {
     @ObservedObject var model: WorkspaceModel
     let deck: PerformanceEngine.Deck
     let transportFirst: Bool
-    let jogATransport: JogTransport?
-    let jogBTransport: JogTransport?
     let onJogIntent: (JogGestureModel.Intent) -> Void
 
     private var telemetryDeck: EngineTelemetry.Deck {

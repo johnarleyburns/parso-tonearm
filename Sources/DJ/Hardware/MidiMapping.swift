@@ -68,6 +68,13 @@ public enum EngineAction: Sendable, Equatable, Hashable, Codable {
     case loopToggle(deck: DeckID)
     case echoToggle(deck: DeckID)
     case record
+    /// The platter's rotation surface (plan dj-midi-alpha M3): a relative
+    /// encoder whose ticks bend the deck's tempo — or scratch it, in vinyl
+    /// mode while the platter is touched.
+    case jog(deck: DeckID)
+    /// The platter's touch sensor (a note or CC most controllers send on
+    /// capacitive touch): press = hold, release = release.
+    case jogTouch(deck: DeckID)
 
     public enum DeckID: String, Sendable, Equatable, Hashable, Codable, CaseIterable {
         case a, b
@@ -82,9 +89,10 @@ public enum EngineAction: Sendable, Equatable, Hashable, Codable {
     /// meaningless, and the learn UI uses this to stop a user building one.
     public var isContinuous: Bool {
         switch self {
-        case .channelFader, .eq, .filter, .tempo, .crossfader, .stemGain:
+        case .channelFader, .eq, .filter, .tempo, .crossfader, .stemGain, .jog:
             return true
-        case .play, .cue, .sync, .headphoneCue, .hotCue, .loopToggle, .echoToggle, .record:
+        case .play, .cue, .sync, .headphoneCue, .hotCue, .loopToggle, .echoToggle,
+             .record, .jogTouch:
             return false
         }
     }
@@ -99,7 +107,8 @@ public enum EngineAction: Sendable, Equatable, Hashable, Codable {
             actions += [.play(deck: deck), .cue(deck: deck), .sync(deck: deck),
                         .channelFader(deck: deck), .filter(deck: deck), .tempo(deck: deck),
                         .headphoneCue(deck: deck), .echoToggle(deck: deck),
-                        .loopToggle(deck: deck)]
+                        .loopToggle(deck: deck),
+                        .jog(deck: deck), .jogTouch(deck: deck)]
             actions += EQBand.allCases.map { .eq(deck: deck, band: $0) }
             actions += StemKind.allCases.map { .stemGain(deck: deck, stem: $0) }
         }
@@ -123,6 +132,8 @@ public enum EngineAction: Sendable, Equatable, Hashable, Codable {
         case .loopToggle(let d): return "Deck \(d.rawValue.uppercased()) · Loop"
         case .echoToggle(let d): return "Deck \(d.rawValue.uppercased()) · Echo"
         case .record: return "Record"
+        case .jog(let d): return "Deck \(d.rawValue.uppercased()) · Jog wheel"
+        case .jogTouch(let d): return "Deck \(d.rawValue.uppercased()) · Jog touch"
         }
     }
 
@@ -134,6 +145,12 @@ public enum EngineAction: Sendable, Equatable, Hashable, Codable {
             return .bipolar
         case .channelFader, .stemGain:
             return .unipolar
+        case .jog:
+            // A jog wheel is a relative encoder whose ticks are the platter's
+            // rotation. The range is the ring's bend ceiling (±16%) so the
+            // transform's own clamp is the same ceiling the touchscreen uses
+            // (`JogGestureModel.maxBendRate`).
+            return ValueTransform(mode: .relative, minimum: -0.16, maximum: 0.16)
         default:
             return ValueTransform(mode: .trigger)
         }
@@ -174,6 +191,8 @@ public enum EngineAction: Sendable, Equatable, Hashable, Codable {
         case .loopToggle(let d): return "deck\(d.rawValue.uppercased()).loop"
         case .echoToggle(let d): return "deck\(d.rawValue.uppercased()).echo"
         case .record: return "transport.record"
+        case .jog(let d): return "deck\(d.rawValue.uppercased()).jog"
+        case .jogTouch(let d): return "deck\(d.rawValue.uppercased()).jogTouch"
         }
     }
 
@@ -197,6 +216,8 @@ public enum EngineAction: Sendable, Equatable, Hashable, Codable {
         case "headphoneCue": return .headphoneCue(deck: deck)
         case "loop": return .loopToggle(deck: deck)
         case "echo": return .echoToggle(deck: deck)
+        case "jog": return .jog(deck: deck)
+        case "jogTouch": return .jogTouch(deck: deck)
         case "eq":
             guard parts.count == 3, let band = EQBand(rawValue: parts[2]) else { return nil }
             return .eq(deck: deck, band: band)
@@ -400,9 +421,10 @@ public struct ControllerProfile: Sendable, Equatable, Codable {
     /// control should do one thing, and an action should have one control —
     /// otherwise a half-relearned map moves the crossfader from two knobs.
     public mutating func learn(_ action: EngineAction, at address: MidiAddress,
-                               transform: ValueTransform, takeover: Takeover? = nil) {
+                               transform: ValueTransform? = nil, takeover: Takeover? = nil) {
         bindings.removeAll { $0.address == address || $0.action == action }
-        bindings.append(MidiBinding(address: address, action: action, transform: transform,
+        bindings.append(MidiBinding(address: address, action: action,
+                                    transform: transform ?? action.defaultTransform,
                                     takeover: takeover ?? action.defaultTakeover))
     }
 }

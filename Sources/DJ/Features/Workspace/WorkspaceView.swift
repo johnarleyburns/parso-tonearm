@@ -26,11 +26,6 @@ public struct WorkspaceView: View {
     @StateObject private var model: WorkspaceModel
     @Environment(\.scenePhase) private var scenePhase
 
-    /// The per-deck `JogTransport` for the §41.9b jog — created lazily on the
-    /// first intent so an idle module costs nothing (the compact surface
-    /// convention).
-    @State private var jogATransport: JogTransport?
-    @State private var jogBTransport: JogTransport?
     /// The contextual paywall sheet (mockup `ipad/13b`, plan 4.13) — presented
     /// only when the user taps the lock chip (FR-STORE-5, §40.4).
     @State private var showingPaywall = false
@@ -107,13 +102,11 @@ public struct WorkspaceView: View {
             WaveformRegion(model: model)
             HStack(spacing: WorkspaceModel.ModuleGeometry.columnGap) {
                 DeckColumnView(model: model, deck: .a, isMaster: true) { intent in
-                    if jogATransport == nil { jogATransport = JogTransport(engine: model.engine, deck: .a) }
-                    jogATransport?.route(intent)
+                    model.jogTransport(for: .a).route(intent)
                 }
                 MixerColumnView(model: model)
                 DeckColumnView(model: model, deck: .b, isMaster: false) { intent in
-                    if jogBTransport == nil { jogBTransport = JogTransport(engine: model.engine, deck: .b) }
-                    jogBTransport?.route(intent)
+                    model.jogTransport(for: .b).route(intent)
                 }
             }
         }

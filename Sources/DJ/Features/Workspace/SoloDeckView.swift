@@ -571,16 +571,11 @@ private struct SoloDeckColumnView: View {
     }
 
     /// The jog's only route to the transport (FR-ENG-11, §40.7.7): intents are
-    /// mapped by `JogTransport` onto the engine's transport intents, guarded by
-    /// `RTGuard.assertRTSafe` (AT-TWIN-4). The transport is created lazily on
-    /// the first gesture so an idle jog costs nothing.
-    @State private var jogTransport: JogTransport?
-
+    /// mapped by the model-owned `JogTransport` (plan M3 — one per deck, shared
+    /// with a MIDI jog) onto the engine's transport intents, guarded by
+    /// `RTGuard.assertRTSafe` (AT-TWIN-4).
     private func jogIntent(_ intent: JogGestureModel.Intent) {
-        if jogTransport == nil {
-            jogTransport = JogTransport(engine: model.engine, deck: deck)
-        }
-        jogTransport?.route(intent)
+        model.jogTransport(for: deck).route(intent)
     }
 
     /// The honest stem faders (§36.5, plan S8): the status is the real

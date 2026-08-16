@@ -334,6 +334,39 @@ public final class WorkspaceModel: ObservableObject {
     /// catch indicator naming the control and which way to move it. `distance`
     /// is signed — positive = move down/left to catch.
     @Published public private(set) var midiPendingPickup: [EngineAction: Float] = [:]
+
+    // MARK: - Jog transports (plan dj-midi-alpha M3, FR-ENG-11)
+
+    /// **One** transport per deck, owned by the model, so a finger nudge and a
+    /// MIDI nudge share the same `bendBaseRate` bookkeeping — two transports
+    /// would restore the wrong rate after a bend.
+    private var jogTransportA: JogTransport?
+    private var jogTransportB: JogTransport?
+    /// The accumulated MIDI jog bend (relative-encoder deltas, clamped to the
+    /// ring's ±16 % ceiling) and the per-deck idle-release tasks.
+    private var midiJogBend: [PerformanceEngine.Deck: Double] = [:]
+    private var midiJogReleaseTasks: [PerformanceEngine.Deck: Task<Void, Never>] = [:]
+    /// Whether a jogTouch is currently held (the platter's touch sensor), and
+    /// the accumulated scrub radians while held in vinyl mode.
+    private var midiJogHeld: [PerformanceEngine.Deck: Bool] = [:]
+    private var midiJogRadians: [PerformanceEngine.Deck: Double] = [:]
+
+    /// The per-deck jog transport, created lazily on first use (finger or
+    /// MIDI) so an idle surface costs nothing.
+    func jogTransport(for deck: PerformanceEngine.Deck) -> JogTransport {
+        switch deck {
+        case .a:
+            if let transport = jogTransportA { return transport }
+            let transport = JogTransport(engine: engine, deck: .a)
+            jogTransportA = transport
+            return transport
+        case .b:
+            if let transport = jogTransportB { return transport }
+            let transport = JogTransport(engine: engine, deck: .b)
+            jogTransportB = transport
+            return transport
+        }
+    }
     /// The master-clock sample position when recording started — `elapsed` is
     /// `(masterSample − start) / sampleRate`, which equals the recorded frames.
     private var recordingStartSample: Int64 = 0
@@ -1392,7 +1425,13 @@ public final class WorkspaceModel: ObservableObject {
     /// that behaves subtly differently (§44.3).
     public func apply(_ intent: MidiRouter.Intent) {
         switch intent {
-        case .ignoredRelease:
+        case .ignoredRelease(let action):
+            // The one deliberate exception to "a release does nothing": the
+            // platter's touch sensor (jogTouch) releases the held jog — the
+            // exact opposite of a pad, where a release must not fire again.
+            if case .jogTouch(let deck) = action {
+                midiJogTouchRelease(engineDeck(deck))
+            }
             return
         case .awaitingPickup(let action, let distance):
             // The physical control has not caught the engine value yet: surface
@@ -1485,6 +1524,18 @@ public final class WorkspaceModel: ObservableObject {
                      fraction: Double(value) * ClubGeometry.tempoFaderRange.upperBound)
         case .stemGain(let deck, let stem):
             setStemGain(engineDeck(deck), stem: stem, gain: value)
+        case .jog(let deck):
+            // A relative encoder's ticks are the platter's rotation. Touched in
+            // vinyl mode they scrub; otherwise they bend tempo like the ring
+            // (plan dj-midi-alpha M3).
+            let d = engineDeck(deck)
+            if midiJogHeld[d] == true, jogMode(d) == .vinyl {
+                midiJogRadians[d] = (midiJogRadians[d] ?? 0)
+                    + Double(value) * Self.midiJogSweepToRadians
+                jogTransport(for: d).route(.scrub(radians: midiJogRadians[d] ?? 0))
+            } else {
+                midiJogNudge(d, delta: Double(value))
+            }
         default:
             // A continuous message on a trigger action does nothing rather
             // than firing on every increment — a knob bound to PLAY would
@@ -1511,6 +1562,10 @@ public final class WorkspaceModel: ObservableObject {
             toggleRecording()
         case .loopToggle(let deck):
             setLoop(engineDeck(deck), beats: 4)
+        case .jogTouch(let deck):
+            // The platter's touch sensor: press = hold (touch = hold §40.7.3),
+            // release = the `ignoredRelease` case handled in `apply(_:)`.
+            midiJogTouchHold(engineDeck(deck))
         case .hotCue:
             // **Deliberately inert, and not silently so.** Hot cues have an
             // engine path (`triggerHotCue`) and a §15 table, but nothing yet
@@ -1528,6 +1583,60 @@ public final class WorkspaceModel: ObservableObject {
 
     private func engineDeck(_ deck: EngineAction.DeckID) -> PerformanceEngine.Deck {
         deck == .a ? .a : .b
+    }
+
+    // MARK: - MIDI jog (plan dj-midi-alpha M3)
+
+    /// A full relative-encoder sweep — 127 ticks, the jog transform's ±0.16
+    /// range — maps to one full platter revolution, i.e. one beat of scrub at
+    /// the deck's tempo. One tick ≈ 1/127 revolution.
+    static let midiJogSweepToRadians: Double = 2 * .pi / 0.32
+    /// How long a jog encoder may go quiet before the MIDI jog releases the
+    /// bend — controllers do not send "I stopped".
+    private static let midiJogIdleNanoseconds: UInt64 = 150_000_000
+
+    /// Accumulate a relative-encoder delta into the deck's jog bend (clamped
+    /// to the ring's ±16 % ceiling) and push it through the shared transport.
+    /// An idle timer releases the bend; a controller never says "I stopped".
+    private func midiJogNudge(_ deck: PerformanceEngine.Deck, delta: Double) {
+        midiJogReleaseTasks[deck]?.cancel()
+        let next = min(max((midiJogBend[deck] ?? 0) + delta,
+                           -JogGestureModel.maxBendRate), JogGestureModel.maxBendRate)
+        midiJogBend[deck] = next
+        jogTransport(for: deck).route(.nudge(rate: next))
+        midiJogReleaseTasks[deck] = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.midiJogIdleNanoseconds)
+            guard !Task.isCancelled else { return }
+            self?.midiJogRelease(deck)
+        }
+    }
+
+    /// The encoder went quiet. If the platter is still held, only the bend is
+    /// restored — the hold (and the deck paused behind it) survives; otherwise
+    /// the transport fully releases.
+    private func midiJogRelease(_ deck: PerformanceEngine.Deck) {
+        midiJogBend[deck] = 0
+        guard midiJogHeld[deck] != true else {
+            jogTransport(for: deck).restoreBend()
+            return
+        }
+        midiJogReleaseTasks[deck] = nil
+        jogTransport(for: deck).route(.release)
+    }
+
+    private func midiJogTouchHold(_ deck: PerformanceEngine.Deck) {
+        midiJogHeld[deck] = true
+        midiJogRadians[deck] = 0
+        jogTransport(for: deck).route(.hold)
+    }
+
+    private func midiJogTouchRelease(_ deck: PerformanceEngine.Deck) {
+        midiJogHeld[deck] = false
+        midiJogRadians[deck] = nil
+        midiJogReleaseTasks[deck]?.cancel()
+        midiJogReleaseTasks[deck] = nil
+        midiJogBend[deck] = 0
+        jogTransport(for: deck).route(.release)
     }
 
     // MARK: - Cue monitoring (§44.2a, FR-HW-3, plan 6.4)

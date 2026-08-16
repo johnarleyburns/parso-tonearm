@@ -30,6 +30,7 @@ final class WorkspaceModelTests: XCTestCase {
         private(set) var eqKnobs: [PerformanceEngine.Deck: (low: Float, mid: Float, high: Float)] = [:]
         private var syncedState: [PerformanceEngine.Deck: Bool] = [:]
         private(set) var rates: [PerformanceEngine.Deck: Double] = [:]
+        private(set) var rateCommands: [(deck: PerformanceEngine.Deck, rate: Double)] = []
         private(set) var echoEnabled: [PerformanceEngine.Deck: Bool] = [:]
         private(set) var echoBeats: [PerformanceEngine.Deck: Double] = [:]
         private(set) var echoDepth: [PerformanceEngine.Deck: Float] = [:]
@@ -59,14 +60,20 @@ final class WorkspaceModelTests: XCTestCase {
         func pause(_ deck: PerformanceEngine.Deck) { paused.append(deck) }
         func cue(_ deck: PerformanceEngine.Deck) {}
         func releaseCue(_ deck: PerformanceEngine.Deck) {}
-        func seek(_ deck: PerformanceEngine.Deck, toSample: Int64, quantized: Bool) {}
+        private(set) var seeks: [(deck: PerformanceEngine.Deck, sample: Int64, quantized: Bool)] = []
+        func seek(_ deck: PerformanceEngine.Deck, toSample: Int64, quantized: Bool) {
+            seeks.append((deck, toSample, quantized))
+        }
         func setCue(_ deck: PerformanceEngine.Deck, atSample: Int64) {}
         func triggerHotCue(_ deck: PerformanceEngine.Deck, atSample: Int64) {}
         func setLoopRange(_ deck: PerformanceEngine.Deck, start: Int64, end: Int64) {}
         func setLoop(_ deck: PerformanceEngine.Deck, beats: Double) {}
         func exitLoop(_ deck: PerformanceEngine.Deck) {}
         func setQuantize(_ on: Bool, resolution: QuantizeResolution) {}
-        func setRate(_ deck: PerformanceEngine.Deck, rate: Float) { rates[deck] = Double(rate) }
+        func setRate(_ deck: PerformanceEngine.Deck, rate: Float) {
+            rates[deck] = Double(rate)
+            rateCommands.append((deck, Double(rate)))
+        }
         func setKeyLock(_ deck: PerformanceEngine.Deck, locked: Bool) {}
         func setKeyShift(_ deck: PerformanceEngine.Deck, semitones: Float) {}
         func sync(_ deck: PerformanceEngine.Deck, to master: PerformanceEngine.Deck, barSync: Bool) {
@@ -1629,6 +1636,142 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertNil(model.midiPendingPickup[.crossfader])
         XCTAssertTrue(model.midiCatchItems.isEmpty)
         XCTAssertEqual(model.crossfader, 0.2, accuracy: 1e-6)
+    }
+
+    // MARK: - MIDI jog (plan dj-midi-alpha M3)
+
+    private func makeJogProfile() -> (ControllerProfile, MidiAddress, MidiAddress) {
+        var profile = ControllerProfile(name: "Test")
+        let wheel = MidiAddress(type: .cc, channel: 1, number: 16)
+        let touch = MidiAddress(type: .note, channel: 1, number: 40)
+        profile.learn(.jog(deck: .a), at: wheel)
+        profile.learn(.jogTouch(deck: .a), at: touch, transform: ValueTransform(mode: .trigger))
+        return (profile, wheel, touch)
+    }
+
+    /// One relative-encoder tick bends the deck off its base rate through the
+    /// **shared** transport, and an idle encoder releases the bend exactly once
+    /// (a controller never sends "I stopped").
+    func testAMidiJogTickBendsAndIdleReleasesExactlyOnce() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        let (profile, wheel, _) = makeJogProfile()
+        var takeover = TakeoverState()
+
+        // One tick up: 65 → delta = 1/127 × 0.32 ≈ 0.00252.
+        let intent = try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: wheel, value: 65),
+                                                     profile: profile, takeover: &takeover))
+        guard case .setContinuous(.jog(.a), let tick) = intent else {
+            return XCTFail("a jog wheel is continuous — got \(intent)")
+        }
+        model.apply(intent)
+        let expected = 1.0 * (1 + Double(tick))
+        XCTAssertEqual(fake.rateCommands.last?.rate ?? -1, expected, accuracy: 1e-6,
+                       "a tick bends the deck off its base rate")
+
+        // A second tick up accumulates the bend.
+        model.apply(try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: wheel, value: 65),
+                                                    profile: profile, takeover: &takeover)))
+        XCTAssertEqual(fake.rateCommands.last?.rate ?? -1, 1.0 * (1 + Double(tick) * 2), accuracy: 1e-6,
+                       "the bend accumulates across ticks")
+
+        // Encoder quiet: exactly one release restores the base.
+        try await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertEqual(fake.rateCommands.last?.rate ?? -1, 1.0, accuracy: 1e-6,
+                       "an idle encoder releases the bend once, back to the base")
+    }
+
+    /// A jogTouch press holds the platter (pausing a playing deck); its release
+    /// — the `ignoredRelease` that must NOT be ignored — resumes it.
+    func testAMidiJogTouchHoldAndReleaseMirrorThePlatter() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        let (profile, _, touch) = makeJogProfile()
+        var takeover = TakeoverState()
+        fake.current.deckA.playing = true
+
+        // Press → hold: the playing deck pauses.
+        let press = try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: touch, value: 127),
+                                                    profile: profile, takeover: &takeover))
+        model.apply(press)
+        XCTAssertEqual(fake.paused, [.a], "touch = hold pauses the playing deck")
+
+        // Release (note-off, value 0) → the transport's release: resumes.
+        let release = try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: touch, value: 0),
+                                                      profile: profile, takeover: &takeover))
+        model.apply(release)
+        XCTAssertEqual(fake.played, [.a], "lifting resumes the deck that was playing when held")
+    }
+
+    /// In vinyl mode a touched jog scrubs instead of nudging: the platter's
+    /// touch sensor + a relative wheel becomes a scratch surface.
+    func testAMidiJogScrubsWhenTouchedInVinylMode() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        let (profile, wheel, touch) = makeJogProfile()
+        var takeover = TakeoverState()
+        fake.current.deckA.playing = true
+        fake.current.deckA.playheadSample = 10_000
+        fake.current.deckA.bpmEffective = 120
+        model.setJogMode(.vinyl, deck: .a)
+
+        model.apply(try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: touch, value: 127),
+                                                    profile: profile, takeover: &takeover)))
+        let tick = try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: wheel, value: 70),
+                                                   profile: profile, takeover: &takeover))
+        model.apply(tick)
+
+        // One relative-encoder sweep (127 ticks) = one revolution = one beat:
+        // 70/127 of the ±0.16 sweep maps to that fraction of 2π.
+        let perRadian = Double(JogTransport.scrubSamplesPerRadian(bpm: 120, sampleRate: 48_000))
+        let delta = tickDelta(profile: profile, value: 70)
+        let radians = Double(delta) * WorkspaceModel.midiJogSweepToRadians
+        let expected = 10_000 + Int64(perRadian * radians)
+        XCTAssertEqual(fake.seeks.last?.deck, .a)
+        XCTAssertEqual(fake.seeks.last?.sample, expected,
+                       "a touched vinyl jog scrubs relative to the playhead")
+        XCTAssertEqual(fake.seeks.last?.quantized, false, "the jog is relative, never quantized")
+
+        // Release the touch; the transport releases the held deck.
+        model.apply(try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: touch, value: 0),
+                                                    profile: profile, takeover: &takeover)))
+        XCTAssertEqual(fake.played, [.a])
+    }
+
+    /// One transport per deck, owned by the model: a MIDI nudge and a
+    /// touchscreen nudge share the same `bendBaseRate`, so the idle release
+    /// restores the deck to the *original* base — not to whatever the other
+    /// input last bent it to.
+    func testMidiAndTouchscreenNudgesShareOneBaseRate() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        let (profile, wheel, _) = makeJogProfile()
+        var takeover = TakeoverState()
+
+        // A finger bends first: the transport captures base 1.0.
+        model.jogTransport(for: .a).route(.nudge(rate: 0.04))
+        XCTAssertEqual(fake.rateCommands.last?.rate ?? -1, 1.04, accuracy: 1e-6)
+
+        // A MIDI tick rides the SAME transport — one base, not two: the tick
+        // bends off the base the finger's nudge already captured.
+        model.apply(try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: wheel, value: 65),
+                                                    profile: profile, takeover: &takeover)))
+        XCTAssertEqual(fake.rateCommands.last?.rate ?? -1, 1.0 + Double(tickDelta(profile: profile)),
+                       accuracy: 1e-6,
+                       "the MIDI tick bends off the finger's already-captured base")
+
+        // The MIDI idle release restores the original base — one shared
+        // `bendBaseRate`, so the deck returns to 1.0, not to 1.04.
+        try await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertEqual(fake.rateCommands.last?.rate ?? -1, 1.0, accuracy: 1e-6)
+    }
+
+    /// The single-message delta of the jog binding's relative transform at a
+    /// given raw value (64 is the relative-encoder centre: 65 = +1 tick).
+    private func tickDelta(profile: ControllerProfile, value: Int = 65) -> Float {
+        let wheel = MidiAddress(type: .cc, channel: 1, number: 16)
+        guard let binding = profile.binding(for: wheel) else { return 0 }
+        return binding.transform.apply(MidiMessage(address: wheel, value: value), current: 0)
     }
 
     // MARK: - Cue monitoring (§44.2a, FR-HW-3, plan 6.4)
