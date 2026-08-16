@@ -10,9 +10,10 @@ audit table §9).
 **Two workstreams are open and have self-contained plans** — either can be picked up cold, and
 they do not depend on each other:
 
-- **Stems** — `docs/plans/dj-stems-model.md`. The htdemucs → Core ML conversion **works** and is
-  numerically verified; what remains is the Swift STFT/ISTFT, a memory fix in `StemSeparator`,
-  ODR packaging and a device measurement.
+- **Stems** — `docs/plans/dj-stems-model.md`. **Landed S1–S8** (below): the conversion
+  works and is verified, the Swift STFT/ISTFT is golden-tested, the separator runs at
+  the model's own geometry, `DemucsStemModel` runs Core ML, and the ODR tag ships.
+  What remains is the user-owned on-device measurement (S7's gate).
 - **MIDI** — `docs/plans/dj-midi-alpha.md`. The M6 stack is complete and **connected to
   nothing**: `attachMidi` has no call sites and learned mappings are never persisted. Plus soft
   takeover, jog bindings and a guided learn walkthrough.
@@ -41,6 +42,7 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **Stems S8** — `7deee39` `feat(dj): S8 — the stem faders tell the truth, and the djstem regression lane (plan dj-stems-model)`.
 - **Stems S7** — `31e2a97` `feat(dj): S7 — the honest stems ceiling, and the measurement numbers (plan dj-stems-model)`.
 - **Stems S6** — `9c419bd` `feat(dj): S6 — ODR packaging for the stems model (plan dj-stems-model)`.
 - **Stems S5** — `f74ea7c` `feat(dj): S5 — wire DemucsStemModel to Core ML (plan dj-stems-model)`.
@@ -110,6 +112,21 @@ NaNs the spectral branch), the Swift STFT/ISTFT kernel matches torch on golden
 vectors (`max|d| ≤ 1e-4`), the separator streams overlap-add at the model's own
 geometry (44 100 Hz / 343 980-frame segment, resampled once per track), and
 `DemucsStemModel` runs the ODR-delivered package. `AnalysisVersions.stems = 2`.
+
+### S8 — UI truth-up and the `djstem` lane
+
+The hardcoded `"unavailable · M5"` next to the compact surface's stem faders is
+gone: the faders render the real `DeckStemStatus` (unavailable / separating /
+prepared) with live `StemFaderRow`s when prepared — the honest §36.5 state,
+never a fader that looks live and does nothing. A new `LANES=djstem` regression
+lane loads a fixture track, waits for the faders to become live, records, pulls
+the vocal fader to the floor and exports; `verify-mix.py`'s `stem.fader` check
+measures the deck's mid band **settled-before vs settled-after** the journal
+mark (§53.9's `span_starts`/`band_level`, never mid-flight) and proves the move
+changed the recorded audio. The lane **skips with a stated reason** when the
+ODR tag is absent / the separation path is unwired (§53.4) and is not in CI or
+any hook. `LANES=djmix`'s gate is untouched (`stem.fader` is in CHECKS, not
+REQUIRED).
 
 ### S7 — device measurement and the honest ceiling
 
