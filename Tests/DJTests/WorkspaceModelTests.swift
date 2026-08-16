@@ -84,7 +84,10 @@ final class WorkspaceModelTests: XCTestCase {
         }
         func setFilter(_ deck: PerformanceEngine.Deck, knob: Float) {}
         func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float) {}
-        func setCrossfader(_ position: Float, curve: CrossfaderCurve) {}
+        private(set) var crossfaders: [Float] = []
+        func setCrossfader(_ position: Float, curve: CrossfaderCurve) {
+            crossfaders.append(position)
+        }
         func setEchoEnabled(_ deck: PerformanceEngine.Deck, enabled: Bool) {
             echoEnabled[deck] = enabled
         }
@@ -1481,6 +1484,85 @@ final class WorkspaceModelTests: XCTestCase {
         let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
         model.apply(.setContinuous(.play(deck: .a), 1))
         XCTAssertTrue(fake.played.isEmpty)
+    }
+
+    // MARK: - MIDI attachment (plan dj-midi-alpha M1, §44.3, FR-HW-1)
+
+    /// The whole feature's missing wire: a message injected through
+    /// `HardwareService.receive` — the seam the app and the regression lane
+    /// drive — reaches the engine once `attachMidi` has run. This is the test
+    /// whose absence let a mapped controller do nothing during a set.
+    func testAnAttachedControllerMovesTheCrossfaderThroughReceive() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        var profile = ControllerProfile(name: "Test")
+        let fader = MidiAddress(type: .cc, channel: 1, number: 7)
+        profile.learn(.crossfader, at: fader, transform: .bipolar)
+
+        let hardware = HardwareService()
+        hardware.start()
+        model.attachMidi(hardware, profile: profile)
+
+        // The message task starts iterating the stream asynchronously; give it
+        // a scheduler tick before injecting, or the continuation is not yet
+        // subscribed and the message is dropped.
+        await Self.settleMidiTask()
+        hardware.receive(MidiMessage(address: fader, value: 127))
+        await Self.settleMidiTask()
+
+        XCTAssertEqual(model.crossfader, 1, accuracy: 1e-6,
+                       "a CC through the real seam moves the crossfader, exactly as a finger would")
+        XCTAssertEqual(fake.crossfaders.last, 1, "and the engine was told")
+    }
+
+    /// An unmapped address is silent: a controller sends a lot of traffic
+    /// (LED echoes, touch sensors), and none of it may move anything.
+    func testAnAttachedControllerIgnoresUnboundAddresses() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        var profile = ControllerProfile(name: "Test")
+        let fader = MidiAddress(type: .cc, channel: 1, number: 7)
+        profile.learn(.crossfader, at: fader, transform: .bipolar)
+
+        let hardware = HardwareService()
+        hardware.start()
+        model.attachMidi(hardware, profile: profile)
+
+        await Self.settleMidiTask()
+        hardware.receive(MidiMessage(address: MidiAddress(type: .cc, channel: 1, number: 99), value: 127))
+        await Self.settleMidiTask()
+
+        XCTAssertEqual(model.crossfader, 0, accuracy: 1e-6, "an unbound control changes nothing")
+        XCTAssertTrue(fake.crossfaders.isEmpty)
+    }
+
+    /// Detaching stops delivery: leaving the performance surface must cancel
+    /// the message task, or a controller keeps driving a surface that is not
+    /// on screen (and keeps a stale `HardwareService` alive).
+    func testDetachingMidiStopsDelivery() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        var profile = ControllerProfile(name: "Test")
+        let fader = MidiAddress(type: .cc, channel: 1, number: 7)
+        profile.learn(.crossfader, at: fader, transform: .bipolar)
+
+        let hardware = HardwareService()
+        hardware.start()
+        model.attachMidi(hardware, profile: profile)
+        model.detachMidi()
+
+        await Self.settleMidiTask()
+        hardware.receive(MidiMessage(address: fader, value: 127))
+        await Self.settleMidiTask()
+
+        XCTAssertEqual(model.crossfader, 0, accuracy: 1e-6,
+                       "a detached workspace must not be driven by the controller")
+    }
+
+    /// Give the `attachMidi` message task a couple of scheduler ticks so its
+    /// stream subscription (and the delivery of an injected message) settles.
+    private static func settleMidiTask() async {
+        for _ in 0..<4 { await Task.yield() }
     }
 
     // MARK: - Cue monitoring (§44.2a, FR-HW-3, plan 6.4)

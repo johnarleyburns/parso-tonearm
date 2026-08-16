@@ -120,6 +120,45 @@ final class DJHardwareRegressionUITests: XCTestCase {
         app.waitFor("midi.learn.cancel", 10).tap()
     }
 
+    // MARK: - AT-HW-6 · a stored profile drives the performance surface
+
+    /// The dj-midi-alpha M1 assertion — the one the whole feature used to fail:
+    /// a mapped CC injected through `HardwareService.receive` moves the
+    /// crossfader on the live performance surface. The app seeds an active
+    /// profile (`-midiSeedProfile`) and the injection hook fires the CC
+    /// (`-midiInjectCC`) once the workspace attaches; the lane's only job is to
+    /// watch the crossfader's published value leave 0.000. A controller that is
+    /// connected but does nothing during a set is the defect this lane exists
+    /// to catch, and it is invisible to every layer below.
+    func testAT_HW_06_AStoredProfileMovesTheCrossfader() throws {
+        app = .launchForDJRegression(resetLibrary: true,
+                                     extraArguments: ["-midiSeedProfile", "-midiInjectCC"])
+        app.openDJDecks()
+
+        // The injected CC (CC 7, full travel) lands a bipolar crossfader at
+        // 1.000. Wait for the value to leave its 0.000 default — the wiring
+        // assertion is "the number changed", not a specific gesture.
+        let deadline = Date().addingTimeInterval(60)
+        var lastSeen: Float?
+        while Date() < deadline {
+            if let value = app.controlValue(DJRegression.ID.crossfader) {
+                lastSeen = value
+                if abs(value - 1.0) < 0.01 { break }
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        guard let value = lastSeen else {
+            XCTFail("the crossfader exposes no published value on this surface — a mapped "
+                    + "controller can never be verified here")
+            return
+        }
+        XCTAssertGreaterThan(value, 0.5,
+                             "a CC bound to the crossfader never moved it — it reads \(value). "
+                             + "The stored profile is not reaching the engine (plan M1's two "
+                             + "wires: DJHomeView's store-less MIDI model, and attachMidi's "
+                             + "zero call sites).")
+    }
+
     // MARK: - AT-HW-5 · the purchase path
 
     /// FR-STORE-3 and plan 6.2: the app states what it believes about the

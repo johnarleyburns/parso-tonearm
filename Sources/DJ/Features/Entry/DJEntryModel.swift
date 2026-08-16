@@ -71,7 +71,8 @@ public enum DJWorkspaceAssembly {
     @MainActor
     public static func makeModel(store: EntitlementStore = .shared,
                                  session: AudioSessionCoordinator = AudioSessionCoordinator(),
-                                 allowBluetooth: Bool = false) async -> WorkspaceModel? {
+                                 allowBluetooth: Bool = false,
+                                 midiProfileStore: ControllerProfileStore? = nil) async -> WorkspaceModel? {
         // §44.2, FR-HW-4: the granted route tells us how many output channels
         // exist, which is what decides whether a cue mode can be delivered at
         // all (§44.2a). Observed, never chosen — iOS owns the route.
@@ -110,6 +111,19 @@ public enum DJWorkspaceAssembly {
         let model = WorkspaceModel(engine: engine, store: store,
                                    recordingService: journal, session: session)
         model.updateOutputChannelCount(grantedChannels)
+        // §44.3 / FR-HW-1 (plan dj-midi-alpha M1): a mapped controller reaches
+        // the engine through the same methods a finger uses. Attaching is
+        // explicit and conditional — no active profile means no MIDI client is
+        // opened at all, so a user with no controller pays nothing for the
+        // feature existing. The `HardwareService` is held by the workspace so
+        // it outlives this call, and is released when the surface goes away.
+        if let midiProfileStore,
+           let profile = try? midiProfileStore.activeProfile() {
+            let hardware = HardwareService()
+            hardware.start()
+            model.attachMidi(hardware, profile: profile)
+            MidiInjectionHook.register(hardware)
+        }
         return model
     }
 }

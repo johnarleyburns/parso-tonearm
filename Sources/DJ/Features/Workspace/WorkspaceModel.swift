@@ -319,6 +319,10 @@ public final class WorkspaceModel: ObservableObject {
     /// §44.4: the active controller map, and the task delivering its messages.
     private var midiProfile: ControllerProfile?
     private var midiTask: Task<Void, Never>?
+    /// The `HardwareService` backing the attached controller. Held so it
+    /// outlives the assembly call that attached it (plan dj-midi-alpha M1) and
+    /// is released on `detachMidi()`.
+    private var midiHardware: HardwareService?
     /// The master-clock sample position when recording started — `elapsed` is
     /// `(masterSample − start) / sampleRate`, which equals the recorded frames.
     private var recordingStartSample: Int64 = 0
@@ -1322,6 +1326,7 @@ public final class WorkspaceModel: ObservableObject {
     /// controller pays nothing for the feature existing.
     public func attachMidi(_ hardware: HardwareService, profile: ControllerProfile) {
         midiProfile = profile
+        midiHardware = hardware
         midiTask?.cancel()
         midiTask = Task { [weak self] in
             for await message in hardware.messages {
@@ -1330,10 +1335,14 @@ public final class WorkspaceModel: ObservableObject {
                 // otherwise reach — the gate is checked at the intent boundary
                 // (T.3), which is exactly here.
                 guard self.isDecksEnabled else { continue }
+                // Look the binding up once: an unbound address must return
+                // before any value is read, or an unmapped relative encoder
+                // reads some other control's value as its base (plan M1's
+                // latent-bug fix).
+                guard let binding = profile.binding(for: message.address) else { continue }
                 guard let intent = MidiRouter.intent(
                     for: message, profile: profile,
-                    currentValue: self.currentValue(of: profile.binding(for: message.address)?
-                        .action ?? .crossfader)) else { continue }
+                    currentValue: self.currentValue(of: binding.action)) else { continue }
                 self.apply(intent)
             }
         }
@@ -1343,6 +1352,7 @@ public final class WorkspaceModel: ObservableObject {
         midiTask?.cancel()
         midiTask = nil
         midiProfile = nil
+        midiHardware = nil
     }
 
     /// Apply a routed MIDI intent.

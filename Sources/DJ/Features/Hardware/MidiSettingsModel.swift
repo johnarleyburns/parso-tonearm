@@ -33,6 +33,18 @@ public final class MidiSettingsModel: ObservableObject {
         self.profile = profile
     }
 
+    /// A store-backed model for the shipping app (plan dj-midi-alpha M1): the
+    /// active profile is loaded at construction so the screen shows what the
+    /// user already taught it rather than an empty table, and every learn /
+    /// clear / import writes through to the DJ database — a mapping learned
+    /// here is still there next week, and after a force-quit.
+    public static func live(hardware: HardwareService = HardwareService(),
+                            store: ControllerProfileStore = ControllerProfileStore(pool: DJLibraryStore.shared.pool),
+                            syncID: String = "default") -> MidiSettingsModel {
+        let profile = (try? store.activeProfile()) ?? ControllerProfile(name: "My controller")
+        return MidiSettingsModel(hardware: hardware, store: store, syncID: syncID, profile: profile)
+    }
+
     public var bindableActions: [EngineAction] { EngineAction.bindableActions }
 
     public func binding(for action: EngineAction) -> MidiBinding? {

@@ -156,13 +156,15 @@ extension XCUIApplication {
     /// deterministic lane's mock accepts the placeholder.
     static func launchForDJRegression(mockCatalogue: String? = DJRegression.mockCatalogueURL,
                                       resetLibrary: Bool = true,
-                                      clientID: String? = RegressionEnv.value("PH_TEST_JAMENDO_CLIENT_ID"))
+                                      clientID: String? = RegressionEnv.value("PH_TEST_JAMENDO_CLIENT_ID"),
+                                      extraArguments: [String] = [])
         -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += [
             "-uiRegression", "1",
             "UI_TESTING", "UI_TESTING_ENABLE_PRO"
         ]
+        app.launchArguments += extraArguments
         if resetLibrary {
             app.launchArguments += ["-resetLibrary", "1"]
         }

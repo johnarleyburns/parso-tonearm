@@ -83,7 +83,7 @@ struct DJHomeView: View {
                 case .mixes:
                     MixesView()
                 case .midi:
-                    MidiSettingsView()
+                    MidiSettingsView(model: MidiSettingsModel.live())
                 }
             }
         }
@@ -131,7 +131,8 @@ struct DJPerformanceSurface: View {
             }
         }
         .task {
-            if let model = await DJWorkspaceAssembly.makeModel() {
+            if let model = await DJWorkspaceAssembly.makeModel(
+                midiProfileStore: ControllerProfileStore(pool: DJLibraryStore.shared.pool)) {
                 load = .ready(model)
             } else {
                 load = .unavailable
@@ -142,6 +143,12 @@ struct DJPerformanceSurface: View {
         // §42.7a forbids — and a covered control is not merely hidden, it is
         // unreachable, because the overlay takes the touch.
         .onAppear { appState.isPerformanceSurfaceFullScreen = true }
-        .onDisappear { appState.isPerformanceSurfaceFullScreen = false }
+        .onDisappear {
+            // The MIDI client follows the surface's lifetime (plan dj-midi-alpha
+            // M1): a detached workspace cancels its message task and releases the
+            // `HardwareService`; the next open attaches again if a profile exists.
+            if case .ready(let model) = load { model.detachMidi() }
+            appState.isPerformanceSurfaceFullScreen = false
+        }
     }
 }

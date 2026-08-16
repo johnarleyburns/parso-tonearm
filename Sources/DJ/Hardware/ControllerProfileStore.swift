@@ -12,17 +12,17 @@ import GRDB
 /// profiles without the app hosting anything.
 public struct ControllerProfileStore: Sendable {
 
-    private let dbQueue: DatabaseQueue
+    private let pool: DatabasePool
 
-    public init(dbQueue: DatabaseQueue) {
-        self.dbQueue = dbQueue
+    public init(pool: DatabasePool) {
+        self.pool = pool
     }
 
     /// Save a profile and its bindings in **one transaction** — a half-written
     /// map is worse than none, because the controls that did save would work
     /// and the rest would silently not (NFR-REL-1).
     public func save(_ profile: ControllerProfile, syncID: String, active: Bool = true) throws {
-        try dbQueue.write { db in
+        try pool.write { db in
             try db.execute(sql: """
                 INSERT INTO controller_profile (syncID, name, vendor, midiEndpointName, active, createdAt)
                 VALUES (?, ?, ?, ?, ?, datetime('now'))
@@ -67,7 +67,7 @@ public struct ControllerProfileStore: Sendable {
 
     /// The active profile, or nil when the user has never mapped a controller.
     public func activeProfile() throws -> ControllerProfile? {
-        try dbQueue.read { db in
+        try pool.read { db in
             guard let row = try Row.fetchOne(db, sql: """
                 SELECT id, name, vendor, midiEndpointName FROM controller_profile
                 WHERE active = 1 ORDER BY id DESC LIMIT 1

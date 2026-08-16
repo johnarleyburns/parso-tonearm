@@ -17,6 +17,9 @@ struct TonearmApp: App {
         if launchArguments.contains("-resetLibrary") {
             Self.resetLibraryForRegression()
         }
+        if launchArguments.contains("-midiSeedProfile") {
+            Self.seedMidiProfileForRegression()
+        }
         if isUITesting {
             UserDefaults.standard.set(true, forKey: "didOnboard")
         }
@@ -58,6 +61,20 @@ struct TonearmApp: App {
         let documents = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
         try? fm.removeItem(at: documents.appendingPathComponent("GenreCrates", isDirectory: true))
         try? fm.removeItem(at: DJDatabase.cachesDirectory)
+    }
+
+    /// The AT-HW-06 harness hook (plan dj-midi-alpha M1): write an **active**
+    /// profile binding CC 7 to the crossfader, so the workspace attaches MIDI
+    /// when the decks open and the injection hook's CC has somewhere to land.
+    /// Runs after `-resetLibrary`, so the wipe never clears it.
+    private static func seedMidiProfileForRegression() {
+        var profile = ControllerProfile(name: "Regression controller",
+                                        endpointName: "Regression")
+        profile.learn(.crossfader,
+                      at: MidiAddress(type: .cc, channel: 1, number: 7),
+                      transform: .bipolar)
+        try? ControllerProfileStore(pool: DJLibraryStore.shared.pool)
+            .save(profile, syncID: "regression")
     }
 
     var body: some Scene {

@@ -147,10 +147,18 @@ final class MidiMappingTests: XCTestCase {
 
     // MARK: - Persistence
 
+    private func makePool() throws -> (DatabasePool, URL) {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MidiMappingTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("tonearm-dj.sqlite")
+        let pool = try DJDatabase.open(at: url)
+        return (pool, dir)
+    }
+
     func testAProfileSurvivesTheDatabaseRoundTrip() throws {
-        let queue = try DatabaseQueue()
-        try DJSchema.migrator().migrate(queue)
-        let store = ControllerProfileStore(dbQueue: queue)
+        let (pool, _) = try makePool()
+        let store = ControllerProfileStore(pool: pool)
 
         var profile = ControllerProfile(name: "Test Controller", vendor: "Acme",
                                         endpointName: "Acme Controller")
@@ -173,9 +181,8 @@ final class MidiMappingTests: XCTestCase {
     /// Re-saving after a learn must replace the map, not merge into it —
     /// otherwise a control the user re-bound keeps its old binding too.
     func testResavingReplacesTheMapRatherThanMerging() throws {
-        let queue = try DatabaseQueue()
-        try DJSchema.migrator().migrate(queue)
-        let store = ControllerProfileStore(dbQueue: queue)
+        let (pool, _) = try makePool()
+        let store = ControllerProfileStore(pool: pool)
 
         var profile = ControllerProfile(name: "Test")
         profile.learn(.crossfader, at: fader, transform: .bipolar)
@@ -188,5 +195,26 @@ final class MidiMappingTests: XCTestCase {
         let loaded = try XCTUnwrap(store.activeProfile())
         XCTAssertEqual(loaded.bindings.count, 1)
         XCTAssertNil(loaded.binding(for: fader), "the old binding is gone, not merged")
+    }
+
+    /// Plan dj-midi-alpha M1's second wire, asserted at the model: the MIDI
+    /// settings screen is built with a store-backed model that loads the
+    /// existing active profile at construction — a mapping learned last week is
+    /// what the table shows when the user comes back, never an empty one.
+    func testTheSettingsModelLoadsTheStoredActiveProfile() throws {
+        let (pool, _) = try makePool()
+        let store = ControllerProfileStore(pool: pool)
+
+        var profile = ControllerProfile(name: "DDJ-FLX4", vendor: "AlphaTheta",
+                                        endpointName: "DDJ-FLX4")
+        profile.learn(.crossfader, at: fader, transform: .bipolar)
+        try store.save(profile, syncID: "sync-1")
+
+        let model = MidiSettingsModel.live(hardware: HardwareService(), store: store)
+        let loaded = model.profile
+        XCTAssertEqual(loaded.name, "DDJ-FLX4")
+        XCTAssertEqual(loaded.bindings.count, 1)
+        XCTAssertEqual(loaded.binding(for: fader)?.action, .crossfader,
+                       "the screen shows what the user already taught it")
     }
 }
