@@ -94,25 +94,6 @@ jobs:
           done
           echo "Codename-leak guard OK"
 
-      - name: Write application credentials
-        env:
-          TONEARM_JAMENDO_CLIENT_ID: ${{ secrets.TONEARM_JAMENDO_CLIENT_ID }}
-        run: |
-          # Application credentials (as distinct from user logins) have to reach
-          # a shipped binary but must never enter the repo (§54.2). Config/Base
-          # .xcconfig optionally includes this file; an absent secret leaves it
-          # empty and the app reports the honest "not configured" state (§18A.6)
-          # rather than shipping a fabricated key or failing the build.
-          if [ -n "$TONEARM_JAMENDO_CLIENT_ID" ]; then
-            printf 'TONEARM_JAMENDO_CLIENT_ID = %s\n' "$TONEARM_JAMENDO_CLIENT_ID" \
-              > Config/Secrets.xcconfig
-            echo "Jamendo client id written to Config/Secrets.xcconfig (value not logged)"
-          else
-            echo "::warning::TONEARM_JAMENDO_CLIENT_ID is not set — this build ships without"
-            echo "::warning::a Jamendo key, so genre libraries will report themselves"
-            echo "::warning::unavailable. Add the repository secret to enable them."
-          fi
-
       - name: Cache SPM
         uses: actions/cache@v4
         with:
@@ -205,13 +186,45 @@ jobs:
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         run: sudo xcodebuild -license accept
 
+      - name: Write application credentials
+        if: env.HAS_TESTFLIGHT_SECRETS == 'true'
+        env:
+          TONEARM_JAMENDO_CLIENT_ID: ${{ secrets.TONEARM_JAMENDO_CLIENT_ID }}
+        run: |
+          # Application credentials (as distinct from user logins) have to reach
+          # a shipped binary but must never enter the repo (§54.2). Config/Base
+          # .xcconfig optionally includes this file; an absent secret leaves it
+          # empty and the app reports the honest "not configured" state (§18A.6)
+          # rather than shipping a fabricated key or failing the build.
+          #
+          # THIS STEP BELONGS TO THE ARCHIVE JOB, NOT THE TEST JOB. It lived in
+          # `test` until 2026-08-16, where nothing reads an xcconfig — `swift
+          # test` builds the SPM package — so every TestFlight build shipped
+          # with an empty client id and every tester met the honest
+          # "not configured" state instead of a genre library. The file has to
+          # be written in the job that archives, after that job's own checkout.
+          if [ -n "$TONEARM_JAMENDO_CLIENT_ID" ]; then
+            printf 'TONEARM_JAMENDO_CLIENT_ID = %s\n' "$TONEARM_JAMENDO_CLIENT_ID" \
+              > Config/Secrets.xcconfig
+            echo "Jamendo client id written to Config/Secrets.xcconfig (value not logged)"
+          else
+            echo "::warning::TONEARM_JAMENDO_CLIENT_ID is not set — this build ships without"
+            echo "::warning::a Jamendo key, so genre libraries will report themselves"
+            echo "::warning::unavailable. Add the repository secret to enable them."
+          fi
+
       - name: Install XcodeGen
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         run: brew install xcodegen
 
       - name: Generate Xcode project
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
-        run: xcodegen generate
+        # `make project`, not bare `xcodegen generate`: the wrapper writes the
+        # Config/stems-odr.yml overlay from whether the converted stems model is
+        # present. It never is on a clean checkout — the 210 MB package is
+        # gitignored — and an unconditional entry for it fails the build at the
+        # asset-pack copy, which would kill this job before it archives.
+        run: make project
 
       - name: Import Distribution Certificate
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'

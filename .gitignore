@@ -77,6 +77,11 @@ fastlane/test_output
 .jamendo_client_id
 .jamendo_client_secret
 Config/Secrets.xcconfig
+# The stems ODR overlay, written by scripts/generate-project.sh from whether the
+# converted model is on this machine. Generated, never committed: a checked-in
+# copy would either drop the tag from the owner's own build or put a 210 MB file
+# that is not there into CI's asset pack.
+Config/stems-odr.yml
 *.local.sh
 .test-results/
 

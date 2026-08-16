@@ -112,9 +112,15 @@ down.
 ## Building
 
 ```sh
-xcodegen generate     # project.yml -> Tonearm.xcodeproj
+make project          # project.yml -> Tonearm.xcodeproj (wraps xcodegen)
 xcodebuild test -scheme Tonearm -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
+
+`make project` rather than bare `xcodegen generate`: it first writes
+`Config/stems-odr.yml` from whether the converted stems model
+(`Resources/Models/DemucsStems.mlpackage`, 210 MB, gitignored) is on this
+machine. Without that overlay the spec has no include to read and xcodegen stops;
+run `make project` once after cloning.
 
 Requires iOS 18. Single dependency: [GRDB](https://github.com/groue/GRDB.swift).
 

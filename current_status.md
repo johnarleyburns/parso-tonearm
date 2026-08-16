@@ -243,6 +243,108 @@ factory profiles (a controller must be MIDI-learned — the walkthrough covers
 it); hot cues are still not bindable (nothing reads stored cue points yet); no
 LED feedback, so the controller's lights will not reflect app state.
 
+## 2026-08-16 — alpha-readiness pass, phase 1 of 5: the two CI blockers
+
+The owner asked what stands between here and an alpha, given App Store Connect is
+done on their side. Five items were agreed, to be landed one phase at a time with
+a review pause after each. **Phase 1 is this commit.** Baseline confirmed before
+starting: full local suite **1545 tests, 0 failures, 8 skipped**.
+
+Phase 1 is neither of the djmix flakes. It is two defects found while auditing the
+push path itself, **both of which would have broken the very first push** — the
+gate that turns all of this into an alpha:
+
+**1 · The TestFlight build shipped with no Jamendo key.** `Write application
+credentials` lived in the `test` job (`ios.yml`), where nothing reads an xcconfig —
+`swift test` builds the SPM package. The `testflight-build` job is a separate job
+with its own checkout and never wrote `Config/Secrets.xcconfig`, so
+`TONEARM_JAMENDO_CLIENT_ID` was empty in every IPA: genre libraries would report
+`.notConfigured` and **step one of the M5 narrative — pick a genre, get music —
+would be dead for every tester.** `Config/Base.xcconfig`'s own comment claimed CI
+did this. The step now lives in the archive job, after its checkout and before
+generate. **The `TONEARM_JAMENDO_CLIENT_ID` repository secret still has to be set**
+— without it the job warns and ships the honest unavailable state, which is the
+designed behaviour but not the one we want for an alpha.
+
+**2 · `xcodegen generate` failed outright on a clean checkout.**
+`Resources/Models/DemucsStems.mlpackage` is gitignored (210 MB of converted FP32
+weights, plan dj-stems-model S6) but was listed unconditionally in `project.yml`.
+Reproduced in a detached worktree, which is exactly what CI checks out:
+
+```
+Spec validation error: Target "Tonearm" has a missing source directory
+  ".../Resources/Models/DemucsStems.mlpackage"
+```
+
+The `testflight-build` job dies there, before the archive step — **no TestFlight
+build would have been produced at all.** `optional: true` is not the fix: it
+silences spec validation but the file reference survives into the resources build
+phase, and a full Release build of the clean worktree then fails one step later:
+
+```
+CpResource .../demucs-stems-<hash>.assetpack/DemucsStems.mlpackage
+** BUILD FAILED **
+```
+
+The fix is an overlay whose *existence* tracks the model's. `project.yml` includes
+`Config/stems-odr.yml` (`relativePaths: false`, so its paths root at the repo);
+`scripts/generate-project.sh` — **`make project`, now the way to generate** —
+writes that overlay with the ODR entry when the package is on the machine and
+`targets: {}` when it is not, then runs xcodegen. The overlay is gitignored and
+rewritten from the filesystem on every run, so it cannot go stale in either
+direction, and CI runs `make project`. Verified: the owner's machine (model
+present) generates a **byte-identical** `project.pbxproj` — stems keep working
+locally — and the clean worktree generates with zero Demucs references, CLAP
+intact, and builds Release for `generic/platform=iOS`.
+
+An absent tag was already the honest FR-SEM-6 absence at runtime
+(`beginAccessingResources` fails → `isAvailable()` false → decks play the full mix,
+stem faders stay disabled, §36.5), so this changes no product behaviour. **It does
+settle a question that could no longer be deferred: stems are not in the alpha
+build.** Putting them there needs the 210 MB package delivered to CI (a release
+asset fetched before generate) — a separate decision, and the tester note already
+says stems are absent.
+
+### What remains for M5
+
+The plan's exit list (`dj-phase-4-stems-recording.md` §1) is items 1–4 green, item
+6 owner-owned, and **item 5 — `LANES=djmix` green — is the one open agent-side
+gate**. Phases 2–5 below are that item plus the tooling to trust it:
+
+- **Phase 2 · `loadTrack` hittability (§14's own prescription).** AT-MIX-02 failed
+  two of three hand runs with `dj.queue.row.<title>` **"not hittable"**.
+  `DJPerformanceDriver.loadTrack:348` asserts *existence* and then taps;
+  `queueRowExists` scrolls only until the row exists, and a `LazyVStack` row can
+  exist while its hit point is still occluded. There is a second route to the same
+  error — `rowView` is `.disabled(!isReady)` (`SoloDeckView.swift:928`), and a
+  disabled button never becomes hittable — which the driver cannot currently tell
+  apart. Fix: retry on hittability with scrolling, and on timeout report whether
+  the row was disabled and its reason text.
+- **Phase 3 · the Fader Cut zipper false positive.** `check_fader_cut` is the only
+  analyzer check never migrated to span-averaged measurement in the §14 fix — every
+  other one uses `band_level` over a settled span; it still reads single 85 ms
+  windows at `at ± 1 beat`, the exact phase-sensitivity `band_level`'s docstring
+  warns about. Its zipper rule is a bare ratio (`flat_at > 8×` both neighbours) with
+  no absolute floor. Measured on the kept recording with the analyzer's own
+  `spectral_flatness`: median flatness **7.6e-05**, and the rule **fires at 6 of
+  2957 probe points where no cut was performed** (0.0005–0.0022 — the same
+  magnitude as the run-2 report of "0.001 vs 0.000/0.000"). Run 2's zipper was a
+  false positive. Also checked and clean: the 30-second segmented-M4A joins leave
+  no discontinuity (peak |Δ| at every boundary at or below the file's median), so
+  the export itself is fine.
+- **Phase 4 · keep the run log, and the progress monitor the owner asked for.**
+  `RUN_LOG` is a `mktemp` deleted on exit, which is why **AT-MIX-01's run-3 failure
+  has no recorded cause** and this list has to guess at it. Preserve it under
+  `build/ui-regression/`, and print phase lines, test-case boundaries and a
+  heartbeat instead of raw `xcodebuild` output followed by minutes of silence.
+- **Phase 5 · re-run and close.** Three clean `LANES=djmix` runs plus one
+  `MIX_MINUTES=20` soak. That closes exit item 5 and the milestone's agent-side
+  work.
+
+Then the owner's gates, unchanged: the push (CI + TestFlight), and the device pass
+(AT-THERM-1, AT-MEM-1, physical AT-SESS-\*, the S7 stems measurement, and the M5
+narrative performed end to end).
+
 ## 2026-08-16 session — MIDI landed, DJ lanes re-verified, runner progress monitor requested
 
 **MIDI M1–M4 are on `main`** (`6b9247b`, `1cfa079`, `31ffec0`, `de19f56`,

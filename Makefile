@@ -1,4 +1,10 @@
-.PHONY: test-local test-swift test-ui test-integration test-ui-regression
+.PHONY: project test-local test-swift test-ui test-integration test-ui-regression
+
+# Regenerate Tonearm.xcodeproj. USE THIS RATHER THAN BARE `xcodegen generate`:
+# it first writes Config/stems-odr.yml from whether the converted stems model is
+# on this machine (scripts/generate-project.sh explains why), then generates.
+project:
+	scripts/generate-project.sh
 
 test-local:
 	scripts/run-local-test-suite.sh full
