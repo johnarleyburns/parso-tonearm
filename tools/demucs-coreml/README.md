@@ -1,64 +1,70 @@
-# Demucs → Core ML (M6 commit 6.6) — **attempted, not landed**
+# Demucs → Core ML (stems, M6/plan `dj-stems-model.md` S1)
 
-The stem *pipeline* has shipped since 5.7–5.9 (chunking, overlap-add, content-addressed cache,
-storage budget, the crate lane, the deck's second armed slot, the honest disabled faders). The
-only missing piece is the model behind `StemModelProviding`, and this directory is the attempt
-to produce it, plus **what it will take to finish** — written down so the next attempt starts
-from evidence instead of from zero.
+The htdemucs → Core ML conversion **works** and is numerically verified to match
+the PyTorch reference. This directory is that conversion: a reproducible script,
+the reference tensors it produces, and the evidence. Earlier notes here
+(`trace_htdemucs.py`, the "attempted, not landed" README) diagnosed the blockers
+as architectural — **that diagnosis was wrong**, and this README replaces it.
 
-**Status: not converted.** The app ships exactly as before: `DemucsStemModel` is honestly
-absent, decks play the full mix, stem faders render disabled (§36.5). That behaviour is
-tested (`StemSeparatorTests`, `WorkspaceModelTests`) and is a designed state, not a
-regression — the feature degrades to "unavailable", never to a silent lie.
+## Status
 
-## What was tried
+- `convert_htdemucs.py` converts `htdemucs` to an FP32 `mlprogram` with both
+  transforms (STFT/ISTFT) lifted out into Swift, and verifies the Core ML
+  outputs against the traced torch model per output with `max|d| ≤ 1e-4`.
+- Measured result of running it (Python 3.12, `torch 2.7.*`, `coremltools ≥ 9.0`,
+  `demucs 4.1.0`):
 
-Environment: `torch 2.13.0`, `coremltools 9.0`, `demucs 4.1.0`, Apple silicon.
+  ```
+  spec:     max|d| 1.11e-06   (rms 1.94e-02)   PASS
+  waveform: max|d| 1.19e-07   (rms 1.88e-02)   PASS
+  ```
 
-| Step | Result |
-|---|---|
-| `get_model('htdemucs')` → `HTDemucs`, 41,984,456 params | works — **~84 MB at FP16**, a very reasonable ODR download |
-| `torch.jit.trace` at the model's own 7.8 s segment (343,980 samples @ 44.1 kHz) | works |
-| `ct.convert(traced, …)` | fails at MIL op **29 / 2087** — `aten::Int`, `TypeError: only 0-dimensional arrays can be converted to Python scalars` |
-| `m.use_train_segment = False` + `torch.jit.freeze` (constant-folds the shape arithmetic) | gets to op **594 / 1732 (34%)**, then the same `aten::Int` failure |
+- The artifacts — `HTDemucsCore.mlpackage` (~168 MB FP32) and `reference.pt`
+  (~200 MB) — are build outputs and are **gitignored**. Do not commit them.
 
-## Why it stops, and the two ways through
+## The four walls, in the order they were hit, all cleared
 
-The frozen graph still contains exactly one `aten::stft`, one `aten::istft`, and the
-`view_as_real`/`view_as_complex` pair around them. That is the real obstacle:
-**Core ML has no complex tensors**, and htdemucs is a *hybrid* model — it runs a spectral
-branch and a waveform branch and sums them, with the STFT inside the network. The `aten::Int`
-failures are the shape arithmetic feeding that branch.
+| # | Wall | Cause | Fix |
+|---|---|---|---|
+| 1 | `aten::Int`, op 594 | coremltools `_cast` does `dtype(np.array([N]))`; NumPy 2 rejects that | patch `_cast` (in the script below) |
+| 2 | `slice_by_index` rejects `tensor[...,complex64]` | Core ML has complex as a *type* but almost no MIL op accepts it | lift STFT out to Swift |
+| 3 | `_native_multi_head_attention` not implemented | PyTorch's fused attention fast path | `torch.backends.mha.set_fastpath_enabled(False)` |
+| 4 | `spec` output all `NaN`, waveform wrong | **FP16 overflow**, not a graph error | convert at `FLOAT32` |
 
-Two viable routes, in the order I would try them:
+Earlier notes blamed the `aten::Int` failure on complex tensors. The graph *does*
+hold `stft`/`complex`/`real`/`imag`/`view_as_real` (coremltools 9's Torch frontend
+registers those), but **not** `istft` or `view_as_complex`. Those two ops — and
+only those two — have to leave the graph. The model therefore takes the caller's
+real spectrogram `(mag)` and the raw waveform `(audio)` and returns the real
+masked spectrogram `(spec)` and the waveform branch `(waveform)`; Swift owns
+STFT and ISTFT (`DemucsSpectrogram` in `Sources/DJ/Stems/`).
 
-1. **Move the STFT out of the model.** Wrap `HTDemucs` so the traced graph starts *after*
-   `_spec()` and ends *before* `_ispec()`, exposing real-valued (magnitude/phase or re/im)
-   spectrogram tensors as model I/O, and do the STFT/ISTFT in Swift with vDSP. The DSP is
-   ordinary and the app already owns an FFT path. Cost: the `StemModelProviding` seam changes
-   shape — today it passes time-domain `StemChunk`s — so `StemSeparator`'s chunking and
-   overlap-add would need a spectral sibling, and the golden reconstruction test would need
-   its analogue.
-2. **Convert a time-domain-only model instead.** Demucs v2 (waveform U-Net) or Conv-TasNet
-   have no STFT in the graph and should convert without surgery, at lower separation quality.
-   The seam does not change at all. This is the cheaper path to *something working*, and the
-   quality difference is audible but not disqualifying for a DJ's stem faders.
+## Environment (the old `demucs-venv` was Python 3.14 and is unusable — delete any reference)
 
-Either way the conversion must be **verified numerically against the torch reference** before
-it ships, exactly as the CLAP models were (`tools/clap-coreml`, commit `42cb3fd`: audio cosine
-≥ 0.9997). A stem model that converts but drifts is worse than none — it would put quiet
-artefacts under a live set.
+```sh
+uv venv --python 3.12 .venv-demucs
+VIRTUAL_ENV=$PWD/.venv-demucs uv pip install "torch==2.7.*" "coremltools>=9.0" demucs numpy
+VIRTUAL_ENV=$PWD/.venv-demucs .venv-demucs/bin/python tools/demucs-coreml/convert_htdemucs.py
+```
 
-## The other thing to fix when this lands
+Gate: the run prints two `PASS` lines (above) and writes
+`HTDemucsCore.mlpackage` + `reference.pt` next to this script.
 
-htdemucs runs at **44.1 kHz** on 7.8 s segments; the app's pipeline chunks at 2^17 frames
-(2.73 s) at **48 kHz** (`StemChunking`). Whichever model wins, the sample-rate conversion and
-the segment length have to be reconciled — either resample at the seam or re-chunk to the
-model's own segment. This is not a detail: getting it wrong shifts every stem against the
-full mix by a few milliseconds, which is exactly the kind of error that sounds like "the
-stems are a bit weird" rather than failing outright.
+## The FP16 caveat
 
-## Files
+The model is converted at **FLOAT32**. `FLOAT16` produces `NaN` in the spectral
+branch — the waveform branch looks fine, which is why a smoke test will not catch
+it. It will show up as silence or noise under a live set. Selective FP16 is a
+later size optimisation and must not be attempted without re-running the numeric
+verification above. The verification gate in the script is what stops this.
 
-- `trace_htdemucs.py` — loads the pretrained model, traces and freezes it, reports parameter
-  count and the ops that block conversion. Run it to reproduce the table above.
+## The transform contract Swift must reproduce
+
+Read `docs/plans/dj-stems-model.md` §5 for the full contract (model sample rate
+44 100 Hz, segment 343 980 frames, nfft 4096, hop 1024, periodic Hann,
+`normalized=True`, `center=True`, sources order `['drums', 'bass', 'other',
+'vocals']` — **not** `StemKind` order). The golden vectors for the Swift tests
+are exported from `reference.pt`; the tests compare against those saved torch
+tensors and **never** assert STFT/ISTFT round-trip identity, because Demucs's
+pair is not invertible (the forward drops the Nyquist bin and trims two frames
+each end; measured round-trip error on unit-variance noise is 1.54).
