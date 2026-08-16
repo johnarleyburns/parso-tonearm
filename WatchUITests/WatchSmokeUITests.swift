@@ -2,8 +2,20 @@ import XCTest
 
 /// The single watchOS simulator smoke test for Platterhead. Verifies the app
 /// boots, seeded fixtures render, and — critically — that tapping "Play All"
-/// actually starts playback and that play/pause toggles the real transport
-/// state. Run locally; CI runs `swift test` only.
+/// actually starts playback, that the elapsed clock advances, and that
+/// play/pause toggles the real transport state. Run locally; CI runs
+/// `swift test` only.
+///
+/// **Every fixture here is bundled audio; this test never touches the network.**
+/// It used to play two archive.org tracks — one streamed, one downloaded at seed
+/// time — and on 2026-08-16 archive.org started returning HTTP 500 for that
+/// item's media while its metadata endpoint stayed up. Playback dutifully
+/// reported `playing`, no bytes arrived, the elapsed label sat at 0:00, and
+/// because this test runs in the pre-commit hook it **blocked every commit in
+/// the repository** for a reason that had nothing to do with any change being
+/// made. A gate on our own code must not be closable by a third party's outage.
+/// Live remote servers belong to the UI regression suite (§53), which is run by
+/// hand and skips honestly when a prerequisite is missing.
 final class WatchSmokeUITests: XCTestCase {
 
     override func setUp() {
@@ -13,16 +25,20 @@ final class WatchSmokeUITests: XCTestCase {
 
     func testWatchSmokeBootsPlaysAndBrowses() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["UI_TESTING", "SEED_WATCH_FIXTURES", "SEED_MUSOPEN_FIXTURES"]
+        app.launchArguments = ["UI_TESTING", "SEED_WATCH_FIXTURES"]
         app.launch()
 
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
 
+        // The transport assertion the archive.org playlists used to carry: a
+        // local WAV whose elapsed clock has to actually move. A dead transport
+        // reports `playing` just as convincingly as a live one, so this — not
+        // the button's own state — is what catches it.
         playPlaylist(app,
                      name: "Built-in Playlist",
                      expectedTrack: nil,
                      playlistTimeout: 10,
-                     requireElapsedAdvance: false)
+                     requireElapsedAdvance: true)
 
         // Now Playing presents and playback starts from the seeded local WAV.
         // The play/pause button's accessibility value reflects the real
@@ -53,18 +69,14 @@ final class WatchSmokeUITests: XCTestCase {
         closeNowPlaying(app)
         popToRoot(app)
 
+        // The downloaded-and-pinned shape: a second playlist, browsed to from the
+        // root, holding one track whose audio is already on the watch and whose
+        // real byte size is in the manifest. No seed-time download — the file is
+        // copied out of the app bundle.
         playPlaylist(app,
-                     name: "Musopen Stream Smoke",
-                     expectedTrack: "Prelude Op. 28 no. 7",
-                     playlistTimeout: 60,
-                     requireElapsedAdvance: true)
-        closeNowPlaying(app)
-        popToRoot(app)
-
-        playPlaylist(app,
-                     name: "Musopen Download Smoke",
-                     expectedTrack: "Prelude Op. 28 no. 10",
-                     playlistTimeout: 90,
+                     name: "Pinned Track Smoke",
+                     expectedTrack: "ambient-ocean",
+                     playlistTimeout: 15,
                      requireElapsedAdvance: true)
         closeNowPlaying(app)
         popToRoot(app)

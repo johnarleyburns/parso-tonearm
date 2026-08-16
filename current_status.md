@@ -262,9 +262,30 @@ with its own checkout and never wrote `Config/Secrets.xcconfig`, so
 `.notConfigured` and **step one of the M5 narrative — pick a genre, get music —
 would be dead for every tester.** `Config/Base.xcconfig`'s own comment claimed CI
 did this. The step now lives in the archive job, after its checkout and before
-generate. **The `TONEARM_JAMENDO_CLIENT_ID` repository secret still has to be set**
-— without it the job warns and ships the honest unavailable state, which is the
-designed behaviour but not the one we want for an alpha.
+generate.
+
+**The `TONEARM_JAMENDO_CLIENT_ID` repository secret is now set** (2026-08-16, from
+the gitignored `.jamendo_client_id`, at the owner's instruction — the value was
+never printed and never entered a tracked file, §54.2). The twelve signing secrets
+were already present, so `HAS_TESTFLIGHT_SECRETS` is true and the archive job will
+run on the next push. The whole chain is verified by reading, end to end:
+
+```
+repo secret TONEARM_JAMENDO_CLIENT_ID
+  → archive job writes Config/Secrets.xcconfig
+  → Base.xcconfig #include?s it (configFiles, Debug + Release)
+  → project.yml:147  JamendoClientID: "$(TONEARM_JAMENDO_CLIENT_ID)"
+  → Sources/App/Info.plist:37 carries the variable for Xcode to substitute
+  → JamendoGenreProvider.swift:85 reads it from the bundle
+```
+
+It is verified but **not yet proven** — a secret cannot be read back. The first
+archive log settles it: the step prints "Jamendo client id written to
+Config/Secrets.xcconfig" instead of the `::warning::`, and in the installed build
+the genre picker lists genres instead of the not-configured state.
+`TONEARM_JAMENDO_CLIENT_SECRET` was deliberately **not** set: nothing consumes it
+(Jamendo v3.0 read access needs only `client_id`; the secret is for the OAuth path
+the app does not use — M6 decision 2).
 
 **2 · `xcodegen generate` failed outright on a clean checkout.**
 `Resources/Models/DemucsStems.mlpackage` is gitignored (210 MB of converted FP32
@@ -1595,24 +1616,29 @@ saved or run a model even on success. The shipped behaviour is unchanged and is 
 designed one: stems unavailable, full mix plays, faders disabled — degraded honestly, never a
 silent lie.
 
-## Alpha readiness — can other people mix on this yet? (re-assessed after M6)
+## Alpha readiness — can other people mix on this yet? (re-assessed after M6; updated 2026-08-16)
 
 **Three blockers left, and only one of them is code.**
 
-1. **Nothing DJ has ever shipped.** `origin/main` is at `d06e372` (2026-08-09) and is now ~95
+1. **Nothing DJ has ever shipped.** `origin/main` is at `d06e372` (2026-08-09) and is now ~116
    commits behind — it contains no M4, M5 or M6 work at all. An alpha starts with a push, which
-   is the owner's gate (CI + TestFlight).
-2. **App Store Connect.** The decks are Pro-gated; the product must be configured and loadable
-   or a tester meets a locked surface. The app now says so honestly instead of offering a Buy
-   button that cannot work, but that is a diagnosis, not a fix. Checklist:
-   `docs/plans/app-store-connect-checklist.md`. **Owner-owned.**
+   is the owner's gate (CI + TestFlight). **The push path itself was broken until `8f30247`** —
+   `xcodegen generate` failed on a clean checkout and the archive job never wrote the Jamendo
+   credential, so the first push would have produced either no build or a build with no music.
+   See the phase-1 section at the top.
+2. ~~**App Store Connect.**~~ **Done** — the owner reports the product configured (2026-08-16).
+   The checklist stands as the thing to re-check against the first real build:
+   `docs/plans/app-store-connect-checklist.md` §3 is the in-app pass (a real localised price on
+   the Buy button, decks unlock with no relaunch, restore works).
 3. **Zero device time.** Every claim here is a *simulator* claim, and the simulator's audio is
    the Mac's Core Audio. The deferred pass — AT-THERM-1, AT-MEM-1, physical AT-SESS-* route
    events, and split cue with an actual splitter cable and headphones — has to happen before
    other people get builds, not after. **Owner-owned.**
 
 **Limits to write into the tester note** (all now honest states in the app rather than
-surprises): no stems (model unconverted); **MIDI works but with limits** — no factory
+surprises): **no stems** — the model is converted and works (S1–S8), but it is 210 MB and
+gitignored, so it is not in a CI-built binary; putting it there means delivering the package to
+CI as a release asset (see phase 1); **MIDI works but with limits** — no factory
 profiles (a controller must be MIDI-learned — the guided walkthrough covers it), hot cues
 are not bindable because nothing reads stored cue points yet, no LED feedback (the
 controller's lights will not reflect app state), and split cue makes the master mono,
@@ -1847,8 +1873,30 @@ conventional. **No credential outside `.test-credentials`** — the Jamendo `cli
 included — and **no third-party audio committed**, Creative Commons included (§54.6);
 DJ fixtures are generated tones.
 
+**Smoke tests are offline (2026-08-16).** The two hook-run smoke tests —
+`TonearmSmokeUITests` (iPhone) and `WatchSmokeUITests` (watch) — play **bundled**
+audio only and reach no network. The iPhone one always did; the watch one used to
+play two archive.org tracks, one streamed and one downloaded at seed time, and when
+that item's media node started returning HTTP 500 it blocked every commit in the
+repository until the fixtures were changed. **A gate on our own code must not be
+closable by a third party's uptime**, so live remote servers now belong exclusively
+to the by-hand UI regression suite (§53), which is allowed to skip when a
+prerequisite is missing. Keep it that way: if a smoke test needs media, it takes it
+from `Resources/Audio` (already committed, CC0, attributed) — this is not a licence
+to commit new third-party audio, which §54.6 still forbids. The stream-versus-local
+decision stays covered by `WatchTrackResolverTests` (12 pure cases in `swift test`);
+what left the smoke test is only "watchOS pulls audio over HTTP", which cannot be
+asserted without depending on somebody else's server.
+
 **Known flakes / environmental gates:**
-- ~~`OnsetTests.testNoiseDoesNotProduceSpuriousPeaks`~~ — **fixed in `1290b31`**: the
+- ~~`WatchSmokeUITests.testWatchSmokeBootsPlaysAndBrowses`~~ — **fixed 2026-08-16**: the
+  smoke tests no longer touch the network at all. It had blocked *every commit in the
+  repository*, twice in a row on a docs-only change, ninety minutes after the same suite
+  passed on the same tree: `https://archive.org/metadata/musopen-chopin` answered 200 (so
+  the app browsed the item and the transport reported `playing`) while every audio file
+  under `https://archive.org/download/musopen-chopin/…` returned **HTTP 500** from
+  `dn710801.ca.archive.org`, so no bytes arrived and the elapsed clock never moved. See
+  "smoke tests are offline" below.
   noise test is now seeded `SplitMix64` (which gained the `RandomNumberGenerator`
   conformance), so `peaks.count < 3` is deterministic (NFR-DET-3). It had blocked a
   commit attempt (3 vs 3) intermittently before the fix.
