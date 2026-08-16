@@ -528,6 +528,19 @@ Two more were in the suite's own plumbing, and are worth recording because they 
   engine — on iOS a route change or a media-services reset, not a sleeping Mac — leaves a recording
   that is dead but still displays a running timer. That is an NFR-REL-2 concern and wants its own
   commit with its own tests, not a rider on the suite that found it.
+- **The fader-cut check measured a band that cannot be attributed, and passed for months by
+  luck.** It summed the outgoing deck's low, mid and high. But the two decks' low tones sit 32 Hz
+  apart (55 and 87), which an 85 ms window cannot separate — so once the cut deck is 40 dB down,
+  its "low band" is really the *surviving* deck's low bleeding into the bin. Whether the check
+  passed therefore depended on how loud the other deck happened to be at that instant. On the run
+  that exposed it the outgoing deck's mid fell 44 dB and its high 52 dB, a textbook cut, while
+  the bleed capped the measured sum at 19.9 dB and failed the lane. `check_echo_out` had already
+  hit this and documented it ("the two decks' lows sit 32 Hz apart, closer than this window can
+  separate at tail levels") and measured the mid alone; the fader cut simply had not learned the
+  lesson. It now measures mid and high. The zipper half had the same shape of error — flatness
+  compared only against the material *before* the cut rises on every cut, because the outgoing
+  tones leave the probe set; a real transient stands out from what follows it too, so it is now
+  compared against both neighbours.
 - **The runner could report a green gate having verified nothing — twice over.** `simctl
   get_app_container` refuses on a shut-down device, and `xcodebuild` leaves the simulator shut
   down whenever it booted it itself (i.e. whenever Simulator.app was not already open). The

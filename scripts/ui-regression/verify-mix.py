@@ -453,7 +453,21 @@ def check_fader_cut(samples, rate, bpm, event, tones):
 
     pre_start = max(0, at - beat)
     post_start = min(len(samples) - WINDOW, at + beat)
-    freqs = [band["low"], band["mid"], band["high"]]
+
+    # **Mid and high only — not the low.** The two decks' low tones sit 32 Hz
+    # apart (55 and 87), which an 85 ms window cannot separate: once the cut
+    # deck is 40 dB down, its "low band" is really the *other* deck's low
+    # bleeding into the bin, and the sum is then dominated by audio that never
+    # went anywhere. `check_echo_out` already measures on the mid alone for
+    # exactly this reason; this check summed all three and inherited the flaw.
+    #
+    # It passed for months because it depends on how loud the surviving deck
+    # happens to be at that instant. On the run that exposed it the outgoing
+    # deck's mid fell 44 dB and its high 52 dB — a textbook cut — while the
+    # low-bin bleed capped the *sum* at 19.9 dB and failed the lane. Dropping
+    # the unattributable band keeps the physical claim and measures it on the
+    # tones that can actually carry it.
+    freqs = [band["mid"], band["high"]]
     pre = db(sum(goertzel_energy(samples, pre_start, f, rate) for f in freqs))
     post = db(sum(goertzel_energy(samples, post_start, f, rate) for f in freqs))
 
@@ -463,13 +477,19 @@ def check_fader_cut(samples, rate, bpm, event, tones):
         ok = False
         notes.append(f"outgoing fell only {pre - post:.1f} dB inside one beat (need 30)")
 
-    # No zipper: a click is broadband, so it shows up as unusually flat spectrum
-    # right at the cut compared with the material either side.
+    # No zipper: a click is broadband, so it shows up as an unusually flat
+    # spectrum right at the cut — but it has to be flat relative to **both**
+    # neighbours. Comparing only with the material before it flags any cut
+    # where the *content* changed, which is every cut: the outgoing deck's
+    # tones vanish from the probe set and flatness rises without a click ever
+    # occurring. A real transient stands out from what follows it as well.
     flat_at = spectral_flatness(samples, at, rate)
-    flat_ref = max(spectral_flatness(samples, pre_start, rate), 1e-9)
-    if flat_at > flat_ref * 8.0:
+    flat_pre = max(spectral_flatness(samples, pre_start, rate), 1e-9)
+    flat_post = max(spectral_flatness(samples, post_start, rate), 1e-9)
+    if flat_at > flat_pre * 8.0 and flat_at > flat_post * 8.0:
         ok = False
-        notes.append(f"broadband transient at the cut (flatness {flat_at:.3f} vs {flat_ref:.3f}) — zipper")
+        notes.append(f"broadband transient at the cut (flatness {flat_at:.3f} vs "
+                     f"{flat_pre:.3f} before / {flat_post:.3f} after) — zipper")
     return ok, "; ".join(notes) or f"-{pre - post:.0f} dB inside one beat, no broadband transient"
 
 

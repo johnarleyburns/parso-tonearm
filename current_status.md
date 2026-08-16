@@ -31,6 +31,13 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **M6 6.7 + 6.6** — `4b6e113` `feat(dj): M6 feature lanes + the crash they found; stems conversion attempted, not landed`.
+- **M6 6.5** — `13564f7` `feat(dj): MIDI — learn, bindings, profiles, §44.3-44.4, FR-HW-1/2`.
+- **M6 6.4** — `7594493` `feat(dj): headphone cue — pre-fader, three honest modes, §44.2a, FR-HW-3`.
+- **M6 6.3** — `147a223` `feat(dj): genre libraries enabled — app key, or bring your own, §18A.2`.
+- **M6 6.2** — `2d10c43` `feat(dj): the purchase path tells the truth about money, FR-STORE-1/3/5`.
+- **M6 6.1** — `877e2fb` `feat(dj): engine liveness — a stopped graph stops lying, §34A.5, NFR-REL-2`.
+- **M6 plan** — `394608a` `docs(dj): M6 plan — the live-mixing alpha`.
 - **M5 5.14** — `e838cfb` `feat(dj): the DJ regression suite — the exit sentence, performed and proved in the recording, §53.7-53.12 (M5 commit 5.14)`.
 - **M5 5.13** — `f3d3047` `feat(dj): transition coach — the five transitions, highlighted in place, §41.18, FR-TRANS-6 (M5 commit 5.13)`.
 - **M5 5.12** — `4cbbf04` `feat(dj): finish + mixes + timeline + review listen + export, §37.4, §41.11-41.12, §18A.5, FR-REC-1/4/5/6/7 (M5 commit 5.12)`.
@@ -1255,62 +1262,58 @@ holds **only** for `Sources/DJ/**`, which is an SPM target that globs at build t
 into `project.pbxproj`, so new `UIRegressionTests/*.swift` files are invisible to
 `xcodebuild` until a regen runs. Verified against the existing lane files.
 
-## Alpha readiness — can other people mix on this yet? (assessed 2026-08-15)
+## M6 — the live-mixing alpha push (commits 6.1–6.7, all on `main`)
 
-**Not yet, and the gap is smaller than it looks: two owner actions, one code commit, and a
-device shakedown.** Nothing below is a design problem; the mix chain itself is proven.
+The owner asked for everything between M5 and a TestFlight alpha of live mixing: a working
+purchase path, the engine-liveness fix, headphone cue, stems, genre libraries, MIDI, and
+regression coverage for all of it. Plan: `docs/plans/dj-phase-5-live-alpha.md`.
 
-**What is actually proven.** The whole chain — real gesture → command ring → engine → mixer →
-record tap → encoder → export — works and is verified *acoustically*, not by proxy: five
-transitions performed through the real UI and found in the recording the app produced, a
-20-minute continuous recording that never dropped, the review listen, and the export. 1447
-logic tests green. A Release build renders at 1.00× real time. That is a real product, and it
-is the thing an alpha would be testing.
+| # | Commit | What landed |
+|---|---|---|
+| 6.1 | `engine liveness` | Three-signal watchdog (frozen clock under a playing deck, `isRunning`, `AVAudioEngineConfigurationChange`), honest banner, recording closed out rather than abandoned, recovery offered but never automatic |
+| 6.2 | `purchase path` | The **real localised StoreKit price** replaces two hardcoded fictions (`$39.99`, `$7.99`); an unavailable store is a first-class state with no dead Buy button; restore says when it finds nothing; the DJ tab states the grant and its source |
+| 6.3 | `genre libraries` | Jamendo enabled via untracked xcconfig + CI secret, **or a user's own key** (keychain, takes precedence); `LANES=djlive` green against the real API for the first time |
+| 6.4 | `headphone cue` | Pre-fader cue bus, three modes each stating its cost, unavailable modes refused rather than approximated, bit-exact when off; fixed the channel strip's CUE firing the cue *point* instead of PFL |
+| 6.5 | `MIDI` | `dj_v5` (§15's five hardware tables), learn/bindings/profiles/JSON interchange, a mapped control reaching the engine through the same method a finger uses |
+| 6.6 | `stems` | **Attempted, not landed** — see below |
+| 6.7 | `djhw` lane | M6's features driven through the real UI; found a crash on its first run |
 
-**Blockers, in the order they bite:**
+**What the new lane caught immediately.** The app died one tap after CUE. The cue buffers were
+sized from `maximumFrameCount`, which is a *preference*: the manual pull enforces it (so every
+offline test passed), while a device's output unit hands over its own granted buffer —
+routinely 256–1024 frames against the app's requested 128 — and the cue path wrote past the end
+of its allocation. Memory corruption on the audio thread, invisible to layers 1 and 2, exactly
+the argument for layer 3 existing.
 
-1. **Nothing DJ has ever shipped.** `origin/main` is at `d06e372` (2026-08-09) and **87
-   commits behind** — it contains **zero** M4 or M5 work. TestFlight today has no decks, no
-   engine, no recording. An alpha starts with a push, which is the owner's gate (CI +
-   TestFlight).
-2. **The decks are Pro-gated.** `WorkspaceModel` gates on `ProCapability.isEnabled(.decks)` →
-   `guru.parso.tonearm.pro`. Unless that product is purchasable in **App Store Connect**, a
-   tester opens the app to a dimmed, locked surface and the alpha tests nothing.
-   `Resources/Tonearm.storekit` carries it locally ("Platterhead DJ") — that covers the
-   simulator, not a TestFlight device. Owner-owned (handoff §6.5); the alternative is a
-   deliberate alpha entitlement path, which is a product decision, not an agent's.
-3. **The engine-liveness gap (NFR-REL-2) — the one code blocker.** The app never observes
-   `AVAudioEngineConfigurationChange` and never checks `engine.isRunning`, so a stopped graph
-   leaves a **recording that is dead behind a running timer**. The suite found it via a
-   sleeping host; on a phone the triggers are ordinary — a media-services reset, a route
-   change, an interruption at the wrong moment. Alpha testers will hit this and report it as
-   "it stopped recording and didn't tell me". It is already scoped as its own commit with its
-   own tests. **Fix this before handing builds to anyone.**
-4. **Zero device time.** Every claim above is a *simulator* claim, and the simulator's audio is
-   the Mac's Core Audio — it is exactly the wrong instrument for "does an A-series chip hold a
-   2.67 ms render deadline with two decks, two waveforms and a record tap". The deferred
-   user-owned pass (**AT-THERM-1**, **AT-MEM-1**, physical **AT-SESS-\*** route events, and the
-   M5 end-to-end narrative) is the shakedown that must happen before other people, not after.
+**Stems are the one requested item not delivered.** htdemucs loads and traces (42M params,
+~84 MB at FP16), and conversion stops inside the model's own STFT: Core ML has no complex
+tensors and htdemucs keeps the transform in the network. Freezing moved the failure from MIL op
+29/2087 to 594/1732 — progress, not a solution. `tools/demucs-coreml/` records the reproduction
+and the two routes through (lift the STFT into Swift and reshape the seam, or convert a
+time-domain model at lower quality), plus the 44.1 kHz/7.8 s vs 48 kHz/2^17 mismatch either
+route must reconcile. The shipped behaviour is the designed one: stems unavailable, full mix
+plays, faders disabled — degraded honestly, never a silent lie.
 
-**Limits that define what an alpha of "live mixing" means** — not blockers, but set
-expectations or testers will file them as bugs:
+## Alpha readiness — can other people mix on this yet? (re-assessed after M6)
 
-- **No headphone cue.** Cue monitoring and split cue are §44.2a, **M6** — unimplemented. There
-  is no pre-listen: mixing is visual (waveforms, phrase ribbon, beat grid) plus Sync. Fine for
-  bedroom practice; a missing fundamental for anyone who expects to cue in headphones.
-- **No stems in practice.** The Demucs `.mlpackage` is not converted or ODR-registered
-  (ADR-10, user-owned), so `StemModelProviding` is honestly absent and decks play the full
-  mix. The stem faders render disabled, which is the designed behaviour, not a bug.
-- **No genre libraries without a credential.** `TONEARM_JAMENDO_CLIENT_ID` is empty in
-  `project.yml`, so a shipped build's genre picker is the honest `.notConfigured` state.
-  Testers must bring their own music — local files, WebDAV, SMB, Plex, Jellyfin and Subsonic
-  all work today.
-- **No MIDI controllers** (M6).
+**Three blockers left, and only one of them is code.**
 
-**The order I would go in:** (a) the engine-liveness commit; (b) owner: the Jamendo
-`client_id` and the App Store Connect product; (c) owner: the on-device shakedown, including
-the M5 end-to-end set; (d) push → TestFlight → alpha, with the four limits above written into
-the tester note.
+1. **Nothing DJ has ever shipped.** `origin/main` is at `d06e372` (2026-08-09) and is now ~95
+   commits behind — it contains no M4, M5 or M6 work at all. An alpha starts with a push, which
+   is the owner's gate (CI + TestFlight).
+2. **App Store Connect.** The decks are Pro-gated; the product must be configured and loadable
+   or a tester meets a locked surface. The app now says so honestly instead of offering a Buy
+   button that cannot work, but that is a diagnosis, not a fix. Checklist:
+   `docs/plans/app-store-connect-checklist.md`. **Owner-owned.**
+3. **Zero device time.** Every claim here is a *simulator* claim, and the simulator's audio is
+   the Mac's Core Audio. The deferred pass — AT-THERM-1, AT-MEM-1, physical AT-SESS-* route
+   events, and split cue with an actual splitter cable and headphones — has to happen before
+   other people get builds, not after. **Owner-owned.**
+
+**Limits to write into the tester note** (all now honest states in the app rather than
+surprises): no stems (model unconverted); MIDI has no factory profiles, so a controller must be
+MIDI-learned; hot cues are not bindable because nothing reads stored cue points yet; and split
+cue makes the master mono, which the app says where the mode is chosen.
 
 ## Next
 
@@ -1429,7 +1432,7 @@ the tester note.
   never `.critical`, §43.7), **AT-MEM-1** (the same session never crosses the §43.5
   footprint ceiling — the `MemoryCeilingMonitor` is shipped and unit-tested), the M3
   leftovers **AT-PLIST-2** (on-device timing) and **AT-PLIST-7** (listening), and the
-  physical AT-SESS-\* route events. Then **ship 3.0 — the Pro launch**: AT-ENGINE-\*,
+  physical AT-SESS-* route events. Then **ship 3.0 — the Pro launch**: AT-ENGINE-\*,
   AT-SESS-\*, AT-STORE-\*, AT-TWIN-\* are green; app builds; the purchase unlocks the
   decks with no relaunch (AT-STORE-2). **Ask before `git push`** — push triggers CI +
   TestFlight and 3.0 is the release gate.
