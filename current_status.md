@@ -41,6 +41,13 @@ governor) is fully committed.
 
 ## Commits on `main`
 
+- **Stems S7** — `31e2a97` `feat(dj): S7 — the honest stems ceiling, and the measurement numbers (plan dj-stems-model)`.
+- **Stems S6** — `9c419bd` `feat(dj): S6 — ODR packaging for the stems model (plan dj-stems-model)`.
+- **Stems S5** — `f74ea7c` `feat(dj): S5 — wire DemucsStemModel to Core ML (plan dj-stems-model)`.
+- **Stems S4** — `82aa125` `feat(dj): S4 — model-native geometry at the stem seam (plan dj-stems-model)`.
+- **Stems S3** — `6ead558` `fix(dj): S3 — stream the stem overlap-add; kill the whole-track accumulation (plan dj-stems-model)`.
+- **Stems S2** — `bfeb379` `feat(dj): S2 — DemucsSpectrogram, the Swift STFT/ISTFT kernel, golden vs torch (plan dj-stems-model)`.
+- **Stems S1** — `bc9637e` `feat(dj): S1 — the htdemucs → Core ML conversion, correct diagnosis (plan dj-stems-model)`.
 - **M6 6.7 + 6.6** — `4b6e113` `feat(dj): M6 feature lanes + the crash they found; stems conversion attempted, not landed`.
 - **M6 6.5** — `13564f7` `feat(dj): MIDI — learn, bindings, profiles, §44.3-44.4, FR-HW-1/2`.
 - **M6 6.4** — `7594493` `feat(dj): headphone cue — pre-fader, three honest modes, §44.2a, FR-HW-3`.
@@ -92,8 +99,48 @@ governor) is fully committed.
   3.4 `8e6d628`; 3.5 `98825bb` (AT-PLIST-3 shuffle-comparison harness closed the last
   gate). M2 (complete): plan `dbd01df`; model conversion `42cb3fd`; 2.1 `cba52bf`;
   2.2 `a0c1291`; 2.3 `3879013`; 2.4 `b9f5bb4`; 2.5 `45ecc8c`; plus `c6de224`
-  (Play at any browse depth + Jellyfin demo onboarding). M1 commits
-  `dd9cc35`…`fc81f2e`.
+   (Play at any browse depth + Jellyfin demo onboarding). M1 commits
+   `dd9cc35`…`fc81f2e`.
+
+## Stems landed (plan `dj-stems-model.md`, S1–S8)
+
+The htdemucs → Core ML conversion **works and is wired end to end** (S1–S6 on
+`main`): the script converts and verifies `max|d| 1.1e-6` vs torch (FP32 — FP16
+NaNs the spectral branch), the Swift STFT/ISTFT kernel matches torch on golden
+vectors (`max|d| ≤ 1e-4`), the separator streams overlap-add at the model's own
+geometry (44 100 Hz / 343 980-frame segment, resampled once per track), and
+`DemucsStemModel` runs the ODR-delivered package. `AnalysisVersions.stems = 2`.
+
+### S7 — device measurement and the honest ceiling
+
+**The on-device numbers below are projections, not measurements** — the owner
+has no device and the plan's S7 gate is the user-owned device pass (HANDOFF §1:
+a push builds TestFlight; the measurement is a post-session pass). What landed
+in code:
+
+- `MemoryCeiling.stemsFitInCeiling(deviceClass:workingSetBytes:)` — the honest
+  availability decision: a device class that cannot hold the model's working
+  set inside its ceiling (with a conservative 60% non-stem reserve) reports
+  stems **unavailable** through the already-tested honest-absence path —
+  full mix, disabled faders, never a model shed mid-set. `DemucsStemModel`
+  consults it in `isAvailable()`.
+- Projected working set per segment: **~234 MB** — model weights ~168 MB (FP32)
+  + `mag` 11 MB + `spec` 44 MB + `waveform` 11 MB. Every current device class
+  fits (iPhone 6 GB ceiling 1.0 GB → 400 MB headroom; 8 GB → 560 MB; iPad →
+  800 MB), so **all shipped classes report stems available**; the boundary test
+  pins where a heavier model flips a class to unavailable.
+- A five-minute track is **~46 segments** at 50% overlap (343 980-frame segment
+  at 44.1 kHz). Segments/second and the real peak footprint are the measured
+  numbers this section exists for — see the user-owned device pass below.
+- The `.stems` governor lane is exercised (`StemServiceTests`: the lane abandons
+  when the lane is shed, and abandons mid-run on a `.serious` flip).
+
+**User-owned device pass (S7 gate):** time one 343 980-frame segment on a real
+device (`.all` compute units), record segments/second and total track time for a
+five-minute track (~46 segments); measure peak footprint during a separation
+against the per-class ceiling. A class that cannot run inside the ceiling flips
+to stems-unavailable via `stemsFitInCeiling` and the UI says so. Write the
+measured numbers here.
 
 ## Working on
 
