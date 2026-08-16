@@ -1419,6 +1419,70 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(fake.recordingStarts, 1, "a stop never restarts")
     }
 
+    // MARK: - MIDI → engine (§44.4, FR-HW-1, plan 6.5)
+
+    /// A mapped knob has to reach the engine through the **same** path a finger
+    /// takes, or a controller becomes a second, subtly different way to mix.
+    func testAMappedControlMovesTheMixerThroughTheOrdinaryPath() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        var profile = ControllerProfile(name: "Test")
+        let knob = MidiAddress(type: .cc, channel: 1, number: 7)
+        profile.learn(.eq(deck: .a, band: .low), at: knob, transform: .bipolar)
+
+        let intent = try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: knob, value: 0),
+                                                     profile: profile))
+        model.apply(intent)
+
+        XCTAssertEqual(model.eqALow, -1, accuracy: 1e-6, "the model's own state moved")
+        XCTAssertEqual(fake.eqKnobs[.a]?.low, -1,
+                       "and the engine was told, exactly as a drag would")
+    }
+
+    /// The crossfader through MIDI must still be a transition the journal sees:
+    /// going through `setCrossfader` is what keeps the §37.4 recognisers
+    /// working for a controller-driven mix.
+    func testAMappedCrossfaderIsStillARecognisedTransition() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        var profile = ControllerProfile(name: "Test")
+        let slider = MidiAddress(type: .cc, channel: 1, number: 8)
+        profile.learn(.crossfader, at: slider, transform: .bipolar)
+
+        model.apply(MidiRouter.intent(for: MidiMessage(address: slider, value: 0),
+                                      profile: profile)!)
+        XCTAssertEqual(model.crossfader, -1, accuracy: 1e-6)
+        model.apply(MidiRouter.intent(for: MidiMessage(address: slider, value: 64),
+                                      profile: profile)!)
+        XCTAssertEqual(model.crossfader, 0, accuracy: 0.02, "swept to centre — a Blend")
+    }
+
+    func testAMappedPadTogglesTheHeadphoneCue() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        var profile = ControllerProfile(name: "Test")
+        let pad = MidiAddress(type: .note, channel: 1, number: 36)
+        profile.learn(.headphoneCue(deck: .b), at: pad, transform: ValueTransform(mode: .trigger))
+
+        model.apply(MidiRouter.intent(for: MidiMessage(address: pad, value: 127),
+                                      profile: profile)!)
+        XCTAssertTrue(model.isCued(.b))
+
+        // The release must not toggle it straight back off.
+        model.apply(MidiRouter.intent(for: MidiMessage(address: pad, value: 0),
+                                      profile: profile)!)
+        XCTAssertTrue(model.isCued(.b), "a pad tap is one action, not two")
+    }
+
+    /// A continuous message on a trigger action does nothing: a knob bound to
+    /// PLAY would otherwise machine-gun the transport on every increment.
+    func testAContinuousMessageOnATriggerActionIsIgnored() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        model.apply(.setContinuous(.play(deck: .a), 1))
+        XCTAssertTrue(fake.played.isEmpty)
+    }
+
     // MARK: - Cue monitoring (§44.2a, FR-HW-3, plan 6.4)
 
     /// Cueing a deck with no mode chosen must produce audible pre-listen, not a

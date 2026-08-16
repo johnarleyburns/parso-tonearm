@@ -5,8 +5,9 @@ import GRDB
 
 final class DJSchemaTests: XCTestCase {
     func testMigrationOrderIsAppendOnly() {
-        XCTAssertEqual(DJSchema.migrationOrder, ["dj_v1", "dj_v2", "dj_v3", "dj_v4"])
-        XCTAssertEqual(DJSchema.migrator().migrations, ["dj_v1", "dj_v2", "dj_v3", "dj_v4"])
+        XCTAssertEqual(DJSchema.migrationOrder, ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5"])
+        XCTAssertEqual(DJSchema.migrator().migrations,
+                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5"])
     }
 
     func testApplyingAllMigrationsCreatesRelationalCoreTables() throws {
@@ -125,5 +126,49 @@ final class DJSchemaTests: XCTestCase {
         XCTAssertEqual(fetched["embeddingVersion"] as? Int64, 0)
         XCTAssertEqual(fetched["analysisState"] as? String, "pending")
         XCTAssertEqual(fetched["stemState"] as? String, "none")
+    }
+
+    /// dj_v5 — the hardware tables (§15, §44, FR-HW-1/2/4, plan 6.5).
+    func testV5CreatesTheHardwareTables() throws {
+        let db = try DatabaseQueue()
+        try DJSchema.migrator().migrate(db)
+        try db.read { db in
+            for table in ["audio_device", "channel_routing",
+                          "controller_profile", "midi_mapping", "midi_binding"] {
+                XCTAssertTrue(try db.tableExists(table), "dj_v5 must create \(table)")
+            }
+            XCTAssertTrue(try db.indexes(on: "midi_binding").contains { $0.name == "idx_binding_mapping" })
+            XCTAssertTrue(try db.indexes(on: "channel_routing").contains { $0.name == "idx_routing_device" })
+        }
+    }
+
+    /// A binding belongs to a mapping belongs to a profile: deleting the
+    /// profile must take the whole map with it, or a re-learned controller
+    /// inherits half of its own past.
+    func testDeletingAProfileCascadesToItsBindings() throws {
+        let db = try DatabaseQueue()
+        try DJSchema.migrator().migrate(db)
+        try db.write { db in
+            try db.execute(sql: "PRAGMA foreign_keys = ON")
+            try db.execute(sql: """
+                INSERT INTO controller_profile (syncID, name, active, createdAt)
+                VALUES ('p1', 'Test Controller', 1, datetime('now'))
+                """)
+            let profileID = db.lastInsertedRowID
+            try db.execute(sql: """
+                INSERT INTO midi_mapping (profileID, name, updatedAt)
+                VALUES (?, 'default', datetime('now'))
+                """, arguments: [profileID])
+            let mappingID = db.lastInsertedRowID
+            try db.execute(sql: """
+                INSERT INTO midi_binding (mappingID, target, messageType, channel, number, mode)
+                VALUES (?, 'xfader', 'cc', 1, 7, 'absolute')
+                """, arguments: [mappingID])
+
+            try db.execute(sql: "DELETE FROM controller_profile WHERE id = ?",
+                           arguments: [profileID])
+            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM midi_mapping"), 0)
+            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM midi_binding"), 0)
+        }
     }
 }

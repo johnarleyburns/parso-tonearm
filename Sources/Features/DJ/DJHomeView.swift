@@ -66,6 +66,12 @@ struct DJHomeView: View {
                             .accessibilityIdentifier("dj.mixes")
                     }
                 }
+                Section("Hardware") {
+                    NavigationLink(value: DJDestination.midi) {
+                        Label("MIDI controller", systemImage: "pianokeys")
+                            .accessibilityIdentifier("dj.midi")
+                    }
+                }
             }
             .navigationTitle("Platterhead DJ")
             .navigationDestination(for: DJDestination.self) { destination in
@@ -76,6 +82,8 @@ struct DJHomeView: View {
                     LibraryView()
                 case .mixes:
                     MixesView()
+                case .midi:
+                    MidiSettingsView()
                 }
             }
         }

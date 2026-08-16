@@ -31,7 +31,7 @@ final class DJEntryTests: XCTestCase {
         // Rule 1: a feature is not done until it is reachable from the app
         // root. The decks (the performance surface) and the library are the
         // DJ route table the app root binds to.
-        XCTAssertEqual(DJEntryModel.reachableDestinations, [.decks, .library, .mixes])
+        XCTAssertEqual(DJEntryModel.reachableDestinations, [.decks, .library, .mixes, .midi])
         XCTAssertTrue(DJEntryModel.reachableDestinations.contains(.decks),
                       "the performance surface must be reachable from the app root (§49.3a)")
     }

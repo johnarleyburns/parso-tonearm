@@ -316,6 +316,9 @@ public final class WorkspaceModel: ObservableObject {
     /// test nobody runs.
     private var liveness: EngineLivenessMonitor
     private var configurationChangeTask: Task<Void, Never>?
+    /// §44.4: the active controller map, and the task delivering its messages.
+    private var midiProfile: ControllerProfile?
+    private var midiTask: Task<Void, Never>?
     /// The master-clock sample position when recording started — `elapsed` is
     /// `(masterSample − start) / sampleRate`, which equals the recorded frames.
     private var recordingStartSample: Int64 = 0
@@ -523,6 +526,8 @@ public final class WorkspaceModel: ObservableObject {
         interruptionTask = nil
         configurationChangeTask?.cancel()
         configurationChangeTask = nil
+        midiTask?.cancel()
+        midiTask = nil
         drawerIdleTask?.cancel()
         drawerIdleTask = nil
         pump?.stop()
@@ -1295,6 +1300,146 @@ public final class WorkspaceModel: ObservableObject {
         case .a: channelA = gain
         case .b: channelB = gain
         }
+    }
+
+    // MARK: - MIDI (§44.4, FR-HW-1, plan 6.5)
+
+    /// The controller profile in force, and the task feeding it (§44.3).
+    ///
+    /// Attaching is explicit rather than automatic: the workspace should not
+    /// open a MIDI client just because it appeared, and a user with no
+    /// controller pays nothing for the feature existing.
+    public func attachMidi(_ hardware: HardwareService, profile: ControllerProfile) {
+        midiProfile = profile
+        midiTask?.cancel()
+        midiTask = Task { [weak self] in
+            for await message in hardware.messages {
+                guard let self, let profile = self.midiProfile else { continue }
+                // A controller must not drive a Pro-gated surface it cannot
+                // otherwise reach — the gate is checked at the intent boundary
+                // (T.3), which is exactly here.
+                guard self.isDecksEnabled else { continue }
+                guard let intent = MidiRouter.intent(
+                    for: message, profile: profile,
+                    currentValue: self.currentValue(of: profile.binding(for: message.address)?
+                        .action ?? .crossfader)) else { continue }
+                self.apply(intent)
+            }
+        }
+    }
+
+    public func detachMidi() {
+        midiTask?.cancel()
+        midiTask = nil
+        midiProfile = nil
+    }
+
+    /// Apply a routed MIDI intent.
+    ///
+    /// Every case below goes through the **same public method a finger goes
+    /// through** — `setEQKnobs`, `toggleCue`, `setCrossfader` — so a mapped
+    /// controller inherits the gesture journal, the transition recognisers and
+    /// the Pro gate for free, and cannot become a second path into the engine
+    /// that behaves subtly differently (§44.3).
+    public func apply(_ intent: MidiRouter.Intent) {
+        switch intent {
+        case .ignoredRelease:
+            return
+        case .setContinuous(let action, let value):
+            applyContinuous(action, value)
+        case .press(let action):
+            applyPress(action)
+        }
+    }
+
+    /// The current engine-side value of a continuous action — what a relative
+    /// encoder's increment is applied to.
+    public func currentValue(of action: EngineAction) -> Float {
+        switch action {
+        case .channelFader(let deck): return deck == .a ? channelA : channelB
+        case .crossfader: return crossfader
+        case .filter(let deck): return deck == .a ? filterA : filterB
+        case .eq(let deck, let band):
+            switch (deck, band) {
+            case (.a, .low): return eqALow
+            case (.a, .mid): return eqAMid
+            case (.a, .high): return eqAHigh
+            case (.b, .low): return eqBLow
+            case (.b, .mid): return eqBMid
+            case (.b, .high): return eqBHigh
+            }
+        default: return 0
+        }
+    }
+
+    private func applyContinuous(_ action: EngineAction, _ value: Float) {
+        switch action {
+        case .channelFader(let deck):
+            setChannelFader(engineDeck(deck), gain: value)
+        case .crossfader:
+            setCrossfader(value, curve: crossfaderCurve)
+        case .filter(let deck):
+            setFilter(engineDeck(deck), knob: value)
+        case .eq(let deck, let band):
+            let d = engineDeck(deck)
+            let low = deck == .a ? eqALow : eqBLow
+            let mid = deck == .a ? eqAMid : eqBMid
+            let high = deck == .a ? eqAHigh : eqBHigh
+            switch band {
+            case .low: setEQKnobs(d, low: value, mid: mid, high: high)
+            case .mid: setEQKnobs(d, low: low, mid: value, high: high)
+            case .high: setEQKnobs(d, low: low, mid: mid, high: value)
+            }
+        case .tempo(let deck):
+            // The tempo fader's engine range is ±8% (ClubGeometry), and the
+            // transform hands over a bipolar −1…1 — map, do not pass through.
+            setTempo(engineDeck(deck),
+                     fraction: Double(value) * ClubGeometry.tempoFaderRange.upperBound)
+        case .stemGain(let deck, let stem):
+            setStemGain(engineDeck(deck), stem: stem, gain: value)
+        default:
+            // A continuous message on a trigger action does nothing rather
+            // than firing on every increment — a knob bound to PLAY would
+            // otherwise machine-gun the transport.
+            return
+        }
+    }
+
+    private func applyPress(_ action: EngineAction) {
+        switch action {
+        case .play(let deck):
+            let d = engineDeck(deck)
+            (deck == .a ? telemetry.deckA.playing : telemetry.deckB.playing) ? pause(d) : play(d)
+        case .cue(let deck):
+            cue(engineDeck(deck))
+        case .sync(let deck):
+            let d = engineDeck(deck)
+            sync(d, to: d == .a ? .b : .a, barSync: true)
+        case .headphoneCue(let deck):
+            toggleCue(engineDeck(deck))
+        case .echoToggle(let deck):
+            setEchoEnabled(engineDeck(deck), enabled: !echoEnabled(engineDeck(deck)))
+        case .record:
+            toggleRecording()
+        case .loopToggle(let deck):
+            setLoop(engineDeck(deck), beats: 4)
+        case .hotCue:
+            // **Deliberately inert, and not silently so.** Hot cues have an
+            // engine path (`triggerHotCue`) and a §15 table, but nothing yet
+            // reads stored cue points into the workspace — the eight pads from
+            // 5.4 are the surface, not the storage. Firing this with a made-up
+            // sample would jump the track to zero mid-set, so the binding
+            // exists in the vocabulary (a profile can carry it) and does
+            // nothing until hot-cue storage lands. `bindableActions` leaves it
+            // out of the learn UI so nobody maps a dead pad.
+            return
+        default:
+            return
+        }
+    }
+
+    private func engineDeck(_ deck: EngineAction.DeckID) -> PerformanceEngine.Deck {
+        deck == .a ? .a : .b
     }
 
     // MARK: - Cue monitoring (§44.2a, FR-HW-3, plan 6.4)

@@ -17,6 +17,10 @@ public enum DJDestination: Hashable, Sendable {
     /// Recorded Mixes (§41.12) — **free** (FR-REC-5): finished mixes are
     /// ordinary playable items, never Pro-gated.
     case mixes
+    /// MIDI controller mapping (§44.1/44.4, FR-HW-1/2). On the route table
+    /// because §49.3a's invariant is that an unreachable surface is dead code
+    /// — a mapping screen nothing navigates to would be exactly that.
+    case midi
 }
 
 /// The DJ entry point model: the route table from the app root (§49.3a rule 1)
@@ -27,7 +31,7 @@ public final class DJEntryModel: ObservableObject {
     /// Every user-facing DJ surface, in navigation order — the §49.3a
     /// reachable set. A surface added to the milestone without landing here is
     /// dead code in the shipped binary, exactly the failure M4 shipped.
-    public static let reachableDestinations: [DJDestination] = [.decks, .library, .mixes]
+    public static let reachableDestinations: [DJDestination] = [.decks, .library, .mixes, .midi]
 
     /// The active navigation path (empty = the home). The app-side
     /// `DJHomeView` binds its `NavigationStack` to this.
