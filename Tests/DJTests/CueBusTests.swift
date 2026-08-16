@@ -161,6 +161,44 @@ final class CueBusTests: XCTestCase {
         XCTAssertEqual(reference, cuedButOff)
     }
 
+    /// **The crash the `djhw` lane found.** The cue buffers used to be sized
+    /// from `maximumFrameCount` — a *preference*. The manual pull enforces it
+    /// (which is why every offline test passed), but on a device the output
+    /// unit delivers its own granted buffer instead, routinely 256–1024 frames
+    /// against the app's requested 128. The cue path then wrote past the end of
+    /// its allocation the moment a deck was cued: memory corruption on the
+    /// audio thread, seen as the app dying one tap after CUE.
+    ///
+    /// The offline harness cannot reproduce an oversize callback — it refuses
+    /// one — so what is pinned here is the sizing rule itself, plus the render
+    /// path's own guard. The lane is what proved the crash; this is what stops
+    /// it coming back.
+    func testCueBuffersAreSizedForARealHardwareCallbackNotTheRequestedOne() throws {
+        let engine = try PerformanceEngine(configuration: .init(sampleRate: sampleRate,
+                                                                channelCount: 2,
+                                                                maximumFrameCount: 128,
+                                                                ringCapacity: 32))
+        let state = engine.graph.graphState
+        XCTAssertGreaterThanOrEqual(state.cueBuffer.count, 8192 * 2,
+                                    "the cue bus must hold any buffer the hardware can hand "
+                                    + "over, not the 128 frames the app asked for")
+        XCTAssertEqual(state.cueBuffer.count, state.cueMasterScratch.count)
+
+        // And the render path refuses rather than overruns if it ever is
+        // handed more than that.
+        try engine.start()
+        defer { engine.stop() }
+        let a = TestSource(frames: 100_000, channels: 2) { _ in 0.4 }
+        engine.load(.a, source: a.source)
+        engine.play(.a)
+        engine.setCueMode(.splitOutput)
+        engine.setHeadphoneCue(.a, enabled: true)
+        let buffer = try engine.graph.render(128)
+        let (left, right) = deinterleaved(buffer)
+        XCTAssertTrue(left.allSatisfy { $0.isFinite })
+        XCTAssertTrue(right.allSatisfy { $0.isFinite })
+    }
+
     // MARK: - Helpers
 
     private func makeStereoEngine() throws -> PerformanceEngine {

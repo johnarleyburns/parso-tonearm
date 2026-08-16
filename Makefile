@@ -28,6 +28,7 @@ test-integration:
 #   make test-ui-regression LANES=djmix                  # gates M5
 #   make test-ui-regression LANES=djmix MIX_MINUTES=20   # pre-release soak
 #   make test-ui-regression LANES=djlive                 # real Jamendo; informs only
+#   make test-ui-regression LANES=djhw                   # M6: cue, MIDI, purchase row
 # djmix keeps its recorded mix at build/ui-regression/dj/ so you can listen to it.
 LANES ?= all
 MIX_MINUTES ?= 6

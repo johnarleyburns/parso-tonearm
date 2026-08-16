@@ -103,6 +103,7 @@
 		F9FF663536834A156EF40E11 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 391DE85B4F0BACCBFDCDAF98 /* TonearmCore */; };
 		FA21DEDFD4C224853AF43150 /* WidgetArtworkStore+Save.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */; };
 		FADE01E4B305918AF925D05A /* JamendoCredentialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */; };
+		FD553DEE4B4C289B97613DCF /* DJHardwareRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB31782CBFF5776F886292E7 /* DJHardwareRegressionUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -255,6 +256,7 @@
 		B97FF4E2C42647407E4F4E0F /* ListenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenView.swift; sourceTree = "<group>"; };
 		BA10A0A38CCAEB7B37B8B008 /* ambient-ocean.mp4 */ = {isa = PBXFileReference; path = "ambient-ocean.mp4"; sourceTree = "<group>"; };
 		BB123222EE9042CA89F2CB7E /* WatchFetchOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchFetchOverlay.swift; sourceTree = "<group>"; };
+		BB31782CBFF5776F886292E7 /* DJHardwareRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJHardwareRegressionUITests.swift; sourceTree = "<group>"; };
 		BB454D89725B61725520B04A /* NowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingView.swift; sourceTree = "<group>"; };
 		BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchFixtureSeeder.swift; sourceTree = "<group>"; };
 		BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotPublisher.swift; sourceTree = "<group>"; };
@@ -456,6 +458,7 @@
 		4F40D3F081E378CA589B6C79 /* UIRegressionTests */ = {
 			isa = PBXGroup;
 			children = (
+				BB31782CBFF5776F886292E7 /* DJHardwareRegressionUITests.swift */,
 				E23D54D7D96BBFF33E8A3158 /* DJLiveMixRegressionUITests.swift */,
 				0F53F18142069FEFFAA2E2EF /* DJMixRegressionUITests.swift */,
 				EEB9AA0FA0FD051052CCF160 /* DJPerformanceDriver.swift */,
@@ -1024,6 +1027,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FD553DEE4B4C289B97613DCF /* DJHardwareRegressionUITests.swift in Sources */,
 				2F705BB32D52E4FD9F00C074 /* DJLiveMixRegressionUITests.swift in Sources */,
 				ACADB9883B99AE686E0CD3AE /* DJMixRegressionUITests.swift in Sources */,
 				79BCD50B20279F25B1863C6B /* DJPerformanceDriver.swift in Sources */,

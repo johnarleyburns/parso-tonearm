@@ -14,6 +14,7 @@
 #   make test-ui-regression LANES=remote    # one group
 #   make test-ui-regression LANES=djmix     # the DJ live-mix journey (gates M5)
 #   make test-ui-regression LANES=djlive    # the same, against real Jamendo
+#   make test-ui-regression LANES=djhw      # M6: cue, MIDI, purchase row (no recording)
 #
 # Lanes whose prerequisites are absent SKIP with a stated reason and do not fail
 # the run — a missing credential or an unreachable demo server is not a product
@@ -175,7 +176,11 @@ case "$LANES" in
   remote)     FILTER=(-only-testing:TonearmUIRegressionTests/RemoteLibraryRegressionUITests) ;;
   djmix)      FILTER=(-only-testing:TonearmUIRegressionTests/DJMixRegressionUITests); DJ_LANE=1 ;;
   djlive)     FILTER=(-only-testing:TonearmUIRegressionTests/DJLiveMixRegressionUITests); DJ_LANE=1 ;;
-  *)          echo "Usage: LANES=[all|nowplaying|playlists|remote|djmix|djlive] $0" >&2; exit 2 ;;
+  # The M6 feature lanes (plan 6.7): cue, MIDI and the purchase row, driven
+  # through the real UI. They record nothing, so they are not a DJ_LANE — there
+  # is no mix to pull or verify, and demanding one would fail every run.
+  djhw)       FILTER=(-only-testing:TonearmUIRegressionTests/DJHardwareRegressionUITests) ;;
+  *)          echo "Usage: LANES=[all|nowplaying|playlists|remote|djmix|djlive|djhw] $0" >&2; exit 2 ;;
 esac
 
 # Wipe the DJ artifacts BEFORE the run, so a rerun can never leave you auditioning

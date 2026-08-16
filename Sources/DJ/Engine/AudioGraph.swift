@@ -235,7 +235,9 @@ public final class AudioGraph: @unchecked Sendable {
     private let timePitchUnits: [TimePitchUnit]
     private let manualRenderingFormat: AVAudioFormat
     private let guardProbe: GuardActiveProbe
-    private let graphState: RenderGraphState
+    /// Internal for the tests that pin render-state invariants (the cue
+    /// buffers' sizing, which a manual pull cannot exercise — plan 6.7).
+    let graphState: RenderGraphState
     /// The driver mode this graph was constructed for (§53.11).
     private let renderingMode: AudioGraphRenderingMode
 
@@ -546,8 +548,21 @@ final class RenderGraphState: @unchecked Sendable {
         self.limiterCeiling = limiterCeiling
         self.recordTap = recordTap
         self.channelCount = channelCount
-        cueBuffer = [Float](repeating: 0, count: maximumFrameCount * max(1, channelCount))
-        cueMasterScratch = [Float](repeating: 0, count: maximumFrameCount * max(1, channelCount))
+        // **Sized for the callback the hardware actually delivers, not the one
+        // we asked for.** `maximumFrameCount` is a *preference* — in `.offline`
+        // mode it bounds the pull, but on a device the output unit hands over
+        // whatever its granted buffer is, which is routinely 256, 512 or 1024
+        // frames against the app's requested 128. The first version of this
+        // allocated the requested size and wrote past the end of it the moment
+        // a deck was cued: memory corruption on the audio thread, which the
+        // regression lane found as a dead app one tap after CUE.
+        //
+        // The generous floor plus the bounds check in `renderDecks` are belt
+        // and braces on purpose: an out-of-range write here cannot be caught
+        // later, and a silent cue is infinitely better than a corrupted heap.
+        let cueCapacity = max(maximumFrameCount, 8192) * max(1, channelCount)
+        cueBuffer = [Float](repeating: 0, count: cueCapacity)
+        cueMasterScratch = [Float](repeating: 0, count: cueCapacity)
         decks = [DeckState(sampleRate: sampleRate, channelCount: channelCount,
                            echoCapacity: echoCapacity,
                            echoCrossfadeFrames: echoCrossfadeFrames),
@@ -603,7 +618,11 @@ final class RenderGraphState: @unchecked Sendable {
         // deck is actually cued. Both conditions matter — an engaged mode with
         // nothing cued must leave the render path bit-exact, or selecting
         // "split output" in settings would silently make every mix mono.
-        let cueing = cueMode != .off && decks.contains { $0.cueEnabled }
+        // The bounds check is part of the condition: a callback larger than the
+        // cue buffer renders without cue rather than writing past its end.
+        let cueing = cueMode != .off
+            && decks.contains { $0.cueEnabled }
+            && frames * channelCount <= cueBuffer.count
         if cueing {
             for i in 0..<(frames * channelCount) { cueBuffer[i] = 0 }
         }
