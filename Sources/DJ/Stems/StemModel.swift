@@ -126,11 +126,26 @@ public protocol StemModelProviding: Sendable {
     /// The model version stamp that drives stem-cache invalidation (§36.4 —
     /// a model upgrade invalidates the cache, like `analysis_version`).
     var version: Int { get }
+    /// The rate and segment the model was trained at (S4). The separator
+    /// resamples the track to this rate **once**, chunks at this length, and
+    /// resamples the voices back — an off-by-a-few-hundred-samples drift here
+    /// shifts every stem against the full mix by milliseconds, which sounds
+    /// like "the stems are a bit weird" rather than failing.
+    var nativeSampleRate: Double { get }
+    var segmentFrames: Int { get }
     /// Whether the model is currently available (FR-SEM-6 absence).
     func isAvailable() async -> Bool
     /// Runs one fixed-length stereo chunk through the model, producing the four
     /// voices at the same length. Returns nil when the model is absent.
     func separate(chunk: StemChunk) async throws -> StemSeparation?
+}
+
+public extension StemModelProviding {
+    /// Working-rate default (S4): a model that runs at the separator's own
+    /// 48 kHz rate and 2¹⁷-frame chunk needs no resampling, so the default
+    /// implementations let every existing fake compile untouched.
+    var nativeSampleRate: Double { StemChunking.workingSampleRate }
+    var segmentFrames: Int { StemChunking.chunkFrames }
 }
 
 /// Loads the converted `DemucsStems.mlpackage` from an ODR-provided URL

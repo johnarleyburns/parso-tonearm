@@ -283,6 +283,62 @@ final class StemSeparatorTests: XCTestCase {
 
     // MARK: - Misbehaving fakes
 
+    /// A model at the real Demucs geometry (S4): 44 100 Hz, 343 980-frame
+    /// segment, 50% overlap. Passthrough, so the reconstructed voices are the
+    /// resampled signal — the separator's job is the geometry, not the audio.
+    private struct NativeDemucsModel: StemModelProviding {
+        var version: Int = AnalysisVersions.stems
+        var nativeSampleRate: Double { 44_100 }
+        var segmentFrames: Int { 343_980 }
+
+        func isAvailable() async -> Bool { true }
+
+        func separate(chunk: StemChunk) async throws -> StemSeparation? {
+            StemSeparation(sampleRate: chunk.sampleRate,
+                           vocals: chunk, drums: chunk, bass: chunk, other: chunk)
+        }
+    }
+
+    /// S4: a model that declares 44 100 / 343 980 is resampled to **once** and
+    /// chunked at its own segment with 50% overlap; the voices come back at
+    /// 48 000 with exactly the input's frame count — never a few hundred
+    /// samples of drift against the full mix.
+    func testSeparatorHandlesModelNativeGeometry() async throws {
+        let (left, right) = makeSignal(frames: 10_000, seed: 0xDEAD)
+        let pcm = PCMBuffer(sampleRate: 48_000, channels: [left, right])
+        let separator = StemSeparator(model: NativeDemucsModel())
+        XCTAssertEqual(separator.chunkFrames, 343_980,
+                       "the separator chunks at the model's segment")
+        XCTAssertEqual(separator.overlapFrames, 171_990,
+                       "50% overlap at the model's segment")
+
+        let result = try await separator.separate(pcm: pcm)
+        let separated = try XCTUnwrap(result,
+                                      "an available model never returns nil")
+        for kind in StemKind.allCases {
+            let voice = separated.voice(kind)
+            XCTAssertEqual(voice.sampleRate, 48_000,
+                           "voices return at the working rate")
+            XCTAssertEqual(voice.frameCount, left.count,
+                           "voices have exactly the input's frame count — ±0 (S4)")
+        }
+    }
+
+    /// S4: the working-rate default geometry is unchanged — a model with no
+    /// declared native rate is chunked at the separator's own geometry and no
+    /// resampling happens at all.
+    func testSeparatorWorkingRateGeometryIsUntouched() async throws {
+        let (left, right) = makeSignal(frames: 4096, seed: 0x5EED)
+        let pcm = PCMBuffer(sampleRate: 48_000, channels: [left, right])
+        let separator = StemSeparator(model: PassthroughStemModel())
+        XCTAssertEqual(separator.chunkFrames, StemChunking.chunkFrames)
+        XCTAssertEqual(separator.overlapFrames, StemChunking.overlapFrames)
+        let result = try await separator.separate(pcm: pcm)
+        let separated = try XCTUnwrap(result)
+        XCTAssertEqual(separated.vocals.sampleRate, 48_000)
+        XCTAssertEqual(separated.vocals.frameCount, left.count)
+    }
+
     private struct TruncatingStemModel: StemModelProviding {
         var version: Int = AnalysisVersions.stems
         func isAvailable() async -> Bool { true }

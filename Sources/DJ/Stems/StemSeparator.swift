@@ -1,5 +1,6 @@
 import Foundation
 import Accelerate
+import AVFoundation
 
 // MARK: - Chunk / overlap-add kernel (§36.2, plan decision 1)
 
@@ -140,6 +141,10 @@ public enum StemSeparatorError: Error, LocalizedError, Equatable {
     /// The model reported available but stopped producing output mid-run —
     /// loud, never a silent partial result (ADR-10).
     case modelUnavailableDuringSeparation
+    /// Resampling the voices back to the working rate did not reproduce the
+    /// input's frame count — an off-by-a-few-hundred-samples drift here would
+    /// shift every stem against the full mix by milliseconds (S4).
+    case resampledVoiceLengthMismatch(expected: Int, got: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -148,7 +153,69 @@ public enum StemSeparatorError: Error, LocalizedError, Equatable {
             return "The stem model returned a voice of the wrong length"
         case .modelUnavailableDuringSeparation:
             return "The stem model became unavailable during separation"
+        case .resampledVoiceLengthMismatch(let expected, let got):
+            return "A separated voice came back \(got) frames long, expected \(expected)"
         }
+    }
+}
+
+/// Resamples stereo PCM to a target rate (S4) with `AVAudioConverter` — the
+/// same mechanism `AudioDecoder` uses, once per track at the separator, not
+/// per chunk. The round trip through the model's native rate is exact
+/// (measured: back to the working rate reproduces the input's frame count).
+enum StemResampler {
+    static func resample(left: [Float], right: [Float],
+                         from: Double, to: Double) throws -> (left: [Float], right: [Float]) {
+        (left: try resampleChannel(left, from: from, to: to),
+         right: try resampleChannel(right, from: from, to: to))
+    }
+
+    private static func resampleChannel(_ input: [Float], from: Double, to: Double) throws -> [Float] {
+        guard let source = AVAudioFormat(commonFormat: .pcmFormatFloat32,
+                                         sampleRate: from, channels: 1, interleaved: false),
+              let target = AVAudioFormat(commonFormat: .pcmFormatFloat32,
+                                         sampleRate: to, channels: 1, interleaved: false),
+              let converter = AVAudioConverter(from: source, to: target) else {
+            throw StemSeparatorError.resampledVoiceLengthMismatch(expected: input.count, got: 0)
+        }
+        let inBuffer = AVAudioPCMBuffer(pcmFormat: source,
+                                        frameCapacity: AVAudioFrameCount(input.count))!
+        inBuffer.frameLength = AVAudioFrameCount(input.count)
+        input.withUnsafeBufferPointer { src in
+            inBuffer.floatChannelData![0].update(from: src.baseAddress!, count: input.count)
+        }
+        final class InputState: @unchecked Sendable {
+            let buffer: AVAudioPCMBuffer
+            var done = false
+            init(buffer: AVAudioPCMBuffer) { self.buffer = buffer }
+        }
+        let state = InputState(buffer: inBuffer)
+        let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
+            if state.done {
+                outStatus.pointee = .endOfStream
+                return nil
+            }
+            state.done = true
+            outStatus.pointee = .haveData
+            return state.buffer
+        }
+        var output = [Float]()
+        let outBuffer = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: 65_536)!
+        while true {
+            outBuffer.frameLength = 0
+            var error: NSError?
+            let status = converter.convert(to: outBuffer, error: &error,
+                                           withInputFrom: inputBlock)
+            if outBuffer.frameLength > 0, let data = outBuffer.floatChannelData {
+                let buffer = UnsafeBufferPointer(start: data[0],
+                                                 count: Int(outBuffer.frameLength))
+                output.append(contentsOf: buffer)
+            }
+            if status == .endOfStream { break }
+            if status == .error { throw StemSeparatorError.resampledVoiceLengthMismatch(expected: input.count, got: output.count) }
+            if status == .haveData && outBuffer.frameLength == 0 { break }
+        }
+        return output
     }
 }
 
@@ -156,6 +223,13 @@ public enum StemSeparatorError: Error, LocalizedError, Equatable {
 /// chunk/overlap-add pipeline: slice → model → window → overlap-add → the four
 /// full-length voices. Returns nil when the model is absent — the honest
 /// FR-SEM-6 absence; the deck plays the full mix (FR-ENG-3, §36.5).
+///
+/// The chunk geometry is the **model's** (S4): a model that declares a native
+/// sample rate and segment (the real Demucs runs 44 100 Hz / 343 980 frames)
+/// is resampled to once per track and chunked at its own segment with 50%
+/// overlap; a working-rate model (48 kHz, the 2¹⁷-frame default) runs at the
+/// separator's own geometry. Voices are resampled back to the working rate
+/// once, so `StemCache`/`StemVoices`/the deck reader stay untouched.
 public struct StemSeparator: Sendable {
     public let model: any StemModelProviding
     public let chunkFrames: Int
@@ -163,30 +237,64 @@ public struct StemSeparator: Sendable {
 
     public var hopFrames: Int { chunkFrames - overlapFrames }
 
-    public init(model: any StemModelProviding,
-                chunkFrames: Int = StemChunking.chunkFrames,
-                overlapFrames: Int = StemChunking.overlapFrames) {
+    /// Chunk at the model's native geometry (S4): `segmentFrames` with 50%
+    /// overlap. The working-rate defaults make this identical to the explicit
+    /// initialiser for a model that declares no native rate.
+    public init(model: any StemModelProviding) {
         self.model = model
-        self.chunkFrames = chunkFrames
-        self.overlapFrames = overlapFrames
+        self.chunkFrames = model.segmentFrames
+        self.overlapFrames = model.segmentFrames / 2
+    }
+
+    /// Explicit chunk geometry — the working-rate path the reconstruction
+    /// golden tests drive. `overlapFrames` defaults to 50% of the chunk.
+    public init(model: any StemModelProviding,
+                chunkFrames: Int? = nil,
+                overlapFrames: Int? = nil) {
+        self.model = model
+        if let chunkFrames {
+            self.chunkFrames = chunkFrames
+            self.overlapFrames = overlapFrames ?? chunkFrames / 2
+        } else {
+            self.chunkFrames = model.segmentFrames
+            self.overlapFrames = model.segmentFrames / 2
+        }
     }
 
     /// Separate a decoded track into its four voices. The input is the canonical
-    /// `PCMBuffer` (§19.2); mono sources are duplicated into L/R.
+    /// `PCMBuffer` (§19.2); mono sources are duplicated into L/R. The track is
+    /// resampled to the model's native rate **once**, chunked at the model's
+    /// segment with 50% overlap, and the voices resampled back to the input
+    /// rate once (S4) — the round-trip length is asserted exact.
     public func separate(pcm: PCMBuffer) async throws -> StemSeparation? {
         guard await model.isAvailable() else { return nil }
-        let frameCount = pcm.frameCount
-        guard frameCount > 0 else { throw StemSeparatorError.emptyInput }
+        let inputFrames = pcm.frameCount
+        guard inputFrames > 0 else { throw StemSeparatorError.emptyInput }
 
         let left = pcm.channels[0]
         let right = pcm.channelCount > 1 ? pcm.channels[1] : pcm.channels[0]
+
+        // Resample once to the model's native rate; the working-rate path is a
+        // no-op (S4). The voice channels are copied into arrays either way so
+        // the rest of the pipeline has owned buffers.
+        let nativeRate = model.nativeSampleRate
+        let nativeL: [Float]
+        let nativeR: [Float]
+        if abs(pcm.sampleRate - nativeRate) < 0.001 {
+            nativeL = Array(left)
+            nativeR = Array(right)
+        } else {
+            (nativeL, nativeR) = try StemResampler.resample(
+                left: Array(left), right: Array(right),
+                from: pcm.sampleRate, to: nativeRate)
+        }
+        let frameCount = nativeL.count
         let hop = hopFrames
         let window = StemChunking.window(chunkFrames)
 
         // Eight full-length output buffers, allocated **once**. Each chunk is
         // windowed and added into place as it returns from the model (S3), so
-        // peak extra memory is one chunk, not ~2× the track × 8 channels —
-        // the ~900 MB accumulation the old `[[Float]]` per-voice arrays held.
+        // peak extra memory is one chunk, not ~2× the track × 8 channels.
         var vocalsL = [Float](repeating: 0, count: frameCount)
         var vocalsR = [Float](repeating: 0, count: frameCount)
         var drumsL = [Float](repeating: 0, count: frameCount)
@@ -202,14 +310,18 @@ public struct StemSeparator: Sendable {
             var chunkLeft = [Float](repeating: 0, count: chunkFrames)
             var chunkRight = [Float](repeating: 0, count: chunkFrames)
             chunkLeft.withUnsafeMutableBufferPointer { p in
-                p.baseAddress!.update(from: left.baseAddress!.advanced(by: offset), count: count)
+                nativeL.withUnsafeBufferPointer { nl in
+                    p.baseAddress!.update(from: nl.baseAddress!.advanced(by: offset), count: count)
+                }
             }
             chunkRight.withUnsafeMutableBufferPointer { p in
-                p.baseAddress!.update(from: right.baseAddress!.advanced(by: offset), count: count)
+                nativeR.withUnsafeBufferPointer { nr in
+                    p.baseAddress!.update(from: nr.baseAddress!.advanced(by: offset), count: count)
+                }
             }
 
             guard let result = try await model.separate(
-                chunk: StemChunk(sampleRate: pcm.sampleRate,
+                chunk: StemChunk(sampleRate: nativeRate,
                                  left: chunkLeft, right: chunkRight))
             else {
                 throw StemSeparatorError.modelUnavailableDuringSeparation
@@ -222,8 +334,7 @@ public struct StemSeparator: Sendable {
             }
 
             // Window and overlap-add each voice into its pre-allocated buffer
-            // immediately — the streaming kernel (S3), identical to the
-            // accumulating `overlapAdd` the golden reconstruction test locks.
+            // immediately — the streaming kernel (S3).
             StemChunking.overlapAddInto(&vocalsL, chunk: result.vocals.left, window: window, offset: offset)
             StemChunking.overlapAddInto(&vocalsR, chunk: result.vocals.right, window: window, offset: offset)
             StemChunking.overlapAddInto(&drumsL, chunk: result.drums.left, window: window, offset: offset)
@@ -236,14 +347,25 @@ public struct StemSeparator: Sendable {
             offset += hop
         }
 
+        func back(_ l: [Float], _ r: [Float]) throws -> StemChunk {
+            let (lOut, rOut): ([Float], [Float])
+            if abs(nativeRate - pcm.sampleRate) < 0.001 {
+                lOut = l; rOut = r
+            } else {
+                (lOut, rOut) = try StemResampler.resample(left: l, right: r,
+                                                          from: nativeRate, to: pcm.sampleRate)
+            }
+            guard lOut.count == inputFrames, rOut.count == inputFrames else {
+                throw StemSeparatorError.resampledVoiceLengthMismatch(
+                    expected: inputFrames, got: lOut.count)
+            }
+            return StemChunk(sampleRate: pcm.sampleRate, left: lOut, right: rOut)
+        }
+
         return StemSeparation(sampleRate: pcm.sampleRate,
-                              vocals: StemChunk(sampleRate: pcm.sampleRate,
-                                                left: vocalsL, right: vocalsR),
-                              drums: StemChunk(sampleRate: pcm.sampleRate,
-                                               left: drumsL, right: drumsR),
-                              bass: StemChunk(sampleRate: pcm.sampleRate,
-                                              left: bassL, right: bassR),
-                              other: StemChunk(sampleRate: pcm.sampleRate,
-                                               left: otherL, right: otherR))
+                              vocals: try back(vocalsL, vocalsR),
+                              drums: try back(drumsL, drumsR),
+                              bass: try back(bassL, bassR),
+                              other: try back(otherL, otherR))
     }
 }
