@@ -129,6 +129,42 @@ final class MemoryCeilingTests: XCTestCase {
         XCTAssertEqual(monitor.shedOrder,
                        [.waveformLODs, .nonFocusedDeckStemTails, .onDemandSeparation, .analysis])
     }
+
+    // MARK: - S7: the stems honest ceiling
+
+    /// The projected working set (weights + per-segment buffers, plan S7) fits
+    /// every current device class with a conservative 60% ceiling reserve —
+    /// the honest "available" for the shipped classes.
+    func testProjectedStemsWorkingSetFitsEveryCurrentDeviceClass() {
+        XCTAssertEqual(MemoryCeiling.stemsModelWorkingSetBytes, 234_000_000,
+                       "168 MB weights + 11 + 44 + 11 MB per-segment buffers")
+        for deviceClass in [MemoryCeiling.DeviceClass.iphone6GB,
+                            .iphone8GB, .ipad, .other] {
+            XCTAssertTrue(MemoryCeiling.stemsFitInCeiling(deviceClass: deviceClass),
+                          "\(deviceClass) fits the projected working set inside its ceiling")
+        }
+    }
+
+    /// The decision is honest in the other direction: a class that cannot hold
+    /// the working set reports stems unavailable — the boundary, and the whole
+    /// reason the check exists (never ship a model that gets shed mid-set).
+    func testCeilingTooSmallReportsStemsUnavailable() {
+        // 1.0 GB iPhone ceiling, 60% reserve → 400 MB headroom; a 600 MB
+        // working set (e.g. a future heavier model) does not fit.
+        XCTAssertFalse(MemoryCeiling.stemsFitInCeiling(deviceClass: .iphone6GB,
+                                                      workingSetBytes: 600_000_000))
+        // Exactly at the headroom boundary fits.
+        XCTAssertTrue(MemoryCeiling.stemsFitInCeiling(deviceClass: .iphone6GB,
+                                                      workingSetBytes: 400_000_000))
+        XCTAssertFalse(MemoryCeiling.stemsFitInCeiling(deviceClass: .iphone6GB,
+                                                      workingSetBytes: 400_000_001))
+    }
+
+    /// `other` (the host / test) has no hard ceiling and always fits.
+    func testNoCeilingClassAlwaysFitsStems() {
+        XCTAssertTrue(MemoryCeiling.stemsFitInCeiling(deviceClass: .other,
+                                                      workingSetBytes: .max))
+    }
 }
 
 /// A deterministic `task_vm_info` stand-in: returns a canned footprint (or

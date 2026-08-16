@@ -179,6 +179,15 @@ public actor DemucsStemModel: StemModelProviding {
     }
 
     public func isAvailable() async -> Bool {
+        // S7 honest ceiling: a device class that cannot hold the model's
+        // working set inside its memory ceiling reports stems unavailable —
+        // the already-tested honest-absence path (full mix, disabled faders),
+        // never a model that gets shed mid-set.
+        guard MemoryCeiling.stemsFitInCeiling(
+            deviceClass: MemoryCeiling.deviceClass(
+                totalRAMBytes: ProcessInfo.processInfo.physicalMemory)) else {
+            return false
+        }
         guard let url = await resourceURL() else { return false }
         return FileManager.default.fileExists(atPath: url.path)
     }

@@ -87,6 +87,30 @@ public enum MemoryCeiling {
         /// The normative order, low to high shed priority.
         public static let normativeOrder: [ShedOrder] = allCases
     }
+
+    // MARK: - The stems honest ceiling (S7)
+
+    /// The Demucs model's per-segment working set (plan S7): model weights
+    /// ~168 MB (FP32) + the per-segment buffers — `mag` 11 MB, `spec` 44 MB,
+    /// `waveform` 11 MB. The projection that decides availability **now**;
+    /// the on-device measurement (segments/second, real peak footprint) is a
+    /// user-owned pass and lands in `current_status.md`.
+    public static let stemsModelWorkingSetBytes: UInt64 = 234_000_000
+
+    /// The honest S7 decision: can a device class hold the model's working set
+    /// *alongside* the rest of the app during a performance? `ceilingReserve`
+    /// is the non-stem footprint (decks, waveforms, the audio graph),
+    /// conservatively a fraction of the ceiling. A class that cannot fit
+    /// **reports stems unavailable** — the already-tested honest-absence
+    /// state, never a model that gets shed mid-set (§8.1, plan S7).
+    public static func stemsFitInCeiling(deviceClass: DeviceClass,
+                                         workingSetBytes: UInt64 = stemsModelWorkingSetBytes,
+                                         ceilingReserveFraction: Double = 0.6) -> Bool {
+        let ceiling = ceilingBytes(for: deviceClass)
+        guard ceiling != .max else { return true }
+        let headroom = Double(ceiling) * (1 - ceilingReserveFraction)
+        return Double(workingSetBytes) <= headroom
+    }
 }
 
 /// The footprint read seam — a `task_vm_info.phys_footprint` probe. Tests
