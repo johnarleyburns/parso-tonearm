@@ -23,6 +23,7 @@
 		23DB81AAAF14CD685C279F8F /* mel_filterbank_slaney_64.bin in Resources */ = {isa = PBXBuildFile; fileRef = 39DCFD0118F0838F83219F22 /* mel_filterbank_slaney_64.bin */; };
 		258615352F9FC8B6D84BA3FC /* GlassSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0EA57A9A9BC3350FCC805C /* GlassSurface.swift */; };
 		270849FD1C2B861CB7D22A4E /* ambient-ocean.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = BA10A0A38CCAEB7B37B8B008 /* ambient-ocean.mp4 */; };
+		29522115BA049E012FBD14D8 /* DemucsStems.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = C2E864A5E5944F80ADE5A869 /* DemucsStems.mlpackage */; settings = {ASSET_TAGS = ("demucs-stems", ); }; };
 		2A74A418509060190D7BF44F /* ambient-rain.wav in Resources */ = {isa = PBXBuildFile; fileRef = E38CB1BF7D38667CEFEBA735 /* ambient-rain.wav */; };
 		2AF3605F104466A0A619CC31 /* OAuthClientConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD37144613B3E4468ED3D2 /* OAuthClientConfiguration.swift */; };
 		2B12111CBDF1D49C39714944 /* ListenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97FF4E2C42647407E4F4E0F /* ListenView.swift */; };
@@ -261,6 +262,7 @@
 		BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchFixtureSeeder.swift; sourceTree = "<group>"; };
 		BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotPublisher.swift; sourceTree = "<group>"; };
 		C114ED8EAE6B45F219A551DA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C2E864A5E5944F80ADE5A869 /* DemucsStems.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DemucsStems.mlpackage; path = Resources/Models/DemucsStems.mlpackage; sourceTree = SOURCE_ROOT; };
 		CDA5510BE764F39731C1901D /* Tonearm.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tonearm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CEB1F70B1E36FCA6BCADAB6B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CF21CDA1D35FD0F742088DF3 /* AddServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddServerSheet.swift; sourceTree = "<group>"; };
@@ -615,6 +617,7 @@
 			children = (
 				538CEFDC4FA0F1BE2B051F4F /* CLAPAudioEncoder.mlpackage */,
 				337A303240BEF94DD0F0C34B /* CLAPTextEncoder.mlpackage */,
+				C2E864A5E5944F80ADE5A869 /* DemucsStems.mlpackage */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -860,6 +863,7 @@
 				knownAssetTags = (
 					"clap-audio",
 					"clap-text",
+					"demucs-stems",
 				);
 			};
 			buildConfigurationList = 3D0A5A8C107383589F908E23 /* Build configuration list for PBXProject "Tonearm" */;
@@ -899,6 +903,7 @@
 				152F9F90A86DAD934384AA5E /* Assets.xcassets in Resources */,
 				D9C1ADE0F0B4D3D996F132A2 /* CLAPAudioEncoder.mlpackage in Resources */,
 				1478A167A7B83B1158DA49A8 /* CLAPTextEncoder.mlpackage in Resources */,
+				29522115BA049E012FBD14D8 /* DemucsStems.mlpackage in Resources */,
 				2BDD7EA40A22BF33622364F5 /* Tonearm.storekit in Resources */,
 				19D3B7BFDB92E43C1DF0BB38 /* ambient-flowing-water.mp4 in Resources */,
 				04AB1C915EDC9668DB183B57 /* ambient-flowing-water.wav in Resources */,

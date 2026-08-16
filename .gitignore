@@ -95,3 +95,6 @@ __pycache__/
 # ~168 MB FP32 model and ~200 MB torch reference tensors; never committed.
 tools/demucs-coreml/*.mlpackage
 tools/demucs-coreml/reference.pt
+# The ODR copy the app embeds (Resources/Models/), named for the tag. The
+# converted HTDemucsCore.mlpackage is copied here to build; never committed.
+Resources/Models/DemucsStems.mlpackage

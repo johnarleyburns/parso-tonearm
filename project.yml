@@ -65,6 +65,11 @@ targets:
         buildPhase: resources
         resourceTags:
           - clap-text
+      - path: Resources/Models/DemucsStems.mlpackage
+        type: folder
+        buildPhase: resources
+        resourceTags:
+          - demucs-stems
     dependencies:
       - package: TonearmCore
       - package: TonearmCore
