@@ -106,8 +106,18 @@ public final class ProStore: ObservableObject {
         return true
     }
 
-    /// Formatted one-time price for display, falling back to the mockup price.
+    /// StoreKit's own localised price, or a placeholder until it answers.
+    ///
+    /// It used to fall back to `"$7.99"` — the *old player's* mockup price,
+    /// which since M4's decision 1 is not even this product's price. Inventing
+    /// a number here means showing one price and charging another the moment
+    /// the store is slow, offline, or in any storefront but the US.
     public var displayPrice: String {
-        product?.displayPrice ?? "$7.99"
+        product?.displayPrice ?? "—"
     }
+
+    /// Whether the App Store is offering the product right now (see
+    /// `StoreProduct`): false is an honest "not available", never a reason to
+    /// show a Buy button that cannot work.
+    public var isPurchaseAvailable: Bool { product != nil }
 }

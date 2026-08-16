@@ -36,11 +36,36 @@ protocol EntitlementSource: Sendable {
     func purchase() async -> Bool
     /// App Store account sync — the restore flow (FR-STORE-3).
     func restore() async
+    /// The product as the **App Store** describes it, or nil when the store
+    /// cannot answer. See `StoreProduct` for why this is not a constant.
+    func loadProduct() async -> StoreProduct?
 }
 
 extension EntitlementSource {
     func purchase() async -> Bool { false }
     func restore() async {}
+    func loadProduct() async -> StoreProduct? { nil }
+}
+
+/// The product, reduced to what a paywall may display (T.3: the paywall never
+/// imports StoreKit, so the price crosses this boundary as a string).
+///
+/// **The price MUST come from StoreKit, never from a constant.** It is
+/// localised — currency, symbol placement, tax-inclusive display — and it is
+/// whatever App Store Connect currently says, including an introductory or
+/// changed price. A hardcoded "$39.99" is wrong for every non-US storefront on
+/// the day it ships, and wrong everywhere the moment the price changes; showing
+/// a price that is not the price the user is charged is the kind of defect that
+/// costs a release, not a bug report.
+public struct StoreProduct: Equatable, Sendable {
+    /// Already localised and currency-formatted by StoreKit.
+    public let displayPrice: String
+    public let displayName: String
+
+    public init(displayPrice: String, displayName: String) {
+        self.displayPrice = displayPrice
+        self.displayName = displayName
+    }
 }
 
 /// StoreKit 2-backed source. Verification is `Transaction.currentEntitlements`
@@ -92,6 +117,22 @@ struct StoreKitEntitlementSource: EntitlementSource {
     /// install) restores without an account or a support ticket (FR-STORE-3).
     func restore() async {
         try? await AppStore.sync()
+    }
+
+    /// Ask the App Store what this product is and costs, right now.
+    ///
+    /// Returning nil is meaningful and must not be flattened into a default:
+    /// it means the store could not answer — the product is not configured or
+    /// not yet approved in App Store Connect, the device is offline, or the
+    /// storefront does not carry it. A paywall that hides that behind a
+    /// hardcoded price offers a Buy button that cannot work and blames the
+    /// user's tap for it.
+    func loadProduct() async -> StoreProduct? {
+        guard let product = try? await Product.products(for: [FoundersGrant.productID]).first else {
+            return nil
+        }
+        return StoreProduct(displayPrice: product.displayPrice,
+                            displayName: product.displayName)
     }
 }
 
@@ -174,12 +215,42 @@ public final class EntitlementStore: ObservableObject {
     @Published public private(set) var isPro: Bool
     @Published public private(set) var source: Source
 
+    /// What the App Store says this product is and costs, once asked
+    /// (`loadProduct()`), or nil when it could not answer.
+    ///
+    /// `nil` is the honest "the store is not offering this right now" state —
+    /// an unconfigured or unapproved App Store Connect product, an offline
+    /// device, an unsupported storefront — and the paywall renders it as such
+    /// rather than showing a price it made up. This is the D-9 lesson (an
+    /// unconfigured build is an honest unavailable state, never a plausible
+    /// fiction) applied to money.
+    @Published public private(set) var product: StoreProduct?
+    /// True once a product load has been attempted, so the paywall can tell
+    /// "not asked yet" from "asked, and the store said no".
+    @Published public private(set) var didAttemptProductLoad = false
+
     public enum Source: String, Codable, Sendable {
         case none
         case purchased        // bought guru.parso.tonearm.pro
         case foundersGrant    // legacy cache row; the retired product no longer exists (M4 decision 1)
         case familyShared     // Family Sharing from another member's purchase
         case builtFromSource  // GPL build; see T.6
+
+        /// How the grant is described to the person who has it.
+        ///
+        /// The app phones nothing home (NFR-PRIV-2), so when a purchase goes
+        /// wrong the only diagnostic anyone has is what this row says. "Family
+        /// Sharing" and "Purchased" being distinguishable is the difference
+        /// between a solved support question and a guess.
+        public var displayName: String {
+            switch self {
+            case .none: return "Not purchased"
+            case .purchased: return "Purchased"
+            case .foundersGrant: return "Founders grant"
+            case .familyShared: return "Family Sharing"
+            case .builtFromSource: return "Built from source"
+            }
+        }
     }
 
     private let entitlementSource: any EntitlementSource
@@ -216,6 +287,21 @@ public final class EntitlementStore: ObservableObject {
             }
         }
         Task { [weak self] in await self?.refresh() }
+        Task { [weak self] in await self?.refreshProduct() }
+    }
+
+    /// Ask the store what the product costs. Safe to call repeatedly — the
+    /// paywall calls it on appear so a user who was offline when the app
+    /// launched still gets a real price when they open it.
+    public func refreshProduct() async {
+        let loaded = await entitlementSource.loadProduct()
+        didAttemptProductLoad = true
+        // A failed load never clears a price we already have: the store being
+        // unreachable now does not make the price it gave us a minute ago
+        // wrong, and blanking the sheet mid-purchase would be worse than
+        // showing the last known figure (the same reasoning as T.2 rule 3's
+        // "a failed verification never revokes").
+        if let loaded { product = loaded }
     }
 
     /// Re-checks `Transaction.currentEntitlements` and re-derives the grant.

@@ -47,6 +47,10 @@ public struct PaywallView: View {
             .padding(16)
         }
         .interactiveDismissDisabled(model.isPurchasing)
+        // Ask the store for the real, localised price when the sheet appears —
+        // a user who launched offline still gets a true number here rather than
+        // whatever the app last guessed.
+        .task { await model.loadProduct() }
     }
 
     // MARK: - Sections
@@ -175,32 +179,56 @@ public struct PaywallView: View {
 
     private var actionRow: some View {
         VStack(spacing: 10) {
-            Button {
-                Task { await model.purchase() }
-            } label: {
-                HStack(spacing: 8) {
-                    if model.isPurchasing {
-                        ProgressView().controlSize(.small)
-                    }
-                    Text(model.isPurchasing ? "Purchasing…" : "Buy Platterhead DJ · \(model.displayPrice)")
+            // The store could not answer: say so plainly instead of offering a
+            // Buy button that cannot work. On a fresh TestFlight build whose
+            // App Store Connect product is missing or unapproved, this is the
+            // first thing a tester meets — and "Purchases aren't available"
+            // sends them to us, while a failing Buy button sends them looking
+            // for what they did wrong.
+            if model.isStoreUnavailable {
+                VStack(spacing: 6) {
+                    Text("Purchases aren’t available right now")
                         .font(.system(size: 15, weight: .bold))
-                        .frame(maxWidth: .infinity)
+                    Text("The App Store didn’t offer this product on this device. "
+                         + "Check your connection and try again — nothing has been charged.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
-                .frame(height: 52)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .accessibilityIdentifier("dj.paywall.unavailable")
+            } else {
+                Button {
+                    Task { await model.purchase() }
+                } label: {
+                    HStack(spacing: 8) {
+                        if model.isPurchasing {
+                            ProgressView().controlSize(.small)
+                        }
+                        Text(model.isPurchasing ? "Purchasing…"
+                             : "Buy Platterhead DJ · \(model.displayPrice)")
+                            .font(.system(size: 15, weight: .bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .frame(height: 52)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(model.isPurchasing || !model.isPurchaseAvailable)
+                .accessibilityIdentifier("dj.paywall.buy")
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(model.isPurchasing)
 
             Button {
                 Task { await model.restore() }
             } label: {
-                Text("Restore purchase")
+                Text(model.isRestoring ? "Restoring…" : "Restore purchase")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
             }
-            .disabled(model.isPurchasing)
+            .disabled(model.isPurchasing || model.isRestoring)
+            .accessibilityIdentifier("dj.paywall.restore")
 
             if let error = model.lastError {
                 Text(error)

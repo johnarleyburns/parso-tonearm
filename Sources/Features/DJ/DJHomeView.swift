@@ -11,10 +11,45 @@ import TonearmDJ
 /// from the chip (FR-STORE-5).
 struct DJHomeView: View {
     @StateObject private var entry = DJEntryModel()
+    @ObservedObject private var entitlements = EntitlementStore.shared
+    @State private var isRestoring = false
 
     var body: some View {
         NavigationStack(path: $entry.path) {
             List {
+                // What the app believes about this purchase, and the one action
+                // that fixes it being wrong (FR-STORE-3). No analytics — the
+                // app sends nothing anywhere (NFR-PRIV-2) — so the way a tester
+                // reports a purchase problem is by reading this row, which
+                // means it has to state the *source* of the grant and not just
+                // a checkmark.
+                Section("Purchase") {
+                    HStack {
+                        Label(entitlements.isPro ? "Platterhead DJ · unlocked" : "Free tier",
+                              systemImage: entitlements.isPro ? "checkmark.seal.fill" : "lock")
+                        Spacer()
+                        Text(entitlements.source.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityIdentifier("dj.purchase.status")
+                    .accessibilityLabel(entitlements.isPro
+                                        ? "Unlocked, \(entitlements.source.displayName)"
+                                        : "Free tier")
+                    if !entitlements.isPro {
+                        Button {
+                            isRestoring = true
+                            Task {
+                                await entitlements.restore()
+                                isRestoring = false
+                            }
+                        } label: {
+                            Text(isRestoring ? "Restoring…" : "Restore purchase")
+                        }
+                        .disabled(isRestoring)
+                        .accessibilityIdentifier("dj.purchase.restore")
+                    }
+                }
                 Section("Perform") {
                     NavigationLink(value: DJDestination.decks) {
                         Label("Open the decks", systemImage: "slider.horizontal.3")

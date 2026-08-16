@@ -104,11 +104,84 @@ final class PaywallModelTests: XCTestCase {
         XCTAssertTrue(model.isPresented)
     }
 
-    // §41.16: the one-time price is pinned to Resources/Tonearm.storekit's
-    // single product ($39.99).
-    func testDisplayPriceIsPinned() {
-        XCTAssertEqual(PaywallModel.displayPrice, "$39.99")
-        XCTAssertEqual(PaywallModel(store: makeStore(isPro: false)).displayPrice, "$39.99")
+    // MARK: - The price is the store's, never ours (plan 6.2)
+
+    /// The price shown is the one StoreKit gives, localised — not a constant.
+    /// The old test pinned it to "$39.99", which is wrong in every storefront
+    /// that does not use dollars and wrong everywhere the moment the price in
+    /// App Store Connect changes.
+    func testDisplayPriceComesFromTheStore() async {
+        let store = makeStore(source: FakeSource(
+            current: [],
+            storeProduct: StoreProduct(displayPrice: "¥5,800", displayName: "Platterhead DJ")))
+        let model = PaywallModel(store: store)
+
+        XCTAssertEqual(model.displayPrice, PaywallModel.placeholderPrice,
+                       "before the store answers there is no price to show — and none is invented")
+
+        await model.loadProduct()
+        XCTAssertEqual(model.displayPrice, "¥5,800",
+                       "the localised price StoreKit returned, verbatim")
+        XCTAssertTrue(model.isPurchaseAvailable)
+        XCTAssertFalse(model.isStoreUnavailable)
+    }
+
+    /// The case a TestFlight tester meets when App Store Connect is not
+    /// configured: the store answers with nothing. The sheet must say so and
+    /// must not offer a Buy button that cannot work.
+    func testAnUnavailableStoreIsHonestAndOffersNoBuyButton() async {
+        let store = makeStore(source: FakeSource(current: [], storeProduct: nil))
+        let model = PaywallModel(store: store)
+
+        XCTAssertFalse(model.isStoreUnavailable, "not yet asked is not the same as unavailable")
+
+        await model.loadProduct()
+        XCTAssertTrue(model.isStoreUnavailable)
+        XCTAssertFalse(model.isPurchaseAvailable,
+                       "no product means no Buy button — the view renders the honest state instead")
+        XCTAssertEqual(model.displayPrice, PaywallModel.placeholderPrice)
+    }
+
+    /// A failed load never blanks a price already obtained: the store being
+    /// unreachable now does not make the figure it gave a minute ago wrong.
+    func testAFailedReloadKeepsTheKnownPrice() async {
+        let store = makeStore(source: FakeSource(
+            current: [],
+            storeProduct: StoreProduct(displayPrice: "$24.99", displayName: "Platterhead DJ")))
+        let model = PaywallModel(store: store)
+        await model.loadProduct()
+        XCTAssertEqual(model.displayPrice, "$24.99")
+
+        // The same store, now unable to answer (offline).
+        let offline = makeStore(source: FakeSource(current: [], storeProduct: nil))
+        let offlineModel = PaywallModel(store: offline)
+        await offlineModel.loadProduct()
+        XCTAssertEqual(offlineModel.displayPrice, PaywallModel.placeholderPrice,
+                       "…but one that never had a price shows none, rather than a guess")
+    }
+
+    /// FR-STORE-3: a restore that finds nothing has to say so. Silence is
+    /// indistinguishable from a broken button, and the user's next move is to
+    /// buy something they may already own.
+    func testARestoreThatFindsNothingSaysSo() async {
+        let store = makeStore(source: FakeSource(current: [], grantOnRestore: false))
+        let model = PaywallModel(store: store)
+        await model.restore()
+
+        XCTAssertFalse(model.isPro)
+        XCTAssertEqual(model.lastError, "No previous purchase was found on this Apple Account.")
+        XCTAssertFalse(model.isRestoring, "the flag clears however the restore ended")
+    }
+
+    func testASuccessfulRestoreUnlocksAndSaysNothingAlarming() async {
+        let store = makeStore(source: FakeSource(current: [], grantOnRestore: true))
+        let model = PaywallModel(store: store)
+        model.present()
+        await model.restore()
+
+        XCTAssertTrue(model.isPro)
+        XCTAssertNil(model.lastError)
+        XCTAssertFalse(model.isPresented, "the sheet gets out of the way once there is nothing to sell")
     }
 }
 
@@ -121,12 +194,21 @@ private struct FakeSource: EntitlementSource {
     let current: [TransactionFact]
     let grantOnPurchase: Bool
     let grantOnRestore: Bool
+    /// What the App Store answers when asked for the product. `nil` is the
+    /// unconfigured / unapproved / offline case, which the paywall has to
+    /// render as an honest "not available" rather than a made-up price.
+    let storeProduct: StoreProduct?
 
-    init(current: [TransactionFact], grantOnPurchase: Bool = false, grantOnRestore: Bool = false) {
+    init(current: [TransactionFact], grantOnPurchase: Bool = false, grantOnRestore: Bool = false,
+         storeProduct: StoreProduct? = StoreProduct(displayPrice: "£34.99",
+                                                    displayName: "Platterhead DJ")) {
         self.current = current
         self.grantOnPurchase = grantOnPurchase
         self.grantOnRestore = grantOnRestore
+        self.storeProduct = storeProduct
     }
+
+    func loadProduct() async -> StoreProduct? { storeProduct }
 
     func currentTransactions() async throws -> [TransactionFact] {
         if grantOnPurchase || grantOnRestore {

@@ -16,10 +16,16 @@ import TonearmCore
 @MainActor
 public final class PaywallModel: ObservableObject {
 
-    /// The one-time price shown on the sheet. A constant, pinned to the single
-    /// product in `Resources/Tonearm.storekit` ($39.99) — the paywall never
-    /// imports StoreKit, so the price cannot be read from `Product` here.
-    public static let displayPrice = "$39.99"
+    /// The price shown before the store has answered — and **only** then.
+    ///
+    /// It used to be the price, full stop, on the reasoning that the paywall
+    /// cannot import StoreKit. That was the wrong conclusion from a correct
+    /// premise: the price is localised and lives in App Store Connect, so a
+    /// constant here is wrong in every non-US storefront the day it ships and
+    /// wrong everywhere the moment the price changes. The boundary is kept —
+    /// `StoreProduct` carries the already-formatted string across it — and this
+    /// is now only a placeholder for the moment before the answer arrives.
+    public static let placeholderPrice = "—"
 
     @Published public private(set) var isPresented = false
     @Published public private(set) var isPurchasing = false
@@ -37,7 +43,32 @@ public final class PaywallModel: ObservableObject {
         self.isPro = store.isPro
     }
 
-    public var displayPrice: String { Self.displayPrice }
+    /// The real, localised price once the store has answered; the placeholder
+    /// until then.
+    public var displayPrice: String { store.product?.displayPrice ?? Self.placeholderPrice }
+
+    /// Whether the App Store is actually offering this product right now.
+    ///
+    /// False means the store was asked and could not answer — an App Store
+    /// Connect product that is missing, not yet approved, or not sold in this
+    /// storefront, or a device with no network. The sheet must then say so and
+    /// **not** offer a Buy button: a button that cannot work makes the user
+    /// think they did something wrong, and on a fresh TestFlight build with an
+    /// unconfigured product it is the single most likely thing a tester meets.
+    public var isPurchaseAvailable: Bool { store.product != nil }
+
+    /// True only once the store has been asked and has failed to answer — the
+    /// state that earns the honest message, as distinct from "still loading".
+    public var isStoreUnavailable: Bool {
+        store.didAttemptProductLoad && store.product == nil
+    }
+
+    /// Ask the store for the product. Called when the sheet appears, so a user
+    /// who launched offline still sees a real price when they open it.
+    public func loadProduct() async {
+        await store.refreshProduct()
+        objectWillChange.send()
+    }
 
     /// §40.4 rule 3 / FR-STORE-5: the only way the sheet appears. A Pro user
     /// has nothing to buy — presenting is a no-op.
@@ -71,11 +102,22 @@ public final class PaywallModel: ObservableObject {
 
     /// Restore a prior purchase via the App Store account (FR-STORE-3). If a
     /// verified entitlement exists it re-derives and the sheet dismisses.
+    ///
+    /// A restore that finds nothing must **say** so. Silence after tapping
+    /// Restore is indistinguishable from a broken button, and the user's next
+    /// move is to buy something they may already own.
     public func restore() async {
         lastError = nil
+        isRestoring = true
+        defer { isRestoring = false }
         await store.restore()
         refreshPro()
+        if !isPro {
+            lastError = "No previous purchase was found on this Apple Account."
+        }
     }
+
+    @Published public private(set) var isRestoring = false
 
     private func refreshPro() {
         isPro = store.isPro
