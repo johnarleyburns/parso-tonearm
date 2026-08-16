@@ -7,6 +7,16 @@ the commit sequence is **Appendix M.1/M.2** of that spec. The M2 working plan is
 working plan is `docs/plans/dj-phase-3-autoplaylists.md` (commit sequence §5,
 audit table §9).
 
+**Two workstreams are open and have self-contained plans** — either can be picked up cold, and
+they do not depend on each other:
+
+- **Stems** — `docs/plans/dj-stems-model.md`. The htdemucs → Core ML conversion **works** and is
+  numerically verified; what remains is the Swift STFT/ISTFT, a memory fix in `StemSeparator`,
+  ODR packaging and a device measurement.
+- **MIDI** — `docs/plans/dj-midi-alpha.md`. The M6 stack is complete and **connected to
+  nothing**: `attachMidi` has no call sites and learned mappings are never persisted. Plus soft
+  takeover, jog bindings and a guided learn walkthrough.
+
 ## Milestone
 
 **M5 — the milestone where it becomes a DJ app** (spec §48.6 **re-scoped**, Appendix
@@ -1285,14 +1295,15 @@ routinely 256–1024 frames against the app's requested 128 — and the cue path
 of its allocation. Memory corruption on the audio thread, invisible to layers 1 and 2, exactly
 the argument for layer 3 existing.
 
-**Stems are the one requested item not delivered.** htdemucs loads and traces (42M params,
-~84 MB at FP16), and conversion stops inside the model's own STFT: Core ML has no complex
-tensors and htdemucs keeps the transform in the network. Freezing moved the failure from MIL op
-29/2087 to 594/1732 — progress, not a solution. `tools/demucs-coreml/` records the reproduction
-and the two routes through (lift the STFT into Swift and reshape the seam, or convert a
-time-domain model at lower quality), plus the 44.1 kHz/7.8 s vs 48 kHz/2^17 mismatch either
-route must reconcile. The shipped behaviour is the designed one: stems unavailable, full mix
-plays, faders disabled — degraded honestly, never a silent lie.
+**Stems are the one requested item not delivered in M6** — but the blocker turned out to be
+mundane and **the conversion now works** (2026-08-15, investigated after the M6 report; see
+"The two open workstreams" below). The 6.6 commit's diagnosis was wrong and its README has to be
+replaced: coremltools 9 *does* support `stft`/`complex`/`view_as_real`, the `aten::Int` failure
+at op 594 was a **coremltools bug under NumPy 2** (`int(np.array([N]))`), and the old venv was
+Python 3.14, for which coremltools ships no compiled extension — so that attempt could not have
+saved or run a model even on success. The shipped behaviour is unchanged and is still the
+designed one: stems unavailable, full mix plays, faders disabled — degraded honestly, never a
+silent lie.
 
 ## Alpha readiness — can other people mix on this yet? (re-assessed after M6)
 
@@ -1311,9 +1322,67 @@ plays, faders disabled — degraded honestly, never a silent lie.
    other people get builds, not after. **Owner-owned.**
 
 **Limits to write into the tester note** (all now honest states in the app rather than
-surprises): no stems (model unconverted); MIDI has no factory profiles, so a controller must be
-MIDI-learned; hot cues are not bindable because nothing reads stored cue points yet; and split
-cue makes the master mono, which the app says where the mode is chosen.
+surprises): no stems (model unconverted); **MIDI is not connected to the engine at all** (see
+below); hot cues are not bindable because nothing reads stored cue points yet; and split cue
+makes the master mono, which the app says where the mode is chosen.
+
+## The two open workstreams — stems and MIDI (plans on disk, 2026-08-15)
+
+Both were investigated after the M6 report, and both turned out to be in a different state than
+M6 recorded. Each has a self-contained plan written for an agent starting cold.
+
+### Stems — `docs/plans/dj-stems-model.md`
+
+**The conversion works.** htdemucs converts to a Core ML `mlprogram` and its outputs match the
+PyTorch reference at `max|d| 1.1e-6` (spec) and `1.2e-7` (waveform) against output RMS ~1.9e-2.
+Four walls were hit and all four are cleared:
+
+1. `aten::Int` at MIL op 594 — **not** the STFT, as 6.6 concluded. coremltools' own `_cast` does
+   `int(np.array([N]))`, which NumPy 2 rejects. A five-line patch clears all 36 sites.
+2. `slice_by_index` refuses `complex64` — Core ML has complex as a *type* but almost no MIL op
+   accepts it, which is the real (and much narrower) reason the STFT has to move to Swift.
+3. `_native_multi_head_attention` — PyTorch's fused attention fast path;
+   `torch.backends.mha.set_fastpath_enabled(False)`.
+4. `NaN` in the spectral output — **FP16 overflow**, not a graph error. FP32 is exact, at
+   ~168 MB over ODR instead of ~84 MB.
+
+The `StemModelProviding` seam does **not** change shape (the 6.6 README claimed it must) — it is
+time-domain in and out, and the wrapper owns both transforms. What remains is Swift work with no
+research in it: a vDSP STFT/ISTFT pair matching demucs exactly (4096/1024, periodic Hann,
+`normalized=True`, the Nyquist-bin drop and two-frame trim), the model-native geometry at the
+seam (44 100 Hz / 343 980 frames, resampled once per track), ODR packaging, and a device
+measurement that decides which device classes can report stems available at all.
+
+Two things the investigation turned up that are not conversion problems:
+
+- **`StemSeparator` will exhaust memory the moment the model works.** It accumulates every
+  chunk's output for all four voices and both channels before overlap-adding
+  (`Sources/DJ/Stems/StemSeparator.swift:157–201`) — roughly **900 MB for a five-minute track**.
+  No test caught it because separation has never run on real material. The plan fixes this
+  before wiring the model.
+- **The model's source order is `drums, bass, other, vocals`**, which is not `StemKind` order.
+  Mapping straight across silently swaps every stem.
+
+### MIDI — `docs/plans/dj-midi-alpha.md`
+
+M6 6.5 landed a well-built stack — parsing, mapping, routing, learn, profiles, `dj_v5`,
+19 tests — and **none of it is connected**. Two wires are missing:
+
+- `WorkspaceModel.attachMidi` (`WorkspaceModel.swift:1312`) has **zero call sites** — not the
+  app, not the tests, not the lane. A mapped control does nothing during a set.
+- `DJHomeView.swift:86` builds `MidiSettingsView()` with the default store-less model, so
+  `persist()` is a no-op and **a learned mapping is never written to the `dj_v5` tables**.
+
+Neither could have been caught: AT-HW-03/04 test that the *screen* is reachable and honest, and
+`MidiMappingTests` tests the pure translation — nothing follows a message into the engine, and
+nothing asserts a mapping survives a relaunch. Those two tests are part of the fix.
+
+Beyond the wiring, three gaps decide whether an alpha is usable: **no soft takeover** (a fader
+at the wrong position slams the channel on first touch), **no jog action** at all (the biggest
+surface on every controller is unbindable), and **no guided learn**, so a tester must map ~30
+controls by hand before their first mix. Below the cut line: no MIDI output port anywhere, so no
+LED ever lights; no 14-bit CC, so the tempo fader steps at 0.125 %; and `connectedEndpointID` is
+a single value although `connect` supports several devices.
 
 ## Next
 
