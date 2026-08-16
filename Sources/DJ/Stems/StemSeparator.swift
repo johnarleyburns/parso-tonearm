@@ -90,6 +90,35 @@ public enum StemChunking {
         return output
     }
 
+    /// Streaming sibling of `overlapAdd` (S3): window `chunk` and add it into
+    /// `output` at `offset`, clamped so the write never runs past the buffer
+    /// (the final chunk is zero-padded to `chunkFrames`, exactly as the
+    /// accumulating kernel assumes). The separator uses this to overlap-add
+    /// each chunk **as it comes back from the model**, so peak extra memory is
+    /// one chunk instead of the whole track's eight voices. Numerically
+    /// identical to `overlapAdd(chunkOutputs:…)` for the same chunks.
+    public static func overlapAddInto(_ output: inout [Float],
+                                      chunk: [Float], window: [Float],
+                                      offset: Int) {
+        let chunkFrames = chunk.count
+        guard chunkFrames > 0, window.count == chunkFrames else { return }
+        guard offset >= 0, offset < output.count else { return }
+        let count = min(chunkFrames, output.count - offset)
+        guard count > 0 else { return }
+        // COW copy — one chunk of extra memory, windowed in place.
+        var windowed = chunk
+        windowed.withUnsafeMutableBufferPointer { wp in
+            window.withUnsafeBufferPointer { win in
+                vDSP_vmul(wp.baseAddress!, 1, win.baseAddress!, 1,
+                          wp.baseAddress!, 1, vDSP_Length(chunkFrames))
+            }
+            output.withUnsafeMutableBufferPointer { op in
+                vDSP_vadd(op.baseAddress!.advanced(by: offset), 1, wp.baseAddress!, 1,
+                          op.baseAddress!.advanced(by: offset), 1, vDSP_Length(count))
+            }
+        }
+    }
+
     private static func slice(_ buffer: [Float], from: Int, to: Int) -> [Float] {
         var out = [Float](repeating: 0, count: max(0, to - from))
         let start = max(0, from)
@@ -154,10 +183,18 @@ public struct StemSeparator: Sendable {
         let hop = hopFrames
         let window = StemChunking.window(chunkFrames)
 
-        var vocalsL: [[Float]] = []; var vocalsR: [[Float]] = []
-        var drumsL: [[Float]] = []; var drumsR: [[Float]] = []
-        var bassL: [[Float]] = []; var bassR: [[Float]] = []
-        var otherL: [[Float]] = []; var otherR: [[Float]] = []
+        // Eight full-length output buffers, allocated **once**. Each chunk is
+        // windowed and added into place as it returns from the model (S3), so
+        // peak extra memory is one chunk, not ~2× the track × 8 channels —
+        // the ~900 MB accumulation the old `[[Float]]` per-voice arrays held.
+        var vocalsL = [Float](repeating: 0, count: frameCount)
+        var vocalsR = [Float](repeating: 0, count: frameCount)
+        var drumsL = [Float](repeating: 0, count: frameCount)
+        var drumsR = [Float](repeating: 0, count: frameCount)
+        var bassL = [Float](repeating: 0, count: frameCount)
+        var bassR = [Float](repeating: 0, count: frameCount)
+        var otherL = [Float](repeating: 0, count: frameCount)
+        var otherR = [Float](repeating: 0, count: frameCount)
 
         var offset = 0
         while offset < frameCount {
@@ -184,26 +221,29 @@ public struct StemSeparator: Sendable {
                 throw StemSeparatorError.chunkLengthMismatch
             }
 
-            vocalsL.append(result.vocals.left); vocalsR.append(result.vocals.right)
-            drumsL.append(result.drums.left); drumsR.append(result.drums.right)
-            bassL.append(result.bass.left); bassR.append(result.bass.right)
-            otherL.append(result.other.left); otherR.append(result.other.right)
+            // Window and overlap-add each voice into its pre-allocated buffer
+            // immediately — the streaming kernel (S3), identical to the
+            // accumulating `overlapAdd` the golden reconstruction test locks.
+            StemChunking.overlapAddInto(&vocalsL, chunk: result.vocals.left, window: window, offset: offset)
+            StemChunking.overlapAddInto(&vocalsR, chunk: result.vocals.right, window: window, offset: offset)
+            StemChunking.overlapAddInto(&drumsL, chunk: result.drums.left, window: window, offset: offset)
+            StemChunking.overlapAddInto(&drumsR, chunk: result.drums.right, window: window, offset: offset)
+            StemChunking.overlapAddInto(&bassL, chunk: result.bass.left, window: window, offset: offset)
+            StemChunking.overlapAddInto(&bassR, chunk: result.bass.right, window: window, offset: offset)
+            StemChunking.overlapAddInto(&otherL, chunk: result.other.left, window: window, offset: offset)
+            StemChunking.overlapAddInto(&otherR, chunk: result.other.right, window: window, offset: offset)
 
             offset += hop
         }
 
-        func accumulate(_ left: [[Float]], _ right: [[Float]]) -> StemChunk {
-            StemChunk(sampleRate: pcm.sampleRate,
-                      left: StemChunking.overlapAdd(chunkOutputs: left, window: window,
-                                                    hop: hop, totalFrames: frameCount),
-                      right: StemChunking.overlapAdd(chunkOutputs: right, window: window,
-                                                     hop: hop, totalFrames: frameCount))
-        }
-
         return StemSeparation(sampleRate: pcm.sampleRate,
-                              vocals: accumulate(vocalsL, vocalsR),
-                              drums: accumulate(drumsL, drumsR),
-                              bass: accumulate(bassL, bassR),
-                              other: accumulate(otherL, otherR))
+                              vocals: StemChunk(sampleRate: pcm.sampleRate,
+                                                left: vocalsL, right: vocalsR),
+                              drums: StemChunk(sampleRate: pcm.sampleRate,
+                                               left: drumsL, right: drumsR),
+                              bass: StemChunk(sampleRate: pcm.sampleRate,
+                                              left: bassL, right: bassR),
+                              other: StemChunk(sampleRate: pcm.sampleRate,
+                                               left: otherL, right: otherR))
     }
 }

@@ -180,6 +180,60 @@ final class StemSeparatorTests: XCTestCase {
         }
     }
 
+    // MARK: - S3: the streaming overlap-add (memory profile)
+
+    /// The streaming kernel is numerically identical to the accumulating one
+    /// for the same chunks — the reconstruction-golden contract carries over.
+    func testOverlapAddIntoMatchesAccumulatingKernel() {
+        let chunkFrames = 1024
+        let hop = 512
+        let frames = 8000
+        let signal = makeSignal(frames: frames, seed: 0x5150).left
+        let chunked = StemChunking.chunks(left: signal, right: signal,
+                                          chunkFrames: chunkFrames, hop: hop)
+        let window = StemChunking.window(chunkFrames)
+
+        let expected = StemChunking.overlapAdd(chunkOutputs: chunked.map { $0.left },
+                                               window: window, hop: hop,
+                                               totalFrames: frames)
+        var streamed = [Float](repeating: 0, count: frames)
+        for (k, chunk) in chunked.enumerated() {
+            StemChunking.overlapAddInto(&streamed, chunk: chunk.left,
+                                        window: window, offset: k * hop)
+        }
+        for i in 0..<frames {
+            XCTAssertEqual(streamed[i], expected[i], accuracy: 1e-7,
+                           "streaming and accumulating overlap-add agree at frame \(i)")
+        }
+        XCTAssertEqual(streamed.count, frames)
+    }
+
+    /// A ten-chunk separation through the passthrough model reconstructs the
+    /// input exactly — the S3 rewrite (pre-allocated buffers, per-chunk
+    /// accumulate) is the same result the accumulating pipeline produced, with
+    /// peak extra memory capped at one chunk rather than the whole track.
+    func testSeparatorStreamsTenChunksWithoutPerChunkAccumulator() async throws {
+        let chunkFrames = 2048
+        let hop = 1024
+        let frames = 10 * hop + 321          // ten full chunks + a partial tail
+        let (left, right) = makeSignal(frames: frames, seed: 0xC0FFEE)
+        let pcm = PCMBuffer(sampleRate: 48_000, channels: [left, right])
+        let separator = StemSeparator(model: PassthroughStemModel(),
+                                      chunkFrames: chunkFrames, overlapFrames: 1024)
+        let result = try await separator.separate(pcm: pcm)
+        let separated = try XCTUnwrap(result)
+        let interior = hop..<(left.count - hop)
+        for kind in StemKind.allCases {
+            let voice = separated.voice(kind)
+            XCTAssertEqual(voice.frameCount, left.count)
+            for i in interior {
+                XCTAssertEqual(voice.left[i], left[i], accuracy: 1e-4,
+                               "\(kind.rawValue) reconstructs at frame \(i)")
+                XCTAssertEqual(voice.right[i], right[i], accuracy: 1e-4)
+            }
+        }
+    }
+
     // MARK: - Honest absence and failure
 
     func testSeparatorReturnsNilWhenModelAbsent() async throws {
