@@ -161,8 +161,16 @@ measured numbers here.
 
 ## Working on
 
-**M5 — re-scoped, plan rewritten; 5.1–5.13 landed, commit 5.14 in progress.** The milestone is no longer
-"stems, recording, gig crates" — it is **an outcome**, per the rewritten §48.6:
+**M5 and M6 are fully landed** (5.1–5.14, 6.1–6.7, all on `main`). The stems
+model plan (`docs/plans/dj-stems-model.md`, **S1–S8**) is landed too — see
+"Stems landed" above. What is left of stems is the **user-owned device pass**
+(S7's gate): place `Resources/Models/DemucsStems.mlpackage`, time one
+343 980-frame segment, measure the real peak footprint, and run `LANES=djstem`
+by hand. The other open workstream is **MIDI** (`docs/plans/dj-midi-alpha.md`).
+The historical M5 narrative below is kept for reference; it is no longer the
+current work.
+
+**M5's remit** (per the rewritten §48.6) was an outcome rather than three subsystems:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
 > legally usable tracks ordered by interest → build a Deck A and a Deck B playlist →
@@ -296,7 +304,7 @@ sequence stays stable:
   crates + storage budget; **5.10** record tap + encoder;
   **5.11** journal + recovery;
   **5.12** Finish + Mixes + **the review listen**; **5.13** the transition coach.
-  *(5.1–5.13 landed; 5.14 in progress in the working tree.)*
+  *(5.1–5.14 landed — 5.14, the DJ regression suite, is the milestone's last agent-side commit.)*
 - **New spec material** (all written, all cross-referenced): **§19.4** persisted
   analysis artifacts · **§26A** rekordbox-class waveform display · **§35A** the
   post-fader beat-synced echo · **§35B** the five transitions → control mapping ·
@@ -1411,11 +1419,11 @@ Four walls were hit and all four are cleared:
    ~168 MB over ODR instead of ~84 MB.
 
 The `StemModelProviding` seam does **not** change shape (the 6.6 README claimed it must) — it is
-time-domain in and out, and the wrapper owns both transforms. What remains is Swift work with no
-research in it: a vDSP STFT/ISTFT pair matching demucs exactly (4096/1024, periodic Hann,
-`normalized=True`, the Nyquist-bin drop and two-frame trim), the model-native geometry at the
-seam (44 100 Hz / 343 980 frames, resampled once per track), ODR packaging, and a device
-measurement that decides which device classes can report stems available at all.
+time-domain in and out, and the wrapper owns both transforms. **All of the Swift work below has
+landed** — the vDSP STFT/ISTFT pair matching demucs exactly, the model-native geometry at the
+seam, the ODR packaging, the Core ML wiring, and the honest device-class ceiling. See "Stems
+landed" above for the commit trail. What remains is the user-owned device measurement that
+decides which device classes can report stems available at all.
 
 Two things the investigation turned up that are not conversion problems:
 
