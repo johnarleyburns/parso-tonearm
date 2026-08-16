@@ -148,6 +148,30 @@ final class MidiMappingTests: XCTestCase {
         XCTAssertEqual(restored, profile)
     }
 
+    /// A profile exported by the pre-M2 build has no `takeover` key. It must
+    /// still import — with the action's default — rather than failing to
+    /// decode: a mapping is still a mapping across versions.
+    func testAnOldProfileWithoutTakeoverStillImports() throws {
+        let oldJSON = """
+        {
+          "name": "Old Controller",
+          "bindings": [
+            {
+              "address": {"type": "cc", "channel": 1, "number": 7},
+              "action": {"play": {"deck": "a"}},
+              "transform": {"mode": "trigger", "minimum": 0, "maximum": 1, "invert": false}
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+        let profile = try ControllerProfileStore.importProfile(from: oldJSON)
+        XCTAssertEqual(profile.name, "Old Controller")
+        XCTAssertEqual(profile.bindings.count, 1)
+        XCTAssertEqual(profile.binding(for: fader)?.action, .play(deck: .a))
+        XCTAssertEqual(profile.binding(for: fader)?.takeover, .jump,
+                       "a button from an old profile jumps — the action's default")
+    }
+
     // MARK: - Soft takeover (plan dj-midi-alpha M2)
 
     /// The default is the whole point of M2: continuous absolute controls pick

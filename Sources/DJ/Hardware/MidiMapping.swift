@@ -312,6 +312,18 @@ public struct MidiBinding: Sendable, Equatable, Codable {
         self.transform = transform
         self.takeover = takeover ?? action.defaultTakeover
     }
+
+    /// A profile exported before M2 has no `takeover` key; it decodes to the
+    /// action's default rather than failing — an old mapping is still a
+    /// mapping, and a continuous fader in it gets pickup like any new one.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        address = try container.decode(MidiAddress.self, forKey: .address)
+        action = try container.decode(EngineAction.self, forKey: .action)
+        transform = try container.decode(ValueTransform.self, forKey: .transform)
+        takeover = try container.decodeIfPresent(Takeover.self, forKey: .takeover)
+            ?? action.defaultTakeover
+    }
 }
 
 /// How a bound continuous control claims an engine value that differs from the
