@@ -622,6 +622,18 @@ private struct TwinMixerColumnView: View {
             // the A/B channel chips (the twin's single ECHO serves either
             // channel).
             EchoReleaseToCommitButton(model: model, deck: .a)
+            // §44.2a: pre-listen is a transition control, so it is always
+            // visible — never behind a drawer (§42.7c's transferable core).
+            // **One CUE per channel**, not one for the focused deck: this
+            // surface shows both decks at once, and every mixer ever built
+            // puts a cue button on each channel. Cueing B while working A is
+            // the ordinary case, and a focus-following button would make it
+            // impossible.
+            HStack(spacing: 12) {
+                CueButton(model: model, deck: .a)
+                CueButton(model: model, deck: .b)
+            }
+            .frame(minHeight: 44)
         }
     }
 

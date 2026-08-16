@@ -387,6 +387,28 @@ struct DeckMixer {
         s = crossfaderGain.next() * s
         return s
     }
+
+    /// The master sample **and** the pre-fader cue tap, in one pass (§44.2a).
+    ///
+    /// Pre-fader is what makes a cue a cue: the whole point is auditing a track
+    /// whose channel fader is down and whose crossfader side is away, so the
+    /// tap has to sit before both. It is taken after EQ and filter, like every
+    /// club mixer's PFL — a DJ setting up the incoming track's low kill wants
+    /// to hear the low kill.
+    ///
+    /// One pass, not two, because the filter and EQ are recursive: running them
+    /// twice would advance their state twice and produce a different master
+    /// signal than the cue-off path. That would break the frame-exact reader
+    /// tests and, more importantly, mean engaging cue changed what the room
+    /// heard.
+    @inline(__always)
+    mutating func processWithCue(_ x: Float) -> (master: Float, cue: Float) {
+        let preFader = filter.process(eqEngaged ? eq.process(x) : x)
+        var s = fader.next() * preFader
+        s = echo.process(s)
+        s = crossfaderGain.next() * s
+        return (s, preFader)
+    }
 }
 
 /// The master stage (§35.5): the crossfader position/curve and the master

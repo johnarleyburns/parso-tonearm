@@ -68,8 +68,13 @@ public enum DJWorkspaceAssembly {
     public static func makeModel(store: EntitlementStore = .shared,
                                  session: AudioSessionCoordinator = AudioSessionCoordinator(),
                                  allowBluetooth: Bool = false) async -> WorkspaceModel? {
+        // §44.2, FR-HW-4: the granted route tells us how many output channels
+        // exist, which is what decides whether a cue mode can be delivered at
+        // all (§44.2a). Observed, never chosen — iOS owns the route.
+        var grantedChannels = 2
         do {
-            _ = try await session.enter(.performing, allowBluetooth: allowBluetooth)
+            let granted = try await session.enter(.performing, allowBluetooth: allowBluetooth)
+            grantedChannels = granted.outputChannels
         } catch AudioSessionCoordinator.SessionError.unavailableOnThisPlatform {
             // macOS: no `AVAudioSession` to enter; the realtime graph still
             // works, so continue rather than refusing the surface.
@@ -98,7 +103,9 @@ public enum DJWorkspaceAssembly {
         // finalize export `mix-journal.json` beside the M4A.
         let journal = RecordingService(
             exportJournalMetadata: ProcessInfo.processInfo.arguments.contains("-uiRegression"))
-        return WorkspaceModel(engine: engine, store: store,
-                              recordingService: journal, session: session)
+        let model = WorkspaceModel(engine: engine, store: store,
+                                   recordingService: journal, session: session)
+        model.updateOutputChannelCount(grantedChannels)
+        return model
     }
 }

@@ -270,7 +270,8 @@ public final class AudioGraph: @unchecked Sendable {
                                           limiterLookaheadFrames: configuration.limiterLookaheadFrames,
                                           echoCapacity: BeatEcho.maxDelayFrames(sampleRate: sampleRate) + 1,
                                           echoCrossfadeFrames: Int(configuration.maximumFrameCount),
-                                          recordTap: recordTap)
+                                          recordTap: recordTap,
+                                          maximumFrameCount: Int(configuration.maximumFrameCount))
         // Captured by the render closures so they can stay one body across the
         // two drivers (§53.11) — the realtime driver needs the clock advanced
         // inside the callback, the offline driver advances it in `render`.
@@ -525,13 +526,28 @@ final class RenderGraphState: @unchecked Sendable {
     /// when `recordTapEnabled` is false — the frame-exact reader harness.
     let recordTap: RecordTap?
 
+    // MARK: - Cue bus (§44.2a, plan 6.4)
+
+    /// The cue mode in force. `.off` is bit-exact: `renderDecks` takes the
+    /// original path and the cue buffer is never touched.
+    var cueMode: CueMode = .off
+    /// Pre-allocated cue bus, interleaved like the output. Allocated once at
+    /// graph construction — the render thread never allocates (§12.3).
+    var cueBuffer: [Float]
+    /// Scratch for the master leg while the matrix is applied, same size.
+    var cueMasterScratch: [Float]
+    let channelCount: Int
+
     init(sampleRate: Double, channelCount: Int,
          limiterCeiling: Float?, limiterLookaheadFrames: Int,
          echoCapacity: Int, echoCrossfadeFrames: Int,
-         recordTap: RecordTap?) {
+         recordTap: RecordTap?, maximumFrameCount: Int = 4096) {
         clock = DeckClock(sampleRate: sampleRate)
         self.limiterCeiling = limiterCeiling
         self.recordTap = recordTap
+        self.channelCount = channelCount
+        cueBuffer = [Float](repeating: 0, count: maximumFrameCount * max(1, channelCount))
+        cueMasterScratch = [Float](repeating: 0, count: maximumFrameCount * max(1, channelCount))
         decks = [DeckState(sampleRate: sampleRate, channelCount: channelCount,
                            echoCapacity: echoCapacity,
                            echoCrossfadeFrames: echoCrossfadeFrames),
@@ -548,6 +564,15 @@ final class RenderGraphState: @unchecked Sendable {
     func apply(_ command: RTCommand, masterSample: Int64) {
         if command.tag == .setCrossfader {
             master.apply(command)
+            return
+        }
+        if command.tag == .setCueMode {
+            // Global, like the crossfader: the cue mode is a property of the
+            // output route, not of a deck (§44.2a).
+            let ordinal = Int(command.i0)
+            if CueMode.allCases.indices.contains(ordinal) {
+                cueMode = CueMode.allCases[ordinal]
+            }
             return
         }
         let index = Int(command.deck)
@@ -574,11 +599,23 @@ final class RenderGraphState: @unchecked Sendable {
         // a tempo change moves the echo with it, crossfading between read
         // pointers over one buffer rather than jumping.
         let masterBPM = effectiveMasterBPM()
+        // §44.2a: the cue bus is summed only when a mode is engaged *and* a
+        // deck is actually cued. Both conditions matter — an engaged mode with
+        // nothing cued must leave the render path bit-exact, or selecting
+        // "split output" in settings would silently make every mix mono.
+        let cueing = cueMode != .off && decks.contains { $0.cueEnabled }
+        if cueing {
+            for i in 0..<(frames * channelCount) { cueBuffer[i] = 0 }
+        }
         for deck in decks {
             deck.applyEchoMasterBPM(masterBPM)
-            renderDeck(deck, into: list, frames: frames, frameStart: frameStart)
+            renderDeck(deck, into: list, frames: frames, frameStart: frameStart,
+                       cueing: cueing)
         }
         master.limit(into: list, frames: frames)
+        if cueing {
+            applyCueMatrix(into: list, frames: frames)
+        }
         // §37.2 (plan 5.10): the post-limiter master bus is what the audience
         // hears AND what the recording captures. Copy it into the record tap
         // (idle unless recording — a no-op otherwise, so the reader harness
@@ -589,6 +626,46 @@ final class RenderGraphState: @unchecked Sendable {
         publishMasterClock()
         publishDeckTelemetry(0)
         publishDeckTelemetry(1)
+    }
+
+    /// Fold the cue bus into the output according to the mode (§44.2a).
+    ///
+    /// Runs **after** the limiter, because the limiter protects the master and
+    /// the cue leg is a monitor path, not part of the mix — limiting the cue
+    /// would duck the thing the DJ is trying to hear whenever the master got
+    /// loud. Split output attenuates both legs by 6 dB instead, which is what
+    /// keeps a mono sum from clipping.
+    func applyCueMatrix(into list: UnsafeMutableAudioBufferListPointer, frames: Int) {
+        let channels = channelCount
+        guard channels > 0, frames > 0 else { return }
+        // Interleave the (deinterleaved) buffer list into the scratch, apply
+        // the matrix, and write it back — the matrix is defined on interleaved
+        // frames because that is how a route's channels are actually laid out.
+        for c in 0..<min(channels, Int(list.count)) {
+            guard let data = list[c].mData?.assumingMemoryBound(to: Float.self) else { continue }
+            for i in 0..<frames { cueMasterScratch[i * channels + c] = data[i] }
+        }
+        switch cueMode {
+        case .off:
+            return
+        case .splitOutput:
+            CueMix.applySplitOutput(master: &cueMasterScratch, cue: cueBuffer,
+                                    frames: frames, channels: channels)
+        case .cueInPlace:
+            CueMix.applyCueInPlace(master: &cueMasterScratch, cue: cueBuffer,
+                                   frames: frames, channels: channels)
+        case .multichannel:
+            // Honest inertness (§44.2a): a 2-channel route cannot carry a
+            // separate cue leg, and quietly delivering something else is the
+            // substitution this mode exists to avoid.
+            guard channels >= 4 else { return }
+            CueMix.applyMultichannel(master: &cueMasterScratch, cue: cueBuffer,
+                                     frames: frames, channels: channels)
+        }
+        for c in 0..<min(channels, Int(list.count)) {
+            guard let data = list[c].mData?.assumingMemoryBound(to: Float.self) else { continue }
+            for i in 0..<frames { data[i] = cueMasterScratch[i * channels + c] }
+        }
     }
 
     /// Publish the master clock snapshot — master sample, effective BPM and
@@ -713,7 +790,7 @@ final class RenderGraphState: @unchecked Sendable {
     /// Render one deck's output for the callback, splitting the buffer at the
     /// exact frame for scheduled cue jumps and loop boundaries (§30.2).
     private func renderDeck(_ deck: DeckState, into list: UnsafeMutableAudioBufferListPointer,
-                            frames: Int, frameStart: Int64) {
+                            frames: Int, frameStart: Int64, cueing: Bool = false) {
         deck.peak = 0
         guard deck.playing else { return } // paused: silence, playhead frozen
         guard let reference = deck.referenceSource() else {
@@ -751,10 +828,13 @@ final class RenderGraphState: @unchecked Sendable {
             }
 
             let count = boundary - f
+            // Only a *cued* deck contributes to the cue bus, and only while a
+            // mode is engaged — everything else takes the untouched path.
+            let toCue = cueing && deck.cueEnabled
             if let stems {
-                readStemChunk(deck, stems, into: list, at: f, count: count)
+                readStemChunk(deck, stems, into: list, at: f, count: count, toCue: toCue)
             } else {
-                readChunk(deck, reference, into: list, at: f, count: count)
+                readChunk(deck, reference, into: list, at: f, count: count, toCue: toCue)
             }
             f = boundary
             deck.playhead += Double(count) * deck.rate
@@ -778,7 +858,7 @@ final class RenderGraphState: @unchecked Sendable {
     /// decks sum.
     private func readChunk(_ deck: DeckState, _ source: DeckSource,
                            into list: UnsafeMutableAudioBufferListPointer,
-                           at frame: Int, count: Int) {
+                           at frame: Int, count: Int, toCue: Bool = false) {
         guard count > 0 else { return }
         let start = deck.playhead
         let rate = deck.rate
@@ -792,7 +872,17 @@ final class RenderGraphState: @unchecked Sendable {
                 let track = Int64(start + Double(i) * rate)
                 if track >= 0 && track < source.frameCount {
                     let raw = base[Int(track) * srcChannels + srcChannel]
-                    let processed = deck.mixers[c].process(raw)
+                    let processed: Float
+                    if toCue {
+                        // One pass produces both legs: running the recursive
+                        // EQ/filter twice would advance their state twice and
+                        // change what the room hears the moment cue engaged.
+                        let both = deck.mixers[c].processWithCue(raw)
+                        processed = both.master
+                        cueBuffer[(frame + i) * channelCount + c] += both.cue
+                    } else {
+                        processed = deck.mixers[c].process(raw)
+                    }
                     out[frame + i] += processed
                     let magnitude = abs(processed)
                     if magnitude > deck.peak { deck.peak = magnitude }
@@ -814,7 +904,7 @@ final class RenderGraphState: @unchecked Sendable {
     /// static buffer — no arrays are built here.
     private func readStemChunk(_ deck: DeckState, _ stems: StemSet,
                                into list: UnsafeMutableAudioBufferListPointer,
-                               at frame: Int, count: Int) {
+                               at frame: Int, count: Int, toCue: Bool = false) {
         guard count > 0 else { return }
         let start = deck.playhead
         let rate = deck.rate
@@ -841,7 +931,16 @@ final class RenderGraphState: @unchecked Sendable {
             for c in 0..<outputChannels {
                 guard let mData = list[c].mData else { continue }
                 let out = mData.assumingMemoryBound(to: Float.self)
-                let processed = deck.mixers[c].process(deck.stemScratch[c])
+                let processed: Float
+                if toCue {
+                    // The stem sum feeds the same one-pass chain, so a stems
+                    // deck cues exactly like a full-mix one (§35.1, §44.2a).
+                    let both = deck.mixers[c].processWithCue(deck.stemScratch[c])
+                    processed = both.master
+                    cueBuffer[(frame + i) * channelCount + c] += both.cue
+                } else {
+                    processed = deck.mixers[c].process(deck.stemScratch[c])
+                }
                 out[frame + i] += processed
                 let magnitude = abs(processed)
                 if magnitude > deck.peak { deck.peak = magnitude }
@@ -868,6 +967,9 @@ final class DeckState: @unchecked Sendable {
     /// deck reads the single full-mix source, byte-for-byte; §35.1, plan
     /// decision 3). The control side keeps the boxed allocation alive.
     var stemSetPointer: UnsafeRawPointer?
+    /// §44.2a: this deck is routed to the cue bus (pre-fader). Independent of
+    /// `playing` on purpose — cueing a paused deck is how you find the drop.
+    var cueEnabled = false
     var playing = false
     var playhead: Double = 0
     var rate: Double = 1
@@ -1044,6 +1146,10 @@ final class DeckState: @unchecked Sendable {
             stemMuted[StemKind(index: Int(command.i0)).index] = command.f0 >= 0.5
         case .setStemSolo:
             stemSoloed[StemKind(index: Int(command.i0)).index] = command.f0 >= 0.5
+        case .setCueEnabled:
+            cueEnabled = command.f0 >= 0.5
+        case .setCueMode:
+            break // handled at the graph level: the mode is global (§44.2a)
         }
     }
 

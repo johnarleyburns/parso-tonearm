@@ -83,6 +83,11 @@ public struct RTCommand: @unchecked Sendable, Equatable {
         /// Solo a stem voice — `i0` = `StemKind.index`, `f0` = on. When any
         /// voice is soloed, only soloed voices sound; the rest sit at 0.
         case setStemSolo
+        /// Route this deck to the cue bus, pre-fader — `f0` = on (§44.2a).
+        case setCueEnabled
+        /// Set the global cue mode — `i0` = `CueMode` ordinal (§44.2a). A
+        /// master-stage command like `setCrossfader`: it is not per deck.
+        case setCueMode
     }
 
     public var tag: Tag
@@ -248,5 +253,17 @@ public struct RTCommand: @unchecked Sendable, Equatable {
     /// Solo a stem voice — when any voice is soloed, only soloed voices sound.
     public static func setStemSolo(deck: UInt8, stem: StemKind, soloed: Bool) -> RTCommand {
         RTCommand(tag: .setStemSolo, deck: deck, i0: Int64(stem.index), f0: soloed ? 1 : 0)
+    }
+
+    /// §44.2a: route a deck to the pre-fader cue bus.
+    public static func setCueEnabled(deck: UInt8, enabled: Bool) -> RTCommand {
+        RTCommand(tag: .setCueEnabled, deck: deck, f0: enabled ? 1 : 0)
+    }
+
+    /// §44.2a: the global cue mode. Deck 0 by convention — the render side
+    /// routes it to the graph state, not to a deck.
+    public static func setCueMode(_ mode: CueMode) -> RTCommand {
+        let ordinal = CueMode.allCases.firstIndex(of: mode) ?? 0
+        return RTCommand(tag: .setCueMode, deck: 0, i0: Int64(ordinal))
     }
 }

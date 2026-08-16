@@ -270,6 +270,26 @@ public final class PerformanceEngine {
         _ = graph.commandRing.tryPush(.setStemSolo(deck: deck.rawValue, stem: stem, soloed: soloed))
     }
 
+    // MARK: - Cue monitoring (§44.2a, FR-HW-3)
+
+    /// Route a deck to the pre-fader cue bus — the pre-listen (§44.2a).
+    ///
+    /// Pre-fader is the whole point: a DJ cues the track whose fader is down,
+    /// to find its downbeat before bringing it in.
+    ///
+    /// Named `setHeadphoneCue`, not `setCue`, because this app has two
+    /// unrelated "cue"s — the CDJ cue *point* (`setCue(_:atSample:)`, §33.1)
+    /// and headphone/PFL monitoring. Confusing them in a call site is a silent
+    /// bug, so they do not share a name.
+    public func setHeadphoneCue(_ deck: Deck, enabled: Bool) {
+        _ = graph.commandRing.tryPush(.setCueEnabled(deck: deck.rawValue, enabled: enabled))
+    }
+
+    /// Set the global cue mode. `.off` keeps the render path bit-exact.
+    public func setCueMode(_ mode: CueMode) {
+        _ = graph.commandRing.tryPush(.setCueMode(mode))
+    }
+
     // MARK: - Sync (§32, FR-ENG-4)
 
     /// Engage beat sync: tempo-match `deck` to `master` and phase-align its

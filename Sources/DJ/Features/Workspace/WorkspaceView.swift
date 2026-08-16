@@ -753,6 +753,11 @@ private struct MixerColumnView: View {
 
             BeatFXBlock(model: model)
 
+            // §44.2a: cue monitoring sits with the mixer, where a club mixer
+            // puts it — beside the channel strips whose faders it lets you
+            // work around.
+            CueModePicker(model: model)
+
             Divider()
 
             VStack(spacing: 4) {
@@ -1124,20 +1129,14 @@ private struct ChannelStripView: View {
             }
             .frame(height: 70)
 
-            Button {
-                model.cue(deck)
-            } label: {
-                Text("CUE")
-                    .font(.system(size: 10, weight: .bold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 40)
-                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("dj.deck.\(name).cue")
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0).onEnded { _ in model.releaseCue(deck) }
-            )
+            // **The CUE at the foot of a channel strip is headphone cue**
+            // (PFL), on every club mixer ever built — §41.9b rule 1 lists it in
+            // that position for exactly that reason. It used to fire the CDJ
+            // cue *point* here, which is the deck's transport control and lives
+            // with PLAY (rule 3): a club-trained hand reaching for pre-listen
+            // would have jumped the track to its cue point instead, mid-set.
+            CueButton(model: model, deck: deck)
+                .frame(height: 40)
         }
         .frame(maxWidth: .infinity)
     }

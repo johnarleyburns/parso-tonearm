@@ -68,6 +68,10 @@ public protocol WorkspaceEngine: AnyObject {
     func stopRecording() async throws -> RecordingEncoder.RecordingOutput?
     /// Whether a recording is currently in flight (decision 14's session state).
     var isRecording: Bool { get }
+    /// §44.2a: route a deck to the pre-fader cue bus.
+    func setHeadphoneCue(_ deck: PerformanceEngine.Deck, enabled: Bool)
+    /// §44.2a: the global cue mode.
+    func setCueMode(_ mode: CueMode)
     /// Frames the record tap dropped because the ring was full (§37.2) — what
     /// the recording lost while the live performance carried on. Carried into
     /// the journal so a starved drain names itself.
@@ -101,6 +105,12 @@ public extension WorkspaceEngine {
     var isGraphRunning: Bool { true }
     func configurationChanges() -> AsyncStream<Void> { AsyncStream { $0.finish() } }
     func recoverGraph() throws {}
+
+    /// The offline harness has no output route, so there is nothing to monitor
+    /// on: cue is inert there by construction, and the graph's own cue tests
+    /// (`CueBusTests`) drive the real engine directly (§44.2a).
+    func setHeadphoneCue(_ deck: PerformanceEngine.Deck, enabled: Bool) {}
+    func setCueMode(_ mode: CueMode) {}
 }
 
 extension PerformanceEngine: WorkspaceEngine {}
@@ -1284,6 +1294,65 @@ public final class WorkspaceModel: ObservableObject {
         switch deck {
         case .a: channelA = gain
         case .b: channelB = gain
+        }
+    }
+
+    // MARK: - Cue monitoring (§44.2a, FR-HW-3, plan 6.4)
+
+    /// Which decks are routed to the headphone cue, and in which mode.
+    ///
+    /// Two separate pieces of state on purpose: a DJ leaves cue *armed* on the
+    /// incoming deck for a whole transition, and switching modes must not
+    /// silently disarm it.
+    @Published public private(set) var cueMode: CueMode = .off
+    @Published public private(set) var cuedDecks: Set<PerformanceEngine.Deck> = []
+
+    /// The channels the current output route offers, so a mode that cannot be
+    /// delivered is refused rather than approximated (§44.2a). Two until a
+    /// route says otherwise.
+    @Published public private(set) var outputChannelCount: Int = 2
+
+    public func isCued(_ deck: PerformanceEngine.Deck) -> Bool { cuedDecks.contains(deck) }
+
+    /// Toggle a deck's pre-listen. Engaging cue on a deck while the mode is
+    /// `.off` also selects a usable mode — otherwise the button does nothing
+    /// visible and the user concludes cue is broken.
+    public func toggleCue(_ deck: PerformanceEngine.Deck) {
+        let enabled = !cuedDecks.contains(deck)
+        if enabled {
+            cuedDecks.insert(deck)
+            if cueMode == .off { setCueMode(defaultCueMode) }
+        } else {
+            cuedDecks.remove(deck)
+        }
+        engine.setHeadphoneCue(deck, enabled: enabled)
+    }
+
+    /// The mode chosen when a user cues a deck without having picked one:
+    /// split output where the route can carry it, cue-in-place otherwise.
+    private var defaultCueMode: CueMode {
+        CueMode.splitOutput.isAvailable(outputChannels: outputChannelCount)
+            ? .splitOutput : .cueInPlace
+    }
+
+    /// Select a cue mode. A mode the current route cannot deliver is **not**
+    /// selected — the caller gets `false` and the reason belongs on screen
+    /// (§44.2a: the substitution is the failure).
+    @discardableResult
+    public func setCueMode(_ mode: CueMode) -> Bool {
+        guard mode.isAvailable(outputChannels: outputChannelCount) else { return false }
+        cueMode = mode
+        engine.setCueMode(mode)
+        return true
+    }
+
+    /// Observe the route's channel count (§44.2, FR-HW-4). A route that loses
+    /// channels demotes an unavailable mode rather than leaving it selected and
+    /// inert.
+    public func updateOutputChannelCount(_ channels: Int) {
+        outputChannelCount = max(1, channels)
+        if !cueMode.isAvailable(outputChannels: outputChannelCount) {
+            setCueMode(defaultCueMode)
         }
     }
 

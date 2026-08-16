@@ -133,6 +133,15 @@ final class WorkspaceModelTests: XCTestCase {
         func sampleTelemetry() -> EngineTelemetry { current }
         func pushTelemetry() { stream.push(current) }
 
+        // Cue monitoring (§44.2a, plan 6.4) — recorded so the model's
+        // forwarding is asserted rather than assumed.
+        private(set) var cuedDecks: Set<PerformanceEngine.Deck> = []
+        private(set) var cueModes: [CueMode] = []
+        func setHeadphoneCue(_ deck: PerformanceEngine.Deck, enabled: Bool) {
+            if enabled { cuedDecks.insert(deck) } else { cuedDecks.remove(deck) }
+        }
+        func setCueMode(_ mode: CueMode) { cueModes.append(mode) }
+
         // Liveness (NFR-REL-2, plan 6.1). `isGraphRunning` is settable so a
         // test can reproduce the two ways a graph dies: reporting itself
         // stopped, and the worse one — going on claiming to run while its
@@ -1408,6 +1417,66 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(fake.recordingStops, 1, "the second toggle stops recording once")
         XCTAssertFalse(model.isRecording)
         XCTAssertEqual(fake.recordingStarts, 1, "a stop never restarts")
+    }
+
+    // MARK: - Cue monitoring (§44.2a, FR-HW-3, plan 6.4)
+
+    /// Cueing a deck with no mode chosen must produce audible pre-listen, not a
+    /// lit button and silence — so it selects a usable mode as it arms.
+    func testCueingADeckWithNoModeSelectsAUsableOne() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        XCTAssertEqual(model.cueMode, .off)
+
+        model.toggleCue(.a)
+
+        XCTAssertTrue(model.isCued(.a))
+        XCTAssertEqual(model.cueMode, .splitOutput,
+                       "a 2-channel route gets split output — the mode that works with a cable")
+        XCTAssertTrue(fake.cuedDecks.contains(.a), "and the engine is actually told")
+        XCTAssertEqual(fake.cueModes.last, .splitOutput)
+    }
+
+    func testTogglingCueOffLeavesTheModeAlone() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        model.toggleCue(.a)
+        model.toggleCue(.a)
+
+        XCTAssertFalse(model.isCued(.a))
+        XCTAssertFalse(fake.cuedDecks.contains(.a))
+        XCTAssertEqual(model.cueMode, .splitOutput,
+                       "the chosen mode survives disarming — it is a setting, not a side effect")
+    }
+
+    /// §44.2a: a mode the route cannot deliver is refused, not approximated.
+    func testAModeTheRouteCannotDeliverIsRefused() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+
+        XCTAssertFalse(model.setCueMode(.multichannel),
+                       "two channels cannot carry a separate cue leg")
+        XCTAssertEqual(model.cueMode, .off, "and nothing else is silently selected in its place")
+        XCTAssertTrue(fake.cueModes.isEmpty, "the engine is never told about a refused mode")
+
+        model.updateOutputChannelCount(4)
+        XCTAssertTrue(model.setCueMode(.multichannel), "a 4-channel interface can")
+        XCTAssertEqual(fake.cueModes.last, .multichannel)
+    }
+
+    /// Unplugging the interface mid-set must not leave a selected mode that
+    /// silently does nothing.
+    func testLosingChannelsDemotesAnUnavailableMode() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        model.updateOutputChannelCount(4)
+        XCTAssertTrue(model.setCueMode(.multichannel))
+
+        model.updateOutputChannelCount(2)   // the interface is unplugged
+
+        XCTAssertEqual(model.cueMode, .splitOutput,
+                       "demoted to the best mode this route can actually deliver")
+        XCTAssertEqual(fake.cueModes.last, .splitOutput)
     }
 
     // MARK: - Engine liveness (NFR-REL-2, §34A.5, plan 6.1)

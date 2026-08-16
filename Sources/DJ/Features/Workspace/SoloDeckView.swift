@@ -214,6 +214,12 @@ public struct SoloDeckView: View {
                 EchoReleaseToCommitButton(model: model, deck: model.focusedDeck,
                                           showsChannelSelector: false)
 
+                // §44.2a: pre-listen is a transition control, so it is always
+                // visible on the compact surface — never behind a drawer
+                // (§42.7c's transferable core).
+                CueButton(model: model, deck: model.focusedDeck)
+                    .frame(minHeight: 44)
+
                 Button {
                     model.raiseCrateSheet()
                 } label: {
