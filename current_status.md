@@ -243,6 +243,49 @@ factory profiles (a controller must be MIDI-learned — the walkthrough covers
 it); hot cues are still not bindable (nothing reads stored cue points yet); no
 LED feedback, so the controller's lights will not reflect app state.
 
+## 2026-08-16 session — MIDI landed, DJ lanes re-verified, runner progress monitor requested
+
+**MIDI M1–M4 are on `main`** (`6b9247b`, `1cfa079`, `31ffec0`, `de19f56`,
+plus the M2 backward-compat fix `ad1aa22`). The full local suite is green
+(**1544 tests, 0 failures, 8 skipped**) and the app builds. **`LANES=djhw`
+ran green end to end** — including the new **AT-HW-06**, which seeds an active
+profile, opens the decks, injects a CC through `HardwareService.receive`, and
+watches the live surface's crossfader move.
+
+**`LANES=djmix` was re-run three times to close the plan's DoD item. Every
+run's audio verified — all five §53.9 signatures passed against the journal
+on each run — but the UI lanes are flaky:**
+
+- Run 1 (11:31): 4 tests, **1 failure** — `AT-MIX-02`'s `dj.queue.row.House
+  Fixture 2` was "not hittable" after selecting the House queue (a present-but-
+  unreachable row, the exact class the suite exists to catch). Audio: all 5
+  signatures PASS.
+- Run 2 (11:48): **all 4 lanes passed**; the analyzer flagged a **Fader Cut
+  zipper** on that run's recording (`flatness 0.001 vs 0.000 before/after`),
+  while the run-1 and run-3 recordings showed a clean cut (`-50 dB inside one
+  beat, no broadband transient`). Same code, three outcomes — a measurement-
+  window/timing sensitivity, not a constant product defect, but it needs a
+  hand re-run before release.
+- Run 3 (12:03): **2 failures** — `AT-MIX-01` and `AT-MIX-02` (the
+  crate-building and crate-tap lanes), while `AT-MIX-03_07`'s recording again
+  verified all 5 signatures.
+
+**Reading:** the crate/queue-row tap lanes are flaky under repeated runs
+(`not hittable` on rows that exist), and the fader-cut measurement is
+borderline on some recordings. Nothing in the M1–M4 work touches those code
+paths (no MIDI profile is attached in the djmix lanes, so the M2 pickup
+resets and the catch indicator are inert), but the flake predates the fix that
+the suite's own §14 would prescribe (a scroll/hittability retry on
+`loadTrack`), and the DoD item "LANES=djmix still green" is **not yet proven
+stable** — a clean by-hand run is still owed before release.
+
+**Owner request not yet actioned (this session paused before it):** the owner
+asked for `make test-ui-regression` to print **high-level progress with
+timestamps** (test-case boundaries + a heartbeat) instead of raw `xcodebuild`
+output and then silence for minutes per lane. `scripts/run-ui-regression.sh`
+was analysed (the `xcodebuild test` block at ~line 200 pipes raw output via
+`tee`); the change is **designed but not implemented** — it is the next task.
+
 **M5's remit** (per the rewritten §48.6) was an outcome rather than three subsystems:
 
 > Open the app → pick a genre (**electronic → techno**) → get a library of current,
@@ -1535,6 +1578,11 @@ line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fa
 
 ## Next
 
+- **The runner progress monitor (owner request, not yet started):** change
+  `scripts/run-ui-regression.sh` so `make test-ui-regression` prints high-level
+  progress with timestamps — phase lines, test-case boundaries, and a
+  "still working" heartbeat — instead of raw `xcodebuild` output followed by
+  minutes of silence per lane. Full log stays in the temp `RUN_LOG`.
 - **MIDI M5–M8 (plan `dj-midi-alpha.md`, all below the alpha cut line):** **M5** LED
   output (an output port + destination, feedback for toggle/trigger bindings only,
   throttled), **M6** 14-bit CC pairs (opt-in per binding, offered in learn only when a
