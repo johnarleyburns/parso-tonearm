@@ -102,6 +102,7 @@
 		F1FEBCEF7BC2546437362B1D /* EQView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB44399EDF479626BC62A6F /* EQView.swift */; };
 		F9FF663536834A156EF40E11 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 391DE85B4F0BACCBFDCDAF98 /* TonearmCore */; };
 		FA21DEDFD4C224853AF43150 /* WidgetArtworkStore+Save.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */; };
+		FADE01E4B305918AF925D05A /* JamendoCredentialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -249,6 +250,8 @@
 		AE88E0E38F38D3267A0EBF38 /* Tonearm.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.entitlements; sourceTree = "<group>"; };
 		AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WidgetArtworkStore+Save.swift"; sourceTree = "<group>"; };
 		AF71DF665673F9AE321A652A /* PhoneWatchSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchSessionAdapter.swift; sourceTree = "<group>"; };
+		B89D48292A9F33EF6D60C975 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JamendoCredentialView.swift; sourceTree = "<group>"; };
 		B97FF4E2C42647407E4F4E0F /* ListenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenView.swift; sourceTree = "<group>"; };
 		BA10A0A38CCAEB7B37B8B008 /* ambient-ocean.mp4 */ = {isa = PBXFileReference; path = "ambient-ocean.mp4"; sourceTree = "<group>"; };
 		BB123222EE9042CA89F2CB7E /* WatchFetchOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchFetchOverlay.swift; sourceTree = "<group>"; };
@@ -559,6 +562,14 @@
 			path = Audio;
 			sourceTree = "<group>";
 		};
+		9A6CDD30CC981B4B14C6B894 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				B89D48292A9F33EF6D60C975 /* Base.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		9F2907457C1E2173870ADF57 /* ShareExtension */ = {
 			isa = PBXGroup;
 			children = (
@@ -617,6 +628,7 @@
 		E4A17E2C35C89B52EE42ED08 = {
 			isa = PBXGroup;
 			children = (
+				9A6CDD30CC981B4B14C6B894 /* Config */,
 				264AB505F29364FB7B0B6672 /* Packages */,
 				84A5835CD1D34ED39549B235 /* Resources */,
 				9F2907457C1E2173870ADF57 /* ShareExtension */,
@@ -634,6 +646,7 @@
 			isa = PBXGroup;
 			children = (
 				6AB44399EDF479626BC62A6F /* EQView.swift */,
+				B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */,
 				8D928C4FD455EF96E0D393F1 /* ProPaywallView.swift */,
 				841673E58AB857F3F5C1B063 /* ProToolsView.swift */,
 				C114ED8EAE6B45F219A551DA /* SettingsView.swift */,
@@ -942,6 +955,7 @@
 				5CA9C7EB47FDA9A263644EEC /* GenreCrateImporter.swift in Sources */,
 				6E4FBE3405E7DED87AC0E5FE /* GlassDock.swift in Sources */,
 				258615352F9FC8B6D84BA3FC /* GlassSurface.swift in Sources */,
+				FADE01E4B305918AF925D05A /* JamendoCredentialView.swift in Sources */,
 				8553DC45ADAE9EC2DCB3101A /* LibraryView.swift in Sources */,
 				2B12111CBDF1D49C39714944 /* ListenView.swift in Sources */,
 				B85A66E82620EA180EAF7A67 /* LoopingVideoView.swift in Sources */,
@@ -1266,6 +1280,7 @@
 		};
 		922596C9C41CC934AC8746B8 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B89D48292A9F33EF6D60C975 /* Base.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1324,7 +1339,6 @@
 				SWIFT_VERSION = 6.0;
 				TONEARM_DROPBOX_CLIENT_ID = "";
 				TONEARM_GOOGLE_DRIVE_CLIENT_ID = "";
-				TONEARM_JAMENDO_CLIENT_ID = "";
 				TONEARM_ONEDRIVE_CLIENT_ID = "";
 				TONEARM_PCLOUD_CLIENT_ID = "";
 				TONEARM_PCLOUD_CLIENT_SECRET = "";
@@ -1397,6 +1411,7 @@
 		};
 		B9D7EB96BA69D5C59847B5D3 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B89D48292A9F33EF6D60C975 /* Base.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1462,7 +1477,6 @@
 				SWIFT_VERSION = 6.0;
 				TONEARM_DROPBOX_CLIENT_ID = "";
 				TONEARM_GOOGLE_DRIVE_CLIENT_ID = "";
-				TONEARM_JAMENDO_CLIENT_ID = "";
 				TONEARM_ONEDRIVE_CLIENT_ID = "";
 				TONEARM_PCLOUD_CLIENT_ID = "";
 				TONEARM_PCLOUD_CLIENT_SECRET = "";

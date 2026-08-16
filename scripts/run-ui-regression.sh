@@ -320,8 +320,15 @@ cp "$found_mix" "$DJ_MIX"
 # The fixture manifest is the analyzer's source of the per-deck tone identities
 # (§5, §53.8) — the app does not know them and must not hardcode them. It lives
 # inside the mock container's media volume; copy it to the host for the run.
+#
+# **Only for the deterministic lane.** The manifest is the tone-identity table,
+# and tone identity is a property of the *fixtures*. The live lane mixes real
+# music, which has broadband low end on both decks and no tone identities at
+# all (§8.2, §53.12) — and performs no scripted transitions to look for. Handing
+# the analyzer a manifest there asks it to verify five signatures of a mix that
+# was never asked to contain them, and it dutifully fails all five.
 DJ_MANIFEST="$DJ_ARTIFACTS/dj-fixture-manifest.json"
-if [[ "${LOCAL_SERVERS}" == "1" ]]; then
+if [[ "${LOCAL_SERVERS}" == "1" && "$LANES" == "djmix" ]]; then
   docker compose -f "$COMPOSE_FILE" cp jamendo-mock:/media/dj-fixture-manifest.json \
     "$DJ_MANIFEST" >/dev/null 2>&1 || true
 fi

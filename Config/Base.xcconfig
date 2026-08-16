@@ -1,0 +1,20 @@
+// Base build configuration.
+//
+// Application credentials (as distinct from user logins) have to reach a
+// shipped binary, so they cannot live in .test-credentials — but they must not
+// enter the repo either (§54.2). The mechanism is this file plus an untracked
+// sibling:
+//
+//   Config/Secrets.xcconfig   — real values, gitignored, never committed
+//   Config/Secrets.example.xcconfig — the key names, committed
+//
+// `#include?` is an *optional* include: a clone without the secrets file builds
+// fine and the app reports the honest "not configured" state (§18A.6) rather
+// than failing to build or, worse, shipping a fabricated key.
+//
+// CI writes Config/Secrets.xcconfig from a repository secret before building
+// for TestFlight (.github/workflows/ios.yml).
+
+TONEARM_JAMENDO_CLIENT_ID =
+
+#include? "Secrets.xcconfig"

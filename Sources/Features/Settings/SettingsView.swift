@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var customCacheLimitMessage: String?
     @State private var icloudSync = SyncGating.isEnabled
     @State private var showWatchSettings = false
+    @State private var showJamendoKey = false
 
     private let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
@@ -36,6 +37,7 @@ struct SettingsView: View {
                 behaviorCard
                 watchCard
                 toolsCard
+                jamendoCard
                 syncCard
                 clearCard
                 customArtworkCard
@@ -50,6 +52,7 @@ struct SettingsView: View {
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
         .sheet(isPresented: $showEQ) { EQView() }
         .sheet(isPresented: $showTools) { ProToolsView() }
+        .sheet(isPresented: $showJamendoKey) { JamendoCredentialView() }
         .confirmationDialog("Clear \(TimeFmt.megabytes(cacheUsed)) of cached audio?",
                             isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button("Clear Cache", role: .destructive) {
@@ -276,6 +279,30 @@ struct SettingsView: View {
         .sheet(isPresented: $showWatchSettings) {
             WatchSettingsView()
         }
+    }
+
+
+    /// §18A.2: the app's own Jamendo key ships in the binary so genre libraries
+    /// need no account (FR-LIB-9); a user may supply their own instead, which
+    /// then takes precedence (plan 6.3).
+    private var jamendoCard: some View {
+        Button { showJamendoKey = true } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Jamendo key").font(.system(size: 13.5))
+                    Text("Use your own application key for genre libraries")
+                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                }
+                Spacer()
+                Image(systemName: "key")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Palette.ink3)
+            }
+            .padding(15)
+            .glassSurface(cornerRadius: 18)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.jamendo.key")
     }
 
     private var toolsCard: some View {

@@ -25,7 +25,10 @@ settings:
     TONEARM_ONEDRIVE_CLIENT_ID: ""
     TONEARM_PCLOUD_CLIENT_ID: ""
     TONEARM_PCLOUD_CLIENT_SECRET: ""
-    TONEARM_JAMENDO_CLIENT_ID: ""
+
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
 
 targets:
   Tonearm:

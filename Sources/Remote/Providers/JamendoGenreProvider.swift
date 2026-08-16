@@ -71,7 +71,18 @@ public enum JamendoAppConfig {
             }
             return "ui-regression"
         }
-        return (Bundle.main.object(forInfoDictionaryKey: "JamendoClientID") as? String)?
+        // A user-supplied key wins over the app's (plan 6.3 decision 2): it is
+        // their own rate limit, and it keeps the feature working if ours is
+        // ever pulled.
+        return JamendoCredentialStore(appClientID: { bundledClientID })
+            .resolved()?.clientID ?? ""
+    }
+
+    /// The app's own key as shipped — Info.plist, filled from the untracked
+    /// `Config/Secrets.xcconfig` locally and a CI secret for TestFlight. Empty
+    /// is the honest not-configured state (§18A.6), never a fabricated key.
+    public static var bundledClientID: String {
+        (Bundle.main.object(forInfoDictionaryKey: "JamendoClientID") as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 

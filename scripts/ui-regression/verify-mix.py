@@ -556,11 +556,13 @@ def main() -> int:
     if not tones and args.fixture_manifest:
         with open(args.fixture_manifest, encoding="utf-8") as handle:
             tones = json.load(handle)["toneSets"]
-    if not tones:
-        print("SKIP: no deck tone sets in the journal or a fixture manifest — this "
-              "is the live lane; acoustic signatures are not asserted there (§53.12)",
-              file=sys.stderr)
-        return 0
+    # No tone sets is the **live lane**, not a broken run: real music has no
+    # tone identity to measure and that lane performs no scripted transitions
+    # (§8.2, §53.12). The signature table is skipped — but the file is still
+    # decoded and held against the journal's own length below, which is exactly
+    # what §8.2 asks of the live lane: it browses, plays, records, and the
+    # export decodes.
+    signatures_apply = bool(tones)
 
     workdir = tempfile.mkdtemp(prefix="verify-mix-")
     try:
@@ -610,6 +612,12 @@ def main() -> int:
                       "one-bar budget — a host condition, not a Platterhead defect, but the "
                       "recording is not trustworthy evidence")
     print()
+
+    if not signatures_apply:
+        print("the live lane: no tone identities to measure, so the §53.9 signatures are "
+              "not asserted here (§53.12). The export decoded and its length matches the "
+              "journal — which is what this lane is for.")
+        return 0 if length_ok else 1
 
     events = journal.get("events", [])
     results = []

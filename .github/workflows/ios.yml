@@ -94,6 +94,25 @@ jobs:
           done
           echo "Codename-leak guard OK"
 
+      - name: Write application credentials
+        env:
+          TONEARM_JAMENDO_CLIENT_ID: ${{ secrets.TONEARM_JAMENDO_CLIENT_ID }}
+        run: |
+          # Application credentials (as distinct from user logins) have to reach
+          # a shipped binary but must never enter the repo (§54.2). Config/Base
+          # .xcconfig optionally includes this file; an absent secret leaves it
+          # empty and the app reports the honest "not configured" state (§18A.6)
+          # rather than shipping a fabricated key or failing the build.
+          if [ -n "$TONEARM_JAMENDO_CLIENT_ID" ]; then
+            printf 'TONEARM_JAMENDO_CLIENT_ID = %s\n' "$TONEARM_JAMENDO_CLIENT_ID" \
+              > Config/Secrets.xcconfig
+            echo "Jamendo client id written to Config/Secrets.xcconfig (value not logged)"
+          else
+            echo "::warning::TONEARM_JAMENDO_CLIENT_ID is not set — this build ships without"
+            echo "::warning::a Jamendo key, so genre libraries will report themselves"
+            echo "::warning::unavailable. Add the repository secret to enable them."
+          fi
+
       - name: Cache SPM
         uses: actions/cache@v4
         with:
