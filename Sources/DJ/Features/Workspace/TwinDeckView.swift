@@ -64,6 +64,11 @@ public struct TwinDeckView: View {
         // NFR-REL-2: a stopped graph makes every readout below false at once.
         .engineStoppedBanner(model)
         .preferredColorScheme(.dark)
+        .overlay(alignment: .topTrailing) {
+            // The M2 soft-takeover catch indicator (plan dj-midi-alpha M2).
+            MidiCatchIndicator(model: model)
+                .padding(12)
+        }
         .ignoresSafeArea()
         #if os(iOS)
         .defersSystemGestures(on: .bottom)

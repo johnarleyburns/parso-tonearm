@@ -70,9 +70,12 @@ struct TonearmApp: App {
     private static func seedMidiProfileForRegression() {
         var profile = ControllerProfile(name: "Regression controller",
                                         endpointName: "Regression")
+        // `.jump`: the lane injects one CC and expects the crossfader to move
+        // immediately — pickup would correctly refuse until a "physical"
+        // crossing, which an injected message can never produce.
         profile.learn(.crossfader,
                       at: MidiAddress(type: .cc, channel: 1, number: 7),
-                      transform: .bipolar)
+                      transform: .bipolar, takeover: .jump)
         try? ControllerProfileStore(pool: DJLibraryStore.shared.pool)
             .save(profile, syncID: "regression")
     }

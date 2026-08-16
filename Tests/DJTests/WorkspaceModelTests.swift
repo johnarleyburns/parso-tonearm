@@ -1431,10 +1431,13 @@ final class WorkspaceModelTests: XCTestCase {
         let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
         var profile = ControllerProfile(name: "Test")
         let knob = MidiAddress(type: .cc, channel: 1, number: 7)
-        profile.learn(.eq(deck: .a, band: .low), at: knob, transform: .bipolar)
+        // `.jump` — this test is about the ordinary path, not takeover.
+        profile.learn(.eq(deck: .a, band: .low), at: knob, transform: .bipolar,
+                      takeover: .jump)
+        var takeover = TakeoverState()
 
         let intent = try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: knob, value: 0),
-                                                     profile: profile))
+                                                     profile: profile, takeover: &takeover))
         model.apply(intent)
 
         XCTAssertEqual(model.eqALow, -1, accuracy: 1e-6, "the model's own state moved")
@@ -1450,13 +1453,14 @@ final class WorkspaceModelTests: XCTestCase {
         let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
         var profile = ControllerProfile(name: "Test")
         let slider = MidiAddress(type: .cc, channel: 1, number: 8)
-        profile.learn(.crossfader, at: slider, transform: .bipolar)
+        profile.learn(.crossfader, at: slider, transform: .bipolar, takeover: .jump)
+        var takeover = TakeoverState()
 
-        model.apply(MidiRouter.intent(for: MidiMessage(address: slider, value: 0),
-                                      profile: profile)!)
+        model.apply(try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: slider, value: 0),
+                                                    profile: profile, takeover: &takeover)))
         XCTAssertEqual(model.crossfader, -1, accuracy: 1e-6)
-        model.apply(MidiRouter.intent(for: MidiMessage(address: slider, value: 64),
-                                      profile: profile)!)
+        model.apply(try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: slider, value: 64),
+                                                    profile: profile, takeover: &takeover)))
         XCTAssertEqual(model.crossfader, 0, accuracy: 0.02, "swept to centre — a Blend")
     }
 
@@ -1466,14 +1470,15 @@ final class WorkspaceModelTests: XCTestCase {
         var profile = ControllerProfile(name: "Test")
         let pad = MidiAddress(type: .note, channel: 1, number: 36)
         profile.learn(.headphoneCue(deck: .b), at: pad, transform: ValueTransform(mode: .trigger))
+        var takeover = TakeoverState()
 
-        model.apply(MidiRouter.intent(for: MidiMessage(address: pad, value: 127),
-                                      profile: profile)!)
+        model.apply(try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: pad, value: 127),
+                                                    profile: profile, takeover: &takeover)))
         XCTAssertTrue(model.isCued(.b))
 
         // The release must not toggle it straight back off.
-        model.apply(MidiRouter.intent(for: MidiMessage(address: pad, value: 0),
-                                      profile: profile)!)
+        model.apply(try XCTUnwrap(MidiRouter.intent(for: MidiMessage(address: pad, value: 0),
+                                                    profile: profile, takeover: &takeover)))
         XCTAssertTrue(model.isCued(.b), "a pad tap is one action, not two")
     }
 
@@ -1497,7 +1502,7 @@ final class WorkspaceModelTests: XCTestCase {
         let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
         var profile = ControllerProfile(name: "Test")
         let fader = MidiAddress(type: .cc, channel: 1, number: 7)
-        profile.learn(.crossfader, at: fader, transform: .bipolar)
+        profile.learn(.crossfader, at: fader, transform: .bipolar, takeover: .jump)
 
         let hardware = HardwareService()
         hardware.start()
@@ -1522,7 +1527,7 @@ final class WorkspaceModelTests: XCTestCase {
         let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
         var profile = ControllerProfile(name: "Test")
         let fader = MidiAddress(type: .cc, channel: 1, number: 7)
-        profile.learn(.crossfader, at: fader, transform: .bipolar)
+        profile.learn(.crossfader, at: fader, transform: .bipolar, takeover: .jump)
 
         let hardware = HardwareService()
         hardware.start()
@@ -1544,7 +1549,7 @@ final class WorkspaceModelTests: XCTestCase {
         let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
         var profile = ControllerProfile(name: "Test")
         let fader = MidiAddress(type: .cc, channel: 1, number: 7)
-        profile.learn(.crossfader, at: fader, transform: .bipolar)
+        profile.learn(.crossfader, at: fader, transform: .bipolar, takeover: .jump)
 
         let hardware = HardwareService()
         hardware.start()
@@ -1563,6 +1568,67 @@ final class WorkspaceModelTests: XCTestCase {
     /// stream subscription (and the delivery of an injected message) settles.
     private static func settleMidiTask() async {
         for _ in 0..<4 { await Task.yield() }
+    }
+
+    // MARK: - Soft takeover (plan dj-midi-alpha M2)
+
+    /// The M2 narrative end to end: a physical fader at the wrong position does
+    /// **not** jump the engine value, the catch indicator says which way to
+    /// move it, a finger driving the action on the touchscreen makes the claim
+    /// stale, and the physical control re-picks-up rather than slamming.
+    func testSoftTakeoverDoesNotSlamAndTheTouchscreenResetsTheClaim() async throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        var profile = ControllerProfile(name: "Test")
+        let slider = MidiAddress(type: .cc, channel: 1, number: 8)
+        // Pickup is the default for a continuous absolute control.
+        profile.learn(.crossfader, at: slider, transform: .bipolar)
+        let hardware = HardwareService()
+        hardware.start()
+        model.attachMidi(hardware, profile: profile)
+        await Self.settleMidiTask()
+
+        // Physical at +1 over an engine at 0: nothing moves, indicator says
+        // which way (distance > 0 → the crossfader reads "move left").
+        hardware.receive(MidiMessage(address: slider, value: 127))
+        await Self.settleMidiTask()
+        XCTAssertEqual(model.crossfader, 0, accuracy: 1e-6, "no slam")
+        XCTAssertNotNil(model.midiPendingPickup[.crossfader])
+        XCTAssertTrue(model.midiCatchItems.contains { $0.label.contains("move left") },
+                      "the indicator names the way: \(model.midiCatchItems.map(\.label))")
+
+        // A finger drives the crossfader on the touchscreen: the physical
+        // control's claim is stale and the pending indicator clears.
+        model.setCrossfader(0.5, curve: .constantPower)
+        XCTAssertNil(model.midiPendingPickup[.crossfader],
+                     "a touchscreen move clears the pending pickup")
+
+        // The physical fader (still at +1) must re-pick-up over 0.5, not slam.
+        hardware.receive(MidiMessage(address: slider, value: 127))
+        await Self.settleMidiTask()
+        XCTAssertEqual(model.crossfader, 0.5, accuracy: 1e-6, "still not slammed")
+        XCTAssertNotNil(model.midiPendingPickup[.crossfader])
+
+        // It crosses 0.5 (64 → ≈ 0.008), claims the control, indicator clears.
+        hardware.receive(MidiMessage(address: slider, value: 64))
+        await Self.settleMidiTask()
+        XCTAssertEqual(model.crossfader, -1 + 2 * 64.0 / 127.0, accuracy: 1e-4)
+        XCTAssertNil(model.midiPendingPickup[.crossfader], "claimed — indicator gone")
+    }
+
+    /// `.awaitingPickup` applied directly (the model-side half): the indicator
+    /// registers and a later `.setContinuous` clears it.
+    func testAwaitingPickupSetsTheIndicatorAndFollowingClearsIt() throws {
+        let fake = FakeWorkspaceEngine()
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        model.apply(.awaitingPickup(.crossfader, distance: 0.8))
+        XCTAssertEqual(model.midiPendingPickup[.crossfader], 0.8)
+        XCTAssertEqual(model.midiCatchItems.count, 1)
+
+        model.apply(.setContinuous(.crossfader, 0.2))
+        XCTAssertNil(model.midiPendingPickup[.crossfader])
+        XCTAssertTrue(model.midiCatchItems.isEmpty)
+        XCTAssertEqual(model.crossfader, 0.2, accuracy: 1e-6)
     }
 
     // MARK: - Cue monitoring (§44.2a, FR-HW-3, plan 6.4)

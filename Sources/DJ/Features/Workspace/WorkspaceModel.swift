@@ -323,6 +323,17 @@ public final class WorkspaceModel: ObservableObject {
     /// outlives the assembly call that attached it (plan dj-midi-alpha M1) and
     /// is released on `detachMidi()`.
     private var midiHardware: HardwareService?
+    /// The router's pickup memory (plan dj-midi-alpha M2) — owned here, one per
+    /// attachment, so a finger driving an action on the touchscreen can reset
+    /// the physical control's claim on it.
+    private var midiTakeover = TakeoverState()
+    /// True while a routed MIDI intent is being applied, so the touchscreen
+    /// setters it goes through do not reset their own pickup claims.
+    private var isApplyingMidi = false
+    /// Actions whose MIDI binding is awaiting pickup (M2): the UI shows a small
+    /// catch indicator naming the control and which way to move it. `distance`
+    /// is signed — positive = move down/left to catch.
+    @Published public private(set) var midiPendingPickup: [EngineAction: Float] = [:]
     /// The master-clock sample position when recording started — `elapsed` is
     /// `(masterSample − start) / sampleRate`, which equals the recorded frames.
     private var recordingStartSample: Int64 = 0
@@ -782,6 +793,7 @@ public final class WorkspaceModel: ObservableObject {
         let previous = controls(deck).gains[stem] ?? 0
         setControls(deck) { $0.gains[stem] = clamped }
         engine.setStemGain(deck, stem: stem, gain: clamped)
+        resetMidiPickup(for: .stemGain(deck: midiDeckID(deck), stem: stem))
         // S8: the DJ stem lane's journal mark — a fader pulled to the floor
         // while recording is the gesture the host analyzer measures
         // (`stem.fader`, §53.9 settled-state band check). Fires once, on the
@@ -1141,6 +1153,13 @@ public final class WorkspaceModel: ObservableObject {
         deck == .a ? "a" : "b"
     }
 
+    /// `PerformanceEngine.Deck` → the MIDI vocabulary's `EngineAction.DeckID`
+    /// (same two decks, two type systems; M2's pickup resets need the action
+    /// type).
+    private func midiDeckID(_ deck: PerformanceEngine.Deck) -> EngineAction.DeckID {
+        deck == .a ? .a : .b
+    }
+
     /// The Bass Swap (§26A.3, transition 1): one deck's low band is killed
     /// while the other's low is already killed — the low end changes hands and
     /// the mids stay put. The `outgoing` deck is the one whose low falls.
@@ -1297,6 +1316,10 @@ public final class WorkspaceModel: ObservableObject {
         case .b:
             eqBLow = low; eqBMid = mid; eqBHigh = high
         }
+        let id = midiDeckID(deck)
+        resetMidiPickup(for: .eq(deck: id, band: .low))
+        resetMidiPickup(for: .eq(deck: id, band: .mid))
+        resetMidiPickup(for: .eq(deck: id, band: .high))
     }
 
     public func setFilter(_ deck: PerformanceEngine.Deck, knob: Float) {
@@ -1306,6 +1329,7 @@ public final class WorkspaceModel: ObservableObject {
         case .a: filterA = knob
         case .b: filterB = knob
         }
+        resetMidiPickup(for: .filter(deck: midiDeckID(deck)))
     }
 
     public func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float) {
@@ -1315,6 +1339,7 @@ public final class WorkspaceModel: ObservableObject {
         case .a: channelA = gain
         case .b: channelB = gain
         }
+        resetMidiPickup(for: .channelFader(deck: midiDeckID(deck)))
     }
 
     // MARK: - MIDI (§44.4, FR-HW-1, plan 6.5)
@@ -1342,7 +1367,8 @@ public final class WorkspaceModel: ObservableObject {
                 guard let binding = profile.binding(for: message.address) else { continue }
                 guard let intent = MidiRouter.intent(
                     for: message, profile: profile,
-                    currentValue: self.currentValue(of: binding.action)) else { continue }
+                    currentValue: self.currentValue(of: binding.action),
+                    takeover: &self.midiTakeover) else { continue }
                 self.apply(intent)
             }
         }
@@ -1353,6 +1379,8 @@ public final class WorkspaceModel: ObservableObject {
         midiTask = nil
         midiProfile = nil
         midiHardware = nil
+        midiTakeover.reset()
+        midiPendingPickup = [:]
     }
 
     /// Apply a routed MIDI intent.
@@ -1366,11 +1394,50 @@ public final class WorkspaceModel: ObservableObject {
         switch intent {
         case .ignoredRelease:
             return
+        case .awaitingPickup(let action, let distance):
+            // The physical control has not caught the engine value yet: surface
+            // the "which way" indicator, move nothing (M2).
+            midiPendingPickup[action] = distance
         case .setContinuous(let action, let value):
+            midiPendingPickup[action] = nil
+            isApplyingMidi = true
+            defer { isApplyingMidi = false }
             applyContinuous(action, value)
         case .press(let action):
+            midiPendingPickup[action] = nil
+            isApplyingMidi = true
+            defer { isApplyingMidi = false }
             applyPress(action)
         }
+    }
+
+    /// The pending-pickup list for the catch indicator: one row per awaiting
+    /// action, naming the control and which way to move it in surface terms
+    /// (horizontal for the crossfader, vertical for the faders/knobs).
+    public var midiCatchItems: [(label: String, target: String)] {
+        midiPendingPickup
+            .map { action, distance in
+                let direction: String
+                if case .crossfader = action {
+                    direction = distance > 0 ? "move left" : "move right"
+                } else {
+                    direction = distance > 0 ? "move down" : "move up"
+                }
+                return (label: "\(action.displayName) — \(direction) to catch",
+                        target: action.target)
+            }
+            .sorted { $0.target < $1.target }
+    }
+
+    /// A finger drove `action` on the touchscreen, so the physical control's
+    /// claim on it is stale and must re-pick-up (M2). Guarded by
+    /// `isApplyingMidi` so a MIDI-driven setter never resets its own claim.
+    private func resetMidiPickup(for action: EngineAction) {
+        guard !isApplyingMidi, let profile = midiProfile else { return }
+        for binding in profile.bindings where binding.action == action {
+            midiTakeover.resetPickup(for: binding.address)
+        }
+        midiPendingPickup[action] = nil
     }
 
     /// The current engine-side value of a continuous action — what a relative
@@ -1527,6 +1594,7 @@ public final class WorkspaceModel: ObservableObject {
         engine.setCrossfader(position, curve: curve)
         crossfader = position
         crossfaderCurve = curve
+        resetMidiPickup(for: .crossfader)
     }
 
     // MARK: - Beat FX — the §35A post-fader echo (FR-TRANS-4, plan 5.5)
@@ -1615,6 +1683,7 @@ public final class WorkspaceModel: ObservableObject {
         case .b: tempoB = clamped
         }
         engine.setRate(deck, rate: Float(1 + clamped))
+        resetMidiPickup(for: .tempo(deck: midiDeckID(deck)))
     }
 
     // MARK: - Master clock bar:beat readout (§53.11)

@@ -5,9 +5,28 @@ import GRDB
 
 final class DJSchemaTests: XCTestCase {
     func testMigrationOrderIsAppendOnly() {
-        XCTAssertEqual(DJSchema.migrationOrder, ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5"])
+        XCTAssertEqual(DJSchema.migrationOrder,
+                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6"])
         XCTAssertEqual(DJSchema.migrator().migrations,
-                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5"])
+                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6"])
+    }
+
+    /// `dj_v6` (plan dj-midi-alpha M2): the soft-takeover mode is a property of
+    /// each binding, and an upgraded database must carry the column with the
+    /// conservative default.
+    func testV6AddsTakeoverToMidiBindings() throws {
+        let db = try DatabaseQueue()
+        try DJSchema.migrator().migrate(db)
+        try db.read { db in
+            let columns = try db.columns(in: "midi_binding").map(\.name)
+            XCTAssertTrue(columns.contains("takeover"), "missing takeover column")
+        }
+        // The default for a pre-M2 row is `jump` — exactly what the profile
+        // did before takeover existed.
+        let count = try db.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM midi_binding") ?? 0
+        }
+        XCTAssertEqual(count, 0)
     }
 
     func testApplyingAllMigrationsCreatesRelationalCoreTables() throws {

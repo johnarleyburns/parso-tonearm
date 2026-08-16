@@ -139,6 +139,24 @@ public enum EngineAction: Sendable, Equatable, Hashable, Codable {
         }
     }
 
+    /// The soft-takeover mode this action wants by default (plan dj-midi-alpha
+    /// M2). Every continuous absolute control defaults to `pickup` — the
+    /// difference between a controller that works and one that slams the
+    /// channel on the first touch mid-set. Relative encoders and buttons are
+    /// `jump`: a relative encoder has no position to pick up, and buttons are
+    /// not continuous.
+    public var defaultTakeover: Takeover {
+        switch self {
+        case .channelFader, .crossfader, .eq, .filter, .tempo, .stemGain:
+            return .pickup
+        default:
+            // Buttons, toggles and (later) the relative jog encoder: jump — a
+            // relative encoder has no position to pick up, and a button is not
+            // continuous.
+            return .jump
+        }
+    }
+
     /// The persisted `midi_binding.target` string (§15).
     public var target: String {
         switch self {
@@ -260,11 +278,96 @@ public struct MidiBinding: Sendable, Equatable, Codable {
     public let address: MidiAddress
     public let action: EngineAction
     public let transform: ValueTransform
+    /// How the control's position claims the engine value when they disagree
+    /// (plan dj-midi-alpha M2). Defaults to the action's choice — a fader
+    /// picks up, a button jumps — and a profile can carry a per-binding
+    /// override.
+    public let takeover: Takeover
 
-    public init(address: MidiAddress, action: EngineAction, transform: ValueTransform) {
+    public init(address: MidiAddress, action: EngineAction, transform: ValueTransform,
+                takeover: Takeover? = nil) {
         self.address = address
         self.action = action
         self.transform = transform
+        self.takeover = takeover ?? action.defaultTakeover
+    }
+}
+
+/// How a bound continuous control claims an engine value that differs from the
+/// physical control's position (plan dj-midi-alpha M2).
+///
+/// A physical fader at 100 % over an app at 20 % is not an edge case: it is
+/// what happens the moment a user loads a controller mid-set or re-binds a
+/// control. Without soft takeover the first touch slams the channel in front
+/// of people.
+public enum Takeover: String, Sendable, Equatable, Codable {
+    /// The control's position is the value immediately — today's behaviour.
+    /// Correct for a control the user is already holding, or a relative
+    /// encoder, which has no position.
+    case jump
+    /// Ignore the control until its physical position crosses the engine
+    /// value; until then the routed intent is `.awaitingPickup`, and the UI
+    /// shows which way to move it.
+    case pickup
+    /// Move the engine value relative to its current position, proportional to
+    /// the physical control's remaining travel from its pickup point — a
+    /// scaled pickup rather than a jump.
+    case scale
+}
+
+/// The router's takeover memory (plan dj-midi-alpha M2).
+///
+/// Deliberately **not** inside `MidiRouter`: the router stays a pure function
+/// so it is testable without a controller, and the caller owns the state —
+/// one per attached workspace — including the resets (re-attach, or a finger
+/// driving the action on the touchscreen).
+public struct TakeoverState: Sendable, Equatable {
+    /// A `scale` control's pickup anchor (physical + engine value at the first
+    /// message after a reset).
+    public struct ScaleAnchor: Sendable, Equatable {
+        public var physical: Float
+        public var engine: Float
+
+        public init(physical: Float, engine: Float) {
+            self.physical = physical
+            self.engine = engine
+        }
+    }
+
+    public private(set) var pickedUp: [MidiAddress: Bool] = [:]
+    /// The last engine-scale value seen per address — the crossing detector.
+    public private(set) var lastIncoming: [MidiAddress: Float] = [:]
+    public private(set) var scaleAnchors: [MidiAddress: ScaleAnchor] = [:]
+
+    public init() {}
+
+    public func isPickedUp(_ address: MidiAddress) -> Bool { pickedUp[address] ?? false }
+
+    public mutating func remember(_ address: MidiAddress, incoming: Float) {
+        lastIncoming[address] = incoming
+    }
+
+    public mutating func markPickedUp(_ address: MidiAddress) {
+        pickedUp[address] = true
+        scaleAnchors[address] = nil
+    }
+
+    public mutating func setScaleAnchor(_ address: MidiAddress, physical: Float, engine: Float) {
+        scaleAnchors[address] = ScaleAnchor(physical: physical, engine: engine)
+    }
+
+    /// Forget one address — a finger drove the action on the touchscreen, or
+    /// the binding was re-attached, so the physical control must re-pick-up.
+    public mutating func resetPickup(for address: MidiAddress) {
+        pickedUp[address] = nil
+        lastIncoming[address] = nil
+        scaleAnchors[address] = nil
+    }
+
+    public mutating func reset() {
+        pickedUp = [:]
+        lastIncoming = [:]
+        scaleAnchors = [:]
     }
 }
 
@@ -297,8 +400,9 @@ public struct ControllerProfile: Sendable, Equatable, Codable {
     /// control should do one thing, and an action should have one control —
     /// otherwise a half-relearned map moves the crossfader from two knobs.
     public mutating func learn(_ action: EngineAction, at address: MidiAddress,
-                               transform: ValueTransform) {
+                               transform: ValueTransform, takeover: Takeover? = nil) {
         bindings.removeAll { $0.address == address || $0.action == action }
-        bindings.append(MidiBinding(address: address, action: action, transform: transform))
+        bindings.append(MidiBinding(address: address, action: action, transform: transform,
+                                    takeover: takeover ?? action.defaultTakeover))
     }
 }

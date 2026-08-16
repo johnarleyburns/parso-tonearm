@@ -86,7 +86,9 @@ Config/Secrets.xcconfig
 build/ui-regression/
 
 # Local compose-run artifacts (navidrome config written by a backing-server run).
-data/
+# Anchored: an unanchored `data/` would (case-insensitively) swallow the DJ
+# module's `Sources/DJ/Data/` directory, silently ignoring every new file there.
+/data/
 
 # Byte-compiled fixture/analyzer scripts.
 __pycache__/

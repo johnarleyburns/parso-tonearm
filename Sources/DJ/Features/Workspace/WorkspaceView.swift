@@ -71,6 +71,12 @@ public struct WorkspaceView: View {
             // when open, the dismissible panel over the still-playing surface.
             TransitionCoachAccessory(model: coach)
         }
+        .overlay(alignment: .topTrailing) {
+            // The M2 soft-takeover catch indicator: which MIDI control needs
+            // moving, and which way (plan dj-midi-alpha M2).
+            MidiCatchIndicator(model: model)
+                .padding(12)
+        }
         // NFR-REL-2: a stopped graph makes every readout below false at once.
         .engineStoppedBanner(model)
         .environment(\.coachHighlights,
