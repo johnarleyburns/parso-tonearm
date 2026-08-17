@@ -1,4 +1,9 @@
-.PHONY: models project test-local test-swift test-ui test-integration test-ui-regression
+.PHONY: ci-guards models project test-local test-swift test-ui test-integration test-ui-regression
+
+# The structural guards CI runs before it spends a test job on you: the Swift 6
+# contract, the StoreKit import boundary, and the codename leak. Under a second.
+ci-guards:
+	scripts/check-ci-guards.sh
 
 # Fetch the converted Core ML packages pinned in Config/models.lock into
 # Resources/Models/. No model is committed — GitHub rejects files over 100 MB —

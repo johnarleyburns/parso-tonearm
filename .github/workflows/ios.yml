@@ -26,73 +26,12 @@ jobs:
       - name: Accept Xcode License
         run: sudo xcodebuild -license accept
 
-      - name: Enforce Swift 6 contract
-        run: bash scripts/check-swift6.sh
-
-      - name: StoreKit import boundary guard
-        run: |
-          set -eo pipefail
-          # `import StoreKit` is permitted ONLY under Sources/Pro/ and the paywall
-          # view. Any other occurrence in Sources/ leaks the StoreKit dependency
-          # past the Pro boundary (Ground rule #2) and fails the build.
-          LEAKS=$(grep -rln "import StoreKit" Sources WatchApp \
-            | grep -v "^Sources/Pro/" \
-            | grep -v "^Sources/Features/Settings/ProPaywallView.swift" \
-            || true)
-          if [ -n "$LEAKS" ]; then
-            echo "StoreKit import leaked outside Sources/Pro/ and the paywall:"
-            echo "$LEAKS"
-            exit 1
-          fi
-          echo "StoreKit import boundary OK"
-
-      - name: Codename-leak guard
-        run: |
-
-          set -eo pipefail
-
-          # (a) project.yml CFBundleDisplayName must be Platterhead (suffixed variants allowed)
-          DISPLAY_NAMES=$(grep 'CFBundleDisplayName:' project.yml | sed 's/.*CFBundleDisplayName: *//' || true)
-          while IFS= read -r name; do
-            if [ -n "$name" ] && [[ "$name" != *Platterhead* ]]; then
-              echo "CFBundleDisplayName does not contain Platterhead: '$name'"
-              exit 1
-            fi
-          done <<< "$DISPLAY_NAMES"
-          echo "CFBundleDisplayName audit OK"
-
-          # (b) No user-visible "Tonearm" in Swift string literals or Info.plist
-          # string values. Grep only for "Tonearm" inside double-quoted strings
-          # (catches user-facing copy) and in Info.plist <string> values, then
-          # exclude the few internal quoted-string uses.
-          #
-          # Internal uses that are quoted strings (explicitly allowed):
-          #   "tonearm" (URL scheme), "TonearmShareExtension" (NSError domain),
-          #   "TonearmOAuthClientIDs"/"TonearmOAuthClientSecrets" (plist keys),
-          #   "Tonearm/StreamCache" etc. (on-disk dirs),
-          #   PROVISIONING_PROFILE_SPECIFIER lines.
-          UI_DIRS=(Sources/Features Sources/App Sources/Widgets Sources/Intents
-                   Sources/DesignSystem WidgetsExtension ShareExtension WatchApp)
-          CODENAME="Tonearm"
-
-          for dir in "${UI_DIRS[@]}"; do
-            if [ ! -d "$dir" ]; then continue; fi
-            # Find lines with "Tonearm" inside Swift double-quoted strings
-            LEAK=$(grep -rIE '"[^"]*Tonearm[^"]*"' "$dir" \
-              | grep -v '"tonearm"' \
-              | grep -v '"TonearmOAuthClientIDs' \
-              | grep -v '"TonearmOAuthClientSecrets' \
-              | grep -v '"TonearmShareExtension"' \
-              | grep -v 'appendingPathComponent("Tonearm' \
-              | grep -v 'PROVISIONING_PROFILE_SPECIFIER' \
-              || true)
-            if [ -n "$LEAK" ]; then
-              echo "Codename leak found in $dir:"
-              echo "$LEAK"
-              exit 1
-            fi
-          done
-          echo "Codename-leak guard OK"
+      - name: Structural guards (Swift 6, StoreKit boundary, codename leak)
+        # One script rather than three inline blocks, so the same checks can be
+        # run before pushing (`make ci-guards`). They were CI-only until
+        # 2026-08-17, when the first push of the DJ work spent a whole test job
+        # to report a one-second grep failure — and a false positive at that.
+        run: bash scripts/check-ci-guards.sh
 
       - name: Cache SPM
         uses: actions/cache@v4

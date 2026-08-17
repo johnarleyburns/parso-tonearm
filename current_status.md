@@ -308,6 +308,31 @@ builds Release for `generic/platform=iOS`.
 pinned in `models.lock` — converting it is a local step, and the same mechanism
 can deliver it whenever that is wanted). Semantic search now is.
 
+### The fourth blocker, found by the push itself: a guard failing on its own rule
+
+`da65a0f` pushed cleanly — 119 commits, fast-forward — and CI's **`test` job failed
+in 40 seconds**, before `swift test` ran, on the StoreKit import boundary guard:
+
+```
+StoreKit import leaked outside Sources/Pro/ and the paywall:
+Sources/DJ/Features/Paywall/PaywallModel.swift
+```
+
+The file does not import StoreKit. Its doc comment says the model *"cannot
+import StoreKit"* — the rule being enforced, written down — and the guard
+grepped for the bare substring. It had been wrong since the DJ paywall landed in
+M4 4.13 and could not have been noticed, because nothing had been pushed since
+2026-08-09. The pattern is now anchored to the start of a line
+(`^[[:space:]]*import StoreKit`), which still catches a real import: verified by
+adding one to that very file and watching the guard fail.
+
+**The class of problem is worth more than the fix.** All three structural guards
+lived as inline `run:` blocks in `ios.yml`, so they could only ever run on a
+push — and a one-second grep therefore cost a full test job to report. They are
+now `scripts/check-ci-guards.sh`, run by CI as one step and by anyone as
+**`make ci-guards`**: Swift 6 contract, StoreKit boundary, codename leak, all
+three in under a second on a laptop. Locally green before the re-push.
+
 ## 2026-08-16 — alpha-readiness pass, phase 1 of 5: the two CI blockers
 
 The owner asked what stands between here and an alpha, given App Store Connect is
