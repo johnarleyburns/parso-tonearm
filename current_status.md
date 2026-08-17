@@ -330,17 +330,33 @@ says stems are absent.
 
 The plan's exit list (`dj-phase-4-stems-recording.md` §1) is items 1–4 green, item
 6 owner-owned, and **item 5 — `LANES=djmix` green — is the one open agent-side
-gate**. Phases 2–5 below are that item plus the tooling to trust it:
+gate**. Phases 2–5 below are that item plus the tooling to trust it; **phase 2 is
+landed**, phases 3–5 remain.
 
-- **Phase 2 · `loadTrack` hittability (§14's own prescription).** AT-MIX-02 failed
-  two of three hand runs with `dj.queue.row.<title>` **"not hittable"**.
-  `DJPerformanceDriver.loadTrack:348` asserts *existence* and then taps;
-  `queueRowExists` scrolls only until the row exists, and a `LazyVStack` row can
-  exist while its hit point is still occluded. There is a second route to the same
-  error — `rowView` is `.disabled(!isReady)` (`SoloDeckView.swift:928`), and a
-  disabled button never becomes hittable — which the driver cannot currently tell
-  apart. Fix: retry on hittability with scrolling, and on timeout report whether
-  the row was disabled and its reason text.
+- **Phase 2 · `loadTrack` hittability (§14's own prescription) — LANDED.**
+  AT-MIX-02 failed two of three hand runs with `dj.queue.row.<title>` **"not
+  hittable"**. `DJPerformanceDriver.loadTrack` asserted *existence* and then
+  tapped; `queueRowExists` scrolls only until the row exists, and a `LazyVStack`
+  row can exist while its hit point is still occluded. There is a second route to
+  the same error — `rowView` is `.disabled(!isReady)` (`SoloDeckView.swift:928`,
+  mirrored at `WorkspaceView.swift:650`), and a disabled button never becomes
+  hittable — which the driver could not tell apart. `loadTrack` now **polls for
+  enabled-and-hittable** to its deadline, scrolling only while the row is missing
+  or unreachable (a bounded sweep down then back up — an unbounded swipe in one
+  direction runs off the end of the list and stays there), and **waits without
+  scrolling when the row exists but is disabled**: that one is the FR-LIB-8
+  readiness gate still caching, and it resolves by waiting, not by scrolling. On
+  timeout the new `queueRowDiagnosis` names which of the three it was — missing
+  row, disabled row (quoting the row's own label, which carries
+  `WorkspaceModel.unavailableReason`), or enabled-but-unreachable (with the
+  frame). The old message named none of them, which is why the run-1 failure could
+  not be acted on without re-running the lane by hand. `loadTrack` also gains
+  `file:`/`line:` so the failure points at the lane rather than the driver.
+  Verified: `swift test` **1545 tests, 0 failures, 8 skipped**; the
+  `TonearmUIRegression` scheme builds for testing in **Release** (the
+  configuration the lanes run in). The lane re-run that proves the flake is gone
+  is phase 5 — this phase makes the next failure legible, it does not by itself
+  close exit item 5.
 - **Phase 3 · the Fader Cut zipper false positive.** `check_fader_cut` is the only
   analyzer check never migrated to span-averaged measurement in the §14 fix — every
   other one uses `band_level` over a settled span; it still reads single 85 ms
@@ -350,9 +366,28 @@ gate**. Phases 2–5 below are that item plus the tooling to trust it:
   `spectral_flatness`: median flatness **7.6e-05**, and the rule **fires at 6 of
   2957 probe points where no cut was performed** (0.0005–0.0022 — the same
   magnitude as the run-2 report of "0.001 vs 0.000/0.000"). Run 2's zipper was a
-  false positive. Also checked and clean: the 30-second segmented-M4A joins leave
-  no discontinuity (peak |Δ| at every boundary at or below the file's median), so
-  the export itself is fine.
+  false positive.
+
+  **2026-08-16, re-measured on a beat grid — the mechanism is not a timing
+  sensitivity, it is the segment joins.** Re-run over the kept
+  `build/ui-regression/dj/dj-mix.m4a` (364 s, 741 probes at 122 BPM): median
+  flatness **6.3e-05**, and the rule fires at **7 of 739** probe points — *every
+  one of them on an exact 30-second boundary*, i.e. on the **segmented-M4A join**
+  (§37.2). At t=150/180/210/240/270/300 s the ratios are 10.2, 8.5, 12.7, 11.8,
+  17.1 and 13.6 against a threshold of 8; the four joins before 150 s stay under
+  it. **The zipper check is a segment-join detector, not a click detector**, and
+  run 2's Fader Cut simply landed within ±1 beat of a join — deterministic given
+  where the mark falls, not random. The absolute values still peak at **1.3e-03**,
+  three decades below broadband, which is what makes an absolute floor the right
+  guard. Two further landmines in the same function: flatness **saturates at 1.0**
+  in near-silence (measured at t=360 s, the tail), so a cut into a quiet passage
+  reads as a maximal zipper; and `transition.faderCut` is in `REQUIRED`, so any of
+  these fails the whole gate. Still checked and clean: the joins leave no
+  *time-domain* discontinuity (peak |Δ| at every boundary at or below the file's
+  median), so the export itself is fine — this is an analyzer defect only. Fix:
+  migrate to span-averaged `band_level` like every other check, add an absolute
+  flatness floor (~1e-2, two decades above the measured 1.3e-03 ceiling), and
+  guard probe points that coincide with a segment join or with near-silence.
 - **Phase 4 · keep the run log, and the progress monitor the owner asked for.**
   `RUN_LOG` is a `mktemp` deleted on exit, which is why **AT-MIX-01's run-3 failure
   has no recorded cause** and this list has to guess at it. Preserve it under

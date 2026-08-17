@@ -345,9 +345,85 @@ extension XCUIApplication {
     }
 
     /// Tap a queue row to load it to the focused deck (FR-LIB-8).
-    func loadTrack(title: String, timeout: TimeInterval = 15) {
-        XCTAssertTrue(queueRowExists(title), "queue row '\(title)' never appeared")
-        element("dj.queue.row.\(title)").tap()
+    ///
+    /// **Waits for hittability, not existence.** Asserting existence and then
+    /// tapping is what produced `dj.queue.row.<title>` *"not hittable"* on two of
+    /// three hand runs: `queueRowExists` scrolls only until the row *exists*, and
+    /// a `LazyVStack` row can exist while its hit point is still occluded by the
+    /// sheet's edge. There is a **second, entirely different route to the same
+    /// message** — `rowView` is `.disabled(!isReady)` (`SoloDeckView`,
+    /// `WorkspaceView`), and a disabled button never becomes hittable no matter
+    /// how far the list is scrolled. That one is the FR-LIB-8 deck-readiness gate
+    /// still caching the track, and it resolves by *waiting*, not by scrolling.
+    ///
+    /// So: poll for enabled-and-hittable, scroll only while the row is missing or
+    /// unreachable, and on timeout say **which** of the two it was. The old
+    /// message named neither, which is why the run-1 failure could not be acted
+    /// on without re-running the lane by hand.
+    func loadTrack(title: String, timeout: TimeInterval = 15, scrolls: Int = 4,
+                   file: StaticString = #filePath, line: UInt = #line) {
+        let row = element("dj.queue.row.\(title)")
+        let deadline = Date().addingTimeInterval(timeout)
+        var upward = scrolls
+        var downward = 2
+
+        while Date() < deadline {
+            if row.exists, row.isEnabled, row.isHittable {
+                row.tap()
+                return
+            }
+
+            // Present but disabled: the readiness gate has not passed it yet.
+            // Caching finishes on its own, so poll — scrolling a disabled row
+            // around the sheet cannot make it tappable and only burns the budget.
+            if row.exists, !row.isEnabled {
+                Thread.sleep(forTimeInterval: 0.5)
+                continue
+            }
+
+            // Missing, or present and unreachable: a scroll problem. Walk down
+            // the crate first, then back up — a bounded sweep, because a row can
+            // sit under either edge and an unbounded swipe in one direction runs
+            // off the end of the list and stays there.
+            let list = scrollViews.firstMatch
+            if list.exists, upward > 0 {
+                list.swipeUp()
+                upward -= 1
+            } else if list.exists, downward > 0 {
+                list.swipeDown()
+                downward -= 1
+            } else {
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+        }
+
+        XCTFail("queue row '\(title)' never became tappable within \(Int(timeout))s — "
+                + queueRowDiagnosis(title), file: file, line: line)
+    }
+
+    /// Why a queue row could not be tapped, in the app's own words.
+    ///
+    /// Read only on failure. The three outcomes need three different fixes and
+    /// `not hittable` distinguishes none of them: a missing row is a crate that
+    /// was never built, a disabled row is FR-LIB-8 still caching, and an enabled
+    /// unreachable row is the scroll/occlusion case the sweep above failed to
+    /// solve. The row's own label carries `WorkspaceModel.unavailableReason`, so
+    /// the disabled case can report the reason the user would have read.
+    private func queueRowDiagnosis(_ title: String) -> String {
+        let row = element("dj.queue.row.\(title)")
+        guard row.exists else {
+            return "the row does not exist. Either the crate does not hold this "
+                 + "track, or the list never scrolled far enough to materialise it"
+        }
+        guard row.isEnabled else {
+            let words = row.label.isEmpty ? "<no label>" : "\"\(row.label)\""
+            return "the row exists but is DISABLED — the FR-LIB-8 deck-readiness "
+                 + "gate has not passed it (`.disabled(!isReady)`), so it can never "
+                 + "be hittable. This is a caching/analysis wait, not a scroll "
+                 + "problem. The row's own words: \(words)"
+        }
+        return "the row exists and is enabled but never became hittable — it is "
+             + "occluded or outside the window at frame \(row.frame)"
     }
 
     /// Wait until an element's label contains a substring (state transitions
