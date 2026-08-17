@@ -63,6 +63,17 @@ final class WatchSessionAdapter: NSObject, @unchecked Sendable, WCSessionDelegat
         refreshConnectionState()
     }
 
+    // These callbacks are required when the shared source is compiled against
+    // the iOS WatchConnectivity SDK. watchOS marks them unavailable because
+    // its session lifecycle does not deactivate in the same way.
+    #if !os(watchOS)
+    func sessionDidBecomeInactive(_ session: WCSession) {}
+
+    func sessionDidDeactivate(_ session: WCSession) {
+        session.activate()
+    }
+    #endif
+
     func session(_ session: WCSession,
                  didReceive file: WCSessionFile) {
         guard let metadata = file.metadata else { return }

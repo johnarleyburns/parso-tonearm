@@ -904,7 +904,7 @@ private struct CrateSheetView: View {
         let isLoading = loadState == .loading(trackID: row.trackID)
         return Button {
             guard isReady else { return }
-            Task { await model.load(deck, trackID: row.trackID) }
+            Task { await model.loadAndPlay(deck, trackID: row.trackID) }
         } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 1) {

@@ -18,7 +18,11 @@ final class AVPlayerOutput: WatchAudioOutput {
         removeObservers()
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .default, policy: .longFormAudio)
+        #if os(watchOS)
         try? await session.activate()
+        #else
+        try? session.setActive(true)
+        #endif
 
         let item = AVPlayerItem(url: url)
         player.replaceCurrentItem(with: item)
@@ -54,7 +58,11 @@ final class AVPlayerOutput: WatchAudioOutput {
         if session.category != .playback {
             try? session.setCategory(.playback, mode: .default, policy: .longFormAudio)
         }
+        #if os(watchOS)
         try? await session.activate()
+        #else
+        try? session.setActive(true)
+        #endif
         player.play()
     }
 

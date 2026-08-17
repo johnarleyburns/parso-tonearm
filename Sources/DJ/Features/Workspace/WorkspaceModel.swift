@@ -794,6 +794,16 @@ public final class WorkspaceModel: ObservableObject {
         }
     }
 
+    /// Load a crate selection and immediately put it on air. The browse
+    /// surface is the field-test user's track selection gesture; leaving the
+    /// deck merely armed made the UI appear inert and required a second,
+    /// hidden transport action before any music could be heard.
+    public func loadAndPlay(_ deck: PerformanceEngine.Deck, trackID: Int64) async {
+        await load(deck, trackID: trackID)
+        guard case .loaded = loadState(for: deck) else { return }
+        play(deck)
+    }
+
     // MARK: - Per-deck stems (§36.5, §35.1; plan 5.8)
 
     /// The deck's stem status — `prepared` makes the STEMS faders live.

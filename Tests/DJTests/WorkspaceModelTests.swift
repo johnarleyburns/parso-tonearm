@@ -2250,6 +2250,22 @@ final class WorkspaceModelTests: XCTestCase {
                       "no prepared set → the deck is disarmed (full mix), never left armed")
     }
 
+    func testLoadAndPlayStartsAReadyCrateSelection() async throws {
+        let fake = FakeWorkspaceEngine()
+        let library = FakeDeckLibrary()
+        library.outcomes[5] = .loaded(makeLoadedBox())
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library)
+        try model.begin()
+        defer { model.end() }
+
+        await model.loadAndPlay(.a, trackID: 5)
+
+        XCTAssertEqual(fake.loadedDeck, .a)
+        XCTAssertEqual(fake.played, [.a],
+                       "selecting a ready crate row starts the deck rather than leaving it armed")
+    }
+
     func testRefusedLoadNeverArmsTheEngine() async throws {
         let fake = FakeWorkspaceEngine()
         let library = FakeDeckLibrary()

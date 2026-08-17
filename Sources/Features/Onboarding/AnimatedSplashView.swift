@@ -76,7 +76,7 @@ struct AnimatedSplashView: View {
             return Image(uiImage: image)
         }
         #endif
-        return Image("splash_screen")
+        return Image("SplashScreen")
     }
 }
 

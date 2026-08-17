@@ -107,7 +107,7 @@ targets:
             CFBundleURLSchemes:
               - tonearm
         UILaunchScreen:
-          UIImageName: splash_screen
+          UIImageName: SplashScreen
           UIImageResizingMode: aspectFill
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false

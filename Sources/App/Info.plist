@@ -98,7 +98,7 @@
 		     an image, iOS briefly shows a stretched app snapshot while SwiftUI
 		     bootstraps, which reads as a broken first frame on iPhone. -->
 		<key>UIImageName</key>
-		<string>splash_screen</string>
+		<string>SplashScreen</string>
 		<key>UIImageResizingMode</key>
 		<string>aspectFill</string>
 	</dict>

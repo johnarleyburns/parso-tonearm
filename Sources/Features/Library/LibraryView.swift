@@ -37,6 +37,7 @@ struct LibraryView: View {
         }
     }
 
+    @ViewBuilder
     private var content: some View {
             ScrollViewReader { proxy in
                 ZStack(alignment: .trailing) {
