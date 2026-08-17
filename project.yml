@@ -106,7 +106,9 @@ targets:
           - CFBundleURLName: guru.parso.tonearm
             CFBundleURLSchemes:
               - tonearm
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIImageName: splash_screen
+          UIImageResizingMode: aspectFill
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UIBackgroundModes:

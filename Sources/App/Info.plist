@@ -93,7 +93,15 @@
 		<string>remote-notification</string>
 	</array>
 	<key>UILaunchScreen</key>
-	<dict/>
+	<dict>
+		<!-- Keep the system launch screen aligned with the in-app splash. Without
+		     an image, iOS briefly shows a stretched app snapshot while SwiftUI
+		     bootstraps, which reads as a broken first frame on iPhone. -->
+		<key>UIImageName</key>
+		<string>splash_screen</string>
+		<key>UIImageResizingMode</key>
+		<string>aspectFill</string>
+	</dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

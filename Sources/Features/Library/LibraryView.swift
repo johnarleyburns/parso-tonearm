@@ -5,6 +5,15 @@ struct LibraryView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @State private var mode: LibraryBrowseMode = .artists
+    /// The DJ entry route already owns a NavigationStack. Embedding another
+    /// stack there makes the first push unstable on iPhone (and can crash when
+    /// SwiftUI reconciles the two navigation paths). Keep the standalone Music
+    /// tab's stack, but let feature-owned routes reuse their parent stack.
+    private let ownsNavigationStack: Bool
+
+    init(ownsNavigationStack: Bool = true) {
+        self.ownsNavigationStack = ownsNavigationStack
+    }
 
     private var rows: [TrackRow] {
         appState.searchText.isEmpty ? appState.allTracks : appState.searchResults
@@ -19,7 +28,16 @@ struct LibraryView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        Group {
+            if ownsNavigationStack {
+                NavigationStack { content }
+            } else {
+                content
+            }
+        }
+    }
+
+    private var content: some View {
             ScrollViewReader { proxy in
                 ZStack(alignment: .trailing) {
                     ScrollView {

@@ -1844,6 +1844,13 @@ public final class WorkspaceModel: ObservableObject {
     public func raiseCrateSheet() {
         isCrateSheetPresented = true
         Haptics.confirm()
+        // A live performance can add/import a crate while the workspace is
+        // already on screen. Refresh immediately when the user asks to browse;
+        // the sheet must never look like Crate did nothing because it is still
+        // displaying the queue captured when the decks were opened.
+        Task { [weak self] in
+            await self?.refreshDeckQueues()
+        }
     }
 
     public func dismissCrateSheet() {

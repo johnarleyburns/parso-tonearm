@@ -41,6 +41,23 @@ final class DJMixRegressionUITests: XCTestCase {
         try DJRegression.requireMockCatalogue()
     }
 
+    /// Smoke coverage for the two field-test failures: DJ → Music must reuse
+    /// the DJ navigation stack without crashing, and Crate must present an
+    /// observable browse surface on the compact live-deck posture.
+    func testAT_DJ_EntryMusicAndCrateAreReachable() throws {
+        app = .launchForDJRegression(resetLibrary: true)
+        app.buttons["DJ"].firstMatch.tap()
+        app.waitFor("dj.library", 30).tap()
+        XCTAssertTrue(app.staticTexts["Music"].waitForExistence(timeout: 30),
+                      "DJ → Music should render instead of terminating the app")
+
+        app.buttons["DJ"].firstMatch.tap()
+        app.openDJDecks()
+        app.waitFor("dj.crate", 30).tap()
+        XCTAssertTrue(app.waitFor("dj.crate.sheet", 10).exists,
+                      "Crate should present its browse sheet on iPhone")
+    }
+
     // MARK: - AT-MIX-1 · genre picker → two crates
 
     /// AT-MIX-1 · Genre picker → genre library → two different playlists.

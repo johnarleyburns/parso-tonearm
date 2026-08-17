@@ -1,5 +1,8 @@
 import SwiftUI
 import TonearmCore
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Launch splash: spring fade-in, 1.5 s hold, 0.35 s ease-out handoff via
 /// `isPresented`. The foreground is the periodic-table tile for Pt (Platinum),
@@ -14,9 +17,11 @@ struct AnimatedSplashView: View {
 
     var body: some View {
         ZStack {
-            Image("splash_screen")
+            splashImage
                 .resizable()
-                .aspectRatio(contentMode: .fill)
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
 
             Color.black.opacity(0.35)
 
@@ -57,6 +62,21 @@ struct AnimatedSplashView: View {
                 }
             }
         }
+    }
+
+    /// `splash_screen.jpg` is intentionally a loose bundle resource (rather
+    /// than an asset-catalog rendition) so the same portrait artwork can be
+    /// used by the system launch screen. Resolve it from the bundle explicitly;
+    /// `Image("splash_screen")` only reliably finds asset-catalog names on some
+    /// iOS releases and otherwise falls through to the stretched first frame.
+    private var splashImage: Image {
+        #if canImport(UIKit)
+        if let url = Bundle.main.url(forResource: "splash_screen", withExtension: "jpg"),
+           let image = UIImage(contentsOfFile: url.path) {
+            return Image(uiImage: image)
+        }
+        #endif
+        return Image("splash_screen")
     }
 }
 

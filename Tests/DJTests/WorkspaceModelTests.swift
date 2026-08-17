@@ -487,15 +487,28 @@ final class WorkspaceModelTests: XCTestCase {
         }
     }
 
-    func testCrateSheetPresentationChangesNoEngineState() throws {
+    func testCrateSheetPresentationChangesNoEngineState() async throws {
         let fake = FakeWorkspaceEngine()
-        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil)
+        let library = FakeDeckLibrary()
+        library.available = [.allTracks, .playlist(id: 12, title: "Live Set")]
+        library.rowsBySource[.allTracks] = [
+            DeckQueueRow(trackID: 21, title: "Live track", artist: "DJ",
+                         readiness: .ready)
+        ]
+        let model = WorkspaceModel(engine: fake, store: makeStore(isPro: true), pump: nil,
+                                   library: library)
         try model.begin()
         defer { model.end() }
 
         XCTAssertFalse(model.isCrateSheetPresented)
         model.raiseCrateSheet()
         XCTAssertTrue(model.isCrateSheetPresented)
+        // Raising the sheet also refreshes queues, so a crate added while the
+        // decks were live is immediately browseable instead of looking inert.
+        await Task.yield()
+        XCTAssertEqual(model.availableQueues,
+                       [.allTracks, .playlist(id: 12, title: "Live Set")])
+        XCTAssertEqual(model.queue(for: .a).rows.map(\.trackID), [21])
         model.dismissCrateSheet()
         XCTAssertFalse(model.isCrateSheetPresented)
 

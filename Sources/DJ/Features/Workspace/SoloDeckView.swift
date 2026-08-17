@@ -856,6 +856,7 @@ private struct CrateSheetView: View {
         }
         .background(Color(red: 0.055, green: 0.075, blue: 0.10))
         .overlay(alignment: .top) { Divider() }
+        .accessibilityIdentifier("dj.crate.sheet")
         .task {
             await model.refreshDeckQueues()
         }

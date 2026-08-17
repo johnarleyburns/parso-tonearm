@@ -79,7 +79,10 @@ struct DJHomeView: View {
                 case .decks:
                     DJPerformanceSurface()
                 case .library:
-                    LibraryView()
+                    // DJHomeView owns the navigation stack for this route.
+                    // Reusing it avoids the nested-stack crash seen when
+                    // opening DJ → Music on iPhone.
+                    LibraryView(ownsNavigationStack: false)
                 case .mixes:
                     MixesView()
                 case .midi:
