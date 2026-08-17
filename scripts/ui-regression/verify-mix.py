@@ -95,6 +95,21 @@ TAIL_BARS = 4
 
 SILENCE_FLOOR_DB = -90.0
 
+# Dead air. A recorded set is supposed to contain a set — but every §53.9
+# signature is measured within a bar or two of its own journal mark, so a hole
+# anywhere else in the recording is invisible to all of them. The kept
+# 2026-08-16 mix ends with **20.4 seconds of digital silence** (steady
+# -28.5 dBFS to t=344.07s, then -inf to 364.5s: both fixtures had run out) and
+# the lane passed, the analyzer passed, and the artifact was still on the
+# release gate's evidence pile.
+#
+# -60 dBFS is far below anything the fixtures produce and far above a dither
+# floor; two seconds is longer than any transition's gap and shorter than
+# anything a listener would forgive.
+DEAD_AIR_DB = -60.0
+DEAD_AIR_SECONDS = 2.0
+DEAD_AIR_WINDOW_SECONDS = 0.25
+
 
 # ── decoding ────────────────────────────────────────────────────────────────
 
@@ -191,6 +206,35 @@ def band_level(samples, rate: int, bpm: float, centre: int, freq: float, span) -
     """
     starts = span_starts(centre, rate, bpm, span, len(samples))
     return sum(db(goertzel_energy(samples, s, freq, rate)) for s in starts) / len(starts)
+
+
+def dead_air_spans(samples, rate: int):
+    """Runs of near-silence at least `DEAD_AIR_SECONDS` long, as (start, end).
+
+    Subsampled by 8 — this walks the whole recording rather than a window near a
+    mark, and the question is "is anything playing", which does not need every
+    sample to answer.
+    """
+    win = max(1, int(DEAD_AIR_WINDOW_SECONDS * rate))
+    threshold = 10.0 ** (DEAD_AIR_DB / 20.0) * 32768.0
+    spans = []
+    run_start = None
+    for start in range(0, len(samples) - win, win):
+        peak = 0
+        for i in range(start, start + win, 8):
+            value = abs(samples[i])
+            if value > peak:
+                peak = value
+        if peak < threshold:
+            if run_start is None:
+                run_start = start
+        else:
+            if run_start is not None and start - run_start >= DEAD_AIR_SECONDS * rate:
+                spans.append((run_start / rate, start / rate))
+            run_start = None
+    if run_start is not None and len(samples) - run_start >= DEAD_AIR_SECONDS * rate:
+        spans.append((run_start / rate, len(samples) / rate))
+    return spans
 
 
 def spectral_centroid(samples, start: int, rate: int, freqs) -> float:
@@ -749,6 +793,25 @@ def main() -> int:
                 print(f"  FAIL  {lost:.1f}s of the master bus never reached the file, over the "
                       "one-bar budget — a host condition, not a Platterhead defect, but the "
                       "recording is not trustworthy evidence")
+
+    # **Dead air.** Every signature below is measured within a bar or two of its
+    # own journal mark, so a hole anywhere else is invisible to all of them —
+    # and the kept 2026-08-16 recording ends with 20.4 seconds of digital
+    # silence that no lane and no check remarked on. A recorded set is supposed
+    # to contain a set.
+    holes = dead_air_spans(samples, rate)
+    if holes:
+        length_ok = False
+        total_silent = sum(end - start for start, end in holes)
+        print(f"  FAIL  {total_silent:.1f}s of the recording is silent below {DEAD_AIR_DB:.0f} dBFS "
+              f"— the decks ran dry or the graph stopped feeding the tap:")
+        for start, end in holes[:5]:
+            print(f"          {start:.1f}s to {end:.1f}s ({end - start:.1f}s)")
+        if len(holes) > 5:
+            print(f"          … and {len(holes) - 5} more")
+    else:
+        print(f"  audio: no run of silence longer than {DEAD_AIR_SECONDS:.0f}s — "
+              "something is playing throughout")
     print()
 
     if not signatures_apply:

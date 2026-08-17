@@ -358,6 +358,41 @@ cut as an instantaneous gain jump made the check fail, correctly — an unsmooth
 fader *is* a zipper — so the fixture renders the 5 ms ramp the mixer's smoothed
 gains actually produce, and the jump is now its own test.
 
+### Phase 3b — the lane can pass on a recording with holes in it. Not any more.
+
+Three defects, all found by looking at the artifact rather than at the code.
+
+**1 · Twenty seconds of dead air, and nothing noticed.** The kept recording is
+steady at −28.5 dBFS to **t=344.07s** and then **exactly −∞ for the remaining
+20.4 s** of its 364.5 s. Cause is the lane, not the product: `AT-MIX-03_07` loads
+and plays both decks once at the top, and the only rotation source is `holdMix`,
+whose 120-second timer starts when it is *entered* (~t=230s) — so its first
+rotation was still six seconds away when both ~315–346 s fixtures ran out.
+`holdMix`'s stall net could not see it either, because it watches the recording
+clock, and **a recording of silence grows at exactly the same rate as a recording
+of music**. The fix is to watch the one per-deck signal there is: a deck whose
+transport says it is not playing has run out of material, and gets a track now —
+`rotateNext(preferring:)` gives it to the deck that went quiet rather than to
+whichever the list happened to reach next. The timer stays as a backstop.
+
+**2 · The analyzer had no opinion about silence.** Every §53.9 signature is
+measured within a bar or two of its own journal mark, so a hole anywhere else is
+invisible to all five. `dead_air_spans` now walks the whole recording (0.1 s for
+a six-minute file) and any run of ≥2 s below −60 dBFS **fails the gate**, naming
+where and how long. Run against the kept recording it reports
+`344.2s → 364.5s (20.2s)` — the defect above, caught by the check that should
+have caught it the first time.
+
+**3 · `queueRowExists` had the bug phase 2 fixed in `loadTrack`, untouched.** It
+swipes up only, four times, never back — unbounded in one direction, so it runs
+off the end of the list and stays there. That is `assertQueues`'s scroll, which
+is **AT-MIX-01's**, the run-3 failure: it scrolls down to find "Techno Fixture 6",
+then selects the House crate and looks for "House Fixture 1", which is above
+wherever the list was left. A present row then reads as a missing track, and the
+message blames the crate. It sweeps both ways now, like `loadTrack`. (AT-MIX-02
+failing in the same run is a cascade — it runs with `resetLibrary: false` on the
+crates AT-MIX-01 builds.)
+
 ### The fourth blocker, found by the push itself: a guard failing on its own rule
 
 `da65a0f` pushed cleanly — 119 commits, fast-forward — and CI's **`test` job failed
@@ -419,10 +454,11 @@ repo secret TONEARM_JAMENDO_CLIENT_ID
   → JamendoGenreProvider.swift:85 reads it from the bundle
 ```
 
-It is verified but **not yet proven** — a secret cannot be read back. The first
-archive log settles it: the step prints "Jamendo client id written to
-Config/Secrets.xcconfig" instead of the `::warning::`, and in the installed build
-the genre picker lists genres instead of the not-configured state.
+It was verified but **not proven** — a secret cannot be read back. **The first
+archive log settled it on 2026-08-17:** the step printed `Jamendo client id
+written to Config/Secrets.xcconfig (value not logged)`, not the `::warning::`.
+What is left to confirm is on the device: the genre picker listing genres
+instead of the not-configured state.
 `TONEARM_JAMENDO_CLIENT_SECRET` was deliberately **not** set: nothing consumes it
 (Jamendo v3.0 read access needs only `client_id`; the secret is for the OAuth path
 the app does not use — M6 decision 2).
@@ -470,8 +506,10 @@ says stems are absent.
 
 The plan's exit list (`dj-phase-4-stems-recording.md` §1) is items 1–4 green, item
 6 owner-owned, and **item 5 — `LANES=djmix` green — is the one open agent-side
-gate**. Phases 2–5 below are that item plus the tooling to trust it; **phase 2 is
-landed**, phases 3–5 remain.
+gate**. Phases 2–5 below are that item plus the tooling to trust it. **Phases 2,
+3 and 3b are landed** (see the 2026-08-17 sections at the top — phase 3's
+description below is what was believed before the measurement, and its prescribed
+fix turned out to be wrong); phases 4 and 5 remain.
 
 - **Phase 2 · `loadTrack` hittability (§14's own prescription) — LANDED.**
   AT-MIX-02 failed two of three hand runs with `dj.queue.row.<title>` **"not

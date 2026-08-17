@@ -262,5 +262,43 @@ class OffToneBaselineTests(unittest.TestCase):
             self.assertLess(off, inband * vm.ZIPPER_FLOOR)
 
 
+class DeadAirTests(unittest.TestCase):
+    """A recorded set has to contain a set.
+
+    Every signature check is measured within a bar or two of its own journal
+    mark, so a hole anywhere else in the recording is invisible to all of them.
+    The kept 2026-08-16 mix ends with 20.4 s of digital silence — both fixtures
+    had run out — and the lane passed, the analyzer passed, and the artifact went
+    on the release gate's evidence pile.
+    """
+
+    def test_a_full_recording_has_none(self):
+        self.assertEqual(vm.dead_air_spans(render(20.0), RATE), [])
+
+    def test_a_recording_that_ends_in_silence_is_caught(self):
+        samples = render(20.0, quiet_after=12.0)
+        spans = vm.dead_air_spans(samples, RATE)
+        self.assertEqual(len(spans), 1, spans)
+        start, end = spans[0]
+        self.assertAlmostEqual(start, 12.0, delta=0.5)
+        self.assertAlmostEqual(end, 20.0, delta=0.5)
+
+    def test_a_gap_shorter_than_the_budget_is_not_dead_air(self):
+        """A transition may leave a moment of near-nothing; a set may not."""
+        samples = render(20.0)
+        gap = int(1.0 * RATE)
+        for i in range(int(10.0 * RATE), int(10.0 * RATE) + gap):
+            samples[i] = 0
+        self.assertEqual(vm.dead_air_spans(samples, RATE), [])
+
+    def test_a_hole_in_the_middle_is_caught(self):
+        samples = render(30.0)
+        for i in range(int(10.0 * RATE), int(15.0 * RATE)):
+            samples[i] = 0
+        spans = vm.dead_air_spans(samples, RATE)
+        self.assertEqual(len(spans), 1, spans)
+        self.assertAlmostEqual(spans[0][1] - spans[0][0], 5.0, delta=0.5)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -333,12 +333,28 @@ extension XCUIApplication {
     /// The rows are a `LazyVStack`: one further down the crate has no element
     /// until it is scrolled near, so "not found" without scrolling would read as
     /// a missing track when the crate is complete.
+    ///
+    /// **The sweep goes both ways**, for the reason `loadTrack` already does
+    /// (alpha phase 2): swiping up only is unbounded in one direction, so it
+    /// runs off the end of the list and stays there. That matters here because
+    /// `assertQueues` calls this repeatedly across crates — it scrolls down to
+    /// find "Techno Fixture 6", then selects the House crate and looks for
+    /// "House Fixture 1", which is *above* wherever the list was left. A row
+    /// that exists and is simply out of view then reads as a missing track, and
+    /// the failure names the crate rather than the scroll — which is what
+    /// AT-MIX-01 does when it fails and why run 3's cause could not be read off
+    /// the message.
     @discardableResult
     func queueRowExists(_ title: String, scrolls: Int = 4) -> Bool {
         let row = element("dj.queue.row.\(title)")
         if row.waitForExistence(timeout: 5) { return true }
+        let list = scrollViews.firstMatch
         for _ in 0..<scrolls {
-            scrollViews.firstMatch.swipeUp()
+            list.swipeUp()
+            if row.waitForExistence(timeout: 2) { return true }
+        }
+        for _ in 0..<(scrolls * 2) {
+            list.swipeDown()
             if row.waitForExistence(timeout: 2) { return true }
         }
         return false
@@ -693,12 +709,23 @@ extension XCUIApplication {
         var lastBar = masterBarBeat
         var lastBarAdvance = Date()
 
-        func rotateNext() {
+        func rotateNext(preferring deck: String? = nil) {
             guard !rotation.isEmpty else { return }
             // Wraps: a twenty-minute soak outlasts the list, and a deck with
             // nothing left to load is a deck that stops — which is the state
             // this loop exists to prevent. Replaying a track later in a long
             // set is what a DJ does anyway.
+            //
+            // `preferring` is for the silence case below: the deck that went
+            // quiet is the one that needs a track, and taking the list's next
+            // entry regardless would load the *other* deck and leave the silent
+            // one silent. The list alternates decks, so this steps at most once.
+            if let wanted = deck {
+                for offset in 0..<rotation.count where rotation[(next + offset) % rotation.count].deck == wanted {
+                    next += offset
+                    break
+                }
+            }
             let step = rotation[next % rotation.count]
             next += 1
             lastRotationAt = recordingElapsedSeconds ?? lastElapsed
@@ -746,13 +773,27 @@ extension XCUIApplication {
                 return false
             }
 
-            // Two reasons to bring in the next track. The recorded-time timer
-            // keeps a deck from reaching the end of its material; the stall is
-            // the safety net for when it got there first — with the clock still
-            // running, a recording that stops growing is a deck that has run
-            // dry, and the fix for that is a track, now.
+            // Three reasons to bring in the next track, and **the first one is
+            // the only reliable one**.
+            //
+            // A deck that is not playing has run out of material, and that is
+            // the state to act on: the transport button is the one per-deck
+            // signal there is. The stall net below cannot see it, because it
+            // watches the recording clock — and a recording of silence grows at
+            // exactly the same rate as a recording of music. That is not
+            // hypothetical: the kept 2026-08-16 recording ends with **20.4
+            // seconds of digital silence** (steady -28.5 dBFS to t=344.07s,
+            // then -inf to the end at 364.5s). Both fixtures had run out, the
+            // recorded-time timer's first rotation was still six seconds away,
+            // and nothing in the lane or the analyzer noticed, because the five
+            // signatures are all measured near their own marks.
+            let silent = deckIsPlaying("a") == false && deckIsPlaying("b") == false
             let stalled = Date().timeIntervalSince(lastAdvance) >= stallSeconds
-            if stalled || lastElapsed - lastRotationAt >= trackSeconds {
+            if silent {
+                // Whichever deck is quiet gets the track. If both are, this
+                // brings in one now and the next pass brings in the other.
+                rotateNext(preferring: deckIsPlaying("a") == false ? "a" : "b")
+            } else if stalled || lastElapsed - lastRotationAt >= trackSeconds {
                 rotateNext()
                 if stalled { lastAdvance = Date() }
             }
