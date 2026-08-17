@@ -358,6 +358,39 @@ cut as an instantaneous gain jump made the check fail, correctly — an unsmooth
 fader *is* a zipper — so the fixture renders the 5 ms ramp the mixer's smoothed
 gains actually produce, and the jump is now its own test.
 
+### Model delivery moves to R2 — and stems go into the build
+
+The owner asked whether the models could live in an R2 bucket instead. They can,
+and the same mechanism carries the stems model, so **`demucs-stems` is in a CI
+build for the first time**: a tester gets live separation instead of the honest
+unavailable state.
+
+- **`parso-platterhead-models`** — a bucket created for these files alone. The
+  existing `parso-pdaudio` bucket was the obvious candidate and is the wrong one:
+  its public access is **off**, it holds **3,169 objects / 12.7 GiB** under
+  `audio/` and `db/`, and R2's managed domain is per-bucket with no per-prefix
+  scoping, so switching it on would have published all of it. A dedicated bucket
+  keeps the blast radius to the three files that are meant to be downloadable.
+- Public at `https://pub-52cc1d6c476a423baa609d53de0fd435.r2.dev/v1/`. Egress is
+  free, which matters now that an archive run pulls ~460 MB.
+- **No new credential was needed.** The account API token already in
+  `~/.cloudflare-*` can upload through `wrangler r2 object put` — a different
+  permission from the S3 one, which 403s (the pdaudio S3 token is bucket-scoped).
+  Nothing was added to the repo, and no secret was printed (§54.2).
+- `Config/models.lock` rows carry a **full URL** now rather than a release tag,
+  so where the bytes live is a hosting decision and not a code change;
+  `MODELS_BASE_URL` overrides the host for a mirror. The GitHub release
+  `models-v1` is kept as a fallback, not a second source of truth.
+
+Verified: all three download publicly with **checksums identical** to what was
+packed, and a detached clean worktree — what CI checks out — fetches all three in
+**13.6 s** and generates with all three ODR tags present.
+
+**The tester note changes:** stems are no longer absent. What is still true is
+that S7's gate — separation timing, thermals, and peak footprint on real
+hardware — has never been measured, so the first real numbers will come from
+whoever installs the build.
+
 ### Phase 5, run 1 — the four lanes are green, and the new check found a product defect
 
 **`LANES=djmix` run 1 (2026-08-17, 11m31s): all four UI lanes PASSED** — AT-MIX-01
@@ -1910,11 +1943,12 @@ silent lie.
    other people get builds, not after. **Owner-owned.**
 
 **Limits to write into the tester note** (all now honest states in the app rather than
-surprises): **no stems** — the model is converted and works (S1–S8), but it is 210 MB and not
-pinned in `Config/models.lock`, so it is not in a CI-built binary. The delivery mechanism now
-exists and carries the CLAP pair, so putting stems in a build is one release asset and one
-row in the lock file, no longer a design question. **Semantic search is in** as of build 274.
-**MIDI works but with limits** — no factory
+surprises): **stems ship, unmeasured** — the model is pinned in `Config/models.lock` and
+delivered over ODR from 2026-08-17, so separation is live, but its S7 gate (timing, thermals,
+peak footprint on real hardware) has never been measured and the first real numbers will come
+from testers' own devices; a device class that cannot hold the working set inside its ceiling
+reports stems unavailable rather than shedding the model mid-set. **Semantic search is in** as
+of build 274. **MIDI works but with limits** — no factory
 profiles (a controller must be MIDI-learned — the guided walkthrough covers it), hot cues
 are not bindable because nothing reads stored cue points yet, no LED feedback (the
 controller's lights will not reflect app state), and split cue makes the master mono,

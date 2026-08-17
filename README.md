@@ -118,10 +118,12 @@ xcodebuild test -scheme Tonearm -destination 'platform=iOS Simulator,name=iPhone
 ```
 
 **No converted model is in the repository** — GitHub rejects any file over 100 MB.
-`make models` downloads the CLAP encoders (137 MB + 240 MB) from the `models-v1`
-release and checksum-verifies them into `Resources/Models/`; a package already on
-your machine is kept. The stems model is not pinned there — convert it yourself
-with `tools/demucs-coreml/` — and without it stems report themselves unavailable.
+`make models` downloads the three Core ML packages pinned in `Config/models.lock`
+(CLAP audio + text and the Demucs stems model, ~460 MB) and checksum-verifies
+them into `Resources/Models/`; a package already on your machine is kept, and
+`scripts/fetch-models.sh --force` replaces it. Without a package, the feature it
+backs reports itself unavailable rather than failing — semantic search says so,
+and the decks play the full mix with the stem faders disabled.
 
 `make project` rather than bare `xcodegen generate`: it first writes
 `Config/models-odr.yml` from which of those packages are actually on this

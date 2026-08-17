@@ -689,10 +689,22 @@ extension XCUIApplication {
     /// Rotation is likewise on recording time — track length is a property of
     /// the material, not of the host. The stall guard stays on the wall clock,
     /// because a stalled recording cannot advance its own rotation timer.
+    /// `decksPlayingFor` is how much of the loaded tracks has **already been
+    /// consumed** when the hold begins. It exists because rotation used to start
+    /// its clock at the moment `holdMix` was entered, as though the decks had
+    /// just been loaded — and in the lane that matters they had been playing for
+    /// four minutes of a five-and-a-half-minute fixture. The first rotation was
+    /// therefore scheduled for six seconds *after* both decks ran dry, and every
+    /// recording ended with twenty seconds of digital silence. Reactive fixes
+    /// cannot close that: rotating a deck takes ten to twenty seconds of UI work,
+    /// so a hole noticed at the end is a hole that is already in the file. The
+    /// caller knows this number; passing it makes the first rotation land while
+    /// there is still material to mix out of.
     @discardableResult
     func holdMix(forBars bars: Int,
                  rotation: [(deck: String, crate: String, title: String)] = DJRegression.rotation,
                  trackSeconds: Double = 120,
+                 decksPlayingFor: TimeInterval = 0,
                  stallSeconds: Double = 8,
                  engineDeadSeconds: Double = 20,
                  wallCapFactor: Double = 5,
@@ -703,7 +715,10 @@ extension XCUIApplication {
         let alreadyRecorded = recordingElapsedSeconds ?? 0
         let wallCap = started.addingTimeInterval(max(60, (target - alreadyRecorded) * wallCapFactor))
         var next = 0
-        var lastRotationAt = alreadyRecorded
+        // Per deck, because the decks run out independently: one shared timer
+        // refreshes one deck and leaves the other to die on schedule.
+        var lastRotationFor: [String: Double] = ["a": alreadyRecorded - decksPlayingFor,
+                                                 "b": alreadyRecorded - decksPlayingFor]
         var lastElapsed = alreadyRecorded
         var lastAdvance = Date()
         var lastBar = masterBarBeat
@@ -728,7 +743,7 @@ extension XCUIApplication {
             }
             let step = rotation[next % rotation.count]
             next += 1
-            lastRotationAt = recordingElapsedSeconds ?? lastElapsed
+            lastRotationFor[step.deck] = recordingElapsedSeconds ?? lastElapsed
             focusDeck(step.deck)
             openCrate()
             selectQueue(step.deck, title: step.crate)
@@ -773,29 +788,35 @@ extension XCUIApplication {
                 return false
             }
 
-            // Three reasons to bring in the next track, and **the first one is
-            // the only reliable one**.
+            // **Rotation is per deck, and it has to be ahead of the music.**
             //
-            // A deck that is not playing has run out of material, and that is
-            // the state to act on: the transport button is the one per-deck
-            // signal there is. The stall net below cannot see it, because it
-            // watches the recording clock — and a recording of silence grows at
-            // exactly the same rate as a recording of music. That is not
-            // hypothetical: the kept 2026-08-16 recording ends with **20.4
-            // seconds of digital silence** (steady -28.5 dBFS to t=344.07s,
-            // then -inf to the end at 364.5s). Both fixtures had run out, the
-            // recorded-time timer's first rotation was still six seconds away,
-            // and nothing in the lane or the analyzer noticed, because the five
-            // signatures are all measured near their own marks.
+            // A deck whose track has been playing for `trackSeconds` gets the
+            // next one, counted from when *that deck* was last loaded — which
+            // `decksPlayingFor` seeds, because the decks have usually been
+            // playing since long before the hold began. One shared timer started
+            // at the hold refreshes one deck and lets the other run dry on
+            // schedule, which is exactly what happened: every djmix recording
+            // ended with twenty seconds of digital silence.
+            //
+            // The silence check below is the safety net, not the mechanism. It
+            // cannot be the mechanism: a rotation costs ten to twenty seconds of
+            // UI work, so a hole noticed after the fact is already in the file.
+            // It is still worth having — a deck that stops early for a reason
+            // nobody predicted gets a track rather than a silent tail.
             let silent = deckIsPlaying("a") == false && deckIsPlaying("b") == false
             let stalled = Date().timeIntervalSince(lastAdvance) >= stallSeconds
+            let dueDeck = ["a", "b"].first { deck in
+                lastElapsed - (lastRotationFor[deck] ?? alreadyRecorded) >= trackSeconds
+            }
             if silent {
                 // Whichever deck is quiet gets the track. If both are, this
                 // brings in one now and the next pass brings in the other.
                 rotateNext(preferring: deckIsPlaying("a") == false ? "a" : "b")
-            } else if stalled || lastElapsed - lastRotationAt >= trackSeconds {
+            } else if let dueDeck {
+                rotateNext(preferring: dueDeck)
+            } else if stalled {
                 rotateNext()
-                if stalled { lastAdvance = Date() }
+                lastAdvance = Date()
             }
             Thread.sleep(forTimeInterval: 2)
         }

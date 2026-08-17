@@ -173,6 +173,12 @@ final class DJMixRegressionUITests: XCTestCase {
         app.focusDeck("a")
         _ = app.waitForBar(4)
         app.startRecording()
+        // Both decks started here, so by the time `holdMix` runs they have
+        // consumed roughly the whole recording's worth of their tracks. It has
+        // to be told, or its rotation clock starts from zero at the hold and
+        // schedules the first track change for after the fixtures have run out —
+        // which is how every recording ended in twenty seconds of silence.
+        let decksStartedAt = Date()
 
         // **Every gap below is relative** — `waitBars(n)` from wherever the
         // last gesture finished, never a bar number counted from the start of
@@ -253,7 +259,8 @@ final class DJMixRegressionUITests: XCTestCase {
         app.sweepCrossfader(to: -1)
         app.waitBars(2)
         app.sweepCrossfader(to: 0)
-        _ = app.holdMix(forBars: 10)
+        _ = app.holdMix(forBars: 10,
+                        decksPlayingFor: Date().timeIntervalSince(decksStartedAt))
 
         // Stop and finalize; the finish sheet appears for AT-MIX-8.
         app.waitFor(DJRegression.ID.record).tap()

@@ -1101,6 +1101,23 @@ final class DeckState: @unchecked Sendable {
             rate = Double(command.f0)
         case .loadArm:
             sourcePointer = command.ptr
+            // **A newly loaded track starts at its beginning.** Arming a source
+            // used to change the pointer and nothing else, so the playhead
+            // stayed wherever the previous track had left it — and a deck that
+            // had played to the end kept a playhead past the end of the new
+            // track, which renders silence for ever (`readChunk` clamps at EOF).
+            // Load the next track after one finishes and you get nothing, with
+            // no way back except CUE.
+            //
+            // That is what put twenty seconds of digital silence at the end of
+            // every djmix recording, through three separate attempts to fix it
+            // somewhere else: the lane's rotation was working by then and the
+            // audio still never came back, because the deck it loaded onto was
+            // parked past the end. Cue and loop belong to the old track too.
+            playhead = 0
+            pendingJump = nil
+            loopActive = false
+            cue = TempCueState()
         case .seek:
             let target = command.f0 >= 0.5
                 ? Scheduler.quantizedBoundary(after: command.i0,

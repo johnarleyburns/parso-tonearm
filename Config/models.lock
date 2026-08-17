@@ -26,5 +26,24 @@
 # a URL a build already resolves against — the checksum will catch it, but as a
 # failed build rather than as the deliberate change it was.
 
-https://github.com/johnarleyburns/parso-tonearm/releases/download/models-v1/CLAPAudioEncoder.mlpackage.tar.gz  3f42d8b3b14adeadfc36c5a3e58992651f2dd0de5aae2d6322d6402470e0d10d  CLAPAudioEncoder.mlpackage
-https://github.com/johnarleyburns/parso-tonearm/releases/download/models-v1/CLAPTextEncoder.mlpackage.tar.gz   305fe37c860548be1acd4b649fd1589bd3225ec2a91d0e2044a1f8be555fdd36  CLAPTextEncoder.mlpackage
+# Hosted in the owner's Cloudflare R2 bucket `parso-platterhead-models`, which
+# exists only for these files: its public r2.dev domain is enabled, and nothing
+# else in the account is exposed by it. Egress is free, which is what makes it a
+# better home than a release asset once the stems model joins the CLAP pair —
+# every archive run pulls ~460 MB.
+#
+# The same three packages are also on the GitHub release `models-v1` (the CLAP
+# pair since 2026-08-17, and that is where build 274 fetched them from). That
+# release is kept as a fallback, not as a second source of truth: whatever this
+# file names is what a build uses.
+
+https://pub-52cc1d6c476a423baa609d53de0fd435.r2.dev/v1/CLAPAudioEncoder.mlpackage.tar.gz  3f42d8b3b14adeadfc36c5a3e58992651f2dd0de5aae2d6322d6402470e0d10d  CLAPAudioEncoder.mlpackage
+https://pub-52cc1d6c476a423baa609d53de0fd435.r2.dev/v1/CLAPTextEncoder.mlpackage.tar.gz   305fe37c860548be1acd4b649fd1589bd3225ec2a91d0e2044a1f8be555fdd36  CLAPTextEncoder.mlpackage
+
+# The stems model (plan dj-stems-model S1–S8): htdemucs converted to Core ML
+# FP32, verified against torch at max|d| 1.1e-6. Pinning it here is what puts
+# **stems in a CI build** — the ODR overlay picks up `demucs-stems` the moment
+# the package is on disk, so a tester gets live separation instead of the honest
+# unavailable state. Its S7 gate (separation timing, thermals, peak footprint on
+# a real device) is still user-owned and unmeasured.
+https://pub-52cc1d6c476a423baa609d53de0fd435.r2.dev/v1/DemucsStems.mlpackage.tar.gz       75a6bf06286287eeb37bb8df3d070af3631a053c8c6266b08fec0a074cdaba97  DemucsStems.mlpackage

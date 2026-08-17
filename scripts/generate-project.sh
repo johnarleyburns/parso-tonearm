@@ -93,7 +93,6 @@ fi
 if [[ ${#absent[@]} -gt 0 ]]; then
   echo "==> models: absent, so their ODR tags are not in this project — ${absent[*]}"
   echo "    Run 'make models' to fetch the packages pinned in Config/models.lock."
-  echo "    Demucs is not pinned there: convert it with tools/demucs-coreml/."
 fi
 
 xcodegen generate

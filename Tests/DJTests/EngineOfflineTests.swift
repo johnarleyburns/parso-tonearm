@@ -464,6 +464,40 @@ final class EngineOfflineTests: XCTestCase {
         XCTAssertEqual(engine.deckPlayhead(.a), 1000)
     }
 
+    func testLoadingATrackStartsItFromTheBeginning() throws {
+        // Arming a source used to change the pointer and nothing else, so the
+        // playhead stayed where the previous track left it. Load the next track
+        // after one has played to the end and the deck is parked past the end of
+        // the new one: silence for ever, with no way back except CUE.
+        //
+        // This is what put twenty seconds of digital silence at the end of every
+        // djmix recording. The lane's rotation was working and the audio still
+        // never came back, because the deck it loaded onto was already past EOF.
+        let engine = try makeEngine()
+        try engine.start()
+        defer { engine.stop() }
+
+        let first = TestSource(frames: 1000) { _ in 0.5 }
+        engine.load(.a, source: first.source)
+        engine.play(.a)
+        _ = try engine.renderMono(2048) // plays out and stops at the end
+        XCTAssertFalse(engine.sampleTelemetry().deckA.playing)
+        XCTAssertEqual(engine.deckPlayhead(.a), 1000)
+
+        // The next track goes on the same deck, as a rotation would do.
+        let second = TestSource(frames: 4000) { Float($0) / 4000.0 }
+        engine.load(.a, source: second.source)
+        _ = try engine.renderMono(64)
+        XCTAssertEqual(engine.deckPlayhead(.a), 0,
+                       "a freshly loaded track starts at its beginning, not where the last one ended")
+
+        engine.play(.a)
+        let out = try engine.renderMono(512)
+        XCTAssertTrue(out.contains { $0 != 0 },
+                      "the new track actually plays — this is the dead-air defect")
+        XCTAssertTrue(engine.sampleTelemetry().deckA.playing)
+    }
+
     func testRTGuardWrapsOfflineRender() throws {
         let engine = try makeEngine()
         try engine.start()
