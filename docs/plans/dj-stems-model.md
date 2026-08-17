@@ -71,7 +71,7 @@ Shipped and tested since M5 5.7–5.9. None of it needs redesign:
   becoming a silent lie (ADR-10).**
 
 The precedent to follow for everything about *how* a model ships is `tools/clap-coreml`
-(commit `42cb3fd`): a reproducible script, a numeric verification against the torch reference
+(commit `9f42cf5`): a reproducible script, a numeric verification against the torch reference
 (audio cosine ≥ 0.9997), an ODR tag, and a version stamp.
 
 ---

@@ -33,7 +33,7 @@ end-to-end recorded set, and the device pass below. Its on-device rows (real Dem
 the club-controller transfer test, and **the milestone's own end-to-end narrative**)
 are user-owned and defer to a post-M5 device pass. M4 — the two-deck engine,
 `AVAudioSession`, and StoreKit (the 3.0 Pro launch, spec §48.5, Appendix M.5) — is
-**complete**: plan `5e8b731` + commits 4.1–4.13 are all on `main`. Its user-owned ship gates
+**complete**: plan `ec1e4aa` + commits 4.1–4.13 are all on `main`. Its user-owned ship gates
 (AT-THERM-1 on-device thermal/memory, AT-PLIST-2 on-device timing, AT-PLIST-7
 listening) are deferred to a single post-M4 device pass. M3 (auto-playlists,
 `docs/plans/dj-phase-3-autoplaylists.md`) is **complete** — commits 3.1–3.5 are all
@@ -45,56 +45,56 @@ governor) is fully committed.
 
 ## Commits on `main`
 
-- **MIDI M4** — `de19f56` `feat(dj): MIDI M4 — the guided learn walkthrough, from nothing to a playable mapping (plan dj-midi-alpha)`.
-- **MIDI M3** — `31ffec0` `feat(dj): MIDI M3 — the jog wheels: bindable, mapped through one shared transport (plan dj-midi-alpha)`.
-- **MIDI M2** — `1cfa079` `feat(dj): MIDI M2 — soft takeover, so a stale fader never slams the channel (plan dj-midi-alpha)` — also recovers `DJMigrations+v5.swift` (the `dj_v5` MIDI schema had never shipped: an unanchored `data/` gitignore pattern silently excluded every new file under `Sources/DJ/Data/`; the pattern is now anchored).
-- **MIDI M1** — `6b9247b` `feat(dj): MIDI M1 — the two wires: a mapping persists and a controller reaches the engine (plan dj-midi-alpha)`.
-- **Stems S8** — `7deee39` `feat(dj): S8 — the stem faders tell the truth, and the djstem regression lane (plan dj-stems-model)`.
-- **Stems S7** — `31e2a97` `feat(dj): S7 — the honest stems ceiling, and the measurement numbers (plan dj-stems-model)`.
-- **Stems S6** — `9c419bd` `feat(dj): S6 — ODR packaging for the stems model (plan dj-stems-model)`.
-- **Stems S5** — `f74ea7c` `feat(dj): S5 — wire DemucsStemModel to Core ML (plan dj-stems-model)`.
-- **Stems S4** — `82aa125` `feat(dj): S4 — model-native geometry at the stem seam (plan dj-stems-model)`.
-- **Stems S3** — `6ead558` `fix(dj): S3 — stream the stem overlap-add; kill the whole-track accumulation (plan dj-stems-model)`.
-- **Stems S2** — `bfeb379` `feat(dj): S2 — DemucsSpectrogram, the Swift STFT/ISTFT kernel, golden vs torch (plan dj-stems-model)`.
-- **Stems S1** — `bc9637e` `feat(dj): S1 — the htdemucs → Core ML conversion, correct diagnosis (plan dj-stems-model)`.
-- **M6 6.7 + 6.6** — `4b6e113` `feat(dj): M6 feature lanes + the crash they found; stems conversion attempted, not landed`.
-- **M6 6.5** — `13564f7` `feat(dj): MIDI — learn, bindings, profiles, §44.3-44.4, FR-HW-1/2`.
-- **M6 6.4** — `7594493` `feat(dj): headphone cue — pre-fader, three honest modes, §44.2a, FR-HW-3`.
-- **M6 6.3** — `147a223` `feat(dj): genre libraries enabled — app key, or bring your own, §18A.2`.
-- **M6 6.2** — `2d10c43` `feat(dj): the purchase path tells the truth about money, FR-STORE-1/3/5`.
-- **M6 6.1** — `877e2fb` `feat(dj): engine liveness — a stopped graph stops lying, §34A.5, NFR-REL-2`.
-- **M6 plan** — `394608a` `docs(dj): M6 plan — the live-mixing alpha`.
-- **M5 5.14** — `e838cfb` `feat(dj): the DJ regression suite — the exit sentence, performed and proved in the recording, §53.7-53.12 (M5 commit 5.14)`.
-- **M5 5.13** — `f3d3047` `feat(dj): transition coach — the five transitions, highlighted in place, §41.18, FR-TRANS-6 (M5 commit 5.13)`.
-- **M5 5.12** — `4cbbf04` `feat(dj): finish + mixes + timeline + review listen + export, §37.4, §41.11-41.12, §18A.5, FR-REC-1/4/5/6/7 (M5 commit 5.12)`.
-- **M5 5.11** — `c83fd84` `feat(dj): recording journal, crash/interruption recovery, finalize, §37.3-37.5, §34A.4, FR-REC-1/3, FR-ENG-8 (M5 commit 5.11)`.
-- **M5 5.10** — `1f07de9` `feat(dj): record tap + encoder + segmented M4A, §37.2, FR-ENG-7 (M5 commit 5.10)`.
-- **M5 5.9** — `6dc5f80` `feat(dj): gig crates — promotion, budgeted separation, LRU eviction, §41.17, §43.6, FR-PLIST-9, FR-ANL-9, FR-LIB-8 (M5 commit 5.9)`.
-- **M5 5.8** — `118320d` `feat(dj): stem voices live on decks — StemSet summing reader, honest prepared state, live faders, §35.1, §36.5, FR-ENG-3 (M5 commit 5.8)`.
-- **M5 5.7** — `0a90d68` `feat(dj): Demucs ODR + separation + content-addressed cache, §36, FR-ENG-3 (M5 commit 5.7)`.
-- **M5 5.6** — `dee6a57` `feat(dj): genre libraries — Jamendo connector, curated genre picker, AT-GENRE-* (M5 commit 5.6)`.
-- **M5 5.5** — `559b23a` `feat(dj): Beat FX echo — post-fader beat-synced delay, §35B transitions, AT-TRANS-1..5 (M5 commit 5.5)`.
-- **M5 5.4a** — `495780f` `feat(dj): real-time render pump — .realtime mode, one render-closure body, session-first entry (M5 commit 5.4a)`.
-- **M5 5.4** — `a6d59f3` `feat(dj): club ergonomics — per-channel strips, tempo faders, eight pads, CUE-left-of-PLAY, §53.11 identifiers (M5 commit 5.4)`.
-- **M5 5.3** — `9bd2db6` `feat(dj): waveform render — band-split colour, composed grid, phrase ribbon, overview (M5 commit 5.3)`.
-- **M5 5.2** — `f8f9db1` `feat(dj): analysis persistence — phrases, downbeats, real beat grid, band-split pyramid (M5 commit 5.2)`.
-- **M5 5.1** — `69814f6` `feat(dj): app entry point + library → deck seam (M5 commit 5.1)`.
-- **M5 plan (re-scope)** — `d108b09` `docs(dj): M5 re-scope — outcome milestone, reachability first, Jamendo/AAC (Appendix M.6)`.
-- **M4 4.13** — `01d4acb` `feat(dj): paywall, purchase flow, memory ceiling (M4 commit 4.13)`.
-- **Seed-fix** — `1290b31` `test(dj): seed the onset-noise test — fixes the SystemRandomNumberGenerator flake`.
-- **M4 4.10** — `f9e77c9` `feat(dj): bank drawers, edge sliders, bottom-edge crossfader (M4 commit 4.10)`.
-- **M4 4.9** — `113e8b7` `feat(dj): twin-deck landscape surface + orientation switch (M4 commit 4.9)`.
-- **M4 4.8** — `fce2b16` `feat(dj): jog gesture model + jog view with phase ghost (M4 commit 4.8)`.
-- **M4 4.7** — `91580c0` `feat(dj): iPhone portrait solo-deck surface (M4 commit 4.7)`.
-- **M4 4.6** — `2bc6d4a` `feat(dj): dual-deck sync + telemetry + iPad workspace (M4 commit 4.6)`.
-- **M4 4.5** — `c628e99` `feat(dj): time-stretch/key-lock/key-shift via AVAudioUnitTimePitch (M4 commit 4.5)`.
-- **M4 4.4** — `6e3c0e9` `feat(dj): mixer — 3-band EQ, sweep filter, crossfader, master limiter (M4 commit 4.4)`.
-- **M4 4.3** — `e595254` `feat(dj): single-deck play/cue/loop, sample-accurate (M4 commit 4.3)`.
-- **M4 4.2** — `40903e7` `feat(dj): audio-session decision table and coordinator (M4 commit 4.2)`.
-- **M4 4.1** — `211f431` `feat(dj): RT boundary — command ring, snapshot, RTGuard, offline engine harness (M4 commit 4.1)`.
-- **M4 gate** — `a7615e5` `test(dj): AT-PLIST-8 gate 2.0s → 2.5s — owner runs Low Power Mode on AC`.
+- **MIDI M4** — `35135db` `feat(dj): MIDI M4 — the guided learn walkthrough, from nothing to a playable mapping (plan dj-midi-alpha)`.
+- **MIDI M3** — `70484cd` `feat(dj): MIDI M3 — the jog wheels: bindable, mapped through one shared transport (plan dj-midi-alpha)`.
+- **MIDI M2** — `c3ef33e` `feat(dj): MIDI M2 — soft takeover, so a stale fader never slams the channel (plan dj-midi-alpha)` — also recovers `DJMigrations+v5.swift` (the `dj_v5` MIDI schema had never shipped: an unanchored `data/` gitignore pattern silently excluded every new file under `Sources/DJ/Data/`; the pattern is now anchored).
+- **MIDI M1** — `2cae7d9` `feat(dj): MIDI M1 — the two wires: a mapping persists and a controller reaches the engine (plan dj-midi-alpha)`.
+- **Stems S8** — `134527a` `feat(dj): S8 — the stem faders tell the truth, and the djstem regression lane (plan dj-stems-model)`.
+- **Stems S7** — `e0dfe0d` `feat(dj): S7 — the honest stems ceiling, and the measurement numbers (plan dj-stems-model)`.
+- **Stems S6** — `b1bb014` `feat(dj): S6 — ODR packaging for the stems model (plan dj-stems-model)`.
+- **Stems S5** — `c1a6cb1` `feat(dj): S5 — wire DemucsStemModel to Core ML (plan dj-stems-model)`.
+- **Stems S4** — `20e3db8` `feat(dj): S4 — model-native geometry at the stem seam (plan dj-stems-model)`.
+- **Stems S3** — `d77a823` `fix(dj): S3 — stream the stem overlap-add; kill the whole-track accumulation (plan dj-stems-model)`.
+- **Stems S2** — `c5ac643` `feat(dj): S2 — DemucsSpectrogram, the Swift STFT/ISTFT kernel, golden vs torch (plan dj-stems-model)`.
+- **Stems S1** — `8f12313` `feat(dj): S1 — the htdemucs → Core ML conversion, correct diagnosis (plan dj-stems-model)`.
+- **M6 6.7 + 6.6** — `f864c33` `feat(dj): M6 feature lanes + the crash they found; stems conversion attempted, not landed`.
+- **M6 6.5** — `40633d0` `feat(dj): MIDI — learn, bindings, profiles, §44.3-44.4, FR-HW-1/2`.
+- **M6 6.4** — `fbe5fad` `feat(dj): headphone cue — pre-fader, three honest modes, §44.2a, FR-HW-3`.
+- **M6 6.3** — `8451d2e` `feat(dj): genre libraries enabled — app key, or bring your own, §18A.2`.
+- **M6 6.2** — `317a1a3` `feat(dj): the purchase path tells the truth about money, FR-STORE-1/3/5`.
+- **M6 6.1** — `fa61981` `feat(dj): engine liveness — a stopped graph stops lying, §34A.5, NFR-REL-2`.
+- **M6 plan** — `ba07e26` `docs(dj): M6 plan — the live-mixing alpha`.
+- **M5 5.14** — `56afb11` `feat(dj): the DJ regression suite — the exit sentence, performed and proved in the recording, §53.7-53.12 (M5 commit 5.14)`.
+- **M5 5.13** — `d96495c` `feat(dj): transition coach — the five transitions, highlighted in place, §41.18, FR-TRANS-6 (M5 commit 5.13)`.
+- **M5 5.12** — `647ecee` `feat(dj): finish + mixes + timeline + review listen + export, §37.4, §41.11-41.12, §18A.5, FR-REC-1/4/5/6/7 (M5 commit 5.12)`.
+- **M5 5.11** — `315df5a` `feat(dj): recording journal, crash/interruption recovery, finalize, §37.3-37.5, §34A.4, FR-REC-1/3, FR-ENG-8 (M5 commit 5.11)`.
+- **M5 5.10** — `9386f39` `feat(dj): record tap + encoder + segmented M4A, §37.2, FR-ENG-7 (M5 commit 5.10)`.
+- **M5 5.9** — `780ac70` `feat(dj): gig crates — promotion, budgeted separation, LRU eviction, §41.17, §43.6, FR-PLIST-9, FR-ANL-9, FR-LIB-8 (M5 commit 5.9)`.
+- **M5 5.8** — `22c4a7c` `feat(dj): stem voices live on decks — StemSet summing reader, honest prepared state, live faders, §35.1, §36.5, FR-ENG-3 (M5 commit 5.8)`.
+- **M5 5.7** — `0c6b4e7` `feat(dj): Demucs ODR + separation + content-addressed cache, §36, FR-ENG-3 (M5 commit 5.7)`.
+- **M5 5.6** — `692def0` `feat(dj): genre libraries — Jamendo connector, curated genre picker, AT-GENRE-* (M5 commit 5.6)`.
+- **M5 5.5** — `1ef6431` `feat(dj): Beat FX echo — post-fader beat-synced delay, §35B transitions, AT-TRANS-1..5 (M5 commit 5.5)`.
+- **M5 5.4a** — `404989e` `feat(dj): real-time render pump — .realtime mode, one render-closure body, session-first entry (M5 commit 5.4a)`.
+- **M5 5.4** — `7a324ec` `feat(dj): club ergonomics — per-channel strips, tempo faders, eight pads, CUE-left-of-PLAY, §53.11 identifiers (M5 commit 5.4)`.
+- **M5 5.3** — `043c820` `feat(dj): waveform render — band-split colour, composed grid, phrase ribbon, overview (M5 commit 5.3)`.
+- **M5 5.2** — `f6405b0` `feat(dj): analysis persistence — phrases, downbeats, real beat grid, band-split pyramid (M5 commit 5.2)`.
+- **M5 5.1** — `9bcdaa2` `feat(dj): app entry point + library → deck seam (M5 commit 5.1)`.
+- **M5 plan (re-scope)** — `30568a1` `docs(dj): M5 re-scope — outcome milestone, reachability first, Jamendo/AAC (Appendix M.6)`.
+- **M4 4.13** — `fc7c858` `feat(dj): paywall, purchase flow, memory ceiling (M4 commit 4.13)`.
+- **Seed-fix** — `1cc0739` `test(dj): seed the onset-noise test — fixes the SystemRandomNumberGenerator flake`.
+- **M4 4.10** — `9fdc61d` `feat(dj): bank drawers, edge sliders, bottom-edge crossfader (M4 commit 4.10)`.
+- **M4 4.9** — `4f65414` `feat(dj): twin-deck landscape surface + orientation switch (M4 commit 4.9)`.
+- **M4 4.8** — `f7cb036` `feat(dj): jog gesture model + jog view with phase ghost (M4 commit 4.8)`.
+- **M4 4.7** — `d6155f7` `feat(dj): iPhone portrait solo-deck surface (M4 commit 4.7)`.
+- **M4 4.6** — `e9c5628` `feat(dj): dual-deck sync + telemetry + iPad workspace (M4 commit 4.6)`.
+- **M4 4.5** — `28b1ac1` `feat(dj): time-stretch/key-lock/key-shift via AVAudioUnitTimePitch (M4 commit 4.5)`.
+- **M4 4.4** — `f4a5e26` `feat(dj): mixer — 3-band EQ, sweep filter, crossfader, master limiter (M4 commit 4.4)`.
+- **M4 4.3** — `6e12dc5` `feat(dj): single-deck play/cue/loop, sample-accurate (M4 commit 4.3)`.
+- **M4 4.2** — `723a2bc` `feat(dj): audio-session decision table and coordinator (M4 commit 4.2)`.
+- **M4 4.1** — `4ec015b` `feat(dj): RT boundary — command ring, snapshot, RTGuard, offline engine harness (M4 commit 4.1)`.
+- **M4 gate** — `d6e826a` `test(dj): AT-PLIST-8 gate 2.0s → 2.5s — owner runs Low Power Mode on AC`.
 - **M4 gate** — `AT-PLIST-8 gate 2.5s → 4.0s` — prevent flaky failures while in Low Power Mode.
-- **M4 plan** — `5e8b731` `docs(dj): M4 plan — real-time engine, audio session, purchase (3.0 Pro launch)`.
+- **M4 plan** — `ec1e4aa` `docs(dj): M4 plan — real-time engine, audio session, purchase (3.0 Pro launch)`.
   Working plan for milestone M4 per handoff §8. Resolved decisions recorded up front:
   **`guru.parso.tonearm.pro` is repurposed as the single DJ product** — no `.pro.dj`,
   no Founders grant, T.4 collapses to one row (commits in 4.13); **deployment floor
@@ -104,10 +104,10 @@ governor) is fully committed.
   (`SessionPolicy`) so AT-SESS-\* is testable off-device; **offline engine harness =
   `AVAudioEngine` manual rendering** on the macOS host; the user-owned AT-THERM-1 and
   M3 ship gates (AT-PLIST-2/7) deferred to a single post-M4 device pass.
-- **M3 (complete):** plan `c2415a5`; 3.1 `87155e5`; 3.2 `94ed3eb`; 3.3 `c7abb86`;
-  3.4 `8e6d628`; 3.5 `98825bb` (AT-PLIST-3 shuffle-comparison harness closed the last
-  gate). M2 (complete): plan `dbd01df`; model conversion `42cb3fd`; 2.1 `cba52bf`;
-  2.2 `a0c1291`; 2.3 `3879013`; 2.4 `b9f5bb4`; 2.5 `45ecc8c`; plus `c6de224`
+- **M3 (complete):** plan `963118f`; 3.1 `dc7c734`; 3.2 `e98dbf2`; 3.3 `ba88b44`;
+  3.4 `9116936`; 3.5 `1e8489c` (AT-PLIST-3 shuffle-comparison harness closed the last
+  gate). M2 (complete): plan `dbd01df`; model conversion `9f42cf5`; 2.1 `aefef63`;
+  2.2 `322283a`; 2.3 `eb88b94`; 2.4 `dd6bee6`; 2.5 `58ca282`; plus `85c37c9`
    (Play at any browse depth + Jellyfin demo onboarding). M1 commits
    `dd9cc35`…`fc81f2e`.
 
@@ -191,7 +191,7 @@ nothing to a playable mapping. **`LANES=djhw` ran green end to end on
 `HardwareService.receive` (a real seam, not a mock) and watches the live
 surface's crossfader move. What remains is M5–M8 (below) and hardware time.
 
-- **M1 — the two wires (`6b9247b`).** `DJHomeView` builds the MIDI screen with a
+- **M1 — the two wires (`2cae7d9`).** `DJHomeView` builds the MIDI screen with a
   store-backed model (`MidiSettingsModel.live()` — loads the active profile at
   construction, writes every learn through to the DJ database), and
   `DJWorkspaceAssembly.makeModel` attaches the `HardwareService` when an active
@@ -207,7 +207,7 @@ surface's crossfader move. What remains is M5–M8 (below) and hardware time.
   **every new file under `Sources/DJ/Data/`** — including `DJMigrations+v5.swift`,
   the entire `dj_v5` MIDI schema, which had never shipped in any commit. The
   pattern is now anchored (`/data/`) and the migration file is committed.
-- **M2 — soft takeover (`1cfa079`).** `Takeover` (`jump`/`pickup`/`scale`) as a
+- **M2 — soft takeover (`c3ef33e`).** `Takeover` (`jump`/`pickup`/`scale`) as a
   per-binding property (default: `pickup` for every continuous absolute
   control); the pure `MidiRouter` gains `takeover: inout TakeoverState` and the
   `.awaitingPickup(action, distance:)` intent; the workspace owns the state,
@@ -217,7 +217,7 @@ surface's crossfader move. What remains is M5–M8 (below) and hardware time.
   did before); a pre-M2 profile JSON without the key still imports. Tests: the
   crossing claims in both directions, tolerance at the ends of travel, scale's
   proportional mapping, reset-requires-a-new-crossing, DB round-trip.
-- **M3 — the jog wheels (`31ffec0`).** `EngineAction.jog`/`.jogTouch` are
+- **M3 — the jog wheels (`70484cd`).** `EngineAction.jog`/`.jogTouch` are
   bindable (`deckA.jog`, `deckA.jogTouch`). `JogTransport` moved to its own file
   and is now **owned by the workspace, one per deck** — a MIDI nudge and a
   finger nudge share the same `bendBaseRate`. A relative encoder's ticks bend
@@ -225,7 +225,7 @@ surface's crossfader move. What remains is M5–M8 (below) and hardware time.
   holds/releases; in vinyl mode a touched jog scrubs instead of nudging. Tests:
   tick→nudge magnitude, idle→exactly one release, touch hold/release, the
   shared-base-rate no-fight assertion, vinyl scrub seek math.
-- **M4 — the guided learn walkthrough (`de19f56`).** A "Set up my controller"
+- **M4 — the guided learn walkthrough (`35135db`).** A "Set up my controller"
   flow walks the essential set in performance order (24 steps: crossfader →
   channel faders → transport → cue → headphone cue → EQ → filter → tempo → jog +
   jog touch → record), reusing the two-step `beginLearning`/`commitLearning`
@@ -242,6 +242,71 @@ app. Everything here is unverified on physical hardware — the claims are about
 factory profiles (a controller must be MIDI-learned — the walkthrough covers
 it); hot cues are still not bindable (nothing reads stored cue points yet); no
 LED feedback, so the controller's lights will not reflect app state.
+
+## 2026-08-17 — the push, and the third blocker: 377 MB of models inside git
+
+The owner approved the push. It was rejected by GitHub before a single job ran —
+a **third** push blocker, invisible to phase 1 because it is not in the workflow
+file but in the objects themselves:
+
+```
+remote: error: File Resources/Models/CLAPTextEncoder.mlpackage/…/weight.bin is 239.13 MB;
+        this exceeds GitHub's file size limit of 100.00 MB
+remote: error: File Resources/Models/CLAPAudioEncoder.mlpackage/…/weight.bin is 133.62 MB
+! [remote rejected] main -> main (pre-receive hook declined)
+```
+
+The two CLAP encoders (377 MB) entered history in exactly one unpushed commit,
+`9f42cf5` (the M2 model conversion), and were never touched again; `.git` was
+452 MB and essentially all model. `swift test` never needed them —
+`Resources/Models` is in Package.swift's exclude list — so only the archive job
+is affected.
+
+**Decision (owner, 2026-08-17): strip them from history and deliver them as a
+release asset**, so a CI build still ships semantic search. The alternatives were
+rejected on their costs: leaving them out entirely would have put vibe search and
+the auto-playlist CLAP path in the honest-unavailable state for every tester, and
+Git LFS would need a paid data pack (free tier is 1 GB/month of bandwidth; one
+archive run pulls 377 MB).
+
+**The rewrite was done over `origin/main..main` only, and that detail matters.**
+A whole-history `git filter-repo` rewrote *every* commit hash, including the 154
+already on GitHub, which would have forced a rewrite of published history. The
+cause is not the models: the repository's root commit `9b5fa20` is **GPG-signed**
+(created through GitHub's web UI), `git fast-export` drops signatures, and every
+descendant hash therefore changes. Re-running with `--refs origin/main..main`
+rewrote only the 118 unpushed commits, left `9b5fa20`…`d06e372` byte-identical,
+and kept the push a fast-forward. `.git` is now **69 MB**.
+
+What landed with it:
+
+- **`Config/models.lock`** — one row per package: release tag, asset, sha256, and
+  the directory it unpacks to. The checksum is the contract.
+- **`scripts/fetch-models.sh`** (`make models`) — downloads and verifies into
+  `Resources/Models/`, keeps a package already on the machine (the owner converts
+  locally; `--force` replaces), and **fails hard** on a missing or corrupt asset.
+  A warning would ship the honest-unavailable state to testers, which is exactly
+  how the empty Jamendo key nearly shipped.
+- **The overlay is generalised.** `Config/stems-odr.yml` becomes
+  `Config/models-odr.yml` and now covers all three packages: `generate-project.sh`
+  writes an entry per package that exists on the machine, and `project.yml` lists
+  none of them directly. The CLAP entries used to be unconditional, so stripping
+  them from git without this would have reproduced the phase-1 failure exactly —
+  `xcodegen` dying on a missing source directory.
+- **CI fetches before it generates** — a `make models` step in the archive job,
+  ahead of `make project`.
+- **The release** — `models-v1`, both `.tar.gz` assets, public, reproducible from
+  `tools/clap-coreml/`.
+
+Verified end to end: on the owner's machine `make project` produces a
+**byte-identical `project.pbxproj`** (all three ODR tags still in), and a detached
+clean worktree — what CI checks out — fetches both packages in **10.6 s**,
+generates with the two CLAP tags present and **zero Demucs references**, and
+builds Release for `generic/platform=iOS`.
+
+**Stems are still not in the alpha build** (the 210 MB Demucs package is not
+pinned in `models.lock` — converting it is a local step, and the same mechanism
+can deliver it whenever that is wanted). Semantic search now is.
 
 ## 2026-08-16 — alpha-readiness pass, phase 1 of 5: the two CI blockers
 
@@ -403,8 +468,8 @@ narrative performed end to end).
 
 ## 2026-08-16 session — MIDI landed, DJ lanes re-verified, runner progress monitor requested
 
-**MIDI M1–M4 are on `main`** (`6b9247b`, `1cfa079`, `31ffec0`, `de19f56`,
-plus the M2 backward-compat fix `ad1aa22`). The full local suite is green
+**MIDI M1–M4 are on `main`** (`2cae7d9`, `c3ef33e`, `70484cd`, `35135db`,
+plus the M2 backward-compat fix `0539aba`). The full local suite is green
 (**1544 tests, 0 failures, 8 skipped**) and the app builds. **`LANES=djhw`
 ran green end to end** — including the new **AT-HW-06**, which seeds an active
 profile, opens the decks, injects a CC through `HardwareService.receive`, and
@@ -461,7 +526,7 @@ writes nothing to `phrase`, `downbeat` or `waveform_pyramid`** while `beat_grid`
 `firstBeatSample: 0, beatCount: 0` — which is why every waveform in the product is
 placeholder geometry. The stems/recording work would have landed on top of all three.
 
-**M5 commit 5.2 — analysis persistence — complete (`f8f9db1`).** §19.4's render
+**M5 commit 5.2 — analysis persistence — complete (`f6405b0`).** §19.4's render
 contract is closed: the pipeline's computed artifacts now reach every destination
 table instead of being dropped (FR-WAVE-1, AT-WAVE-1, §49.3 rule 9):
 
@@ -489,7 +554,7 @@ table instead of being dropped (FR-WAVE-1, AT-WAVE-1, §49.3 rule 9):
   the immutable rows. DJ-only — no `xcodegen generate` (plan decision 25). Full
   suite **1244 green** (1241 baseline + 3).
 
-**M5 commit 5.4 — club-standard ergonomics — complete (`a6d59f3`).** The §41.9b
+**M5 commit 5.4 — club-standard ergonomics — complete (`7a324ec`).** The §41.9b
 arrangement lands over mockup `ipad/07` (FR-TRANS-1/2, §42.7c, NFR-A11Y-6):
 
 - `WorkspaceView` is relaid out to the club arrangement. The two decks' waveforms
@@ -531,7 +596,7 @@ arrangement lands over mockup `ipad/07` (FR-TRANS-1/2, §42.7c, NFR-A11Y-6):
   watch smoke tests pass in the pre-commit hook. No `xcodegen generate` (DJ-only,
   decision 25). **FR-TRANS-1/2, §41.9b, §42.7c, §53.11.**
 
-**M5 commit 5.4a — the real-time render pump — complete (`495780f`).** The
+**M5 commit 5.4a — the real-time render pump — complete (`404989e`).** The
 **app now makes sound** (decision 26, §53.11) — the prerequisite found while
 designing the regression suite, lettered `5.4a` so the recorded 5.5–5.13
 sequence stays stable:
@@ -609,7 +674,7 @@ sequence stays stable:
   depth per sub-genre, and **the end-to-end narrative itself** — are the user-owned
   post-M5 pass, joining M4's deferred AT-THERM-1/AT-MEM-1.
 
-**M5 commit 5.5 — the §35A post-fader beat-synced echo + AT-TRANS-1..5 — complete (`559b23a`).**
+**M5 commit 5.5 — the §35A post-fader beat-synced echo + AT-TRANS-1..5 — complete (`1ef6431`).**
 The one Beat FX M5 ships (decision 23) and the milestone's transition family
 (§35A, §35B — FR-TRANS-3/4/5):
 
@@ -656,7 +721,7 @@ The one Beat FX M5 ships (decision 23) and the milestone's transition family
   smoke tests pass in the pre-commit hook. DJ-only — no `xcodegen generate` (decision 25).
   **FR-TRANS-3/4/5, §35A, §35B, AT-TRANS-1..5.**
 
-**M5 commit 5.6 — genre libraries — complete (`dee6a57`).** The practice-material
+**M5 commit 5.6 — genre libraries — complete (`692def0`).** The practice-material
 connector that makes M5's exit narrative startable (§18A, §41.1a, FR-LIB-9/10) —
 **free tier** (FR-LIB-7, `remoteLibraryJamendo` joins the registry):
 
@@ -704,7 +769,7 @@ connector that makes M5's exit narrative startable (§18A, §41.1a, FR-LIB-9/10)
   consistent with the documented scaffold state). **FR-LIB-9/10, §18A, §41.1a,
   AT-GENRE-\*, AT-FREE-\*.**
 
-**M5 commit 5.7 — Demucs ODR + separation + cache + version stamp — complete (`0a90d68`).**
+**M5 commit 5.7 — Demucs ODR + separation + cache + version stamp — complete (`0c6b4e7`).**
 The §36 pipeline's delivery seam and its testable kernel (plan decisions 1, 5; §36, FR-ENG-3):
 
 - `ModelTag.stems` joins the ODR tags and the existing `BundleResourceProvider` carries
@@ -716,7 +781,7 @@ The §36 pipeline's delivery seam and its testable kernel (plan decisions 1, 5; 
   FR-SEM-6, so the deck plays the full mix per §36.5), and the ODR `DemucsStemModel` shell
   that is honestly absent until the `.mlpackage` is registered and throws an explicit
   `conversionPending` for a present-but-unwired model (ADR-10 — the real conversion + ODR
-  registration is the user-owned post-M5 step, like M2's `42cb3fd`).
+  registration is the user-owned post-M5 step, like M2's `9f42cf5`).
 - **`StemSeparator.swift`** — the pure chunk/overlap-add kernel (`StemChunking`: fixed 2¹⁷-frame
   chunks, 50% overlap, a **periodic Hann generated here because `vDSP_HANN_NORM` is
   energy-normalized and does not satisfy first-power COLA**; the window's `w[i] + w[i+hop] == 1`
@@ -745,7 +810,7 @@ The §36 pipeline's delivery seam and its testable kernel (plan decisions 1, 5; 
    **1327 green** (8 skipped); Swift 6 guard OK; app builds (xcodebuild verified). DJ-only — no
    `xcodegen generate` (decision 25). **FR-ENG-3, §36.**
 
-**M5 commit 5.8 — stem voices live on decks, honest disabled state — complete (`118320d`).**
+**M5 commit 5.8 — stem voices live on decks, honest disabled state — complete (`22c4a7c`).**
 The §35.1 reader's second slot and the model's honest stem status (plan decisions 3–4;
 FR-ENG-3, §36.5 — **AT-STEM-\* engine rows**):
 
@@ -784,7 +849,7 @@ FR-ENG-3, §36.5 — **AT-STEM-\* engine rows**):
   pass in the pre-commit hook. DJ-only — no `xcodegen generate` (decision 25).
   **FR-ENG-3, §35.1, §36.5, AT-STEM-\* (engine rows).**
 
-**M5 commit 5.9 — gig crates: promotion, budgeted separation, LRU eviction — complete (`6dc5f80`).**
+**M5 commit 5.9 — gig crates: promotion, budgeted separation, LRU eviction — complete (`780ac70`).**
 The §41.17 surface, the §43.6 disk budget, and the §36.3 lane (plan decisions 2, 11;
 FR-PLIST-9, FR-ANL-9, FR-LIB-8 — **AT-STEM-\***):
 
@@ -826,7 +891,7 @@ FR-PLIST-9, FR-ANL-9, FR-LIB-8 — **AT-STEM-\***):
   (xcodebuild verified); smoke tests pass in the pre-commit hook. DJ-only — no `xcodegen
   generate` (decision 25). **FR-PLIST-9, FR-ANL-9, FR-LIB-8, §41.17, §43.6, AT-STEM-\*.**
 
-**M5 commit 5.10 — the record tap + encoder + segmented M4A — complete (`1f07de9`).**
+**M5 commit 5.10 — the record tap + encoder + segmented M4A — complete (`9386f39`).**
 The §37.2 recording path and the milestone's record toggle (plan decision 14, FR-ENG-7):
 
 - `Recording/RecordTap.swift` — the **RT-safe, post-limiter master-bus copy** (§37.2): a
@@ -869,7 +934,7 @@ The §37.2 recording path and the milestone's record toggle (plan decision 14, F
   decision 14, dj.transport.record.**
 
 **M5 commit 5.11 — the recording journal + crash/interruption recovery + finalize — complete
-(`c83fd84`).** The §37.3 journal, the §34A.4 interruption path, and §37.5's single-file
+(`315df5a`).** The §37.3 journal, the §34A.4 interruption path, and §37.5's single-file
 finalize (FR-REC-1/3, NFR-REL-2, FR-ENG-8):
 
 - **`Recording/RecordingService.swift`** — the §37.3 side-car actor. `begin(outputDirectory:)`
@@ -921,7 +986,7 @@ finalize (FR-REC-1/3, NFR-REL-2, FR-ENG-8):
   DJ-only — no `xcodegen generate` (decision 25). **FR-REC-1/3, FR-ENG-8, NFR-REL-2, §37.3,
   §37.5, §34A.4, mix-journal.json hook.**
 
-**M5 commit 5.12 — Finish + Mixes + timeline + the review listen — complete (`4cbbf04`).**
+**M5 commit 5.12 — Finish + Mixes + timeline + the review listen — complete (`647ecee`).**
 The §37.4 timeline, the §41.11 finish screen, and the §41.12 mixes library (FR-REC-1/4/5/6/7,
 §18A.5 — **AT-REC-***):
 
@@ -973,7 +1038,7 @@ The §37.4 timeline, the §41.11 finish screen, and the §41.12 mixes library (F
   finish screen + cue-sheet with the uniform CC licence line stated once; and the timeline logs
   track starts (the `mix_track_event` shape), not every cue/loop/crossfader move.*
 
-**M5 commit 5.13 — the transition coach — complete (`f3d3047`).**
+**M5 commit 5.13 — the transition coach — complete (`d96495c`).**
 The §41.18 transition coach (plan 5.13, FR-TRANS-6, mockup `ipad/16-transitions.html`) — the
 §35B five as teaching lessons, **each highlighting the real controls in place** on the
 performance surface rather than depicting them in an illustration:
@@ -1017,7 +1082,7 @@ performance surface rather than depicting them in an illustration:
   1433 → **1447 green** (8 skipped); Swift 6 guard OK; app builds; smoke pass in the pre-commit
   hook. DJ-only — no `xcodegen generate` (decision 25). **FR-TRANS-6, §41.18, §35B, §53.11.**
 
-**M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`01d4acb`).**
+**M4 commit 4.13 — paywall + purchase flow + memory ceiling — complete (`fc7c858`).**
 The 3.0 Pro launch's closing surface (plan 4.13, §2.1/§2.10, §43.5) — **M4 is
 now complete**: every commit 4.1–4.13 is on `main`, and the milestone's ship
 gates (AT-THERM-1, AT-MEM-1, AT-PLIST-2/7) are the user-owned post-M4 device pass:
@@ -1070,7 +1135,7 @@ gates (AT-THERM-1, AT-MEM-1, AT-PLIST-2/7) are the user-owned post-M4 device pas
   `xcodegen generate`. **FR-STORE-1/2/3/5/6/7, AT-STORE-2/4, NFR-REL-4; M4
   complete — AT-ENGINE-\*, AT-SESS-\*, AT-STORE-\*, AT-TWIN-\* green.**
 
-**M4 commit 4.12 — Track Prep + grid corrections — complete (`ea66d33`).**
+**M4 commit 4.12 — Track Prep + grid corrections — complete (`c30f65f`).**
 The §41.8 Track Prep surface over the existing `grid_correction` path — the
 authoritative override log that replays deterministically over the immutable
 detected grid (§23.3, FR-PREP-5, FR-ANL-5, AT-GRID-\*):
@@ -1114,7 +1179,7 @@ detected grid (§23.3, FR-PREP-5, FR-ANL-5, AT-GRID-\*):
   guard OK; no `xcodegen generate`. **FR-PREP (grid), AT-GRID-\*, FR-ANL-5,
   §23.3.**
 
-**M4 commit 4.11 — iPad deck module slot, default `STEMS` — complete (`726884a`).**
+**M4 commit 4.11 — iPad deck module slot, default `STEMS` — complete (`59552e2`).**
 The §41.9a per-deck module slot (mockup `ipad/07b`, FR-ENG-1 — jog as a slot,
 AT-TWIN-2 — a module never occludes shared controls):
 
@@ -1152,7 +1217,7 @@ AT-TWIN-2 — a module never occludes shared controls):
   clamp, `barBeat` golden). Full suite 1183 green (1171 baseline + 12);
   Swift 6 guard OK; no `xcodegen generate`. **FR-ENG-1, AT-TWIN-2, §41.9a.**
 
-**M4 commit 4.10 — bank drawers, edge sliders, bottom-edge crossfader — complete (`f9e77c9`).**
+**M4 commit 4.10 — bank drawers, edge sliders, bottom-edge crossfader — complete (`9fdc61d`).**
 The five §42.7b modal idioms with their two normative rules over the one
 `WorkspaceModel` (mockup `iphone/05d`, FR-ENG-12, AT-TWIN-2/3/4):
 
@@ -1198,13 +1263,13 @@ The five §42.7b modal idioms with their two normative rules over the one
   resolution golden incl. the cancel paths, and the 1:1 relative-crossfader
   mapping. Full suite 1171 green (1159 baseline + 12); Swift 6 guard OK; no
   `xcodegen generate`. **FR-ENG-12, AT-TWIN-2/3/4, §42.7b.**
-- **Seed-fix (`1290b31`):** the documented `OnsetTests` flake is fixed — the
+- **Seed-fix (`1cc0739`):** the documented `OnsetTests` flake is fixed — the
   noise test now uses the repo's seeded `SplitMix64` (which gains the
   `RandomNumberGenerator` conformance) instead of ambient entropy, so
   `peaks.count < 3` is deterministic (NFR-DET-3). It blocked the 4.10 commit
   twice before the fix.
 
-- **M4 commit 4.9 — `TwinDeckView` + orientation switch — complete (`113e8b7`).**
+- **M4 commit 4.9 — `TwinDeckView` + orientation switch — complete (`4f65414`).**
 The landscape twin-deck surface and §42.1's posture switch (FR-ENG-10, AT-TWIN-1):
 
 - `Features/Workspace/TwinDeckView.swift` — `TwinDeckView`, the §42.7a
@@ -1240,7 +1305,7 @@ The landscape twin-deck surface and §42.1's posture switch (FR-ENG-10, AT-TWIN-
   baseline + 6); Swift 6 guard OK; no `xcodegen generate`. **FR-ENG-10,
   AT-TWIN-1, §42.1/42.7a.**
 
-- **M4 commit 4.8 — `JogGestureModel` (pure) + `JogView` — complete (`fce2b16`).**
+- **M4 commit 4.8 — `JogGestureModel` (pure) + `JogView` — complete (`f7cb036`).**
 The §40.7 jog control model, the rendered platter, and the jog's only route to
 the transport (FR-ENG-11, AT-TWIN-4):
 
@@ -1281,7 +1346,7 @@ the transport (FR-ENG-11, AT-TWIN-4):
   nudge bends off the base and release restores, non-unity base rate).
   Full suite 1153 green (1132 baseline + 21). **FR-ENG-11, AT-TWIN-4, §40.7.**
 
-- **M4 commit 4.7 — iPhone portrait solo-deck surface — complete (`91580c0`).**
+- **M4 commit 4.7 — iPhone portrait solo-deck surface — complete (`d6155f7`).**
 The §42.6–42.7 compact posture over the shared `WorkspaceModel` (mockups
 `iphone/05a`, `iphone/05b`):
 
@@ -1353,7 +1418,7 @@ the `ipad/07` workspace:
   atomics→stream pipeline). Full suite 1129 green (1105 baseline + 24). No
   `xcodegen generate`. **FR-ENG-1/2/4, FR-ENG-9; AT-ENGINE-SYNC-\*.**
 
-- **M4 commit 4.5 — time-stretch / key lock / key shift — complete (`c628e99`).**
+- **M4 commit 4.5 — time-stretch / key lock / key shift — complete (`28b1ac1`).**
 The §31 time-pitch wiring, with a per-deck `AVAudioUnitTimePitch` in the graph
 and a pure cent-math core:
 
@@ -1386,7 +1451,7 @@ and a pure cent-math core:
   keyShift compounds under keyLock to 440·2^(1/12), not 528·2^(1/12)). Full
   suite 1105 green. No `xcodegen generate`. **FR-ENG-6, AT-ENGINE-\*.**
 
-- **M4 commit 4.4 — mixer: EQ / filter / crossfader / limiter — complete (`6e3c0e9`).**
+- **M4 commit 4.4 — mixer: EQ / filter / crossfader / limiter — complete (`f4a5e26`).**
 The §35 mixer DSP, wired into the deck render path and the master bus:
 
 - `Engine/Mixer.swift` — `LinkwitzRiley` (LR4: two cascaded 2nd-order Butterworth
@@ -1421,7 +1486,7 @@ The §35 mixer DSP, wired into the deck render path and the master bus:
   runs without it, mixer tests configure it). **FR-ENG-2, FR-ENG-7 (master
   path), AT-ENGINE-\*.**
 
-- **M4 commit 4.3 — single-deck play/cue/loop, sample-accurate — complete (`e595254`).**
+- **M4 commit 4.3 — single-deck play/cue/loop, sample-accurate — complete (`6e12dc5`).**
 The deck reader replaces the 4.1 sine scaffold (§29–30, §33), driven only through
 the command ring:
 
@@ -1454,14 +1519,14 @@ the command ring:
   1070 green; no `xcodegen generate` (DJ excluded from app target).
 
 - **M4 commit 4.2 — `SessionPolicy` + `AudioSessionCoordinator` — complete
-  (`40903e7`).** Pure §34A route/interruption decision table (mode buffers,
+  (`723a2bc`).** Pure §34A route/interruption decision table (mode buffers,
   granted round-trip, every §34A.3/34A.4 row, never-auto-play) + the thin
   `#if canImport(AVAudioSession)` coordinator shell (category→prefs→activate→
   read-back, Bluetooth refusal, media-services reset). 20 `AudioSessionMatrixTests`
   green. **FR-SESS-1/2/3/4, AT-SESS-\* decision matrix.**
 
 - **M4 commit 4.1 — RT boundary + RTGuard + offline engine harness — complete
-  (`211f431`).** `RTCommand` (POD, `@unchecked Sendable`) + `CommandRing` (fixed
+  (`4ec015b`).** `RTCommand` (POD, `@unchecked Sendable`) + `CommandRing` (fixed
   power-of-two SPSC, stdlib `Atomic<Int>` head/tail, release/acquire, never grows);
   `EngineSnapshot` (double-buffered `Atomic<UnsafeRawPointer?>` publish/read, control-side
   retire list); `RTGuard` (DEBUG thread-local render flag, RELEASE compiles out); `RenderLoad`
@@ -1474,7 +1539,7 @@ the command ring:
   every frame, bounded output, load < 1.0. **FR-ENG-1, NFR-PERF-1, NFR-PERF-2; the RT half of
   AT-ENGINE-\*.**
 
-**Gate adjustment (`a7615e5`, owner decision):** the AT-PLIST-8 30k-candidate beam
+**Gate adjustment (`d6e826a`, owner decision):** the AT-PLIST-8 30k-candidate beam
 gate was **2.0 s → 2.5 s**. Root cause found: not load — the owner's **Low Power Mode
 on AC** caps CPU clocks on this M2. Measured 1235 ms with LPM off, 2040–2073 ms with
 LPM on, identical across load averages 63 → 2. Owner keeps LPM on sometimes, so the
@@ -1484,7 +1549,7 @@ gate sits at 2.5 s (still under the 3 s budget).
 **2.5 s → 4.0 s** (`SequencerTests.testThirtyThousandCandidateBeamStaysInsideBudget`)
 to keep it from failing in a clock-capped Low Power Mode state.
 
-## M5 commit 5.14 — the DJ regression suite — complete (`e838cfb`)
+## M5 commit 5.14 — the DJ regression suite — complete (`56afb11`)
 
 One commit: the suite, and **the product fixes the suite found** — 44 files, +4756/−163.
 **`make test-ui-regression LANES=djmix` runs green end to end and the analyzer verifies all
@@ -1657,10 +1722,13 @@ silent lie.
 
 1. **Nothing DJ has ever shipped.** `origin/main` is at `d06e372` (2026-08-09) and is now ~116
    commits behind — it contains no M4, M5 or M6 work at all. An alpha starts with a push, which
-   is the owner's gate (CI + TestFlight). **The push path itself was broken until `8f30247`** —
+   is the owner's gate (CI + TestFlight). **The push path itself was broken until `1d22df1`** —
    `xcodegen generate` failed on a clean checkout and the archive job never wrote the Jamendo
    credential, so the first push would have produced either no build or a build with no music.
-   See the phase-1 section at the top.
+   See the phase-1 section at the top. **A third blocker stopped the first attempt on
+   2026-08-17**: 377 MB of committed CLAP models exceeded GitHub's 100 MB file limit and the
+   push was rejected by the pre-receive hook. Fixed by stripping them from the unpushed history
+   and delivering them as a release asset — see the 2026-08-17 section at the top.
 2. ~~**App Store Connect.**~~ **Done** — the owner reports the product configured (2026-08-16).
    The checklist stands as the thing to re-check against the first real build:
    `docs/plans/app-store-connect-checklist.md` §3 is the in-app pass (a real localised price on
@@ -1752,7 +1820,7 @@ line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fa
   pair was observed), **M7** multi-device honesty (`connectedEndpointID` → a set), **M8**
   factory profiles for hardware physically verified against the app. Each is its own
   commit with tests; M5–M7 need no hardware, M8 does.
-- **M5 commit 5.5 — the §35A echo + AT-TRANS-1..5 — complete (`559b23a`).** The one
+- **M5 commit 5.5 — the §35A echo + AT-TRANS-1..5 — complete (`1ef6431`).** The one
   Beat FX M5 ships (decision 23): `BeatEcho` (pure control value + `BeatEchoLine` ring
   DSP — fixed-capacity, **crossfaded read-pointer on delay change**, feedback clamped
   below unity, disabled continues the tail then bypasses) placed **post-fader,
@@ -1766,7 +1834,7 @@ line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fa
   sequences with Goertzel band assertions, layout half asserting reachability on both
   surfaces) + 4 `WorkspaceModelTests`. Suite 1262 → **1289 green**; DJ-only, no regen.
   **FR-TRANS-3/4/5, §35A, §35B, AT-TRANS-1..5.**
-- **M5 commit 5.6 — genre libraries — complete (`dee6a57`).** The practice-material
+- **M5 commit 5.6 — genre libraries — complete (`692def0`).** The practice-material
   connector (§18A, §41.1a, FR-LIB-9/10, **free tier**). `SourceKind.jamendoGenre`;
   `JamendoGenreProvider` + `JamendoAPI` + the curated `JamendoGenreTree` (Jamendo v3.0
   has **no `/genres` method** — verified live; the hierarchy is curated and filters via
@@ -1782,7 +1850,7 @@ line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fa
   recorded fixtures, no live network). Suite 1289 → **1305 green**; app builds;
   **`xcodegen generate` committed** (decision 25). **FR-LIB-9/10, §18A, §41.1a,
   AT-GENRE-\*, AT-FREE-\*.**
-- **M5 commit 5.8 — stem voices live on decks — complete (`118320d`).** The §35.1 reader's
+- **M5 commit 5.8 — stem voices live on decks — complete (`22c4a7c`).** The §35.1 reader's
   second slot + the model's honest status (plan decisions 3–4, FR-ENG-3, §36.5): the pure
   `StemSet` (four `DeckSource`s, one shared grid); `DeckState`'s armed `StemSet` slot with
   per-voice smoothed gains + mute/solo; `armStemSet`/`setStemGain`/`setStemMute`/`setStemSolo`
@@ -1796,7 +1864,7 @@ line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fa
   arm/disarm, gain/mute/solo, armed-grid master clock) + 6 `WorkspaceModelTests` (honest state
   machine). Suite 1327 → **1340 green**; Swift 6 guard OK; app builds; no regen. **FR-ENG-3,
   §35.1, §36.5, AT-STEM-\* (engine rows).**
-- **M5 commit 5.9 — gig crates + storage budget — complete (`6dc5f80`).** The §41.17 surface
+- **M5 commit 5.9 — gig crates + storage budget — complete (`780ac70`).** The §41.17 surface
   (mockup `ipad/14`), the §43.6 disk budget, and the §36.3 lane (plan decisions 2, 11;
   FR-PLIST-9, FR-ANL-9, FR-LIB-8, **AT-STEM-\***). `GigCrateRepository`: promotion from a
   playlist in one transaction, stamping each track's FR-LIB-8 `audioCached` flag at promotion
@@ -1815,7 +1883,7 @@ line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fa
   (real cache rows removed, `evicted` marked), mid-run abandonment, the performing fence.
   Suite 1340 → **1373 green** (8 skipped); Swift 6 guard OK; app builds; no regen. **FR-PLIST-9,
   FR-ANL-9, FR-LIB-8, §41.17, §43.6, AT-STEM-\*.**
-- **M5 commit 5.10 — the record tap + encoder + segmented M4A — complete (`1f07de9`).** The
+- **M5 commit 5.10 — the record tap + encoder + segmented M4A — complete (`9386f39`).** The
   §37.2 recording path + the milestone's record toggle (decision 14, FR-ENG-7): `RecordTap`
   (RT-safe post-limiter master copy into a pre-allocated SPSC ring — idle unless recording,
   full ring **drops and counts** so a slow encoder never stalls the live performance) +
@@ -1828,7 +1896,7 @@ line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fa
   tap match, idle bit-exact, dropped-drain absorption, playable segmented M4A round-trip,
   flush on budget, start/stop, honest no-tap) + 3 `WorkspaceModelTests`. Suite 1373 → **1383
   green**; DJ-only, no regen. **FR-ENG-7, §37.2.**
-- **M5 commit 5.12 — Finish + Mixes + the review listen — complete (`4cbbf04`).** The §37.4
+- **M5 commit 5.12 — Finish + Mixes + the review listen — complete (`647ecee`).** The §37.4
   timeline (decision 8, control-side: `WorkspaceModel` logs a deck's playing edge while recording;
   `finalize` gains `timeline:` + returns the finished `DJMix`, writing `mix_track_event` rows +
   `trackCount` in the journal's one transaction) + `MixRepository` (completed/corrupt listing,
@@ -1841,7 +1909,7 @@ line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fa
   3 + 3 + 2 new + `DJEntryTests`/`WorkspaceModelTests` updated. Suite 1397 → **1433 green** (8
   skipped); Swift 6 guard OK; app builds; smoke pass in the pre-commit hook; DJ-only, no regen.
   **FR-REC-1/4/5/6/7, §37.4, §41.11, §41.12, §18A.5, AT-REC-\*.**
-- **M5 commit 5.13 — the transition coach — complete (`f3d3047`).** The §41.18 coach
+- **M5 commit 5.13 — the transition coach — complete (`d96495c`).** The §41.18 coach
   (FR-TRANS-6, mockup `ipad/16-transitions.html`): `TransitionCoachModel` (no engine reference)
   teaching the §35B five with **highlight sets that name the real §53.11 controls in place** —
   each lesson's `roles` equal the §35B table (`WorkspaceModel.transitionRoleSets`), the highlights
@@ -1851,7 +1919,7 @@ line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fa
   dismissible panel; it never takes over (decks keep playing) and never performs the transition.
   14 `TransitionCoachTests` incl. the 4.10 drawer precedent — present/select/dismiss add zero
   engine calls. Suite 1433 → **1447 green** (8 skipped); DJ-only, no regen. **FR-TRANS-6, §41.18.**
-- **M5 commit 5.14 — the DJ regression suite — complete (`e838cfb`).** The four `djmix` lanes
+- **M5 commit 5.14 — the DJ regression suite — complete (`56afb11`).** The four `djmix` lanes
   are green (531.8 s, a real 363.6 s recording) and the analyzer verifies **all five** §53.9
   signatures against the journal, at the default six minutes and across the `MIX_MINUTES=20`
   soak (1205.0 s recorded, ~508 MB peak footprint). `LANES=djlive` skips with its remedy

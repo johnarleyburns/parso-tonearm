@@ -217,13 +217,25 @@ jobs:
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         run: brew install xcodegen
 
+      - name: Fetch Core ML models
+        if: env.HAS_TESTFLIGHT_SECRETS == 'true'
+        # The CLAP encoders are 137 MB and 240 MB, which GitHub refuses to hold
+        # in the repository at all, so they are release assets pinned by tag and
+        # sha256 in Config/models.lock. Without this step the archive would build
+        # cleanly and ship semantic search reporting itself unavailable to every
+        # tester — the same silent degradation the empty Jamendo key nearly
+        # shipped. A failed download or a checksum mismatch fails the job.
+        run: make models
+
       - name: Generate Xcode project
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         # `make project`, not bare `xcodegen generate`: the wrapper writes the
-        # Config/stems-odr.yml overlay from whether the converted stems model is
-        # present. It never is on a clean checkout — the 210 MB package is
-        # gitignored — and an unconditional entry for it fails the build at the
-        # asset-pack copy, which would kill this job before it archives.
+        # Config/models-odr.yml overlay from which converted model packages are
+        # present — the CLAP pair fetched by the step above, and Demucs, which is
+        # never here (its 210 MB package is gitignored and not pinned, so stems
+        # stay honestly unavailable in a CI build). An unconditional entry for a
+        # missing package fails the build at the asset-pack copy, which would
+        # kill this job before it archives.
         run: make project
 
       - name: Import Distribution Certificate

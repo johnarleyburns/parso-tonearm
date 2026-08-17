@@ -5,7 +5,7 @@ Pro, load real music, cue the incoming track in headphones, mix it with a contro
 own one, and record the result — without the app lying to them about any of it.
 
 This is the working plan for the push the owner asked for on 2026-08-15, after M5 closed
-(`e838cfb`, `a85c9dc`). It pulls **M6 hardware work forward** (§44, FR-HW-1/2/3/4) and closes
+(`56afb11`, `5ea1d78`). It pulls **M6 hardware work forward** (§44, FR-HW-1/2/3/4) and closes
 the four alpha blockers recorded in `current_status.md`'s "Alpha readiness" section.
 
 ## 1 · What is already true (do not rebuild it)
@@ -48,7 +48,7 @@ the four alpha blockers recorded in `current_status.md`'s "Alpha readiness" sect
    `channel_routing`/`audio_device`; translation is a pure function so it is unit-testable
    without a controller; bundled profiles ship as JSON.
 6. **Stems: convert `htdemucs` following the CLAP precedent** (`tools/clap-coreml`, commit
-   `42cb3fd`) — a reproducible script under `tools/demucs-coreml/`, verified against the torch
+   `9f42cf5`) — a reproducible script under `tools/demucs-coreml/`, verified against the torch
    reference, ODR-tagged. If conversion or the licence blocks it, the deck keeps playing the
    full mix and the faders stay honestly disabled — that behaviour is already shipped and
    tested, so this can fail without failing the alpha.

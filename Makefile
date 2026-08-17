@@ -1,7 +1,15 @@
-.PHONY: project test-local test-swift test-ui test-integration test-ui-regression
+.PHONY: models project test-local test-swift test-ui test-integration test-ui-regression
+
+# Fetch the converted Core ML packages pinned in Config/models.lock into
+# Resources/Models/. No model is committed — GitHub rejects files over 100 MB —
+# so a fresh clone needs this before the ODR tags can be in the project. A
+# package already on this machine is kept (`scripts/fetch-models.sh --force`
+# replaces it).
+models:
+	scripts/fetch-models.sh
 
 # Regenerate Tonearm.xcodeproj. USE THIS RATHER THAN BARE `xcodegen generate`:
-# it first writes Config/stems-odr.yml from whether the converted stems model is
+# it first writes Config/models-odr.yml from which converted model packages are
 # on this machine (scripts/generate-project.sh explains why), then generates.
 project:
 	scripts/generate-project.sh

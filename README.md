@@ -112,15 +112,22 @@ down.
 ## Building
 
 ```sh
+make models           # fetch the Core ML packages pinned in Config/models.lock
 make project          # project.yml -> Tonearm.xcodeproj (wraps xcodegen)
 xcodebuild test -scheme Tonearm -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
+**No converted model is in the repository** — GitHub rejects any file over 100 MB.
+`make models` downloads the CLAP encoders (137 MB + 240 MB) from the `models-v1`
+release and checksum-verifies them into `Resources/Models/`; a package already on
+your machine is kept. The stems model is not pinned there — convert it yourself
+with `tools/demucs-coreml/` — and without it stems report themselves unavailable.
+
 `make project` rather than bare `xcodegen generate`: it first writes
-`Config/stems-odr.yml` from whether the converted stems model
-(`Resources/Models/DemucsStems.mlpackage`, 210 MB, gitignored) is on this
-machine. Without that overlay the spec has no include to read and xcodegen stops;
-run `make project` once after cloning.
+`Config/models-odr.yml` from which of those packages are actually on this
+machine, so the ODR tag for a missing one is not in the project. Without that
+overlay the spec has no include to read and xcodegen stops; run `make project`
+once after cloning.
 
 Requires iOS 18. Single dependency: [GRDB](https://github.com/groue/GRDB.swift).
 

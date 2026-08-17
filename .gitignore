@@ -77,10 +77,11 @@ fastlane/test_output
 .jamendo_client_id
 .jamendo_client_secret
 Config/Secrets.xcconfig
-# The stems ODR overlay, written by scripts/generate-project.sh from whether the
-# converted model is on this machine. Generated, never committed: a checked-in
-# copy would either drop the tag from the owner's own build or put a 210 MB file
-# that is not there into CI's asset pack.
+# The models ODR overlay, written by scripts/generate-project.sh from which model
+# packages are on this machine. Generated, never committed: a checked-in copy
+# would either drop a tag from the owner's own build or put a file that is not
+# there into CI's asset pack.
+Config/models-odr.yml
 Config/stems-odr.yml
 *.local.sh
 .test-results/
@@ -105,3 +106,11 @@ tools/demucs-coreml/reference.pt
 # The ODR copy the app embeds (Resources/Models/), named for the tag. The
 # converted HTDemucsCore.mlpackage is copied here to build; never committed.
 Resources/Models/DemucsStems.mlpackage
+
+# No converted model package belongs in git. GitHub rejects any file over 100 MB,
+# and the CLAP encoders (137 MB / 240 MB) were committed until 2026-08-17, when
+# they made `git push` fail on the pre-receive hook — the third push blocker.
+# They are release assets now: `make models` fetches the versions pinned in
+# Config/models.lock, and scripts/generate-project.sh writes the ODR tag for
+# whichever packages are actually here.
+Resources/Models/*.mlpackage
