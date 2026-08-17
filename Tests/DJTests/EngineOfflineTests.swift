@@ -430,6 +430,40 @@ final class EngineOfflineTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(engine.starvedFrames, 512, "silence bumps the starved counter (§46.2)")
     }
 
+    func testDeckStopsWhenItReachesTheEndOfItsTrack() throws {
+        // A deck past the end of its material is not playing, and has to stop
+        // saying that it is — the §34A.5 rule ("a stopped graph stops lying")
+        // applied one layer down, at the deck.
+        //
+        // This is not a cosmetic claim. `holdMix` in the DJ regression driver
+        // reads the transport to decide when a deck needs its next track, and
+        // while a dry deck went on reporting `playing` the lane could not tell:
+        // every djmix recording ended with twenty seconds of digital silence
+        // because both fixtures had run out and nothing noticed.
+        let engine = try makeEngine()
+        try engine.start()
+        defer { engine.stop() }
+
+        let source = TestSource(frames: 1000) { Float($0) / 1000.0 }
+        engine.load(.a, source: source.source)
+        engine.play(.a)
+
+        _ = try engine.renderMono(512)
+        XCTAssertTrue(engine.sampleTelemetry().deckA.playing,
+                      "still inside the track: the deck is playing")
+
+        _ = try engine.renderMono(1024) // runs off the end at frame 1000
+        XCTAssertFalse(engine.sampleTelemetry().deckA.playing,
+                       "a deck that reached the end of its track reports stopped")
+        XCTAssertEqual(engine.deckPlayhead(.a), 1000,
+                       "the playhead is clamped to the end, not left past it")
+
+        let after = try engine.renderMono(512)
+        XCTAssertTrue(after.allSatisfy { $0 == 0 },
+                      "a stopped deck renders silence, and the playhead stays put")
+        XCTAssertEqual(engine.deckPlayhead(.a), 1000)
+    }
+
     func testRTGuardWrapsOfflineRender() throws {
         let engine = try makeEngine()
         try engine.start()

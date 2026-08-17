@@ -34,16 +34,10 @@ DEST_ROOT="Resources/Models"
 FORCE=0
 [[ "${1:-}" == "--force" ]] && FORCE=1
 
-# Which repository's releases to resolve against. GITHUB_REPOSITORY is set by
-# Actions; otherwise read it off the origin remote so a fork fetches its own.
-if [[ -n "${MODELS_REPO:-}" ]]; then
-  REPO="$MODELS_REPO"
-elif [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
-  REPO="$GITHUB_REPOSITORY"
-else
-  REPO="$(git remote get-url origin \
-    | sed -E 's#^git@github\.com:##; s#^https://github\.com/##; s#\.git$##')"
-fi
+# Where the bytes live is a hosting decision, so each row carries its own URL.
+# MODELS_BASE_URL overrides the host and prefix for every row, keeping the
+# filename — for a mirror, a fork, or moving buckets without touching the lock.
+BASE="${MODELS_BASE_URL:-}"
 
 if [[ ! -f "$LOCK" ]]; then
   echo "==> models: no $LOCK — nothing to fetch" >&2
@@ -54,9 +48,9 @@ mkdir -p "$DEST_ROOT"
 fetched=0
 kept=0
 
-while read -r tag asset sha dir; do
+while read -r url sha dir; do
   # Skip blank lines and comments.
-  [[ -z "${tag:-}" || "${tag:0:1}" == "#" ]] && continue
+  [[ -z "${url:-}" || "${url:0:1}" == "#" ]] && continue
 
   target="$DEST_ROOT/$dir"
   if [[ -d "$target" && "$FORCE" == "0" ]]; then
@@ -65,9 +59,10 @@ while read -r tag asset sha dir; do
     continue
   fi
 
-  url="https://github.com/$REPO/releases/download/$tag/$asset"
+  asset="${url##*/}"
+  [[ -n "$BASE" ]] && url="${BASE%/}/$asset"
   tmp="$(mktemp -t model-asset)"
-  echo "==> models: fetching $asset from $tag"
+  echo "==> models: fetching $asset"
   # `< /dev/null`: the loop is reading the lock file on stdin, and a child that
   # touches stdin would eat the remaining rows.
   if ! curl -fSL --retry 3 --retry-delay 5 -o "$tmp" "$url" < /dev/null; then

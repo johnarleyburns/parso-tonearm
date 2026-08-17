@@ -867,6 +867,21 @@ final class RenderGraphState: @unchecked Sendable {
         if Int64(deck.playhead) >= reference.frameCount {
             deck.starved = true
             starvedAtomic.add(UInt64(frames), ordering: .relaxed)
+            // **A deck past the end of its track is not playing, and says so.**
+            // It used to keep `playing = true` for ever: the transport button
+            // went on reading PAUSE, the telemetry went on reporting a playing
+            // deck, and the only thing coming out was silence — the §34A.5
+            // failure ("a stopped graph stops lying") one layer down.
+            //
+            // It cost a release gate to find. The djmix lane's recordings end
+            // with twenty seconds of digital silence, because both fixtures ran
+            // out and nothing could tell: `holdMix` watches the transport to
+            // decide when a deck needs the next track, and the transport was
+            // claiming both decks were fine. The playhead is clamped so a
+            // subsequent PLAY resumes from the end rather than from a position
+            // past it, which is what CUE is for.
+            deck.playhead = Double(reference.frameCount)
+            deck.playing = false
         }
     }
 

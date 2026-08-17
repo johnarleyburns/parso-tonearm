@@ -358,6 +358,33 @@ cut as an instantaneous gain jump made the check fail, correctly — an unsmooth
 fader *is* a zipper — so the fixture renders the 5 ms ramp the mixer's smoothed
 gains actually produce, and the jump is now its own test.
 
+### Phase 5, run 1 — the four lanes are green, and the new check found a product defect
+
+**`LANES=djmix` run 1 (2026-08-17, 11m31s): all four UI lanes PASSED** — AT-MIX-01
+(66.1s), AT-MIX-02 (32.7s), AT-MIX-03_07 (405.9s), AT-MIX-08 (17.9s). The
+crate/queue-row flakes that failed runs 1 and 3 on 2026-08-16 did not recur. **All
+five §53.9 signatures verified**, including the rebuilt Fader Cut —
+`-47 dB inside one beat, no broadband transient (0.5x floor)`, where the floor is
+the new off-tone measure and 0.5x is comfortably under the 12x threshold.
+
+**And the run failed, correctly**, on the check added in phase 3b:
+`19.9s of the recording is silent below -60 dBFS · 344.2s to 364.2s`. The same
+hole as the kept recording, in the same place, to within a tenth of a second —
+so it is deterministic, not a flake, and phase 3b's `holdMix` fix had not closed
+it. **Why it did not: the engine was lying about the deck.**
+`AudioGraph.renderDeck` marks a deck `starved` when its playhead passes the end
+of its source, but left **`playing = true` for ever** — so the transport button
+went on reading PAUSE, the telemetry went on reporting a playing deck, and
+`holdMix`, which reads exactly that to decide when a deck needs its next track,
+was told both decks were fine while both were dry. This is §34A.5's rule ("a
+stopped graph stops lying") one layer down, at the deck, and it is a product
+defect in its own right: a user whose track ends sees a deck that claims to be
+playing, with a running timer and no sound.
+
+Fixed where it belongs — the deck stops, the playhead is clamped to the end
+rather than left past it, and the honest state reaches the UI through the
+telemetry that was already there. New test in `EngineOfflineTests`.
+
 ### Phase 4 — the run log is kept, and the runner says what it is doing
 
 **Landed**, and it closes the owner's standing request from the 2026-08-16
@@ -1857,19 +1884,22 @@ saved or run a model even on success. The shipped behaviour is unchanged and is 
 designed one: stems unavailable, full mix plays, faders disabled — degraded honestly, never a
 silent lie.
 
-## Alpha readiness — can other people mix on this yet? (re-assessed after M6; updated 2026-08-16)
+## Alpha readiness — can other people mix on this yet? (re-assessed after M6; updated 2026-08-17)
 
-**Three blockers left, and only one of them is code.**
+**One blocker left, and it is not code.**
 
-1. **Nothing DJ has ever shipped.** `origin/main` is at `d06e372` (2026-08-09) and is now ~116
-   commits behind — it contains no M4, M5 or M6 work at all. An alpha starts with a push, which
-   is the owner's gate (CI + TestFlight). **The push path itself was broken until `1d22df1`** —
-   `xcodegen generate` failed on a clean checkout and the archive job never wrote the Jamendo
-   credential, so the first push would have produced either no build or a build with no music.
-   See the phase-1 section at the top. **A third blocker stopped the first attempt on
-   2026-08-17**: 377 MB of committed CLAP models exceeded GitHub's 100 MB file limit and the
-   push was rejected by the pre-receive hook. Fixed by stripping them from the unpushed history
-   and delivering them as a release asset — see the 2026-08-17 section at the top.
+1. ~~**Nothing DJ has ever shipped.**~~ **Shipped, 2026-08-17.** `origin/main` was at
+   `d06e372` (2026-08-09), ~116 commits behind, containing no M4, M5 or M6 work at all.
+   **Run 32035417772 archived and uploaded to TestFlight: version 0.1.274, build 274**, the
+   first build in existence with a DJ mode in it. Four blockers stood in the way and all four
+   are fixed: `xcodegen generate` failing on a clean checkout and the archive job never
+   writing the Jamendo credential (phase 1, `1d22df1`); 377 MB of committed CLAP models
+   exceeding GitHub's file limit, which had the push rejected by the pre-receive hook before a
+   job ran (`da65a0f`); and the StoreKit guard failing on a doc comment (`247a0fe`). Two
+   things phase 1 could only verify by reading are now **proven by the archive log**: it
+   printed `Jamendo client id written to Config/Secrets.xcconfig`, not the `::warning::`, and
+   both CLAP packages were fetched, checksum-verified and packed into the
+   `guru.parso.tonearm.clap-audio` / `clap-text` ODR asset packs.
 2. ~~**App Store Connect.**~~ **Done** — the owner reports the product configured (2026-08-16).
    The checklist stands as the thing to re-check against the first real build:
    `docs/plans/app-store-connect-checklist.md` §3 is the in-app pass (a real localised price on
@@ -1880,9 +1910,11 @@ silent lie.
    other people get builds, not after. **Owner-owned.**
 
 **Limits to write into the tester note** (all now honest states in the app rather than
-surprises): **no stems** — the model is converted and works (S1–S8), but it is 210 MB and
-gitignored, so it is not in a CI-built binary; putting it there means delivering the package to
-CI as a release asset (see phase 1); **MIDI works but with limits** — no factory
+surprises): **no stems** — the model is converted and works (S1–S8), but it is 210 MB and not
+pinned in `Config/models.lock`, so it is not in a CI-built binary. The delivery mechanism now
+exists and carries the CLAP pair, so putting stems in a build is one release asset and one
+row in the lock file, no longer a design question. **Semantic search is in** as of build 274.
+**MIDI works but with limits** — no factory
 profiles (a controller must be MIDI-learned — the guided walkthrough covers it), hot cues
 are not bindable because nothing reads stored cue points yet, no LED feedback (the
 controller's lights will not reflect app state), and split cue makes the master mono,

@@ -8,16 +8,23 @@
 #
 # One row per package:
 #
-#   <release tag>  <asset name>  <sha256 of the asset>  <directory it unpacks to>
+#   <url>  <sha256 of the asset>  <directory it unpacks to>
 #
 # The directory is relative to `Resources/Models/`. The checksum is the contract:
 # a mismatch is a hard failure, never a warning, because a silently absent or
 # corrupt model would ship as the honest-unavailable state and the first anyone
 # would know is a tester reporting that semantic search does nothing.
 #
-# To publish a new conversion: pack it (`tar -czf <name>.tar.gz <name>`), attach
-# it to a new release tag, and update the row. Never edit a published asset in
-# place — the tag is what a build resolves against.
+# A full URL rather than a release tag, so where the bytes live is a hosting
+# decision and not a code change — a GitHub release, an R2 bucket, anything that
+# answers an unauthenticated GET. `MODELS_BASE_URL=https://host/prefix` overrides
+# the host for every row (the filename is kept), which is how a fork or a mirror
+# redirects without editing this file.
+#
+# To publish a new conversion: pack it (`tar -czf <name>.tar.gz <name>`), upload
+# it under a new name or a new prefix, and update the row. Never replace bytes at
+# a URL a build already resolves against — the checksum will catch it, but as a
+# failed build rather than as the deliberate change it was.
 
-models-v1  CLAPAudioEncoder.mlpackage.tar.gz  3f42d8b3b14adeadfc36c5a3e58992651f2dd0de5aae2d6322d6402470e0d10d  CLAPAudioEncoder.mlpackage
-models-v1  CLAPTextEncoder.mlpackage.tar.gz   305fe37c860548be1acd4b649fd1589bd3225ec2a91d0e2044a1f8be555fdd36  CLAPTextEncoder.mlpackage
+https://github.com/johnarleyburns/parso-tonearm/releases/download/models-v1/CLAPAudioEncoder.mlpackage.tar.gz  3f42d8b3b14adeadfc36c5a3e58992651f2dd0de5aae2d6322d6402470e0d10d  CLAPAudioEncoder.mlpackage
+https://github.com/johnarleyburns/parso-tonearm/releases/download/models-v1/CLAPTextEncoder.mlpackage.tar.gz   305fe37c860548be1acd4b649fd1589bd3225ec2a91d0e2044a1f8be555fdd36  CLAPTextEncoder.mlpackage
