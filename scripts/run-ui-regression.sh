@@ -103,7 +103,11 @@ fi
 # ── backing servers ──────────────────────────────────────────────────────────
 
 cleanup() {
-  rm -f "${RUN_MARKER:-}" "${RUN_LOG:-}"
+  # The run log is deliberately NOT removed — see where it is opened below.
+  rm -f "${RUN_MARKER:-}"
+  # An interrupted run leaves the heartbeat ticker and its fifo behind.
+  [[ -n "${TICKER_PID:-}" ]] && kill "$TICKER_PID" 2>/dev/null
+  rm -f "${RUN_PIPE:-}"
   if [[ "${LOCAL_SERVERS}" == "1" ]]; then
     log "tearing down backing servers"
     docker compose -f "$COMPOSE_FILE" down --volumes >/dev/null 2>&1 || true
@@ -196,6 +200,81 @@ if [[ "$DJ_LANE" == "1" ]]; then
   log "DJ lane: ${MIX_MINUTES}-minute mix (set MIX_MINUTES=20 for the pre-release soak)"
 fi
 
+# ── progress monitor ─────────────────────────────────────────────────────────
+#
+# `xcodebuild test` prints a wall of build output and then goes quiet for the
+# length of a lane — fifteen to twenty minutes for `djmix`, during which the only
+# way to tell a working run from a wedged one was to open the log in another
+# window. The owner asked for high-level progress with timestamps instead.
+#
+# So: the full output still goes to $RUN_LOG, unabridged, and what reaches the
+# terminal is phase lines, test-case boundaries, failures — and a heartbeat every
+# HEARTBEAT_SECONDS that says how long the run has been going, which test is in
+# flight, and the last thing the UI test actually did.
+#
+# The heartbeat arrives as a `__TICK__` line from a ticker process writing into
+# the same fifo, rather than from `read -t`. **`read -t` cannot be used here:**
+# macOS ships bash 3.2, where a timeout returns 1 — indistinguishable from EOF —
+# so a loop written that way exits at the first quiet half-minute and takes the
+# rest of the log with it. Verified, not assumed. (bash 4+ returns >128.)
+HEARTBEAT_SECONDS=30
+
+progress_monitor() {
+  local start=$SECONDS line current="(building)" last_activity="" printed_testing=0
+
+  elapsed() {
+    local secs=$((SECONDS - start))
+    printf '%dm%02ds' $((secs / 60)) $((secs % 60))
+  }
+
+  while IFS= read -r line; do
+    if [[ "$line" == "__TICK__" ]]; then
+      printf '    [%s] still running · %s%s\n' "$(elapsed)" "$current" \
+        "${last_activity:+ · last: $last_activity}"
+      continue
+    fi
+
+    printf '%s\n' "$line" >> "$RUN_LOG"
+
+    case "$line" in
+      "Test Suite '"*"' started"*)
+        if [[ "$printed_testing" == "0" ]]; then
+          printf '==> [%s] build finished, testing started\n' "$(elapsed)"
+          printed_testing=1
+        fi
+        ;;
+      "Test Case '"*"' started"*)
+        current="$(printf '%s' "$line" | sed -E "s/.*-\[[^ ]+ ([A-Za-z0-9_]+)\].*/\1/")"
+        last_activity=""
+        printf '==> [%s] %s\n' "$(elapsed)" "$current"
+        ;;
+      "Test Case '"*"' passed"*)
+        printf '    [%s] PASS %s (%s)\n' "$(elapsed)" "$current" \
+          "$(printf '%s' "$line" | sed -E 's/.*\(([0-9.]+) seconds\).*/\1s/')"
+        current="(between tests)"
+        ;;
+      "Test Case '"*"' failed"*)
+        printf '    [%s] FAIL %s\n' "$(elapsed)" "$current"
+        current="(between tests)"
+        ;;
+      *": error:"*|*"XCTAssertionFailure"*|*" failed - "*)
+        printf '    [%s] %s\n' "$(elapsed)" "$line"
+        ;;
+      "** TEST "*|"** BUILD "*)
+        printf '==> [%s] %s\n' "$(elapsed)" "$line"
+        ;;
+      *"    t = "*)
+        # XCUITest's own activity trace: the live sense of where a lane is.
+        # Not printed on arrival (there are thousands) — carried for the next
+        # heartbeat, which is exactly the "what is it doing right now" the
+        # silence used to hide.
+        last_activity="$(printf '%s' "$line" | sed -E 's/^[[:space:]]*//' | cut -c1-90)"
+        ;;
+    esac
+  done
+  printf '==> [%s] run finished — full output in %s\n' "$(elapsed)" "$RUN_LOG"
+}
+
 log "running UI regression lanes '${LANES}' on ${IOS_DESTINATION}"
 # A marker file stamped the moment the lanes started, so a stale export left in
 # the simulator's container by an earlier run cannot be mistaken for this run's
@@ -206,7 +285,17 @@ RUN_MARKER="$(mktemp -t ui-regression-run)"
 # The lanes' own output, kept so the artifact step can tell a lane that *ran*
 # from one that skipped on an absent prerequisite (§53.4). Only the former owes
 # this run a recording.
-RUN_LOG="$(mktemp -t ui-regression-log)"
+#
+# **Kept on disk, not a mktemp deleted on exit.** It used to be the latter, and
+# that is why AT-MIX-01's run-3 failure on 2026-08-16 has no recorded cause: by
+# the time anyone wanted to read it, it had been unlinked by the trap. A lane
+# takes fifteen to twenty minutes; throwing away the only record of it to save
+# a few megabytes is a bad trade. It lives outside `$DJ_ARTIFACTS`, which is
+# wiped at the start of every DJ run, and is timestamped so consecutive runs do
+# not overwrite each other's evidence.
+mkdir -p build/ui-regression/logs
+RUN_LOG="build/ui-regression/logs/$(date +%Y%m%d-%H%M%S)-${LANES}.log"
+log "run log: $RUN_LOG"
 set +e
 # **Keep the host awake for the whole run.** A `djmix` lane is fifteen to
 # twenty minutes of an audio graph that has to keep rendering the entire time,
@@ -227,14 +316,30 @@ set +e
 # time — so a "six-minute mix" took eighteen minutes of wall clock and every
 # wall-clock assumption in the suite was wrong. Release is also what a
 # pre-release gate should be exercising.
+# The monitor reads from a fifo rather than a pipe so the ticker can write into
+# the same stream (see progress_monitor). xcodebuild's status comes back
+# directly, not out of PIPESTATUS, because it is no longer in a pipeline.
+RUN_PIPE="$(mktemp -u -t ui-regression-pipe)"
+mkfifo "$RUN_PIPE"
+progress_monitor < "$RUN_PIPE" &
+MONITOR_PID=$!
+( while :; do sleep "$HEARTBEAT_SECONDS"; printf '__TICK__\n'; done ) > "$RUN_PIPE" &
+TICKER_PID=$!
+
 caffeinate -dims \
 xcodebuild test \
   -project Tonearm.xcodeproj \
   -scheme TonearmUIRegression \
   -configuration Release \
   -destination "$IOS_DESTINATION" \
-  "${FILTER[@]}" 2>&1 | tee "$RUN_LOG"
-XCODEBUILD_STATUS=${PIPESTATUS[0]}
+  "${FILTER[@]}" > "$RUN_PIPE" 2>&1
+XCODEBUILD_STATUS=$?
+
+# Closing the ticker closes the last writer, which is what ends the monitor.
+kill "$TICKER_PID" 2>/dev/null || true
+wait "$MONITOR_PID" 2>/dev/null || true
+rm -f "$RUN_PIPE"
+unset TICKER_PID RUN_PIPE
 set -e
 
 if [[ "$DJ_LANE" != "1" ]]; then

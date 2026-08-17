@@ -358,6 +358,34 @@ cut as an instantaneous gain jump made the check fail, correctly — an unsmooth
 fader *is* a zipper — so the fixture renders the 5 ms ramp the mixer's smoothed
 gains actually produce, and the jump is now its own test.
 
+### Phase 4 — the run log is kept, and the runner says what it is doing
+
+**Landed**, and it closes the owner's standing request from the 2026-08-16
+session. `make test-ui-regression` printed a wall of `xcodebuild` output and then
+went quiet for the length of a lane — fifteen to twenty minutes for `djmix` —
+with no way to tell a working run from a wedged one without opening the log in
+another window. And `RUN_LOG` was a `mktemp` unlinked by the EXIT trap, which is
+why **AT-MIX-01's run-3 failure has no recorded cause**: by the time anyone
+wanted to read it, it was gone.
+
+- The log lives at `build/ui-regression/logs/<timestamp>-<lanes>.log`, outside
+  the artifacts directory that every DJ run wipes, timestamped so consecutive
+  runs cannot overwrite each other's evidence. The path is printed when the run
+  starts.
+- The terminal gets phase lines, named test-case boundaries with durations,
+  failures, and **a heartbeat every 30 s carrying the live XCUITest activity** —
+  `still running · testAT_MIX_01_… · last: t = 41.02s Waiting 60.0s for "Source
+  Techno" StaticText to exist`. The full output still goes to the log,
+  unabridged.
+
+**One trap worth recording.** The heartbeat was first written with `read -t`,
+which is the obvious way. macOS ships **bash 3.2, where a `read -t` timeout
+returns 1 — indistinguishable from EOF** (bash 4+ returns >128), so the monitor
+would have exited at the first quiet half-minute and swallowed the rest of the
+run. Verified directly rather than assumed. The heartbeat now arrives as a
+`__TICK__` line from a ticker process writing into the same fifo, so the reader
+loop is a plain `while read` with nothing to get wrong.
+
 ### Phase 3b — the lane can pass on a recording with holes in it. Not any more.
 
 Three defects, all found by looking at the artifact rather than at the code.
