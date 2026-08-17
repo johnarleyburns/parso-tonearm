@@ -95,7 +95,6 @@ struct LibraryView: View {
             .navigationDestination(for: LibraryBrowse.Entry.self) { entry in
                 LibraryGroupDetailView(entry: entry)
             }
-        }
         .foregroundStyle(Palette.ink)
         .task { await appState.reload() }
     }
