@@ -308,6 +308,56 @@ builds Release for `generic/platform=iOS`.
 pinned in `models.lock` — converting it is a local step, and the same mechanism
 can deliver it whenever that is wanted). Semantic search now is.
 
+### Phase 3 — the Fader Cut zipper, fixed by changing the measurement
+
+**Landed.** The rule was a spectral-flatness ratio against the two neighbouring
+windows, and it was **a segment-join detector**. Reproduced independently on the
+kept recording: 739 probe points on the 122 BPM grid, median flatness 6.33e-05,
+**7 fires — every one within 8 ms of an exact 30-second boundary**, which
+`PerformanceEngine.swift:410` (`segmentFrames: 30 * sampleRate`) says is the
+encoder's segment join. One of the seven fired at flatness 4.12e-05, *below the
+file's own median*, which is what a bare neighbour ratio with no absolute floor
+does. Run 2's Fader Cut zipper was that, deterministically — not a defect, not a
+flake. The joins were also checked for real damage and have none: per-second
+level within ~1 dB of median across every boundary, no dropout, no discontinuity.
+
+**The prescribed fix — an absolute flatness floor around 1e-2 — would have gutted
+the check, and that is the more useful finding.** Calibrated against injected
+bursts: a −6 dBFS 5 ms burst reads 2.3e-03 and a full-scale 1 ms click reads
+2.9e-05, because a 4096-sample Goertzel over nine probe tones dilutes a click by
+~85x. Any floor high enough to clear the joins (1.3e-03) leaves a check that only
+a full-scale 5 ms burst can fail — while it sits in `REQUIRED`, reading as
+coverage.
+
+The fixture design offers a far better measure, and it is the one that landed:
+**off-tone energy**. No fixture puts anything above 8900 Hz (the marker is
+2200 Hz, the serial tone ~3100 Hz), so 14.5–18.5 kHz is empty unless something
+broadband happened. Measured separation — joins **3.2x** the recording's own
+off-tone median, a 5% full-scale step **1760x**, a −34 dBFS 1 ms click **8035x**.
+Four decades, against the 8x a ratio of ratios could offer. The rule now needs
+both a ratio to the file's median (12x) and a floor against the tones present in
+the same window (2e-8), so it works on a real AAC recording and on synthetic
+material with no noise floor at all. Near-silence stops being a landmine as a
+side effect: flatness saturated to 1.0 in a quiet passage and called it a maximal
+zipper; a quiet passage has no off-tone energy.
+
+The dB claim moved to span-averaged `band_level` as well (`CUT_PRE_BARS` /
+`CUT_POST_BARS`) — the §14 fix this one check was never migrated to — keeping the
+timing intact: the bar before the cut against the bar starting one beat after it.
+
+**Verified:** swept over the kept recording, the new rule fires **0 times in 739
+probes** (max ratio anywhere 5.1 against a threshold of 12); the old rule fired 7.
+And the analyzer has tests now — `scripts/ui-regression/test-verify-mix.py`, 11 of
+them, stdlib-only and synthetic so they run on a clean checkout: a clean cut
+passes, a shallow cut fails, a stepping fader and a click are both caught,
+segment joins and quiet passages are not zippers, the verdict does not depend on
+beat phase, and the premise itself is asserted — that fixture tones leave the
+off-tone band empty, so a future fixture tone up there fails loudly instead of
+quietly blinding the check. **A defect found while writing them:** rendering the
+cut as an instantaneous gain jump made the check fail, correctly — an unsmoothed
+fader *is* a zipper — so the fixture renders the 5 ms ramp the mixer's smoothed
+gains actually produce, and the jump is now its own test.
+
 ### The fourth blocker, found by the push itself: a guard failing on its own rule
 
 `da65a0f` pushed cleanly — 119 commits, fast-forward — and CI's **`test` job failed

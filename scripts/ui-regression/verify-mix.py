@@ -82,6 +82,12 @@ SETTLED_POST_BARS = (4, 6)       # a mark at a gesture's start: let it land firs
 COMPLETED_POST_BARS = (1, 3)     # a mark at a gesture's completion: one guard bar
 SWEEP_BARS = 3                   # how long a hand takes to walk a filter across
 
+# The fader cut is the one transition judged on beats, because "inside one beat"
+# is its claim: the bar before the mark against the bar starting one beat after
+# it. Fractional bars — a quarter bar is one beat.
+CUT_PRE_BARS = (-1.0, 0.0)
+CUT_POST_BARS = (0.25, 1.25)
+
 # How far past an Echo Out's cut the tail is measured. The script holds the
 # channel down for longer than this, so the window never runs into the deck
 # coming back (§53.9 row 3).
@@ -157,14 +163,18 @@ def bar_samples(rate: int, bpm: float) -> float:
 
 
 def span_starts(centre_sample: int, rate: int, bpm: float, span, total: int):
-    """Window starts covering `span` (bar offsets) around a journal mark."""
+    """Window starts covering `span` (bar offsets) around a journal mark.
+
+    Offsets may be fractional: a fader cut is judged on beats rather than bars,
+    because "inside one beat" is the claim being made.
+    """
     bar = bar_samples(rate, bpm)
     lo = max(0, int(centre_sample + span[0] * bar))
     hi = min(total - WINDOW, int(centre_sample + span[1] * bar))
     starts = list(range(lo, hi, HOP))
     if not starts:
         raise VerificationError(
-            f"not enough recording {span[0]:+d}..{span[1]:+d} bars around the mark to "
+            f"not enough recording {span[0]:+g}..{span[1]:+g} bars around the mark to "
             "judge it — the transition is too close to an edge of the recording")
     return starts
 
@@ -445,14 +455,63 @@ def find_peaks(curve, min_separation: int = 1, prominence: float = 3.0):
     return kept
 
 
+# Frequencies **no fixture puts anything at**. The fixture tone sets top out at
+# 8900 Hz, the phrase marker is 2200 Hz and the per-track serial tone is around
+# 3100 Hz (`make-dj-fixture-media.py`), so energy up here is not material — it is
+# a transient, which is exactly what a zipper is. Kept below 20 kHz so the AAC
+# encoder's own cutoff is not what is being measured.
+OFF_TONE_HZ = [14500.0, 16500.0, 18500.0]
+
+# A window is a zipper when its off-tone energy stands ZIPPER_RATIO above the
+# recording's own median **and** ZIPPER_FLOOR above the fixture tones present in
+# that same window. Both, because each covers what the other cannot: the ratio
+# is meaningless on synthetic material with no noise floor at all, and the floor
+# alone would not know what this particular recording's codec noise looks like.
+#
+# Calibrated on the kept 2026-08-16 recording (which is why it is kept) and on
+# the synthetic fixtures in `test-verify-mix.py`. The twelve segment joins reach
+# 3.2x the median and 5.7e-09 of the in-band energy; the smallest zipper worth
+# catching — a 5% full-scale step, a fader jumping rather than ramping — reads
+# 1760x and 7.9e-08, and a 1 ms click at -34 dBFS reads 8035x. Both thresholds
+# sit with roughly 4x of margin on either side of them.
+ZIPPER_RATIO = 12.0
+ZIPPER_FLOOR = 2e-8
+
+
+def off_tone_energy(samples, start: int, rate: int) -> float:
+    return sum(goertzel_energy(samples, start, f, rate) for f in OFF_TONE_HZ)
+
+
+def tone_energy(samples, start: int, rate: int, tones) -> float:
+    """Every fixture tone present in a window, both decks."""
+    return sum(goertzel_energy(samples, start, f, rate)
+               for bands in tones.values() for f in bands.values())
+
+
+_OFF_TONE_BASELINE: dict = {}
+
+
+def off_tone_baseline(samples, rate: int) -> float:
+    """The recording's own off-tone floor, sampled across the whole file.
+
+    What a zipper is judged against has to come from the material rather than a
+    constant: it is the AAC encoder's noise at this bit rate, on this mix.
+    Sampled every five seconds and taken as a median, so a handful of genuinely
+    clicky windows cannot raise the bar that catches them. Cached per recording —
+    one file is analysed per run.
+    """
+    key = (id(samples), len(samples))
+    if key not in _OFF_TONE_BASELINE:
+        step = 5 * rate
+        probes = sorted(off_tone_energy(samples, s, rate)
+                        for s in range(0, max(1, len(samples) - WINDOW), step))
+        _OFF_TONE_BASELINE[key] = probes[len(probes) // 2] if probes else 0.0
+    return _OFF_TONE_BASELINE[key]
+
+
 def check_fader_cut(samples, rate, bpm, event, tones):
     band = tones[event["outgoing"]]
     at = event["atSample"]
-    seconds_per_beat = 60.0 / bpm
-    beat = int(seconds_per_beat * rate)
-
-    pre_start = max(0, at - beat)
-    post_start = min(len(samples) - WINDOW, at + beat)
 
     # **Mid and high only — not the low.** The two decks' low tones sit 32 Hz
     # apart (55 and 87), which an 85 ms window cannot separate: once the cut
@@ -467,9 +526,21 @@ def check_fader_cut(samples, rate, bpm, event, tones):
     # low-bin bleed capped the *sum* at 19.9 dB and failed the lane. Dropping
     # the unattributable band keeps the physical claim and measures it on the
     # tones that can actually carry it.
-    freqs = [band["mid"], band["high"]]
-    pre = db(sum(goertzel_energy(samples, pre_start, f, rate) for f in freqs))
-    post = db(sum(goertzel_energy(samples, post_start, f, rate) for f in freqs))
+    #
+    # **Span-averaged, like every other check** (the §14 fix, which this one was
+    # never migrated to). It used to read single 85 ms windows at `at ± 1 beat`
+    # — the exact phase sensitivity `band_level`'s docstring warns about, since
+    # the fixtures are amplitude-modulated on their own beat while the mark sits
+    # on the master clock's. The claim is unchanged and its timing is intact:
+    # the bar before the cut against the bar that starts one beat after it.
+    # The two bands are combined as the louder of the two, which is what the old
+    # `db(sum(energies))` amounted to (within 3 dB) and keeps the number a level
+    # rather than a total: a cut that leaves either tone standing fails.
+    def level(freq, span):
+        return band_level(samples, rate, bpm, at, freq, span)
+
+    pre = max(level(band["mid"], CUT_PRE_BARS), level(band["high"], CUT_PRE_BARS))
+    post = max(level(band["mid"], CUT_POST_BARS), level(band["high"], CUT_POST_BARS))
 
     notes = []
     ok = True
@@ -477,29 +548,45 @@ def check_fader_cut(samples, rate, bpm, event, tones):
         ok = False
         notes.append(f"outgoing fell only {pre - post:.1f} dB inside one beat (need 30)")
 
-    # No zipper: a click is broadband, so it shows up as an unusually flat
-    # spectrum right at the cut — but it has to be flat relative to **both**
-    # neighbours. Comparing only with the material before it flags any cut
-    # where the *content* changed, which is every cut: the outgoing deck's
-    # tones vanish from the probe set and flatness rises without a click ever
-    # occurring. A real transient stands out from what follows it as well.
-    flat_at = spectral_flatness(samples, at, rate)
-    flat_pre = max(spectral_flatness(samples, pre_start, rate), 1e-9)
-    flat_post = max(spectral_flatness(samples, post_start, rate), 1e-9)
-    if flat_at > flat_pre * 8.0 and flat_at > flat_post * 8.0:
+    # No zipper — measured where the fixtures put nothing, so anything found
+    # there arrived with the transient.
+    #
+    # This was a spectral-flatness ratio against the two neighbouring windows
+    # until 2026-08-17, and it was **a segment-join detector, not a click
+    # detector**. Measured over the kept recording: 7 of 739 probe points on the
+    # beat grid fired, every one of them within 8 ms of an exact 30-second
+    # boundary — the segmented-M4A join (§37.2, `segmentFrames: 30 * sampleRate`)
+    # — and one of those windows was *below* the file's median flatness, which is
+    # what a bare neighbour ratio with no absolute floor will do. Run 2's Fader
+    # Cut zipper was that, deterministically: not a defect, and not a flake
+    # either. The joins leave no dropout and no discontinuity; the export is fine.
+    #
+    # An absolute flatness floor was the obvious repair and it is the wrong one.
+    # Calibrated against injected bursts, a -6 dBFS 5 ms burst reads 2.3e-03 and
+    # a full-scale 1 ms click reads 2.9e-05 — a 4096-sample Goertzel over nine
+    # probe tones dilutes a click by ~85x — so any floor clearing the joins
+    # (1.3e-03) would have deleted the check while leaving it in REQUIRED.
+    # Coverage that cannot fail is worse than none: it reads as coverage.
+    #
+    # Off-tone energy is the measure the fixture design makes available. Nothing
+    # in a fixture lives above 8900 Hz, so 14.5–18.5 kHz is silent unless
+    # something broadband happened, and the separation is four decades rather
+    # than the 8x a ratio of ratios could offer. Near-silence stops being a
+    # landmine too — flatness saturated at 1.0 in a quiet passage and called it a
+    # maximal zipper; a quiet passage simply has no off-tone energy.
+    probe = max(0, min(len(samples) - WINDOW, at - WINDOW // 2))
+    off = off_tone_energy(samples, probe, rate)
+    baseline = off_tone_baseline(samples, rate)
+    inband = tone_energy(samples, probe, rate, tones)
+    if off > baseline * ZIPPER_RATIO and off > inband * ZIPPER_FLOOR:
         ok = False
-        notes.append(f"broadband transient at the cut (flatness {flat_at:.3f} vs "
-                     f"{flat_pre:.3f} before / {flat_post:.3f} after) — zipper")
-    return ok, "; ".join(notes) or f"-{pre - post:.0f} dB inside one beat, no broadband transient"
-
-
-def spectral_flatness(samples, start: int, rate: int) -> float:
-    """Geometric/arithmetic mean ratio over a coarse probe set."""
-    probes = [40, 80, 160, 320, 640, 1280, 2560, 5120, 10240]
-    energies = [max(goertzel_energy(samples, start, f, rate), 1e-15) for f in probes]
-    geo = math.exp(sum(math.log(e) for e in energies) / len(energies))
-    arith = sum(energies) / len(energies)
-    return geo / arith if arith > 0 else 0.0
+        notes.append(
+            f"broadband transient at the cut (off-tone energy {off:.3g} — "
+            f"{off / baseline:.0f}x the recording's floor, {off / max(inband, 1e-30):.1e} "
+            f"of the tones present) — zipper")
+    quiet = f"{off / baseline:.1f}x floor" if baseline > 0 else "no off-tone energy"
+    return ok, "; ".join(notes) or (f"-{pre - post:.0f} dB inside one beat, no broadband "
+                                    f"transient ({quiet})")
 
 
 def check_stem_fader(samples, rate, bpm, event, tones):
