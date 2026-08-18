@@ -60,6 +60,8 @@ final class AppState: ObservableObject {
     @Published var showAddSource = false
     @Published var showAddRemoteLibrary = false
     @Published var showCreatePlaylist = false
+    @Published private(set) var downloadRevision = 0
+    @Published private(set) var activePhoneDownloads: Set<Int64> = []
     @Published var artworkChangeTrackId: Int64?
     @Published var offlineProgress: OfflineProgress?
     @Published var offlineSourceID: Int64?
@@ -88,6 +90,7 @@ final class AppState: ObservableObject {
 
     func bootstrap() async {
         await fixLegacySourceTitles()
+        await repairDuplicatePlaylistsOnce()
         await ArtworkService.shared.migrateCacheIfNeeded()
         applySettingsToPlayer()
         await AudioPlayer.shared.restorePersistedQueue()
@@ -111,6 +114,14 @@ final class AppState: ObservableObject {
             guard let self else { return }
             Task { await self.transferController.cancel(trackKey: trackKey) }
         }
+    }
+
+    private func repairDuplicatePlaylistsOnce() async {
+        let key = "repair.playlistDedup.v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        _ = try? await store.mergeDuplicateFolderPlaylists()
+        _ = try? await store.removeDuplicatePlaylistItems()
+        UserDefaults.standard.set(true, forKey: key)
     }
 
     /// Resolves and caches a representative cover for local sources that don't yet
@@ -616,11 +627,11 @@ final class AppState: ObservableObject {
                 }
                 if let (data, _) = try? await URLSession.shared.data(for: request) {
                     try? data.write(to: destURL, options: .atomic)
-                    await CacheStore.shared.setContentLength(Int64(data.count), for: cacheKey)
+                    await CacheStore.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey)
                 }
+            } else if let size = try? FileManager.default.attributesOfItem(atPath: destURL.path)[.size] as? NSNumber {
+                await CacheStore.shared.adoptCompleteFile(byteCount: size.int64Value, for: cacheKey)
             }
-
-            await CacheStore.shared.setPinned(true, for: cacheKey)
             completed += 1
             offlineProgress = OfflineProgress(sourceID: sourceID, completed: completed, total: estimate.trackCount, failed: false, message: nil)
         }
@@ -637,31 +648,37 @@ final class AppState: ObservableObject {
     @discardableResult
     func download(rows: [TrackRow]) async -> Int {
         var downloaded = 0
-        let total = rows.count
         for row in rows {
             guard let remoteStr = row.asset?.remoteURL,
                   let remoteURL = URL(string: remoteStr) else { continue }
             let cacheKey = CachingResourceLoader.key(for: remoteURL)
             let destURL = CacheStore.fileURL(for: cacheKey)
-            if !FileManager.default.fileExists(atPath: destURL.path) {
-                var request = URLRequest(url: remoteURL)
-                if let headers = row.asset?.transientRemoteHeaders {
-                    for (key, value) in headers {
-                        request.setValue(value, forHTTPHeaderField: key)
+            activePhoneDownloads.insert(row.id)
+            do {
+                defer { activePhoneDownloads.remove(row.id) }
+                if !FileManager.default.fileExists(atPath: destURL.path) {
+                    var request = URLRequest(url: remoteURL)
+                    if let headers = row.asset?.transientRemoteHeaders {
+                        for (key, value) in headers {
+                            request.setValue(value, forHTTPHeaderField: key)
+                        }
                     }
-                }
-                if let (data, _) = try? await URLSession.shared.data(for: request) {
-                    try? data.write(to: destURL, options: .atomic)
-                    await CacheStore.shared.setContentLength(Int64(data.count), for: cacheKey)
+                    if let (data, _) = try? await URLSession.shared.data(for: request) {
+                        try? data.write(to: destURL, options: .atomic)
+                        await CacheStore.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey)
+                    }
+                } else if let size = try? FileManager.default.attributesOfItem(atPath: destURL.path)[.size] as? NSNumber {
+                    await CacheStore.shared.adoptCompleteFile(byteCount: size.int64Value, for: cacheKey)
                 }
             }
-            await CacheStore.shared.setPinned(true, for: cacheKey)
             downloaded += 1
         }
+        downloadRevision += 1
         return downloaded
     }
 
     func phoneDownloadState(for row: TrackRow) -> PhoneDownloadState {
+        if activePhoneDownloads.contains(row.id) { return .downloading(nil) }
         guard let asset = row.asset else { return .notDownloaded }
         if asset.kind == .localRef || asset.kind == .managedCopy || asset.kind == .builtIn {
             return .downloaded
@@ -696,6 +713,7 @@ final class AppState: ObservableObject {
             let cacheKey = CachingResourceLoader.key(for: remoteURL)
             await CacheStore.shared.setPinned(false, for: cacheKey)
         }
+        downloadRevision += 1
     }
 
     func remoteTrackRows(source: Source, nodes: [RemoteNode]) async throws -> [TrackRow] {
@@ -706,6 +724,27 @@ final class AppState: ObservableObject {
             rows.append(RemoteTrackRowFactory.row(source: source, node: node, resolved: resolved, index: index))
         }
         return rows
+    }
+
+    /// Turns an in-memory browsed row into a durable library row while retaining
+    /// its transient authorization long enough to pin the bytes.
+    func persistRemoteTrack(_ row: TrackRow) async -> TrackRow? {
+        guard row.id < 0, let source = row.source, let asset = row.asset,
+              let rawURL = asset.remoteURL, let url = URL(string: rawURL) else { return row }
+        let node = RemoteNode(id: "now-playing-\(abs(row.id))", title: row.track.title,
+                              path: rawURL, kind: .audio, sizeBytes: asset.sizeBytes,
+                              durationSec: row.track.durationSec)
+        let resolved = ResolvedAsset(url: url, headers: asset.transientRemoteHeaders,
+                                     supportsByteRanges: asset.transientRemoteSupportsByteRanges,
+                                     sizeBytes: asset.sizeBytes)
+        let result = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in resolved },
+                                                        source: source, store: store)
+        guard let id = result.trackIDs.first,
+              let persisted = try? await store.tracks(forSource: source.id ?? -1).first(where: { $0.id == id })
+        else { return nil }
+        _ = await download(rows: [row])
+        await reload()
+        return persisted
     }
 
     private func insertRemoteSource(kind: SourceKind,
@@ -923,6 +962,15 @@ final class AppState: ObservableObject {
         _ = try? await store.createManualPlaylist(title: name, trackIds: trackIds)
         await reload()
         if switchesTab { tab = .playlists }
+    }
+
+    @discardableResult
+    func makePlaylist(title: String) async -> Playlist? {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        let created = try? await store.createManualPlaylist(title: name, trackIds: [])
+        await reload()
+        return created
     }
 
     func addToPlaylist(_ row: TrackRow, playlist: Playlist) async {

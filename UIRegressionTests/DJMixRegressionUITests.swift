@@ -47,15 +47,18 @@ final class DJMixRegressionUITests: XCTestCase {
     func testAT_DJ_EntryMusicAndCrateAreReachable() throws {
         app = .launchForDJRegression(resetLibrary: true)
         app.buttons["DJ"].firstMatch.tap()
-        app.waitFor("dj.library", 30).tap()
-        XCTAssertTrue(app.staticTexts["Music"].waitForExistence(timeout: 30),
-                      "DJ → Music should render instead of terminating the app")
+        app.waitFor("dj.playlists", 30).tap()
+        XCTAssertTrue(app.staticTexts["Playlists"].waitForExistence(timeout: 30),
+                      "DJ → Playlists should present the modal playlist browser")
+        app.swipeDown()
 
         app.buttons["DJ"].firstMatch.tap()
         app.openDJDecks()
         app.waitFor("dj.crate", 30).tap()
         XCTAssertTrue(app.waitFor("dj.crate.sheet", 10).exists,
                       "Crate should present its browse sheet on iPhone")
+        XCTAssertTrue(app.waitFor("dj.crate.import.a").exists)
+        XCTAssertTrue(app.waitFor("dj.crate.import.b").exists)
     }
 
     // MARK: - AT-MIX-1 · genre picker → two crates
@@ -93,8 +96,7 @@ final class DJMixRegressionUITests: XCTestCase {
             app.waitFor("Source \(genre)").tap()
             // The browse shows the genre's ordered track list (mock popularity order).
             XCTAssertTrue(app.waitFor("remote.node.\(genre.lowercased())-1", 60).exists)
-            app.waitFor("genre.sendToDJ").tap()
-            app.waitForLabelContaining("genre.sendToDJ", "Saved", timeout: 300)
+            app.addVisibleRemoteTracks(toNewPlaylist: genre)
             app.waitFor("source.back").tap()
         }
 
@@ -103,10 +105,8 @@ final class DJMixRegressionUITests: XCTestCase {
         // real pair of playlists rather than one library seen twice.
         app.openDJDecks()
         app.openCrate()
-        app.assertQueues("a", [
-            "Techno": ["Techno Fixture 1", "Techno Fixture 6"],
-            "House": ["House Fixture 1", "House Fixture 6"],
-        ])
+        app.importCrate("Techno", into: "a")
+        app.importCrate("House", into: "b")
         app.closeCrate()
     }
 

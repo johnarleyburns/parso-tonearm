@@ -239,6 +239,7 @@ public final class WorkspaceModel: ObservableObject {
         injectedLibrary ?? DeckLoader(store: .shared)
     }
     private let injectedLibrary: (any DeckLibraryServicing)?
+    private let crateImporter: any PlaylistCrateImporting
     /// The §26A render-model seam (plan 5.3): builds each deck's
     /// `WaveformRenderModel` from persisted analysis when a track loads and
     /// when the thermal state crosses the §26A.7 shed. `WaveformRepository`
@@ -470,6 +471,10 @@ public final class WorkspaceModel: ObservableObject {
     @Published public private(set) var queueA = DeckQueue(source: .allTracks, rows: [])
     /// Deck B's queue.
     @Published public private(set) var queueB = DeckQueue(source: .allTracks, rows: [])
+    @Published public private(set) var importedCrateA: DeckQueueSource?
+    @Published public private(set) var importedCrateB: DeckQueueSource?
+    @Published public private(set) var crateImportError: String?
+    @Published public private(set) var isImportingCrate = false
     /// The per-deck load state of the `load(_:trackID:)` one-gesture path —
     /// idle / loading / loaded, or the honest FR-LIB-8 refusal or decode
     /// failure as a message. View-only readers render it, never block on it.
@@ -491,6 +496,7 @@ public final class WorkspaceModel: ObservableObject {
                 pinnedDrawerIdle: Duration = .seconds(12),
                 defaults: UserDefaults = .standard,
                 library: (any DeckLibraryServicing)? = nil,
+                crateImporter: any PlaylistCrateImporting = PlaylistCrateImporter(),
                 waveformRepository: (any WaveformRendering)? = nil,
                 stemProvider: (any StemProviding)? = nil,
                 recordingService: (any RecordingJournaling)? = nil,
@@ -500,6 +506,7 @@ public final class WorkspaceModel: ObservableObject {
         self.liveness = EngineLivenessMonitor(stallSeconds: engineStallSeconds)
         self.store = store
         self.injectedLibrary = library
+        self.crateImporter = crateImporter
         self.injectedWaveformRepository = waveformRepository
         self.injectedStemProvider = stemProvider
         self.recordingService = recordingService
@@ -733,6 +740,35 @@ public final class WorkspaceModel: ObservableObject {
     /// `selectQueue(_:for:)` touches only the named deck (FR-ENG-13).
     public func queue(for deck: PerformanceEngine.Deck) -> DeckQueue {
         deck == .a ? queueA : queueB
+    }
+
+    public func importedCrate(for deck: PerformanceEngine.Deck) -> DeckQueueSource? {
+        deck == .a ? importedCrateA : importedCrateB
+    }
+
+    public func availableCratePlaylists() async -> [CratePlaylistSummary] {
+        await crateImporter.availablePlaylists()
+    }
+
+    public func cratePlaylistTracks(_ id: Int64) async -> [CrateTrackSummary] {
+        await crateImporter.tracks(in: id)
+    }
+
+    public func importCrate(playlistID: Int64, title: String,
+                            into deck: PerformanceEngine.Deck) async {
+        isImportingCrate = true
+        crateImportError = nil
+        defer { isImportingCrate = false }
+        do {
+            let result = try await crateImporter.importCrate(playlistID: playlistID, title: title)
+            if deck == .a { importedCrateA = result.source } else { importedCrateB = result.source }
+            await selectQueue(result.source, for: deck)
+            if result.skipped > 0 {
+                crateImportError = "\(result.skipped) tracks are not on this device."
+            }
+        } catch {
+            crateImportError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
     }
 
     /// The deck's current load state — the crate rows render it.

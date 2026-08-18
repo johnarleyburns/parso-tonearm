@@ -65,7 +65,7 @@ public struct TwinDeckView: View {
         .overlay(alignment: .topTrailing) {
             // The M2 soft-takeover catch indicator (plan dj-midi-alpha M2).
             MidiCatchIndicator(model: model)
-                .padding(12)
+                .padding(.top, 56).padding(.trailing, 12)
         }
         .ignoresSafeArea()
         #if os(iOS)

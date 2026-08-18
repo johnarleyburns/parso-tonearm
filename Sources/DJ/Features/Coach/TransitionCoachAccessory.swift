@@ -20,7 +20,7 @@ public struct TransitionCoachAccessory: View {
     }
 
     public var body: some View {
-        ZStack(alignment: .top) {
+        ZStack(alignment: .topTrailing) {
             if model.isPresented {
                 Color.black.opacity(0.55)
                     .ignoresSafeArea()
@@ -49,16 +49,17 @@ public struct TransitionCoachAccessory: View {
         Button {
             model.present()
         } label: {
-            Label("Transitions", systemImage: "graduationcap.fill")
-                .font(.system(size: 10, weight: .bold))
-                .padding(.horizontal, 11)
-                .padding(.vertical, 6)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
+            Image(systemName: "questionmark.circle")
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .shadow(color: .black.opacity(0.4), radius: 4)
-        .padding(.top, 6)
+        .padding(.top, 6).padding(.trailing, 10)
+        .accessibilityLabel("Transitions")
         .accessibilityIdentifier("dj.coach")
         .transition(.opacity)
     }

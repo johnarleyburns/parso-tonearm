@@ -1,7 +1,6 @@
 import SwiftUI
 import UIKit
 import TonearmCore
-import TonearmDJ
 
 struct SourceDetailView: View {
     let source: Source
@@ -21,12 +20,7 @@ struct SourceDetailView: View {
     @State private var stats: RemoteLibraryStats?
     @State private var isLoadingStats = false
     @State private var statsError: String?
-    @StateObject private var crateImporter: GenreCrateImporter
-
-    init(source: Source) {
-        self.source = source
-        _crateImporter = StateObject(wrappedValue: GenreCrateImporter(source: source))
-    }
+    @State private var showAddToPlaylist = false
 
     var body: some View {
         ScrollView {
@@ -50,6 +44,9 @@ struct SourceDetailView: View {
         .task(id: source.id) {
             guard isRemoteLibrary else { return }
             await loadStats()
+        }
+        .sheet(isPresented: $showAddToPlaylist) {
+            AddRemoteTracksSheet(source: source, nodes: audioNodesInScope, scopeTitle: scopeTitle)
         }
     }
 
@@ -139,6 +136,15 @@ struct SourceDetailView: View {
             }
             .accessibilityIdentifier("source.back")
             Spacer()
+            if isRemoteLibrary {
+                Button { showAddToPlaylist = true } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 15)).foregroundStyle(Palette.brass)
+                        .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
+                }
+                .accessibilityLabel("Add tracks to playlist")
+                .accessibilityIdentifier("source.addToPlaylist")
+            }
             Menu {
                 Button {
                     Task { await appState.download(rows: tracks) }
@@ -189,9 +195,6 @@ struct SourceDetailView: View {
             }
             badge.padding(.top, 9)
             cta.padding(.top, 14)
-            if source.kind == .jamendoGenre {
-                genreCrateSection
-            }
             if isArchiveSource,
                let id = tracks.first?.album?.artworkId ?? heroArtworkId, !id.isEmpty,
                let iaURL = ShareURLBuilder.url(identifier: id) {
@@ -262,51 +265,6 @@ struct SourceDetailView: View {
         .foregroundStyle(Palette.brass)
         .frame(maxWidth: .infinity).frame(height: 42)
         .glassSurface(cornerRadius: 21)
-    }
-
-    /// The genre-crate seam (plan 5.6, §18A.4): pull a genre's most-interesting
-    /// tracks into the DJ library as a crate playlist the decks can load.
-    @ViewBuilder
-    private var genreCrateSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("DJ Crate")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Palette.ink3)
-            Button {
-                Task { await crateImporter.run() }
-            } label: {
-                HStack(spacing: 10) {
-                    Group {
-                        switch crateImporter.phase {
-                        case .downloading(let completed, let total):
-                            HStack(spacing: 8) {
-                                ProgressView().tint(Palette.brass)
-                                Text("Downloading \(completed) of \(total)…")
-                            }
-                        case .finished(let title, let count):
-                            Label("Saved \(count) tracks to “\(title)”", systemImage: "checkmark.circle.fill")
-                        case .failed(let message):
-                            Label(message, systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(Palette.danger)
-                        case .idle:
-                            Label("Send to DJ library", systemImage: "music.note.list")
-                        }
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Palette.ink)
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .glassSurface(cornerRadius: 14)
-            .disabled(crateImporter.isBusy)
-            .opacity(crateImporter.isBusy ? 0.7 : 1)
-            .accessibilityIdentifier("genre.sendToDJ")
-        }
-        .padding(.top, 14)
     }
 
     private func load() async {
@@ -427,6 +385,22 @@ struct SourceDetailView: View {
 
     private var isRemoteLibrary: Bool {
         RemoteLibraryAccessPolicy.isRemoteLibrary(source.kind)
+    }
+
+    private var audioNodesInScope: [RemoteNode] {
+        let visible = remoteNodes.filter { $0.kind == .audio }
+        if !visible.isEmpty { return visible }
+        return tracks.compactMap { row in
+            guard let remoteURL = row.asset?.remoteURL else { return nil }
+            return RemoteNode(id: "track-\(row.id)", title: row.track.title, path: remoteURL,
+                              kind: .audio, sizeBytes: row.asset?.sizeBytes,
+                              durationSec: row.track.durationSec)
+        }
+    }
+
+    private var scopeTitle: String {
+        guard !remotePath.isEmpty else { return source.title }
+        return remotePath.split(separator: "/").last.map(String.init) ?? source.title
     }
 
     private var isBrowseableServer: Bool {

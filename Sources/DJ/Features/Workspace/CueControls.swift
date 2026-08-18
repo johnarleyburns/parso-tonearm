@@ -10,6 +10,7 @@ import SwiftUI
 struct CueButton: View {
     @ObservedObject var model: WorkspaceModel
     let deck: PerformanceEngine.Deck
+    var height: CGFloat = 32
 
     private var isCued: Bool { model.isCued(deck) }
 
@@ -20,9 +21,9 @@ struct CueButton: View {
             Text("CUE")
                 .font(.system(size: 11, weight: .heavy))
                 .frame(maxWidth: .infinity)
-                .frame(height: 32)
+                .frame(height: height)
                 .background(isCued ? Color.orange : Color.white.opacity(0.08),
-                            in: RoundedRectangle(cornerRadius: 7))
+                            in: RoundedRectangle(cornerRadius: 8))
                 .foregroundStyle(isCued ? .black : .white.opacity(0.8))
         }
         .buttonStyle(.plain)

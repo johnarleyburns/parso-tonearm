@@ -291,6 +291,27 @@ extension XCUIApplication {
     func openCrate() { waitFor("dj.crate").tap() }
     func closeCrate() { waitFor("dj.crate.close").tap() }
 
+    func addVisibleRemoteTracks(toNewPlaylist title: String) {
+        waitFor("source.addToPlaylist").tap()
+        let slider = waitFor("remoteAdd.slider")
+        slider.adjust(toNormalizedSliderPosition: 1)
+        waitFor("remoteAdd.playlist").tap()
+        buttons["Create a new playlist…"].tap()
+        let name = waitFor("remoteAdd.name")
+        name.tap(); name.typeText(title)
+        waitFor("remoteAdd.confirm").tap()
+        waitForLabelContaining("remoteAdd.result", "added", timeout: 300)
+        buttons["Close"].tap()
+    }
+
+    func importCrate(_ playlist: String, into deck: String) {
+        let code = deck.lowercased()
+        waitFor("dj.crate.import.\(code)").tap()
+        waitFor("dj.crate.picker.expand.\(playlist)").tap()
+        waitFor("dj.crate.picker.row.\(playlist)").tap()
+        waitFor("dj.crate.picker.confirm").tap()
+    }
+
     /// Pick a queue source in the crate sheet's picker (FR-ENG-13).
     ///
     /// The picker is a system `Menu`, and a presented menu does not survive

@@ -118,6 +118,7 @@ struct PlaylistDetailView: View {
     @State private var tracks: [PlaylistTrackRow] = []
     @State private var playlistToRename: Playlist?
     @State private var renameTitle = ""
+    @State private var showAddTracks = false
 
     private var currentPlaylist: Playlist {
         guard let id = playlist.id else { return playlist }
@@ -141,20 +142,9 @@ struct PlaylistDetailView: View {
                 Spacer()
                 EditButton()
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Palette.brass)
                     .frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("playlist.edit")
-                Menu {
-                    if appState.allTracks.isEmpty {
-                        Text("No tracks available")
-                    } else {
-                        ForEach(appState.allTracks) { row in
-                            Button(row.track.title) {
-                                Task { await appState.addToPlaylist(row, playlist: currentPlaylist) }
-                            }
-                        }
-                    }
-                } label: {
+                Button { showAddTracks = true } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.brass)
                         .frame(width: 44, height: 44).glassSurface(cornerRadius: 22)
@@ -224,6 +214,9 @@ struct PlaylistDetailView: View {
         .navigationBarBackButtonHidden()
         .task(id: currentPlaylist.id) {
             await loadTracks()
+        }
+        .sheet(isPresented: $showAddTracks) {
+            AddTracksToPlaylistSheet(playlist: currentPlaylist) { await loadTracks() }
         }
         .renamePlaylistAlert(
             playlist: $playlistToRename,

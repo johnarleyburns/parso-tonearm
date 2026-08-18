@@ -88,7 +88,8 @@ final class NowPlayingRegressionUITests: XCTestCase {
     func testControlsMeetMinimumHitTarget() throws {
         app = .launchForRegression()
         openNowPlaying()
-        for identifier in ["np.prev", "np.playpause", "np.next", "np.repeat", "np.shuffle", "np.overflow"] {
+        for identifier in ["np.prev", "np.playpause", "np.next", "np.repeat", "np.shuffle",
+                           "np.download", "np.watchDownload", "np.overflow"] {
             let frame = app.waitFor(identifier).frame
             XCTAssertGreaterThanOrEqual(frame.width, 44, identifier)
             XCTAssertGreaterThanOrEqual(frame.height, 44, identifier)

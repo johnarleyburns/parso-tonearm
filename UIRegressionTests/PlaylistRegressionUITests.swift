@@ -36,9 +36,12 @@ final class PlaylistRegressionUITests: XCTestCase {
     func testPlaylistDetailToolbarLayout() throws {
         app = .launchForRegression()
         openPlaylistDetail()
+        XCTAssertTrue(app.waitFor("playlist.back").isHittable)
         XCTAssertTrue(app.waitFor("playlist.add").isHittable)
         XCTAssertTrue(app.waitFor("playlist.edit").isHittable)
         XCTAssertTrue(app.waitFor("playlist.overflow").isHittable)
+        XCTAssertGreaterThan(app.waitFor("playlist.add").frame.minX,
+                             app.waitFor("playlist.edit").frame.minX)
         XCTAssertFalse(app.buttons["Rename"].exists)
         app.buttons["More"].tap()
         XCTAssertTrue(app.buttons["Rename"].waitForExistence(timeout: 5))
@@ -49,7 +52,7 @@ final class PlaylistRegressionUITests: XCTestCase {
         app = .launchForRegression()
         openPlaylistDetail()
         app.waitFor("playlist.add").tap()
-        XCTAssertTrue(app.staticTexts["No tracks available"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.waitFor("playlist.add.confirm", 5).exists)
     }
 
     /// D-8 · Rename lives under the overflow and persists.

@@ -230,6 +230,22 @@ final class WorkspaceModelTests: XCTestCase {
         }
     }
 
+    private actor FakeCrateImporter: PlaylistCrateImporting {
+        enum Failure: Error { case importFailed }
+        let result: CrateImportResult?
+
+        init(result: CrateImportResult? = nil) {
+            self.result = result
+        }
+
+        func availablePlaylists() async -> [CratePlaylistSummary] { [] }
+        func tracks(in playlistID: Int64) async -> [CrateTrackSummary] { [] }
+        func importCrate(playlistID: Int64, title: String) async throws -> CrateImportResult {
+            guard let result else { throw Failure.importFailed }
+            return result
+        }
+    }
+
     /// A tiny decoded box the fake hands back as `.loaded` — the model keeps it
     /// alive (the §12.2 box) for the duration of the test.
     private func makeLoadedBox(frames: Int = 1000) -> DeckSourceBox {
@@ -1354,6 +1370,48 @@ final class WorkspaceModelTests: XCTestCase {
     }
 
     // MARK: - Per-deck queues (§41.9c, FR-ENG-13; plan 5.1)
+
+    func testImportedCratesStartEmptyOnBothDecks() {
+        let model = WorkspaceModel(engine: FakeWorkspaceEngine(), store: makeStore(isPro: true),
+                                   pump: nil, crateImporter: FakeCrateImporter())
+        XCTAssertNil(model.importedCrate(for: .a))
+        XCTAssertNil(model.importedCrate(for: .b))
+    }
+
+    func testCrateImportsFillOnlyTheirTargetDeckAndRemainIndependent() async {
+        let source = DeckQueueSource.playlist(id: 77, title: "Set")
+        let library = FakeDeckLibrary()
+        library.rowsBySource[source] = [
+            DeckQueueRow(trackID: 10, title: "One", artist: "A", readiness: .ready)
+        ]
+        let importer = FakeCrateImporter(result: CrateImportResult(
+            source: source, imported: 1, skipped: 0))
+        let model = WorkspaceModel(engine: FakeWorkspaceEngine(), store: makeStore(isPro: true),
+                                   pump: nil, library: library, crateImporter: importer)
+
+        await model.importCrate(playlistID: 1, title: "Set", into: .a)
+        XCTAssertEqual(model.importedCrate(for: .a), source)
+        XCTAssertEqual(model.queue(for: .a).rows.map(\.trackID), [10])
+        XCTAssertNil(model.importedCrate(for: .b))
+        XCTAssertEqual(model.queue(for: .b).rows, [])
+        XCTAssertFalse(model.isImportingCrate)
+
+        await model.importCrate(playlistID: 1, title: "Set", into: .b)
+        XCTAssertEqual(model.importedCrate(for: .a), source)
+        XCTAssertEqual(model.queue(for: .a).rows.map(\.trackID), [10])
+        XCTAssertEqual(model.importedCrate(for: .b), source)
+        XCTAssertEqual(model.queue(for: .b).rows.map(\.trackID), [10])
+        XCTAssertFalse(model.isImportingCrate)
+    }
+
+    func testCrateImportFailureIsReportedAndAlwaysEndsLoading() async {
+        let model = WorkspaceModel(engine: FakeWorkspaceEngine(), store: makeStore(isPro: true),
+                                   pump: nil, crateImporter: FakeCrateImporter())
+        await model.importCrate(playlistID: 1, title: "Set", into: .a)
+        XCTAssertNil(model.importedCrate(for: .a))
+        XCTAssertNotNil(model.crateImportError)
+        XCTAssertFalse(model.isImportingCrate)
+    }
 
     func testPerDeckQueuesAreIndependent() async throws {
         let fake = FakeWorkspaceEngine()

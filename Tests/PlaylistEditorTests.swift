@@ -76,7 +76,7 @@ final class PlaylistEditorTests: XCTestCase {
         let store = try LibraryStore(inMemory: true)
         let trackIDs = try await seedTracks(into: store, count: 3)
         let playlist = try await store.createManualPlaylist(
-            title: "Duplicates",
+            title: "Deduplicated",
             trackIds: [trackIDs[0], trackIDs[1], trackIDs[0], trackIDs[2]])
         let playlistID = try XCTUnwrap(playlist.id)
         let originalRows = try await store.playlistTrackRows(playlistId: playlistID)
@@ -85,9 +85,9 @@ final class PlaylistEditorTests: XCTestCase {
         try await store.removeFromPlaylist(playlistId: playlistID, at: 1)
 
         let rows = try await store.playlistTrackRows(playlistId: playlistID)
-        XCTAssertEqual(rows.map(\.row.id), [trackIDs[0], trackIDs[1], trackIDs[2]])
-        XCTAssertEqual(rows.map(\.item.id), [originalRows[2].item.id, originalRows[1].item.id, originalRows[3].item.id])
-        XCTAssertEqual(rows.map(\.item.position), [0, 1, 2])
+        XCTAssertEqual(rows.map(\.row.id), [trackIDs[2], trackIDs[1]])
+        XCTAssertEqual(rows.map(\.item.id), [originalRows[2].item.id, originalRows[1].item.id])
+        XCTAssertEqual(rows.map(\.item.position), [0, 1])
     }
 
     private func items(_ trackIDs: [Int64]) -> [PlaylistItem] {

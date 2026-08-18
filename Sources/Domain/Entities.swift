@@ -47,6 +47,8 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
     /// For `.local` sources: distinguishes a folder import (true) from the
     /// "Local Files" bucket (false). Drives the no-artwork fallback icon.
     public var localIsFolder: Bool = false
+    /// Canonical resolved path for a folder import (schema v14).
+    public var folderPath: String? = nil
     /// Remembers which track's embedded artwork represents this source, so the
     /// representative cover is cached and stable across launches.
     public var artworkTrackId: Int64? = nil
@@ -65,6 +67,7 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
                 licenseText: String?,
                 memberCapHit: Bool,
                 localIsFolder: Bool = false,
+                folderPath: String? = nil,
                 artworkTrackId: Int64? = nil,
                 syncID: String? = nil) {
         self.id = id
@@ -78,6 +81,7 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
         self.licenseText = licenseText
         self.memberCapHit = memberCapHit
         self.localIsFolder = localIsFolder
+        self.folderPath = folderPath
         self.artworkTrackId = artworkTrackId
         self.syncID = syncID
     }

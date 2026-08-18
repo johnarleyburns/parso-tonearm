@@ -18,7 +18,7 @@ final class TonearmSmokeUITests: XCTestCase {
                       "App should reach the foreground without crashing")
 
         openTab("Listen", anchor: "Listen")
-        openTab("Playlists", anchor: "Your Playlists")
+        openTab("Playlists", anchor: "Playlists")
 
         let ambientPlaylist = element("playlist.ambient")
         XCTAssertTrue(ambientPlaylist.waitForExistence(timeout: 10),

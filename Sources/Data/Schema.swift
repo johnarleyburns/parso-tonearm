@@ -3,7 +3,7 @@ import GRDB
 
 public enum Schema {
     private static let migrationOrder = [
-        "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13"
+        "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14"
     ]
 
     public static func migrator(upTo target: String? = nil) -> DatabaseMigrator {
@@ -438,6 +438,13 @@ public enum Schema {
                     }
                 }
                 try db.create(indexOn: "playlist", columns: ["sourceId"])
+            }
+        }
+
+        if shouldRegister("v14", upTo: target) {
+            migrator.registerMigration("v14") { db in
+                try db.alter(table: "source") { $0.add(column: "folderPath", .text) }
+                try db.create(indexOn: "source", columns: ["folderPath"])
             }
         }
 

@@ -83,7 +83,7 @@ final class DJLiveMixRegressionUITests: XCTestCase {
         XCTAssertTrue(sourceRow.waitForExistence(timeout: 30),
                       "the Techno source from AT-MIX-9 should still be here")
         sourceRow.tap()
-        app.waitFor("genre.sendToDJ") // the source detail renders
+        app.waitFor("source.addToPlaylist") // the source detail renders
 
         // The recorded mix's finish screen carries attribution + the licence line.
         app.buttons["DJ"].firstMatch.tap()
@@ -121,9 +121,8 @@ final class DJLiveMixRegressionUITests: XCTestCase {
 
     private func sendGenreToDJLibrary(_ genre: String) {
         app.waitFor("Source \(genre)").tap()
-        XCTAssertTrue(app.waitFor("genre.sendToDJ", 60).exists)
-        app.waitFor("genre.sendToDJ").tap()
-        app.waitForLabelContaining("genre.sendToDJ", "Saved", timeout: 600)
+        XCTAssertTrue(app.waitFor("source.addToPlaylist", 60).exists)
+        app.addVisibleRemoteTracks(toNewPlaylist: genre)
         app.waitFor("source.back").tap()
     }
 

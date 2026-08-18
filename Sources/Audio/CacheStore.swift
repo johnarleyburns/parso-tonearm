@@ -138,6 +138,22 @@ public actor CacheStore {
         persistMeta(key)
     }
 
+    /// Adopts a file written in one operation as a complete, optionally pinned entry.
+    public func adoptCompleteFile(byteCount: Int64, for key: String, pinned: Bool = true) async {
+        var m = metas[key] ?? Meta(totalBytes: nil, cachedBytes: 0, complete: false,
+                                   lastAccessedAt: Date(), createdAt: Date(), rangeMap: ByteRangeMap())
+        m.totalBytes = byteCount
+        m.rangeMap = ByteRangeMap()
+        if byteCount > 0 { m.rangeMap.insert(0..<byteCount) }
+        m.cachedBytes = m.rangeMap.totalBytes()
+        m.complete = byteCount >= 0 && m.cachedBytes == byteCount
+        m.pinned = pinned
+        m.lastAccessedAt = Date()
+        metas[key] = m
+        persistMeta(key)
+        await evictToFit(protecting: key)
+    }
+
     public func recordWrite(range: Range<Int64>, for key: String) async {
         var m = metas[key] ?? Meta(totalBytes: nil, cachedBytes: 0, complete: false,
                                    lastAccessedAt: Date(), createdAt: Date(), rangeMap: ByteRangeMap())

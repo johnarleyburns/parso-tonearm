@@ -15,6 +15,7 @@ struct NowPlayingView: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showEQ = false
     @State private var showArtworkDeleteAlert = false
+    @State private var showAddToPlaylist = false
 
     var body: some View {
         ZStack {
@@ -80,8 +81,24 @@ struct NowPlayingView: View {
         .sheet(isPresented: $showEQ) { EQView() }
         .onChange(of: invalidation.version) { _, _ in
             Task {
-                guard let row = player.currentTrack else { return }
+                guard var row = player.currentTrack else { return }
+                if row.id < 0, let persisted = await appState.persistRemoteTrack(row) { row = persisted }
                 npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
+            }
+        }
+        .sheet(isPresented: $showAddToPlaylist) {
+            AddToPlaylistDialog(title: "Add to playlist", subtitle: nil) { target in
+                guard var row = player.currentTrack else { return }
+                let playlist: Playlist?
+                switch target {
+                case .existing(let existing): playlist = existing
+                case .create(let name): playlist = await appState.makePlaylist(title: name)
+                }
+                if row.id < 0 {
+                    guard let persisted = await appState.persistRemoteTrack(row) else { return }
+                    row = persisted
+                }
+                if let playlist { await appState.addToPlaylist(row, playlist: playlist) }
             }
         }
         .onChange(of: selectedPhotoItem) { _, item in
@@ -252,17 +269,11 @@ struct NowPlayingView: View {
             .accessibilityLabel("Favorite")
             .accessibilityIdentifier("np.favorite")
 
-            Menu {
-                if let row = player.currentTrack {
-                    ForEach(appState.playlists) { playlist in
-                        Button(playlist.title) { Task { await appState.addToPlaylist(row, playlist: playlist) } }
-                    }
-                } else { Text("No track playing") }
-            } label: {
+            Button { showAddToPlaylist = true } label: {
                 Image(systemName: "text.badge.plus").font(.system(size: 16))
                     .frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
             }
-            .disabled(player.currentTrack == nil)
+            .disabled(player.currentTrack == nil || player.isAmbient)
             .accessibilityLabel("Add to Playlist")
             .accessibilityIdentifier("np.addToPlaylist")
 
@@ -305,6 +316,7 @@ struct NowPlayingView: View {
 
     @ViewBuilder
     private func phoneDownloadButton(for row: TrackRow?) -> some View {
+        let _ = appState.downloadRevision
         let state = row.map { appState.phoneDownloadState(for: $0) } ?? .notDownloaded
         Button {
             switch state {
@@ -317,10 +329,11 @@ struct NowPlayingView: View {
             }
         } label: {
             CacheGlyph(state: cacheGlyphState(from: state))
+                .frame(width: 45, height: 45)
+                .background(.ultraThinMaterial, in: Circle())
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .frame(width: 44, height: 44)
-        .background(.ultraThinMaterial, in: Circle())
         .accessibilityIdentifier("np.download")
         .disabled(row == nil)
     }
@@ -341,10 +354,11 @@ struct NowPlayingView: View {
             }
         } label: {
             WatchGlyphView(state: state)
+                .frame(width: 45, height: 45)
+                .background(.ultraThinMaterial, in: Circle())
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .frame(width: 44, height: 44)
-        .background(.ultraThinMaterial, in: Circle())
         .accessibilityIdentifier("np.watchDownload")
         .disabled(row == nil)
     }

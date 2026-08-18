@@ -1068,7 +1068,6 @@ public final class AudioPlayer: ObservableObject {
 
     private func refreshCacheState() {
         guard let asset = currentTrack?.asset, asset.kind == .remote,
-              asset.transientRemoteSupportsByteRanges,
               let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else {
             if currentTrack?.asset?.kind == .remote {
                 cacheState = .none
@@ -1088,7 +1087,10 @@ public final class AudioPlayer: ObservableObject {
             let total = await CacheStore.shared.totalBytes(for: key) ?? 0
             await MainActor.run {
                 self.cacheState = state
-                if total > 0 {
+                if state == .cached {
+                    self.cachedFraction = 1
+                    self.cachePercent = 100
+                } else if total > 0 {
                     self.cachedFraction = min(1, Double(map.totalBytes()) / Double(total))
                     self.cachePercent = Int((self.cachedFraction * 100).rounded())
                 }

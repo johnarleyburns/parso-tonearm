@@ -717,7 +717,7 @@ public actor DJLibraryStore {
                     metadata.artist = item.artist
                     try Self.attachArtists(to: trackID, metadata: metadata, in: db)
                     var event = DJImportEvent(trackID: trackID, kind: "download",
-                                              detail: "genre crate", at: now)
+                                              detail: "playlist crate", at: now)
                     try event.insert(db)
                 }
                 var asset = DJAsset(trackID: trackID,

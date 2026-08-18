@@ -95,11 +95,23 @@ public struct IngestService {
         let ordered = keepOrder ? files
             : files.sorted { $0.url.lastPathComponent.localizedStandardCompare($1.url.lastPathComponent) == .orderedAscending }
 
+        let folderKey = FolderImportIdentity.key(for: folderURL)
+        if let existing = try await store.folderSource(path: folderKey),
+           let sourceID = existing.id,
+           try await store.folderPlaylist(matchingSourceId: sourceID) != nil {
+            let existingPaths = try await store.localFilePaths(forSource: sourceID)
+            let newURLs = ordered.map(\.url).filter {
+                !existingPaths.contains(FolderImportIdentity.key(for: $0))
+            }
+            await addFiles(newURLs, toSourceId: sourceID, into: store)
+            return
+        }
+
         var source = Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
                             title: folderURL.lastPathComponent, addedAt: Date(),
                             lastResolvedAt: nil, followUpdates: false,
                             licenseText: nil, memberCapHit: false,
-                            localIsFolder: true)
+                            localIsFolder: true, folderPath: folderKey)
         source = try await store.insertSource(source)
         guard let sid = source.id else { throw IngestError.failedToInsertSource }
         var album = Album(id: nil, sourceId: sid, title: folderURL.lastPathComponent,

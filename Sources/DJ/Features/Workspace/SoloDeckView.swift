@@ -62,7 +62,7 @@ public struct SoloDeckView: View {
         .overlay(alignment: .topTrailing) {
             // The M2 soft-takeover catch indicator (plan dj-midi-alpha M2).
             MidiCatchIndicator(model: model)
-                .padding(12)
+                .padding(.top, 56).padding(.trailing, 12)
         }
         #if os(iOS)
         .defersSystemGestures(on: .bottom)
@@ -222,8 +222,7 @@ public struct SoloDeckView: View {
                 // §44.2a: pre-listen is a transition control, so it is always
                 // visible on the compact surface — never behind a drawer
                 // (§42.7c's transferable core).
-                CueButton(model: model, deck: model.focusedDeck)
-                    .frame(minHeight: 44)
+                CueButton(model: model, deck: model.focusedDeck, height: 44)
 
                 Button {
                     model.raiseCrateSheet()
@@ -821,7 +820,7 @@ struct QueueSourcePicker: View, Equatable {
     }
 }
 
-private struct CrateSheetView: View {
+private struct LegacyCrateSheetView: View {
     @ObservedObject var model: WorkspaceModel
 
     private var deck: PerformanceEngine.Deck { model.focusedDeck }
