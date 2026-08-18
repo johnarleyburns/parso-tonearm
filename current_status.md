@@ -7,6 +7,25 @@ the commit sequence is **Appendix M.1/M.2** of that spec. The M2 working plan is
 working plan is `docs/plans/dj-phase-3-autoplaylists.md` (commit sequence §5,
 audit table §9).
 
+## Playlists-first UI pass — complete
+
+Plan [`docs/plans/playlists-first-ui-pass.md`](docs/plans/playlists-first-ui-pass.md) is fully
+implemented. The through-line is now **playlists are the one crate concept**: "Send to DJ
+Library" is gone, and every route to the decks runs remote library → app playlist → mixer
+"Import playlist".
+
+- **T1** — `680ea59`: square translucent splash tile.
+- **T2–T3** — `ec9a426`: DJ home ordering/naming/icon, Playlists sheet routing, and playlist
+  detail header actions.
+- **T4–T11** — `c806b99`: schema-v14 playlist deduplication and repair, Music picker, Now
+  Playing playlist/download actions, cache adoption, remote playlist ingest, mixer coach/CUE
+  polish, the two-deck playlist-crate bridge, and regression coverage.
+
+Agent verification is green: 1,564 Swift tests passed with 0 failures and 8 explicit skips;
+the iPhone app build, repository CI guards, and iPhone/watch smoke hooks passed; the Playlists
+and Now Playing UI-regression lanes passed. The DJ-mix lane made its explicit prerequisite skip
+because its Docker/mock-catalog dependency was unavailable, rather than reporting a false pass.
+
 **Two workstreams are open and have self-contained plans** — either can be picked up cold, and
 they do not depend on each other:
 
@@ -390,6 +409,58 @@ packed, and a detached clean worktree — what CI checks out — fetches all thr
 that S7's gate — separation timing, thermals, and peak footprint on real
 hardware — has never been measured, so the first real numbers will come from
 whoever installs the build.
+
+### Phase 5 — the lanes are stable; the dead air took three tries and was a product bug
+
+**The UI flakes are gone.** `LANES=djmix` ran four times on 2026-08-17 and **all
+four lanes passed on every run** — AT-MIX-01 (65–72s), AT-MIX-02 (32s),
+AT-MIX-03_07 (406s), AT-MIX-08 (17–19s). The crate/queue-row "not hittable"
+failures that killed runs 1 and 3 on 2026-08-16 did not recur once. **All five
+§53.9 signatures verified on every run**, including the rebuilt Fader Cut, whose
+new off-tone measure read 0.4x–4.0x against a threshold of 12 — never close.
+
+What was not green was the check phase 3b added, and it took three attempts to
+close because the first two were aimed at the wrong layer. Recording the whole
+chase, because the shape of it is the lesson:
+
+1. **Run 1 failed on 19.9s of silence** (344.2s→364.2s). Diagnosis: `holdMix`
+   watches the recording clock to decide when a deck needs its next track, and a
+   recording of silence grows at exactly the same rate as a recording of music.
+   Fix: watch the transport instead.
+2. **That could not work, because the transport was lying.** `renderDeck` marked
+   a deck starved at the end of its source and left `playing = true` for ever.
+   Fixed at the deck (§34A.5's rule one layer down). **Run 2: 19.8s of silence,
+   same place.**
+3. **Rotation was also scheduled too late** — its clock started when the hold was
+   entered, as though the decks had just been loaded, when they had been playing
+   for most of a fixture. Made per-deck and seeded with `decksPlayingFor`.
+   **Run 3: rotation demonstrably fired** — the preserved run log shows Techno
+   Fixture 3 / House Fixture 4 loaded at t=212s and t=231s, Techno Fixture 5 /
+   House Fixture 6 at t=333s and t=352s — and the recording **still** went silent
+   thirty seconds after a fresh track landed. 19.5s.
+
+**The root cause, at last: `case .loadArm` armed the new source pointer and
+changed nothing else.** The playhead stayed exactly where the previous track had
+left it, so a deck that had played to the end kept a playhead past the end of the
+*new* track, and `readChunk` clamps at EOF — silence for ever, recoverable only
+with CUE. A product defect, not a lane artifact: end a track, load the next one,
+get nothing from a deck whose transport says it is playing. Loading now resets
+the playhead and drops what belonged to the old track (pending jump, loop, temp
+cue).
+
+**Run 4 (2026-08-17, 13m48s) is the first fully clean one:** four lanes passed,
+`audio: no run of silence longer than 2s — something is playing throughout`, and
+**all 5 required transitions verified against the journal** (Fader Cut at 2.7x
+the off-tone floor against a threshold of 12). That is exit item 5's condition
+met on a six-minute mix; the `MIX_MINUTES=20` soak is the remaining half of it.
+
+Two things worth keeping from the chase. **The run log is what broke it open** —
+phase 4 started preserving it one commit earlier, and run 3's log is the evidence
+that rotation was working and the audio still never came back, which is what
+moved the search off the lane and into the engine. And **the first fix made the
+defect easier to see rather than better**: with `playing = false` the lane pressed
+PLAY, which resumed at the clamped end position — still silence. All three
+commits are real fixes; only the third one closed this.
 
 ### Phase 5, run 1 — the four lanes are green, and the new check found a product defect
 
