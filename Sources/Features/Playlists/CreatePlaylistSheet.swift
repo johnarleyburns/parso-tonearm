@@ -4,6 +4,7 @@ import TonearmCore
 /// TF6: minimal create sheet — a name field plus an optional multi-select from a
 /// single long list of every track in the library.
 struct CreatePlaylistSheet: View {
+    var isEmbedded = false
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
 
@@ -69,7 +70,7 @@ struct CreatePlaylistSheet: View {
 
             Button {
                 Task {
-                    await appState.createPlaylist(title: name, trackIds: orderedSelection())
+                    await appState.createPlaylist(title: name, trackIds: orderedSelection(), switchesTab: !isEmbedded)
                     dismiss()
                 }
             } label: {

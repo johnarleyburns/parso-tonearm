@@ -917,12 +917,12 @@ final class AppState: ObservableObject {
 
     // MARK: - Playlists (TF6)
 
-    func createPlaylist(title: String, trackIds: [Int64]) async {
+    func createPlaylist(title: String, trackIds: [Int64], switchesTab: Bool = true) async {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         _ = try? await store.createManualPlaylist(title: name, trackIds: trackIds)
         await reload()
-        tab = .playlists
+        if switchesTab { tab = .playlists }
     }
 
     func addToPlaylist(_ row: TrackRow, playlist: Playlist) async {

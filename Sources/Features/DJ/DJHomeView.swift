@@ -13,6 +13,7 @@ struct DJHomeView: View {
     @StateObject private var entry = DJEntryModel()
     @ObservedObject private var entitlements = EntitlementStore.shared
     @State private var isRestoring = false
+    @State private var showPlaylists = false
 
     var body: some View {
         NavigationStack(path: $entry.path) {
@@ -50,20 +51,20 @@ struct DJHomeView: View {
                         .accessibilityIdentifier("dj.purchase.restore")
                     }
                 }
-                Section("Perform") {
-                    NavigationLink(value: DJDestination.decks) {
-                        Label("Open the decks", systemImage: "slider.horizontal.3")
-                            .accessibilityIdentifier("dj.decks")
-                    }
-                }
                 Section("Library") {
-                    NavigationLink(value: DJDestination.library) {
-                        Label("Music", systemImage: "music.note.list")
-                            .accessibilityIdentifier("dj.library")
+                    Button { showPlaylists = true } label: {
+                        Label("Playlists", systemImage: "music.note.list")
+                            .accessibilityIdentifier("dj.playlists")
                     }
                     NavigationLink(value: DJDestination.mixes) {
-                        Label("Recorded Mixes", systemImage: "waveform.badge.record")
+                        Label("Recorded Mixes", systemImage: "recordingtape.circle.fill")
                             .accessibilityIdentifier("dj.mixes")
+                    }
+                }
+                Section("Perform") {
+                    NavigationLink(value: DJDestination.decks) {
+                        Label("Open DJ Mixer", systemImage: "slider.horizontal.3")
+                            .accessibilityIdentifier("dj.decks")
                     }
                 }
                 Section("Hardware") {
@@ -73,16 +74,14 @@ struct DJHomeView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showPlaylists) {
+                PlaylistsView(presentsCreateSheetLocally: true)
+            }
             .navigationTitle("Platterhead DJ")
             .navigationDestination(for: DJDestination.self) { destination in
                 switch destination {
                 case .decks:
                     DJPerformanceSurface()
-                case .library:
-                    // DJHomeView owns the navigation stack for this route.
-                    // Reusing it avoids the nested-stack crash seen when
-                    // opening DJ → Music on iPhone.
-                    LibraryView(ownsNavigationStack: false)
                 case .mixes:
                     MixesView()
                 case .midi:

@@ -3,13 +3,22 @@ import TonearmCore
 
 struct PlaylistsView: View {
     @EnvironmentObject var appState: AppState
+    private let presentsCreateSheetLocally: Bool
+    @State private var showLocalCreate = false
     @State private var playlistToRename: Playlist?
     @State private var renameTitle = ""
+
+    init(presentsCreateSheetLocally: Bool = false) {
+        self.presentsCreateSheetLocally = presentsCreateSheetLocally
+    }
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
-                ScreenHeader(title: "Playlists") { appState.showCreatePlaylist = true }
+                ScreenHeader(title: "Playlists") {
+                    if presentsCreateSheetLocally { showLocalCreate = true }
+                    else { appState.showCreatePlaylist = true }
+                }
                     .accessibilityIdentifier("playlists.create")
                     .padding(.horizontal, 18)
                     .padding(.bottom, 12)
@@ -83,6 +92,9 @@ struct PlaylistsView: View {
                 if value == "ambient" { AmbientPlaylistView() }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showLocalCreate) {
+                CreatePlaylistSheet(isEmbedded: true)
+            }
             .renamePlaylistAlert(
                 playlist: $playlistToRename,
                 title: $renameTitle,
@@ -119,6 +131,19 @@ struct PlaylistDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.brass)
+                        .frame(width: 44, height: 44).glassSurface(cornerRadius: 22)
+                }
+                .accessibilityLabel("Back")
+                .accessibilityIdentifier("playlist.back")
+                Spacer()
+                EditButton()
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.brass)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityIdentifier("playlist.edit")
                 Menu {
                     if appState.allTracks.isEmpty {
                         Text("No tracks available")
@@ -135,12 +160,6 @@ struct PlaylistDetailView: View {
                         .frame(width: 44, height: 44).glassSurface(cornerRadius: 22)
                 }
                 .accessibilityIdentifier("playlist.add")
-                Spacer()
-                EditButton()
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Palette.brass)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .accessibilityIdentifier("playlist.edit")
                 Menu {
                     Button {
                         beginRename(currentPlaylist)

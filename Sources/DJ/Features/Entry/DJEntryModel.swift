@@ -12,8 +12,6 @@ import TonearmCore
 public enum DJDestination: Hashable, Sendable {
     /// The performance surface — the workspace, Pro-gated at the model.
     case decks
-    /// The DJ library (import, prep, playlists).
-    case library
     /// Recorded Mixes (§41.12) — **free** (FR-REC-5): finished mixes are
     /// ordinary playable items, never Pro-gated.
     case mixes
@@ -31,7 +29,7 @@ public final class DJEntryModel: ObservableObject {
     /// Every user-facing DJ surface, in navigation order — the §49.3a
     /// reachable set. A surface added to the milestone without landing here is
     /// dead code in the shipped binary, exactly the failure M4 shipped.
-    public static let reachableDestinations: [DJDestination] = [.decks, .library, .mixes, .midi]
+    public static let reachableDestinations: [DJDestination] = [.decks, .mixes, .midi]
 
     /// The active navigation path (empty = the home). The app-side
     /// `DJHomeView` binds its `NavigationStack` to this.
