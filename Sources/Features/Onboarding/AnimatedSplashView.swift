@@ -12,7 +12,6 @@ struct AnimatedSplashView: View {
     @Binding var isPresented: Bool
 
     @State private var opacity: Double = 0
-    @State private var scale: CGFloat = 0.82
     @State private var tileScale: CGFloat = 0.7
 
     var body: some View {
@@ -31,29 +30,20 @@ struct AnimatedSplashView: View {
         }
         .ignoresSafeArea()
         .overlay {
-            VStack(spacing: 22) {
-                PeriodicTileView(
-                    atomicNumber: "78",
-                    symbol: "Pt",
-                    name: "Platterhead",
-                    atomicWeight: "195.08"
-                )
-                .scaleEffect(tileScale)
-
-                Text("A privacy-first music player\nfor people who own their music.")
-                    .font(.system(size: 14))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(Palette.ink2)
-                    .scaleEffect(scale)
-            }
+            PeriodicTileView(
+                atomicNumber: "78",
+                symbol: "Pt",
+                name: "Platterhead",
+                atomicWeight: "195.08"
+            )
+            .scaleEffect(tileScale)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Platterhead. A privacy-first music player for people who own their music.")
+            .accessibilityLabel("Platterhead")
         }
         .opacity(opacity)
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                 opacity = 1
-                scale = 1
                 tileScale = 1
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -118,19 +108,19 @@ struct PeriodicTileView: View {
         .padding(22)
         .frame(width: 224, height: 224)
         .background {
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .fill(LinearGradient(colors: [Color(hex: 0x12141A), Color(hex: 0x0A0B0D)],
+            Rectangle()
+                .fill(LinearGradient(colors: [Color(hex: 0x12141A).opacity(0.55), Color(hex: 0x0A0B0D).opacity(0.55)],
                                      startPoint: .top, endPoint: .bottom))
                 .overlay {
                     RadialGradient(colors: [Palette.brass.opacity(0.30), .clear],
                                    center: UnitPoint(x: 0.28, y: 0.08),
                                    startRadius: 0, endRadius: 250)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+                .clipShape(Rectangle())
                 .shadow(color: Color.black.opacity(0.45), radius: 26, y: 14)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
+            Rectangle()
                 .strokeBorder(Palette.brass.opacity(0.32), lineWidth: 1)
         }
     }
