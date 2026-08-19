@@ -7,7 +7,7 @@ the commit sequence is **Appendix M.1/M.2** of that spec. The M2 working plan is
 working plan is `docs/plans/dj-phase-3-autoplaylists.md` (commit sequence §5,
 audit table §9).
 
-## Playlists-first UI pass — complete
+## Playlists-first UI pass — complete (one regression lane still unrun)
 
 Plan [`docs/plans/playlists-first-ui-pass.md`](docs/plans/playlists-first-ui-pass.md) is fully
 implemented. The through-line is now **playlists are the one crate concept**: "Send to DJ
@@ -20,11 +20,30 @@ Library" is gone, and every route to the decks runs remote library → app playl
 - **T4–T11** — `c806b99`: schema-v14 playlist deduplication and repair, Music picker, Now
   Playing playlist/download actions, cache adoption, remote playlist ingest, mixer coach/CUE
   polish, the two-deck playlist-crate bridge, and regression coverage.
+- **Gap-analysis follow-up** — `f0ea427`: the hand-run device script rewritten around the
+  shipped flow (it still told a tester to press the deleted "Send to DJ" button, and named
+  the old DJ home rows); `DJPerformanceDriver.addVisibleRemoteTracks` no longer waits
+  unconditionally for `remoteAdd.slider`, which the sheet renders only when the scope holds
+  more than one track; two stale `TransitionCoachAccessory` comments corrected to the
+  top-right "?"; the plan's file manifest pointed at where the planned `CrateImportTests`
+  cases actually landed (`WorkspaceModelTests`). No app behaviour changed.
 
-Agent verification is green: 1,564 Swift tests passed with 0 failures and 8 explicit skips;
-the iPhone app build, repository CI guards, and iPhone/watch smoke hooks passed; the Playlists
-and Now Playing UI-regression lanes passed. The DJ-mix lane made its explicit prerequisite skip
-because its Docker/mock-catalog dependency was unavailable, rather than reporting a false pass.
+A file-by-file re-audit against the plan (2026-08-18, after `ae328c6`) found **every T1–T11
+change present in the code** — all eight new sources, the deleted `GenreCrateImporter`, and
+zero remaining `sendToDJ` / "Send to DJ" references in `Sources`, `Tests` or
+`UIRegressionTests`. Verification at `f0ea427`: 1,564 Swift tests pass with 0 failures and 8
+explicit skips; `make ci-guards` clean; the pre-commit hook's iPhone and watch smoke lanes
+pass; and `xcodebuild build-for-testing -scheme TonearmUIRegression` compiles clean — worth
+saying out loud, because the commit hook never builds that target, so the T11 regression
+edits had not been proven to compile until this pass.
+
+**One item of the plan's definition of done is still open, and it is not agent-closable:**
+the **`djmix` UI-regression lane has never run green** — it takes its explicit prerequisite
+skip whenever Docker and the mock catalogue are unavailable, which is every run so far. It is
+the only lane exercising the two flows this pass rewrote end to end (`source.addToPlaylist` →
+new playlist, and `dj.crate.import.*` → picker → confirm). When Docker and a simulator are
+both available, run `make test-ui-regression LANES=djmix` once and record the result here.
+The Playlists and Now Playing lanes passed.
 
 **Two workstreams are open and have self-contained plans** — either can be picked up cold, and
 they do not depend on each other:
