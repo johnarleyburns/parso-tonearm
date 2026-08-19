@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The §41.18 coach's entry + overlay, added to every performance surface
 /// (the iPad workspace and the compact solo/twin postures). When closed it is
-/// a single always-tappable "Transitions" pill — **free tier**, so it sits
+/// a single always-tappable "?" button — **free tier**, so it sits
 /// outside the Pro gate's dimmed, non-interactive surface and is reachable
 /// before purchase (FR-TRANS-6). When opened it dims the surface (the decks
 /// keep playing underneath — the §42.7b drawer discipline) and floats the
@@ -42,9 +42,10 @@ public struct TransitionCoachAccessory: View {
         .animation(.easeInOut(duration: 0.2), value: model.isPresented)
     }
 
-    /// The always-tappable entry: a compact "Transitions" pill at the top
-    /// centre of the surface. Carries the `dj.coach` identifier (the §53.11
-    /// contract — VoiceOver and the regression suite can both find it).
+    /// The always-tappable entry: a "?" button in the surface's top-right
+    /// corner, labelled "Transitions" for VoiceOver. Carries the `dj.coach`
+    /// identifier (the §53.11 contract — VoiceOver and the regression suite can
+    /// both find it).
     private var entryButton: some View {
         Button {
             model.present()

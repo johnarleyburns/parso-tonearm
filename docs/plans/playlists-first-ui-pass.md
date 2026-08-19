@@ -859,7 +859,8 @@ a failure is not.
 | `Sources/DJ/Domain/PlaylistCrateImporter.swift` | DJ | app playlist → DJ crate bridge (T10) |
 | `Sources/DJ/Features/Workspace/CrateSheetView.swift` | DJ | the two-deck crate popup (T10) |
 | `Tests/PlaylistDedupTests.swift`, `Tests/MigrationV14Tests.swift`, `Tests/CacheAdoptionTests.swift`, `Tests/RemotePlaylistIngestTests.swift` | CoreTests | |
-| `Tests/DJTests/CrateImportTests.swift`, `Tests/DJTests/PlaylistCrateImporterTests.swift` | DJTests | |
+| `Tests/DJTests/PlaylistCrateImporterTests.swift` | DJTests | |
+| *(as landed)* the planned `Tests/DJTests/CrateImportTests.swift` cases live in `Tests/DJTests/WorkspaceModelTests.swift` | DJTests | all five assertions, beside the other `WorkspaceModel` tests |
 
 **Deleted:** `Sources/Features/Sources/GenreCrateImporter.swift` (T8).
 

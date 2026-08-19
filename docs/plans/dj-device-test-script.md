@@ -57,7 +57,9 @@ One continuous session. Do not skip steps; the point is that it works as a
 sequence, not that each part works alone.
 
 1. **Open the app → DJ tab** (the dock's slider icon). The home screen reads
-   **Platterhead DJ** with rows: Purchase, Decks, Library, Mixes, MIDI.
+   **Platterhead DJ** with sections in this order: Purchase; **Library**
+   (Playlists, Recorded Mixes); **Perform** (Open DJ Mixer); **Hardware** (MIDI
+   controller). "Playlists" opens the Playlists screen as a sheet.
 2. **Pick a genre.** Libraries → **Add** → **Add Remote Library** → the Jamendo
    genre connector → expand **Electronic** → select **Techno** *and* **House** →
    **Add**.
@@ -66,28 +68,41 @@ sequence, not that each part works alone.
      narrative depends on it.
 3. **Browse each genre** and confirm the track list is ordered by interest, with
    real titles and artists.
-4. **Send each to the DJ library** ("Send to DJ" → the button reads **Saved**).
-   Both become crates.
-5. **DJ → Decks.** Load a Techno track on deck A and a House track on deck B,
-   from their own crates.
+4. **Add each genre to its own playlist.** In the genre's browse screen tap the
+   header **+** → set the count (the stepper, or the slider for a big library) →
+   the playlist picker → **Create a new playlist…** → name it for the genre →
+   **Add**.
+   - ✅ The sheet reports the outcome honestly ("N added · N unavailable") and
+     the tracks download as they land. A playlist is now the crate concept —
+     there is no "Send to DJ" button, by design.
+5. **DJ → Open DJ Mixer → CRATE.** The sheet has a half for each deck. On deck
+   A's half tap **Import playlist**, expand **Techno** to see its songs, select
+   it and **Import**; do the same on deck B's half with **House**. Each half's
+   header then reads `DECK A — Techno` / `DECK B — House`.
+   - ✅ A track whose audio is not on the device is listed as **not on this
+     device** and reported as skipped — never silently dropped.
+   - ✅ The crate sheet never covers the crossfader bar.
+6. **Load from the crates.** Tap a Techno row on deck A and a House row on deck
+   B, each from its own half.
    - ✅ The waveforms are **real** — band-split colour, a phrase ribbon, a beat
      grid that lines up with what you hear. Placeholder geometry (flat, uniform,
      identical between tracks) is a failure.
-6. **Play both. Beatmatch and mix**, using all five transitions at least once:
+7. **Play both. Beatmatch and mix**, using all five transitions at least once:
    **Bass Swap, Filter, Echo Out, Fader Cut, Blend** (§2 below has what each
-   should sound like).
-7. **Record a 20-minute set** — the record chip in the transport. Keep mixing;
+   should sound like). The transitions panel is the **?** in the surface's
+   top-right corner.
+8. **Record a 20-minute set** — the record chip in the transport. Keep mixing;
    change tracks as you go.
-8. **Stop and finish.** Title it. The finish sheet shows duration, **M4A · AAC
+9. **Stop and finish.** Title it. The finish sheet shows duration, **M4A · AAC
    256 kbps**, file size, the timeline of what played, and attribution.
-9. **Listen to it immediately, in the app** — the review-listen transport on the
-   finish sheet. Scrub it. Tap a green transition marker.
-   - ✅ It plays *in place*, with no export step and no re-encode wait.
-10. **Export and share it** — Save to Files and/or the share sheet. Play the
+10. **Listen to it immediately, in the app** — the review-listen transport on the
+    finish sheet. Scrub it. Tap a green transition marker.
+    - ✅ It plays *in place*, with no export step and no re-encode wait.
+11. **Export and share it** — Save to Files and/or the share sheet. Play the
     exported file somewhere else: Music, QuickTime, another phone.
     - ✅ It plays elsewhere, start to end, and sounds like the set you performed.
 
-**This section passes only if all ten do.** Note anything that surprised you
+**This section passes only if all eleven do.** Note anything that surprised you
 even if it technically passed — this is the narrative a first tester meets.
 
 ---
@@ -235,8 +250,8 @@ Each of these happens *during a live mix, while recording*.
 
 ## 11 · Purchase (App Store Connect §3)
 
-1. As a **free** user, open Decks. ✅ The surface is the real one, dimmed, with a
-   lock chip — not a blank wall.
+1. As a **free** user, tap **Open DJ Mixer**. ✅ The surface is the real one,
+   dimmed, with a lock chip — not a blank wall.
 2. Tap the lock chip. ✅ The paywall shows a **real localised price**, not a
    placeholder dash.
 3. Buy it (sandbox). ✅ The decks unlock **with no relaunch**.

@@ -293,8 +293,13 @@ extension XCUIApplication {
 
     func addVisibleRemoteTracks(toNewPlaylist title: String) {
         waitFor("source.addToPlaylist").tap()
-        let slider = waitFor("remoteAdd.slider")
-        slider.adjust(toNormalizedSliderPosition: 1)
+        // The stepper is always there; the slider only renders when the scope
+        // holds more than one track, and a one-track scope is already at its max.
+        waitFor("remoteAdd.count")
+        let slider = element("remoteAdd.slider")
+        if slider.waitForExistence(timeout: 5) {
+            slider.adjust(toNormalizedSliderPosition: 1)
+        }
         waitFor("remoteAdd.playlist").tap()
         buttons["Create a new playlist…"].tap()
         let name = waitFor("remoteAdd.name")
