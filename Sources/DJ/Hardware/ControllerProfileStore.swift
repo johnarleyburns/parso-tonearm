@@ -50,8 +50,8 @@ public struct ControllerProfileStore: Sendable {
             for binding in profile.bindings {
                 try db.execute(sql: """
                     INSERT INTO midi_binding
-                        (mappingID, target, messageType, channel, number, mode, minValue, maxValue, invert, takeover)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (mappingID, target, messageType, channel, number, mode, minValue, maxValue, invert, takeover, resolution)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, arguments: [mappingID,
                                      binding.action.target,
                                      binding.address.type.rawValue,
@@ -61,7 +61,8 @@ public struct ControllerProfileStore: Sendable {
                                      Int(binding.transform.minimum * 127),
                                      Int(binding.transform.maximum * 127),
                                      binding.transform.invert,
-                                     binding.takeover.rawValue])
+                                     binding.takeover.rawValue,
+                                     binding.resolution.rawValue])
             }
         }
     }
@@ -79,7 +80,7 @@ public struct ControllerProfileStore: Sendable {
                                             endpointName: row["midiEndpointName"])
             let bindingRows = try Row.fetchAll(db, sql: """
                 SELECT b.target, b.messageType, b.channel, b.number, b.mode,
-                       b.minValue, b.maxValue, b.invert, b.takeover
+                       b.minValue, b.maxValue, b.invert, b.takeover, b.resolution
                 FROM midi_binding b
                 JOIN midi_mapping m ON m.id = b.mappingID
                 WHERE m.profileID = ?
@@ -91,7 +92,8 @@ public struct ControllerProfileStore: Sendable {
                 guard let action = EngineAction.parse(target: row["target"]),
                       let type = MidiAddress.MessageType(rawValue: row["messageType"]),
                       let mode = ValueTransform.Mode(rawValue: row["mode"]),
-                      let takeover = Takeover(rawValue: row["takeover"]) else { continue }
+                      let takeover = Takeover(rawValue: row["takeover"]),
+                      let resolution = MidiBinding.Resolution(rawValue: row["resolution"]) else { continue }
                 let minimum = Float(row["minValue"] as Int) / 127
                 let maximum = Float(row["maxValue"] as Int) / 127
                 profile.bindings.append(MidiBinding(
@@ -99,7 +101,7 @@ public struct ControllerProfileStore: Sendable {
                     action: action,
                     transform: ValueTransform(mode: mode, minimum: minimum, maximum: maximum,
                                               invert: row["invert"]),
-                    takeover: takeover))
+                    takeover: takeover, resolution: resolution))
             }
             return profile
         }

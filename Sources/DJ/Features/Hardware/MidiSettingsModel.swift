@@ -16,6 +16,8 @@ public final class MidiSettingsModel: ObservableObject {
     /// The last message seen while learning — shown so the user can confirm it
     /// is the control they meant before it is bound.
     @Published public private(set) var capturedAddress: MidiAddress?
+    /// Offered only after a complete MSB/LSB pair was observed during capture.
+    @Published public private(set) var capturedResolution: MidiBinding.Resolution = .sevenBit
     @Published public private(set) var statusMessage: String?
     /// The index into `setupSteps` while the guided walkthrough is running
     /// (plan dj-midi-alpha M4); nil when it is not.
@@ -25,6 +27,7 @@ public final class MidiSettingsModel: ObservableObject {
     private let store: ControllerProfileStore?
     private let syncID: String
     private var messageTask: Task<Void, Never>?
+    private var learningAssembler = MidiValueAssembler()
 
     public init(hardware: HardwareService = HardwareService(),
                 store: ControllerProfileStore? = nil,
@@ -80,6 +83,8 @@ public final class MidiSettingsModel: ObservableObject {
     private func beginLearningInternal(_ action: EngineAction) {
         learningAction = action
         capturedAddress = nil
+        capturedResolution = .sevenBit
+        learningAssembler = MidiValueAssembler()
         statusMessage = isRunningSetup
             ? (currentSetupStep?.prompt ?? "Move the control you want for \(action.displayName).")
             : "Move the control you want for \(action.displayName)."
@@ -90,6 +95,8 @@ public final class MidiSettingsModel: ObservableObject {
     public func cancelLearning() {
         learningAction = nil
         capturedAddress = nil
+        capturedResolution = .sevenBit
+        learningAssembler = MidiValueAssembler()
         statusMessage = nil
         hardware.endLearning()
     }
@@ -100,7 +107,8 @@ public final class MidiSettingsModel: ObservableObject {
     /// and confirms.
     public func commitLearning() {
         guard let action = learningAction, let address = capturedAddress else { return }
-        profile.learn(action, at: address, transform: action.defaultTransform)
+        profile.learn(action, at: address, transform: action.defaultTransform,
+                      resolution: capturedResolution)
         statusMessage = "\(action.displayName) is now \(bindingDescription(for: action))."
         learningAction = nil
         capturedAddress = nil
@@ -244,9 +252,20 @@ public final class MidiSettingsModel: ObservableObject {
                 // A release (value 0) is not the control being moved — binding
                 // to it would capture the note-off of the previous tap.
                 guard message.value > 0 else { continue }
-                self.capturedAddress = message.address
+                let now = DispatchTime.now().uptimeNanoseconds
+                if let pairAddress = self.learningAssembler.observePair(message, at: now) {
+                    self.capturedAddress = pairAddress
+                    self.capturedResolution = .fourteenBit
+                } else if self.capturedResolution == .sevenBit {
+                    self.capturedAddress = message.address
+                }
             }
         }
+    }
+
+    public func setCapturedResolution(_ resolution: MidiBinding.Resolution) {
+        guard capturedResolution == .fourteenBit || resolution == .sevenBit else { return }
+        capturedResolution = resolution
     }
 
     private func persist() {

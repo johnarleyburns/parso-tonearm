@@ -6,9 +6,9 @@ import GRDB
 final class DJSchemaTests: XCTestCase {
     func testMigrationOrderIsAppendOnly() {
         XCTAssertEqual(DJSchema.migrationOrder,
-                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6"])
+                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7"])
         XCTAssertEqual(DJSchema.migrator().migrations,
-                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6"])
+                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7"])
     }
 
     /// `dj_v6` (plan dj-midi-alpha M2): the soft-takeover mode is a property of
@@ -27,6 +27,19 @@ final class DJSchemaTests: XCTestCase {
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM midi_binding") ?? 0
         }
         XCTAssertEqual(count, 0)
+    }
+
+    /// `dj_v7` (plan dj-midi-alpha M6): 14-bit CC resolution is opt-in and
+    /// existing bindings retain the seven-bit wire behavior.
+    func testV7AddsFourteenBitResolutionToMidiBindings() throws {
+        let db = try DatabaseQueue()
+        try DJSchema.migrator().migrate(db)
+        try db.read { db in
+            let columns = try db.columns(in: "midi_binding")
+            let resolution = try XCTUnwrap(columns.first(where: { $0.name == "resolution" }))
+            XCTAssertEqual(resolution.defaultValueSQL, "'sevenBit'")
+            XCTAssertTrue(resolution.isNotNull)
+        }
     }
 
     func testApplyingAllMigrationsCreatesRelationalCoreTables() throws {

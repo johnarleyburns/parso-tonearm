@@ -14,6 +14,105 @@ final class MidiMappingTests: XCTestCase {
     private let fader = MidiAddress(type: .cc, channel: 1, number: 7)
     private let pad = MidiAddress(type: .note, channel: 1, number: 36)
 
+    // MARK: - Output feedback
+
+    func testFeedbackStateChangeTargetsTheBoundButton() {
+        let event = MidiFeedbackEvent(address: pad, value: 127)
+        var throttler = MidiFeedbackThrottler(intervalNanoseconds: 20)
+
+        XCTAssertEqual(throttler.submit(event, at: 100), [event])
+        XCTAssertEqual(event.address, pad)
+        XCTAssertEqual(event.value, 127)
+    }
+
+    func testFeedbackThrottleCollapsesABurstToTheLatestState() {
+        var throttler = MidiFeedbackThrottler(intervalNanoseconds: 20)
+        let on = MidiFeedbackEvent(address: pad, value: 127)
+        let off = MidiFeedbackEvent(address: pad, value: 0)
+
+        XCTAssertEqual(throttler.submit(on, at: 100), [on])
+        XCTAssertEqual(throttler.submit(off, at: 101), [])
+        XCTAssertEqual(throttler.submit(on, at: 102), [])
+        XCTAssertEqual(throttler.flush(at: 119), [])
+        XCTAssertEqual(throttler.flush(at: 120), [on])
+    }
+
+    // MARK: - 14-bit CC assembly
+
+    func testFourteenBitCCAssemblesMSBAndLSB() {
+        var profile = ControllerProfile(name: "test")
+        profile.learn(.tempo(deck: .a), at: fader, transform: .unipolar,
+                      takeover: .jump)
+        profile.bindings[0] = MidiBinding(address: fader, action: .tempo(deck: .a),
+                                          transform: .unipolar, takeover: .jump,
+                                          resolution: .fourteenBit)
+        var assembler = MidiValueAssembler(windowNanoseconds: 20)
+
+        XCTAssertEqual(assembler.submit(MidiMessage(address: fader, value: 65),
+                                        profile: profile, at: 100), [])
+        let lsb = MidiAddress(type: .cc, channel: 1, number: 39)
+        XCTAssertEqual(assembler.submit(MidiMessage(address: lsb, value: 7),
+                                        profile: profile, at: 101),
+                       [MidiMessage(address: fader, value: (65 << 7) | 7)])
+    }
+
+    func testFourteenBitMSBFallsBackToSevenBitAfterWindow() {
+        var profile = ControllerProfile(name: "test")
+        profile.learn(.tempo(deck: .a), at: fader, transform: .unipolar,
+                      takeover: .jump)
+        profile.bindings[0] = MidiBinding(address: fader, action: .tempo(deck: .a),
+                                          transform: .unipolar, takeover: .jump,
+                                          resolution: .fourteenBit)
+        var assembler = MidiValueAssembler(windowNanoseconds: 20)
+        _ = assembler.submit(MidiMessage(address: fader, value: 65), profile: profile, at: 100)
+        XCTAssertEqual(assembler.flush(at: 119), [])
+        XCTAssertEqual(assembler.flush(at: 120), [MidiMessage(address: fader, value: 65)])
+    }
+
+    func testFourteenBitPairsStayIndependentAndSupportLSBFirst() {
+        let second = MidiAddress(type: .cc, channel: 1, number: 8)
+        var profile = ControllerProfile(name: "test")
+        profile.learn(.tempo(deck: .a), at: fader, transform: .unipolar,
+                      takeover: .jump)
+        profile.learn(.filter(deck: .a), at: second, transform: .unipolar,
+                      takeover: .jump)
+        profile.bindings = profile.bindings.map {
+            MidiBinding(address: $0.address, action: $0.action, transform: $0.transform,
+                        takeover: $0.takeover, resolution: .fourteenBit)
+        }
+        var assembler = MidiValueAssembler(windowNanoseconds: 20)
+        let firstLSB = MidiAddress(type: .cc, channel: 1, number: 39)
+        XCTAssertEqual(assembler.submit(MidiMessage(address: firstLSB, value: 3), profile: profile, at: 100), [])
+        XCTAssertEqual(assembler.submit(MidiMessage(address: second, value: 10), profile: profile, at: 101), [])
+        XCTAssertEqual(assembler.submit(MidiMessage(address: fader, value: 2), profile: profile, at: 102),
+                       [MidiMessage(address: fader, value: (2 << 7) | 3)])
+    }
+
+    func testLearnOnlyOffersFourteenBitAfterSeeingACompletePair() {
+        var assembler = MidiValueAssembler(windowNanoseconds: 20)
+        let lsb = MidiAddress(type: .cc, channel: 1, number: 39)
+
+        XCTAssertNil(assembler.observePair(MidiMessage(address: fader, value: 65), at: 100))
+        XCTAssertEqual(assembler.observePair(MidiMessage(address: lsb, value: 7), at: 101), fader)
+        XCTAssertNil(assembler.observePair(MidiMessage(address: MidiAddress(type: .cc, channel: 1, number: 70), value: 1), at: 102))
+    }
+
+    func testLearningPersistsTheObservedFourteenBitResolution() async throws {
+        let (pool, _) = try makePool()
+        let model = MidiSettingsModel(hardware: HardwareService(),
+                                      store: ControllerProfileStore(pool: pool))
+        model.beginLearning(.tempo(deck: .a))
+        await settle()
+        model.hardware.receive(MidiMessage(address: fader, value: 65))
+        model.hardware.receive(MidiMessage(address: MidiAddress(type: .cc, channel: 1, number: 39), value: 7))
+        await settle()
+
+        XCTAssertEqual(model.capturedAddress, fader)
+        XCTAssertEqual(model.capturedResolution, .fourteenBit)
+        model.commitLearning()
+        XCTAssertEqual(model.profile.binding(for: fader)?.resolution, .fourteenBit)
+    }
+
     // MARK: - Transforms
 
     func testAbsoluteMapsAcrossTheEngineRange() {

@@ -320,6 +320,7 @@ public final class WorkspaceModel: ObservableObject {
     /// §44.4: the active controller map, and the task delivering its messages.
     private var midiProfile: ControllerProfile?
     private var midiTask: Task<Void, Never>?
+    private var midiAssemblerTask: Task<Void, Never>?
     /// The `HardwareService` backing the attached controller. Held so it
     /// outlives the assembly call that attached it (plan dj-midi-alpha M1) and
     /// is released on `detachMidi()`.
@@ -328,6 +329,7 @@ public final class WorkspaceModel: ObservableObject {
     /// attachment, so a finger driving an action on the touchscreen can reset
     /// the physical control's claim on it.
     private var midiTakeover = TakeoverState()
+    private var midiAssembler = MidiValueAssembler()
     /// True while a routed MIDI intent is being applied, so the touchscreen
     /// setters it goes through do not reset their own pickup claims.
     private var isApplyingMidi = false
@@ -1432,32 +1434,55 @@ public final class WorkspaceModel: ObservableObject {
         midiProfile = profile
         midiHardware = hardware
         midiTask?.cancel()
+        midiAssemblerTask?.cancel()
+        midiAssembler = MidiValueAssembler()
         midiTask = Task { [weak self] in
             for await message in hardware.messages {
                 guard let self, let profile = self.midiProfile else { continue }
-                // A controller must not drive a Pro-gated surface it cannot
-                // otherwise reach — the gate is checked at the intent boundary
-                // (T.3), which is exactly here.
-                guard self.isDecksEnabled else { continue }
-                // Look the binding up once: an unbound address must return
-                // before any value is read, or an unmapped relative encoder
-                // reads some other control's value as its base (plan M1's
-                // latent-bug fix).
-                guard let binding = profile.binding(for: message.address) else { continue }
-                guard let intent = MidiRouter.intent(
-                    for: message, profile: profile,
-                    currentValue: self.currentValue(of: binding.action),
-                    takeover: &self.midiTakeover) else { continue }
-                self.apply(intent)
+                let messages = self.midiAssembler.submit(message, profile: profile,
+                                                         at: DispatchTime.now().uptimeNanoseconds)
+                for message in messages { self.routeMidiMessage(message, profile: profile) }
             }
         }
+        midiAssemblerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: MidiValueAssembler.defaultWindowNanoseconds)
+                guard !Task.isCancelled else { break }
+                self?.flushMidiAssembler()
+            }
+        }
+    }
+
+    private func flushMidiAssembler() {
+        guard let profile = midiProfile else { return }
+        let messages = midiAssembler.flush(at: DispatchTime.now().uptimeNanoseconds)
+        for message in messages { routeMidiMessage(message, profile: profile) }
+    }
+
+    private func routeMidiMessage(_ message: MidiMessage, profile: ControllerProfile) {
+        // A controller must not drive a Pro-gated surface it cannot otherwise
+        // reach — the gate is checked at the intent boundary (T.3), which is
+        // exactly here.
+        guard isDecksEnabled else { return }
+        // Look the binding up once: an unbound address must return before any
+        // value is read, or an unmapped relative encoder reads some other
+        // control's value as its base (plan M1's latent-bug fix).
+        guard let binding = profile.binding(for: message.address) else { return }
+        guard let intent = MidiRouter.intent(
+            for: message, profile: profile,
+            currentValue: currentValue(of: binding.action),
+            takeover: &midiTakeover) else { return }
+        apply(intent)
     }
 
     public func detachMidi() {
         midiTask?.cancel()
         midiTask = nil
+        midiAssemblerTask?.cancel()
+        midiAssemblerTask = nil
         midiProfile = nil
         midiHardware = nil
+        midiAssembler = MidiValueAssembler()
         midiTakeover.reset()
         midiPendingPickup = [:]
     }
@@ -1478,6 +1503,7 @@ public final class WorkspaceModel: ObservableObject {
             if case .jogTouch(let deck) = action {
                 midiJogTouchRelease(engineDeck(deck))
             }
+            publishMidiFeedback(for: action, release: true)
             return
         case .awaitingPickup(let action, let distance):
             // The physical control has not caught the engine value yet: surface
@@ -1493,7 +1519,45 @@ public final class WorkspaceModel: ObservableObject {
             isApplyingMidi = true
             defer { isApplyingMidi = false }
             applyPress(action)
+            publishMidiFeedback(for: action)
         }
+    }
+
+    /// Reflect only button state back to the controller. Continuous controls
+    /// are intentionally excluded: LED feedback for faders/encoders is both
+    /// noisy and unsupported by the alpha contract. The state is read after
+    /// the same public action method that a finger uses, so there is no second
+    /// source of truth.
+    private func publishMidiFeedback(for action: EngineAction, release: Bool = false) {
+        guard let profile = midiProfile,
+              let binding = profile.bindings.first(where: { $0.action == action }),
+              binding.transform.mode == .toggle || binding.transform.mode == .trigger,
+              let hardware = midiHardware else { return }
+        if release, binding.transform.mode != .trigger { return }
+        let value: Int
+        if binding.transform.mode == .trigger {
+            value = release ? 0 : 127
+        } else {
+            switch action {
+            case .play(let deck):
+                value = (deck == .a ? telemetry.deckA.playing : telemetry.deckB.playing) ? 127 : 0
+            case .cue(let deck), .headphoneCue(let deck):
+                value = isCued(engineDeck(deck)) ? 127 : 0
+            case .sync(let deck):
+                value = isSynced(engineDeck(deck)) ? 127 : 0
+            case .echoToggle(let deck):
+                value = echoEnabled(engineDeck(deck)) ? 127 : 0
+            case .record:
+                value = isRecording ? 127 : 0
+            case .loopToggle:
+                // Loop state is owned by the engine; the action is still useful as
+                // a trigger, so acknowledge the press without inventing state.
+                value = 127
+            default:
+                value = 0
+            }
+        }
+        hardware.sendFeedback(MidiFeedbackEvent(address: binding.address, value: value))
     }
 
     /// The pending-pickup list for the catch indicator: one row per awaiting

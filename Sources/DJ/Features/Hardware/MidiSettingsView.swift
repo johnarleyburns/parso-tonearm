@@ -38,6 +38,16 @@ public struct MidiSettingsView: View {
                             .font(.footnote.monospaced())
                             .accessibilityIdentifier("midi.setup.captured")
                     }
+                    if model.capturedResolution == .fourteenBit {
+                        Picker("Control resolution", selection: Binding(
+                            get: { model.capturedResolution },
+                            set: { model.setCapturedResolution($0) }
+                        )) {
+                            Text("7-bit").tag(MidiBinding.Resolution.sevenBit)
+                            Text("14-bit (MSB + LSB)").tag(MidiBinding.Resolution.fourteenBit)
+                        }
+                        .accessibilityIdentifier("midi.setup.resolution")
+                    }
                     HStack {
                         Button("Bind & continue") { model.commitLearning() }
                             .disabled(model.capturedAddress == nil)
@@ -112,6 +122,16 @@ public struct MidiSettingsView: View {
                              + "· channel \(captured.channel)")
                             .font(.footnote.monospaced())
                             .accessibilityIdentifier("midi.learn.captured")
+                    }
+                    if model.capturedResolution == .fourteenBit {
+                        Picker("Control resolution", selection: Binding(
+                            get: { model.capturedResolution },
+                            set: { model.setCapturedResolution($0) }
+                        )) {
+                            Text("7-bit").tag(MidiBinding.Resolution.sevenBit)
+                            Text("14-bit (MSB + LSB)").tag(MidiBinding.Resolution.fourteenBit)
+                        }
+                        .accessibilityIdentifier("midi.learn.resolution")
                     }
                     HStack {
                         Button("Bind to \(action.displayName)") { model.commitLearning() }

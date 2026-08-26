@@ -43,7 +43,11 @@ public final class HardwareService: ObservableObject {
 
     private var client = MIDIClientRef()
     private var inputPort = MIDIPortRef()
+    private var outputPort = MIDIPortRef()
     private var started = false
+    private var connectedEndpointName: String?
+    private var feedbackThrottler = MidiFeedbackThrottler()
+    private var feedbackFlushTask: Task<Void, Never>?
 
     /// Every message, for whoever is listening — the workspace binds this to
     /// the router. A stream rather than a delegate so it marshals like the
@@ -61,6 +65,8 @@ public final class HardwareService: ObservableObject {
         // CoreMIDI objects are process-global; leaving a client behind on
         // teardown leaks an input port for the life of the app.
         if inputPort != 0 { MIDIPortDispose(inputPort) }
+        if outputPort != 0 { MIDIPortDispose(outputPort) }
+        feedbackFlushTask?.cancel()
         if client != 0 { MIDIClientDispose(client) }
     }
 
@@ -97,6 +103,11 @@ public final class HardwareService: ObservableObject {
             lastError = "CoreMIDI input port could not be created (OSStatus \(status))."
             return
         }
+        status = MIDIOutputPortCreate(client, "Platterhead output" as CFString, &outputPort)
+        guard status == noErr else {
+            lastError = "CoreMIDI output port could not be created (OSStatus \(status))."
+            return
+        }
         started = true
         refreshEndpoints()
     }
@@ -131,6 +142,7 @@ public final class HardwareService: ObservableObject {
             let status = MIDIPortConnectSource(inputPort, source, nil)
             if status == noErr {
                 connectedEndpointID = endpoint.id
+                connectedEndpointName = endpoint.name
                 lastError = nil
             } else {
                 lastError = "Could not connect to \(endpoint.name) (OSStatus \(status))."
@@ -155,6 +167,83 @@ public final class HardwareService: ObservableObject {
     public func receive(_ message: MidiMessage) {
         lastMessage = message
         continuation?.yield(message)
+    }
+
+    /// Send a button LED/state update to the destination belonging to the
+    /// connected source. Input-only devices simply surface an honest error
+    /// when feedback is requested; they do not make input or learning fail.
+    public func sendFeedback(_ event: MidiFeedbackEvent) {
+        let now = DispatchTime.now().uptimeNanoseconds
+        let ready = feedbackThrottler.submit(event, at: now)
+        ready.forEach(sendImmediately(_:))
+        guard feedbackFlushTask == nil else { return }
+        feedbackFlushTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: MidiFeedbackThrottler.defaultIntervalNanoseconds)
+            guard !Task.isCancelled else { return }
+            self?.flushFeedback()
+        }
+    }
+
+    private func flushFeedback() {
+        feedbackFlushTask = nil
+        let now = DispatchTime.now().uptimeNanoseconds
+        let ready = feedbackThrottler.flush(at: now)
+        ready.forEach(sendImmediately(_:))
+        if !feedbackThrottler.isEmpty {
+            feedbackFlushTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: MidiFeedbackThrottler.defaultIntervalNanoseconds)
+                guard !Task.isCancelled else { return }
+                self?.flushFeedback()
+            }
+        }
+    }
+
+    private func sendImmediately(_ event: MidiFeedbackEvent) {
+        guard outputPort != 0, let name = connectedEndpointName else {
+            lastError = "MIDI feedback unavailable: no output destination is connected."
+            return
+        }
+        var destination: MIDIEndpointRef = 0
+        for index in 0..<MIDIGetNumberOfDestinations() {
+            let candidate = MIDIGetDestination(index)
+            guard candidate != 0 else { continue }
+            let candidateName = Self.stringProperty(candidate, kMIDIPropertyDisplayName)
+                ?? Self.stringProperty(candidate, kMIDIPropertyName)
+            if candidateName == name {
+                destination = candidate
+                break
+            }
+        }
+        guard destination != 0 else {
+            lastError = "MIDI feedback unavailable: \(name) has no output destination."
+            return
+        }
+
+        var packetList = MIDIPacketList()
+        let packet = MIDIPacketListInit(&packetList)
+        var bytes: [UInt8]
+        switch event.address.type {
+        case .cc:
+            bytes = [0xB0 | UInt8(max(0, min(15, event.address.channel - 1))),
+                     UInt8(max(0, min(127, event.address.number))),
+                     UInt8(max(0, min(127, event.value)))]
+        case .note:
+            bytes = [0x90 | UInt8(max(0, min(15, event.address.channel - 1))),
+                     UInt8(max(0, min(127, event.address.number))),
+                     UInt8(max(0, min(127, event.value)))]
+        case .pitchBend:
+            let value = max(0, min(16383, event.value))
+            bytes = [0xE0 | UInt8(max(0, min(15, event.address.channel - 1))),
+                     UInt8(value & 0x7F), UInt8((value >> 7) & 0x7F)]
+        }
+        bytes.withUnsafeBufferPointer { buffer in
+            _ = MIDIPacketListAdd(&packetList, MemoryLayout<MIDIPacketList>.size,
+                                  packet, 0, buffer.count, buffer.baseAddress!)
+        }
+        let status = MIDISend(outputPort, destination, &packetList)
+        if status != noErr {
+            lastError = "Could not send MIDI feedback (OSStatus \(status))."
+        }
     }
 
     // MARK: - Parsing

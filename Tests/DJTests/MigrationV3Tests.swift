@@ -7,9 +7,9 @@ final class MigrationV3Tests: XCTestCase {
 
     func testMigrationOrderIsAppendOnly() {
         XCTAssertEqual(DJSchema.migrationOrder,
-                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6"])
+                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7"])
         XCTAssertEqual(DJSchema.migrator().migrations,
-                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6"])
+                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7"])
     }
 
     func testV3CreatesEmbeddingTables() throws {

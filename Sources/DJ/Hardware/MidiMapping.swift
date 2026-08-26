@@ -296,6 +296,11 @@ public struct ValueTransform: Sendable, Equatable, Codable {
 
 /// One control on one controller, bound to one action (§44.4).
 public struct MidiBinding: Sendable, Equatable, Codable {
+    public enum Resolution: String, Sendable, Equatable, Codable {
+        case sevenBit
+        case fourteenBit
+    }
+
     public let address: MidiAddress
     public let action: EngineAction
     public let transform: ValueTransform
@@ -304,13 +309,15 @@ public struct MidiBinding: Sendable, Equatable, Codable {
     /// picks up, a button jumps — and a profile can carry a per-binding
     /// override.
     public let takeover: Takeover
+    public let resolution: Resolution
 
     public init(address: MidiAddress, action: EngineAction, transform: ValueTransform,
-                takeover: Takeover? = nil) {
+                takeover: Takeover? = nil, resolution: Resolution = .sevenBit) {
         self.address = address
         self.action = action
         self.transform = transform
         self.takeover = takeover ?? action.defaultTakeover
+        self.resolution = resolution
     }
 
     /// A profile exported before M2 has no `takeover` key; it decodes to the
@@ -323,6 +330,8 @@ public struct MidiBinding: Sendable, Equatable, Codable {
         transform = try container.decode(ValueTransform.self, forKey: .transform)
         takeover = try container.decodeIfPresent(Takeover.self, forKey: .takeover)
             ?? action.defaultTakeover
+        resolution = try container.decodeIfPresent(Resolution.self, forKey: .resolution)
+            ?? .sevenBit
     }
 }
 
@@ -433,10 +442,12 @@ public struct ControllerProfile: Sendable, Equatable, Codable {
     /// control should do one thing, and an action should have one control —
     /// otherwise a half-relearned map moves the crossfader from two knobs.
     public mutating func learn(_ action: EngineAction, at address: MidiAddress,
-                               transform: ValueTransform? = nil, takeover: Takeover? = nil) {
+                               transform: ValueTransform? = nil, takeover: Takeover? = nil,
+                               resolution: MidiBinding.Resolution = .sevenBit) {
         bindings.removeAll { $0.address == address || $0.action == action }
         bindings.append(MidiBinding(address: address, action: action,
                                     transform: transform ?? action.defaultTransform,
-                                    takeover: takeover ?? action.defaultTakeover))
+                                    takeover: takeover ?? action.defaultTakeover,
+                                    resolution: resolution))
     }
 }
