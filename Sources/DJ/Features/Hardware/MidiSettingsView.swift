@@ -97,7 +97,7 @@ public struct MidiSettingsView: View {
                                     }
                                 }
                                 Spacer()
-                                if model.hardware.connectedEndpointID == endpoint.id {
+                                if model.hardware.connectedEndpointIDs.contains(endpoint.id) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(.green)
                                 }

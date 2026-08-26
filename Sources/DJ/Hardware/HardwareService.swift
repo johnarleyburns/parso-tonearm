@@ -30,7 +30,9 @@ public final class HardwareService: ObservableObject {
     }
 
     @Published public private(set) var endpoints: [Endpoint] = []
-    @Published public private(set) var connectedEndpointID: MIDIUniqueID?
+    /// Sources currently connected to the input port. A controller plus a
+    /// foot switch is an ordinary rig, so this must not be a single ID.
+    @Published public private(set) var connectedEndpointIDs: Set<MIDIUniqueID> = []
     /// The most recent message seen, so a learn UI can show the control the
     /// user just moved before they commit to binding it.
     @Published public private(set) var lastMessage: MidiMessage?
@@ -45,7 +47,7 @@ public final class HardwareService: ObservableObject {
     private var inputPort = MIDIPortRef()
     private var outputPort = MIDIPortRef()
     private var started = false
-    private var connectedEndpointName: String?
+    private var connectedEndpointNames: [MIDIUniqueID: String] = [:]
     private var feedbackThrottler = MidiFeedbackThrottler()
     private var feedbackFlushTask: Task<Void, Never>?
 
@@ -127,9 +129,17 @@ public final class HardwareService: ObservableObject {
         // A controller that was connected and has gone away must not keep
         // showing as connected — the user needs to know the pads stopped
         // working because the cable came out.
-        if let connected = connectedEndpointID, !found.contains(where: { $0.id == connected }) {
-            connectedEndpointID = nil
-        }
+        connectedEndpointIDs = Self.retainedConnectedIDs(connectedEndpointIDs, among: found)
+        let foundIDs = Set(found.map(\.id))
+        connectedEndpointNames = connectedEndpointNames.filter { foundIDs.contains($0.key) }
+    }
+
+    /// Pure connection bookkeeping used by refresh and by the M7 regression
+    /// tests. A setup change removes only endpoints that disappeared; it does
+    /// not make the remaining controllers look disconnected.
+    nonisolated static func retainedConnectedIDs(_ connected: Set<MIDIUniqueID>,
+                                                  among endpoints: [Endpoint]) -> Set<MIDIUniqueID> {
+        connected.intersection(endpoints.map(\.id))
     }
 
     /// Connect to a source. Connecting to a second source does not disconnect
@@ -141,8 +151,8 @@ public final class HardwareService: ObservableObject {
             guard Self.uniqueID(of: source) == endpoint.id else { continue }
             let status = MIDIPortConnectSource(inputPort, source, nil)
             if status == noErr {
-                connectedEndpointID = endpoint.id
-                connectedEndpointName = endpoint.name
+                connectedEndpointIDs.insert(endpoint.id)
+                connectedEndpointNames[endpoint.id] = endpoint.name
                 lastError = nil
             } else {
                 lastError = "Could not connect to \(endpoint.name) (OSStatus \(status))."
@@ -199,23 +209,8 @@ public final class HardwareService: ObservableObject {
     }
 
     private func sendImmediately(_ event: MidiFeedbackEvent) {
-        guard outputPort != 0, let name = connectedEndpointName else {
+        guard outputPort != 0, !connectedEndpointIDs.isEmpty else {
             lastError = "MIDI feedback unavailable: no output destination is connected."
-            return
-        }
-        var destination: MIDIEndpointRef = 0
-        for index in 0..<MIDIGetNumberOfDestinations() {
-            let candidate = MIDIGetDestination(index)
-            guard candidate != 0 else { continue }
-            let candidateName = Self.stringProperty(candidate, kMIDIPropertyDisplayName)
-                ?? Self.stringProperty(candidate, kMIDIPropertyName)
-            if candidateName == name {
-                destination = candidate
-                break
-            }
-        }
-        guard destination != 0 else {
-            lastError = "MIDI feedback unavailable: \(name) has no output destination."
             return
         }
 
@@ -240,9 +235,23 @@ public final class HardwareService: ObservableObject {
             _ = MIDIPacketListAdd(&packetList, MemoryLayout<MIDIPacketList>.size,
                                   packet, 0, buffer.count, buffer.baseAddress!)
         }
-        let status = MIDISend(outputPort, destination, &packetList)
-        if status != noErr {
-            lastError = "Could not send MIDI feedback (OSStatus \(status))."
+        var sent = false
+        for index in 0..<MIDIGetNumberOfDestinations() {
+            let destination = MIDIGetDestination(index)
+            guard destination != 0,
+                  let candidateName = Self.stringProperty(destination, kMIDIPropertyDisplayName)
+                    ?? Self.stringProperty(destination, kMIDIPropertyName),
+                  connectedEndpointNames.values.contains(candidateName) else { continue }
+            let status = MIDISend(outputPort, destination, &packetList)
+            if status == noErr {
+                sent = true
+            } else {
+                lastError = "Could not send MIDI feedback (OSStatus \(status))."
+            }
+        }
+        if !sent && lastError == nil {
+            let names = connectedEndpointNames.values.sorted().joined(separator: ", ")
+            lastError = "MIDI feedback unavailable: \(names) has no output destination."
         }
     }
 

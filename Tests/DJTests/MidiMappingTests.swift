@@ -1,3 +1,4 @@
+import CoreMIDI
 import GRDB
 import XCTest
 @testable import TonearmDJ
@@ -13,6 +14,19 @@ final class MidiMappingTests: XCTestCase {
 
     private let fader = MidiAddress(type: .cc, channel: 1, number: 7)
     private let pad = MidiAddress(type: .note, channel: 1, number: 36)
+
+    // MARK: - Multi-device connection state
+
+    func testEndpointRefreshDropsOnlyTheUnpluggedController() {
+        let first = HardwareService.Endpoint(id: 101, name: "Deck controller", manufacturer: nil)
+        let second = HardwareService.Endpoint(id: 202, name: "Foot switch", manufacturer: nil)
+        let connected: Set<MIDIUniqueID> = [first.id, second.id]
+
+        XCTAssertEqual(HardwareService.retainedConnectedIDs(connected, among: [first, second]),
+                       [first.id, second.id])
+        XCTAssertEqual(HardwareService.retainedConnectedIDs(connected, among: [second]),
+                       [second.id])
+    }
 
     // MARK: - Output feedback
 
