@@ -1103,4 +1103,82 @@ by compiler or device evidence.
   `TonearmWatch` watchOS build and the `Tonearm` iOS build both succeeded.
   Known limitation: the new architecture flag remains off, so none of this is on the shipped
   launch path yet — `runLegacyUpgradeIfNeeded()` returns immediately until Phase 6 flips it.
-- Phase 3: **next**.
+- Phase 3 (2026-08-26, this commit): **complete** — one versioned, idempotent protocol, honest
+  connection state, transport-only adapters, and a deterministic fake duplex link that both
+  coordinators are driven through in `swift test`.
+
+  §5 ships as `Sources/WatchProtocol/`: `IDs.swift` (six `RawRepresentable` stable IDs that encode
+  as bare strings), `Errors.swift` (all sixteen §5.5 codes with a retry policy and a fixed copy
+  string each), `Snapshots.swift`, `Messages.swift` (all seventeen kinds, each with the §5.2
+  channel it belongs on), and `Envelope.swift` (binary plist, version-probed before decode).
+  `Connectivity/` adds the reducer, the ledger and revision gate, the transport seam, the router,
+  and the fake link.
+
+  Layout note against §13: the shared machinery sits in `TonearmWatchProtocol` because it is the
+  only common ancestor of the phone and watch targets, and `PhoneWatchProtocolCoordinator` sits in
+  `TonearmCore/Sources/WatchSync/` rather than `Sources/App/Watch/` because `Sources/App` is
+  excluded from the SwiftPM target and would therefore be invisible to `swift test` — the phase's
+  definition of done requires the *phone* coordinator to be driven by host tests. Ownership and the
+  forbidden dependencies are unchanged; only the subdivision adapted, which §13 permits.
+
+  Five decisions worth recording:
+
+  1. **`WatchProtocolFault` has no string field at all.** A-06 is not enforced by review but by the
+     type: there is nowhere to put a title, a query, a path, or a token. Display copy is a fixed
+     table keyed by the code, and a guard fails the build if a stored `String` property appears.
+  2. **The reducer is a pure value type taking `now: Date`.** The two-second grace period is
+     therefore tested at the millisecond without waiting two seconds, and the only real timer lives
+     in the coordinators' `graceTask`. `suspectedDisconnected` keeps `isConnectedForUI` true — C-08
+     is about the *mode* not switching, and a blip may move a transient chip but never Downloads-only
+     mode.
+  3. **A cached application context does not prove the peer is awake.** The first draft let
+     `activate(receivedContext:)` run through the same path as a live delivery, which drove the
+     reducer to `connected` from state the phone published hours ago; a watch out of range showed a
+     fully connected UI built entirely from cache. `accept(_:notesLiveness:)` now separates drawing
+     the state from believing the link (C-01 with an honest C-05..C-10).
+  4. **Reconnect renegotiates only after a *confirmed* outage.** Returning from a sub-grace blip
+     reuses the session; returning from `disconnected` sends a fresh hello, because the phone may
+     have been updated or switched libraries while it was away. One round trip per real absence,
+     none per flap.
+  5. **Search carries a double generation guard.** The generation echoed in the payload catches a
+     phone answering an older request; the coordinator's own counter catches a merely slow reply.
+     Either alone loses the race, so a superseded search returns `.superseded` — a first-class
+     outcome, distinct from "no results", so a late answer cannot repaint the list (C-04).
+
+  One concurrency exception exists in the whole phase, in both adapters: `nonisolated(unsafe) let
+  handler = replyHandler`. WatchConnectivity's `sendMessageData` reply handler predates `Sendable`,
+  is documented as callable from any queue exactly once, and cannot be transferred as `sending`
+  because it arrives as a task-isolated parameter of an Objective-C delegate method.
+  `@preconcurrency import` does not lift it. The exception is scoped to that one local binding and
+  is paired with `WatchReplyHandlerBox`, a `Mutex`-backed carrier that clears the closure under the
+  lock — so the "exactly once" half is enforced rather than merely documented. No `@unchecked
+  Sendable` was added; `WatchInMemoryLedgerPersistence` uses `Mutex` for the same reason.
+
+  Files changed: new `Sources/WatchProtocol/{IDs,Errors,Snapshots,Messages,Envelope}.swift` and
+  `Sources/WatchProtocol/Connectivity/{WatchConnectionReducer,WatchMessageLedger,WatchTransport,
+  WatchProtocolRouter,WatchFakeDuplexLink,WatchSessionTransport}.swift`; new
+  `Sources/WatchCore/Sync/{WatchConnectivityObserver,WatchConnectivityCoordinator}.swift`; new
+  `Sources/WatchSync/PhoneWatchProtocolCoordinator.swift`; new transport-only adapters
+  `WatchApp/Connectivity/WatchProtocolSessionAdapter.swift` and
+  `Sources/App/Watch/PhoneWatchProtocolAdapter.swift`; `ArchitectureTypes.swift` repointed at the
+  new envelope with `.legacy` retained for `WatchSyncEnvelope`; four new guards in
+  `scripts/check-ci-guards.sh`. Tests added: 65 — 17 `WatchProtocolEnvelopeTests`, 11
+  `WatchConnectionStateTests`, 12 `WatchMessageLedgerTests`, 25 `WatchProtocolIntegrationTests`.
+
+  Gates: `make ci-guards` passed, and the two new guards that can fail were each verified to fail
+  when violated (a stored `String` on the fault; a real `[String: Any]` in `WatchCore`) — the
+  dictionary guard strips comment lines first, because `WatchTransport.swift`'s doc comment states
+  the rule it enforces. `make project` regenerated; `git diff --check` clean. `swift test` passed
+  **1,667 tests with 8 intentional skips and 0 failures in 96.6s** (Phase 2 baseline: 1,602). The
+  `TonearmWatch` generic watchOS Simulator build and the `Tonearm` iPhone 16 simulator build both
+  succeeded with no new warnings.
+
+  Known limitations: the new protocol is not on the shipped path — neither adapter is wired into
+  an app assembly, and the legacy dictionary transport (`WatchSessionAdapter`,
+  `PhoneWatchSessionAdapter`, `WatchTransferController`) still runs the watch until Phase 6 flips
+  the flag; `WatchPhoneRequestHandling` ships with defaults that answer `sourceUnavailable`, since
+  Phase 4 supplies the GRDB-backed projections. C-11..C-14 are Device rows and remain deferred, as
+  do the I-05..I-11 measurements. Two pre-existing warnings in the untouched legacy files
+  `Sources/WatchSync/WatchTransferQueue.swift:80` and `WatchTransferController.swift:149` are
+  unchanged by this phase.
+- Phase 4: **next**.

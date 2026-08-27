@@ -164,6 +164,59 @@ if ! grep -q 'ProcessInfo.processInfo.arguments.contains("-swiftDataWatchArchite
 fi
 [ "$watch_ok" = "1" ] && echo "    OK"
 
+# ── Watch protocol boundary (Phase 3) ──────────────────────────────────────
+#
+# The Phase 3 definition of done: "no dynamic dictionary parsing exists outside
+# adapters". That is only enforceable if a grep can find the exceptions, so the
+# allowed list is here rather than in a comment somewhere.
+echo "==> Watch protocol boundary"
+protocol_ok=1
+
+# (a) `[String: Any]` is confined to the envelope's dictionary bridge and the two
+# WCSession adapters. Comment lines are stripped first: WatchTransport.swift's
+# doc comment *states this rule*, and a guard that fails on the file explaining
+# the guard is the StoreKit mistake above, repeated.
+DICT_ALLOWED="Sources/WatchProtocol/Envelope.swift
+Sources/WatchProtocol/Connectivity/WatchSessionTransport.swift
+WatchApp/Connectivity/WatchProtocolSessionAdapter.swift
+Sources/App/Watch/PhoneWatchProtocolAdapter.swift"
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+  printf '%s\n' "$DICT_ALLOWED" | grep -qxF "$file" && continue
+  if sed 's|//.*||' "$file" | grep -q '\[String: Any\]'; then
+    echo "    dynamic dictionary parsing outside an adapter: $file"
+    status=1; protocol_ok=0
+  fi
+done <<< "$(find Sources/WatchProtocol Sources/WatchCore WatchApp/Connectivity Sources/App/Watch -name '*.swift' 2>/dev/null)"
+
+# (b) A-06: a fault carries a code, never free text. A `String` *stored* property
+# on WatchProtocolFault is one refactor away from a title or a path on the wire.
+# Computed ones are fine and are how the copy is derived — `safeDisplayMessage`
+# reads a fixed table keyed by the code — so only declarations that end the line
+# (or carry a literal default) count.
+if sed -n '/public struct WatchProtocolFault/,/^}/p' Sources/WatchProtocol/Errors.swift \
+   | grep -qE '^[[:space:]]*public var [a-zA-Z]+: String\??([[:space:]]*=[^{]*)?[[:space:]]*$'; then
+  echo "    WatchProtocolFault gained a free-text field (A-06 forbids it)"
+  status=1; protocol_ok=0
+fi
+
+# (c) The adapters move bytes. A message kind named in one means protocol logic
+# has started leaking below the transport seam.
+for adapter in WatchApp/Connectivity/WatchProtocolSessionAdapter.swift Sources/App/Watch/PhoneWatchProtocolAdapter.swift; do
+  [ -f "$adapter" ] || continue
+  if sed 's|//.*||' "$adapter" | grep -q 'WatchMessageKind'; then
+    echo "    transport adapter interprets message kinds: $adapter"
+    status=1; protocol_ok=0
+  fi
+done
+
+# (d) Both apps must speak the same version constant, not two copies of a number.
+if ! grep -q 'public static let currentProtocolVersion' Sources/WatchProtocol/Envelope.swift; then
+  echo "    WatchProtocolEnvelope has no single version constant"
+  status=1; protocol_ok=0
+fi
+[ "$protocol_ok" = "1" ] && echo "    OK"
+
 if [ "$status" != "0" ]; then
   echo
   echo "one or more guards failed — this is what CI would have told you, sooner"

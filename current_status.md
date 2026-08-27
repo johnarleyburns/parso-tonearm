@@ -17,8 +17,8 @@ library and existing phone-side CloudKit behavior remain authoritative and are n
 migrated. Existing watch GRDB behavior is isolated in a temporary CloudKit-free legacy
 product during Phases 1–5, then removed at the SwiftData cutover in Phase 6.
 
-**Phases 1 and 2 are complete. Phase 3 — the typed protocol and reliable connectivity
-state — is next.**
+**Phases 1, 2, and 3 are complete. Phase 4 — the phone-side projections and request
+handling — is next.**
 The old [`docs/plans/watch-app.md`](docs/plans/watch-app.md) describes the implementation
 being replaced and is historical only. The detailed phase gates, normative mockups, and
 release acceptance matrix are:
@@ -2186,14 +2186,66 @@ uses the plain available-capacity key.
 **The new architecture flag is still off**, so none of this is on the shipped launch path yet —
 `runLegacyUpgradeIfNeeded()` returns immediately until Phase 6 flips `swiftDataWatchArchitecture`.
 
-## Next — Watch Phase 3
+## Watch Phase 3 — complete
 
-Implement **Phase 3 — Typed protocol and reliable connectivity state**: the §5 codecs,
-capability negotiation, application-context snapshots, immediate request router, durable event
-ledger, revision rules, correlation/deadline handling, transport-only adapters, connection
-reducer with its two-second grace period, and an injected fake transport.
+**Phase 3 — Typed protocol and reliable connectivity state** is landed. Both apps now speak one
+versioned, idempotent protocol over a transport seam that carries nothing but `Data`, and both
+report honest connection state through the same reducer.
 
-Do not start Phase 4 until Phase 3 is committed, its audit entry is complete, and all Phase 3
+What shipped: all seventeen §5.3 message kinds with a binary-plist envelope, capability
+negotiation, merged application-context snapshots, the immediate request router with deadlines and
+correlation IDs, a bounded persistent message ledger, a per-scope monotonic revision gate, the
+§6.3 connection reducer with its two-second grace period, transport-only `WCSessionDelegate`
+adapters for both apps, and a fake duplex link that drives the real phone and watch coordinators
+against each other in `swift test`.
+
+Five things worth knowing before touching this code:
+
+- **`WatchProtocolFault` has no string field.** A-06 — no titles, queries, URLs, tokens, or paths
+  in diagnostics — is enforced by the type rather than by review: there is nowhere to put one.
+  Display copy is a fixed table keyed by the error code, and a CI guard fails the build if a
+  stored `String` property ever appears on the fault.
+- **A cached application context does not prove the phone is awake.** The first version applied a
+  session's stored context through the same path as a live delivery, which drove the reducer to
+  `connected` from state published hours earlier — a watch out of range showed a fully connected UI
+  built entirely from cache. Drawing cached state and believing the link are now separate decisions.
+- **The connection reducer is a pure value type taking `now: Date`.** The two-second grace period
+  is tested at the millisecond instead of by waiting; the only real timer is the coordinators'
+  `graceTask`. During the grace period the *mode* does not change, which is what C-08 actually asks
+  for — a blip may move a transient chip but never drops the app to Downloads-only.
+- **Reconnect renegotiates only after a confirmed outage.** Coming back from a sub-grace blip
+  reuses the session; coming back from a real absence sends a fresh hello, because the phone may
+  have been updated or switched libraries while it was away.
+- **A superseded search is a first-class outcome, not an empty result set.** Two guards — the
+  generation echoed in the payload and the coordinator's own counter — mean a late answer to a
+  query the user has already replaced returns `.superseded` and cannot repaint the list.
+
+One concurrency exception exists in the whole phase, in both adapters: `nonisolated(unsafe) let
+handler = replyHandler`. WatchConnectivity's `sendMessageData` reply handler predates `Sendable`,
+is documented as callable from any queue exactly once, and cannot be passed as `sending` because it
+arrives as a task-isolated parameter of an Objective-C delegate method; `@preconcurrency import`
+does not lift it. It is scoped to that one local binding and paired with `WatchReplyHandlerBox`, a
+`Mutex`-backed carrier that clears the closure under the lock, so the "exactly once" half is
+enforced rather than documented. No `@unchecked Sendable` was added anywhere in the phase.
+
+Verification: `swift test` — **1,667 tests, 8 intentional skips, 0 failures, 96.6s** (65 new).
+`make ci-guards` clean, and both new guards that can fail were checked to actually fail when
+violated. `TonearmWatch` (generic watchOS Simulator) and `Tonearm` (iPhone 16 simulator) both
+build with no new warnings. One Swift 6 defect was caught only by the watchOS build and not by
+`swift test`: the reply-handler transfer above.
+
+**None of this is on the shipped path yet.** Neither adapter is wired into an app assembly, and
+the legacy dictionary transport (`WatchSessionAdapter`, `PhoneWatchSessionAdapter`,
+`WatchTransferController`) still runs the watch until Phase 6 flips `swiftDataWatchArchitecture`.
+`WatchPhoneRequestHandling` ships with defaults that answer `sourceUnavailable`.
+
+## Next — Watch Phase 4
+
+Implement **Phase 4 — Phone-side authority**: the GRDB-backed `WatchPhoneRequestHandling`
+projections behind search, browse, and collection detail; the phone playback snapshot source; and
+the download-root planning that turns a desired root set into transfers.
+
+Do not start Phase 5 until Phase 4 is committed, its audit entry is complete, and all Phase 4
 gates are green. Do not push without owner approval.
 
 ## Superseded next-work list (retained for history)

@@ -42,6 +42,7 @@
 		464C5B08FAAF1036A497892B /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0974BD26C3A62104181966A /* WatchRootView.swift */; };
 		471860B6E4026ABBD21B2A33 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BD8625177C1F1696B158A63 /* Components.swift */; };
 		4F556962AF663ABF80303696 /* AdaptiveGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4497CDA730FA46494E531667 /* AdaptiveGlass.swift */; };
+		5441C555034D686043CFEE90 /* WatchProtocolSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C1C58F472E8351D8A722A1B /* WatchProtocolSessionAdapter.swift */; };
 		55344DAAB8AAC8239D613381 /* AirPlayButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C72A4A2127018D6E48638F2 /* AirPlayButton.swift */; };
 		56F4F1925361073B6B0A664E /* AmbientPlaylistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3726DD886D8478C23AEA8A73 /* AmbientPlaylistView.swift */; };
 		59D802428B3682D2D56B6C47 /* UIRegressionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EEEBFBA5ECD81C525D48E2D /* UIRegressionSupport.swift */; };
@@ -112,6 +113,7 @@
 		F9FF663536834A156EF40E11 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 391DE85B4F0BACCBFDCDAF98 /* TonearmCore */; };
 		FA21DEDFD4C224853AF43150 /* WidgetArtworkStore+Save.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */; };
 		FADE01E4B305918AF925D05A /* JamendoCredentialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */; };
+		FBB00104D3B4C0B2D326F5D0 /* PhoneWatchProtocolAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1456A887E510378AA4B5141 /* PhoneWatchProtocolAdapter.swift */; };
 		FD553DEE4B4C289B97613DCF /* DJHardwareRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB31782CBFF5776F886292E7 /* DJHardwareRegressionUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -196,6 +198,7 @@
 		089C841BE7459AF20665F7B0 /* Tonearm.Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.Debug.entitlements; sourceTree = "<group>"; };
 		0A0EA57A9A9BC3350FCC805C /* GlassSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSurface.swift; sourceTree = "<group>"; };
 		0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPlaylistsView.swift; sourceTree = "<group>"; };
+		0C1C58F472E8351D8A722A1B /* WatchProtocolSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchProtocolSessionAdapter.swift; sourceTree = "<group>"; };
 		0F53F18142069FEFFAA2E2EF /* DJMixRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJMixRegressionUITests.swift; sourceTree = "<group>"; };
 		0F6CE09CD175F8D1AF3F2958 /* WatchSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncHandler.swift; sourceTree = "<group>"; };
 		0FFCDEBB114755DD71B0E074 /* WatchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WatchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -291,6 +294,7 @@
 		EB1AF5D1419772A497355BF0 /* AnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisView.swift; sourceTree = "<group>"; };
 		EBD1B4DD87021743D84C9830 /* WatchSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSessionAdapter.swift; sourceTree = "<group>"; };
 		EEB9AA0FA0FD051052CCF160 /* DJPerformanceDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJPerformanceDriver.swift; sourceTree = "<group>"; };
+		F1456A887E510378AA4B5141 /* PhoneWatchProtocolAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchProtocolAdapter.swift; sourceTree = "<group>"; };
 		F1BAAB8C1EDFCC23544B7B03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F264152278DB935FBFB188F5 /* WatchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchComponents.swift; sourceTree = "<group>"; };
 		F42E2045814F52BC75F1609F /* UpNextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpNextView.swift; sourceTree = "<group>"; };
@@ -344,6 +348,7 @@
 			isa = PBXGroup;
 			children = (
 				38049407F1FD5ED315EEADCD /* App */,
+				F69C982D40ED1B031DDAAC30 /* Connectivity */,
 				4D206AEE22F9E823777F0BFD /* Views */,
 				CEB1F70B1E36FCA6BCADAB6B /* Assets.xcassets */,
 				9270E7191F0C56C47CA68AEF /* AVPlayerOutput.swift */,
@@ -553,6 +558,7 @@
 		8D3EE9747CAECA3F387D5924 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				D5D719C516744B6A8F1A002C /* Watch */,
 				3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */,
 				E38162EF6D932D8762B6D123 /* Info.plist */,
 				AF71DF665673F9AE321A652A /* PhoneWatchSessionAdapter.swift */,
@@ -651,6 +657,14 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		D5D719C516744B6A8F1A002C /* Watch */ = {
+			isa = PBXGroup;
+			children = (
+				F1456A887E510378AA4B5141 /* PhoneWatchProtocolAdapter.swift */,
+			);
+			path = Watch;
+			sourceTree = "<group>";
+		};
 		DAB8F8AA918232E7C075D87A /* NowPlaying */ = {
 			isa = PBXGroup;
 			children = (
@@ -701,6 +715,14 @@
 				76C125EC2410AC9E4151E6DF /* WatchGlyph.swift */,
 			);
 			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		F69C982D40ED1B031DDAAC30 /* Connectivity */ = {
+			isa = PBXGroup;
+			children = (
+				0C1C58F472E8351D8A722A1B /* WatchProtocolSessionAdapter.swift */,
+			);
+			path = Connectivity;
 			sourceTree = "<group>";
 		};
 		F90AE6772698F2114601747C /* Video */ = {
@@ -1006,6 +1028,7 @@
 				34532A4505591A95D2765EFF /* OAuthSignInCoordinator.swift in Sources */,
 				4149F3C1BAF17DF80800B6C7 /* OnboardingView.swift in Sources */,
 				E804FEFD3B24E44527EF05E8 /* Palette.swift in Sources */,
+				FBB00104D3B4C0B2D326F5D0 /* PhoneWatchProtocolAdapter.swift in Sources */,
 				62874EE2E842BBE59D064A7C /* PhoneWatchSessionAdapter.swift in Sources */,
 				7155FE7BF0A91F242A4A2F25 /* PlaylistsView.swift in Sources */,
 				E15A8628673977ECC56099DB /* ProPaywallView.swift in Sources */,
@@ -1056,6 +1079,7 @@
 				781C7C906ED63132DF7CCDB2 /* WatchNowPlayingView.swift in Sources */,
 				09BA5404F865447289CD7A3D /* WatchPlayer.swift in Sources */,
 				2FB5EA4A4EEFB59CEBA07B8F /* WatchPlaylistsView.swift in Sources */,
+				5441C555034D686043CFEE90 /* WatchProtocolSessionAdapter.swift in Sources */,
 				464C5B08FAAF1036A497892B /* WatchRootView.swift in Sources */,
 				782717264F729A5B9089D729 /* WatchSessionAdapter.swift in Sources */,
 				65382A626085DF49D9496F82 /* WatchStorageView.swift in Sources */,

@@ -166,4 +166,5 @@ Add dated runs below; do not edit expected behavior in the tables to make a resu
 
 | Date | Build/commit | Devices | Rows | Result/notes |
 |---|---|---|---|---|
+| 2026-08-26 | Phase 3 (this commit) | iPhone 16 simulator; generic watchOS simulator; host `swift test` | A-06, A-07, A-08; C-01..C-10 | Pass: 65 new host tests, 1,667 total, 0 failures. A-06 is structural — `WatchProtocolFault` has no string field and a guard enforces it. C-08/C-09/C-10 are driven through the pure reducer and again end-to-end over the fake duplex link. C-11..C-14 remain Device rows and are untouched. Protocol is not yet on the shipped path; the legacy transport still runs the watch until Phase 6. |
 | 2026-08-26 | Phase 1 (this commit) | iPhone 16 simulator; generic watchOS simulator/archive | A-01, A-02; structural prerequisites for A-03/A-04 | Pass: scoped graph only; Debug/Release have no entitlement file; unsigned Release archive contains no CloudKit/iCloud entitlement. Signed archive and physical-device evidence remain deferred to their scheduled phases. |
