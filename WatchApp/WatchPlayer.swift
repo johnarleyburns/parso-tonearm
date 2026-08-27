@@ -10,7 +10,11 @@ final class WatchPlayer: ObservableObject {
 
     @Published var currentTrack: WatchTrackSnapshot?
     @Published var isPlaying = false
-    @Published var volume: Double = 0.5
+    @Published var volume: Double = 0.5 {
+        didSet { output.setVolume(volume) }
+    }
+    /// Non-nil when the audio route went away; drives the "Choose headphones or a speaker" hint.
+    @Published var routeHint: String?
     @Published var elapsed: Double = 0
     @Published var duration: Double = 0
     @Published var isShuffled = false
@@ -43,6 +47,7 @@ final class WatchPlayer: ObservableObject {
             }
         }
         setupRemoteCommands()
+        observeAudioSession()
     }
 
     // MARK: - Public API
@@ -102,8 +107,13 @@ final class WatchPlayer: ObservableObject {
         }
         duration = output.currentDuration
 
-        for d in directives {
-            Task { @MainActor in await applyDirective(d) }
+        // Directives must be applied in order — `.loadItem` has to finish before `.play`. One Task
+        // per directive would race them.
+        let hadStop = directives.contains(.stop)
+        Task { @MainActor in
+            await applyWatchDirectives(directives, to: output)
+            self.duration = self.output.currentDuration
+            if hadStop { self.clearNowPlaying() }
         }
 
         savePosition()
@@ -116,15 +126,60 @@ final class WatchPlayer: ObservableObject {
         }
     }
 
-    private func applyDirective(_ d: WatchEngineDirective) async {
-        switch d {
-        case .loadItem(let url): await output.load(url: url); duration = output.currentDuration
-        case .play: await output.play()
-        case .pause: await output.pause()
-        case .seek(let t): await output.seek(to: t)
-        case .stop: await output.pause(); clearNowPlaying()
+    // MARK: - Audio session lifecycle
+
+    private func observeAudioSession() {
+        let nc = NotificationCenter.default
+        nc.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { note in
+            guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+            let optionsRaw = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            let shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume)
+            let event: WatchAudioEvent
+            switch type {
+            case .began: event = .interruptionBegan
+            case .ended: event = .interruptionEnded(shouldResume: shouldResume)
+            @unknown default: return
+            }
+            Task { @MainActor in WatchPlayer.shared.handleAudioEvent(event) }
+        }
+        nc.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { note in
+            guard let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
+            let lost = reason == .oldDeviceUnavailable || reason == .noSuitableRouteForCategory
+            let available = reason == .newDeviceAvailable || reason == .routeConfigurationChange
+            guard lost || available else { return }
+            Task { @MainActor in
+                WatchPlayer.shared.handleAudioEvent(lost ? .routeLost : .routeAvailable)
+            }
+        }
+        nc.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { _ in
+            Task { @MainActor in WatchPlayer.shared.handleAudioEvent(.mediaServicesReset) }
         }
     }
+
+    func handleAudioEvent(_ event: WatchAudioEvent) {
+        let wasPlaying = isPlaying
+        for action in WatchAudioSessionPolicy.actions(for: event, wasPlaying: wasPlaying) {
+            switch action {
+            case .pause:
+                if isPlaying { handleCommand(.pause) }
+            case .persist:
+                savePosition()
+            case .showRouteHint:
+                routeHint = "Choose headphones or a speaker"
+            case .clearRouteHint:
+                routeHint = nil
+            case .rebuildSession:
+                Task { @MainActor in await output.rebuildSession() }
+            case .resumeIfWasPlaying:
+                if wasPlaying { handleCommand(.play) }
+            }
+        }
+    }
+
+    /// Checkpoint the queue immediately — called on scene inactive/background (§7.3).
+    func persistNow() { savePosition() }
 
     // MARK: - URL resolution
 
@@ -177,19 +232,19 @@ final class WatchPlayer: ObservableObject {
               let repository = WatchAppAssembly.shared.repository else { return }
         let rows = (try? await repository.tracks(readyOnly: true)) ?? []
         let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
-        var valid: [WatchTrackSnapshot] = []
-        var validIndex = 0
-        for (i, key) in snap.trackKeys.enumerated() {
-            guard let row = byID[key], localFileURL(for: row) != nil else { continue }
-            valid.append(row)
-            if i == snap.currentIndex { validIndex = valid.count - 1 }
-        }
-        guard !valid.isEmpty else { return }
-        queue = valid
-        currentTrack = valid.count > validIndex ? valid[validIndex] : valid[0]
-        elapsed = snap.elapsed
-        engine = WatchPlayerEngine(queue: valid.map(\.id),
-                                   startIndex: valid.count > validIndex ? validIndex : 0)
+
+        // The engine decides which tracks survive and where the index lands (§7.3, missing-file
+        // restoration); the view layer just projects its queue.
+        let availableKeys = Set(byID.compactMap { id, row in localFileURL(for: row) != nil ? id : nil })
+        let restored = WatchPlayerEngine.restored(from: snap, availableKeys: availableKeys)
+        guard !restored.queue.isEmpty else { return }
+
+        engine = restored
+        queue = restored.queue.compactMap { byID[$0] }
+        currentTrack = restored.currentTrack.flatMap { byID[$0] }
+        elapsed = restored.elapsed
+        isShuffled = restored.isShuffled
+        repeatMode = restored.repeatMode
         isPlaying = false
     }
 
@@ -199,20 +254,43 @@ final class WatchPlayer: ObservableObject {
 
     private func setupRemoteCommands() {
         let cc = MPRemoteCommandCenter.shared()
-        cc.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.handleCommand(.play) }
+
+        // Register only the commands the watch actually supports (§7.4).
+        cc.playCommand.isEnabled = true
+        cc.pauseCommand.isEnabled = true
+        cc.togglePlayPauseCommand.isEnabled = true
+        cc.nextTrackCommand.isEnabled = true
+        cc.previousTrackCommand.isEnabled = true
+
+        // Everything else is explicitly disabled so the system Now Playing UI does not offer a
+        // control the watch cannot honour.
+        for unsupported: MPRemoteCommand in [
+            cc.changePlaybackPositionCommand, cc.seekForwardCommand, cc.seekBackwardCommand,
+            cc.skipForwardCommand, cc.skipBackwardCommand, cc.changePlaybackRateCommand,
+            cc.changeRepeatModeCommand, cc.changeShuffleModeCommand, cc.ratingCommand,
+            cc.likeCommand, cc.dislikeCommand, cc.bookmarkCommand
+        ] {
+            unsupported.isEnabled = false
+        }
+
+        cc.playCommand.addTarget { _ in
+            Task { @MainActor in WatchPlayer.shared.handleCommand(.play) }
             return .success
         }
-        cc.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.handleCommand(.pause) }
+        cc.pauseCommand.addTarget { _ in
+            Task { @MainActor in WatchPlayer.shared.handleCommand(.pause) }
             return .success
         }
-        cc.nextTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.next() }
+        cc.togglePlayPauseCommand.addTarget { _ in
+            Task { @MainActor in WatchPlayer.shared.togglePlayPause() }
             return .success
         }
-        cc.previousTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.previous() }
+        cc.nextTrackCommand.addTarget { _ in
+            Task { @MainActor in WatchPlayer.shared.next() }
+            return .success
+        }
+        cc.previousTrackCommand.addTarget { _ in
+            Task { @MainActor in WatchPlayer.shared.previous() }
             return .success
         }
     }

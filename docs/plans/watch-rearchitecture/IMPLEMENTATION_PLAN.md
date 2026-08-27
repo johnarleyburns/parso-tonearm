@@ -1542,3 +1542,30 @@ by compiler or device evidence.
     edge/10s persistence, spy directive-order tests, one watch smoke. Deferred to 9c: explicit
     `iPhone`/`thisWatch` target model + switch UI, remote snapshot prediction wiring,
     `Continue on Apple Watch`, W7–W9 screens.
+  - **9b (2026-08-27, this commit): audio-session lifecycle + system integration.** New pure
+    `WatchAudioSessionPolicy` (`Sources/WatchCore/Playback/WatchAudioSessionPolicy.swift`):
+    `WatchAudioEvent` (route lost/available, interruption began/ended-with-`shouldResume`,
+    media-services reset, app background/foreground, wrist-down) → ordered `[WatchAudioAction]`
+    (pause / persist / rebuildSession / resumeIfWasPlaying / show|clearRouteHint). Invariants:
+    route loss + interruption both park paused+persisted with a route hint; the only auto-resume
+    is `interruptionEnded(shouldResume: true)` while already playing; media-services reset stays
+    paused. `WatchAudioOutput` gains `setVolume(_:)` and `rebuildSession()`; a new pure
+    `applyWatchDirectives(_:to:)` applies engine directives **in order** (the old `WatchPlayer`
+    spawned one `Task` per directive, racing `.loadItem` vs `.play`). `WatchPlayer` observes
+    `AVAudioSession` interruption/route/media-reset notifications + `scenePhase`, runs them
+    through the policy, publishes `routeHint`, applies Crown `volume` to the player, and persists
+    on inactive/background. Remote command center: only play/pause/togglePlayPause/next/previous
+    enabled, everything else explicitly disabled. `Close` in `WatchNowPlayingView` now only
+    `dismiss()`es — playback continues, the root chip reopens it. `restorePositionIfAvailable`
+    delegates to 9a's `WatchPlayerEngine.restored(...)` so shuffle seed / repeat mode survive.
+    Files: `Sources/WatchCore/Playback/{WatchAudioSessionPolicy,WatchAudioOutput}.swift`,
+    `WatchApp/{WatchPlayer,AVPlayerOutput}.swift`, `WatchApp/PlatterheadWatchApp.swift`,
+    `WatchApp/Views/{WatchNowPlayingView,WatchRootView}.swift`; new `Tests/WatchAudioSessionPolicyTests.swift`
+    (9) + `Tests/WatchDirectiveApplierTests.swift` (3, spy ordering); `WatchUITests/WatchSmokeUITests.swift`
+    gained a Close-doesn't-stop-playback leg — it pops to the root and reads the Now Playing
+    chip's new `playing`/`paused` accessibility value (the chip renders only on the root, and
+    Now Playing is a sheet over whatever screen launched it). Gates: `swift test` (full), `make ci-guards` clean,
+    watch + iPhone simulator builds green. Deferred to 9c: explicit `iPhone`/`thisWatch` target
+    model + switch UI, remote snapshot prediction, `Continue on Apple Watch`, W7–W9 screens.
+    Deferred to the physical-device pass: real route/interruption/background/wrist-down behaviour
+    (§11.4) — the simulator does not deliver those notifications authentically.

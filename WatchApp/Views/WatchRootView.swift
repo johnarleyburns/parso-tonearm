@@ -107,6 +107,8 @@ struct WatchRootView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("watch.nowPlaying")
+            // Lets the watch smoke confirm playback survived a Close without reopening the sheet.
+            .accessibilityValue(player.isPlaying ? "playing" : "paused")
         }
     }
 }

@@ -53,6 +53,20 @@ final class WatchSmokeUITests: XCTestCase {
         app.buttons["watch.now.next"].tap()
         app.buttons["watch.now.previous"].tap()
 
+        // Close must not stop playback: dismissing Now Playing leaves the track playing, and the
+        // root chip — the only place it lives — stays available to reopen it (§7). Pop back to the
+        // root first: Now Playing is a sheet over the playlist detail view, so a bare Close lands
+        // there, not on the chip.
+        closeNowPlaying(app)
+        popToRoot(app)
+        let chip = app.buttons["watch.nowPlaying"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 8), "Now Playing chip vanished after Close")
+        XCTAssertTrue(waitForValue(chip, equals: "playing", timeout: 8),
+                      "Close stopped playback — it must only dismiss the sheet")
+        chip.tap()
+        XCTAssertTrue(waitForValue(app.buttons["watch.now.playPause"], equals: "playing", timeout: 8),
+                      "Reopened Now Playing did not show playback still running")
+
         closeNowPlaying(app)
         popToRoot(app)
 

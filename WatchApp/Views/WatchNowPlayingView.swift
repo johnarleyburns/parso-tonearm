@@ -12,12 +12,9 @@ struct WatchNowPlayingView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        player.currentTrack = nil
-                        player.isPlaying = false
-                        player.clearPosition()
-                        dismiss()
-                    }
+                    // Close only dismisses the sheet — playback continues, and the root's Now
+                    // Playing chip stays available to reopen it (§7, "Close must not stop playback").
+                    Button("Close") { dismiss() }
                 }
             }
             .onAppear { crownValue = player.volume }
@@ -38,6 +35,15 @@ struct WatchNowPlayingView: View {
     private var content: some View {
         if let track = player.currentTrack {
             VStack(spacing: 0) {
+                if let hint = player.routeHint {
+                    Text(hint)
+                        .font(.system(.caption2))
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 8)
+                        .accessibilityIdentifier("watch.now.routeHint")
+                }
                 Text(track.title)
                     .font(.system(.headline, design: .default))
                     .fontWeight(.semibold)

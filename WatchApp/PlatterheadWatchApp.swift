@@ -3,6 +3,7 @@ import TonearmWatchCore
 
 @main
 struct PlatterheadWatchApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     #if DEBUG
     @State private var didSeed = false
     #endif
@@ -15,6 +16,18 @@ struct PlatterheadWatchApp: App {
         WindowGroup {
             WatchContentView()
                 .task { await WatchPlayer.shared.restorePositionIfAvailable() }
+                .onChange(of: scenePhase) { _, phase in
+                    switch phase {
+                    case .inactive:
+                        WatchPlayer.shared.persistNow()
+                    case .background:
+                        WatchPlayer.shared.handleAudioEvent(.appDidBackground)
+                    case .active:
+                        WatchPlayer.shared.handleAudioEvent(.appWillForeground)
+                    @unknown default:
+                        break
+                    }
+                }
             #if DEBUG
                 .task {
                     guard !didSeed else { return }

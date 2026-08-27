@@ -18,7 +18,33 @@ migrated. Existing watch GRDB behavior was isolated in a temporary CloudKit-free
 product during Phases 1–5 and removed at the SwiftData cutover in Phase 6.
 
 **Phases 1 through 8 are complete. Phase 9 — watch-local playback and system
-media integration — is in progress, split into three commits (9a done; 9b/9c next).**
+media integration — is in progress, split into three commits (9a + 9b done; 9c next).**
+
+Phase 9b (`this commit`) added the watch audio-session lifecycle and system integration.
+A new pure decision table `WatchAudioSessionPolicy` (`Sources/WatchCore/Playback/`) maps every
+§7.2 event — route lost/available, interruption began/ended (honouring the system `shouldResume`
+hint), media-services reset, app background, foreground, wrist-down — to an ordered list of
+`WatchAudioAction`s. Its invariants: a route loss or interruption always parks the player
+**paused + persisted** with a `Choose headphones or a speaker` hint; nothing auto-resumes except
+`interruptionEnded(shouldResume: true)` while the engine was already playing; a media-services
+reset rebuilds from the persisted snapshot and stays paused. `WatchPlayer` now observes the three
+`AVAudioSession` notifications and the watchOS `scenePhase`, routes them through the policy, and
+persists on inactive/background as well as on every command and the 10s timer. **`Close` no
+longer stops playback** — it only dismisses the Now Playing sheet, and the root's Now Playing
+chip stays available to reopen a still-playing session. Crown volume is now actually applied
+(`WatchAudioOutput.setVolume` → `AVPlayer.volume`, survives item reloads). Remote commands are
+registered supported-only (play/pause/togglePlayPause/next/previous enabled; seek/skip/rate/
+repeat/shuffle/rating/feedback explicitly disabled). Engine directives are applied **in order**
+through a new pure `applyWatchDirectives(_:to:)` — the old code spawned one `Task` per directive,
+racing `.loadItem` against `.play`. `restorePositionIfAvailable` now delegates to Phase 9a's
+`WatchPlayerEngine.restored(from:availableKeys:)`, so shuffle seed and repeat mode survive a
+relaunch. New `Tests/WatchAudioSessionPolicyTests.swift` (9 cases) and
+`Tests/WatchDirectiveApplierTests.swift` (3 cases, spy-based ordering); the one watch smoke
+gained a Close-doesn't-stop-playback leg (it pops to the root and reads the Now Playing
+chip's new `playing`/`paused` accessibility value, since the chip lives only on the root).
+Deferred to **9c**: explicit `iPhone`/`thisWatch`
+target model + switch UI, remote snapshot prediction wiring, `Continue on Apple Watch`, W7–W9
+screens; and — needing paired hardware — real route/interruption/background/wrist-down behaviour.
 
 Phase 9a (`this commit`) hardened the pure local-playback core in `TonearmWatchCore`, no I/O
 and no view changes: `WatchQueueSnapshot` now carries `isShuffled`/`shuffleSeed`/`repeatMode`
