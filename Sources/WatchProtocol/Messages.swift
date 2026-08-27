@@ -287,6 +287,9 @@ public enum WatchTransportAction: String, Codable, Sendable, CaseIterable {
     case jumpToIndex, seek
     case setShuffle, setRepeat
     case playCollection, playTrack
+    /// §7.1: a read-only poll. Mutates nothing; the reply carries the current authoritative
+    /// snapshot so the watch can correct its predicted elapsed clock while showing Now Playing.
+    case requestSnapshot
 }
 
 /// §5.3 `playCommand`. §7.1 makes targets explicit: this type only ever addresses the *phone*

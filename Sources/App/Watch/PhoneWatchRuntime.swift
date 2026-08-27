@@ -21,6 +21,15 @@ final class PhoneWatchRuntime {
     private let inbound: PhoneWatchInbound
     private let libraryID: WatchPairedLibraryID
 
+    /// The phone player and its snapshot builder, kept so autonomous now-playing changes (a track
+    /// ending, someone pressing play on the phone) are pushed to the watch as an application
+    /// context — not only answered when the watch asks. §7.1.
+    private let player: AudioPlayer
+    private let playbackAdapter: PhoneWatchPlaybackAdapter
+    /// A cheap structural fingerprint of the last pushed snapshot; `currentTime` drift is left to
+    /// the watch's `requestSnapshot` poll so this does not churn the WCSession context.
+    private var lastPushedFingerprint: String?
+
     /// Fired on the main actor whenever watch-derived state changes, so `AppState` can republish.
     var onChange: (@MainActor @Sendable () -> Void)?
 
@@ -56,6 +65,8 @@ final class PhoneWatchRuntime {
 
         let playbackAdapter = PhoneWatchPlaybackAdapter(player: player,
                                                         downloadedProvider: downloadedProvider)
+        self.player = player
+        self.playbackAdapter = playbackAdapter
 
         let requestHandler = PhoneWatchRequestHandler(
             store: store,
@@ -108,11 +119,39 @@ final class PhoneWatchRuntime {
         protocolAdapter.activate()
         try? await downloadManager.resumeOutstanding()
         await refresh()
+        await publishPlaybackIfChanged()
     }
 
     func tick() async {
         await tickDownloads()
         await refresh()
+        await publishPlaybackIfChanged()
+    }
+
+    // MARK: - Autonomous now-playing push (§7.1)
+
+    /// Push a fresh playback snapshot to the watch as an application context when the phone player's
+    /// *structure* changed since the last push — a new track, play/pause, shuffle/repeat, a queue
+    /// swap. Elapsed drift is deliberately not a trigger: the watch predicts it from the anchor and
+    /// polls `requestSnapshot` while Now Playing is on screen, so pushing on every `currentTime`
+    /// change would churn the WCSession context for nothing (I-10).
+    private func publishPlaybackIfChanged() async {
+        let fingerprint = [
+            player.isPlaying ? "1" : "0",
+            String(player.index),
+            String(player.queue.count),
+            player.queue.indices.contains(player.index)
+                ? PhoneWatchID.track(player.queue[player.index].track).rawValue : "-",
+            player.shuffle ? "s" : "-",
+            String(describing: player.repeatMode)
+        ].joined(separator: "|")
+
+        guard fingerprint != lastPushedFingerprint else { return }
+        let revision = (try? await downloadStore.currentRevision()) ?? 0
+        let snapshot = await playbackAdapter.snapshot(revision: revision)
+        if await coordinator.publishContext(playback: snapshot) {
+            lastPushedFingerprint = fingerprint
+        }
     }
 
     // MARK: - AppState-facing operations

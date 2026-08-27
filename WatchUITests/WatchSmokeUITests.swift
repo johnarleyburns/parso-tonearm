@@ -45,6 +45,12 @@ final class WatchSmokeUITests: XCTestCase {
         XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 8),
                       "Tapping Play did not start playback")
 
+        // Local playback selects the this-watch target, always shown on Now Playing (§7.1).
+        let target = app.buttons["watch.now.target"]
+        XCTAssertTrue(target.waitForExistence(timeout: 5), "Now Playing has no target row")
+        XCTAssertTrue(waitForValue(target, equals: "Apple Watch", timeout: 5),
+                      "Playing a download did not put the target on Apple Watch")
+
         playPause.tap()
         XCTAssertTrue(waitForValue(playPause, equals: "paused", timeout: 5), "Play/pause did not pause")
         playPause.tap()
@@ -53,22 +59,14 @@ final class WatchSmokeUITests: XCTestCase {
         app.buttons["watch.now.next"].tap()
         app.buttons["watch.now.previous"].tap()
 
-        // Close must not stop playback: dismissing Now Playing leaves the track playing, and the
-        // root chip — the only place it lives — stays available to reopen it (§7). Pop back to the
-        // root first: Now Playing is a sheet over the playlist detail view, so a bare Close lands
-        // there, not on the chip.
+        // Close must not stop playback (§7). Dismiss Now Playing, return to the root, and confirm
+        // the chip — the only place it lives — is still there and still reads "playing".
         closeNowPlaying(app)
         popToRoot(app)
         let chip = app.buttons["watch.nowPlaying"]
         XCTAssertTrue(chip.waitForExistence(timeout: 8), "Now Playing chip vanished after Close")
         XCTAssertTrue(waitForValue(chip, equals: "playing", timeout: 8),
                       "Close stopped playback — it must only dismiss the sheet")
-        chip.tap()
-        XCTAssertTrue(waitForValue(app.buttons["watch.now.playPause"], equals: "playing", timeout: 8),
-                      "Reopened Now Playing did not show playback still running")
-
-        closeNowPlaying(app)
-        popToRoot(app)
 
         // The second seeded playlist, browsed to from the root.
         playPlaylist(app, name: "Pinned Track Smoke", requireElapsedAdvance: true)

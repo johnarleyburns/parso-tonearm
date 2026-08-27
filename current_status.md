@@ -18,7 +18,40 @@ migrated. Existing watch GRDB behavior was isolated in a temporary CloudKit-free
 product during Phases 1–5 and removed at the SwiftData cutover in Phase 6.
 
 **Phases 1 through 8 are complete. Phase 9 — watch-local playback and system
-media integration — is in progress, split into three commits (9a + 9b done; 9c next).**
+media integration — is in progress: 9a + 9b + 9c done; 9d (Continue on Apple Watch)
+next, then Phase 10.**
+
+Phase 9c (`this commit`) made the playback target explicit and gave the watch a live
+picture of what the *phone* is playing. New pure `WatchPlaybackTarget` (`iPhone` /
+`thisWatch`) + `WatchPlaybackTargetStore` (UserDefaults, defaults to the last explicit
+target, initially iPhone); `WatchPlaybackCoordinator` (`@MainActor`) owns it and is the only
+mutator — starting local playback picks `thisWatch`, an accepted `playCollection`/`playTrack`
+on the phone picks `iPhone`, and the Now Playing target row switches it by hand (§7.1: the
+choice always rides an explicit action, never automatic). New pure `WatchRemotePlaybackState`
+wraps the last `WatchPhonePlaybackSnapshot` + its arrival time and predicts the elapsed clock
+forward from the phone's `(elapsed, anchorDate, rate)` anchor, clamped to duration, with a
+staleness read; `applying(_:)` drops an out-of-order snapshot. `WatchRemotePlayer`
+(`@MainActor`) holds it, forwards transport to the phone, and — only while the W7 screen is
+visible — ticks a 1s prediction clock and polls the phone for an authoritative correction
+every 5s via a new additive `requestSnapshot` transport action (read-only: the phone answers
+with its current snapshot and mutates nothing). The phone also **pushes** a snapshot as an
+application context whenever the player's *structure* changes (track, play/pause, queue,
+shuffle/repeat) — folded into the existing 5s `PhoneWatchRuntime` tick, fingerprint-deduped so
+`currentTime` drift never churns the WCSession context. `WatchNowPlayingView` is now the
+**W7/W8** switch: a persistent target row (`watch.now.target`), the iPhone branch drawing the
+predicted remote state with transport addressed to the phone, the Apple Watch branch the
+existing local player (Crown volume + 9b's route hint). `WatchUpNextView` is **W9** — the
+active target's queue, `iPhone only` marked on rows not downloaded locally. New tests:
+`Tests/WatchPlaybackTargetTests.swift` (5), `Tests/WatchRemotePlaybackStateTests.swift` (6),
+one `requestSnapshot` case in `PhoneWatchProjectionTests`; the watch smoke asserts the target
+row reads `Apple Watch` after a local play. Deferred to **9d**: `Continue on Apple Watch`
+(unreachable-phone explicit handoff, §7.5) and its pure `WatchContinueOnWatchPlan`. Deferred
+polish: a secondary cross-target "play on the other target" affordance on the browse screens,
+and a root Now Playing chip that reflects the iPhone target (kept local-only for now —
+observing the remote/target state from the root's `.carousel` `List` destabilised its lazy row
+realisation and broke the watch smoke).
+Deferred to the physical-device pass: real route/interruption/background/wrist-down and a
+paired-phone remote-control journey (the watchOS sim cannot pair a phone).
 
 Phase 9b (`this commit`) added the watch audio-session lifecycle and system integration.
 A new pure decision table `WatchAudioSessionPolicy` (`Sources/WatchCore/Playback/`) maps every
@@ -43,8 +76,9 @@ relaunch. New `Tests/WatchAudioSessionPolicyTests.swift` (9 cases) and
 gained a Close-doesn't-stop-playback leg (it pops to the root and reads the Now Playing
 chip's new `playing`/`paused` accessibility value, since the chip lives only on the root).
 Deferred to **9c**: explicit `iPhone`/`thisWatch`
-target model + switch UI, remote snapshot prediction wiring, `Continue on Apple Watch`, W7–W9
-screens; and — needing paired hardware — real route/interruption/background/wrist-down behaviour.
+target model + switch UI, remote snapshot prediction wiring, W7–W9 screens (`Continue on Apple
+Watch` moved to **9d**); and — needing paired hardware — real
+route/interruption/background/wrist-down behaviour.
 
 Phase 9a (`this commit`) hardened the pure local-playback core in `TonearmWatchCore`, no I/O
 and no view changes: `WatchQueueSnapshot` now carries `isShuffled`/`shuffleSeed`/`repeatMode`

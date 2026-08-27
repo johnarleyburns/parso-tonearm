@@ -60,7 +60,19 @@ final class WatchAppAssembly {
     @discardableResult
     func playOnPhone(_ command: WatchPlayCommand) async -> Bool {
         guard let coordinator else { return false }
-        return await coordinator.send(command).accepted
+        let accepted = await coordinator.send(command).accepted
+        // A "play" that started something on the phone is the user choosing the iPhone target
+        // (§7.1). A plain transport nudge (next/pause/…) leaves the current target alone.
+        if accepted, command.action == .playCollection || command.action == .playTrack {
+            WatchPlaybackCoordinator.shared.setTarget(.iPhone)
+        }
+        return accepted
+    }
+
+    /// §7.1: ask the phone for a fresh authoritative playback snapshot (drives the W7 correction
+    /// poll). No-op when the link is unavailable.
+    func refreshRemotePlayback() async {
+        await coordinator?.refreshPlaybackSnapshot()
     }
 
     private init() {
@@ -120,7 +132,8 @@ final class WatchAppAssembly {
         self.search = searchPresenter
 
         let chromeObs = WatchChromeObserver(chrome: chrome, model: mdl, search: searchPresenter)
-        let fan = WatchFanoutObserver([sync, reach, chromeObs])
+        let remotePlayback = WatchRemotePlaybackObserver()
+        let fan = WatchFanoutObserver([sync, reach, chromeObs, remotePlayback])
         let adpt = WatchProtocolSessionAdapter(endpoint: coord)
 
         self.repository = repo

@@ -1522,7 +1522,8 @@ by compiler or device evidence.
   reconciliation, storage-full, reference-aware removal, reconcile repair on real hardware). No new
   simulator UI test — per §11.3 the iPhone smoke path is extended rather than adding functions, and
   the presenter/planner logic is fully host-covered.
-- Phase 9 (in progress): split into three commits because the phase spans far more than 6–8.
+- Phase 9 (in progress): split into commits because the phase spans far more than 6–8. 9a + 9b
+  + 9c landed; 9d (`Continue on Apple Watch`) is the remainder.
   - **9a (2026-08-27, this commit): pure local-playback core, no I/O, no view changes.**
     `WatchQueueSnapshot` gains `isShuffled` / `shuffleSeed` / `repeatMode` with a hand-written
     `Decodable` so a position persisted by a pre-Phase-9 build (those keys absent) restores with
@@ -1566,6 +1567,40 @@ by compiler or device evidence.
     chip's new `playing`/`paused` accessibility value (the chip renders only on the root, and
     Now Playing is a sheet over whatever screen launched it). Gates: `swift test` (full), `make ci-guards` clean,
     watch + iPhone simulator builds green. Deferred to 9c: explicit `iPhone`/`thisWatch` target
-    model + switch UI, remote snapshot prediction, `Continue on Apple Watch`, W7–W9 screens.
-    Deferred to the physical-device pass: real route/interruption/background/wrist-down behaviour
-    (§11.4) — the simulator does not deliver those notifications authentically.
+    model + switch UI, remote snapshot prediction, W7–W9 screens. Deferred to 9d: `Continue on
+    Apple Watch`. Deferred to the physical-device pass: real
+    route/interruption/background/wrist-down behaviour (§11.4) — the simulator does not deliver
+    those notifications authentically.
+  - **9c (2026-08-27, this commit): explicit playback targets + remote prediction + W7–W9.**
+    New pure `WatchPlaybackTarget` (`iPhone`/`thisWatch`) + `WatchPlaybackTargetStore`
+    (`Sources/WatchCore/Playback/`, UserDefaults, default `.iPhone`); `WatchPlaybackCoordinator`
+    (`@MainActor`, `WatchApp/`) is the sole mutator — local play → `.thisWatch`, an accepted
+    phone `playCollection`/`playTrack` → `.iPhone`, the Now Playing target row switches by hand
+    (§7.1, never automatic). New pure `WatchRemotePlaybackState` (`Sources/WatchCore/Playback/`)
+    wraps the last `WatchPhonePlaybackSnapshot` + arrival `Date`, predicts elapsed from the
+    `(elapsed, anchorDate, rate)` anchor clamped to duration, exposes staleness, and `applying(_:)`
+    drops an out-of-order snapshot (I-06). `WatchRemotePlayer` (`@MainActor`, `WatchApp/`) holds
+    it, forwards transport to the phone, and — only while W7 is on screen — runs a 1s prediction
+    clock + a 5s `requestSnapshot` correction poll. New additive
+    `WatchTransportAction.requestSnapshot`: read-only, `PhoneWatchRequestHandler` falls through to
+    the trailing `.accepted(snapshot)`. `PhoneWatchRuntime` also pushes a snapshot via
+    `publishContext` when the player's structure fingerprint changes, folded into the existing 5s
+    tick (no new poll; `currentTime` drift is not a trigger). `WatchNowPlayingView` → W7/W8 switch
+    (`watch.now.target` row); `WatchUpNextView` → W9 (active target's queue, `iPhone only` on
+    rows not downloaded locally). The root Now Playing chip is left local-only: observing the
+    remote/target state from the root's `.carousel` `List` destabilised its lazy row realisation
+    and dropped below-fold rows from the a11y tree (the watch smoke caught it — `watch.playlists`
+    not found after a nav pop). Files:
+    `Sources/WatchCore/Playback/{WatchPlaybackTarget,WatchRemotePlaybackState}.swift`,
+    `Sources/WatchCore/Sync/WatchConnectivityCoordinator.swift`, `Sources/WatchProtocol/Messages.swift`,
+    `Sources/WatchSync/PhoneWatchRequestHandler.swift`, `Sources/App/Watch/PhoneWatchRuntime.swift`,
+    `WatchApp/{WatchRemotePlayer,WatchPlaybackCoordinator}.swift`,
+    `WatchApp/App/{WatchRemotePlaybackObserver,WatchAppAssembly}.swift`,
+    `WatchApp/{WatchPlayer}.swift`, `WatchApp/Views/{WatchNowPlayingView,WatchUpNextView}.swift`;
+    new `Tests/WatchPlaybackTargetTests.swift` (5) + `Tests/WatchRemotePlaybackStateTests.swift`
+    (6), one `requestSnapshot` case in `PhoneWatchProjectionTests`; the watch smoke asserts
+    `watch.now.target` reads `Apple Watch` after a local play. Gates: `swift test` (full),
+    `make ci-guards` clean, watch + iPhone simulator builds green, watch smoke green. Deferred to
+    9d: `Continue on Apple Watch` (§7.5) + pure `WatchContinueOnWatchPlan`. Deferred polish: a
+    secondary cross-target play affordance on the browse screens. Deferred to the physical-device
+    pass: a paired-phone remote-control journey (the watchOS sim cannot pair a phone).

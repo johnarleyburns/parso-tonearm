@@ -198,6 +198,8 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
             case .setRepeat:
                 guard let mode = command.repeatMode else { return .rejected(.contentNotFound) }
                 await player.setRepeat(mode)
+            case .requestSnapshot:
+                break  // read-only: fall through to the snapshot reply below
             }
         } catch let fault as WatchProtocolFault {
             return .rejected(fault.code)

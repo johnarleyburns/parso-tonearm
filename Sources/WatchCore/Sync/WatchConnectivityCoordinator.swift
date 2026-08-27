@@ -224,6 +224,12 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         }
     }
 
+    /// §7.1: ask the phone for a fresh authoritative snapshot without changing anything. The reply
+    /// flows through the same `applyPlayback` path as a command reply, so the observer is corrected.
+    public func refreshPlaybackSnapshot() async {
+        _ = await send(WatchPlayCommand(action: .requestSnapshot))
+    }
+
     // MARK: - Durable sends
 
     public func sendManifest(_ manifest: WatchManifestPayload) async {

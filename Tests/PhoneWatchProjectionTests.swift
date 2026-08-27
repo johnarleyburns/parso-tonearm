@@ -292,6 +292,21 @@ final class PhoneWatchProjectionTests: XCTestCase {
         XCTAssertEqual(Array(directives.dropFirst()), cases.map(\.1))
     }
 
+    func testRequestSnapshotIsReadOnly() async throws {
+        let fixture = try await makeFixture()
+        let bridge = SpyPlaybackBridge()
+        let handler = makeHandler(fixture, bridge: bridge)
+        _ = await handler.handlePlayCommand(.playCollection(fixture.playlistRef))
+        let directivesBefore = await bridge.directives
+
+        let reply = await handler.handlePlayCommand(WatchPlayCommand(action: .requestSnapshot))
+
+        XCTAssertTrue(reply.accepted)
+        XCTAssertNotNil(reply.snapshot?.currentItem, "requestSnapshot must return the live snapshot")
+        let directivesAfter = await bridge.directives
+        XCTAssertEqual(directivesAfter, directivesBefore, "requestSnapshot must not touch the player")
+    }
+
     func testTransportCommandMissingItsArgumentIsRejected() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)

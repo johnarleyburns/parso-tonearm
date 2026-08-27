@@ -61,6 +61,9 @@ final class WatchPlayer: ObservableObject {
         queue = playable
         engine.setQueue(playable.map(\.id), startIndex: start)
         currentTrack = playable[start]
+        // Starting local playback is the user explicitly choosing the this-watch target (§7.1 —
+        // the choice rides the play action; it is not an automatic switch).
+        WatchPlaybackCoordinator.shared.setTarget(.thisWatch)
         navigateToNowPlaying()
         handleCommand(.play)
     }
