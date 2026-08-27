@@ -1,12 +1,9 @@
 import SwiftUI
-import TonearmWatchLegacyCore
+import TonearmWatchCore
 
 struct WatchRootView: View {
-    @State private var playlists: [LegacyWatchPlaylist] = []
-    @State private var albumCount: Int = 0
-    @State private var trackCount: Int = 0
-    @State private var onWatchTracks: Int = 0
-    @State private var onWatchBytes: Int64 = 0
+    @ObservedObject private var model = WatchAppAssembly.shared.model
+    @ObservedObject private var player = WatchPlayer.shared
 
     var body: some View {
         List {
@@ -15,7 +12,7 @@ struct WatchRootView: View {
             NavigationLink(value: WatchNav.playlists) {
                 WatchCollectionRow(
                     title: "Playlists",
-                    subtitle: "\(playlists.count) playlists",
+                    subtitle: "\(model.playlists.count) playlists",
                     systemImage: "music.note.list")
             }
             .accessibilityIdentifier("root.playlists")
@@ -23,7 +20,7 @@ struct WatchRootView: View {
             NavigationLink(value: WatchNav.albums) {
                 WatchCollectionRow(
                     title: "Albums",
-                    subtitle: "\(albumCount) albums",
+                    subtitle: "\(model.albums.count) albums",
                     systemImage: "square.stack")
             }
             .accessibilityIdentifier("root.albums")
@@ -31,7 +28,7 @@ struct WatchRootView: View {
             NavigationLink(value: WatchNav.songs) {
                 WatchCollectionRow(
                     title: "Songs",
-                    subtitle: "\(trackCount) tracks",
+                    subtitle: "\(model.tracks.count) tracks",
                     systemImage: "music.note")
             }
             .accessibilityIdentifier("root.songs")
@@ -39,33 +36,33 @@ struct WatchRootView: View {
             NavigationLink(value: WatchNav.storage) {
                 WatchCollectionRow(
                     title: "Storage",
-                    subtitle: onWatchBytes > 0
-                            ? "\(onWatchTracks) tracks · \(WatchTimeFmt.megabytes(onWatchBytes))"
-                        : "Manage storage",
+                    subtitle: storageSubtitle,
                     systemImage: "internaldrive")
             }
             .accessibilityIdentifier("root.storage")
         }
         .listStyle(.carousel)
         .navigationTitle("Platterhead")
-        .task {
-            await load()
-            await WatchPlayer.shared.restorePositionIfAvailable()
-        }
+        .task { await model.refresh() }
+    }
+
+    private var storageSubtitle: String {
+        guard let storage = model.storage, storage.readyBytes > 0 else { return "Manage storage" }
+        return "\(model.tracks.count) tracks · \(WatchTimeFmt.megabytes(storage.readyBytes))"
     }
 
     @ViewBuilder
     private var nowPlayingChip: some View {
-        if let track = WatchPlayer.shared.currentTrack {
+        if let track = player.currentTrack {
             Button {
-                WatchPlayer.shared.navigateToNowPlaying()
+                player.navigateToNowPlaying()
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "music.note")
                         .font(.system(size: 16))
                         .foregroundStyle(.tint)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(track.track.title)
+                        Text(track.title)
                             .font(.system(.caption, design: .default))
                             .fontWeight(.semibold)
                             .lineLimit(1)
@@ -74,7 +71,7 @@ struct WatchRootView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Image(systemName: WatchPlayer.shared.isPlaying ? "pause.fill" : "play.fill")
+                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 12))
                 }
                 .padding(.vertical, 8)
@@ -84,16 +81,6 @@ struct WatchRootView: View {
             .accessibilityIdentifier("root.nowPlaying")
         }
     }
-
-    private func load() async {
-        let store = LegacyWatchLibraryStore.shared
-        playlists = (try? await store.allPlaylists()) ?? []
-        albumCount = ((try? await store.allAlbums()) ?? []).count
-        trackCount = ((try? await store.allTracks()) ?? []).count
-        let records = (try? await store.manifests()) ?? []
-        onWatchTracks = records.count
-        onWatchBytes = records.reduce(0) { $0 + $1.bytes }
-    }
 }
 
 enum WatchNav: Hashable {
@@ -101,6 +88,6 @@ enum WatchNav: Hashable {
     case albums
     case songs
     case storage
-    case playlist(LegacyWatchPlaylist)
-    case album(LegacyWatchAlbum)
+    case playlist(String)
+    case album(String)
 }

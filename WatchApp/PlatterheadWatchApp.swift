@@ -1,6 +1,5 @@
 import SwiftUI
 import TonearmWatchCore
-import TonearmWatchLegacyCore
 
 @main
 struct PlatterheadWatchApp: App {
@@ -9,20 +8,22 @@ struct PlatterheadWatchApp: App {
     #endif
 
     init() {
-        _ = WatchAppAssembly.shared
-        WatchSyncHandler.shared.setup()
+        WatchAppAssembly.shared.start()
     }
 
     var body: some Scene {
         WindowGroup {
             WatchContentView()
-                .task { await WatchAppAssembly.shared.runLegacyUpgradeIfNeeded() }
+                .task { await WatchPlayer.shared.restorePositionIfAvailable() }
             #if DEBUG
                 .task {
                     guard !didSeed else { return }
                     didSeed = true
-                    if ProcessInfo.processInfo.arguments.contains("SEED_WATCH_FIXTURES") {
-                        await WatchFixtureSeeder.seed()
+                    if ProcessInfo.processInfo.arguments.contains("SEED_WATCH_FIXTURES"),
+                       let repository = WatchAppAssembly.shared.repository,
+                       let audio = WatchAppAssembly.shared.audioDirectory {
+                        await WatchFixtureSeeder.seed(repository: repository, audioDirectory: audio)
+                        await WatchAppAssembly.shared.model.refresh()
                     }
                 }
             #endif
@@ -30,11 +31,10 @@ struct PlatterheadWatchApp: App {
     }
 }
 
-/// Hosts navigation in a real `View` (not the `App`/`Scene`) so it observes
-/// `WatchPlayer` reliably. Now Playing is presented as a boolean-bound sheet
-/// rather than a programmatic `NavigationPath` push: external mutations to a
-/// `NavigationPath` binding do not reliably drive the stack on watchOS, which
-/// is why tapping "Play All" previously navigated nowhere.
+/// Hosts navigation in a real `View` (not the `App`/`Scene`) so it observes `WatchPlayer` reliably.
+/// Now Playing is presented as a boolean-bound sheet rather than a programmatic `NavigationPath`
+/// push: external mutations to a `NavigationPath` binding do not reliably drive the stack on
+/// watchOS, which is why tapping "Play All" previously navigated nowhere.
 struct WatchContentView: View {
     @ObservedObject private var player = WatchPlayer.shared
 
@@ -48,8 +48,8 @@ struct WatchContentView: View {
                     case .albums: WatchAlbumsView()
                     case .songs: WatchSongsView()
                     case .storage: WatchStorageView()
-                    case .playlist(let p): WatchPlaylistDetailView(playlist: p)
-                    case .album(let a): WatchAlbumDetailView(album: a)
+                    case .playlist(let id): WatchPlaylistDetailView(playlistID: id)
+                    case .album(let id): WatchAlbumDetailView(albumID: id)
                     }
                 }
         }

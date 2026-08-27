@@ -8,8 +8,7 @@ let package = Package(
         .library(name: "TonearmCore", targets: ["TonearmCore"]),
         .library(name: "TonearmDJ", targets: ["TonearmDJ"]),
         .library(name: "TonearmWatchProtocol", targets: ["TonearmWatchProtocol"]),
-        .library(name: "TonearmWatchCore", targets: ["TonearmWatchCore"]),
-        .library(name: "TonearmWatchLegacyCore", targets: ["TonearmWatchLegacyCore"])
+        .library(name: "TonearmWatchCore", targets: ["TonearmWatchCore"])
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0")
@@ -63,8 +62,7 @@ let package = Package(
                 "Resources/Assets.xcassets",
                 "Resources/Tonearm.storekit",
                 "Sources/WatchProtocol",
-                "Sources/WatchCore",
-                "Sources/WatchLegacy"
+                "Sources/WatchCore"
             ],
             sources: [
                 "Sources/Art",
@@ -100,17 +98,6 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
-            name: "TonearmWatchLegacyCore",
-            dependencies: [
-                "TonearmWatchProtocol",
-                "TonearmWatchCore",
-                .product(name: "GRDB", package: "GRDB.swift")
-            ],
-            path: "Sources/WatchLegacy",
-            swiftSettings: [.swiftLanguageMode(.v6)],
-            linkerSettings: [.linkedLibrary("sqlite3")]
-        ),
-        .target(
             name: "CSQLiteVec",
             path: "Sources/CSQLiteVec",
             sources: ["sqlite-vec.c"],
@@ -141,8 +128,7 @@ let package = Package(
             dependencies: [
                 "TonearmCore",
                 "TonearmWatchProtocol",
-                "TonearmWatchCore",
-                "TonearmWatchLegacyCore"
+                "TonearmWatchCore"
             ],
             path: "Tests",
             exclude: [

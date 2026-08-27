@@ -1,58 +1,44 @@
 import SwiftUI
 import TonearmWatchCore
-import TonearmWatchLegacyCore
 
 struct WatchNowPlayingView: View {
     @ObservedObject private var player = WatchPlayer.shared
     @Environment(\.dismiss) private var dismiss
-    @State private var showUpNext = false
     @State private var crownValue: Double = 0.5
 
     var body: some View {
-        ZStack {
-            content
-            if player.showFetchOverlay {
-                WatchFetchOverlay(
-                    trackTitle: player.fetchingTrackTitle,
-                    progress: player.fetchProgress,
-                    phoneUnreachable: player.phoneUnreachable,
-                    onCancel: {
-                        player.cancelFetch()
+        content
+            .navigationTitle("Now Playing")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        player.currentTrack = nil
+                        player.isPlaying = false
+                        player.clearPosition()
                         dismiss()
-                    })
-            }
-        }
-        .navigationTitle("Now Playing")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Close") {
-                    player.currentTrack = nil
-                    player.isPlaying = false
-                    player.clearPosition()
-                    dismiss()
+                    }
                 }
             }
-        }
-        .onAppear { crownValue = player.volume }
-        .focusable(true)
-        .digitalCrownRotation(
-            $crownValue,
-            from: 0.0, through: 1.0,
-            by: 0.02,
-            sensitivity: .low,
-            isContinuous: true
-        )
-        .onChange(of: crownValue) { _, newValue in
-            player.volume = newValue
-        }
+            .onAppear { crownValue = player.volume }
+            .focusable(true)
+            .digitalCrownRotation(
+                $crownValue,
+                from: 0.0, through: 1.0,
+                by: 0.02,
+                sensitivity: .low,
+                isContinuous: true
+            )
+            .onChange(of: crownValue) { _, newValue in
+                player.volume = newValue
+            }
     }
 
     @ViewBuilder
     private var content: some View {
         if let track = player.currentTrack {
             VStack(spacing: 0) {
-                Text(track.track.title)
+                Text(track.title)
                     .font(.system(.headline, design: .default))
                     .fontWeight(.semibold)
                     .lineLimit(2)
@@ -128,8 +114,7 @@ struct WatchNowPlayingView: View {
             Button {
                 player.previous()
             } label: {
-                Image(systemName: "backward.fill")
-                    .font(.system(size: 24))
+                Image(systemName: "backward.fill").font(.system(size: 24))
             }
             .accessibilityIdentifier("np.prev")
 
@@ -140,16 +125,14 @@ struct WatchNowPlayingView: View {
                     .font(.system(size: 32))
             }
             .accessibilityIdentifier("np.playpause")
-            // Exposes real transport state ("playing"/"paused") so the UI smoke
-            // test can confirm playback actually started, not just that the
-            // button is tappable.
+            // Exposes real transport state ("playing"/"paused") so the UI smoke test can confirm
+            // playback actually started, not just that the button is tappable.
             .accessibilityValue(player.isPlaying ? "playing" : "paused")
 
             Button {
                 player.next()
             } label: {
-                Image(systemName: "forward.fill")
-                    .font(.system(size: 24))
+                Image(systemName: "forward.fill").font(.system(size: 24))
             }
             .accessibilityIdentifier("np.next")
         }
@@ -168,12 +151,10 @@ struct WatchNowPlayingView: View {
         }
     }
 
-    private func subtitle(for track: LegacyWatchTrackRow) -> String {
+    private func subtitle(for track: WatchTrackSnapshot) -> String {
         var parts: [String] = []
-        if let artist = track.album?.artist ?? track.artist?.name { parts.append(artist) }
-        if let d = track.track.durationSec {
-            parts.append(WatchTimeFmt.mmss(d))
-        }
+        if !track.artist.isEmpty { parts.append(track.artist) }
+        if let d = track.durationSeconds { parts.append(WatchTimeFmt.mmss(d)) }
         return parts.joined(separator: " · ")
     }
 }

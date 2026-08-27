@@ -1306,4 +1306,96 @@ by compiler or device evidence.
   Known limitations: the manager and adapter are not on the shipped path — Phase 6 wires them from
   `AppState`. Device rows (C-11..C-14), the I-05..I-11 measurements, and screenshot / owner-signoff
   gates remain deferred per the code-complete scope.
-- Phase 6: **next**.
+- Phase 6 (2026-08-27, this commit): **complete** — SwiftData is the only watch persistence path,
+  `TonearmWatchLegacyCore` is deleted, and offline content is truthful: with the connectivity
+  coordinator disconnected, the watch shows only ready local tracks and the playlists/albums
+  derived from them, and every visible row resolves to a valid local file.
+
+  Package graph after the cutover:
+
+  ```text
+  TonearmWatch
+  ├── TonearmWatchProtocol                 (Foundation only)
+  └── TonearmWatchCore
+      └── TonearmWatchProtocol             (SwiftData; CloudKit explicitly .none)
+  ```
+
+  `TonearmWatchLegacyCore` and its GRDB edge are gone; `Sources/WatchLegacy/` is deleted; the
+  structural guard now fails on any `product: TonearmWatchLegacyCore`, any `import GRDB` anywhere
+  in the watch closure, the reappearance of `Sources/WatchLegacy/`, or the reappearance of
+  `WatchApp/App/WatchFeatureFlags.swift`.
+
+  Watch runtime graph (`WatchAppAssembly`): `WatchStoreBootstrap.open()` → `WatchLibraryRepository`
+  → `WatchFileInstaller` (staging under `Application Support/PlatterheadWatch/Staging`) →
+  `WatchSyncActor` (observer; turns link events into SwiftData truth, publishes the manifest back)
+  → `WatchConnectivityCoordinator(transport: WatchProtocolSessionAdapter.transport,
+  stateStore: WatchDefaultsSyncStateStore, observer: WatchFanoutObserver([syncActor, reachability]))`
+  → `WatchProtocolSessionAdapter(endpoint: coordinator)`. The `@MainActor` `WatchLibraryModel` is
+  the views' single source of truth and is refreshed from `WatchSyncActor.onLibraryChanged`.
+
+  Phone runtime graph (`PhoneWatchRuntime`, owned by `AppState`): `PhoneWatchPlaybackAdapter`
+  (bridges `AudioPlayer`) → `PhoneWatchRequestHandler` → `PhoneWatchProtocolCoordinator(transport:
+  PhoneWatchProtocolAdapter.transport, revisionStore: <GRDB-backed adapter over
+  PhoneWatchDownloadStore>)` → `PhoneWatchProtocolAdapter.activate()`, plus
+  `PhoneWatchDownloadManager` whose `emitRoots` seam calls `coordinator.sendDownloadRoots`. The
+  old `PhoneWatchSessionAdapter`, `WatchTransferController`, and full-catalog `WatchCatalog.export`
+  are off the runtime path; `AppState` no longer imports GRDB. `WatchCatalog` itself and the
+  legacy `watchTransfer`/`watchManifest` tables remain for Phase 10 to delete.
+
+  Four decisions worth recording:
+
+  1. **`removeTracks` leaves playlist membership alone.** Membership is the phone's; a track deleted
+     from under a still-desired playlist is dropped from the library and its file, but its
+     `WatchPlaylistEntryModel` stays — `WatchPlaylistSnapshot.isPartial` already tells the UI the
+     row is incomplete, and `WatchLibraryModel` hides a playlist only once it has *no* ready track.
+  2. **The watch has no streaming fallback after the cutover.** `WatchPlayer` resolves a track to
+     its local file or nothing; the fetch-from-phone overlay and `WatchFetchOverlay.swift` are
+     deleted. Offline truth is the only truth (§1.3, §2.2).
+  3. **A composite observer, not a second `setObserver`.** The coordinator holds exactly one
+     observer, and the watch needs two (`WatchSyncActor` for truth, `WatchReachabilityObserver`
+     for chrome), so `WatchFanoutObserver` forwards all twelve callbacks verbatim.
+  4. **One shared revision counter on the phone.** `PhoneWatchDownloadRevisionAdapter` bridges the
+     GRDB `watchDownloadRevision` row into the coordinator's `WatchPhoneRevisionStore` seam so the
+     download manager and the protocol coordinator stamp the same monotonic value.
+
+  Migration: `WatchAppAssembly` runs a one-time move of any audio left in the pre-cutover
+  `Application Support/WatchAudio` (and the caches mirror) into the new store's audio directory,
+  keyed by a `legacyAudioMigration.v1` metadata flag; `WatchSyncActor` adopts the survivors by
+  checksum on the next reconciliation once the phone re-declares the tracks. The GRDB legacy
+  *reader* (`LegacyWatchLibraryStore.migrationSnapshot()`) is gone, so `WatchLegacyUpgrade` is no
+  longer invoked; it and `migrateLegacy` stay in `TonearmWatchCore` (they still compile and are
+  still unit-tested) for a possible future importer.
+
+  Smoke fixture: DEBUG watch builds do not embed the `TonearmCore` SPM resource bundle, so
+  `Resources/Audio/ambient-ocean.wav` is now copied into the `TonearmWatch` bundle directly
+  (project.yml). `WatchFixtureSeeder` marks it ready with its real SHA-256 and builds the two
+  playlists the one smoke method browses; playback advances the elapsed clock from the local file.
+
+  Files changed: new `Sources/App/Watch/PhoneWatchRuntime.swift`,
+  `WatchApp/App/{WatchLibraryModel,WatchDefaultsSyncStateStore,WatchConnectivityObservers}.swift`;
+  rewritten `WatchApp/App/WatchAppAssembly.swift`, `WatchApp/PlatterheadWatchApp.swift`,
+  `WatchApp/WatchPlayer.swift`, `WatchApp/WatchFixtureSeeder.swift`, all seven `WatchApp/Views/*`,
+  `Sources/App/AppState.swift` (watch section), `Sources/Features/Settings/WatchSettingsView.swift`,
+  `Sources/App/Watch/PhoneWatchDownloadAdapter.swift`; deleted
+  `Sources/App/PhoneWatchSessionAdapter.swift`, `WatchApp/App/WatchFeatureFlags.swift`,
+  `WatchApp/Views/WatchFetchOverlay.swift`, `Sources/WatchLegacy/LegacyLibraryStore.swift`;
+  `Package.swift` (LegacyCore product/target/dep removed), `project.yml` (LegacyCore dep removed,
+  watch fixture WAV added), `scripts/check-ci-guards.sh` (tightened), `Sources/WatchSync/
+  PhoneWatchProjection.swift` (+`playlistRowID`/`albumRowID` seams), regenerated `Tonearm.xcodeproj`.
+  Tests added: 17 — `Tests/WatchFileInstallerTests.swift` (12), `Tests/WatchSyncActorTests.swift`
+  (5); `Tests/WatchArchitectureBoundaryTests.swift` repointed at `TonearmWatchProtocol`.
+
+  Gates: `make ci-guards` passed (new guard clauses each verified to fail when violated);
+  `make project` regenerated; `rm -rf .build && swift test` passed **1,729 tests with 8 intentional
+  skips and 0 failures in 97.5s** (Phase 5 baseline: 1,713). Clean `iPhone 16` and `Watch-Large`
+  simulator builds; the iPhone UI smoke (`TonearmSmokeUITests`, 17.6s) and the single watch UI
+  smoke (`WatchSmokeUITests`, 32.5s — boots, plays the seeded local WAV with the elapsed clock
+  advancing, toggles transport both ways, browses to the second playlist, shows the iPhone status)
+  both passed.
+
+  Known limitations, deferred per the code-complete scope: physical-device matrix (C-11..C-14),
+  the I-05..I-11 timing measurements, screenshot and owner-signoff gates. The watch Storage screen
+  is read-only this phase — local removal from the watch is Phase 8's iPhone-authoritative flow.
+  Live-server "watch pulls audio over HTTP" has no automated coverage by design (§53 by-hand
+  regression suite). `WatchCatalog` and the legacy `watchTransfer`/`watchManifest` phone tables
+  are still present for Phase 10 to delete.

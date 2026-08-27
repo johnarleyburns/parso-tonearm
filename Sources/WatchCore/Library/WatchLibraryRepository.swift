@@ -98,6 +98,27 @@ public actor WatchLibraryRepository {
         try context.save()
     }
 
+    /// §5.3 `removeAssets`: drop the track, its asset row, and its on-disk audio. Returns the IDs
+    /// actually removed so the caller can report an accurate manifest. A track that is a member of a
+    /// still-desired playlist is still removed here — the phone resolved references before sending.
+    @discardableResult
+    public func removeTracks(_ trackIDs: [String]) throws -> [String] {
+        let context = ModelContext(container)
+        let wanted = Set(trackIDs)
+        var removed: [String] = []
+        for track in try context.fetch(FetchDescriptor<WatchTrackModel>()) where wanted.contains(track.trackID) {
+            if let filename = track.asset?.relativeFilename {
+                try? FileManager.default.removeItem(at: audioDirectory.appendingPathComponent(filename))
+            }
+            context.delete(track)
+            removed.append(track.trackID)
+        }
+        // A playlist entry pointing at a now-deleted track is left in place: membership is the
+        // phone's, and `WatchPlaylistSnapshot.isPartial` already tells the UI the row is incomplete.
+        try context.save()
+        return removed.sorted()
+    }
+
     // MARK: - Queries
 
     public func tracks(readyOnly: Bool = false) throws -> [WatchTrackSnapshot] {

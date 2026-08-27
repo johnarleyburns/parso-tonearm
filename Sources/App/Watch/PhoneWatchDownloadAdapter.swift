@@ -83,31 +83,29 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
 
 // MARK: - File transfer
 
-/// Sends a resolved file to the watch through the existing `WatchSessionWriter` seam.
+/// Sends a resolved file to the watch through the §5 transport seam. The metadata rides as the
+/// property-list-safe `WatchAudioFileMetadata` dictionary — IDs, size, checksum, pin intent — which
+/// the watch's `WatchFileInstaller` is the sole reader of.
 ///
-/// `outstandingTransfers()` returns nothing here: rehydrating `WCSession.outstandingFileTransfers`
-/// into job identity is Phase 6 wiring. Until then a relaunch conservatively re-queues any job the
-/// store left `transferring`, which the watch manifest then dedupes.
+/// `outstandingTransfers()` returns nothing: rehydrating `WCSession.outstandingFileTransfers` into
+/// job identity is a later refinement. A relaunch conservatively re-queues any job the store left
+/// `transferring`, which the watch manifest then dedupes.
 public struct PhoneWatchSessionFileTransfer: PhoneWatchFileTransferring {
-    private let writer: any WatchSessionWriter
-    private let catalogVersion: Int
+    private let transport: any WatchProtocolTransport
+    private let phoneRevision: @Sendable () async -> Int64
 
-    public init(writer: any WatchSessionWriter, catalogVersion: Int = 1) {
-        self.writer = writer
-        self.catalogVersion = catalogVersion
+    public init(transport: any WatchProtocolTransport,
+                phoneRevision: @escaping @Sendable () async -> Int64 = { 0 }) {
+        self.transport = transport
+        self.phoneRevision = phoneRevision
     }
 
     public func transfer(fileURL: URL, trackID: WatchTrackID,
                          expectedBytes: Int64, sha256: String?) async throws {
-        let metadata = WatchAudioMetadata(trackKey: trackID.rawValue, bytes: expectedBytes,
-                                          pinned: true, catalogVersion: catalogVersion)
-        do {
-            try await writer.transferFile(fileURL, metadata: metadata)
-        } catch let fault as WatchProtocolFault {
-            throw fault
-        } catch {
-            throw WatchProtocolFault(code: .transferFailed)
-        }
+        let metadata = WatchAudioFileMetadata(
+            trackID: trackID, expectedBytes: expectedBytes, sha256: sha256,
+            pinned: true, phoneRevision: await phoneRevision())
+        await transport.transferFile(fileURL, metadata: metadata.dictionary)
     }
 
     public func outstandingTransfers() async -> [WatchTrackID] { [] }

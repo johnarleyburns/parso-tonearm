@@ -43,6 +43,11 @@ public enum PhoneWatchID {
     public static func trackRowID(_ id: WatchTrackID) -> Int64? {
         rowID(id.rawValue, prefix: trackRowPrefix)
     }
+
+    /// Sibling of `trackRowID` for playlist/album source keys, for the Xcode-only `Sources/App`
+    /// wiring that has to reverse a `WatchDownloadRootDescriptor.sourceID` back to a local row.
+    public static func playlistRowID(_ id: String) -> Int64? { rowID(id, prefix: playlistRowPrefix) }
+    public static func albumRowID(_ id: String) -> Int64? { rowID(id, prefix: albumRowPrefix) }
 }
 
 /// An opaque forward-only paging cursor. §6.1 forbids serializing the whole catalog; every paged

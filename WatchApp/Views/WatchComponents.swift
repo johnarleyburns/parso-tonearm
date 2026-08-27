@@ -1,5 +1,5 @@
 import SwiftUI
-import TonearmWatchLegacyCore
+import TonearmWatchCore
 
 enum WatchTimeFmt {
     static func mmss(_ seconds: Double) -> String {
@@ -16,20 +16,21 @@ enum WatchTimeFmt {
 }
 
 struct WatchTrackRow: View {
-    let row: LegacyWatchTrackRow
-    var showSource: Bool = false
+    let track: WatchTrackSnapshot
 
     var body: some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(row.track.title)
+                Text(track.title)
                     .font(.system(.body, design: .default))
                     .fontWeight(.medium)
                     .lineLimit(1)
-                Text(subtitle)
-                    .font(.system(.caption2))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(.caption2))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 4)
         }
@@ -38,8 +39,8 @@ struct WatchTrackRow: View {
 
     private var subtitle: String {
         var parts: [String] = []
-        if let artist = row.album?.artist ?? row.artist?.name { parts.append(artist) }
-        if let d = row.track.durationSec { parts.append(WatchTimeFmt.mmss(d)) }
+        if !track.artist.isEmpty { parts.append(track.artist) }
+        if let d = track.durationSeconds { parts.append(WatchTimeFmt.mmss(d)) }
         return parts.joined(separator: " · ")
     }
 }
@@ -69,5 +70,27 @@ struct WatchCollectionRow: View {
             }
         }
         .padding(.vertical, 6)
+    }
+}
+
+struct WatchEmptyStateView: View {
+    let icon: String
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 32))
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.system(.headline, design: .default))
+            Text(message)
+                .font(.system(.caption2))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+        }
+        .listRowBackground(Color.clear)
     }
 }

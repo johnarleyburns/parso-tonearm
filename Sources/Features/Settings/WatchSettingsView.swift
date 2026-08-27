@@ -192,15 +192,9 @@ struct WatchSettingsView: View {
 
     private func refresh() async {
         await appState.refreshWatchState()
-        let records: [WatchManifestRecord] = (try? await appState.store.dbQueue.read { db in
-            try WatchManifestRecord.fetchAll(db)
-        }) ?? []
-        onWatchTrackCount = records.count
-        onWatchBytes = records.reduce(0) { $0 + $1.bytes }
-        let transfers: [WatchTransferRecord] = (try? await appState.store.dbQueue.read { db in
-            try WatchTransferRecord.fetchAll(db)
-        }) ?? []
-        transferCount = transfers.filter { $0.state == "queued" || $0.state == "sending" }.count
-        failedCount = transfers.filter { $0.state == "failed" }.count
+        onWatchTrackCount = appState.watchInstalledTrackIDs.count
+        onWatchBytes = appState.watchInstalledBytes
+        transferCount = appState.watchTransferActiveCount
+        failedCount = appState.watchFailedCount
     }
 }

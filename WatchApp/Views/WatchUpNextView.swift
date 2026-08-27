@@ -1,5 +1,5 @@
 import SwiftUI
-import TonearmWatchLegacyCore
+import TonearmWatchCore
 
 struct WatchUpNextView: View {
     @ObservedObject private var player = WatchPlayer.shared
@@ -13,17 +13,17 @@ struct WatchUpNextView: View {
                     message: "Play a track to add it to the queue.")
             } else {
                 List {
-                    ForEach(Array(player.queueTracks.enumerated()), id: \.element.id) { idx, row in
+                    ForEach(Array(player.queueTracks.enumerated()), id: \.element.id) { idx, track in
                         Button {
                             player.jump(to: idx)
                         } label: {
                             HStack {
-                                if row.id == player.currentTrack?.id {
+                                if track.id == player.currentTrack?.id {
                                     Image(systemName: player.isPlaying ? "play.fill" : "pause.fill")
                                         .font(.system(size: 10))
                                         .foregroundStyle(.tint)
                                 }
-                                WatchTrackRow(row: row)
+                                WatchTrackRow(track: track)
                             }
                         }
                         .buttonStyle(.plain)

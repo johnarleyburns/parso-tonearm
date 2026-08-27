@@ -1,7 +1,6 @@
 import Foundation
 import SwiftUI
 import TonearmCore
-import GRDB
 
 enum AppTab: Int, CaseIterable {
     case listen, playlists, library, sources, settings, dj
@@ -9,28 +8,6 @@ enum AppTab: Int, CaseIterable {
 
 enum PendingImport: Equatable {
     case folder, files, smbFolder
-}
-
-// MARK: - Watch Transfer File Provider
-
-private func watchTrackId(from key: String) -> Int64? {
-    guard key.hasPrefix("t") else { return nil }
-    return Int64(key.dropFirst())
-}
-
-private func resolveLocalURL(for asset: Asset) -> URL? {
-    if let bookmark = asset.bookmark, let (url, _) = BookmarkVault.resolve(bookmark) {
-        return url
-    }
-    if let remote = asset.remoteURL.flatMap(URL.init(string:)), remote.isFileURL {
-        return remote
-    }
-    if let relPath = asset.relPath {
-        let base = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                appropriateFor: nil, create: false)
-        return base?.appendingPathComponent(relPath)
-    }
-    return nil
 }
 
 @MainActor
@@ -75,8 +52,12 @@ final class AppState: ObservableObject {
     @Published var watchSessionState: WatchSessionDisplayState = .unsupported
     @Published var showWatchSettings = false
     @Published var watchTransferActiveCount: Int = 0
-    @Published var watchManifestKeys: Set<String> = []
-    @Published var watchTransferStates: [Int64: String] = [:]
+    /// Watch track IDs (`PhoneWatchID` stable strings) the watch has reported as installed.
+    @Published var watchInstalledTrackIDs: Set<String> = []
+    /// Watch download job state keyed by the same stable string ID.
+    @Published var watchJobStates: [String: String] = [:]
+    @Published var watchInstalledBytes: Int64 = 0
+    @Published var watchFailedCount: Int = 0
     // Settings-backed values
     @AppStorage("streamOnCellular") var streamOnCellular = true
     @AppStorage("preferFLAC") var preferFLAC = false
@@ -97,23 +78,9 @@ final class AppState: ObservableObject {
         await reload()
         await CacheStore.shared.garbageCollectStalePartials()
         Task { await warmLocalSourceArtwork() }
-        await refreshWatchState()
-        await watchAdapter.activate()
+        watchRuntime.onChange = { [weak self] in self?.refreshWatchStateFromRuntime() }
+        await watchRuntime.activate()
         startWatchTransferTick()
-        _watchAdapter.onReachable = { [weak adapter = _watchAdapter] in
-            guard let adapter else { return }
-            Task {
-                try? await adapter.sendCatalogFromStore(store: LibraryStore.shared)
-            }
-        }
-        _watchAdapter.onFetchRequest = { [weak self] trackKey in
-            guard let self else { return }
-            Task { await self.transferController.enqueue(keys: [trackKey]) }
-        }
-        _watchAdapter.onCancelFetch = { [weak self] trackKey in
-            guard let self else { return }
-            Task { await self.transferController.cancel(trackKey: trackKey) }
-        }
     }
 
     private func repairDuplicatePlaylistsOnce() async {
@@ -989,172 +956,86 @@ final class AppState: ObservableObject {
 
     private var tickTask: Task<Void, Never>?
 
+    private lazy var watchRuntime = PhoneWatchRuntime(store: store, player: AudioPlayer.shared)
+
     private func startWatchTransferTick() {
         tickTask?.cancel()
-        tickTask = Task {
+        tickTask = Task { [weak self] in
             while !Task.isCancelled {
-                await transferController.tick(sessionWriter: watchAdapter)
-                await refreshWatchState()
-                try? await Task.sleep(for: .seconds(2))
+                try? await Task.sleep(for: .seconds(5))
+                guard let self else { return }
+                await self.watchRuntime.tick()
             }
         }
     }
 
-    private lazy var transferController: WatchTransferController = {
-        WatchTransferController(store: store, fileProvider: TransferFileProvider(store: store))
-    }()
-
-    private struct TransferFileProvider: WatchTransferFileProvider {
-        let store: LibraryStore
-
-        func localFileURL(for trackKey: String) async -> URL? {
-            guard let id = watchTrackId(from: trackKey),
-                  let row = try? await store.trackRow(id: id),
-                  let asset = row.asset else { return nil }
-            return resolveLocalURL(for: asset)
-        }
-
-        func downloadRemoteFile(for trackKey: String) async -> URL? {
-            guard let id = watchTrackId(from: trackKey),
-                  let row = try? await store.trackRow(id: id),
-                  let asset = row.asset,
-                  asset.kind == .remote,
-                  let remoteStr = asset.remoteURL,
-                  let remoteURL = URL(string: remoteStr) else { return nil }
-            let cacheKey = CachingResourceLoader.key(for: remoteURL)
-            let destURL = CacheStore.fileURL(for: cacheKey)
-            if FileManager.default.fileExists(atPath: destURL.path) { return destURL }
-            var request = URLRequest(url: remoteURL)
-            for (key, value) in asset.transientRemoteHeaders {
-                request.setValue(value, forHTTPHeaderField: key)
-            }
-            guard let (data, _) = try? await URLSession.shared.data(for: request) else { return nil }
-            try? data.write(to: destURL, options: .atomic)
-            await CacheStore.shared.setContentLength(Int64(data.count), for: cacheKey)
-            return destURL
-        }
-
-        func fileSize(for trackKey: String) -> Int64? {
-            nil
-        }
-    }
-
+    /// The pre-cutover name, kept because `WatchSettingsView` calls it. Now a reconcile nudge plus a
+    /// pull of the runtime's derived state.
     func refreshWatchState() async {
-        let records = await loadManifestRecords()
-        watchManifestKeys = Set(records.map(\.trackKey))
-        watchSessionState = watchAdapter.displayState()
-        let transfers = await loadAllTransferRecords()
-        watchTransferActiveCount = transfers.filter {
-            $0.state == "queued" || $0.state == "sending"
-        }.count
-        watchTransferStates = Dictionary(uniqueKeysWithValues: transfers.map {
-            ($0.trackId, $0.state)
-        })
+        await watchRuntime.tick()
+        refreshWatchStateFromRuntime()
     }
 
-    private func loadManifestRecords() async -> [WatchManifestRecord] {
-        (try? await store.dbQueue.read { db in
-            try WatchManifestRecord.fetchAll(db)
-        }) ?? []
+    private func refreshWatchStateFromRuntime() {
+        watchInstalledTrackIDs = watchRuntime.installedTrackIDs
+        watchJobStates = watchRuntime.jobStateByTrackID
+        watchTransferActiveCount = watchRuntime.activeJobCount
+        watchFailedCount = watchRuntime.failedJobCount
+        watchInstalledBytes = watchRuntime.installedBytes
+        watchSessionState = watchRuntime.connected ? .reachable : .installedNotReachable
     }
 
-    private func loadActiveTransfers() async -> [WatchTransferRecord] {
-        (try? await store.dbQueue.read { db in
-            try WatchTransferRecord.filter(
-                Column("state") == "queued" || Column("state") == "sending"
-            ).fetchAll(db)
-        }) ?? []
-    }
-
-    private func loadAllTransferRecords() async -> [WatchTransferRecord] {
-        (try? await store.dbQueue.read { db in
-            try WatchTransferRecord.fetchAll(db)
-        }) ?? []
+    private func watchTransferState(forID id: String) -> WatchTransferState? {
+        switch watchJobStates[id] {
+        case "queued", "resolving", "waitingForWiFi": return .queued
+        case "transferring": return .sending
+        case "sent": return .sent
+        case "failed": return .failed
+        default: return nil
+        }
     }
 
     func watchGlyphState(for row: TrackRow) -> WatchGlyphState {
-        guard let trackId = row.track.id else { return .notOnWatch }
-        let key = WatchCatalog.key(for: trackId)
-        return watchGlyphState(forKey: key)
-    }
-
-    func watchGlyphState(forKey key: String) -> WatchGlyphState {
-        let trackId = Int64(key.dropFirst()) ?? -1
-        let transferState = watchTransferStates[trackId]
-        let hasTransferring = transferState == "queued" || transferState == "sending"
-        let hasFailed = transferState == "failed"
-        let onWatch = watchManifestKeys.contains(key)
-        if hasTransferring { return .transferring(progress: nil) }
-        if hasFailed { return .failed }
-        if onWatch { return .onWatch }
-        return .notOnWatch
+        let id = PhoneWatchID.track(row.track).rawValue
+        return WatchGlyph.state(trackKey: id, manifest: watchInstalledTrackIDs,
+                                transferState: watchTransferState(forID: id), errorText: nil)
     }
 
     func watchAggregateState(for rows: [TrackRow]) -> (WatchGlyphState, Double) {
-        let keys = rows.compactMap { $0.track.id.map(WatchCatalog.key(for:)) }
-        return watchAggregateState(forKeys: keys)
-    }
-
-    func watchAggregateState(forKeys keys: [String]) -> (WatchGlyphState, Double) {
-        guard !keys.isEmpty else { return (.notOnWatch, 0) }
-        let transferStateMap = Dictionary(uniqueKeysWithValues: watchTransferStates.map {
-            (WatchCatalog.key(for: $0.key), $0.value)
+        let ids = rows.map { PhoneWatchID.track($0.track).rawValue }
+        guard !ids.isEmpty else { return (.notOnWatch, 0) }
+        let states = Dictionary(uniqueKeysWithValues: ids.compactMap { id in
+            watchTransferState(forID: id).map { (id, $0) }
         })
-        let errorMap: [String: String] = [:]
-        return WatchGlyph.aggregateState(
-            trackKeys: keys,
-            manifest: watchManifestKeys,
-            transferStates: transferStateMap.compactMapValues { WatchTransferState(rawValue: $0) },
-            errorTexts: errorMap)
+        return WatchGlyph.aggregateState(trackKeys: ids, manifest: watchInstalledTrackIDs,
+                                         transferStates: states, errorTexts: [:])
     }
 
     func downloadToWatch(rows: [TrackRow]) async {
-        let keys = rows.compactMap { row -> String? in
-            guard let trackId = row.track.id else { return nil }
-            return WatchCatalog.key(for: trackId)
-        }
-        await transferController.enqueue(keys: keys)
-        await refreshWatchState()
+        await watchRuntime.downloadTracks(rows)
+        refreshWatchStateFromRuntime()
     }
 
     func removeFromWatch(rows: [TrackRow]) async {
-        let keys = rows.compactMap { row -> String? in
-            guard let trackId = row.track.id else { return nil }
-            return WatchCatalog.key(for: trackId)
-        }
-        await transferController.removeKeysFromWatch(keys)
-        await refreshWatchState()
+        await watchRuntime.removeTracks(rows)
+        refreshWatchStateFromRuntime()
     }
 
     func downloadAllToWatch(playlistId: Int64) async {
-        guard let rows = try? await store.playlistTrackRows(playlistId: playlistId) else { return }
-        let keys = rows.compactMap { ptr -> String? in
-            guard let trackId = ptr.row.track.id else { return nil }
-            let key = WatchCatalog.key(for: trackId)
-            if watchManifestKeys.contains(key) { return nil }
-            return key
-        }
-        await transferController.enqueue(keys: keys, origin: .playlist, originId: playlistId)
-        await refreshWatchState()
+        await watchRuntime.downloadPlaylist(id: playlistId)
+        refreshWatchStateFromRuntime()
     }
 
     func removeAllFromWatch() async {
-        await transferController.removeAllFromWatch()
-        try? await store.dbQueue.write { db in
-            try WatchTransferRecord.deleteAll(db)
-        }
-        await refreshWatchState()
+        await watchRuntime.removeAll()
+        refreshWatchStateFromRuntime()
     }
 
+    /// The pre-cutover "re-send catalog" action is now "ask the watch to reconcile" — the watch
+    /// pulls what it needs over the §5 protocol rather than being handed a mirror.
     func resendCatalogToWatch() async {
-        guard watchSessionState == .reachable else { return }
-        try? await watchAdapter.sendCatalogFromStore(store: store)
+        await watchRuntime.requestReconciliation()
     }
-
-    var watchAdapter: PhoneWatchSessionAdapter {
-        _watchAdapter
-    }
-    private let _watchAdapter: PhoneWatchSessionAdapter = PhoneWatchSessionAdapter()
 
 
     func renamePlaylist(_ playlist: Playlist, title: String) async {

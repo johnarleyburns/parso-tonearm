@@ -1,20 +1,20 @@
 import SwiftUI
-import TonearmWatchLegacyCore
+import TonearmWatchCore
 
 struct WatchAlbumsView: View {
-    @State private var albums: [LegacyWatchAlbum] = []
+    @ObservedObject private var model = WatchAppAssembly.shared.model
 
     var body: some View {
         Group {
-            if albums.isEmpty {
+            if model.albums.isEmpty {
                 WatchEmptyStateView(
                     icon: "square.stack",
                     title: "No Albums",
-                    message: "Albums synced from your iPhone will appear here.")
+                    message: "Albums assembled from your downloaded songs will appear here.")
             } else {
                 List {
-                    ForEach(albums) { album in
-                        NavigationLink(value: WatchNav.album(album)) {
+                    ForEach(model.albums) { album in
+                        NavigationLink(value: WatchNav.album(album.id)) {
                             WatchAlbumRow(album: album)
                         }
                     }
@@ -23,28 +23,32 @@ struct WatchAlbumsView: View {
             }
         }
         .navigationTitle("Albums")
-        .task { await load() }
-    }
-
-    private func load() async {
-        albums = (try? await LegacyWatchLibraryStore.shared.allAlbums()) ?? []
+        .task { await model.refresh() }
     }
 }
 
 struct WatchAlbumRow: View {
-    let album: LegacyWatchAlbum
+    let album: WatchAlbumGroup
 
     var body: some View {
         HStack(spacing: 10) {
-            albumArtwork
-                .frame(width: 32, height: 32)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+            ZStack {
+                LinearGradient(
+                    colors: [.blue.opacity(0.3), .purple.opacity(0.3)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing)
+                Image(systemName: "music.note")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 32, height: 32)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(album.title)
                     .font(.system(.body, design: .default))
                     .fontWeight(.medium)
                     .lineLimit(1)
-                if let artist = album.artist ?? album.albumArtist {
+                if let artist = album.artist {
                     Text(artist)
                         .font(.system(.caption2))
                         .foregroundStyle(.secondary)
@@ -54,50 +58,24 @@ struct WatchAlbumRow: View {
         }
         .padding(.vertical, 4)
     }
-
-    @ViewBuilder
-    private var albumArtwork: some View {
-        if album.artworkId != nil {
-            Color.clear
-                .overlay(
-                    Image(systemName: "music.note")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                )
-                .background(
-                    LinearGradient(
-                        colors: [.blue.opacity(0.3), .purple.opacity(0.3)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing)
-                )
-        } else {
-            ZStack {
-                LinearGradient(
-                    colors: [.blue.opacity(0.3), .purple.opacity(0.3)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing)
-                Image(systemName: "music.note")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
 }
 
 struct WatchAlbumDetailView: View {
-    let album: LegacyWatchAlbum
-    @State private var tracks: [LegacyWatchTrackRow] = []
+    let albumID: String
+    @ObservedObject private var model = WatchAppAssembly.shared.model
+    @ObservedObject private var player = WatchPlayer.shared
+
+    private var tracks: [WatchTrackSnapshot] { model.readyTracks(forAlbum: albumID) }
 
     var body: some View {
         List {
             if !tracks.isEmpty {
                 Button {
-                    WatchPlayer.shared.play(tracks: tracks, startAt: 0)
+                    player.play(tracks: tracks, startAt: 0)
                 } label: {
                     HStack {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 14))
-                        Text("Play All")
-                            .font(.system(.body, design: .default))
-                            .fontWeight(.semibold)
+                        Image(systemName: "play.fill").font(.system(size: 14))
+                        Text("Play All").font(.system(.body, design: .default)).fontWeight(.semibold)
                         Spacer()
                     }
                     .padding(.vertical, 10)
@@ -109,13 +87,11 @@ struct WatchAlbumDetailView: View {
                 Button {
                     var shuffled = tracks
                     shuffled.shuffle()
-                    WatchPlayer.shared.play(tracks: shuffled, startAt: 0)
+                    player.play(tracks: shuffled, startAt: 0)
                 } label: {
                     HStack {
-                        Image(systemName: "shuffle")
-                            .font(.system(size: 14))
-                        Text("Shuffle")
-                            .font(.system(.body, design: .default))
+                        Image(systemName: "shuffle").font(.system(size: 14))
+                        Text("Shuffle").font(.system(.body, design: .default))
                         Spacer()
                     }
                     .padding(.vertical, 10)
@@ -124,45 +100,40 @@ struct WatchAlbumDetailView: View {
                 .buttonStyle(.plain)
             }
 
-            ForEach(Array(tracks.enumerated()), id: \.element.id) { idx, row in
+            ForEach(Array(tracks.enumerated()), id: \.element.id) { idx, track in
                 Button {
-                    WatchPlayer.shared.play(tracks: tracks, startAt: idx)
+                    player.play(tracks: tracks, startAt: idx)
                 } label: {
-                    WatchTrackRow(row: row)
+                    WatchTrackRow(track: track)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
         .listStyle(.carousel)
-        .navigationTitle(album.title)
-        .task { await load() }
-    }
-
-    private func load() async {
-        guard let id = album.id else { return }
-        let allRows = (try? await LegacyWatchLibraryStore.shared.allTrackRows()) ?? []
-        tracks = allRows.filter { $0.track.albumId == id }
+        .navigationTitle(model.album(id: albumID)?.title ?? "Album")
+        .task { await model.refresh() }
     }
 }
 
 struct WatchSongsView: View {
-    @State private var tracks: [LegacyWatchTrackRow] = []
+    @ObservedObject private var model = WatchAppAssembly.shared.model
+    @ObservedObject private var player = WatchPlayer.shared
 
     var body: some View {
         Group {
-            if tracks.isEmpty {
+            if model.tracks.isEmpty {
                 WatchEmptyStateView(
                     icon: "music.note",
                     title: "No Songs",
-                    message: "Songs synced from your iPhone will appear here.")
+                    message: "Songs you download from your iPhone will appear here.")
             } else {
                 List {
-                    ForEach(Array(tracks.prefix(5000).enumerated()), id: \.element.id) { idx, row in
+                    ForEach(Array(model.tracks.prefix(5000).enumerated()), id: \.element.id) { idx, track in
                         Button {
-                            WatchPlayer.shared.play(tracks: tracks, startAt: idx)
+                            player.play(tracks: model.tracks, startAt: idx)
                         } label: {
-                            WatchTrackRow(row: row)
+                            WatchTrackRow(track: track)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -172,15 +143,6 @@ struct WatchSongsView: View {
             }
         }
         .navigationTitle("Songs")
-        .task { await load() }
-    }
-
-    private func load() async {
-        tracks = ((try? await LegacyWatchLibraryStore.shared.allTrackRows()) ?? [])
-            .sorted { a, b in
-                let aKey = a.track.sortKey ?? a.track.title
-                let bKey = b.track.sortKey ?? b.track.title
-                return aKey.localizedCaseInsensitiveCompare(bKey) == .orderedAscending
-            }
+        .task { await model.refresh() }
     }
 }

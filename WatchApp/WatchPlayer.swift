@@ -3,36 +3,30 @@ import SwiftUI
 import AVFoundation
 import MediaPlayer
 import TonearmWatchCore
-import TonearmWatchLegacyCore
 
 @MainActor
 final class WatchPlayer: ObservableObject {
     static let shared = WatchPlayer()
 
-    @Published var currentTrack: LegacyWatchTrackRow?
+    @Published var currentTrack: WatchTrackSnapshot?
     @Published var isPlaying = false
     @Published var volume: Double = 0.5
     @Published var elapsed: Double = 0
     @Published var duration: Double = 0
     @Published var isShuffled = false
     @Published var repeatMode: WatchRepeatMode = .off
-    @Published var showFetchOverlay = false
-    @Published var fetchProgress: Double = 0
-    @Published var fetchingTrackTitle = ""
     @Published var navigationPath = NavigationPath()
-    /// Drives presentation of Now Playing. A boolean-bound sheet is used instead
-    /// of a programmatic `NavigationPath` push because external mutations to a
-    /// `NavigationPath` binding do not reliably drive the stack on watchOS — the
-    /// symptom being "tap Play → nothing happens".
+    /// Drives presentation of Now Playing. A boolean-bound sheet is used instead of a programmatic
+    /// `NavigationPath` push because external mutations to a `NavigationPath` binding do not reliably
+    /// drive the stack on watchOS — the symptom being "tap Play → nothing happens".
     @Published var isShowingNowPlaying = false
-    @Published var phoneUnreachable = false
 
     private var engine = WatchPlayerEngine()
     private var output = AVPlayerOutput()
-    private var queue: [LegacyWatchTrackRow] = []
+    private var queue: [WatchTrackSnapshot] = []
     private var positionTimer: Timer?
 
-    var queueTracks: [LegacyWatchTrackRow] { queue }
+    var queueTracks: [WatchTrackSnapshot] { queue }
 
     private init() {
         output.onItemEnded = { [weak self] in
@@ -53,28 +47,21 @@ final class WatchPlayer: ObservableObject {
 
     // MARK: - Public API
 
-    func play(tracks: [LegacyWatchTrackRow], startAt: Int) {
-        guard !tracks.isEmpty else { return }
-        queue = tracks
-        phoneUnreachable = false
-        engine.setQueue(tracks.map { $0.track.syncID }, startIndex: startAt)
-        let row = startAt < tracks.count ? tracks[startAt] : tracks[0]
-        currentTrack = row
+    func play(tracks: [WatchTrackSnapshot], startAt: Int) {
+        // Offline truth: only tracks whose audio actually resolves are playable.
+        let playable = tracks.filter { localFileURL(for: $0) != nil }
+        guard !playable.isEmpty else { return }
+        let anchor = startAt < tracks.count ? tracks[startAt] : tracks[0]
+        let start = playable.firstIndex(where: { $0.id == anchor.id }) ?? 0
+        queue = playable
+        engine.setQueue(playable.map(\.id), startIndex: start)
+        currentTrack = playable[start]
         navigateToNowPlaying()
-        guard resolveURL(for: row) != nil else {
-            showFetchFor(row)
-            return
-        }
         handleCommand(.play)
     }
 
-    func navigateToNowPlaying() {
-        isShowingNowPlaying = true
-    }
-
-    func dismissNowPlaying() {
-        isShowingNowPlaying = false
-    }
+    func navigateToNowPlaying() { isShowingNowPlaying = true }
+    func dismissNowPlaying() { isShowingNowPlaying = false }
 
     func togglePlayPause() {
         guard !queue.isEmpty else { return }
@@ -105,13 +92,13 @@ final class WatchPlayer: ObservableObject {
     private func handleCommand(_ cmd: WatchEngineCommand) {
         let directives = engine.command(cmd) { [weak self] key in
             guard let self else { return nil }
-            return self.queue.first(where: { $0.track.syncID == key }).flatMap { self.resolveURL(for: $0) }
+            return self.queue.first(where: { $0.id == key }).flatMap { self.localFileURL(for: $0) }
         }
 
         isPlaying = engine.isPlaying
         elapsed = engine.elapsed
         if let key = engine.currentTrack {
-            currentTrack = queue.first(where: { $0.track.syncID == key })
+            currentTrack = queue.first(where: { $0.id == key })
         }
         duration = output.currentDuration
 
@@ -141,68 +128,29 @@ final class WatchPlayer: ObservableObject {
 
     // MARK: - URL resolution
 
-    /// The effective URL to play for a track: a downloaded local file wins,
-    /// otherwise a streamable remote URL, otherwise `nil` (the caller must fetch
-    /// the file from the paired iPhone). This is what lets the watch play both
-    /// downloaded *and* streaming tracks.
-    private func resolveURL(for row: LegacyWatchTrackRow) -> URL? {
-        WatchTrackResolver.playableURL(
-            localURL: localFileURL(for: row),
-            remoteURL: row.asset?.remoteURL,
-            altRemoteURL: row.asset?.altRemoteURL)
-    }
-
-    /// A file already downloaded to the watch for this track, if one exists.
-    private func localFileURL(for row: LegacyWatchTrackRow) -> URL? {
-        guard let relPath = row.asset?.relPath else { return nil }
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let url = appSupport.appendingPathComponent(relPath)
-        if FileManager.default.fileExists(atPath: url.path) { return url }
-        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        let cacheURL = caches.appendingPathComponent(relPath)
-        if FileManager.default.fileExists(atPath: cacheURL.path) { return cacheURL }
-        return nil
-    }
-
-    // MARK: - Fetch overlay
-
-    private func showFetchFor(_ row: LegacyWatchTrackRow) {
-        fetchingTrackTitle = row.track.title
-        fetchProgress = 0
-        phoneUnreachable = false
-        showFetchOverlay = true
-        let key = row.track.syncID
-        let sent = WatchSessionAdapter.shared.sendFetchRequest(trackKey: key)
-        if !sent {
-            phoneUnreachable = true
-        }
-    }
-
-    func cancelFetch() {
-        if let track = currentTrack {
-            WatchSessionAdapter.shared.sendCancelFetch(trackKey: track.track.syncID)
-        }
-        showFetchOverlay = false
-        fetchProgress = 0
-        phoneUnreachable = false
-        if let track = currentTrack, resolveURL(for: track) != nil {
-            handleCommand(.play)
-        }
+    /// A file already downloaded to the watch for this track, resolved against the SwiftData store's
+    /// audio directory. There is no streaming path on the watch after the Phase 6 cutover — offline
+    /// truth is the only truth.
+    private func localFileURL(for snapshot: WatchTrackSnapshot) -> URL? {
+        guard let filename = snapshot.localFilename,
+              let directory = WatchAppAssembly.shared.audioDirectory else { return nil }
+        let url = directory.appendingPathComponent(filename)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
     // MARK: - Queue rebind
 
     private func rebindQueueFromEngine() {
         let engineKeys = engine.queue
-        var newQueue: [LegacyWatchTrackRow] = []
+        var newQueue: [WatchTrackSnapshot] = []
         for key in engineKeys {
-            if let row = queue.first(where: { $0.track.syncID == key }) {
+            if let row = queue.first(where: { $0.id == key }) {
                 newQueue.append(row)
             }
         }
         queue = newQueue
         if let key = engine.currentTrack {
-            currentTrack = queue.first(where: { $0.track.syncID == key })
+            currentTrack = queue.first(where: { $0.id == key })
         }
     }
 
@@ -225,29 +173,23 @@ final class WatchPlayer: ObservableObject {
     }
 
     func restorePositionIfAvailable() async {
-        guard let snap = WatchPositionStore.loadOrClear(), !snap.trackKeys.isEmpty else { return }
-        let rows = (try? await LegacyWatchLibraryStore.shared.allTrackRows()) ?? []
-        var restored: [LegacyWatchTrackRow] = []
-        let index = snap.currentIndex
-        for key in snap.trackKeys {
-            if let row = rows.first(where: { $0.track.syncID == key }) {
-                restored.append(row)
-            }
-        }
-        guard !restored.isEmpty else { return }
-        var valid: [LegacyWatchTrackRow] = []
+        guard let snap = WatchPositionStore.loadOrClear(), !snap.trackKeys.isEmpty,
+              let repository = WatchAppAssembly.shared.repository else { return }
+        let rows = (try? await repository.tracks(readyOnly: true)) ?? []
+        let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
+        var valid: [WatchTrackSnapshot] = []
         var validIndex = 0
-        for (i, row) in restored.enumerated() {
-            if resolveURL(for: row) != nil {
-                valid.append(row)
-                if i == index { validIndex = valid.count - 1 }
-            }
+        for (i, key) in snap.trackKeys.enumerated() {
+            guard let row = byID[key], localFileURL(for: row) != nil else { continue }
+            valid.append(row)
+            if i == snap.currentIndex { validIndex = valid.count - 1 }
         }
         guard !valid.isEmpty else { return }
         queue = valid
         currentTrack = valid.count > validIndex ? valid[validIndex] : valid[0]
         elapsed = snap.elapsed
-        engine = WatchPlayerEngine(queue: valid.map { $0.track.syncID }, startIndex: valid.count > validIndex ? validIndex : 0)
+        engine = WatchPlayerEngine(queue: valid.map(\.id),
+                                   startIndex: valid.count > validIndex ? validIndex : 0)
         isPlaying = false
     }
 
@@ -275,19 +217,15 @@ final class WatchPlayer: ObservableObject {
         }
     }
 
-    private func updateNowPlayingInfo(track: LegacyWatchTrackRow) {
+    private func updateNowPlayingInfo(track: WatchTrackSnapshot) {
         var info: [String: Any] = [
-            MPMediaItemPropertyTitle: track.track.title,
+            MPMediaItemPropertyTitle: track.title,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsed,
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
         ]
-        if let artist = track.album?.artist ?? track.artist?.name {
-            info[MPMediaItemPropertyArtist] = artist
-        }
-        if let albumTitle = track.album?.title {
-            info[MPMediaItemPropertyAlbumTitle] = albumTitle
-        }
+        if !track.artist.isEmpty { info[MPMediaItemPropertyArtist] = track.artist }
+        if !track.albumTitle.isEmpty { info[MPMediaItemPropertyAlbumTitle] = track.albumTitle }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 

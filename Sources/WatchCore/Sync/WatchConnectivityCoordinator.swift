@@ -312,8 +312,9 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
     }
 
     public func receiveFile(_ url: URL, metadata: [String: String]) async {
-        // Phase 5 installs audio; Phase 3 only notes that the phone is alive.
+        // A delivered file proves the phone is alive, then goes to the installer via the observer.
         await run(reducer.apply(.peerResponded, at: Date()))
+        await observer?.didReceiveAudioFile(at: url, metadata: metadata)
     }
 
     // MARK: - Private

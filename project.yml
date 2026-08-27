@@ -80,7 +80,6 @@ targets:
           - "WatchPlayback/**"
           - "WatchProtocol/**"
           - "WatchCore/**"
-          - "WatchLegacy/**"
           - "WatchExports.swift"
           - "WatchSync/**"
       - path: Resources
@@ -263,13 +262,16 @@ targets:
     platform: watchOS
     sources:
       - path: WatchApp
+      # The deterministic smoke fixture's audio. §16: "Replace with … SwiftData
+      # fixtures and bundled audio." DEBUG builds do not embed the TonearmCore
+      # SPM resource bundle, so the WAV is copied into the watch bundle directly.
+      - path: Resources/Audio/ambient-ocean.wav
+        buildPhase: resources
     dependencies:
       - package: TonearmCore
         product: TonearmWatchProtocol
       - package: TonearmCore
         product: TonearmWatchCore
-      - package: TonearmCore
-        product: TonearmWatchLegacyCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: guru.parso.tonearm.watchkitapp

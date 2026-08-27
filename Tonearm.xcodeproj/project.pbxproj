@@ -19,7 +19,6 @@
 		1A0ED14038DAB24DEC322BEC /* UpNextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42E2045814F52BC75F1609F /* UpNextView.swift */; };
 		1B9340D6FCB8EAFED2391F06 /* ProToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 841673E58AB857F3F5C1B063 /* ProToolsView.swift */; };
 		1D7A322F6F888A78C117BC60 /* AnalysisModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6880A895082E93827E5ED5BA /* AnalysisModel.swift */; };
-		20D740B9A416060861D03212 /* WatchSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F6CE09CD175F8D1AF3F2958 /* WatchSyncHandler.swift */; };
 		23DB81AAAF14CD685C279F8F /* mel_filterbank_slaney_64.bin in Resources */ = {isa = PBXBuildFile; fileRef = 39DCFD0118F0838F83219F22 /* mel_filterbank_slaney_64.bin */; };
 		258615352F9FC8B6D84BA3FC /* GlassSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0EA57A9A9BC3350FCC805C /* GlassSurface.swift */; };
 		270849FD1C2B861CB7D22A4E /* ambient-ocean.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = BA10A0A38CCAEB7B37B8B008 /* ambient-ocean.mp4 */; };
@@ -42,13 +41,12 @@
 		464C5B08FAAF1036A497892B /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0974BD26C3A62104181966A /* WatchRootView.swift */; };
 		471860B6E4026ABBD21B2A33 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BD8625177C1F1696B158A63 /* Components.swift */; };
 		4F556962AF663ABF80303696 /* AdaptiveGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4497CDA730FA46494E531667 /* AdaptiveGlass.swift */; };
+		4FAC5A9709F7937D3BFBA535 /* WatchDefaultsSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAC8912A647F968F6B1973EE /* WatchDefaultsSyncStateStore.swift */; };
 		5441C555034D686043CFEE90 /* WatchProtocolSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C1C58F472E8351D8A722A1B /* WatchProtocolSessionAdapter.swift */; };
 		55344DAAB8AAC8239D613381 /* AirPlayButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C72A4A2127018D6E48638F2 /* AirPlayButton.swift */; };
 		56F4F1925361073B6B0A664E /* AmbientPlaylistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3726DD886D8478C23AEA8A73 /* AmbientPlaylistView.swift */; };
 		59D802428B3682D2D56B6C47 /* UIRegressionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EEEBFBA5ECD81C525D48E2D /* UIRegressionSupport.swift */; };
 		5B465DBD74B94A0538CC824B /* ambient-rain.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 4EDDCD4974AB22B40A4AB3EE /* ambient-rain.mp4 */; };
-		5F09D1C32CB94D57F173D001 /* WatchFetchOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB123222EE9042CA89F2CB7E /* WatchFetchOverlay.swift */; };
-		62874EE2E842BBE59D064A7C /* PhoneWatchSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF71DF665673F9AE321A652A /* PhoneWatchSessionAdapter.swift */; };
 		62C00C848B2C29B7ABFBC5A8 /* AddTracksToPlaylistSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 471A0FB42343862D9FA90310 /* AddTracksToPlaylistSheet.swift */; };
 		634F7013397B8B104E7B4EDC /* AnimatedSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361B96D20825E7FB9E3FA9F3 /* AnimatedSplashView.swift */; };
 		65382A626085DF49D9496F82 /* WatchStorageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C8B4A708B46F295FFFBBCD /* WatchStorageView.swift */; };
@@ -60,10 +58,8 @@
 		7155FE7BF0A91F242A4A2F25 /* PlaylistsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80C464F1FF08824183F765F /* PlaylistsView.swift */; };
 		73BB22E45390F362F4B45F55 /* TonearmWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		73EF48B22BA7870F3A6C08D7 /* TonearmSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5CEA0DA2DDAF7A8F27DC1F /* TonearmSmokeUITests.swift */; };
-		77173266A89C77D8FE2E9811 /* WatchFeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAEAB48323D6D26623FD0798 /* WatchFeatureFlags.swift */; };
 		781C7C906ED63132DF7CCDB2 /* WatchNowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C123D981D52AC1C9DE3751 /* WatchNowPlayingView.swift */; };
 		7823BEF7E32E97CC60A6BEB0 /* TonearmWatchCore in Frameworks */ = {isa = PBXBuildFile; productRef = BBD12630BF2D8DC41AAA8B3A /* TonearmWatchCore */; };
-		782717264F729A5B9089D729 /* WatchSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD1B4DD87021743D84C9830 /* WatchSessionAdapter.swift */; };
 		796967ED51F8C7841F6FC270 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 25DC295C778B26F9C30D320D /* TonearmCore */; };
 		7971FCD80BE7D612C09F9B60 /* RemoteLibraryRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D198A526169E0BB94CA5DC01 /* RemoteLibraryRegressionUITests.swift */; };
 		79BCD50B20279F25B1863C6B /* DJPerformanceDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEB9AA0FA0FD051052CCF160 /* DJPerformanceDriver.swift */; };
@@ -81,7 +77,7 @@
 		94C8DFA6509A832BF22FAC17 /* WatchSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 174BBA2ECE78CF32CFAC192C /* WatchSettingsView.swift */; };
 		9E573BB60815F1EB9B85148D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50DA465263A2171C1396F13F /* RootView.swift */; };
 		9EC1A5D1F71874F5419FC2BE /* merges.txt in Resources */ = {isa = PBXBuildFile; fileRef = 3907EDDD5DF96CE5ABA29E5D /* merges.txt */; };
-		A07ED6F5156E25957D91CA0A /* TonearmWatchLegacyCore in Frameworks */ = {isa = PBXBuildFile; productRef = 64389305A3047A18A099514F /* TonearmWatchLegacyCore */; };
+		A44043A17124189F1AB84D88 /* WatchConnectivityObservers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B211FE6148A113FA2A0BDB7 /* WatchConnectivityObservers.swift */; };
 		A874CDAAE6139A6C31115E30 /* WatchFixtureSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */; };
 		ACADB9883B99AE686E0CD3AE /* DJMixRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F53F18142069FEFFAA2E2EF /* DJMixRegressionUITests.swift */; };
 		AD8AF503F7EE66FABFD99B86 /* TonearmShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -91,10 +87,12 @@
 		B934D2D3E843B5A817373F83 /* DJStemRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A9DA824381E60D7446F2C3 /* DJStemRegressionUITests.swift */; };
 		BB8672528D83DBBD5212DF45 /* WatchAppAssembly.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020095373C3215492D72D4BD /* WatchAppAssembly.swift */; };
 		BE20C9CFF3CB74BB6864F917 /* ArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE86C3C1F56FA212DBB6D8F0 /* ArtworkStore.swift */; };
+		BFF0F03CC238BE94D7FF5554 /* ambient-ocean.wav in Resources */ = {isa = PBXBuildFile; fileRef = 74D07216801F19A8231EE98A /* ambient-ocean.wav */; };
 		C0D5BE09D689D61435BEDCA1 /* WidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */; };
 		C0E3EB7AB1D02FA2309CE3B2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */; };
 		C5E4A0FDE163504E89491B31 /* SourcesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E08FD7930B1AABFA3C2825E0 /* SourcesView.swift */; };
 		C776768D33A8CED2D2AECE56 /* TonearmWatchProtocol in Frameworks */ = {isa = PBXBuildFile; productRef = BEE2F9FD7B884140F67C389F /* TonearmWatchProtocol */; };
+		C85F03E2D591668E95D27F9B /* WatchLibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E3EECAA4F3F90C416B78A37 /* WatchLibraryModel.swift */; };
 		C8ABFA6DEBDCBFC45E023FA6 /* PlatterheadWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 053C5BB5C4AF1B09D39BBCC6 /* PlatterheadWatchApp.swift */; };
 		C9F54A3FCFBA3C298CCE13F7 /* TonearmDJ in Frameworks */ = {isa = PBXBuildFile; productRef = 1C09B54EEFA4691DE4B5274A /* TonearmDJ */; };
 		CA85D99F000D191F2542DDF6 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 65EC4F101281094B1EB48E18 /* TonearmCore */; };
@@ -115,6 +113,7 @@
 		FADBF5442CAB96566E333616 /* PhoneWatchPlaybackAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080C57977F143B9824ED300E /* PhoneWatchPlaybackAdapter.swift */; };
 		FADE01E4B305918AF925D05A /* JamendoCredentialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */; };
 		FBB00104D3B4C0B2D326F5D0 /* PhoneWatchProtocolAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1456A887E510378AA4B5141 /* PhoneWatchProtocolAdapter.swift */; };
+		FC5103EF9A7C5CB98520D838 /* PhoneWatchRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14EEEDA2B8FDE22EF9533817 /* PhoneWatchRuntime.swift */; };
 		FD553DEE4B4C289B97613DCF /* DJHardwareRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB31782CBFF5776F886292E7 /* DJHardwareRegressionUITests.swift */; };
 		FDF068EFDA72F93C5CC09111 /* PhoneWatchDownloadAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12BE4175EE11F1CFC76A3575 /* PhoneWatchDownloadAdapter.swift */; };
 /* End PBXBuildFile section */
@@ -203,10 +202,10 @@
 		0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPlaylistsView.swift; sourceTree = "<group>"; };
 		0C1C58F472E8351D8A722A1B /* WatchProtocolSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchProtocolSessionAdapter.swift; sourceTree = "<group>"; };
 		0F53F18142069FEFFAA2E2EF /* DJMixRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJMixRegressionUITests.swift; sourceTree = "<group>"; };
-		0F6CE09CD175F8D1AF3F2958 /* WatchSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncHandler.swift; sourceTree = "<group>"; };
 		0FFCDEBB114755DD71B0E074 /* WatchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WatchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		11F034B4AB152DB439603498 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		12BE4175EE11F1CFC76A3575 /* PhoneWatchDownloadAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchDownloadAdapter.swift; sourceTree = "<group>"; };
+		14EEEDA2B8FDE22EF9533817 /* PhoneWatchRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchRuntime.swift; sourceTree = "<group>"; };
 		174BBA2ECE78CF32CFAC192C /* WatchSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSettingsView.swift; sourceTree = "<group>"; };
 		1CD2E724E87813719D5A0A81 /* SystemPlaybackBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemPlaybackBridge.swift; sourceTree = "<group>"; };
 		1EFD37144613B3E4468ED3D2 /* OAuthClientConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthClientConfiguration.swift; sourceTree = "<group>"; };
@@ -241,6 +240,7 @@
 		6A21E9BA83011557E190F76D /* WatchSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSmokeUITests.swift; sourceTree = "<group>"; };
 		6AB44399EDF479626BC62A6F /* EQView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EQView.swift; sourceTree = "<group>"; };
 		6B30803B3705FC80247E98A8 /* ambient-flowing-water.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-flowing-water.wav"; sourceTree = "<group>"; };
+		6E3EECAA4F3F90C416B78A37 /* WatchLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLibraryModel.swift; sourceTree = "<group>"; };
 		706DA4B73090EF9C76A51174 /* TonearmApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonearmApp.swift; sourceTree = "<group>"; };
 		732D19D5B0A59029A785C86A /* TonearmWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TonearmWidgets.entitlements; sourceTree = "<group>"; };
 		738E22304AC5FEF3B6449D27 /* PlaylistRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistRegressionUITests.swift; sourceTree = "<group>"; };
@@ -252,6 +252,7 @@
 		783A00C9B2142335E1E6936B /* WatchAlbumsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAlbumsView.swift; sourceTree = "<group>"; };
 		792522B037084CCCB22FF9D2 /* parso-tonearm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "parso-tonearm"; path = .; sourceTree = SOURCE_ROOT; };
 		799F8E8C5C1DBA3A543B600B /* vocab.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = vocab.json; sourceTree = "<group>"; };
+		7B211FE6148A113FA2A0BDB7 /* WatchConnectivityObservers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityObservers.swift; sourceTree = "<group>"; };
 		7C72A4A2127018D6E48638F2 /* AirPlayButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPlayButton.swift; sourceTree = "<group>"; };
 		8386CD93C2E826E9FE11D810 /* NowPlayingRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingRegressionUITests.swift; sourceTree = "<group>"; };
 		841673E58AB857F3F5C1B063 /* ProToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProToolsView.swift; sourceTree = "<group>"; };
@@ -265,16 +266,14 @@
 		9BD8625177C1F1696B158A63 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		9EEEBFBA5ECD81C525D48E2D /* UIRegressionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIRegressionSupport.swift; sourceTree = "<group>"; };
 		A89542BA6FB2BE8E1579D735 /* TonearmUIRegressionTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TonearmUIRegressionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		AAEAB48323D6D26623FD0798 /* WatchFeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchFeatureFlags.swift; sourceTree = "<group>"; };
+		AAC8912A647F968F6B1973EE /* WatchDefaultsSyncStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchDefaultsSyncStateStore.swift; sourceTree = "<group>"; };
 		AE86C3C1F56FA212DBB6D8F0 /* ArtworkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkStore.swift; sourceTree = "<group>"; };
 		AE88E0E38F38D3267A0EBF38 /* Tonearm.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.entitlements; sourceTree = "<group>"; };
 		AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WidgetArtworkStore+Save.swift"; sourceTree = "<group>"; };
-		AF71DF665673F9AE321A652A /* PhoneWatchSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchSessionAdapter.swift; sourceTree = "<group>"; };
 		B89D48292A9F33EF6D60C975 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JamendoCredentialView.swift; sourceTree = "<group>"; };
 		B97FF4E2C42647407E4F4E0F /* ListenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenView.swift; sourceTree = "<group>"; };
 		BA10A0A38CCAEB7B37B8B008 /* ambient-ocean.mp4 */ = {isa = PBXFileReference; path = "ambient-ocean.mp4"; sourceTree = "<group>"; };
-		BB123222EE9042CA89F2CB7E /* WatchFetchOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchFetchOverlay.swift; sourceTree = "<group>"; };
 		BB31782CBFF5776F886292E7 /* DJHardwareRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJHardwareRegressionUITests.swift; sourceTree = "<group>"; };
 		BB454D89725B61725520B04A /* NowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingView.swift; sourceTree = "<group>"; };
 		BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchFixtureSeeder.swift; sourceTree = "<group>"; };
@@ -296,7 +295,6 @@
 		E51C6DE97A7D128E05BB1604 /* GlassDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassDock.swift; sourceTree = "<group>"; };
 		E8C8B4A708B46F295FFFBBCD /* WatchStorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStorageView.swift; sourceTree = "<group>"; };
 		EB1AF5D1419772A497355BF0 /* AnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisView.swift; sourceTree = "<group>"; };
-		EBD1B4DD87021743D84C9830 /* WatchSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSessionAdapter.swift; sourceTree = "<group>"; };
 		EEB9AA0FA0FD051052CCF160 /* DJPerformanceDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJPerformanceDriver.swift; sourceTree = "<group>"; };
 		F1456A887E510378AA4B5141 /* PhoneWatchProtocolAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchProtocolAdapter.swift; sourceTree = "<group>"; };
 		F1BAAB8C1EDFCC23544B7B03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -323,7 +321,6 @@
 			files = (
 				92F6E6D644CD35182A59813C /* TonearmWatchProtocol in Frameworks */,
 				7823BEF7E32E97CC60A6BEB0 /* TonearmWatchCore in Frameworks */,
-				A07ED6F5156E25957D91CA0A /* TonearmWatchLegacyCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -360,8 +357,6 @@
 				053C5BB5C4AF1B09D39BBCC6 /* PlatterheadWatchApp.swift */,
 				BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */,
 				37E434F82159D7C687895D77 /* WatchPlayer.swift */,
-				EBD1B4DD87021743D84C9830 /* WatchSessionAdapter.swift */,
-				0F6CE09CD175F8D1AF3F2958 /* WatchSyncHandler.swift */,
 			);
 			path = WatchApp;
 			sourceTree = "<group>";
@@ -419,7 +414,9 @@
 			isa = PBXGroup;
 			children = (
 				020095373C3215492D72D4BD /* WatchAppAssembly.swift */,
-				AAEAB48323D6D26623FD0798 /* WatchFeatureFlags.swift */,
+				7B211FE6148A113FA2A0BDB7 /* WatchConnectivityObservers.swift */,
+				AAC8912A647F968F6B1973EE /* WatchDefaultsSyncStateStore.swift */,
+				6E3EECAA4F3F90C416B78A37 /* WatchLibraryModel.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -482,7 +479,6 @@
 			children = (
 				783A00C9B2142335E1E6936B /* WatchAlbumsView.swift */,
 				F264152278DB935FBFB188F5 /* WatchComponents.swift */,
-				BB123222EE9042CA89F2CB7E /* WatchFetchOverlay.swift */,
 				73C123D981D52AC1C9DE3751 /* WatchNowPlayingView.swift */,
 				0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */,
 				D0974BD26C3A62104181966A /* WatchRootView.swift */,
@@ -565,7 +561,6 @@
 				D5D719C516744B6A8F1A002C /* Watch */,
 				3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */,
 				E38162EF6D932D8762B6D123 /* Info.plist */,
-				AF71DF665673F9AE321A652A /* PhoneWatchSessionAdapter.swift */,
 				1CD2E724E87813719D5A0A81 /* SystemPlaybackBridge.swift */,
 				089C841BE7459AF20665F7B0 /* Tonearm.Debug.entitlements */,
 				AE88E0E38F38D3267A0EBF38 /* Tonearm.entitlements */,
@@ -667,6 +662,7 @@
 				12BE4175EE11F1CFC76A3575 /* PhoneWatchDownloadAdapter.swift */,
 				080C57977F143B9824ED300E /* PhoneWatchPlaybackAdapter.swift */,
 				F1456A887E510378AA4B5141 /* PhoneWatchProtocolAdapter.swift */,
+				14EEEDA2B8FDE22EF9533817 /* PhoneWatchRuntime.swift */,
 			);
 			path = Watch;
 			sourceTree = "<group>";
@@ -879,7 +875,6 @@
 			packageProductDependencies = (
 				B17E701B6BAC809CDAD73399 /* TonearmWatchProtocol */,
 				BBD12630BF2D8DC41AAA8B3A /* TonearmWatchCore */,
-				64389305A3047A18A099514F /* TonearmWatchLegacyCore */,
 			);
 			productName = TonearmWatch;
 			productReference = 8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */;
@@ -983,6 +978,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3B69A3EEB3B798C7E772B384 /* Assets.xcassets in Resources */,
+				BFF0F03CC238BE94D7FF5554 /* ambient-ocean.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1037,7 +1033,7 @@
 				FDF068EFDA72F93C5CC09111 /* PhoneWatchDownloadAdapter.swift in Sources */,
 				FADBF5442CAB96566E333616 /* PhoneWatchPlaybackAdapter.swift in Sources */,
 				FBB00104D3B4C0B2D326F5D0 /* PhoneWatchProtocolAdapter.swift in Sources */,
-				62874EE2E842BBE59D064A7C /* PhoneWatchSessionAdapter.swift in Sources */,
+				FC5103EF9A7C5CB98520D838 /* PhoneWatchRuntime.swift in Sources */,
 				7155FE7BF0A91F242A4A2F25 /* PlaylistsView.swift in Sources */,
 				E15A8628673977ECC56099DB /* ProPaywallView.swift in Sources */,
 				1B9340D6FCB8EAFED2391F06 /* ProToolsView.swift in Sources */,
@@ -1081,17 +1077,16 @@
 				817CD786F8CC3FC747B95A61 /* WatchAlbumsView.swift in Sources */,
 				BB8672528D83DBBD5212DF45 /* WatchAppAssembly.swift in Sources */,
 				6850787E3F2A8AE11FE57E4A /* WatchComponents.swift in Sources */,
-				77173266A89C77D8FE2E9811 /* WatchFeatureFlags.swift in Sources */,
-				5F09D1C32CB94D57F173D001 /* WatchFetchOverlay.swift in Sources */,
+				A44043A17124189F1AB84D88 /* WatchConnectivityObservers.swift in Sources */,
+				4FAC5A9709F7937D3BFBA535 /* WatchDefaultsSyncStateStore.swift in Sources */,
 				A874CDAAE6139A6C31115E30 /* WatchFixtureSeeder.swift in Sources */,
+				C85F03E2D591668E95D27F9B /* WatchLibraryModel.swift in Sources */,
 				781C7C906ED63132DF7CCDB2 /* WatchNowPlayingView.swift in Sources */,
 				09BA5404F865447289CD7A3D /* WatchPlayer.swift in Sources */,
 				2FB5EA4A4EEFB59CEBA07B8F /* WatchPlaylistsView.swift in Sources */,
 				5441C555034D686043CFEE90 /* WatchProtocolSessionAdapter.swift in Sources */,
 				464C5B08FAAF1036A497892B /* WatchRootView.swift in Sources */,
-				782717264F729A5B9089D729 /* WatchSessionAdapter.swift in Sources */,
 				65382A626085DF49D9496F82 /* WatchStorageView.swift in Sources */,
-				20D740B9A416060861D03212 /* WatchSyncHandler.swift in Sources */,
 				E84D1DCC3BDCFDFA5ED92E0E /* WatchUpNextView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1676,10 +1671,6 @@
 		391DE85B4F0BACCBFDCDAF98 /* TonearmCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = TonearmCore;
-		};
-		64389305A3047A18A099514F /* TonearmWatchLegacyCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = TonearmWatchLegacyCore;
 		};
 		65EC4F101281094B1EB48E18 /* TonearmCore */ = {
 			isa = XCSwiftPackageProductDependency;

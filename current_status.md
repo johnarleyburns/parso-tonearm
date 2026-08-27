@@ -14,11 +14,25 @@ CloudKit/iCloud entitlement on the watch target, explicit
 `ModelConfiguration(cloudKitDatabase: .none)`, and a package dependency boundary that
 keeps CloudKit out of the watch-linked product closure. The iPhone's existing GRDB
 library and existing phone-side CloudKit behavior remain authoritative and are not being
-migrated. Existing watch GRDB behavior is isolated in a temporary CloudKit-free legacy
-product during Phases 1–5, then removed at the SwiftData cutover in Phase 6.
+migrated. Existing watch GRDB behavior was isolated in a temporary CloudKit-free legacy
+product during Phases 1–5 and removed at the SwiftData cutover in Phase 6.
 
-**Phases 1 through 5 are complete. Phase 6 — watch file installation and offline
-cutover — is next.**
+**Phases 1 through 6 are complete. Phase 7 — connected and offline watch
+navigation/search UI — is next.**
+
+Phase 6 (`this commit`) made SwiftData the only watch persistence path, deleted
+`TonearmWatchLegacyCore` (and `Sources/WatchLegacy/`, `WatchApp/App/WatchFeatureFlags.swift`,
+`WatchApp/Views/WatchFetchOverlay.swift`, `Sources/App/PhoneWatchSessionAdapter.swift`), and
+wired the real stack on both sides: `WatchAppAssembly` builds the repository + file installer +
+connectivity coordinator + sync actor + `@MainActor` `WatchLibraryModel`; `PhoneWatchRuntime`
+(owned by `AppState`) builds the phone protocol coordinator + `PhoneWatchDownloadManager` and
+keeps every public `AppState` watch method working. `swift test` 1,729 pass / 8 skip / 0 fail;
+`make ci-guards` clean (the GRDB and legacy-product guards are now hard failures); iPhone +
+watch simulator builds and both UI smoke lanes pass. Full audit: IMPLEMENTATION_PLAN §15;
+working log: `docs/plans/watch-rearchitecture/PHASE6_CUTOVER.md`. Deferred (code-complete
+scope): physical-device matrix, timing measurements, screenshots, owner sign-off; the watch
+Storage screen is read-only until Phase 8's iPhone-authoritative removal flow;
+`WatchCatalog` and the legacy phone `watchTransfer`/`watchManifest` tables await Phase 10.
 The old [`docs/plans/watch-app.md`](docs/plans/watch-app.md) describes the implementation
 being replaced and is historical only. The detailed phase gates, normative mockups, and
 release acceptance matrix are:

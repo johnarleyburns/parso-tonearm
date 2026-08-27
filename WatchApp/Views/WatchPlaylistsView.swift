@@ -1,24 +1,24 @@
 import SwiftUI
-import TonearmWatchLegacyCore
+import TonearmWatchCore
 
 struct WatchPlaylistsView: View {
-    @State private var playlists: [LegacyWatchPlaylist] = []
+    @ObservedObject private var model = WatchAppAssembly.shared.model
 
     var body: some View {
         Group {
-            if playlists.isEmpty {
+            if model.playlists.isEmpty {
                 WatchEmptyStateView(
                     icon: "music.note.list",
                     title: "No Playlists",
-                    message: "Playlists synced from your iPhone will appear here.")
+                    message: "Playlists you download from your iPhone will appear here.")
             } else {
                 List {
-                    ForEach(playlists) { playlist in
-                        NavigationLink(value: WatchNav.playlist(playlist)) {
+                    ForEach(model.playlists) { playlist in
+                        NavigationLink(value: WatchNav.playlist(playlist.id)) {
                             WatchCollectionRow(
                                 title: playlist.title,
-                                subtitle: playlist.kind == .folder ? "Folder" : "Manual",
-                                systemImage: playlist.kind == .folder ? "folder.fill" : "music.note.list")
+                                subtitle: subtitle(for: playlist),
+                                systemImage: "music.note.list")
                         }
                     }
                 }
@@ -26,80 +26,74 @@ struct WatchPlaylistsView: View {
             }
         }
         .navigationTitle("Playlists")
-        .task { await load() }
+        .task { await model.refresh() }
     }
 
-    private func load() async {
-        playlists = (try? await LegacyWatchLibraryStore.shared.allPlaylists()) ?? []
+    private func subtitle(for playlist: WatchPlaylistSnapshot) -> String {
+        "\(playlist.readyTrackIDs.count) tracks"
     }
 }
 
 struct WatchPlaylistDetailView: View {
-    let playlist: LegacyWatchPlaylist
-    @State private var tracks: [LegacyWatchPlaylistTrackRow] = []
+    let playlistID: String
+    @ObservedObject private var model = WatchAppAssembly.shared.model
+    @ObservedObject private var player = WatchPlayer.shared
+
+    private var tracks: [WatchTrackSnapshot] { model.readyTracks(forPlaylist: playlistID) }
 
     var body: some View {
         List {
             if !tracks.isEmpty {
                 Button {
-                    let rows = tracks.map(\.row)
-                    if !rows.isEmpty {
-                        WatchPlayer.shared.play(tracks: rows, startAt: 0)
-                    }
+                    player.play(tracks: tracks, startAt: 0)
                 } label: {
-                    HStack {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 14))
-                        Text("Play All")
-                            .font(.system(.body, design: .default))
-                            .fontWeight(.semibold)
-                        Spacer()
-                    }
-                    .padding(.vertical, 10)
-                    .contentShape(Rectangle())
+                    playAllLabel
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("playlist.playAll")
 
                 Button {
-                    var rows = tracks.map(\.row)
-                    if !rows.isEmpty {
-                        rows.shuffle()
-                        WatchPlayer.shared.play(tracks: rows, startAt: 0)
-                    }
+                    var shuffled = tracks
+                    shuffled.shuffle()
+                    player.play(tracks: shuffled, startAt: 0)
                 } label: {
-                    HStack {
-                        Image(systemName: "shuffle")
-                            .font(.system(size: 14))
-                        Text("Shuffle")
-                            .font(.system(.body, design: .default))
-                        Spacer()
-                    }
-                    .padding(.vertical, 10)
-                    .contentShape(Rectangle())
+                    shuffleLabel
                 }
                 .buttonStyle(.plain)
             }
 
-            ForEach(tracks) { item in
+            ForEach(Array(tracks.enumerated()), id: \.element.id) { idx, track in
                 Button {
-                    if let idx = tracks.firstIndex(where: { $0.id == item.id }) {
-                        WatchPlayer.shared.play(tracks: tracks.map(\.row), startAt: idx)
-                    }
+                    player.play(tracks: tracks, startAt: idx)
                 } label: {
-                    WatchTrackRow(row: item.row)
+                    WatchTrackRow(track: track)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
         .listStyle(.carousel)
-        .navigationTitle(playlist.title)
-        .task { await load() }
+        .navigationTitle(model.playlist(id: playlistID)?.title ?? "Playlist")
+        .task { await model.refresh() }
     }
 
-    private func load() async {
-        guard let id = playlist.id else { return }
-        tracks = (try? await LegacyWatchLibraryStore.shared.playlistTrackRows(playlistId: id)) ?? []
+    private var playAllLabel: some View {
+        HStack {
+            Image(systemName: "play.fill").font(.system(size: 14))
+            Text("Play All").font(.system(.body, design: .default)).fontWeight(.semibold)
+            Spacer()
+        }
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+    }
+
+    private var shuffleLabel: some View {
+        HStack {
+            Image(systemName: "shuffle").font(.system(size: 14))
+            Text("Shuffle").font(.system(.body, design: .default))
+            Spacer()
+        }
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
     }
 }

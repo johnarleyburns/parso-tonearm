@@ -93,15 +93,20 @@ done
 echo "==> Watch architecture boundary"
 watch_ok=1
 WATCH_TARGET=$(sed -n '/^  TonearmWatch:/,/^  WatchUITests:/p' project.yml)
-for product in TonearmWatchProtocol TonearmWatchCore TonearmWatchLegacyCore; do
+for product in TonearmWatchProtocol TonearmWatchCore; do
   if ! printf '%s\n' "$WATCH_TARGET" | grep -q "product: $product"; then
     echo "    TonearmWatch is missing scoped product $product"
     status=1; watch_ok=0
   fi
 done
+# Phase 6 deleted TonearmWatchLegacyCore. The watch must never link it again.
+if printf '%s\n' "$WATCH_TARGET" | grep -q 'product: TonearmWatchLegacyCore'; then
+  echo "    TonearmWatch links the deleted TonearmWatchLegacyCore"
+  status=1; watch_ok=0
+fi
 if printf '%s\n' "$WATCH_TARGET" | awk '
   /- package: TonearmCore/ { pending = 1; next }
-  pending && /product: TonearmWatch(Protocol|Core|LegacyCore)/ { pending = 0; next }
+  pending && /product: TonearmWatch(Protocol|Core)/ { pending = 0; next }
   pending && /product:/ { exit 1 }
   END { exit pending ? 1 : 0 }
 '; then :; else
@@ -109,17 +114,22 @@ if printf '%s\n' "$WATCH_TARGET" | awk '
   status=1; watch_ok=0
 fi
 
-WATCH_CLOUD_LEAKS=$(grep -rlnE '^[[:space:]]*import[[:space:]]+CloudKit([[:space:]]|$)|CKContainer|iCloud\.com|OAuthToken|CredentialStore' WatchApp Sources/WatchProtocol Sources/WatchCore Sources/WatchLegacy 2>/dev/null || true)
+WATCH_CLOUD_LEAKS=$(grep -rlnE '^[[:space:]]*import[[:space:]]+CloudKit([[:space:]]|$)|CKContainer|iCloud\.com|OAuthToken|CredentialStore' WatchApp Sources/WatchProtocol Sources/WatchCore 2>/dev/null || true)
 if [ -n "$WATCH_CLOUD_LEAKS" ]; then
   echo "    CloudKit/credential code leaked into the watch closure:"
   echo "$WATCH_CLOUD_LEAKS" | sed 's/^/      /'
   status=1; watch_ok=0
 fi
 
-NONLEGACY_GRDB=$(grep -rlnE '^[[:space:]]*import[[:space:]]+GRDB([[:space:]]|$)' WatchApp Sources/WatchProtocol Sources/WatchCore 2>/dev/null || true)
-if [ -n "$NONLEGACY_GRDB" ]; then
-  echo "    GRDB is allowed only in TonearmWatchLegacyCore:"
-  echo "$NONLEGACY_GRDB" | sed 's/^/      /'
+# Phase 6: GRDB is gone from the watch closure entirely. Any watch-linked GRDB fails.
+WATCH_GRDB=$(grep -rlnE '^[[:space:]]*import[[:space:]]+GRDB([[:space:]]|$)' WatchApp Sources/WatchProtocol Sources/WatchCore 2>/dev/null || true)
+if [ -n "$WATCH_GRDB" ]; then
+  echo "    GRDB is not permitted anywhere in the watch closure:"
+  echo "$WATCH_GRDB" | sed 's/^/      /'
+  status=1; watch_ok=0
+fi
+if ls Sources/WatchLegacy >/dev/null 2>&1; then
+  echo "    Sources/WatchLegacy must not exist after the Phase 6 cutover"
   status=1; watch_ok=0
 fi
 
@@ -157,9 +167,14 @@ if grep -rq 'pending-validation' Sources/WatchCore; then
   echo "    Watch recovery must not fabricate a checksum"
   status=1; watch_ok=0
 fi
-# Phase 2 keeps the new architecture off by default; Phase 6 flips it.
-if ! grep -q 'ProcessInfo.processInfo.arguments.contains("-swiftDataWatchArchitecture")' WatchApp/App/WatchFeatureFlags.swift; then
-  echo "    swiftDataWatchArchitecture must stay opt-in until the Phase 6 cutover"
+# Phase 6 flipped the cutover: SwiftData is the only watch persistence path and
+# the opt-in flag is gone. The flag file must not come back.
+if [ -f WatchApp/App/WatchFeatureFlags.swift ]; then
+  echo "    WatchFeatureFlags.swift is gone after the Phase 6 cutover — SwiftData is unconditional"
+  status=1; watch_ok=0
+fi
+if grep -rq 'swiftDataWatchArchitecture' WatchApp 2>/dev/null; then
+  echo "    the swiftDataWatchArchitecture flag must not be referenced after the Phase 6 cutover"
   status=1; watch_ok=0
 fi
 [ "$watch_ok" = "1" ] && echo "    OK"
