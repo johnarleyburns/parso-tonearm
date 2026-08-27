@@ -17,11 +17,38 @@ library and existing phone-side CloudKit behavior remain authoritative and are n
 migrated. Existing watch GRDB behavior was isolated in a temporary CloudKit-free legacy
 product during Phases 1–5 and removed at the SwiftData cutover in Phase 6.
 
-**Phases 1 through 8 are complete. Phase 9 — watch-local playback and system
-media integration — is complete (9a + 9b + 9c + 9d). Phase 10 (reliability,
-observability, legacy deletion) is next.**
+**Phases 1 through 9 are complete. Phase 9 — watch-local playback and system
+media integration — landed as four commits: 9a `8d07c4d` (local-playback core),
+9b `c2c72ab` (audio-session lifecycle + Now Playing), 9c `54bf13f` (explicit
+targets + remote prediction + W7–W9), 9d `f559ccd` (Continue on Apple Watch).
+Nothing is pushed — the owner's `git push` is the CI/TestFlight gate.**
 
-Phase 9d (`this commit`) added `Continue on Apple Watch` (§7.5). New pure
+**Phase 10 — reliability, observability, and legacy deletion — is next**
+([`IMPLEMENTATION_PLAN.md`](docs/plans/watch-rearchitecture/IMPLEMENTATION_PLAN.md) §12):
+delete the superseded GRDB watch code, catalog import, old `watchTransfer` /
+`watchManifest` tables (`WatchCatalog` too), the compatibility flag and dead
+tests; add privacy-safe structured diagnostics (activation, request latency,
+transfer state, install result, manifest convergence, playback target, route
+events, store recovery, disconnect duration) and an in-app diagnostics export
+carrying only per-export-hashed IDs, state codes, timestamps, versions, byte
+counts — never titles, URLs, credentials, tokens, paths, or search text; and run
+the fault-injection / soak harnesses (1,000 duplicate/out-of-order events,
+500-track desired set, rapid connect/disconnect, 100 cancellations, relaunch at
+every job state, six-hour local playback state simulation). DoD: no legacy
+implementation remains in the watch target, all structural guards pass, fault
+tests converge, memory/disk are bounded. Phase 11 (award-quality polish +
+physical-device matrix + release) follows.
+
+Phase 9 carried these **deferrals** into later phases / the device pass: a
+secondary cross-target "play on the other target" affordance on the browse
+screens; a root Now Playing chip that reflects the iPhone target (kept local-only
+— observing the remote/target state from the root's `.carousel` `List`
+destabilised its lazy row realisation and broke the watch smoke); real
+route/interruption/background/wrist-down behaviour; and a paired-phone
+remote-control and disconnect→continue journey (the watchOS simulator cannot pair
+a phone).
+
+Phase 9d (`f559ccd`) added `Continue on Apple Watch` (§7.5). New pure
 `WatchContinueOnWatchPlan.make(from:locallyAvailable:now:)` in `Sources/WatchCore/Playback/`:
 given the phone's last snapshot and the set of track IDs actually downloaded on this watch, it
 projects a local queue from the downloaded members of the phone's queue window in order, the
