@@ -1,5 +1,5 @@
 import AVFoundation
-import TonearmCore
+import TonearmWatchCore
 
 @MainActor
 final class AVPlayerOutput: WatchAudioOutput {
@@ -19,7 +19,7 @@ final class AVPlayerOutput: WatchAudioOutput {
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .default, policy: .longFormAudio)
         #if os(watchOS)
-        try? await session.activate()
+        _ = try? await session.activate()
         #else
         try? session.setActive(true)
         #endif
@@ -43,7 +43,7 @@ final class AVPlayerOutput: WatchAudioOutput {
 
         let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
         timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            self?.onTimeUpdate?(time.seconds)
+            Task { @MainActor in self?.onTimeUpdate?(time.seconds) }
         }
 
         if let dur = try? await item.asset.load(.duration), dur.seconds.isFinite {
@@ -59,7 +59,7 @@ final class AVPlayerOutput: WatchAudioOutput {
             try? session.setCategory(.playback, mode: .default, policy: .longFormAudio)
         }
         #if os(watchOS)
-        try? await session.activate()
+        _ = try? await session.activate()
         #else
         try? session.setActive(true)
         #endif

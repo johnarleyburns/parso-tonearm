@@ -1,8 +1,8 @@
 import SwiftUI
-import TonearmCore
+import TonearmWatchLegacyCore
 
 struct WatchPlaylistsView: View {
-    @State private var playlists: [Playlist] = []
+    @State private var playlists: [LegacyWatchPlaylist] = []
 
     var body: some View {
         Group {
@@ -30,13 +30,13 @@ struct WatchPlaylistsView: View {
     }
 
     private func load() async {
-        playlists = (try? await LibraryStore.shared.allPlaylists()) ?? []
+        playlists = (try? await LegacyWatchLibraryStore.shared.allPlaylists()) ?? []
     }
 }
 
 struct WatchPlaylistDetailView: View {
-    let playlist: Playlist
-    @State private var tracks: [PlaylistTrackRow] = []
+    let playlist: LegacyWatchPlaylist
+    @State private var tracks: [LegacyWatchPlaylistTrackRow] = []
 
     var body: some View {
         List {
@@ -100,6 +100,6 @@ struct WatchPlaylistDetailView: View {
 
     private func load() async {
         guard let id = playlist.id else { return }
-        tracks = (try? await LibraryStore.shared.playlistTrackRows(playlistId: id)) ?? []
+        tracks = (try? await LegacyWatchLibraryStore.shared.playlistTrackRows(playlistId: id)) ?? []
     }
 }

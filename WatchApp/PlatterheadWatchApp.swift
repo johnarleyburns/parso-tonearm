@@ -1,5 +1,6 @@
 import SwiftUI
-import TonearmCore
+import TonearmWatchCore
+import TonearmWatchLegacyCore
 
 @main
 struct PlatterheadWatchApp: App {
@@ -8,6 +9,7 @@ struct PlatterheadWatchApp: App {
     #endif
 
     init() {
+        _ = WatchAppAssembly.shared
         WatchSyncHandler.shared.setup()
     }
 

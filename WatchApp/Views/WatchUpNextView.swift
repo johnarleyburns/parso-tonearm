@@ -1,5 +1,5 @@
 import SwiftUI
-import TonearmCore
+import TonearmWatchLegacyCore
 
 struct WatchUpNextView: View {
     @ObservedObject private var player = WatchPlayer.shared

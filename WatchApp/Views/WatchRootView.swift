@@ -1,8 +1,8 @@
 import SwiftUI
-import TonearmCore
+import TonearmWatchLegacyCore
 
 struct WatchRootView: View {
-    @State private var playlists: [Playlist] = []
+    @State private var playlists: [LegacyWatchPlaylist] = []
     @State private var albumCount: Int = 0
     @State private var trackCount: Int = 0
     @State private var onWatchTracks: Int = 0
@@ -86,13 +86,11 @@ struct WatchRootView: View {
     }
 
     private func load() async {
-        let store = LibraryStore.shared
+        let store = LegacyWatchLibraryStore.shared
         playlists = (try? await store.allPlaylists()) ?? []
         albumCount = ((try? await store.allAlbums()) ?? []).count
         trackCount = ((try? await store.allTracks()) ?? []).count
-        let records = (try? await store.dbQueue.read { db in
-            try WatchManifestRecord.fetchAll(db)
-        }) ?? []
+        let records = (try? await store.manifests()) ?? []
         onWatchTracks = records.count
         onWatchBytes = records.reduce(0) { $0 + $1.bytes }
     }
@@ -103,6 +101,6 @@ enum WatchNav: Hashable {
     case albums
     case songs
     case storage
-    case playlist(Playlist)
-    case album(Album)
+    case playlist(LegacyWatchPlaylist)
+    case album(LegacyWatchAlbum)
 }

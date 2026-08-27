@@ -1,6 +1,6 @@
 import Foundation
 import WatchConnectivity
-import TonearmCore
+import TonearmWatchProtocol
 
 final class WatchSessionAdapter: NSObject, @unchecked Sendable, WCSessionDelegate, ObservableObject {
     static let shared = WatchSessionAdapter()
@@ -80,7 +80,7 @@ final class WatchSessionAdapter: NSObject, @unchecked Sendable, WCSessionDelegat
         if let kindStr = metadata["kind"] as? String,
            kindStr == WatchSyncMessageKind.catalog.rawValue {
             handleCatalogFile(file)
-        } else if let trackKey = metadata["trackKey"] as? String {
+        } else if metadata["trackKey"] is String {
             handleAudioFile(file, metadata: metadata)
         }
     }

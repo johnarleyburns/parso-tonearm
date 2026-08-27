@@ -1,5 +1,6 @@
 import SwiftUI
-import TonearmCore
+import TonearmWatchCore
+import TonearmWatchLegacyCore
 
 struct WatchNowPlayingView: View {
     @ObservedObject private var player = WatchPlayer.shared
@@ -167,7 +168,7 @@ struct WatchNowPlayingView: View {
         }
     }
 
-    private func subtitle(for track: TrackRow) -> String {
+    private func subtitle(for track: LegacyWatchTrackRow) -> String {
         var parts: [String] = []
         if let artist = track.album?.artist ?? track.artist?.name { parts.append(artist) }
         if let d = track.track.durationSec {

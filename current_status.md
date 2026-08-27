@@ -1,11 +1,35 @@
 # Current Status
 
-Session working from `docs/plans/tonearm-mvp-ios/` — the operating brief is
-`HANDOFF.md`, the implementation spec is `PLATTERHEAD_IOS_ARCHITECTURE.md`, and
-the commit sequence is **Appendix M.1/M.2** of that spec. The M2 working plan is
-`docs/plans/dj-phase-2-semantic.md` (commit sequence §5, audit table §9), the M3
-working plan is `docs/plans/dj-phase-3-autoplaylists.md` (commit sequence §5,
-audit table §9).
+## Main priority — rebuild the Apple Watch app
+
+The main implementation priority is now the
+[`docs/plans/watch-rearchitecture/`](docs/plans/watch-rearchitecture/README.md)
+plan: replace the unreliable GRDB/full-catalog Watch implementation with a local
+SwiftData watch library, a versioned iPhone-only WatchConnectivity protocol, explicit
+iPhone-versus-Watch playback targets, durable track/album/playlist downloads, connected
+free-text search and phone playback control, and complete offline watch playback.
+
+The watch must never use CloudKit. The replacement enforces that in three places: no
+CloudKit/iCloud entitlement on the watch target, explicit
+`ModelConfiguration(cloudKitDatabase: .none)`, and a package dependency boundary that
+keeps CloudKit out of the watch-linked product closure. The iPhone's existing GRDB
+library and existing phone-side CloudKit behavior remain authoritative and are not being
+migrated. Existing watch GRDB behavior is isolated in a temporary CloudKit-free legacy
+product during Phases 1–5, then removed at the SwiftData cutover in Phase 6.
+
+**Phase 1 — Architecture boundary and executable skeleton is complete in the current
+commit. Phase 2 — SwiftData schema and migration contracts is next.**
+The old [`docs/plans/watch-app.md`](docs/plans/watch-app.md) describes the implementation
+being replaced and is historical only. The detailed phase gates, normative mockups, and
+release acceptance matrix are:
+
+- [`IMPLEMENTATION_PLAN.md`](docs/plans/watch-rearchitecture/IMPLEMENTATION_PLAN.md)
+- [`mockups/index.html`](docs/plans/watch-rearchitecture/mockups/index.html)
+- [`ACCEPTANCE_MATRIX.md`](docs/plans/watch-rearchitecture/ACCEPTANCE_MATRIX.md)
+
+Existing uncommitted MIDI M5–M7 and field-test-remediation notes below remain preserved,
+but no new work from those streams should displace Watch Phase 1 unless the owner explicitly
+changes priority.
 
 ## Playlists-first UI pass — complete (one regression lane still unrun)
 
@@ -272,14 +296,33 @@ surface's crossfader move. What remains is M5–M8 (below) and hardware time.
   kept. Tests: every step is bindable, skipping keeps earlier bindings,
   completing writes one profile with the expected count.
 
-**What remains (plan §5/§7, all below the alpha cut line):** **M5** LED output
-(buttons only, throttled), **M6** 14-bit CC pairs, **M7** multi-device
-honesty, **M8** factory profiles for hardware physically verified against the
-app. Everything here is unverified on physical hardware — the claims are about
-`HardwareService.receive`, not CoreMIDI. **Write into the tester note:** no
-factory profiles (a controller must be MIDI-learned — the walkthrough covers
-it); hot cues are still not bindable (nothing reads stored cue points yet); no
-LED feedback, so the controller's lights will not reflect app state.
+**M5 landed in the current working tree (not yet committed):** `HardwareService` now
+creates a CoreMIDI output port, matches feedback destinations by endpoint display name,
+and reports missing output destinations through `lastError`; toggle/trigger button
+feedback is derived after the existing workspace action path and coalesced per address by
+`MidiFeedbackThrottler`. The throttler has focused tests. This is verified to compile and
+the 28 `MidiMappingTests` pass; no physical controller is available, so CoreMIDI output
+remains unverified on hardware.
+
+**M6 landed in the current working tree (not yet committed):** opt-in
+`MidiBinding.Resolution.fourteenBit` persists through `dj_v7`, and `MidiValueAssembler`
+joins MSB/LSB CC pairs, supports LSB-first and interleaved controls, and emits a 7-bit
+MSB fallback after its pairing window. The workspace now flushes timed-out values on a
+short task and routes assembled values through the existing MIDI path. Learn observes a
+complete pair before offering the opt-in 14-bit resolution and persists the user's choice.
+Focused coverage passes (33 `MidiMappingTests`); no physical controller is available.
+
+**M7 landed in the current working tree (not yet committed):** connected MIDI sources are
+now tracked as a set, refresh removes only endpoints that disappeared, the settings screen
+shows every connected endpoint, and feedback fans out to matching destinations for all
+connected devices. Focused coverage proves that unplugging one endpoint leaves the other
+connected. This remains unverified on physical hardware.
+
+**What remains (plan §5/§7, all below the alpha cut line):** **M8** factory profiles for
+hardware physically verified against the app. Everything here is unverified on physical
+hardware — the claims are about `HardwareService.receive`, not CoreMIDI. **Write into the
+tester note:** no factory profiles (a controller must be MIDI-learned — the walkthrough
+covers it); hot cues are still not bindable (nothing reads stored cue points yet).
 
 ## 2026-08-17 — the push, and the third blocker: 377 MB of models inside git
 
@@ -2104,7 +2147,25 @@ map ~30 controls by hand before their first mix. **All three shipped in M2–M4.
 line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fader steps at
 0.125 %), multi-device honesty (`connectedEndpointID` is a single value), and factory profiles.
 
-## Next
+## Next — Watch Phase 2
+
+Implement **Phase 2 — SwiftData schema and migration contracts** from the adopted Watch
+plan. Phase 1 is complete: `TonearmWatch` now links only `TonearmWatchProtocol`,
+`TonearmWatchCore`, and temporary `TonearmWatchLegacyCore`; the SwiftData bootstrap is
+explicitly local-only; existing behavior remains behind the default-off feature flag; and
+the build/entitlement guards are green.
+
+Required work:
+
+1. Implement the versioned SwiftData schema and stable-ID uniqueness contracts.
+2. Add migration fixtures plus corrupt-store quarantine and recovery behavior.
+3. Prove migration idempotency and relationship integrity with focused tests.
+4. Keep the new architecture flag off and preserve the Phase 1 package boundary.
+
+Do not start Phase 3 until Phase 2 is committed, its audit entry is complete, and all Phase
+2 gates are green. Do not push without owner approval.
+
+## Superseded next-work list (retained for history)
 
 - **The runner progress monitor (owner request, not yet started):** change
   `scripts/run-ui-regression.sh` so `make test-ui-regression` prints high-level
@@ -2304,3 +2365,257 @@ asserted without depending on somebody else's server.
   2.5 s → 4.0 s (owner decision). Root cause was Low Power Mode capping
   CPU clocks (1235 ms off, ~2.05 s on), not load; measured stable across load
   averages 63 → 2. At the 4.0 s cap it passes in both states.
+## Field-test remediation plan — start with Phase 1
+
+This is the implementation plan for the field-test issues reported on 2026-08-21. The
+numbering preserves the report, including its two separately testable items both labelled
+“6”; they are Phase 6 (crate UX) and Phase 7 (Deck B smoke/audio proof). Each phase is
+intended to be implemented and verified independently. Do not begin later phases until
+Phase 1's unit and smoke coverage is green.
+
+### Phase 1 — Play an individual playlist from its detail screen
+
+Current seam: `PlaylistDetailView` in `Sources/Features/Playlists/PlaylistsView.swift:113-232`
+already loads ordered `PlaylistTrackRow`s and `play(_:)` at lines 229-232 calls
+`AudioPlayer.play(tracks:startAt:source:)`; only individual rows currently invoke it (lines
+194-205). The detail toolbar at lines 134-180 has Back, Edit, Add, and More, but no playlist
+transport action. `AudioPlayer` exposes `queue`, `index`, and `isPlaying` in
+`Sources/Audio/AudioPlayer.swift:25-55`, and the existing `TonearmIntentRunner` path in
+`Sources/Intents/TonearmAppIntents.swift:179-188` demonstrates the intended whole-playlist
+queue construction.
+
+Implement:
+
+1. Add a clearly labelled `Play` button to the individual playlist detail header, with
+   accessibility identifier `playlist.play`. It must be disabled for an empty playlist and
+   show a playing/paused state only if that is consistent with the existing player UI; do not
+   duplicate queue logic in the view.
+2. Add a small testable helper (preferably in `AppState` or a domain playback coordinator)
+   that takes a playlist and ordered rows, guards against an empty list, then calls
+   `player.play(tracks: rows.map(\.row), startAt: 0, source: .playlist(playlist))`. Have the
+   row tap and new button use the same helper so ordering and source metadata cannot diverge.
+3. After the queue is started, set/present the existing Now Playing state (`AppState`'s
+   `showNowPlaying` and `RootView`'s sheet at `Sources/Features/RootView.swift:65-67`) so the
+   user lands in Now Playing rather than remaining on the detail screen. Preserve the
+   existing playlist source in the player for Up Next and attribution.
+
+Tests:
+
+- Unit test the helper with an ordered three-track fixture: assert queue order, index 0,
+  `.playlist` source, and no action for empty rows. Use the existing AudioPlayer test seam
+  (`persistor`/fake bridge) rather than AVPlayer.
+- Extend `UIRegressionTests/PlaylistRegressionUITests.swift` beside the existing detail
+  toolbar tests (lines 35-69): create/open a non-empty playlist, tap `playlist.play`, assert
+  the Now Playing sheet/control exists, then use the shared `assertPlaybackAdvances` helper
+  from `UIRegressionTests/UIRegressionSupport.swift:54-66` or an equivalent deterministic
+  fixture assertion. Add an empty-playlist assertion that `playlist.play` is disabled.
+
+Definition of done: tapping Play queues the complete playlist in stored order, begins track
+0, and presents Now Playing; tapping a row retains its current start-at-row behavior.
+
+### Phase 2 — Reserve bottom space for the dock and mini-player in every scrollable view
+
+Current seam: `RootView` overlays `GlassDock` at `Sources/Features/RootView.swift:12-32`.
+`ListenView` pads its `ScrollView` by 160 at `Sources/Features/Listen/ListenView.swift:6-30`,
+`SourcesView` does the same at `Sources/Features/Sources/SourcesView.swift:7-38`, and
+`LibraryView` does it at `Sources/Features/Library/LibraryView.swift:42-92`; playlist and
+other list-based screens have no shared inset contract. The fixed value is fragile because
+the dock and mini-player are overlays and their combined height/safe-area footprint can be
+larger than 160.
+
+Implement a shared `ViewModifier`/container in the app feature layer that applies a bottom
+`safeAreaInset` (or equivalent content inset) equal to the measured dock + mini-player
+height plus a safe-area margin. Keep the overlay itself in `RootView`; the modifier must add
+scrollable content space, not merely draw a translucent background. Apply it to Listen,
+Music/Library, Sources, Playlists list/detail, and any other `ScrollView`/`List` that can be
+shown while `isPerformanceSurfaceFullScreen == false`. Avoid adding it to the full-screen DJ
+surface. Give the inset a stable accessibility/debug identifier only if needed for UI tests.
+
+Tests:
+
+- Unit-test the pure spacing calculation for compact/regular safe-area values and for a
+  mini-player-present versus absent state.
+- Add a UI smoke assertion that scrolls Music and Sources/Playlists to the bottom and verifies
+  the last row's frame is above the dock/mini-player region, not merely that it exists. Run it
+  on the smallest iPhone simulator used by `scripts/run-ui-regression.sh`.
+
+### Phase 3 — Add Album Zip File import
+
+Current seam: `AddMenuSheet` in `Sources/Features/Ingest/AddMenuSheet.swift:5-43` currently
+offers Remote, Local Folder, and Audio Files in that order. `RootView` owns the one importer at
+`Sources/Features/RootView.swift:84-120`; `ImportRouter` at `Sources/Domain/ImportRouter.swift:1-18`
+only distinguishes folders from audio files. `IngestService.addFiles` at
+`Sources/Domain/IngestService.swift:20-52` creates/reuses the Local Files source/album, while
+`addFolder` at lines 66-151 creates a source, album, ordered playlist, and track items.
+Artwork is persisted through `ArtworkStore.store` (`Sources/Media/ArtworkStore.swift:4-27`),
+and `LibraryStore` provides `insertAlbum`, `insertTrack`, `setCustomArtwork`, and
+`createManualPlaylist` (`Sources/Data/LibraryStore.swift:152,229,345,680`).
+
+Implement:
+
+1. Insert `Add Album Zip File` in `AddMenuSheet` immediately before `Add Local Folder`, add a
+   new pending-import case distinct from `.files`/`.folder`, and allow only `.zip` via
+   `UTType.zip` in the file importer. Do not route zips through the audio-file path.
+2. Add a pure `AlbumZipImporter` planning/parser layer. Open the archive with a maintained ZIP
+   library (add the package dependency explicitly if the project has no existing ZIP reader),
+   reject path traversal/absolute paths, ignore directories/hidden metadata, collect supported
+   audio extensions using `IngestService.audioExtensions`, and preserve archive enumeration
+   order. Select the first image entry by deterministic archive order (png/jpg/jpeg/heic/webp
+   as supported by `ArtworkStore`); if absent, use normal artwork fallback. Derive defaults by
+   splitting the zip basename on ` - ` into artist and album; if the delimiter is absent,
+   use the basename as album and an empty/unknown artist. Expose a plan containing safe temp
+   URLs/data, ordered tracks, image data, and defaults without touching the database.
+3. Add an `AddAlbumZipSheet` with editable Artist and Album text fields, artwork preview/status,
+   progress/error state, and a checked-by-default `Automatically create a playlist with this
+   album` toggle. The confirm action is disabled without an album name or audio entries.
+4. Add an atomic ingest operation in `IngestService`/`LibraryStore`: create/reuse the local
+   source as appropriate, insert one album with artist and artwork ID, ingest every ordered
+   audio file into that album, and optionally create a manual playlist named exactly the final
+   album name with inserted track IDs in archive order. Store artwork once and attach its ID
+   to the album/track artwork path used by existing `ArtworkView`. Clean up temporary extracted
+   files on success and failure; never leave a partially-created playlist if an audio insert
+   fails.
+
+Tests:
+
+- Unit-test routing for `.zip`, default name parsing, image selection, archive order,
+  unsupported-file filtering, empty/no-audio failure, and traversal rejection.
+- Store test with a fixture zip: assert artist/album, all track records, artwork ID, and
+  optional playlist order; repeat with the checkbox off and assert no playlist is created.
+- Add a UI smoke flow from Add → `Add Album Zip File`, edit both fields, toggle playlist
+  creation, import the fixture, then assert the album tracks and playlist are visible.
+
+### Phase 4 — Simplify Platterhead DJ entry menu
+
+Current seam: `DJHomeView` at `Sources/Features/DJ/DJHomeView.swift:39-84` has Library →
+Playlists, Library → Recorded Mixes, and Perform → Open DJ Mixer. Remove the Playlists state,
+sheet, and button (including `showPlaylists`), retain Recorded Mixes, remove the Perform
+section, and add a prominent top `Start Mixing` button that navigates to `.decks` using the
+existing destination at lines 105-126. Keep accessibility identifier `dj.decks` on the new
+button and add a smoke identifier `dj.startMixing` if the test needs to distinguish it.
+
+Tests: update `DJMixRegressionUITests.testAT_DJ_EntryMusicAndCrateAreReachable` to assert no
+DJ Playlists control, tap Start Mixing, and assert the performance surface; add a unit/view
+model route assertion if a route model exists. Run the DJ entry smoke lane.
+
+### Phase 5 — Force active DJ performance to landscape
+
+Current seam: `CompactPerformanceView` in `Sources/DJ/Features/Workspace/TwinDeckView.swift:811-890`
+maps portrait to `SoloDeckView` and landscape to `TwinDeckView`; `DJPerformanceSurface` chooses
+compact versus iPad in `Sources/Features/DJ/DJHomeView.swift:105-126`. Remove the portrait
+posture path for active DJing: on iPhone request/require landscape while the performance
+surface is visible, render `TwinDeckView` only, and restore the prior orientation policy on
+disappear. Keep one `WorkspaceModel`/engine lifecycle and avoid stop/restart during the
+orientation transition. Update `WorkspaceModel.CompactPosture` only if needed to remove dead
+solo state; do not leave portrait controls reachable through another route.
+
+Tests: unit-test the orientation policy's enter/exit decisions; add UI smoke coverage that
+opens Start Mixing from a portrait launch and asserts landscape/twin identifiers, and that
+the app returns to normal navigation after closing. Run on iPhone, not only iPad.
+
+### Phase 6 — Replace the DJ crate with a top-right playlist loader
+
+Current seam: `CrateSheetView` at `Sources/DJ/Features/Workspace/CrateSheetView.swift:3-82`
+currently shows separate Deck A/B halves, imports playlists through per-deck `Import playlist`
+buttons, and immediately loads/playbacks queue rows. Its picker at lines 84-133 has a separate
+sheet, `Select`, and `Import` workflow. `WorkspaceModel.raiseCrateSheet` and the
+`isCrateSheetPresented` state are at `WorkspaceModel.swift:1885-1903`; the compact surface
+already renders a crate trigger and sheet seam.
+
+Implement a single top-right `Crate` button (`dj.crate`) that presents one playlist list only.
+Selecting a row sets the selected playlist; the bottom action bar contains exactly `Load to
+Deck A`, `Load to Deck B`, and `Close` (identifiers `dj.crate.load.a`, `.b`, `.close`). Loading
+must call the existing playlist-to-deck import/store operation, but it must not auto-play until
+the user presses that deck's Play control. Remove the per-deck import/change split and any
+non-playlist sources from this menu. Preserve track readiness/error states.
+
+Tests: unit-test selection and deck-target actions; update crate UI helpers in
+`UIRegressionTests/DJPerformanceDriver.swift:288-320`; update DJ mix smoke to select one
+playlist and load each deck through the new bottom buttons, and assert the correct deck title.
+
+### Phase 7 — Prove Deck A and Deck B actually play on iPhone
+
+Current seam: deck transport is `DeckColumnView.transport` at
+`Sources/DJ/Features/Workspace/WorkspaceView.swift:325-357`; it calls `WorkspaceModel.play`.
+The current regression lane only visually/assertively calls `playDeck` for both decks in
+`UIRegressionTests/DJMixRegressionUITests.swift:122-145`, while the driver has per-deck state
+helpers at `DJPerformanceDriver.swift:877-910`. Add a dedicated iPhone smoke test after the
+new crate flow: load known fixture tracks into A and B, tap A Play and prove A playhead/playing
+state advances, then tap B Play and prove B advances independently while A remains observable.
+If the field report is silence rather than state, add an audio-render diagnostic/fixture
+signature assertion at the existing host verifier seam; XCUITest alone cannot hear output.
+Trace and fix the underlying B route/voice/mixer/transport issue rather than weakening the
+assertion. Verify Deck B is connected to the same render graph and crossfader/channel gain
+defaults as A.
+
+Tests: unit-test deck-to-engine command routing for A and B with a spy engine; add the iPhone
+smoke and, where available, a two-tone offline render test proving non-zero B energy.
+
+### Phase 8 — Add Stereo/Split Mono monitor mode
+
+Current seam: `CueMode` and channel routing are in `Sources/DJ/Engine/CueBus.swift:11-121`,
+while the UI is `CueModePicker` in `Sources/DJ/Features/Workspace/CueControls.swift:39-75` and
+model selection is `WorkspaceModel.setCueMode` at `WorkspaceModel.swift:1726-1745`. Add a
+visible `Stereo` button in the mixer, defaulting to Stereo; tapping toggles to `Split Mono`,
+where deck A is hard-left and deck B hard-right for iPhone headphones. Define the DSP matrix
+precisely (including gain/mono summing and behavior when a cue mode is active), expose state
+through the model, and make the label/accessibility value reflect the current mode.
+
+Tests: pure buffer tests for Stereo identity and Split Mono A-left/B-right, silence/length
+edge cases, model toggle tests, and an iPhone smoke assertion of the button label/value.
+
+### Phase 9 — Make jog-wheel rotation 33⅓ RPM
+
+Current seam: `JogView` renders markers from telemetry phase at
+`Sources/DJ/Features/Workspace/JogView.swift:119-154`; gesture behavior is delegated to
+`JogGestureModel`, and the live engine rate/transport is in `WorkspaceModel`/`PerformanceEngine`.
+Find the current platter visual rotation/render cadence and replace any telemetry-frame or
+gesture-speed-driven rotation with a time-based vinyl angular velocity: 33⅓ RPM = 0.555555…
+revolutions/second, or 2π/1.8 radians/second, with phase continuity across redraws and correct
+direction. Separate visual platter speed from scratch/nudge gesture semantics and engine
+playback rate.
+
+Tests: pure rotation math at 0, 0.5, 1.0, and multi-second elapsed times; ensure tempo changes
+do not make the artwork rotate super-fast; UI smoke samples the marker/rotation value over a
+known interval and asserts the expected bound.
+
+### Phase 10 — Remove the Echo A screen control
+
+Current seam: `TwinMixerColumnView` renders `EchoReleaseToCommitButton(model: model, deck: .a)`
+at `Sources/DJ/Features/Workspace/TwinDeckView.swift:614-620`; its implementation and
+identifier `dj.fx.echo` are in `Sources/DJ/Features/Workspace/EchoControls.swift:17-104`.
+Remove the on-screen control and its accessibility/coaching references from the active mixer
+layout. Keep the engine echo implementation only if other supported controls/transitions use
+it; do not delete DSP solely because this button is unwanted.
+
+Tests: view/UI smoke asserts no `dj.fx.echo`/Echo A element on the mixer; retain or adjust
+existing transition unit tests so engine echo behavior does not regress accidentally.
+
+### Phase 11 — Make Cue buttons selectable
+
+Current seam: `CueButton` is already a SwiftUI `Button` calling `model.toggleCue(deck)` at
+`Sources/DJ/Features/Workspace/CueControls.swift:10-33`, and the twin mixer places both at
+`TwinDeckView.swift:627-631`. `WorkspaceModel.toggleCue` at `WorkspaceModel.swift:1703-1717`
+updates `cuedDecks`, selects a usable default mode, and calls `engine.setHeadphoneCue`.
+Because the code appears logically selectable, reproduce the field failure on the forced
+landscape surface and inspect hit-testing/overlays first: remove any `allowsHitTesting(false)`
+or overlay frame that intercepts the buttons, ensure the button has a minimum 44-point hit
+target, and ensure the performance gate does not disable the active surface unexpectedly.
+Keep identifiers `dj.cue.a`/`dj.cue.b`, publish on/off accessibility values, and make both
+buttons visibly change state.
+
+Tests: unit-test `toggleCue` on/off and automatic default cue mode; UI smoke taps both cue
+buttons, asserts `isHittable`, and waits for accessibility values on then off. Run this on the
+iPhone landscape performance screen with the crate closed and open to catch overlay regressions.
+
+### Phase 1 start instructions for the implementing agent
+
+1. Read this section and inspect the cited files/line ranges; do not start with DJ work.
+2. Implement the shared playlist-start helper and wire both the new detail `Play` button and
+   existing row playback through it.
+3. Add the Core unit tests and `PlaylistRegressionUITests` smoke test before moving on.
+4. Run `swift test` (or the project’s standard test command), then run the playlist UI lane via
+   `scripts/run-ui-regression.sh` with its normal fixture setup. Record failures and the exact
+   command/result below this section before starting Phase 2.
+5. Preserve unrelated existing changes in the worktree; this is a plan-first handoff, so do
+   not implement Phases 2-11 in the same change unless explicitly requested.

@@ -1,8 +1,9 @@
 import SwiftUI
-import TonearmCore
+import TonearmWatchLegacyCore
 
 struct WatchStorageView: View {
-    @State private var entries: [WatchManifestRecord] = []
+    @State private var entries: [LegacyWatchManifestRecord] = []
+    @State private var titles: [String: String] = [:]
     @State private var showRemoveAllConfirm = false
     @ObservedObject private var session = WatchSessionAdapter.shared
 
@@ -76,9 +77,7 @@ struct WatchStorageView: View {
             Button("Cancel", role: .cancel) {}
             Button("Remove All", role: .destructive) {
                 Task {
-                    try? await LibraryStore.shared.dbQueue.write { db in
-                        try WatchManifestRecord.deleteAll(db)
-                    }
+                    try? await LegacyWatchLibraryStore.shared.removeAllManifests()
                     await load()
                 }
             }
@@ -92,31 +91,22 @@ struct WatchStorageView: View {
         return WatchTimeFmt.megabytes(total)
     }
 
-    private func trackTitle(for key: String) -> String {
-        let trackId = Int64(key.dropFirst()) ?? -1
-        if let row = try? LibraryStore.shared.dbQueue.read({
-            try Track.fetchOne($0, sql: "SELECT title FROM track WHERE id = ?", arguments: [trackId])
-        }) {
-            return row.title
-        }
-        return key
-    }
+    private func trackTitle(for key: String) -> String { titles[key] ?? key }
 
     private func load() async {
-        entries = (try? await LibraryStore.shared.dbQueue.read { db in
-            try WatchManifestRecord.fetchAll(db)
-        }) ?? []
+        entries = (try? await LegacyWatchLibraryStore.shared.manifests()) ?? []
+        var resolved: [String: String] = [:]
+        for entry in entries {
+            resolved[entry.trackKey] = await LegacyWatchLibraryStore.shared.title(forTrackKey: entry.trackKey)
+        }
+        titles = resolved
     }
 
     private func remove(at offsets: IndexSet) {
         let toRemove = offsets.map { entries[$0] }
         entries.remove(atOffsets: offsets)
         Task {
-            try? await LibraryStore.shared.dbQueue.write { db in
-                for entry in toRemove {
-                    try WatchManifestRecord.deleteOne(db, key: entry.trackKey)
-                }
-            }
+            try? await LegacyWatchLibraryStore.shared.removeManifest(keys: toRemove.map(\.trackKey))
         }
     }
 }

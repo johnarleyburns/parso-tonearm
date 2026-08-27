@@ -1,8 +1,8 @@
 import SwiftUI
-import TonearmCore
+import TonearmWatchLegacyCore
 
 struct WatchAlbumsView: View {
-    @State private var albums: [Album] = []
+    @State private var albums: [LegacyWatchAlbum] = []
 
     var body: some View {
         Group {
@@ -27,12 +27,12 @@ struct WatchAlbumsView: View {
     }
 
     private func load() async {
-        albums = (try? await LibraryStore.shared.allAlbums()) ?? []
+        albums = (try? await LegacyWatchLibraryStore.shared.allAlbums()) ?? []
     }
 }
 
 struct WatchAlbumRow: View {
-    let album: Album
+    let album: LegacyWatchAlbum
 
     var body: some View {
         HStack(spacing: 10) {
@@ -57,7 +57,7 @@ struct WatchAlbumRow: View {
 
     @ViewBuilder
     private var albumArtwork: some View {
-        if let artworkId = album.artworkId {
+        if album.artworkId != nil {
             Color.clear
                 .overlay(
                     Image(systemName: "music.note")
@@ -83,8 +83,8 @@ struct WatchAlbumRow: View {
 }
 
 struct WatchAlbumDetailView: View {
-    let album: Album
-    @State private var tracks: [TrackRow] = []
+    let album: LegacyWatchAlbum
+    @State private var tracks: [LegacyWatchTrackRow] = []
 
     var body: some View {
         List {
@@ -141,13 +141,13 @@ struct WatchAlbumDetailView: View {
 
     private func load() async {
         guard let id = album.id else { return }
-        let allRows = (try? await LibraryStore.shared.allTrackRows()) ?? []
+        let allRows = (try? await LegacyWatchLibraryStore.shared.allTrackRows()) ?? []
         tracks = allRows.filter { $0.track.albumId == id }
     }
 }
 
 struct WatchSongsView: View {
-    @State private var tracks: [TrackRow] = []
+    @State private var tracks: [LegacyWatchTrackRow] = []
 
     var body: some View {
         Group {
@@ -176,7 +176,7 @@ struct WatchSongsView: View {
     }
 
     private func load() async {
-        tracks = ((try? await LibraryStore.shared.allTrackRows()) ?? [])
+        tracks = ((try? await LegacyWatchLibraryStore.shared.allTrackRows()) ?? [])
             .sorted { a, b in
                 let aKey = a.track.sortKey ?? a.track.title
                 let bKey = b.track.sortKey ?? b.track.title

@@ -1,5 +1,10 @@
 # Platterhead Watch App — Standalone watchOS Companion
 
+> **Superseded 2026-08-26.** This document describes the GRDB/full-catalog watch
+> implementation now being replaced. Do not implement from it. The adopted source of truth
+> is [`watch-rearchitecture/IMPLEMENTATION_PLAN.md`](watch-rearchitecture/IMPLEMENTATION_PLAN.md),
+> with normative mockups and acceptance gates in that directory.
+
 ## Agent Handoff Instructions
 
 This document is the source of truth for building the Platterhead Apple Watch app.

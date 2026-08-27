@@ -6,7 +6,10 @@ let package = Package(
     platforms: [.iOS(.v18), .macOS(.v15), .watchOS(.v11)],
     products: [
         .library(name: "TonearmCore", targets: ["TonearmCore"]),
-        .library(name: "TonearmDJ", targets: ["TonearmDJ"])
+        .library(name: "TonearmDJ", targets: ["TonearmDJ"]),
+        .library(name: "TonearmWatchProtocol", targets: ["TonearmWatchProtocol"]),
+        .library(name: "TonearmWatchCore", targets: ["TonearmWatchCore"]),
+        .library(name: "TonearmWatchLegacyCore", targets: ["TonearmWatchLegacyCore"])
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0")
@@ -15,6 +18,8 @@ let package = Package(
         .target(
             name: "TonearmCore",
             dependencies: [
+                "TonearmWatchProtocol",
+                "TonearmWatchCore",
                 .product(name: "GRDB", package: "GRDB.swift")
             ],
             path: ".",
@@ -56,7 +61,10 @@ let package = Package(
                 "tools",
                 "current_status.md",
                 "Resources/Assets.xcassets",
-                "Resources/Tonearm.storekit"
+                "Resources/Tonearm.storekit",
+                "Sources/WatchProtocol",
+                "Sources/WatchCore",
+                "Sources/WatchLegacy"
             ],
             sources: [
                 "Sources/Art",
@@ -70,13 +78,35 @@ let package = Package(
                 "Sources/Share",
                 "Sources/Snapshot",
                 "Sources/Sync",
-                "Sources/WatchPlayback",
+                "Sources/WatchExports.swift",
                 "Sources/WatchSync"
             ],
             resources: [
                 .copy("Resources/Audio"),
                 .copy("Resources/Video")
             ],
+            swiftSettings: [.swiftLanguageMode(.v6)],
+            linkerSettings: [.linkedLibrary("sqlite3")]
+        ),
+        .target(
+            name: "TonearmWatchProtocol",
+            path: "Sources/WatchProtocol",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .target(
+            name: "TonearmWatchCore",
+            dependencies: ["TonearmWatchProtocol"],
+            path: "Sources/WatchCore",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .target(
+            name: "TonearmWatchLegacyCore",
+            dependencies: [
+                "TonearmWatchProtocol",
+                "TonearmWatchCore",
+                .product(name: "GRDB", package: "GRDB.swift")
+            ],
+            path: "Sources/WatchLegacy",
             swiftSettings: [.swiftLanguageMode(.v6)],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
@@ -108,7 +138,12 @@ let package = Package(
         ),
         .testTarget(
             name: "TonearmCoreTests",
-            dependencies: ["TonearmCore"],
+            dependencies: [
+                "TonearmCore",
+                "TonearmWatchProtocol",
+                "TonearmWatchCore",
+                "TonearmWatchLegacyCore"
+            ],
             path: "Tests",
             exclude: [
                 // Helper process used by optional integration smoke tests.

@@ -1,6 +1,6 @@
 import Foundation
-import GRDB
-import TonearmCore
+import TonearmWatchLegacyCore
+import TonearmWatchProtocol
 
 final class WatchSyncHandler: @unchecked Sendable {
     static let shared = WatchSyncHandler()
@@ -21,14 +21,13 @@ final class WatchSyncHandler: @unchecked Sendable {
 
     private func handleCatalog(_ catalog: WatchCatalogSnapshot) {
         Task {
-            let store = LibraryStore.shared
-            _ = try? await WatchCatalog.import(catalog, into: store)
+            try? await LegacyWatchLibraryStore.shared.importCatalog(catalog)
         }
     }
 
     private func handleAudio(url: URL, metadata: WatchAudioMetadata) {
         Task {
-            let store = LibraryStore.shared
+            let store = LegacyWatchLibraryStore.shared
             let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             let ext = url.pathExtension
             let destName = "\(metadata.trackKey).\(ext.isEmpty ? "dat" : ext)"
@@ -42,30 +41,7 @@ final class WatchSyncHandler: @unchecked Sendable {
             try? FileManager.default.copyItem(at: url, to: destURL)
             let relPath = "\(destDir)/\(destName)"
 
-            if let track = try? await store.trackBySyncID(metadata.trackKey), let tid = track.id {
-                let existingAsset = try? await store.dbQueue.read { db in
-                    try Asset
-                        .filter(Column("trackId") == tid)
-                        .order(Column("id"))
-                        .fetchOne(db)
-                }
-                _ = try? await store.dbQueue.write { db in
-                    try db.execute(sql: "DELETE FROM asset WHERE trackId = ?", arguments: [tid])
-                    var asset = Asset(id: nil, trackId: tid, kind: .managedCopy,
-                                      bookmark: nil, relPath: relPath,
-                                      remoteURL: existingAsset?.remoteURL,
-                                      altRemoteURL: existingAsset?.altRemoteURL,
-                                      sizeBytes: metadata.bytes, unsupportedReason: nil)
-                    _ = try asset.insertAndFetch(db)
-                }
-                _ = try? await store.dbQueue.write { db in
-                    var entry = WatchManifestRecord(
-                        trackKey: metadata.trackKey,
-                        bytes: metadata.bytes,
-                        pinned: metadata.pinned,
-                        reportedAt: Date())
-                    try entry.save(db)
-                }
+            if (try? await store.installAudio(key: metadata.trackKey, relativePath: relPath, metadata: metadata)) == true {
                 await MainActor.run { WatchPlayer.shared.cancelFetch() }
             } else {
                 let orphansDir = appSupport.appendingPathComponent(WatchStorage.orphansDirName)
@@ -78,14 +54,10 @@ final class WatchSyncHandler: @unchecked Sendable {
 
     private func handleDelete(_ keys: [String]) {
         Task {
-            let store = LibraryStore.shared
+            let store = LegacyWatchLibraryStore.shared
             for key in keys {
-                if let track = try? await store.trackBySyncID(key), let tid = track.id {
-                    try? await store.deleteTrack(id: tid)
-                }
-                _ = try? await store.dbQueue.write { db in
-                    try WatchManifestRecord.deleteOne(db, key: key)
-                }
+                try? await store.deleteTrack(key: key)
+                try? await store.removeManifest(keys: [key])
             }
         }
     }

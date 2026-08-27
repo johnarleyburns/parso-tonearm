@@ -3,6 +3,7 @@ import Foundation
 import WatchConnectivity
 #endif
 import TonearmCore
+import TonearmWatchProtocol
 
 #if canImport(WatchConnectivity)
 
@@ -31,7 +32,7 @@ final class PhoneWatchSessionAdapter: NSObject, @unchecked Sendable, WCSessionDe
     func activate() async {
         guard WCSession.isSupported() else { return }
         guard session.activationState == .notActivated else { return }
-        await withCheckedContinuation { continuation in
+        _ = await withCheckedContinuation { continuation in
             activationContinuation = continuation
             session.activate()
         }
@@ -76,7 +77,7 @@ final class PhoneWatchSessionAdapter: NSObject, @unchecked Sendable, WCSessionDe
     nonisolated func session(_ session: WCSession,
                              activationDidCompleteWith state: WCSessionActivationState,
                              error: Error?) {
-        Task { await handleActivation(state: state, error: error) }
+        Task { handleActivation(state: state, error: error) }
     }
 
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
@@ -97,13 +98,13 @@ final class PhoneWatchSessionAdapter: NSObject, @unchecked Sendable, WCSessionDe
                              replyHandler: @escaping ([String: Any]) -> Void) {
         let message = WatchMessageBox(message)
         let replyHandler = WatchReplyBox(replyHandler)
-        Task { await handleMessage(message.value, replyHandler: replyHandler.value) }
+        Task { handleMessage(message.value, replyHandler: replyHandler.value) }
     }
 
     nonisolated func session(_ session: WCSession,
                              didReceiveUserInfo userInfo: [String: Any]) {
         let userInfo = WatchMessageBox(userInfo)
-        Task { await handleUserInfo(userInfo.value) }
+        Task { handleUserInfo(userInfo.value) }
     }
 
     private func handleActivation(state: WCSessionActivationState, error: Error?) {

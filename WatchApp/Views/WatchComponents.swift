@@ -1,5 +1,5 @@
 import SwiftUI
-import TonearmCore
+import TonearmWatchLegacyCore
 
 enum WatchTimeFmt {
     static func mmss(_ seconds: Double) -> String {
@@ -16,7 +16,7 @@ enum WatchTimeFmt {
 }
 
 struct WatchTrackRow: View {
-    let row: TrackRow
+    let row: LegacyWatchTrackRow
     var showSource: Bool = false
 
     var body: some View {

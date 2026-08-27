@@ -89,6 +89,50 @@ for dir in "${UI_DIRS[@]}"; do
 done
 [ "$codename_ok" = "1" ] && echo "    OK"
 
+# ── Watch architecture boundary ────────────────────────────────────────────
+echo "==> Watch architecture boundary"
+watch_ok=1
+WATCH_TARGET=$(sed -n '/^  TonearmWatch:/,/^  WatchUITests:/p' project.yml)
+for product in TonearmWatchProtocol TonearmWatchCore TonearmWatchLegacyCore; do
+  if ! printf '%s\n' "$WATCH_TARGET" | grep -q "product: $product"; then
+    echo "    TonearmWatch is missing scoped product $product"
+    status=1; watch_ok=0
+  fi
+done
+if printf '%s\n' "$WATCH_TARGET" | awk '
+  /- package: TonearmCore/ { pending = 1; next }
+  pending && /product: TonearmWatch(Protocol|Core|LegacyCore)/ { pending = 0; next }
+  pending && /product:/ { exit 1 }
+  END { exit pending ? 1 : 0 }
+'; then :; else
+  echo "    TonearmWatch links broad TonearmCore"
+  status=1; watch_ok=0
+fi
+
+WATCH_CLOUD_LEAKS=$(grep -rlnE '^[[:space:]]*import[[:space:]]+CloudKit([[:space:]]|$)|CKContainer|iCloud\.com|OAuthToken|CredentialStore' WatchApp Sources/WatchProtocol Sources/WatchCore Sources/WatchLegacy 2>/dev/null || true)
+if [ -n "$WATCH_CLOUD_LEAKS" ]; then
+  echo "    CloudKit/credential code leaked into the watch closure:"
+  echo "$WATCH_CLOUD_LEAKS" | sed 's/^/      /'
+  status=1; watch_ok=0
+fi
+
+NONLEGACY_GRDB=$(grep -rlnE '^[[:space:]]*import[[:space:]]+GRDB([[:space:]]|$)' WatchApp Sources/WatchProtocol Sources/WatchCore 2>/dev/null || true)
+if [ -n "$NONLEGACY_GRDB" ]; then
+  echo "    GRDB is allowed only in TonearmWatchLegacyCore:"
+  echo "$NONLEGACY_GRDB" | sed 's/^/      /'
+  status=1; watch_ok=0
+fi
+
+if printf '%s\n' "$WATCH_TARGET" | grep -q 'CODE_SIGN_ENTITLEMENTS'; then
+  echo "    TonearmWatch declares an entitlement file"
+  status=1; watch_ok=0
+fi
+if ! grep -q 'cloudKitDatabase: \.none' Sources/WatchCore/Bootstrap/WatchStoreBootstrap.swift; then
+  echo "    SwiftData watch store lacks explicit CloudKit opt-out"
+  status=1; watch_ok=0
+fi
+[ "$watch_ok" = "1" ] && echo "    OK"
+
 if [ "$status" != "0" ]; then
   echo
   echo "one or more guards failed — this is what CI would have told you, sooner"

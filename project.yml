@@ -78,6 +78,10 @@ targets:
           - "Snapshot/**"
           - "Sync/**"
           - "WatchPlayback/**"
+          - "WatchProtocol/**"
+          - "WatchCore/**"
+          - "WatchLegacy/**"
+          - "WatchExports.swift"
           - "WatchSync/**"
       - path: Resources
         excludes:
@@ -88,6 +92,8 @@ targets:
       # exist only for the packages actually on the machine doing the build.
     dependencies:
       - package: TonearmCore
+      - package: TonearmCore
+        product: TonearmWatchProtocol
       - package: TonearmCore
         product: TonearmDJ
       - target: TonearmShareExtension
@@ -259,6 +265,11 @@ targets:
       - path: WatchApp
     dependencies:
       - package: TonearmCore
+        product: TonearmWatchProtocol
+      - package: TonearmCore
+        product: TonearmWatchCore
+      - package: TonearmCore
+        product: TonearmWatchLegacyCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: guru.parso.tonearm.watchkitapp
