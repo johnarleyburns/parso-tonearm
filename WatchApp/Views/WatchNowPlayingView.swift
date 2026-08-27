@@ -94,7 +94,9 @@ struct WatchNowPlayingView: View {
 
     @ViewBuilder
     private var remoteBody: some View {
-        if let state = remote.state, let item = state.currentItem {
+        if coordinator.continuePrompt != nil {
+            continueOnWatchCard
+        } else if let state = remote.state, let item = state.currentItem {
             // `remote.clockTick` — a @Published Int the W7 timer bumps each second — re-invokes
             // this body so `Date()` and the predicted elapsed below stay current without a new
             // snapshot.
@@ -164,6 +166,30 @@ struct WatchNowPlayingView: View {
             }
             .padding(.top, 32).padding(.horizontal, 12)
         }
+    }
+
+    /// §7.5 — the phone dropped mid-playback and its track is downloaded here. Explicit choice,
+    /// never an automatic handoff, never a claim of gapless playback.
+    private var continueOnWatchCard: some View {
+        VStack(spacing: 8) {
+            Text("iPhone Unavailable")
+                .font(.system(.headline)).multilineTextAlignment(.center)
+            if let title = coordinator.continuePrompt.flatMap({ _ in remote.state?.currentItem?.title }) {
+                Text(title).font(.system(.caption2)).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Text("This track is downloaded.")
+                .font(.system(.caption2)).foregroundStyle(.secondary)
+            Button {
+                coordinator.acceptContinue()
+            } label: {
+                Label("Continue on Apple Watch", systemImage: "play.fill")
+                    .font(.system(.caption)).frame(maxWidth: .infinity)
+            }
+            .accessibilityIdentifier("watch.now.continue")
+            Button("Keep Waiting") { coordinator.dismissContinue() }
+                .font(.system(.caption2))
+        }
+        .padding(.horizontal, 12).padding(.top, 12)
     }
 
     // MARK: - W8 — this-watch target (local)

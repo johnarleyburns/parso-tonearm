@@ -75,6 +75,35 @@ final class WatchAppAssembly {
         await coordinator?.refreshPlaybackSnapshot()
     }
 
+    // MARK: - Continue on Apple Watch (§7.5)
+
+    /// Track IDs whose audio is actually present on this watch — the set the §7.5 plan is built
+    /// against.
+    func locallyAvailableTrackIDs() async -> Set<WatchTrackID> {
+        guard let repository, let audioDirectory else { return [] }
+        let rows = (try? await repository.tracks(readyOnly: true)) ?? []
+        let fm = FileManager.default
+        return Set(rows.compactMap { row -> WatchTrackID? in
+            guard let name = row.localFilename,
+                  fm.fileExists(atPath: audioDirectory.appendingPathComponent(name).path)
+            else { return nil }
+            return WatchTrackID(row.id)
+        })
+    }
+
+    /// Resolve a §7.5 plan into local snapshots and hand it to the local player, resumed at the
+    /// last authoritative anchor. Labelled, brief pause, begins locally — never gapless.
+    func startContinueOnWatch(_ plan: WatchContinueOnWatchPlan) async {
+        guard let repository else { return }
+        let rows = (try? await repository.tracks(readyOnly: true)) ?? []
+        let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
+        let tracks = plan.trackIDs.compactMap { byID[$0.rawValue] }
+        guard !tracks.isEmpty else { return }
+        let start = min(max(0, plan.startIndex), tracks.count - 1)
+        WatchPlayer.shared.play(tracks: tracks, startAt: start)
+        if plan.elapsedAnchor > 0 { WatchPlayer.shared.seek(to: plan.elapsedAnchor) }
+    }
+
     private init() {
         let bootstrap = WatchStoreBootstrap.open()
         self.audioDirectory = bootstrap.audioDirectory

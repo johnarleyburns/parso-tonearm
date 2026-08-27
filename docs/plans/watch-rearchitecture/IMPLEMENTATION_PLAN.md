@@ -1522,8 +1522,9 @@ by compiler or device evidence.
   reconciliation, storage-full, reference-aware removal, reconcile repair on real hardware). No new
   simulator UI test — per §11.3 the iPhone smoke path is extended rather than adding functions, and
   the presenter/planner logic is fully host-covered.
-- Phase 9 (in progress): split into commits because the phase spans far more than 6–8. 9a + 9b
-  + 9c landed; 9d (`Continue on Apple Watch`) is the remainder.
+- Phase 9 (complete): split into commits because the phase spans far more than 6–8 — 9a
+  (local-playback core), 9b (audio-session lifecycle + Now Playing), 9c (explicit targets +
+  remote prediction + W7–W9), 9d (`Continue on Apple Watch`). Phase 10 is next.
   - **9a (2026-08-27, this commit): pure local-playback core, no I/O, no view changes.**
     `WatchQueueSnapshot` gains `isShuffled` / `shuffleSeed` / `repeatMode` with a hand-written
     `Decodable` so a position persisted by a pre-Phase-9 build (those keys absent) restores with
@@ -1604,3 +1605,25 @@ by compiler or device evidence.
     9d: `Continue on Apple Watch` (§7.5) + pure `WatchContinueOnWatchPlan`. Deferred polish: a
     secondary cross-target play affordance on the browse screens. Deferred to the physical-device
     pass: a paired-phone remote-control journey (the watchOS sim cannot pair a phone).
+  - **9d (2026-08-27, this commit): Continue on Apple Watch (§7.5).** New pure
+    `WatchContinueOnWatchPlan.make(from:locallyAvailable:now:)` (`Sources/WatchCore/Playback/`):
+    projects the phone's last snapshot onto a local queue — downloaded members of the queue
+    window in order, start index at the phone's current track among survivors, `elapsedAnchor`
+    = last authoritative anchor projected to now and clamped to duration; `nil` (no offer) when
+    the current track isn't downloaded here or nothing is playing; an empty window still
+    continues the one known track. `WatchRemotePlaybackObserver.didConfirmDisconnection` →
+    `WatchPlaybackCoordinator.armContinueFromDisconnect()` (only if iPhone was the target),
+    which builds the plan against `WatchAppAssembly.locallyAvailableTrackIDs()` and publishes
+    `continuePrompt`; `didReconnect` clears it. The W7 branch of `WatchNowPlayingView` shows the
+    `iPhone Unavailable` card (`watch.now.continue` / `Keep Waiting`) instead of transport;
+    `acceptContinue()` → `WatchAppAssembly.startContinueOnWatch` resolves to local snapshots,
+    `WatchPlayer.play` (selects the this-watch target) + new `WatchPlayer.seek(to:)`. Labelled,
+    brief pause, begins locally — never gapless, never a speculative stop to the unreachable
+    phone. Files: `Sources/WatchCore/Playback/WatchContinueOnWatchPlan.swift`,
+    `WatchApp/{WatchPlaybackCoordinator,WatchPlayer}.swift`,
+    `WatchApp/App/{WatchRemotePlaybackObserver,WatchAppAssembly}.swift`,
+    `WatchApp/Views/WatchNowPlayingView.swift`; new `Tests/WatchContinueOnWatchPlanTests.swift`
+    (6). Gates: `swift test` (full), `make ci-guards` clean, both simulator builds + watch smoke
+    green. Deferred: the coordinator glue has no host test (watch app target, not a SwiftPM
+    lib); the paired-hardware disconnect→continue journey is the physical-device pass. **Phase 9
+    is now complete.**

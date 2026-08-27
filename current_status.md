@@ -18,10 +18,31 @@ migrated. Existing watch GRDB behavior was isolated in a temporary CloudKit-free
 product during Phases 1–5 and removed at the SwiftData cutover in Phase 6.
 
 **Phases 1 through 8 are complete. Phase 9 — watch-local playback and system
-media integration — is in progress: 9a + 9b + 9c done; 9d (Continue on Apple Watch)
-next, then Phase 10.**
+media integration — is complete (9a + 9b + 9c + 9d). Phase 10 (reliability,
+observability, legacy deletion) is next.**
 
-Phase 9c (`this commit`) made the playback target explicit and gave the watch a live
+Phase 9d (`this commit`) added `Continue on Apple Watch` (§7.5). New pure
+`WatchContinueOnWatchPlan.make(from:locallyAvailable:now:)` in `Sources/WatchCore/Playback/`:
+given the phone's last snapshot and the set of track IDs actually downloaded on this watch, it
+projects a local queue from the downloaded members of the phone's queue window in order, the
+start index at the phone's current track among the survivors, and an `elapsedAnchor` = the last
+authoritative anchor projected to now and clamped to duration. It returns `nil` — no offer —
+when the phone's current track isn't downloaded here or nothing is playing; an empty window
+still continues the one known track. `WatchRemotePlaybackObserver.didConfirmDisconnection`
+(the confirmed connected→disconnected edge, after the grace period) calls
+`WatchPlaybackCoordinator.armContinueFromDisconnect()`, which — only if the iPhone was the
+target — builds the plan against `WatchAppAssembly.locallyAvailableTrackIDs()` and publishes
+`continuePrompt`; `didReconnect` clears it. The W7 branch of `WatchNowPlayingView` shows the
+`iPhone Unavailable` card with `Continue on Apple Watch` (`watch.now.continue`) and
+`Keep Waiting` in place of the transport. `acceptContinue()` → `WatchAppAssembly`
+resolves the plan to local snapshots, calls `WatchPlayer.play` (which selects the this-watch
+target) and `WatchPlayer.seek(to: anchor)` — labelled, a brief pause, begins locally; never
+gapless, and never a speculative stop to the unreachable phone. New
+`Tests/WatchContinueOnWatchPlanTests.swift` (6). Deferred: the coordinator glue has no host
+test (it lives in the watch app target, not a SwiftPM lib); the paired-hardware
+disconnect→continue journey is the physical-device pass.
+
+Phase 9c (`54bf13f`) made the playback target explicit and gave the watch a live
 picture of what the *phone* is playing. New pure `WatchPlaybackTarget` (`iPhone` /
 `thisWatch`) + `WatchPlaybackTargetStore` (UserDefaults, defaults to the last explicit
 target, initially iPhone); `WatchPlaybackCoordinator` (`@MainActor`) owns it and is the only

@@ -78,6 +78,7 @@ final class WatchPlayer: ObservableObject {
 
     func next() { handleCommand(.next) }
     func previous() { handleCommand(.previous) }
+    func seek(to seconds: Double) { handleCommand(.seek(to: seconds)) }
 
     func jump(to index: Int) {
         guard index >= 0, index < queue.count else { return }
