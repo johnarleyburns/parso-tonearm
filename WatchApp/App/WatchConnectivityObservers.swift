@@ -77,3 +77,62 @@ final class WatchReachabilityObserver: WatchConnectivityObserver {
         await MainActor.run { model.setPhoneReachable(true) }
     }
 }
+
+/// Drives the Phase 7 connection chrome (banner, disconnect haptic, A-08 prompt) and flips the
+/// search presenter between connected and offline modes.
+final class WatchChromeObserver: WatchConnectivityObserver {
+    private let chrome: WatchConnectionChrome
+    private let model: WatchLibraryModel
+    private let search: WatchSearchPresenter
+
+    init(chrome: WatchConnectionChrome, model: WatchLibraryModel, search: WatchSearchPresenter) {
+        self.chrome = chrome
+        self.model = model
+        self.search = search
+    }
+
+    func connectionStateDidChange(_ state: WatchConnectionReducer.State,
+                                  connectivity: WatchConnectivityState) async {
+        await MainActor.run {
+            chrome.apply(connectivity: connectivity)
+            search.setMode(chrome.showsConnectedFeatures ? .connected : .offline)
+            model.setPhoneReachable(connectivity == .connected)
+        }
+    }
+
+    func didConfirmDisconnection() async {
+        await MainActor.run {
+            chrome.confirmedDisconnection()
+            search.setMode(.offline)
+        }
+    }
+
+    func didReconnect() async {
+        await MainActor.run {
+            chrome.reconnected()
+            search.setMode(chrome.showsConnectedFeatures ? .connected : .offline)
+        }
+    }
+
+    func didNegotiate(_ session: WatchNegotiatedSession) async {
+        await MainActor.run {
+            chrome.reconnected()
+            search.setMode(.connected)
+        }
+    }
+
+    func negotiationDidFail(_ fault: WatchProtocolFault) async {
+        guard fault.code == .protocolUpgradeRequired else { return }
+        await MainActor.run {
+            chrome.markIncompatible()
+            search.setMode(.offline)
+        }
+    }
+
+    func pairedLibraryChangeRequiresConfirmation(current: WatchPairedLibraryID,
+                                                 incoming: WatchPairedLibraryID) async {
+        await MainActor.run {
+            chrome.requestLibraryReplacement(current: current, incoming: incoming)
+        }
+    }
+}

@@ -45,6 +45,7 @@ struct WatchNowPlayingView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 12)
                     .padding(.top, 12)
+                    .accessibilityIdentifier("watch.now.title")
 
                 Text(subtitle(for: track))
                     .font(.system(.caption2))
@@ -59,11 +60,11 @@ struct WatchNowPlayingView: View {
 
                 HStack {
                     Text(WatchTimeFmt.mmss(player.elapsed))
-                        .accessibilityIdentifier("np.elapsed")
+                        .accessibilityIdentifier("watch.now.elapsed")
                         .accessibilityValue(WatchTimeFmt.mmss(player.elapsed))
                     Spacer()
                     Text("-\(WatchTimeFmt.mmss(max(0, player.duration - player.elapsed)))")
-                        .accessibilityIdentifier("np.remaining")
+                        .accessibilityIdentifier("watch.now.remaining")
                 }
                 .font(.system(.caption2))
                 .foregroundStyle(.secondary)
@@ -79,7 +80,7 @@ struct WatchNowPlayingView: View {
                         Image(systemName: "list.bullet")
                             .font(.system(size: 14))
                     }
-                    .accessibilityIdentifier("np.upnext")
+                    .accessibilityIdentifier("watch.now.upNext")
 
                     Spacer()
 
@@ -116,7 +117,7 @@ struct WatchNowPlayingView: View {
             } label: {
                 Image(systemName: "backward.fill").font(.system(size: 24))
             }
-            .accessibilityIdentifier("np.prev")
+            .accessibilityIdentifier("watch.now.previous")
 
             Button {
                 player.togglePlayPause()
@@ -124,7 +125,7 @@ struct WatchNowPlayingView: View {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 32))
             }
-            .accessibilityIdentifier("np.playpause")
+            .accessibilityIdentifier("watch.now.playPause")
             // Exposes real transport state ("playing"/"paused") so the UI smoke test can confirm
             // playback actually started, not just that the button is tappable.
             .accessibilityValue(player.isPlaying ? "playing" : "paused")
@@ -134,7 +135,7 @@ struct WatchNowPlayingView: View {
             } label: {
                 Image(systemName: "forward.fill").font(.system(size: 24))
             }
-            .accessibilityIdentifier("np.next")
+            .accessibilityIdentifier("watch.now.next")
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)

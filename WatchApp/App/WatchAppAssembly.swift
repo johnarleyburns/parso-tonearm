@@ -15,19 +15,61 @@ final class WatchAppAssembly {
     let repository: WatchLibraryRepository?
     let audioDirectory: URL?
     let model: WatchLibraryModel
+    let chrome: WatchConnectionChrome
+    let search: WatchSearchPresenter
+    /// The store's launch state — drives the W12 recovery screen.
+    let launchState: WatchStoreLaunchState
 
+    private let coordinator: WatchConnectivityCoordinator?
     private let installer: WatchFileInstaller?
     private let syncActor: WatchSyncActor?
-    private let coordinator: WatchConnectivityCoordinator?
     private let fanout: WatchFanoutObserver?
+    private let chromeObserver: WatchChromeObserver?
     private let reachability: WatchReachabilityObserver?
     private let adapter: WatchProtocolSessionAdapter?
     private let stateStore: WatchDefaultsSyncStateStore
 
+    /// Ask the phone to replace the bound library after the user confirmed the A-08 prompt.
+    func confirmLibraryReplacement() {
+        chrome.resolveLibraryReplacement()
+        guard let coordinator else { return }
+        Task { await coordinator.confirmPairedLibraryReplacement() }
+    }
+
+    func rejectLibraryReplacement() {
+        chrome.resolveLibraryReplacement()
+        guard let coordinator else { return }
+        Task { await coordinator.rejectPairedLibraryReplacement() }
+    }
+
+    // MARK: - Connected content (W1 browse, W3 collection detail, play-on-iPhone)
+
+    func browsePhonePlaylists() async -> [WatchResultRow] {
+        guard let coordinator else { return [] }
+        if case .results(let response) = await coordinator.browse(.playlists) { return response.rows }
+        return []
+    }
+
+    func loadPhoneCollection(_ ref: WatchCollectionRef) async -> WatchCollectionResponse? {
+        guard let coordinator, case .success(let response) = await coordinator.collection(ref) else {
+            return nil
+        }
+        return response
+    }
+
+    @discardableResult
+    func playOnPhone(_ command: WatchPlayCommand) async -> Bool {
+        guard let coordinator else { return false }
+        return await coordinator.send(command).accepted
+    }
+
     private init() {
         let bootstrap = WatchStoreBootstrap.open()
         self.audioDirectory = bootstrap.audioDirectory
+        self.launchState = bootstrap.state
         self.stateStore = WatchDefaultsSyncStateStore()
+        let chrome = WatchConnectionChrome()
+        self.chrome = chrome
 
         guard let container = bootstrap.container, let audio = bootstrap.audioDirectory else {
             self.repository = nil
@@ -35,9 +77,13 @@ final class WatchAppAssembly {
             self.syncActor = nil
             self.coordinator = nil
             self.fanout = nil
+            self.chromeObserver = nil
             self.reachability = nil
             self.adapter = nil
             self.model = WatchLibraryModel(repository: nil, recoveryNotice: bootstrap.recoveryNotice)
+            self.search = WatchSearchPresenter(
+                mode: .offline, connectedSearch: { _, _ in .failed(.init(code: .phoneUnavailable)) },
+                offlineSearch: { _ in [] })
             return
         }
 
@@ -48,11 +94,33 @@ final class WatchAppAssembly {
         let reach = WatchReachabilityObserver(model: mdl)
         let sync = WatchSyncActor(repository: repo, installer: inst,
                                   onLibraryChanged: { [weak mdl] in await mdl?.refresh() })
-        let fan = WatchFanoutObserver([sync, reach])
         let coord = WatchConnectivityCoordinator(
             transport: WatchProtocolSessionAdapter.transport,
             stateStore: stateStore,
-            observer: fan)
+            observer: nil)
+
+        let searchPresenter = WatchSearchPresenter(
+            mode: .offline,
+            connectedSearch: { [weak coord] query, _ in
+                guard let coord else { return .failed(.init(code: .phoneUnavailable)) }
+                switch await coord.search(query) {
+                case .results(let response): return .results(response)
+                case .superseded: return .superseded
+                case .failed(let fault): return .failed(fault)
+                }
+            },
+            offlineSearch: { [weak repo] query in
+                let hits = (try? await repo?.search(query, readyOnly: true)) ?? []
+                return hits.map {
+                    WatchResultRow(kind: .track, id: $0.id, title: $0.title,
+                                   subtitle: $0.artist.isEmpty ? nil : $0.artist,
+                                   durationSeconds: $0.durationSeconds, isDownloadedOnWatch: true)
+                }
+            })
+        self.search = searchPresenter
+
+        let chromeObs = WatchChromeObserver(chrome: chrome, model: mdl, search: searchPresenter)
+        let fan = WatchFanoutObserver([sync, reach, chromeObs])
         let adpt = WatchProtocolSessionAdapter(endpoint: coord)
 
         self.repository = repo
@@ -60,11 +128,16 @@ final class WatchAppAssembly {
         self.model = mdl
         self.reachability = reach
         self.syncActor = sync
+        self.chromeObserver = chromeObs
         self.fanout = fan
         self.coordinator = coord
         self.adapter = adpt
 
-        Task { await sync.setCoordinator(coord) }
+        let fanForTask = fan
+        Task {
+            await sync.setCoordinator(coord)
+            await coord.setObserver(fanForTask)
+        }
     }
 
     /// Called once from the app's `init`. Activates the WCSession delegate and runs the one-time

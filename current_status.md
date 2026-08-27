@@ -17,8 +17,8 @@ library and existing phone-side CloudKit behavior remain authoritative and are n
 migrated. Existing watch GRDB behavior was isolated in a temporary CloudKit-free legacy
 product during Phases 1–5 and removed at the SwiftData cutover in Phase 6.
 
-**Phases 1 through 6 are complete. Phase 7 — connected and offline watch
-navigation/search UI — is next.**
+**Phases 1 through 7 are complete. Phase 8 — iPhone download and storage
+experience — is next.**
 
 Phase 6 (`this commit`) made SwiftData the only watch persistence path, deleted
 `TonearmWatchLegacyCore` (and `Sources/WatchLegacy/`, `WatchApp/App/WatchFeatureFlags.swift`,
@@ -33,6 +33,17 @@ working log: `docs/plans/watch-rearchitecture/PHASE6_CUTOVER.md`. Deferred (code
 scope): physical-device matrix, timing measurements, screenshots, owner sign-off; the watch
 Storage screen is read-only until Phase 8's iPhone-authoritative removal flow;
 `WatchCatalog` and the legacy phone `watchTransfer`/`watchManifest` tables await Phase 10.
+
+Phase 7 (`this commit`) rebuilt the watch navigation and search surfaces for both modes: a new
+`Sources/WatchCore/Presentation/` layer (`WatchSearchPresenter` debounce/generation state machine,
+`WatchConnectionChrome` banner model, `WatchRecentSearchStore`), a `WatchChromeObserver` that flips
+the app between connected and offline, and new screens (`WatchSearchView`, connected browse /
+collection detail with "Play on iPhone", `WatchRecoveryView`). The chrome starts offline so a
+phone-less launch is a usable downloaded player from the first frame. All accessibility IDs moved
+to the §9 `watch.*` contract; the one watch smoke method moved with them. `swift test` 1,743 pass /
+8 skip / 0 fail; guards clean; both simulator builds and both UI smoke lanes green. Deferred: the
+screenshot / Dynamic Type / VoiceOver / Reduce Motion / high-contrast visual matrix and the
+connected-mode simulator journey (host-covered — the watchOS sim cannot pair a phone).
 The old [`docs/plans/watch-app.md`](docs/plans/watch-app.md) describes the implementation
 being replaced and is historical only. The detailed phase gates, normative mockups, and
 release acceptance matrix are:

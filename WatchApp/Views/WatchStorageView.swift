@@ -11,13 +11,14 @@ struct WatchStorageView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(model.tracks.count) tracks")
                             .font(.system(.headline, design: .default))
-                        Text(WatchTimeFmt.megabytes(model.storage?.readyBytes ?? 0))
+                        Text(storageDetail)
                             .font(.system(.caption2))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
                 }
                 .padding(.vertical, 4)
+                .accessibilityIdentifier("watch.downloads.storage")
             }
 
             Section("iPhone") {
@@ -29,7 +30,7 @@ struct WatchStorageView: View {
                         .font(.system(.body, design: .default))
                     Spacer()
                 }
-                .accessibilityIdentifier("storage.phoneStatus")
+                .accessibilityIdentifier("watch.connection.status")
                 .accessibilityValue(model.phoneReachable ? "connected" : "unreachable")
             }
 
@@ -58,5 +59,13 @@ struct WatchStorageView: View {
         .listStyle(.carousel)
         .navigationTitle("Storage")
         .task { await model.refresh() }
+    }
+
+    private var storageDetail: String {
+        guard let storage = model.storage else {
+            return WatchTimeFmt.megabytes(0)
+        }
+        let free = storage.freeBytes > 0 ? " · \(WatchTimeFmt.megabytes(storage.freeBytes)) free" : ""
+        return "\(WatchTimeFmt.megabytes(storage.readyBytes)) downloaded\(free)"
     }
 }

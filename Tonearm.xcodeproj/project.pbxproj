@@ -12,6 +12,7 @@
 		0630A202DEA82E067F243939 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 292C3AA06CBE9E58AA7418FF /* ArtworkView.swift */; };
 		09BA5404F865447289CD7A3D /* WatchPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37E434F82159D7C687895D77 /* WatchPlayer.swift */; };
 		0BAE4D620A0105E3C4FC19BA /* AddMenuSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA48CEED5AEAFB50D5AB50F /* AddMenuSheet.swift */; };
+		119AD3D18F0B08781AC9D8BF /* WatchSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D8C93371A2722B5AF136A2 /* WatchSearchView.swift */; };
 		1478A167A7B83B1158DA49A8 /* CLAPTextEncoder.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 337A303240BEF94DD0F0C34B /* CLAPTextEncoder.mlpackage */; settings = {ASSET_TAGS = ("clap-text", ); }; };
 		152F9F90A86DAD934384AA5E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FFBC2DE0A6436C4A1A80014C /* Assets.xcassets */; };
 		15D68A714F1A586F779133FE /* AVPlayerOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9270E7191F0C56C47CA68AEF /* AVPlayerOutput.swift */; };
@@ -43,6 +44,7 @@
 		4F556962AF663ABF80303696 /* AdaptiveGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4497CDA730FA46494E531667 /* AdaptiveGlass.swift */; };
 		4FAC5A9709F7937D3BFBA535 /* WatchDefaultsSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAC8912A647F968F6B1973EE /* WatchDefaultsSyncStateStore.swift */; };
 		5441C555034D686043CFEE90 /* WatchProtocolSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C1C58F472E8351D8A722A1B /* WatchProtocolSessionAdapter.swift */; };
+		549A1230D744E47360C31C8A /* WatchConnectionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FA71918C2C0556DD804C456 /* WatchConnectionBanner.swift */; };
 		55344DAAB8AAC8239D613381 /* AirPlayButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C72A4A2127018D6E48638F2 /* AirPlayButton.swift */; };
 		56F4F1925361073B6B0A664E /* AmbientPlaylistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3726DD886D8478C23AEA8A73 /* AmbientPlaylistView.swift */; };
 		59D802428B3682D2D56B6C47 /* UIRegressionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EEEBFBA5ECD81C525D48E2D /* UIRegressionSupport.swift */; };
@@ -102,6 +104,7 @@
 		E15A8628673977ECC56099DB /* ProPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D928C4FD455EF96E0D393F1 /* ProPaywallView.swift */; };
 		E7D8EA806A23E80EA7653ACB /* ambient-ocean.wav in Resources */ = {isa = PBXBuildFile; fileRef = 74D07216801F19A8231EE98A /* ambient-ocean.wav */; };
 		E804FEFD3B24E44527EF05E8 /* Palette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EBACB49341C09E9F49B5482 /* Palette.swift */; };
+		E813A3324A5EB1AF580385EC /* WatchConnectedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DEABC4B2EE4B6BECF37202B /* WatchConnectedViews.swift */; };
 		E84D1DCC3BDCFDFA5ED92E0E /* WatchUpNextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9753F65AC559CA8402C2D74 /* WatchUpNextView.swift */; };
 		EA61DA978312F3700904DED7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C114ED8EAE6B45F219A551DA /* SettingsView.swift */; };
 		EE18D34B4E395874C8840D7B /* AddServerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF21CDA1D35FD0F742088DF3 /* AddServerSheet.swift */; };
@@ -228,8 +231,10 @@
 		4497CDA730FA46494E531667 /* AdaptiveGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveGlass.swift; sourceTree = "<group>"; };
 		471A0FB42343862D9FA90310 /* AddTracksToPlaylistSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTracksToPlaylistSheet.swift; sourceTree = "<group>"; };
 		4AA48CEED5AEAFB50D5AB50F /* AddMenuSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMenuSheet.swift; sourceTree = "<group>"; };
+		4DEABC4B2EE4B6BECF37202B /* WatchConnectedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectedViews.swift; sourceTree = "<group>"; };
 		4EBACB49341C09E9F49B5482 /* Palette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
 		4EDDCD4974AB22B40A4AB3EE /* ambient-rain.mp4 */ = {isa = PBXFileReference; path = "ambient-rain.mp4"; sourceTree = "<group>"; };
+		4FA71918C2C0556DD804C456 /* WatchConnectionBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectionBanner.swift; sourceTree = "<group>"; };
 		50DA465263A2171C1396F13F /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		538CEFDC4FA0F1BE2B051F4F /* CLAPAudioEncoder.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder; name = CLAPAudioEncoder.mlpackage; path = Resources/Models/CLAPAudioEncoder.mlpackage; sourceTree = SOURCE_ROOT; };
 		59CB1F5051BC2E45CAFEFCB5 /* TonearmUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TonearmUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -261,6 +266,7 @@
 		8D928C4FD455EF96E0D393F1 /* ProPaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProPaywallView.swift; sourceTree = "<group>"; };
 		8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TonearmWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9270E7191F0C56C47CA68AEF /* AVPlayerOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AVPlayerOutput.swift; sourceTree = "<group>"; };
+		97D8C93371A2722B5AF136A2 /* WatchSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSearchView.swift; sourceTree = "<group>"; };
 		9894FCBA2B17EE64A57067E8 /* SourceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceDetailView.swift; sourceTree = "<group>"; };
 		99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ATTRIBUTION.md; sourceTree = "<group>"; };
 		9BD8625177C1F1696B158A63 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
@@ -479,9 +485,12 @@
 			children = (
 				783A00C9B2142335E1E6936B /* WatchAlbumsView.swift */,
 				F264152278DB935FBFB188F5 /* WatchComponents.swift */,
+				4DEABC4B2EE4B6BECF37202B /* WatchConnectedViews.swift */,
+				4FA71918C2C0556DD804C456 /* WatchConnectionBanner.swift */,
 				73C123D981D52AC1C9DE3751 /* WatchNowPlayingView.swift */,
 				0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */,
 				D0974BD26C3A62104181966A /* WatchRootView.swift */,
+				97D8C93371A2722B5AF136A2 /* WatchSearchView.swift */,
 				E8C8B4A708B46F295FFFBBCD /* WatchStorageView.swift */,
 				F9753F65AC559CA8402C2D74 /* WatchUpNextView.swift */,
 			);
@@ -1077,6 +1086,8 @@
 				817CD786F8CC3FC747B95A61 /* WatchAlbumsView.swift in Sources */,
 				BB8672528D83DBBD5212DF45 /* WatchAppAssembly.swift in Sources */,
 				6850787E3F2A8AE11FE57E4A /* WatchComponents.swift in Sources */,
+				E813A3324A5EB1AF580385EC /* WatchConnectedViews.swift in Sources */,
+				549A1230D744E47360C31C8A /* WatchConnectionBanner.swift in Sources */,
 				A44043A17124189F1AB84D88 /* WatchConnectivityObservers.swift in Sources */,
 				4FAC5A9709F7937D3BFBA535 /* WatchDefaultsSyncStateStore.swift in Sources */,
 				A874CDAAE6139A6C31115E30 /* WatchFixtureSeeder.swift in Sources */,
@@ -1086,6 +1097,7 @@
 				2FB5EA4A4EEFB59CEBA07B8F /* WatchPlaylistsView.swift in Sources */,
 				5441C555034D686043CFEE90 /* WatchProtocolSessionAdapter.swift in Sources */,
 				464C5B08FAAF1036A497892B /* WatchRootView.swift in Sources */,
+				119AD3D18F0B08781AC9D8BF /* WatchSearchView.swift in Sources */,
 				65382A626085DF49D9496F82 /* WatchStorageView.swift in Sources */,
 				E84D1DCC3BDCFDFA5ED92E0E /* WatchUpNextView.swift in Sources */,
 			);

@@ -37,6 +37,7 @@ struct PlatterheadWatchApp: App {
 /// watchOS, which is why tapping "Play All" previously navigated nowhere.
 struct WatchContentView: View {
     @ObservedObject private var player = WatchPlayer.shared
+    @ObservedObject private var chrome = WatchAppAssembly.shared.chrome
 
     var body: some View {
         NavigationStack(path: $player.navigationPath) {
@@ -44,12 +45,17 @@ struct WatchContentView: View {
                 .navigationTitle("Platterhead")
                 .navigationDestination(for: WatchNav.self) { nav in
                     switch nav {
+                    case .search: WatchSearchView()
+                    case .downloads: WatchDownloadsView()
                     case .playlists: WatchPlaylistsView()
                     case .albums: WatchAlbumsView()
                     case .songs: WatchSongsView()
                     case .storage: WatchStorageView()
                     case .playlist(let id): WatchPlaylistDetailView(playlistID: id)
                     case .album(let id): WatchAlbumDetailView(albumID: id)
+                    case .phonePlaylists: WatchPhonePlaylistsView()
+                    case .phoneCollection(let ref): WatchPhoneCollectionView(ref: ref)
+                    case .recovery: WatchRecoveryView()
                     }
                 }
         }
@@ -58,5 +64,28 @@ struct WatchContentView: View {
                 WatchNowPlayingView()
             }
         }
+        .sheet(isPresented: needsRecoveryScreen) {
+            NavigationStack { WatchRecoveryView() }
+        }
+        .alert("Different iPhone Library", isPresented: pendingReplacement) {
+            Button("Replace Downloads", role: .destructive) {
+                WatchAppAssembly.shared.confirmLibraryReplacement()
+            }
+            Button("Keep Current", role: .cancel) {
+                WatchAppAssembly.shared.rejectLibraryReplacement()
+            }
+        } message: {
+            Text("This iPhone has a different music library. Replacing keeps this watch in sync but removes downloads that are no longer in it.")
+        }
+    }
+
+    private var needsRecoveryScreen: Binding<Bool> {
+        .init(get: { WatchAppAssembly.shared.launchState == .degraded },
+              set: { _ in })
+    }
+
+    private var pendingReplacement: Binding<Bool> {
+        .init(get: { chrome.pendingLibraryReplacement != nil },
+              set: { if !$0 { WatchAppAssembly.shared.rejectLibraryReplacement() } })
     }
 }

@@ -82,7 +82,7 @@ struct WatchAlbumDetailView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("album.playAll")
+                .accessibilityIdentifier("watch.collection.playLocal")
 
                 Button {
                     var shuffled = tracks
@@ -108,6 +108,7 @@ struct WatchAlbumDetailView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("watch.track.\(track.id)")
             }
         }
         .listStyle(.carousel)
@@ -137,6 +138,7 @@ struct WatchSongsView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("watch.track.\(track.id)")
                     }
                 }
                 .listStyle(.carousel)

@@ -1,49 +1,77 @@
 import SwiftUI
 import TonearmWatchCore
+import TonearmWatchProtocol
 
 struct WatchRootView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
+    @ObservedObject private var chrome = WatchAppAssembly.shared.chrome
     @ObservedObject private var player = WatchPlayer.shared
 
     var body: some View {
         List {
+            WatchConnectionBanner(banner: chrome.banner)
+                .listRowBackground(Color.clear)
+
             nowPlayingChip
 
-            NavigationLink(value: WatchNav.playlists) {
+            NavigationLink(value: WatchNav.search) {
                 WatchCollectionRow(
-                    title: "Playlists",
-                    subtitle: "\(model.playlists.count) playlists",
-                    systemImage: "music.note.list")
+                    title: chrome.showsConnectedFeatures ? "Search iPhone Library" : "Search Downloads",
+                    subtitle: chrome.showsConnectedFeatures ? "Tracks, albums, playlists" : "On this watch",
+                    systemImage: "magnifyingglass")
             }
-            .accessibilityIdentifier("root.playlists")
+            .accessibilityIdentifier("watch.search")
 
-            NavigationLink(value: WatchNav.albums) {
-                WatchCollectionRow(
-                    title: "Albums",
-                    subtitle: "\(model.albums.count) albums",
-                    systemImage: "square.stack")
-            }
-            .accessibilityIdentifier("root.albums")
+            if chrome.showsConnectedFeatures {
+                NavigationLink(value: WatchNav.phonePlaylists) {
+                    WatchCollectionRow(title: "Playlists", subtitle: "Browse on iPhone",
+                                       systemImage: "music.note.list")
+                }
+                .accessibilityIdentifier("watch.playlists")
 
-            NavigationLink(value: WatchNav.songs) {
-                WatchCollectionRow(
-                    title: "Songs",
-                    subtitle: "\(model.tracks.count) tracks",
-                    systemImage: "music.note")
+                NavigationLink(value: WatchNav.downloads) {
+                    WatchCollectionRow(title: "Downloads", subtitle: downloadsSubtitle,
+                                       systemImage: "arrow.down.circle")
+                }
+                .accessibilityIdentifier("watch.downloads")
+            } else {
+                offlineDownloadRows
             }
-            .accessibilityIdentifier("root.songs")
-
-            NavigationLink(value: WatchNav.storage) {
-                WatchCollectionRow(
-                    title: "Storage",
-                    subtitle: storageSubtitle,
-                    systemImage: "internaldrive")
-            }
-            .accessibilityIdentifier("root.storage")
         }
         .listStyle(.carousel)
         .navigationTitle("Platterhead")
+        .accessibilityIdentifier("watch.root")
         .task { await model.refresh() }
+    }
+
+    @ViewBuilder
+    private var offlineDownloadRows: some View {
+        NavigationLink(value: WatchNav.playlists) {
+            WatchCollectionRow(title: "Playlists", subtitle: "\(model.playlists.count) downloaded",
+                               systemImage: "music.note.list")
+        }
+        .accessibilityIdentifier("watch.playlists")
+
+        NavigationLink(value: WatchNav.albums) {
+            WatchCollectionRow(title: "Albums", subtitle: "\(model.albums.count) downloaded",
+                               systemImage: "square.stack")
+        }
+
+        NavigationLink(value: WatchNav.songs) {
+            WatchCollectionRow(title: "Tracks", subtitle: "\(model.tracks.count) downloaded",
+                               systemImage: "music.note")
+        }
+
+        NavigationLink(value: WatchNav.storage) {
+            WatchCollectionRow(title: "Storage", subtitle: storageSubtitle, systemImage: "internaldrive")
+        }
+        .accessibilityIdentifier("watch.downloads")
+    }
+
+    private var downloadsSubtitle: String {
+        let bytes = model.storage?.readyBytes ?? 0
+        return bytes > 0 ? "\(model.tracks.count) tracks · \(WatchTimeFmt.megabytes(bytes))"
+                         : "\(model.tracks.count) tracks"
     }
 
     private var storageSubtitle: String {
@@ -78,16 +106,21 @@ struct WatchRootView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityIdentifier("root.nowPlaying")
+            .accessibilityIdentifier("watch.nowPlaying")
         }
     }
 }
 
 enum WatchNav: Hashable {
+    case search
+    case downloads
     case playlists
     case albums
     case songs
     case storage
     case playlist(String)
     case album(String)
+    case phonePlaylists
+    case phoneCollection(WatchCollectionRef)
+    case recovery
 }

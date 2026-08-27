@@ -50,7 +50,7 @@ struct WatchPlaylistDetailView: View {
                     playAllLabel
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("playlist.playAll")
+                .accessibilityIdentifier("watch.collection.playLocal")
 
                 Button {
                     var shuffled = tracks
@@ -70,6 +70,7 @@ struct WatchPlaylistDetailView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("watch.track.\(track.id)")
             }
         }
         .listStyle(.carousel)

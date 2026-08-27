@@ -1399,3 +1399,66 @@ by compiler or device evidence.
   Live-server "watch pulls audio over HTTP" has no automated coverage by design (§53 by-hand
   regression suite). `WatchCatalog` and the legacy `watchTransfer`/`watchManifest` phone tables
   are still present for Phase 10 to delete.
+- Phase 7 (2026-08-27, this commit): **complete** — the watch's navigation and search surfaces
+  rebuilt for both modes against §9 W1–W6/W12 and the stable accessibility-identifier contract. A
+  slow request never leaves an endless spinner: it becomes `.unreachable` with Try Again / Search
+  Downloads; a cold launch with no phone is an offline player from the first frame, not broken
+  phone rows.
+
+  New presentation layer in `Sources/WatchCore/Presentation/` — all host-tested, all injectable:
+  - `WatchSearchPresenter` — the one search state machine. Debounced 250 ms after the second
+    non-whitespace character; a presenter-side generation guard drops a late reply from a
+    superseded query; `.recent → .tooShort → .loading → .results/.noResults/.unreachable` in
+    connected mode, `.offlineResults/.offlineNoResults` in offline mode. The debounce sleep and
+    both search backends are closures, so the whole machine runs under `swift test`.
+  - `WatchRecentSearchStore` — `UserDefaults`-backed, capacity 6, plus an in-memory double.
+  - `WatchConnectionChrome` — the banner model. Starts `.unavailable` (offline until negotiated);
+    a sub-grace blip shows `.temporarilyUnavailable` but is not a confirmed offline banner;
+    `disconnectPulse` increments once per confirmed outage for a single haptic; `.incompatible`
+    is sticky until relaunch; holds the A-08 library-replacement prompt.
+
+  Watch app: `WatchChromeObserver` (a third fanout observer) drives the chrome and flips the
+  search presenter's mode from `connectionStateDidChange` / `didConfirmDisconnection` /
+  `didReconnect` / `negotiationDidFail(.protocolUpgradeRequired)` / `pairedLibraryChange…`. New
+  screens: `WatchConnectionBanner` (text + icon, never colour alone, never over transport),
+  `WatchSearchView` (W2), `WatchPhonePlaylistsView` + `WatchPhoneCollectionView` (W1 browse / W3 —
+  "Play on iPhone" is always the primary action, Download shows the manage-on-iPhone note because
+  the protocol has no watch→phone download request), `WatchDownloadsView`, `WatchRecoveryView`
+  (W12, diagnostics are state codes and counts only). `WatchRootView` switches connected vs
+  offline home. All identifiers migrated to the §9 `watch.*` contract; the smoke test moved with
+  them.
+
+  Two decisions worth recording:
+
+  1. **The chrome starts offline, not connected.** `WatchConnectionChrome(initial: .unavailable)`
+     means a launch with no reachable phone shows a usable downloaded library immediately; the
+     coordinator's first `connectionStateDidChange` upgrades it only once negotiation proves the
+     phone is there. The alternative — start connected, correct on failure — flashes broken phone
+     rows on every offline launch.
+  2. **The connected journey is host-covered, not in the smoke test.** The watchOS simulator
+     cannot pair a phone and its full-screen text entry is not scriptable in XCUITest, so the one
+     smoke method exercises the offline journey (boot → local search surface → play a seeded
+     playlist with the elapsed clock advancing → transport both ways → second playlist → back to a
+     usable root). Connected search/browse/play-on-iPhone is covered by `WatchSearchPresenterTests`,
+     `WatchConnectionChromeTests`, and the existing `WatchProtocolIntegrationTests` duplex-link
+     tests.
+
+  Files changed: new `Sources/WatchCore/Presentation/{WatchSearchPresenter,WatchRecentSearchStore,
+  WatchConnectionChrome}.swift`; new `WatchApp/Views/{WatchConnectionBanner,WatchSearchView,
+  WatchConnectedViews}.swift`; rewritten `WatchApp/Views/WatchRootView.swift`,
+  `WatchApp/PlatterheadWatchApp.swift`, `WatchApp/App/{WatchAppAssembly,WatchConnectivityObservers}.swift`;
+  identifier + minor updates to `WatchApp/Views/{WatchPlaylistsView,WatchAlbumsView,WatchStorageView,
+  WatchNowPlayingView}.swift`; rewritten `WatchUITests/WatchSmokeUITests.swift`; regenerated
+  `Tonearm.xcodeproj`. Tests added: 14 — `Tests/WatchSearchPresenterTests.swift` (9),
+  `Tests/WatchConnectionChromeTests.swift` (5).
+
+  Gates: `make ci-guards` passed; `make project` regenerated; `rm -rf .build && swift test` passed
+  **1,743 tests with 8 intentional skips and 0 failures in 99.5s** (Phase 6 baseline: 1,729). Clean
+  `iPhone 16` and `Watch-Large` simulator builds; the iPhone UI smoke and the single watch UI smoke
+  (`WatchSmokeUITests`, ~45s) both passed.
+
+  Known limitations, deferred per the code-complete scope: the smallest/largest-watch screenshot
+  matrix in light/dark, large Dynamic Type, VoiceOver label/order audit, Reduce Motion, and high
+  contrast; the physical-device matrix; and I-05..I-11 timing. The connected-mode UI compiles and
+  is wired but has no simulator coverage (see decision 2). W7–W11 (Now Playing target switching,
+  Up Next unavailable-row copy, download activity, full storage management) are Phases 8–9.
