@@ -131,6 +131,37 @@ if ! grep -q 'cloudKitDatabase: \.none' Sources/WatchCore/Bootstrap/WatchStoreBo
   echo "    SwiftData watch store lacks explicit CloudKit opt-out"
   status=1; watch_ok=0
 fi
+for model in WatchTrackModel WatchPlaylistModel WatchPlaylistEntryModel WatchAssetModel WatchDownloadJobModel WatchDownloadRootModel WatchPlaybackStateModel WatchSyncStateModel; do
+  if ! grep -q "class $model" Sources/WatchCore/Library/WatchLibraryModels.swift; then
+    echo "    versioned Watch schema is missing $model"
+    status=1; watch_ok=0
+  fi
+done
+for stable_id in trackID playlistID entryID requestID rootID stateID; do
+  if ! grep -q "@Attribute(\.unique) public var $stable_id" Sources/WatchCore/Library/WatchLibraryModels.swift; then
+    echo "    Watch schema lacks unique stable ID: $stable_id"
+    status=1; watch_ok=0
+  fi
+done
+if ! grep -q 'enum WatchSchemaV1: VersionedSchema' Sources/WatchCore/Bootstrap/WatchStoreBootstrap.swift ||
+   ! grep -q 'migrationPlan: WatchSchemaMigrationPlan.self' Sources/WatchCore/Bootstrap/WatchStoreBootstrap.swift; then
+  echo "    Watch store must open through a versioned schema and migration plan"
+  status=1; watch_ok=0
+fi
+if grep -q 'fatalError(' Sources/WatchCore/Bootstrap/WatchStoreBootstrap.swift; then
+  echo "    Watch store bootstrap must never fatalError on an unreadable store"
+  status=1; watch_ok=0
+fi
+# The launch scan must not invent checksums; only reconciliation hashes files.
+if grep -rq 'pending-validation' Sources/WatchCore; then
+  echo "    Watch recovery must not fabricate a checksum"
+  status=1; watch_ok=0
+fi
+# Phase 2 keeps the new architecture off by default; Phase 6 flips it.
+if ! grep -q 'ProcessInfo.processInfo.arguments.contains("-swiftDataWatchArchitecture")' WatchApp/App/WatchFeatureFlags.swift; then
+  echo "    swiftDataWatchArchitecture must stay opt-in until the Phase 6 cutover"
+  status=1; watch_ok=0
+fi
 [ "$watch_ok" = "1" ] && echo "    OK"
 
 if [ "$status" != "0" ]; then

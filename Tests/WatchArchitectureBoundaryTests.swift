@@ -26,5 +26,8 @@ final class WatchArchitectureBoundaryTests: XCTestCase {
         let rows = try await store.playlistTrackRows(playlistId: playlistID)
         XCTAssertEqual(tracks.map(\.syncID), ["track-1"])
         XCTAssertEqual(rows.map(\.row.track.title), ["Song"])
+        let migration = try await store.migrationSnapshot()
+        XCTAssertEqual(migration.tracks.map(\.trackID), ["track-1"])
+        XCTAssertEqual(migration.playlists.first?.trackIDs, ["track-1"])
     }
 }

@@ -16,6 +16,7 @@ struct PlatterheadWatchApp: App {
     var body: some Scene {
         WindowGroup {
             WatchContentView()
+                .task { await WatchAppAssembly.shared.runLegacyUpgradeIfNeeded() }
             #if DEBUG
                 .task {
                     guard !didSeed else { return }

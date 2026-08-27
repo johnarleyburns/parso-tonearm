@@ -1,6 +1,6 @@
 # Platterhead Watch App — SwiftData / iPhone-Only Sync Rearchitecture
 
-Status: **adopted; Phase 1 complete; Phase 2 next**
+Status: **adopted; Phases 1–2 complete; Phase 3 next**
 
 Priority: **highest active product priority**
 
@@ -1059,4 +1059,48 @@ by compiler or device evidence.
   Known limitation: physical-watch and signed-distribution verification remain assigned to
   their later acceptance phases; the new SwiftData architecture stays off by default until
   Phase 6.
-- Phase 2: **next**.
+- Phase 2: complete — versioned SwiftData schema, repositories returning Sendable snapshots,
+  normalized offline search, manifest/storage accounting, file reconciliation, quarantine
+  recovery, and the one-time legacy adoption.
+
+  All nine models of §4 ship behind `WatchSchemaV1` and open through `WatchSchemaMigrationPlan`;
+  every stable ID is `@Attribute(.unique)`. `WatchLibraryRepository` is an actor that never lets a
+  `PersistentModel` cross its boundary — `WatchLibraryValues.swift` holds the value types it
+  returns and accepts.
+
+  Four decisions worth recording, because each one rejected an easier alternative:
+
+  1. **Stale revisions are dropped, not merged.** §5.4 says a stale revision is acknowledged but
+     not applied, so `upsertTrack`/`upsertPlaylist` return `.staleIgnored` and leave the row alone
+     rather than taking `max(revision)` while writing the older payload — which is what the first
+     draft did, and it would have let an out-of-order phone event resurrect deleted playlist rows.
+  2. **The launch-time audio scan does not hash.** Recovery reports
+     `WatchRecoverableFileSnapshot` (name and size only) instead of a `WatchOrphanSnapshot`
+     carrying a placeholder digest. Hashing every downloaded track would block launch, and a fake
+     checksum would have been a lie that `adoptOrphan` then silently rejected. Only
+     `reconcileFiles()` hashes, and it does so in 256 KB chunks so a large track is never resident.
+  3. **Adoption is validated twice.** `adoptOrphan` re-measures the file and additionally requires
+     agreement with `expectedBytes`/`expectedSHA256` when the track carries them, so a rebuilt
+     store cannot mark an unrelated file "ready" for a track that happens to be waiting.
+  4. **The legacy reader is injected, not imported.** `WatchLegacyUpgrade` takes a snapshot
+     closure; `WatchAppAssembly` supplies `LegacyWatchLibraryStore.migrationSnapshot()`. That is
+     what keeps GRDB out of `TonearmWatchCore` while still allowing the one-time adoption, and the
+     structural guard enforces it. When the reader throws, the upgrade still succeeds as
+     `.legacyUnreadable(retainedFiles:)` — audio is kept and phone reconciliation is requested,
+     never deleted.
+
+  Storage accounting implements the §2.5 reserve (the greater of 500 MB or 10% of free capacity).
+  Note `volumeAvailableCapacityForImportantUsage` does not exist on watchOS, so the plain
+  available-capacity key is used; this was only caught by the watchOS build, not by `swift test`.
+
+  Files changed: new `Sources/WatchCore/Library/WatchLibraryValues.swift`,
+  `WatchLibraryRepository.swift`, `WatchLibraryModels.swift`, and `WatchLegacyUpgrade.swift`;
+  `WatchStoreBootstrap.swift` (versioned schema, quarantine, honest recovery reporting);
+  `LegacyLibraryStore.migrationSnapshot()`; watch app assembly/launch wiring; extended structural
+  guards. Tests added: 23 across `WatchLibraryRepositoryTests` and `WatchLegacyUpgradeTests`.
+  Gates: `make ci-guards` passed (and the new guards were each verified to fail when violated);
+  `swift test` passed 1,602 tests with 8 intentional skips and 0 failures in 95.9s; the
+  `TonearmWatch` watchOS build and the `Tonearm` iOS build both succeeded.
+  Known limitation: the new architecture flag remains off, so none of this is on the shipped
+  launch path yet — `runLegacyUpgradeIfNeeded()` returns immediately until Phase 6 flips it.
+- Phase 3: **next**.

@@ -17,8 +17,8 @@ library and existing phone-side CloudKit behavior remain authoritative and are n
 migrated. Existing watch GRDB behavior is isolated in a temporary CloudKit-free legacy
 product during Phases 1–5, then removed at the SwiftData cutover in Phase 6.
 
-**Phase 1 — Architecture boundary and executable skeleton is complete in the current
-commit. Phase 2 — SwiftData schema and migration contracts is next.**
+**Phases 1 and 2 are complete. Phase 3 — the typed protocol and reliable connectivity
+state — is next.**
 The old [`docs/plans/watch-app.md`](docs/plans/watch-app.md) describes the implementation
 being replaced and is historical only. The detailed phase gates, normative mockups, and
 release acceptance matrix are:
@@ -2147,23 +2147,54 @@ map ~30 controls by hand before their first mix. **All three shipped in M2–M4.
 line, and not shipped: MIDI output (no LED ever lights), 14-bit CC (the tempo fader steps at
 0.125 %), multi-device honesty (`connectedEndpointID` is a single value), and factory profiles.
 
-## Next — Watch Phase 2
+## Watch Phase 2 — complete
 
-Implement **Phase 2 — SwiftData schema and migration contracts** from the adopted Watch
-plan. Phase 1 is complete: `TonearmWatch` now links only `TonearmWatchProtocol`,
-`TonearmWatchCore`, and temporary `TonearmWatchLegacyCore`; the SwiftData bootstrap is
-explicitly local-only; existing behavior remains behind the default-off feature flag; and
-the build/entitlement guards are green.
+**Phase 2 — SwiftData schema, repositories, migration, and recovery** is landed. All nine §4
+models ship behind `WatchSchemaV1` and open through `WatchSchemaMigrationPlan`;
+`WatchLibraryRepository` is an actor returning only Sendable value snapshots; offline search,
+manifest calculation, storage accounting, file reconciliation, orphan adoption, quarantine
+recovery, and the one-time legacy adoption are all implemented and tested.
 
-Required work:
+Four things are worth knowing before touching this code, because each replaced an easier
+version that was wrong:
 
-1. Implement the versioned SwiftData schema and stable-ID uniqueness contracts.
-2. Add migration fixtures plus corrupt-store quarantine and recovery behavior.
-3. Prove migration idempotency and relationship integrity with focused tests.
-4. Keep the new architecture flag off and preserve the Phase 1 package boundary.
+- **A stale phone revision is dropped, not merged.** `upsertTrack`/`upsertPlaylist` return
+  `.staleIgnored` and leave the row untouched. The earlier `max(revision)` approach kept the
+  newer revision number while writing the *older* payload, which would have let an
+  out-of-order event resurrect deleted playlist rows.
+- **The launch-time audio scan does not hash.** Recovery reports
+  `WatchRecoverableFileSnapshot` — name and size only. A placeholder digest in a field called
+  `sha256` was the original shape and it was a lie: `adoptOrphan` would then silently reject
+  every file it described. Hashing lives in `reconcileFiles()`, in 256 KB chunks, so a large
+  track is never fully resident in memory.
+- **Orphan adoption validates twice**: the file is re-measured *and* must agree with the
+  track's `expectedBytes`/`expectedSHA256` when it has them, so a rebuilt store cannot call an
+  unrelated file "ready" for whichever track happens to be waiting.
+- **The legacy GRDB reader is injected, never imported.** `WatchLegacyUpgrade` takes a
+  snapshot closure and `WatchAppAssembly` supplies `LegacyWatchLibraryStore.migrationSnapshot()`.
+  That is what keeps GRDB out of `TonearmWatchCore`, and the structural guard enforces it. When
+  the legacy database is unreadable the upgrade still succeeds as `.legacyUnreadable`, retaining
+  the audio and asking for phone reconciliation — it never deletes validated user audio.
 
-Do not start Phase 3 until Phase 2 is committed, its audit entry is complete, and all Phase
-2 gates are green. Do not push without owner approval.
+Verification: `swift test` — 1,602 tests, 8 intentional skips, 0 failures, 95.9s.
+`make ci-guards` clean, and each new guard was checked to actually fail when violated.
+`TonearmWatch` (generic watchOS Simulator) and `Tonearm` (generic iOS Simulator) both build.
+One watchOS-only defect was caught by that build and not by `swift test`:
+`volumeAvailableCapacityForImportantUsage` does not exist on watchOS, so storage accounting
+uses the plain available-capacity key.
+
+**The new architecture flag is still off**, so none of this is on the shipped launch path yet —
+`runLegacyUpgradeIfNeeded()` returns immediately until Phase 6 flips `swiftDataWatchArchitecture`.
+
+## Next — Watch Phase 3
+
+Implement **Phase 3 — Typed protocol and reliable connectivity state**: the §5 codecs,
+capability negotiation, application-context snapshots, immediate request router, durable event
+ledger, revision rules, correlation/deadline handling, transport-only adapters, connection
+reducer with its two-second grace period, and an injected fake transport.
+
+Do not start Phase 4 until Phase 3 is committed, its audit entry is complete, and all Phase 3
+gates are green. Do not push without owner approval.
 
 ## Superseded next-work list (retained for history)
 

@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import TonearmWatchCore
 import TonearmWatchProtocol
 
 public enum LegacyWatchPlaylistKind: String, Codable, DatabaseValueConvertible, Sendable { case manual, folder }
@@ -183,6 +184,23 @@ public final class LegacyWatchLibraryStore: @unchecked Sendable {
         }
     }
     public func manifests() async throws -> [LegacyWatchManifestRecord] { try await db.read { try LegacyWatchManifestRecord.fetchAll($0) } }
+    public func migrationSnapshot() async throws -> WatchLegacyLibrarySnapshot {
+        try await db.read { db in
+            let rows = try Self.rows(in: db)
+            let tracks = rows.map {
+                WatchLegacyTrackSnapshot(trackID: $0.track.syncID, title: $0.track.title,
+                    artist: $0.artist?.name ?? $0.album?.artist ?? "", albumTitle: $0.album?.title ?? "",
+                    relativeFilename: $0.asset?.relPath)
+            }
+            let playlists = try LegacyWatchPlaylist.fetchAll(db).compactMap { playlist -> WatchLegacyPlaylistSnapshot? in
+                guard let playlistID = playlist.id else { return nil }
+                let items = try LegacyWatchPlaylistItem.filter(Column("playlistId") == playlistID).order(Column("ordinal")).fetchAll(db)
+                let trackIDs = try items.compactMap { item in try LegacyWatchTrack.fetchOne(db, key: item.trackId)?.syncID }
+                return WatchLegacyPlaylistSnapshot(playlistID: playlist.syncID ?? "p\(playlistID)", title: playlist.title, trackIDs: trackIDs)
+            }
+            return WatchLegacyLibrarySnapshot(tracks: tracks, playlists: playlists)
+        }
+    }
     public func title(forTrackKey key: String) async -> String? { try? await db.read { try LegacyWatchTrack.filter(Column("syncID") == key).fetchOne($0)?.title } }
     public func removeManifest(keys: [String]) async throws { try await db.write { db in for key in keys { _ = try LegacyWatchManifestRecord.deleteOne(db, key: key) } } }
     public func removeAllManifests() async throws { _ = try await db.write { try LegacyWatchManifestRecord.deleteAll($0) } }
