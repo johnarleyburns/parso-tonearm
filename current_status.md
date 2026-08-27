@@ -18,7 +18,23 @@ migrated. Existing watch GRDB behavior was isolated in a temporary CloudKit-free
 product during Phases 1–5 and removed at the SwiftData cutover in Phase 6.
 
 **Phases 1 through 8 are complete. Phase 9 — watch-local playback and system
-media integration — is next.**
+media integration — is in progress, split into three commits (9a done; 9b/9c next).**
+
+Phase 9a (`this commit`) hardened the pure local-playback core in `TonearmWatchCore`, no I/O
+and no view changes: `WatchQueueSnapshot` now carries `isShuffled`/`shuffleSeed`/`repeatMode`
+(custom `Decodable` so a pre-Phase-9 persisted position still restores instead of being discarded
+as corrupt); shuffle is a deterministic SplitMix64 permutation of `(seed, queue)` so a relaunch
+reproduces the session order (`WatchSeededRNG`, `setShuffle(_:seed:)`); and
+`WatchPlayerEngine.restored(from:availableKeys:)` rebuilds a **paused** engine from a snapshot,
+dropping tracks whose file is gone and remapping the current index to the nearest surviving track
+(keeping elapsed only if the current track itself survived). New `Tests/WatchPlaybackRestoreTests.swift`
+(13 cases: seed determinism, snapshot JSON round-trip + legacy-key tolerance, five restoration
+shapes). `swift test --filter` for the playback engine/position/restore suites: 36 pass / 0 fail.
+Deferred to **9b**: audio session + route/interruption/media-services-reset lifecycle, background
+audio, Crown volume actually applied, Now Playing + supported-only remote commands, `Close` must
+not stop playback, edge/10s persistence, spy directive-order tests, one watch smoke. Deferred to
+**9c**: explicit `iPhone`/`thisWatch` target model + switch UI, remote snapshot prediction wiring,
+`Continue on Apple Watch`, W7–W9 screens.
 
 Phase 6 (`this commit`) made SwiftData the only watch persistence path, deleted
 `TonearmWatchLegacyCore` (and `Sources/WatchLegacy/`, `WatchApp/App/WatchFeatureFlags.swift`,

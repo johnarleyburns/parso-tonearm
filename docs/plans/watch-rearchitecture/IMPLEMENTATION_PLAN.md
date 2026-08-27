@@ -1522,3 +1522,23 @@ by compiler or device evidence.
   reconciliation, storage-full, reference-aware removal, reconcile repair on real hardware). No new
   simulator UI test — per §11.3 the iPhone smoke path is extended rather than adding functions, and
   the presenter/planner logic is fully host-covered.
+- Phase 9 (in progress): split into three commits because the phase spans far more than 6–8.
+  - **9a (2026-08-27, this commit): pure local-playback core, no I/O, no view changes.**
+    `WatchQueueSnapshot` gains `isShuffled` / `shuffleSeed` / `repeatMode` with a hand-written
+    `Decodable` so a position persisted by a pre-Phase-9 build (those keys absent) restores with
+    sane defaults instead of decoding-throwing and being wiped by `loadOrClear`. Shuffle is now a
+    deterministic SplitMix64 permutation of `(seed, queue)` — `WatchSeededRNG`,
+    `setShuffle(_:seed:)`, seed persisted in the snapshot — so a relaunch that re-derives the order
+    from the same input reproduces the session sequence (§7.3). New
+    `WatchPlayerEngine.restored(from:availableKeys:)`: a pure constructor that rebuilds a **paused**
+    engine, drops every track whose file key is absent, remaps the current index to the surviving
+    track nearest the saved position (current → first-after → last-before → 0), and keeps `elapsed`
+    only when the current track itself survived. Files: `Sources/WatchCore/Playback/WatchPlayerEngine.swift`;
+    new `Tests/WatchPlaybackRestoreTests.swift` (13 cases). Gates: `swift test --filter` over the
+    playback engine/position/restore suites — 36 pass / 0 fail. Full `swift test`, `make ci-guards`,
+    and both simulator builds run by the pre-commit hook. Deferred to 9b: audio session +
+    route/interruption/media-services-reset lifecycle, background audio, Crown volume applied to the
+    player, system Now Playing + supported-only remote commands, `Close` must not stop playback,
+    edge/10s persistence, spy directive-order tests, one watch smoke. Deferred to 9c: explicit
+    `iPhone`/`thisWatch` target model + switch UI, remote snapshot prediction wiring,
+    `Continue on Apple Watch`, W7–W9 screens.

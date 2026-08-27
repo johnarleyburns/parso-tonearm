@@ -26,20 +26,57 @@ public struct WatchQueueSnapshot: Codable, Equatable {
     public var currentIndex: Int
     public var elapsed: Double
     public var isPlaying: Bool
+    public var isShuffled: Bool
+    /// The seed the deterministic shuffle was built from. Persisted so a relaunch that rebuilds an
+    /// order from the same input queue lands on the same sequence (§7.3).
+    public var shuffleSeed: UInt64
+    public var repeatMode: WatchRepeatMode
 
     public init(trackKeys: [String] = [], currentIndex: Int = 0,
-                elapsed: Double = 0, isPlaying: Bool = false) {
+                elapsed: Double = 0, isPlaying: Bool = false,
+                isShuffled: Bool = false, shuffleSeed: UInt64 = 0,
+                repeatMode: WatchRepeatMode = .off) {
         self.trackKeys = trackKeys
         self.currentIndex = currentIndex
         self.elapsed = elapsed
         self.isPlaying = isPlaying
+        self.isShuffled = isShuffled
+        self.shuffleSeed = shuffleSeed
+        self.repeatMode = repeatMode
+    }
+
+    /// Custom decode so a position persisted by a pre-Phase-9 build (no shuffle/repeat keys) still
+    /// restores instead of throwing and being discarded as corrupt.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        trackKeys = try c.decode([String].self, forKey: .trackKeys)
+        currentIndex = try c.decode(Int.self, forKey: .currentIndex)
+        elapsed = try c.decode(Double.self, forKey: .elapsed)
+        isPlaying = try c.decode(Bool.self, forKey: .isPlaying)
+        isShuffled = try c.decodeIfPresent(Bool.self, forKey: .isShuffled) ?? false
+        shuffleSeed = try c.decodeIfPresent(UInt64.self, forKey: .shuffleSeed) ?? 0
+        repeatMode = try c.decodeIfPresent(WatchRepeatMode.self, forKey: .repeatMode) ?? .off
     }
 }
 
-public enum WatchRepeatMode: Equatable {
+public enum WatchRepeatMode: String, Codable, Equatable {
     case off
     case all
     case one
+}
+
+/// A small deterministic generator (SplitMix64) so a session's shuffle order is a pure function of
+/// its seed and input queue — reproducible across a relaunch without persisting the whole permutation.
+struct WatchSeededRNG: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed == 0 ? 0x9E37_79B9_7F4A_7C15 : seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
 }
 
 // MARK: - Player Engine
@@ -51,6 +88,8 @@ public struct WatchPlayerEngine: Equatable {
     public private(set) var elapsed: Double
     public private(set) var repeatMode: WatchRepeatMode
     public private(set) var isShuffled: Bool
+    /// Non-zero once shuffle has been enabled in this session; see `WatchSeededRNG`.
+    public private(set) var shuffleSeed: UInt64
 
     private var shuffleOrder: [Int]
     private var lastDirectives: [WatchEngineDirective]
@@ -62,8 +101,40 @@ public struct WatchPlayerEngine: Equatable {
         self.elapsed = 0
         self.repeatMode = .off
         self.isShuffled = false
+        self.shuffleSeed = 0
         self.shuffleOrder = []
         self.lastDirectives = []
+    }
+
+    /// Rebuild a paused engine from a persisted snapshot, dropping any track whose file is no longer
+    /// available (§7.3 "queue restoration with missing files"). The current index is remapped to the
+    /// still-available track nearest the saved position; elapsed is kept only if that track survived.
+    public static func restored(from snapshot: WatchQueueSnapshot,
+                                availableKeys: Set<String>) -> WatchPlayerEngine {
+        var valid: [String] = []
+        var mappedCurrent: Int?
+        var lastBefore = 0
+        var firstAfter: Int?
+        for (i, key) in snapshot.trackKeys.enumerated() where availableKeys.contains(key) {
+            valid.append(key)
+            let newIdx = valid.count - 1
+            if i == snapshot.currentIndex {
+                mappedCurrent = newIdx
+            } else if i < snapshot.currentIndex {
+                lastBefore = newIdx
+            } else if firstAfter == nil {
+                firstAfter = newIdx
+            }
+        }
+        let currentSurvived = mappedCurrent != nil
+        let start = mappedCurrent ?? firstAfter ?? lastBefore
+        var engine = WatchPlayerEngine(queue: valid, startIndex: start)
+        engine.repeatMode = snapshot.repeatMode
+        engine.isShuffled = snapshot.isShuffled
+        engine.shuffleSeed = snapshot.shuffleSeed
+        engine.elapsed = currentSurvived && !valid.isEmpty ? max(0, snapshot.elapsed) : 0
+        engine.isPlaying = false
+        return engine
     }
 
     public var currentTrack: String? {
@@ -110,8 +181,19 @@ public struct WatchPlayerEngine: Equatable {
     public mutating func toggleShuffle() {
         isShuffled.toggle()
         if isShuffled {
+            if shuffleSeed == 0 { shuffleSeed = UInt64.random(in: 1...UInt64.max) }
             buildShuffleOrder()
         }
+    }
+
+    /// Explicit shuffle set with an injectable seed — used by tests and by restoration to reproduce a
+    /// prior session's order.
+    public mutating func setShuffle(_ enabled: Bool, seed: UInt64? = nil) {
+        isShuffled = enabled
+        guard enabled else { return }
+        if let seed { shuffleSeed = seed }
+        else if shuffleSeed == 0 { shuffleSeed = UInt64.random(in: 1...UInt64.max) }
+        buildShuffleOrder()
     }
 
     public mutating func cycleRepeat() {
@@ -131,7 +213,9 @@ public struct WatchPlayerEngine: Equatable {
 
     public var snapshot: WatchQueueSnapshot {
         WatchQueueSnapshot(trackKeys: queue, currentIndex: currentIndex,
-                            elapsed: elapsed, isPlaying: isPlaying)
+                            elapsed: elapsed, isPlaying: isPlaying,
+                            isShuffled: isShuffled, shuffleSeed: shuffleSeed,
+                            repeatMode: repeatMode)
     }
 
     // MARK: - Private
@@ -256,10 +340,11 @@ public struct WatchPlayerEngine: Equatable {
 
     private mutating func buildShuffleOrder() {
         guard !queue.isEmpty else { return }
+        var rng = WatchSeededRNG(seed: shuffleSeed)
         var indices = Array(0..<queue.count)
         if indices.count > 1 {
             indices.remove(at: currentIndex)
-            indices.shuffle()
+            indices.shuffle(using: &rng)
             indices.insert(currentIndex, at: 0)
         }
         shuffleOrder = indices
