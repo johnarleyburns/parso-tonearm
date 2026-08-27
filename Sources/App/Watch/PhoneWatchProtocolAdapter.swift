@@ -20,6 +20,25 @@ public final class PhoneWatchProtocolAdapter: NSObject, WCSessionDelegate, Senda
 
     public static var transport: WatchSessionTransport { WatchSessionTransport() }
 
+    /// A point-in-time read of the pairing/installation/reachability of the default session, for the
+    /// Phase 8 Settings › Apple Watch surface. `WCSession.isPaired` / `isWatchAppInstalled` are
+    /// iOS-only API, which is why this lives here rather than in the host-testable core.
+    public struct Capability: Sendable, Equatable {
+        public var isSupported: Bool
+        public var isPaired: Bool
+        public var isWatchAppInstalled: Bool
+        public var isReachable: Bool
+    }
+
+    public static func currentCapability() -> Capability {
+        guard WCSession.isSupported() else {
+            return Capability(isSupported: false, isPaired: false, isWatchAppInstalled: false, isReachable: false)
+        }
+        let session = WCSession.default
+        return Capability(isSupported: true, isPaired: session.isPaired,
+                          isWatchAppInstalled: session.isWatchAppInstalled, isReachable: session.isReachable)
+    }
+
     public func activate() {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default

@@ -107,6 +107,46 @@ public actor PhoneWatchDownloadManager {
         try await reconcile()
     }
 
+    /// Retry a specific job by request ID (Phase 8 P3 "Try Again"). Resolves the job's track and
+    /// funnels through the same explicit-retry path, which revives a failed *or* cancelled job.
+    public func requestRetry(requestID: String) async throws {
+        guard let job = try await store.jobs().first(where: { $0.requestID == requestID }) else { return }
+        try await requestRetry(trackID: job.trackID)
+    }
+
+    /// Phase 8 (P3/P4): pause a desired root from the iPhone. The root stays declared to the watch
+    /// (installed tracks are kept), but reconcile stops feeding its tracks to the transfer loop and
+    /// cancels any in-flight job that no other unpaused root still wants.
+    public func pauseRoot(rootID: String) async throws {
+        try await setRootPaused(rootID: rootID, paused: true)
+    }
+
+    /// Resume a paused root; reconcile re-queues whatever is still missing.
+    public func resumeRoot(rootID: String) async throws {
+        try await setRootPaused(rootID: rootID, paused: false)
+    }
+
+    private func setRootPaused(rootID: String, paused: Bool) async throws {
+        guard var root = try await store.roots().first(where: { $0.rootID == rootID }),
+              root.paused != paused else { return }
+        root.paused = paused
+        try await store.upsertRoot(root)
+        try await reconcile()
+    }
+
+    /// Phase 8 (P3): cancel one job. A user-cancelled job stays cancelled until an explicit retry
+    /// (the planner change in this phase enforces that); a best-effort transfer cancel is issued in
+    /// case delivery has not already won the race.
+    public func cancelJob(requestID: String) async throws {
+        guard var job = try await store.jobs().first(where: { $0.requestID == requestID }),
+              job.state != .sent, job.state != .cancelled else { return }
+        job.state = .cancelled
+        job.updatedAt = now()
+        try await store.upsertJob(job)
+        await transfer.cancelTransfer(trackID: WatchTrackID(job.trackID))
+        try await reconcile()
+    }
+
     private func emitCurrentRoots() async throws {
         let revision = try await store.bumpRevision()
         let descriptors = try await store.roots().map(\.descriptor)
@@ -155,11 +195,15 @@ public actor PhoneWatchDownloadManager {
             }
         }
 
+        // Phase 8: paused roots stay declared to the watch (installed tracks are kept) but are
+        // excluded from planning, so their in-flight jobs are cancelled and nothing new is queued.
+        let activeRoots = roots.filter { !$0.paused }
+
         let installed = try await store.installedTrackIDs()
         let existing = try await store.jobs()
 
         var transferability: [String: PhoneWatchTransferability] = [:]
-        for track in Set(roots.flatMap(\.desiredTrackIDs)) where !installed.contains(track) {
+        for track in Set(activeRoots.flatMap(\.desiredTrackIDs)) where !installed.contains(track) {
             transferability[track] = await resolver.transferability(trackID: WatchTrackID(track))
         }
 
@@ -173,7 +217,7 @@ public actor PhoneWatchDownloadManager {
         let retrySet = explicitRetryTrackIDs.union(timerElapsed)
 
         let plan = PhoneWatchDownloadPlanner.plan(
-            roots: roots, installedTrackIDs: installed, existingJobs: existing,
+            roots: activeRoots, installedTrackIDs: installed, existingJobs: existing,
             transferability: { transferability[$0] ?? .unavailable },
             explicitRetryTrackIDs: retrySet)
 
@@ -213,6 +257,8 @@ public actor PhoneWatchDownloadManager {
 
         explicitRetryTrackIDs.subtract(plan.toReset.compactMap { jobsByRequest[$0]?.trackID })
 
+        // Paused roots keep their settled jobs (a `.sent`-but-unconfirmed job is the dedup guard),
+        // so the prune "desired" set spans *all* roots, not just the active ones.
         try await store.pruneSettledJobs(installedTrackIDs: installed,
                                          desiredTrackIDs: Set(roots.flatMap(\.desiredTrackIDs)))
 

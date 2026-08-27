@@ -31,6 +31,12 @@ final class PhoneWatchRuntime {
     private(set) var jobStateByTrackID: [String: String] = [:]
     private(set) var connected = false
 
+    /// Phase 8: the full Settings › Apple Watch projection (P1–P5).
+    private(set) var management = PhoneWatchManagementPresenter.Snapshot.empty
+
+    private var lastWatchManifest: WatchManifestPayload?
+    private var connectedSince: Date?
+
     init(store: LibraryStore, player: AudioPlayer) {
         self.store = store
         self.libraryID = Self.resolveLibraryID()
@@ -156,11 +162,54 @@ final class PhoneWatchRuntime {
 
     func requestReconciliation() async {
         await coordinator.requestReconciliation()
+        await tickDownloads()
+    }
+
+    // MARK: - Phase 8 management actions
+
+    func pauseRoot(_ rootID: String) async {
+        try? await downloadManager.pauseRoot(rootID: rootID)
+        await refresh()
+    }
+
+    func resumeRoot(_ rootID: String) async {
+        try? await downloadManager.resumeRoot(rootID: rootID)
+        await refresh()
+    }
+
+    func removeRoot(_ rootID: String) async {
+        let released = PhoneWatchManagementPresenter.tracksReleasedByRemoving(
+            rootID: rootID,
+            roots: (try? await downloadStore.roots()) ?? [],
+            installed: (try? await downloadStore.installedTrackIDs()) ?? [])
+        try? await downloadManager.removeRoot(rootID: rootID)
+        let toRemove = released.released.map(WatchTrackID.init)
+        if !toRemove.isEmpty { _ = await coordinator.sendRemoveAssets(toRemove) }
+        await refresh()
+    }
+
+    func cancelJob(_ requestID: String) async {
+        try? await downloadManager.cancelJob(requestID: requestID)
+        await refresh()
+    }
+
+    func retryJob(_ requestID: String) async {
+        try? await downloadManager.requestRetry(requestID: requestID)
+        await refresh()
+    }
+
+    func collectionDetail(_ rootID: String) async -> PhoneWatchManagementPresenter.CollectionDetail? {
+        let roots = (try? await downloadStore.roots()) ?? []
+        let jobs = (try? await downloadStore.jobs()) ?? []
+        let entries = (try? await downloadStore.manifestEntries()) ?? []
+        return PhoneWatchManagementPresenter.collectionDetail(
+            rootID: rootID, roots: roots, jobs: jobs, manifestEntries: entries)
     }
 
     // MARK: - Inbound (called back from PhoneWatchInbound)
 
     fileprivate func ingestManifest(_ payload: WatchManifestPayload) async {
+        lastWatchManifest = payload
         try? await downloadManager.ingestManifest(payload)
         await refresh()
     }
@@ -185,8 +234,36 @@ final class PhoneWatchRuntime {
         jobStateByTrackID = Dictionary(jobs.map { ($0.trackID, $0.state.rawValue) },
                                        uniquingKeysWith: { a, _ in a })
         let state = await coordinator.connectionState
+        let wasConnected = connected
         connected = Self.isConnected(state)
+        if connected && !wasConnected { connectedSince = Date() }
+        if !connected { connectedSince = nil }
+
+        let roots = (try? await downloadStore.roots()) ?? []
+        management = PhoneWatchManagementPresenter.snapshot(
+            pairing: currentPairing(),
+            roots: roots, jobs: jobs, manifestEntries: entries,
+            watchManifest: lastWatchManifest, now: Date())
+
         onChange?()
+    }
+
+    /// Maps the WCSession capability + protocol connection state onto the presenter's `Pairing`.
+    private func currentPairing() -> PhoneWatchManagementPresenter.Pairing {
+        let cap = PhoneWatchProtocolAdapter.currentCapability()
+        guard cap.isSupported else { return .unsupported }
+        guard cap.isPaired, cap.isWatchAppInstalled else { return .notPaired }
+        return connected ? .connected(since: connectedSince) : .pairedNotReachable
+    }
+
+    /// The legacy display enum `WatchSettingsView` still reads, now derived from real capability.
+    var sessionDisplayState: WatchSessionDisplayState {
+        switch currentPairing() {
+        case .unsupported: return .unsupported
+        case .notPaired: return .notInstalled
+        case .pairedNotReachable: return .installedNotReachable
+        case .connected: return .reachable
+        }
     }
 
     private static func isConnected(_ state: WatchConnectionReducer.State) -> Bool {

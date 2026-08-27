@@ -164,12 +164,12 @@ struct PlaylistDetailView: View {
                     Button {
                         Task { await appState.downloadAllToWatch(playlistId: currentPlaylist.id ?? -1) }
                     } label: {
-                        Label("Download All to Watch", systemImage: "applewatch")
+                        Label("Download All to Apple Watch", systemImage: "applewatch")
                     }
                     Button {
                         Task { await appState.removeAllFromWatch() }
                     } label: {
-                        Label("Remove All from Watch", systemImage: "applewatch.slash")
+                        Label("Remove All from Apple Watch", systemImage: "applewatch.slash")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")

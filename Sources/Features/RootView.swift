@@ -65,6 +65,9 @@ struct RootView: View {
         .sheet(isPresented: $appState.showNowPlaying) {
             NowPlayingView()
         }
+        .sheet(isPresented: $appState.showWatchSettings) {
+            WatchSettingsView()
+        }
         .sheet(isPresented: $appState.showAddSource) {
             AddSourceSheet()
         }

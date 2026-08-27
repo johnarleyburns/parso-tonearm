@@ -111,8 +111,12 @@ public enum PhoneWatchDownloadPlanner {
                         continue
                     }
                     if job.state == .cancelled {
-                        plan.toCreate.append(planned(track, rootsByTrack, basePriority, bytes, sha,
-                                                     explicitRetryTrackIDs, currentTrackID))
+                        // Phase 8: a user-cancelled job stays cancelled. It is revived only by an
+                        // explicit retry (the same signal that resets a failed job); a bare
+                        // re-reconcile must not undo the cancel.
+                        if explicitRetryTrackIDs.contains(track) {
+                            plan.toReset.append(job.requestID)
+                        }
                         continue
                     }
                 }

@@ -259,19 +259,19 @@ struct TrackContextMenu: ViewModifier {
             Button {
                 Task { await appState.downloadToWatch(rows: [row]) }
             } label: {
-                Label("Download to Watch", systemImage: "applewatch")
+                Label("Download to Apple Watch", systemImage: "applewatch")
             }
         case .onWatch:
             Button {
                 Task { await appState.removeFromWatch(rows: [row]) }
             } label: {
-                Label("Remove from Watch", systemImage: "applewatch.slash")
+                Label("Remove from Apple Watch", systemImage: "applewatch.slash")
             }
         case .failed:
             Button {
                 Task { await appState.downloadToWatch(rows: [row]) }
             } label: {
-                Label("Retry Download to Watch", systemImage: "applewatch.radiowaves.left.and.right")
+                Label("Retry Download to Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
             }
         case .transferring:
             EmptyView()

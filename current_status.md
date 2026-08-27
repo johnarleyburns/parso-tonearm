@@ -17,8 +17,8 @@ library and existing phone-side CloudKit behavior remain authoritative and are n
 migrated. Existing watch GRDB behavior was isolated in a temporary CloudKit-free legacy
 product during Phases 1–5 and removed at the SwiftData cutover in Phase 6.
 
-**Phases 1 through 7 are complete. Phase 8 — iPhone download and storage
-experience — is next.**
+**Phases 1 through 8 are complete. Phase 9 — watch-local playback and system
+media integration — is next.**
 
 Phase 6 (`this commit`) made SwiftData the only watch persistence path, deleted
 `TonearmWatchLegacyCore` (and `Sources/WatchLegacy/`, `WatchApp/App/WatchFeatureFlags.swift`,
@@ -44,6 +44,23 @@ to the §9 `watch.*` contract; the one watch smoke method moved with them. `swif
 8 skip / 0 fail; guards clean; both simulator builds and both UI smoke lanes green. Deferred: the
 screenshot / Dynamic Type / VoiceOver / Reduce Motion / high-contrast visual matrix and the
 connected-mode simulator journey (host-covered — the watchOS sim cannot pair a phone).
+Phase 8 (`this commit`) rebuilt the iPhone download and storage experience (§9 P1–P5). A new pure
+`PhoneWatchManagementPresenter` in `Sources/WatchSync/` projects roots + jobs + the watch-reported
+manifest into the Settings › Apple Watch surface: real pairing state (`PhoneWatchProtocolAdapter`
+now reads `WCSession.isPaired`/`isWatchAppInstalled`), watch-**reported** storage
+(`capacityBytes`/`freeBytes` off the manifest payload, with a space-shortfall warning), live
+download activity with typed stage text, and per-collection status buckets (ready / waiting-for-Wi-Fi
+/ unavailable-at-source / failed). Schema `v16` adds a durable `paused` flag to `watchDownloadRoot`;
+`PhoneWatchDownloadManager` gained `pauseRoot`/`resumeRoot`/`cancelJob`/`requestRetry(requestID:)`,
+and the planner now keeps a user-cancelled job cancelled until an explicit retry. New screens:
+rewritten `WatchSettingsView`, `WatchDownloadQueueView` (P3), `WatchDownloadedCollectionDetailView`
+(P4 — reference-aware removal copy, "tracks required by other downloads stay on the watch"), and the
+`GlassDock` transfer pill reworked into the P5 banner with a failure affordance. Menu wording is
+"…to Apple Watch" across all four call sites; `showWatchSettings` is finally presented from
+`RootView`. `swift test` 1,761 pass / 8 skip / 0 fail (+18); `make ci-guards` clean; iPhone + watch
+simulator builds green; both UI smoke lanes pass. Deferred: the Dynamic Type / VoiceOver visual matrix and physical-device
+rows (H-01/H-03/H-04/H-07 device legs).
+
 The old [`docs/plans/watch-app.md`](docs/plans/watch-app.md) describes the implementation
 being replaced and is historical only. The detailed phase gates, normative mockups, and
 release acceptance matrix are:

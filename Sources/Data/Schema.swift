@@ -4,7 +4,7 @@ import GRDB
 public enum Schema {
     private static let migrationOrder = [
         "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14",
-        "v15"
+        "v15", "v16"
     ]
 
     public static func migrator(upTo target: String? = nil) -> DatabaseMigrator {
@@ -495,6 +495,17 @@ public enum Schema {
                     t.column("value", .integer).notNull()
                 }
                 try db.execute(sql: "INSERT INTO watchDownloadRevision (id, value) VALUES (1, 0)")
+            }
+        }
+
+        if shouldRegister("v16", upTo: target) {
+            migrator.registerMigration("v16") { db in
+                // Watch rearchitecture Phase 8 (P3/P4): a desired-download root can be paused from
+                // the iPhone. Pause is durable — a relaunch must not silently resume transfers the
+                // owner stopped. Existing rows default to not paused, which is what they did before.
+                try db.alter(table: "watchDownloadRoot") { t in
+                    t.add(column: "paused", .boolean).notNull().defaults(to: false)
+                }
             }
         }
 

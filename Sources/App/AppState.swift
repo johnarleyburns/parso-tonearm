@@ -58,6 +58,8 @@ final class AppState: ObservableObject {
     @Published var watchJobStates: [String: String] = [:]
     @Published var watchInstalledBytes: Int64 = 0
     @Published var watchFailedCount: Int = 0
+    /// Phase 8: the full Settings › Apple Watch projection (P1–P5).
+    @Published var watchManagement = PhoneWatchManagementPresenter.Snapshot.empty
     // Settings-backed values
     @AppStorage("streamOnCellular") var streamOnCellular = true
     @AppStorage("preferFLAC") var preferFLAC = false
@@ -982,7 +984,8 @@ final class AppState: ObservableObject {
         watchTransferActiveCount = watchRuntime.activeJobCount
         watchFailedCount = watchRuntime.failedJobCount
         watchInstalledBytes = watchRuntime.installedBytes
-        watchSessionState = watchRuntime.connected ? .reachable : .installedNotReachable
+        watchSessionState = watchRuntime.sessionDisplayState
+        watchManagement = watchRuntime.management
     }
 
     private func watchTransferState(forID id: String) -> WatchTransferState? {
@@ -1035,6 +1038,38 @@ final class AppState: ObservableObject {
     /// pulls what it needs over the §5 protocol rather than being handed a mirror.
     func resendCatalogToWatch() async {
         await watchRuntime.requestReconciliation()
+        refreshWatchStateFromRuntime()
+    }
+
+    // MARK: - Watch download management (Phase 8, P3/P4)
+
+    func pauseWatchCollection(_ rootID: String) async {
+        await watchRuntime.pauseRoot(rootID)
+        refreshWatchStateFromRuntime()
+    }
+
+    func resumeWatchCollection(_ rootID: String) async {
+        await watchRuntime.resumeRoot(rootID)
+        refreshWatchStateFromRuntime()
+    }
+
+    func removeWatchCollection(_ rootID: String) async {
+        await watchRuntime.removeRoot(rootID)
+        refreshWatchStateFromRuntime()
+    }
+
+    func cancelWatchJob(_ requestID: String) async {
+        await watchRuntime.cancelJob(requestID)
+        refreshWatchStateFromRuntime()
+    }
+
+    func retryWatchJob(_ requestID: String) async {
+        await watchRuntime.retryJob(requestID)
+        refreshWatchStateFromRuntime()
+    }
+
+    func watchCollectionDetail(_ rootID: String) async -> PhoneWatchManagementPresenter.CollectionDetail? {
+        await watchRuntime.collectionDetail(rootID)
     }
 
 

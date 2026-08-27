@@ -50,9 +50,13 @@ public struct PhoneWatchDownloadRoot: Equatable, Sendable, Codable {
     public var desiredTrackIDs: [String]
     public var phoneRevision: Int64
     public var createdAt: Date
+    /// Phase 8 (P3/P4): the owner paused this root from the iPhone. Pump skips a job whose every
+    /// root is paused; the planner still tracks it so resume is a plain reconcile.
+    public var paused: Bool
 
     public init(rootID: String, kind: WatchRootKind, sourceID: String, title: String = "",
-                desiredTrackIDs: [String], phoneRevision: Int64, createdAt: Date = Date()) {
+                desiredTrackIDs: [String], phoneRevision: Int64, createdAt: Date = Date(),
+                paused: Bool = false) {
         self.rootID = rootID
         self.kind = kind
         self.sourceID = sourceID
@@ -60,6 +64,7 @@ public struct PhoneWatchDownloadRoot: Equatable, Sendable, Codable {
         self.desiredTrackIDs = desiredTrackIDs
         self.phoneRevision = phoneRevision
         self.createdAt = createdAt
+        self.paused = paused
     }
 
     public var descriptor: WatchDownloadRootDescriptor {
@@ -146,6 +151,7 @@ struct WatchDownloadRootRecord: Codable, FetchableRecord, MutablePersistableReco
     var desiredTrackIDs: [String]
     var phoneRevision: Int64
     var createdAt: Date
+    var paused: Bool
 
     init(_ root: PhoneWatchDownloadRoot) {
         rootID = root.rootID
@@ -155,13 +161,14 @@ struct WatchDownloadRootRecord: Codable, FetchableRecord, MutablePersistableReco
         desiredTrackIDs = root.desiredTrackIDs
         phoneRevision = root.phoneRevision
         createdAt = root.createdAt
+        paused = root.paused
     }
 
     var value: PhoneWatchDownloadRoot {
         PhoneWatchDownloadRoot(
             rootID: rootID, kind: WatchRootKind(rawValue: kind) ?? .track, sourceID: sourceID,
             title: title, desiredTrackIDs: desiredTrackIDs, phoneRevision: phoneRevision,
-            createdAt: createdAt)
+            createdAt: createdAt, paused: paused)
     }
 }
 

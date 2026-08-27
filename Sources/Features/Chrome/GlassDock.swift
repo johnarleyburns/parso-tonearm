@@ -18,25 +18,34 @@ struct GlassDock: View {
     }
 }
 
+/// Watch rearchitecture Phase 8 (P5): compact transfer progress with a failure affordance. Never
+/// covers transport controls (it sits in the dock stack) and stays a single tappable target that
+/// opens Settings › Apple Watch.
 struct TransferPill: View {
     @EnvironmentObject var appState: AppState
 
+    private var banner: PhoneWatchManagementPresenter.TransferBanner? { appState.watchManagement.banner }
+
     var body: some View {
-        if appState.watchTransferActiveCount > 0 {
+        if let banner {
             Button {
                 appState.showWatchSettings = true
             } label: {
                 HStack(spacing: 6) {
-                    ProgressView()
-                        .scaleEffect(0.65)
-                        .tint(Palette.brass)
-                    Text("\(appState.watchTransferActiveCount) transferring to Watch")
+                    if banner.hasFailure {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Palette.danger)
+                    } else {
+                        ProgressView().scaleEffect(0.65).tint(Palette.brass)
+                    }
+                    Text(label(banner))
                         .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(Palette.ink2)
+                        .foregroundStyle(banner.hasFailure ? Palette.danger : Palette.ink2)
                     Spacer()
                     Image(systemName: "applewatch")
                         .font(.system(size: 12))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(banner.hasFailure ? Palette.danger : Palette.brass)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
@@ -44,7 +53,18 @@ struct TransferPill: View {
                 .overlay(Capsule().strokeBorder(Color.white.opacity(0.12)))
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("watch.transferBanner")
         }
+    }
+
+    private func label(_ b: PhoneWatchManagementPresenter.TransferBanner) -> String {
+        if b.hasFailure && b.activeCount == 0 {
+            return "\(b.failedCount) download\(b.failedCount == 1 ? "" : "s") failed"
+        }
+        if b.hasFailure {
+            return "\(b.activeCount) transferring · \(b.failedCount) failed"
+        }
+        return "\(b.activeCount) transferring to Apple Watch"
     }
 }
 

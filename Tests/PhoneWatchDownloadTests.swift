@@ -604,4 +604,90 @@ final class PhoneWatchDownloadTests: XCTestCase {
         let afterTick = await transfer.sent
         XCTAssertEqual(afterTick.sorted(), sent.sorted())
     }
+
+    // MARK: Phase 8 — pause / resume / cancel
+
+    func testV16AddsPausedColumnDefaultingFalse() async throws {
+        let queue = try DatabaseQueue()
+        try Schema.migrator(upTo: "v15").migrate(queue)
+        try await queue.write { db in
+            try db.execute(sql: """
+                INSERT INTO watchDownloadRoot (rootID, kind, sourceID, title, desiredTrackIDs, phoneRevision, createdAt)
+                VALUES ('r', 'playlist', 's', 't', '[]', 1, '2026-01-01 00:00:00.000')
+                """)
+        }
+        try Schema.migrator().migrate(queue)
+        let store = PhoneWatchDownloadStore(dbQueue: queue)
+        let roots = try await store.roots()
+        XCTAssertEqual(roots.first?.paused, false)
+
+        var paused = roots[0]
+        paused.paused = true
+        try await store.upsertRoot(paused)
+        let reread = try await store.roots()
+        XCTAssertEqual(reread.first?.paused, true)
+    }
+
+    func testPauseRootCancelsInFlightAndStopsQueueing() async throws {
+        let db = try freshQueue()
+        let resolver = FakeResolver(local: ["a", "b"])
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: resolver, transfer: transfer)
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+
+        // An in-flight job the pause must cancel.
+        try await store.replaceRoots([root("pl", kind: .playlist, tracks: ["a", "b"])])
+        try await store.upsertJob(PhoneWatchDownloadJob(trackID: "a", rootIDs: ["pl"], state: .transferring))
+
+        try await manager.pauseRoot(rootID: "pl")
+
+        let cancelled = await transfer.cancelled
+        XCTAssertEqual(cancelled, ["a"])
+        let active = try await store.activeJobs()
+        XCTAssertTrue(active.isEmpty, "paused root left active jobs: \(active.map(\.state))")
+
+        // A tick while paused queues nothing new.
+        try await manager.tick()
+        let afterTick = try await store.activeJobs()
+        XCTAssertTrue(afterTick.isEmpty)
+    }
+
+    func testResumeRootReQueuesMissingTracks() async throws {
+        let db = try freshQueue()
+        let resolver = FakeResolver(local: ["a", "b"])
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: resolver, transfer: transfer)
+
+        try await manager.setRoots([root("pl", kind: .playlist, tracks: ["a", "b"])])
+        try await manager.ingestManifest(manifest(["a"]))    // only "a" installed
+        try await manager.pauseRoot(rootID: "pl")
+        try await manager.resumeRoot(rootID: "pl")
+
+        let sentB = await transfer.sentCount("b")
+        XCTAssertEqual(sentB, 1)
+    }
+
+    func testCancelJobStaysCancelledAcrossReconcile() async throws {
+        let db = try freshQueue()
+        let resolver = FakeResolver(local: ["a"])
+        let transfer = FakeTransfer()
+        await transfer.setFailAlways(["a": .sourceUnavailable])
+        let manager = makeManager(dbQueue: db, resolver: resolver, transfer: transfer)
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+
+        try await manager.setRoots([root("pl", kind: .playlist, tracks: ["a"])])
+        let failed = try await store.jobs().first { $0.trackID == "a" }
+        let requestID = try XCTUnwrap(failed?.requestID)
+
+        try await manager.cancelJob(requestID: requestID)
+        try await manager.tick()
+
+        let after = try await store.jobs().first { $0.trackID == "a" }
+        XCTAssertEqual(after?.state, .cancelled)
+
+        // An explicit retry revives it.
+        try await manager.requestRetry(requestID: requestID)
+        let revived = try await store.jobs().first { $0.trackID == "a" }
+        XCTAssertNotEqual(revived?.state, .cancelled)
+    }
 }

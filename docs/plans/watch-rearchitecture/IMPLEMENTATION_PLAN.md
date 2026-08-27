@@ -1462,3 +1462,63 @@ by compiler or device evidence.
   contrast; the physical-device matrix; and I-05..I-11 timing. The connected-mode UI compiles and
   is wired but has no simulator coverage (see decision 2). W7–W11 (Now Playing target switching,
   Up Next unavailable-row copy, download activity, full storage management) are Phases 8–9.
+- Phase 8 (2026-08-27, this commit): **complete** — the iPhone download and storage experience
+  (§9 P1–P5). Every watch download can now be started, understood, paused, retried, or removed from
+  the iPhone without opening the watch app.
+
+  New pure core in `Sources/WatchSync/PhoneWatchManagementPresenter.swift` (host-tested, clockless):
+  projects `roots` + `jobs` + `manifestEntries` + the watch-reported `WatchManifestPayload` +
+  pairing onto a `Snapshot` — pairing/connection, storage (installed/capacity/free bytes, used
+  fraction, a `SpaceShortfall` when the remaining transfer + reserve exceeds free space, H-03),
+  `ActivityRow`s with a typed `ActivityStage` (`.queued/.resolving/.transferring/.waitingForWiFi/
+  .failed/.paused`), `CollectionRow`s with ready/waiting/unavailable/failed buckets, and a
+  `TransferBanner`. `collectionDetail(rootID:)` adds the reference-aware removal preview
+  (`tracksReleasedByRemoving` — E-04/E-05) and the first unavailable track's safe typed reason.
+
+  Schema `v16`: a durable `paused` column on `watchDownloadRoot` (existing rows default false — a
+  relaunch must not resume a transfer the owner stopped). `PhoneWatchDownloadManager` gained
+  `pauseRoot` / `resumeRoot` (paused roots stay declared to the watch so installed tracks are kept,
+  but reconcile excludes them from planning and cancels any job no unpaused root still wants),
+  `cancelJob(requestID:)`, and `requestRetry(requestID:)`. The planner change worth noting: a
+  user-cancelled job now stays cancelled until an explicit retry (previously a bare re-reconcile
+  recreated it). `pruneSettledJobs` still spans *all* roots so a paused root's `.sent`-but-
+  unconfirmed dedup guard is not lost.
+
+  Phone wiring: `PhoneWatchProtocolAdapter.currentCapability()` reads `WCSession.isPaired` /
+  `isWatchAppInstalled` / `isReachable`; `PhoneWatchRuntime` retains the last `WatchManifestPayload`,
+  builds the snapshot in `refresh()`, tracks `connectedSince`, and exposes the five management
+  actions + `collectionDetail`. `AppState` republishes `watchManagement` and its legacy
+  `watchSessionState` is now honestly derived (not just reachable-vs-not).
+
+  Views: rewritten `Sources/Features/Settings/WatchSettingsView.swift` (P2/P3 overview — header
+  with real storage + used %, shortfall card, Downloading list, Downloaded Collections, Reconcile +
+  Remove All with the "music remains in Platterhead" confirmation); new
+  `Sources/Features/Settings/WatchDownloadDetailViews.swift` — `WatchDownloadQueueView` (P3, per-job
+  Cancel / Try Again / Remove from Queue) and `WatchDownloadedCollectionDetailView` (P4, keep-on-watch
+  toggle = pause/resume, status breakdown with the unavailable reason, reference-aware Remove copy);
+  `GlassDock`'s transfer pill reworked into the P5 banner (`watch.transferBanner`, failure
+  affordance). P1 menu wording unified to "…to Apple Watch" in `Components.swift`,
+  `SourceDetailView`, `PlaylistsView`, `NowPlayingView`; `showWatchSettings` is finally presented
+  from `RootView`. Identifiers per §9: `settings.watch`, `.queue`, `.storage`, `.reconcile`,
+  `.removeAll`, `watchRoot.<rootID>`, `watchJob.<requestID>`.
+
+  Files changed: new `Sources/WatchSync/PhoneWatchManagementPresenter.swift`, new
+  `Sources/Features/Settings/WatchDownloadDetailViews.swift`; `Sources/Data/Schema.swift` (v16),
+  `Sources/WatchSync/{PhoneWatchDownloadModels,PhoneWatchDownloadManager,PhoneWatchDownloadPlanner}.swift`,
+  `Sources/App/Watch/{PhoneWatchProtocolAdapter,PhoneWatchRuntime}.swift`, `Sources/App/AppState.swift`,
+  `Sources/Features/{Settings/WatchSettingsView,Chrome/GlassDock,RootView,Components,
+  Sources/SourceDetailView,Playlists/PlaylistsView,NowPlaying/NowPlayingView}.swift`, regenerated
+  `Tonearm.xcodeproj`. Tests added: 18 — `Tests/PhoneWatchManagementPresenterTests.swift` (14),
+  `Tests/PhoneWatchDownloadTests.swift` (+4: v16 round-trip, pause cancels in-flight, resume
+  re-queues, cancel stays cancelled across reconcile).
+
+  Gates: `make ci-guards` passed; `make project` regenerated; `rm -rf .build && swift test` passed
+  **1,761 tests with 8 intentional skips and 0 failures** (Phase 7 baseline: 1,743). Clean
+  `iPhone 16` and `Watch-Large` simulator builds; iPhone UI smoke and the single watch UI smoke
+  both passed.
+
+  Known limitations, deferred per the code-complete scope: the Dynamic Type / VoiceOver / Reduce
+  Motion / high-contrast visual matrix; the device legs of H-01 / H-03 / H-04 / H-07 (byte
+  reconciliation, storage-full, reference-aware removal, reconcile repair on real hardware). No new
+  simulator UI test — per §11.3 the iPhone smoke path is extended rather than adding functions, and
+  the presenter/planner logic is fully host-covered.
