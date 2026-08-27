@@ -112,6 +112,7 @@
 		F1FEBCEF7BC2546437362B1D /* EQView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB44399EDF479626BC62A6F /* EQView.swift */; };
 		F9FF663536834A156EF40E11 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 391DE85B4F0BACCBFDCDAF98 /* TonearmCore */; };
 		FA21DEDFD4C224853AF43150 /* WidgetArtworkStore+Save.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */; };
+		FADBF5442CAB96566E333616 /* PhoneWatchPlaybackAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080C57977F143B9824ED300E /* PhoneWatchPlaybackAdapter.swift */; };
 		FADE01E4B305918AF925D05A /* JamendoCredentialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */; };
 		FBB00104D3B4C0B2D326F5D0 /* PhoneWatchProtocolAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1456A887E510378AA4B5141 /* PhoneWatchProtocolAdapter.swift */; };
 		FD553DEE4B4C289B97613DCF /* DJHardwareRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB31782CBFF5776F886292E7 /* DJHardwareRegressionUITests.swift */; };
@@ -195,6 +196,7 @@
 		053C5BB5C4AF1B09D39BBCC6 /* PlatterheadWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatterheadWatchApp.swift; sourceTree = "<group>"; };
 		071CC5C8B79CC1A10F456254 /* CacheGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheGlyph.swift; sourceTree = "<group>"; };
 		07BB75BFAD34B2382CE704F9 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		080C57977F143B9824ED300E /* PhoneWatchPlaybackAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchPlaybackAdapter.swift; sourceTree = "<group>"; };
 		089C841BE7459AF20665F7B0 /* Tonearm.Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.Debug.entitlements; sourceTree = "<group>"; };
 		0A0EA57A9A9BC3350FCC805C /* GlassSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSurface.swift; sourceTree = "<group>"; };
 		0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPlaylistsView.swift; sourceTree = "<group>"; };
@@ -660,6 +662,7 @@
 		D5D719C516744B6A8F1A002C /* Watch */ = {
 			isa = PBXGroup;
 			children = (
+				080C57977F143B9824ED300E /* PhoneWatchPlaybackAdapter.swift */,
 				F1456A887E510378AA4B5141 /* PhoneWatchProtocolAdapter.swift */,
 			);
 			path = Watch;
@@ -1028,6 +1031,7 @@
 				34532A4505591A95D2765EFF /* OAuthSignInCoordinator.swift in Sources */,
 				4149F3C1BAF17DF80800B6C7 /* OnboardingView.swift in Sources */,
 				E804FEFD3B24E44527EF05E8 /* Palette.swift in Sources */,
+				FADBF5442CAB96566E333616 /* PhoneWatchPlaybackAdapter.swift in Sources */,
 				FBB00104D3B4C0B2D326F5D0 /* PhoneWatchProtocolAdapter.swift in Sources */,
 				62874EE2E842BBE59D064A7C /* PhoneWatchSessionAdapter.swift in Sources */,
 				7155FE7BF0A91F242A4A2F25 /* PlaylistsView.swift in Sources */,

@@ -643,6 +643,23 @@ public actor LibraryStore {
         }
     }
 
+    public func playlist(id: Int64) throws -> Playlist? {
+        try dbQueue.read { db in try Playlist.fetchOne(db, key: id) }
+    }
+
+    /// Tracks of an album in disc/track order, hydrated. The watch collection-detail request
+    /// (§6.2) resolves an album ref through here.
+    public func albumTrackRows(albumId: Int64) throws -> [TrackRow] {
+        try dbQueue.read { db in
+            let tracks = try Track.fetchAll(db, sql: """
+                SELECT track.* FROM track
+                WHERE track.albumId = ?
+                ORDER BY track.discNo, track.trackNo, track.sortKey
+                """, arguments: [albumId])
+            return try tracks.map { try self.hydrate($0, db: db) }
+        }
+    }
+
     public func reorderPlaylist(id playlistId: Int64, from source: Int, to destination: Int) throws {
         try dbQueue.write { db in
             let original = try playlistItemRecords(playlistId: playlistId, db: db)

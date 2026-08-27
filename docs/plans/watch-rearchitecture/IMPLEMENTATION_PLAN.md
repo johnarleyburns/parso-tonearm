@@ -1,6 +1,6 @@
 # Platterhead Watch App — SwiftData / iPhone-Only Sync Rearchitecture
 
-Status: **adopted; Phases 1–2 complete; Phase 3 next**
+Status: **adopted; Phases 1–4 complete; Phase 5 next**
 
 Priority: **highest active product priority**
 
@@ -1181,4 +1181,61 @@ by compiler or device evidence.
   do the I-05..I-11 measurements. Two pre-existing warnings in the untouched legacy files
   `Sources/WatchSync/WatchTransferQueue.swift:80` and `WatchTransferController.swift:149` are
   unchanged by this phase.
-- Phase 4: **next**.
+- Phase 4 (2026-08-26, this commit): **complete** — GRDB-backed phone projections, the §5
+  request handlers the Phase 3 `sourceUnavailable` defaults stood in for, the `AudioPlayer`
+  command bridge, and authoritative anchored now-playing snapshots. A fake-transport watch now
+  searches the complete phone fixture library and plays a playlist through a spy phone player
+  under `swift test`, with no simulator.
+
+  Layout, per the Phase 3 note and §13: the host-testable pieces live in
+  `TonearmCore/Sources/WatchSync/` — `PhoneWatchProjection.swift` (stable-ID prefixes `trow:`
+  /`prow:`/`arow:`/`irow:` per §4, opaque `{offset}` base64 page tokens per §6.1 that decode to
+  zero on corruption, and the DTO factories), `PhoneWatchPlaybackBridge.swift` (the `AudioPlayer`
+  seam plus `WatchPlaybackSnapshotBuilder`, the one place the §5.3 "never the whole queue" window
+  math exists), and `PhoneWatchRequestHandler.swift` (an actor conforming to
+  `WatchPhoneRequestHandling`). Only the concrete `AudioPlayer`-backed adapter is Xcode-only:
+  `Sources/App/Watch/PhoneWatchPlaybackAdapter.swift`, which holds no protocol logic and no
+  `[String: Any]`. Both new adapters stay unwired until Phase 6 constructs them from `AppState`.
+
+  Three decisions worth recording:
+
+  1. **Search ranking parity comes from reusing `LibraryStore.search`, not reimplementing it.**
+     Track hits go through the existing FTS query so the watch sees the same order as the phone;
+     only albums/playlists/artists — which have no FTS index — use a normalized
+     diacritic/case-insensitive contains, sorted by title. The rows are concatenated then paged,
+     so a page token is an offset into the merged result, not per-kind cursors.
+  2. **The snapshot carries an elapsed anchor, never a ticking clock.** `WatchPlaybackSnapshotBuilder`
+     emits `elapsedSeconds + elapsedAnchorDate + rate`; the watch projects the current position
+     itself. The queue window is clamped to `queueWindowLimit` (20) centred on the current index,
+     so the count is stable near the ends and a long queue is never serialized.
+  3. **Every play path re-reads authoritative state.** `handlePlayCommand` forwards the command to
+     the bridge fire-and-forget, then returns `.accepted(await player.snapshot(...))` — the watch
+     never trusts the command's optimistic view. A track deleted between request and play, or an
+     empty collection, returns `.rejected(.contentNotFound)`; a `WatchProtocolFault` thrown during
+     resolution is caught and mapped to its code, anything else to `.playbackItemFailed`.
+
+  `LibraryStore` gained two additive read methods: `playlist(id:)` and
+  `albumTrackRows(albumId:)` (disc/track order, hydrated).
+
+  Files changed: new `Sources/WatchSync/{PhoneWatchProjection,PhoneWatchPlaybackBridge,
+  PhoneWatchRequestHandler}.swift`; new `Sources/App/Watch/PhoneWatchPlaybackAdapter.swift`;
+  `Sources/Data/LibraryStore.swift` (+2 methods); regenerated `Tonearm.xcodeproj`. Tests added:
+  18 in `Tests/PhoneWatchProjectionTests.swift`, including the end-to-end
+  `testWatchSearchesAndPlaysAcrossTheFakeDuplexLink` that drives a real
+  `PhoneWatchProtocolCoordinator` and `WatchConnectivityCoordinator` over `WatchFakeDuplexLink`.
+
+  Gates: `make ci-guards` passed; `make project` regenerated; `swift test` passed **1,685 tests
+  with 8 intentional skips and 0 failures in 96.6s** (Phase 3 baseline: 1,667). Clean `iPhone 16`
+  simulator and `Watch-Large` watchOS simulator builds both succeeded with no new warnings.
+
+  Toolchain note: adding the two `LibraryStore` methods on top of an existing `.build` directory
+  produced a stale incrementally-compiled `TonearmCorePackageTests.xctest` that failed
+  `PlaylistCrateImporterTests` (spurious `noTracksOnDevice`, then SIGSEGV). `rm -rf .build` and a
+  full rebuild resolve it deterministically; CI checks out fresh so it is unaffected. No source
+  fix was needed — the code is correct, the incremental cache was not.
+
+  Known limitations: the handler and both adapters are not on the shipped path — Phase 6 wires
+  them from `AppState` and flips `swiftDataWatchArchitecture`. Device rows (C-11..C-14) and the
+  I-05..I-11 measurements remain deferred to their acceptance phases. Screenshot and owner-signoff
+  gates are deferred per the code-complete scope.
+- Phase 5: **next**.
