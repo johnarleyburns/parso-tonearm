@@ -89,6 +89,18 @@ struct WatchPhoneCollectionView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("watch.collection.playPhone")
 
+                // §7.1 cross-target: if the members are downloaded here, offer the local engine too.
+                if response.tracks.contains(where: \.isDownloadedOnWatch) {
+                    Button {
+                        let ids = response.tracks.filter(\.isDownloadedOnWatch).map(\.trackID)
+                        Task { await WatchAppAssembly.shared.playLocalTrackIDs(ids) }
+                    } label: {
+                        actionLabel("applewatch", "Play on Apple Watch")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("watch.collection.playLocal")
+                }
+
                 Button {
                     showDownloadNote = true
                 } label: {

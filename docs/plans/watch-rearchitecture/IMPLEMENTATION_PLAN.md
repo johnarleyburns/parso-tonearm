@@ -1627,3 +1627,16 @@ by compiler or device evidence.
     green. Deferred: the coordinator glue has no host test (watch app target, not a SwiftPM
     lib); the paired-hardware disconnect→continue journey is the physical-device pass. **Phase 9
     is now complete.**
+  - **9 follow-up (2026-08-27, this commit): §7.1 cross-target play affordance.**
+    `WatchPlaylistDetailView` shows `Play on iPhone` (`watch.collection.playPhone`) below the
+    local Play All / Shuffle when `model.phoneReachable` — the local playlist id is the phone
+    collection ref id (the sync actor stores `playlistID: root.sourceID`), so
+    `playOnPhone(.playCollection(...))` just works. `WatchPhoneCollectionView` shows
+    `Play on Apple Watch` (`watch.collection.playLocal`) below Play on iPhone when any member is
+    downloaded here. Both routes go through a new shared
+    `WatchAppAssembly.playLocalTrackIDs(_:startAt:seekTo:)` (also now the body of
+    `startContinueOnWatch`). Deferred to **Phase 11**: (1) a root Now Playing chip reflecting the
+    iPhone target — observing remote/target state from the root's `.carousel` `List` broke its
+    lazy row realisation (watch smoke), so the chip stays local-only until it can be laid out
+    outside the List; (2) all paired-hardware behaviour (route/interruption/background/wrist-down,
+    the disconnect→continue journey) — the watchOS simulator cannot pair a phone.

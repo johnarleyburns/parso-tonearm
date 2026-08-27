@@ -94,14 +94,23 @@ final class WatchAppAssembly {
     /// Resolve a §7.5 plan into local snapshots and hand it to the local player, resumed at the
     /// last authoritative anchor. Labelled, brief pause, begins locally — never gapless.
     func startContinueOnWatch(_ plan: WatchContinueOnWatchPlan) async {
+        await playLocalTrackIDs(plan.trackIDs, startAt: plan.startIndex,
+                                seekTo: plan.elapsedAnchor > 0 ? plan.elapsedAnchor : nil)
+    }
+
+    /// Resolve phone track IDs to the watch's own ready snapshots and play them locally, dropping
+    /// any that aren't downloaded here. Used by the §7.1 cross-target "Play on Apple Watch" action
+    /// and by Continue on Apple Watch.
+    func playLocalTrackIDs(_ ids: [WatchTrackID], startAt: Int = 0, seekTo: Double? = nil) async {
         guard let repository else { return }
         let rows = (try? await repository.tracks(readyOnly: true)) ?? []
         let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
-        let tracks = plan.trackIDs.compactMap { byID[$0.rawValue] }
+        let anchor = ids.indices.contains(startAt) ? ids[startAt] : ids.first
+        let tracks = ids.compactMap { byID[$0.rawValue] }
         guard !tracks.isEmpty else { return }
-        let start = min(max(0, plan.startIndex), tracks.count - 1)
+        let start = anchor.flatMap { a in tracks.firstIndex { $0.id == a.rawValue } } ?? 0
         WatchPlayer.shared.play(tracks: tracks, startAt: start)
-        if plan.elapsedAnchor > 0 { WatchPlayer.shared.seek(to: plan.elapsedAnchor) }
+        if let seekTo, seekTo > 0 { WatchPlayer.shared.seek(to: seekTo) }
     }
 
     private init() {

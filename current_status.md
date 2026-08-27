@@ -20,7 +20,11 @@ product during Phases 1–5 and removed at the SwiftData cutover in Phase 6.
 **Phases 1 through 9 are complete. Phase 9 — watch-local playback and system
 media integration — landed as four commits: 9a `8d07c4d` (local-playback core),
 9b `c2c72ab` (audio-session lifecycle + Now Playing), 9c `54bf13f` (explicit
-targets + remote prediction + W7–W9), 9d `f559ccd` (Continue on Apple Watch).
+targets + remote prediction + W7–W9), 9d `f559ccd` (Continue on Apple Watch),
+plus `this commit` — the §7.1 cross-target "play on the other engine" affordance
+on the browse screens (`Play on iPhone` on a downloaded playlist when the phone is
+reachable; `Play on Apple Watch` on a connected collection whose members are
+downloaded, via the shared `WatchAppAssembly.playLocalTrackIDs`).
 Nothing is pushed — the owner's `git push` is the CI/TestFlight gate.**
 
 **Phase 10 — reliability, observability, and legacy deletion — is next**
@@ -39,14 +43,20 @@ implementation remains in the watch target, all structural guards pass, fault
 tests converge, memory/disk are bounded. Phase 11 (award-quality polish +
 physical-device matrix + release) follows.
 
-Phase 9 carried these **deferrals** into later phases / the device pass: a
-secondary cross-target "play on the other target" affordance on the browse
-screens; a root Now Playing chip that reflects the iPhone target (kept local-only
-— observing the remote/target state from the root's `.carousel` `List`
-destabilised its lazy row realisation and broke the watch smoke); real
-route/interruption/background/wrist-down behaviour; and a paired-phone
-remote-control and disconnect→continue journey (the watchOS simulator cannot pair
-a phone).
+Phase 9 carried two **deferrals into Phase 11** (award-quality polish +
+physical-device matrix):
+
+1. **A root Now Playing chip that reflects the iPhone target.** Kept local-only
+   for now — observing the remote/target state from `WatchRootView`'s `.carousel`
+   `List` destabilised its lazy row realisation and dropped below-fold rows from
+   the a11y tree (the watch smoke caught it as `watch.playlists` missing after a
+   nav pop). The fix needs a considered watchOS layout — the chip as a
+   `safeAreaInset` / toolbar item / overlay *outside* the List — so it belongs
+   with the rest of the animation/artwork/haptics pass, not a rushed carousel fix.
+2. **Paired-hardware behaviour.** Real route/interruption/background/wrist-down
+   and the disconnect→continue journey — the watchOS simulator cannot pair a
+   phone or deliver those notifications authentically, so this is inherently the
+   Phase 11 device matrix.
 
 Phase 9d (`f559ccd`) added `Continue on Apple Watch` (§7.5). New pure
 `WatchContinueOnWatchPlan.make(from:locallyAvailable:now:)` in `Sources/WatchCore/Playback/`:

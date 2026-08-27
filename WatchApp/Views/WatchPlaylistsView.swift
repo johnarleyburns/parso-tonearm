@@ -1,5 +1,6 @@
 import SwiftUI
 import TonearmWatchCore
+import TonearmWatchProtocol
 
 struct WatchPlaylistsView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
@@ -60,6 +61,25 @@ struct WatchPlaylistDetailView: View {
                     shuffleLabel
                 }
                 .buttonStyle(.plain)
+
+                // §7.1 cross-target: this playlist exists on the phone under the same id, so when
+                // the phone is reachable offer it as the other engine.
+                if model.phoneReachable {
+                    Button {
+                        let ref = WatchCollectionRef(kind: .playlist, id: playlistID)
+                        Task { await WatchAppAssembly.shared.playOnPhone(.playCollection(ref)) }
+                    } label: {
+                        HStack {
+                            Image(systemName: "iphone").font(.system(size: 14))
+                            Text("Play on iPhone").font(.system(.body, design: .default))
+                            Spacer()
+                        }
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("watch.collection.playPhone")
+                }
             }
 
             ForEach(Array(tracks.enumerated()), id: \.element.id) { idx, track in
