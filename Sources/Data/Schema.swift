@@ -3,7 +3,8 @@ import GRDB
 
 public enum Schema {
     private static let migrationOrder = [
-        "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14"
+        "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14",
+        "v15"
     ]
 
     public static func migrator(upTo target: String? = nil) -> DatabaseMigrator {
@@ -445,6 +446,55 @@ public enum Schema {
             migrator.registerMigration("v14") { db in
                 try db.alter(table: "source") { $0.add(column: "folderPath", .text) }
                 try db.create(indexOn: "source", columns: ["folderPath"])
+            }
+        }
+
+        if shouldRegister("v15", upTo: target) {
+            migrator.registerMigration("v15") { db in
+                // Watch rearchitecture §8.1: the phone owns *desired download roots* and the
+                // jobs that satisfy them. The v12 `watchTransfer` table cannot represent roots,
+                // reference counts, retry attempts, or the watch's reported manifest, so this is
+                // a fresh set of tables. The old tables stay until the Phase 6 cutover.
+                try db.create(table: "watchDownloadRoot") { t in
+                    t.column("rootID", .text).primaryKey()
+                    t.column("kind", .text).notNull()
+                    t.column("sourceID", .text).notNull()
+                    t.column("title", .text).notNull().defaults(to: "")
+                    t.column("desiredTrackIDs", .text).notNull()   // JSON array of watch track IDs
+                    t.column("phoneRevision", .integer).notNull()
+                    t.column("createdAt", .datetime).notNull()
+                }
+                try db.create(table: "watchDownloadJob") { t in
+                    t.column("requestID", .text).primaryKey()
+                    t.column("trackID", .text).notNull()
+                    t.column("rootIDs", .text).notNull()           // JSON array
+                    t.column("priority", .integer).notNull().defaults(to: 2)
+                    t.column("state", .text).notNull()
+                    t.column("failureClass", .text)
+                    t.column("attempt", .integer).notNull().defaults(to: 0)
+                    t.column("nextAttemptAt", .datetime)
+                    t.column("expectedBytes", .integer)
+                    t.column("expectedSHA256", .text)
+                    t.column("errorCode", .text)
+                    t.column("message", .text)
+                    t.column("createdAt", .datetime).notNull()
+                    t.column("updatedAt", .datetime).notNull()
+                }
+                try db.create(indexOn: "watchDownloadJob", columns: ["trackID"])
+                try db.create(indexOn: "watchDownloadJob", columns: ["state"])
+                // The watch's last reported installed truth (§1.6, second authority).
+                try db.create(table: "watchDownloadManifestEntry") { t in
+                    t.column("trackID", .text).primaryKey()
+                    t.column("bytes", .integer).notNull()
+                    t.column("manifestID", .text).notNull()
+                    t.column("reportedAt", .datetime).notNull()
+                }
+                // Single-row monotonic revision for setDownloadRoots / removeAssets.
+                try db.create(table: "watchDownloadRevision") { t in
+                    t.column("id", .integer).primaryKey()
+                    t.column("value", .integer).notNull()
+                }
+                try db.execute(sql: "INSERT INTO watchDownloadRevision (id, value) VALUES (1, 0)")
             }
         }
 

@@ -1,6 +1,6 @@
 # Platterhead Watch App — SwiftData / iPhone-Only Sync Rearchitecture
 
-Status: **adopted; Phases 1–4 complete; Phase 5 next**
+Status: **adopted; Phases 1–5 complete; Phase 6 next**
 
 Priority: **highest active product priority**
 
@@ -1238,4 +1238,72 @@ by compiler or device evidence.
   them from `AppState` and flips `swiftDataWatchArchitecture`. Device rows (C-11..C-14) and the
   I-05..I-11 measurements remain deferred to their acceptance phases. Screenshot and owner-signoff
   gates are deferred per the code-complete scope.
-- Phase 5: **next**.
+- Phase 5 (2026-08-27, this commit): **complete** — durable, reference-aware, resumable phone-side
+  watch downloads. The schema `v15` migration adds `watchDownloadRoot` / `watchDownloadJob` /
+  `watchDownloadManifestEntry` / `watchDownloadRevision` (seeded revision row `(1, 0)`), separate
+  from the legacy `watchTransfer` table so existing phone downloads are untouched (§8.1). A
+  fake-writer integration test plans an album + playlist + single-track mix (with a shared track
+  and an unsupported track), transfers each real file exactly once, survives a simulated relaunch
+  via `resumeOutstanding()`, and converges to `isIdle` / `readyCount == 5` /
+  `estimatedRemainingBytes() == 0` after manifest receipt — the Phase 5 definition of done.
+
+  Layout, per §13 and the Phase 3/4 pattern: all host-testable protocol logic is in
+  `TonearmCore/Sources/WatchSync/` —
+  - `PhoneWatchDownloadModels.swift` — `PhoneWatchDownloadRoot` (a complete revision, never a
+    delta), `PhoneWatchDownloadJob` (one per track; `requestID` UUID key; states
+    queued→resolving→transferring→sent, plus waitingForWiFi / failed / cancelled),
+    `PhoneWatchManifestEntry`, and the internal GRDB records.
+  - `PhoneWatchDownloadPlanner.swift` — pure, clockless reconciliation of desired roots + installed
+    manifest truth + existing jobs into a deterministic `Plan` (`toCreate` / `toCancel` /
+    `toReset`), with §8.1 priority buckets and E-04/E-05 reference counts.
+  - `PhoneWatchTransferScheduler.swift` — `maxAudioInFlight = 2`, `maxMetadataInFlight = 1`,
+    bounded exponential backoff (`base 5s`, `cap 300s`), and `WatchProtocolRetryPolicy`-derived
+    failure classification.
+  - `PhoneWatchDownloadStore.swift` — `actor` over the library `DatabaseQueue`; every state
+    transition is persisted here *before* the manager touches the transfer seam. Prunes settled
+    jobs (sent / cancelled / failed) once the track is installed or no longer desired.
+  - `PhoneWatchDownloadManager.swift` (new) — the orchestrator `actor`: reconcile → plan → persist
+    → pump. Injected seams (`PhoneWatchAudioResolving`, `PhoneWatchFileTransferring`,
+    `PhoneWatchNetworkGate`, root emitter, playlist expander, clock) keep it fully host-tested.
+
+  The one Xcode-only file is `Sources/App/Watch/PhoneWatchDownloadAdapter.swift` — it binds the
+  seams to `LibraryStore` / `BookmarkVault` / `CacheStore` / `WatchSessionWriter` and holds no
+  protocol logic. Unwired until Phase 6 constructs it from `AppState`.
+
+  Three decisions worth recording:
+
+  1. **The planner has no clock; the manager owns the retry timer.** A transient failure gets a
+     `nextAttemptAt` from the scheduler's backoff. `reconcile()` computes which timers have
+     elapsed and folds those track IDs into the same `explicitRetryTrackIDs` set the user's manual
+     retries use — so the planner stays pure and backoff is never defeated by a re-reconcile
+     clearing `nextAttemptAt`.
+  2. **A `.sent` job is kept until the watch manifest confirms it.** Dedup is by track: a sent-but-
+     unconfirmed job blocks re-queueing, and `pruneSettledJobs` drops it only once the manifest
+     lists the track (§1.6 — the watch owns installed truth, a queued transfer is never rendered
+     as downloaded).
+  3. **Relaunch trusts the transfer framework, not the store.** `resumeOutstanding()` resets a
+     job stranded in `.transferring` / `.resolving` whose track the framework no longer lists as
+     outstanding back to `.queued`; genuinely in-flight transfers are left alone. The adapter's
+     `outstandingTransfers()` returns `[]` for now (rehydrating `WCSession.outstandingFileTransfers`
+     into job identity is Phase 6 wiring), so a relaunch conservatively re-queues and the manifest
+     dedupes.
+
+  On-demand fetch of a remote-only track is explicitly Phase 8: `PhoneWatchLibraryAudioResolver`
+  resolves only already-local audio (imported asset or complete stream-cache entry) and returns
+  `.unavailable` otherwise.
+
+  Files changed: new `Sources/WatchSync/{PhoneWatchDownloadModels,PhoneWatchDownloadPlanner,
+  PhoneWatchTransferScheduler,PhoneWatchDownloadStore,PhoneWatchDownloadManager}.swift`; new
+  `Sources/App/Watch/PhoneWatchDownloadAdapter.swift`; `Sources/Data/Schema.swift` (v15 migration
+  + `migrationOrder`); `Sources/WatchSync/PhoneWatchProjection.swift` (+1 public `trackRowID(_:)`
+  resolution seam for the out-of-module adapter); regenerated `Tonearm.xcodeproj`. Tests added:
+  28 in `Tests/PhoneWatchDownloadTests.swift`.
+
+  Gates: `make ci-guards` passed; `make project` regenerated; `swift test` passed **1,713 tests
+  with 8 intentional skips and 0 failures in 97.7s** (Phase 4 baseline: 1,685). Clean `iPhone 16`
+  simulator and `Watch-Large` watchOS simulator builds both succeeded with no new warnings.
+
+  Known limitations: the manager and adapter are not on the shipped path — Phase 6 wires them from
+  `AppState`. Device rows (C-11..C-14), the I-05..I-11 measurements, and screenshot / owner-signoff
+  gates remain deferred per the code-complete scope.
+- Phase 6: **next**.

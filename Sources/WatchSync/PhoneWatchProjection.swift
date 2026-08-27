@@ -36,6 +36,13 @@ public enum PhoneWatchID {
         guard raw.hasPrefix(prefix) else { return nil }
         return Int64(raw.dropFirst(prefix.count))
     }
+
+    /// Resolution seam for adapters compiled outside this module (the Xcode-only `Sources/App`
+    /// wiring): a local track row id when `id` is a row token, `nil` when it is a `syncID` and the
+    /// caller should look up by `syncID` instead.
+    public static func trackRowID(_ id: WatchTrackID) -> Int64? {
+        rowID(id.rawValue, prefix: trackRowPrefix)
+    }
 }
 
 /// An opaque forward-only paging cursor. §6.1 forbids serializing the whole catalog; every paged

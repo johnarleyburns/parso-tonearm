@@ -17,8 +17,8 @@ library and existing phone-side CloudKit behavior remain authoritative and are n
 migrated. Existing watch GRDB behavior is isolated in a temporary CloudKit-free legacy
 product during Phases 1–5, then removed at the SwiftData cutover in Phase 6.
 
-**Phases 1 through 4 are complete. Phase 5 — desired downloads and the phone transfer
-manager — is next.**
+**Phases 1 through 5 are complete. Phase 6 — watch file installation and offline
+cutover — is next.**
 The old [`docs/plans/watch-app.md`](docs/plans/watch-app.md) describes the implementation
 being replaced and is historical only. The detailed phase gates, normative mockups, and
 release acceptance matrix are:
