@@ -43,7 +43,26 @@ clauses keep the deleted files and symbols from returning. The *new* stack
 (`WatchManifestPayload`, the `.watchManifest` protocol message, the v15
 download-root tables) is untouched.
 
-**Still in Phase 10:** the superseded GRDB catalog import beyond what 10a took,
+**10b (`this commit`)** added the privacy-safe diagnostics core, pure and in
+`Sources/WatchCore/Diagnostics/`: `WatchDiagnosticEvent` (a coarse category — one
+of activation / request / transferState / installResult / manifestConvergence /
+playbackTarget / routeEvent / storeRecovery / disconnectDuration — plus a
+fixed-vocabulary `stateCode`, a timestamp, an optional opaque `correlationID`,
+and optional numeric `durationMillis` / `byteCount` / `count`; there is *no*
+free-text field, so a title / URL / path / token has nowhere to land).
+`WatchDiagnosticsLog` is a fixed-capacity ring (drops oldest past capacity —
+bounded memory is a Phase 10 DoD item); `WatchDiagnosticsRecorder` is the shared
+`actor` sink with an injectable clock. `WatchDiagnosticsExporter` builds the
+in-app export: JSON carrying only per-export **salted-SHA-256-hashed** correlation
+ids (fresh random salt each export, truncated to 16 hex — not linkable across
+exports), state codes, ISO-8601 timestamps, `WatchProtocolVersion.current`, and
+the numeric measurements. `Tests/WatchDiagnosticsTests.swift` (6) covers ring
+eviction, clock stamping, hash stability vs salt sensitivity, and asserts a raw
+correlation id never appears in the encoded JSON. No call sites are wired yet —
+that is 10c.
+
+**Still in Phase 10:** wire the diagnostics call sites and the Settings export
+affordance (10c); the superseded GRDB catalog import beyond what 10a took,
 the compatibility flag and any remaining dead tests; add privacy-safe structured diagnostics (activation, request latency,
 transfer state, install result, manifest convergence, playback target, route
 events, store recovery, disconnect duration) and an in-app diagnostics export

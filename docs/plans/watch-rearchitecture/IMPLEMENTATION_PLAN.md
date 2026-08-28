@@ -1666,5 +1666,18 @@ by compiler or device evidence.
     reference may reappear in `Sources`/`Tests`/`WatchApp`. Gates: `rm -rf .build && swift
     build` clean, `make ci-guards` clean, `make project` regenerated (no `.xcodeproj` diff —
     folder-globbed), watch/schema/download test subset green. Full `swift test` + simulator
-    smokes run by the pre-commit hook. Remaining in Phase 10: privacy-safe structured
-    diagnostics + in-app export; fault-injection / soak harnesses.
+    smokes run by the pre-commit hook.
+  - **10b (2026-08-27, this commit): the privacy-safe diagnostics core (§12).** New pure
+    `Sources/WatchCore/Diagnostics/`: `WatchDiagnosticEvent` (category ∈ {activation, request,
+    transferState, installResult, manifestConvergence, playbackTarget, routeEvent,
+    storeRecovery, disconnectDuration}, a fixed-vocabulary `stateCode`, timestamp, optional
+    opaque `correlationID`, optional numeric `durationMillis`/`byteCount`/`count` — no free-text
+    field exists); `WatchDiagnosticsLog` fixed-capacity ring (drops oldest — bounded memory);
+    `WatchDiagnosticsRecorder` `actor` sink with injectable clock; `WatchDiagnosticsExporter`
+    builds the in-app export as JSON carrying only per-export salted-SHA-256-hashed correlation
+    ids (fresh random salt per export, 16 hex chars), state codes, ISO-8601 timestamps,
+    `WatchProtocolVersion.current`, and the numeric measurements. `Tests/WatchDiagnosticsTests.swift`
+    (6): ring eviction, clock stamping, hash stability/salt sensitivity, and a raw correlation
+    id never appears in the encoded JSON. No call sites wired yet — that is 10c. Gate: `rm -rf
+    .build && swift build --target TonearmWatchCore` clean; the new suite green. Remaining in
+    Phase 10: wire diagnostics call sites + Settings export (10c); fault-injection / soak harnesses.
