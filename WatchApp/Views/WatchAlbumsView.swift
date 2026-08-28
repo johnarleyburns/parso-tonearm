@@ -17,6 +17,7 @@ struct WatchAlbumsView: View {
                         NavigationLink(value: WatchNav.album(album.id)) {
                             WatchAlbumRow(album: album)
                         }
+                        .accessibilityIdentifier("watch.album.\(album.id)")
                     }
                 }
                 .listStyle(.carousel)

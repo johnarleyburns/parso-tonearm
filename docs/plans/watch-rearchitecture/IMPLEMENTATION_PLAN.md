@@ -647,9 +647,9 @@ Identifiers are test/API contracts and must not be localized:
 
 | Surface | Identifiers |
 |---|---|
-| Root | `watch.root`, `watch.connection.banner`, `watch.nowPlaying`, `watch.search`, `watch.playlists`, `watch.downloads` |
+| Root | `watch.root`, `watch.connection.banner`, `watch.nowPlaying`, `watch.search`, `watch.playlists`, `watch.albums`, `watch.songs`, `watch.downloads` |
 | Search | `watch.search.field`, `.scope`, `.loading`, `.retry`, `.downloads`, `watch.search.result.<stableID>` |
-| Collection | `watch.collection.playPhone`, `.playLocal`, `.download`, `.status`, `watch.track.<stableID>` |
+| Collection | `watch.collection.playPhone`, `.playLocal`, `.download`, `.status`, `watch.album.<stableID>`, `watch.track.<stableID>` |
 | Now Playing | `watch.now.target`, `.title`, `.elapsed`, `.previous`, `.playPause`, `.next`, `.upNext`, `.more`, `.continueLocal`, `.chooseRoute` |
 | Downloads | `watch.downloads.activity`, `.storage`, `.removeAll`, `watch.download.<requestID>`, `watch.download.retry.<requestID>` |
 | Recovery | `watch.store.opening`, `.recovery`, `.continue`, `.details` |

@@ -56,11 +56,13 @@ struct WatchRootView: View {
             WatchCollectionRow(title: "Albums", subtitle: "\(model.albums.count) downloaded",
                                systemImage: "square.stack")
         }
+        .accessibilityIdentifier("watch.albums")
 
         NavigationLink(value: WatchNav.songs) {
             WatchCollectionRow(title: "Tracks", subtitle: "\(model.tracks.count) downloaded",
                                systemImage: "music.note")
         }
+        .accessibilityIdentifier("watch.songs")
 
         NavigationLink(value: WatchNav.storage) {
             WatchCollectionRow(title: "Storage", subtitle: storageSubtitle, systemImage: "internaldrive")

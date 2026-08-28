@@ -1,9 +1,10 @@
 import XCTest
 
 /// The single watchOS simulator smoke test for Platterhead. The simulator has no paired iPhone, so
-/// the app runs in **offline mode**: it must boot, render the seeded downloads, search them locally,
-/// and — critically — actually start playback from a local file with the elapsed clock advancing and
-/// the transport toggling both ways.
+/// the app runs in **offline mode**: it must boot, render the seeded downloads, expose search over
+/// them, play a track from the Tracks list and an album from the Albums list (transport toggling
+/// both ways with the elapsed clock advancing), keep a playlist journey working, and survive being
+/// exited while playing.
 ///
 /// **Every fixture here is bundled audio; this test never touches the network.** A gate on our own
 /// code must not be closable by a third party's outage — live remote servers belong to the by-hand
@@ -37,7 +38,28 @@ final class WatchSmokeUITests: XCTestCase {
                       "Search field never appeared")
         popToRoot(app)
 
-        // Play the seeded playlist and confirm real playback.
+        // Find a track in the Tracks list, start it, confirm real playback, then stop it.
+        openRootRow(app, identifier: "watch.songs", named: "Tracks")
+        let track = firstMatch(in: app, identifierPrefix: "watch.track.")
+        XCTAssertTrue(track.waitForExistence(timeout: 15), "Seeded track row never appeared")
+        track.tap()
+        assertPlaybackStartsThenStops(app, context: "the Tracks list", requireElapsedAdvance: true)
+        closeNowPlaying(app)
+        popToRoot(app)
+
+        // Find an album in the Albums list, play it, confirm playback, then stop it.
+        openRootRow(app, identifier: "watch.albums", named: "Albums")
+        let album = firstMatch(in: app, identifierPrefix: "watch.album.")
+        XCTAssertTrue(album.waitForExistence(timeout: 15), "Seeded album row never appeared")
+        album.tap()
+        let playAll = app.buttons["watch.collection.playLocal"]
+        XCTAssertTrue(playAll.waitForExistence(timeout: 10), "Album detail had no Play All")
+        playAll.tap()
+        assertPlaybackStartsThenStops(app, context: "the Albums list", requireElapsedAdvance: true)
+        closeNowPlaying(app)
+        popToRoot(app)
+
+        // The seeded playlist: full transport, target, and Close-doesn't-stop behaviour (§7).
         playPlaylist(app, name: "Built-in Playlist", requireElapsedAdvance: true)
 
         let playPause = app.buttons["watch.now.playPause"]
@@ -64,24 +86,18 @@ final class WatchSmokeUITests: XCTestCase {
         closeNowPlaying(app)
         popToRoot(app)
         let chip = app.buttons["watch.nowPlaying"]
-        XCTAssertTrue(chip.waitForExistence(timeout: 8), "Now Playing chip vanished after Close")
+        XCTAssertTrue(reveal(chip, in: app), "Now Playing chip vanished after Close")
         XCTAssertTrue(waitForValue(chip, equals: "playing", timeout: 8),
                       "Close stopped playback — it must only dismiss the sheet")
 
-        // The second seeded playlist, browsed to from the root.
-        playPlaylist(app, name: "Pinned Track Smoke", requireElapsedAdvance: true)
-        closeNowPlaying(app)
-        popToRoot(app)
-
-        // Back at a usable offline root.
-        XCTAssertTrue(app.buttons["watch.search"].waitForExistence(timeout: 10)
-                      || app.buttons["watch.playlists"].waitForExistence(timeout: 10),
-                      "Did not return to the offline root after the fixture journey")
+        // Exit the app while a session is live; it must terminate cleanly.
+        app.terminate()
+        XCTAssertTrue(app.wait(for: .notRunning, timeout: 10), "App did not exit")
     }
 
     private func playPlaylist(_ app: XCUIApplication, name: String, requireElapsedAdvance: Bool) {
         let rootPlaylists = app.buttons["watch.playlists"]
-        XCTAssertTrue(rootPlaylists.waitForExistence(timeout: 10), "Root did not render the Playlists row")
+        XCTAssertTrue(reveal(rootPlaylists, in: app), "Root did not render the Playlists row")
         rootPlaylists.tap()
 
         let playlistRow = app.staticTexts[name]
@@ -104,6 +120,55 @@ final class WatchSmokeUITests: XCTestCase {
             XCTAssertTrue(waitForElapsedAdvance(elapsed, timeout: 20),
                           "Playback time did not advance for \(name)")
         }
+    }
+
+    /// Confirm playback actually started (elapsed clock advancing when asked), then pause it and
+    /// confirm the transport reflects the stop.
+    private func assertPlaybackStartsThenStops(_ app: XCUIApplication, context: String,
+                                               requireElapsedAdvance: Bool) {
+        let playPause = app.buttons["watch.now.playPause"]
+        XCTAssertTrue(playPause.waitForExistence(timeout: 10), "Now Playing never appeared for \(context)")
+        XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 10),
+                      "Play did not start playback for \(context)")
+
+        if requireElapsedAdvance {
+            let elapsed = app.staticTexts["watch.now.elapsed"]
+            XCTAssertTrue(elapsed.waitForExistence(timeout: 10),
+                          "Elapsed time label did not render for \(context)")
+            XCTAssertTrue(waitForElapsedAdvance(elapsed, timeout: 20),
+                          "Playback time did not advance for \(context)")
+        }
+
+        playPause.tap()
+        XCTAssertTrue(waitForValue(playPause, equals: "paused", timeout: 5),
+                      "Stopping playback from \(context) did not pause the transport")
+    }
+
+    private func openRootRow(_ app: XCUIApplication, identifier: String, named: String) {
+        let row = app.buttons[identifier]
+        XCTAssertTrue(reveal(row, in: app), "Root did not render the \(named) row")
+        row.tap()
+    }
+
+    private func firstMatch(in app: XCUIApplication, identifierPrefix: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", identifierPrefix)).firstMatch
+    }
+
+    /// The root list is a `.carousel`, which keeps below-fold rows out of the accessibility tree
+    /// until they scroll into view — so a plain `waitForExistence` on a lower row never resolves.
+    /// Swipe the carousel up a few times, checking after each, before giving up.
+    @discardableResult
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        if element.waitForExistence(timeout: 4) { return true }
+        for _ in 0..<6 {
+            app.swipeUp()
+            if element.waitForExistence(timeout: 1) { return true }
+        }
+        for _ in 0..<8 {
+            app.swipeDown()
+            if element.waitForExistence(timeout: 1) { return true }
+        }
+        return element.exists
     }
 
     private func waitForValue(_ element: XCUIElement, equals expected: String,
