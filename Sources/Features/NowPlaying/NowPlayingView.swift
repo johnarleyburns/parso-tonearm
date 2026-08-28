@@ -16,6 +16,9 @@ struct NowPlayingView: View {
     @State private var showEQ = false
     @State private var showArtworkDeleteAlert = false
     @State private var showAddToPlaylist = false
+    /// Track key whose watch transfer we toasted the *start* of, so we can toast its completion
+    /// when it lands in the watch manifest.
+    @State private var pendingWatchToastTrackID: String?
 
     var body: some View {
         ZStack {
@@ -118,6 +121,16 @@ struct NowPlayingView: View {
             Button("Remove", role: .destructive) { deleteArtwork() }
         } message: {
             Text("This will remove the custom artwork for this track.")
+        }
+        .onChange(of: appState.watchInstalledTrackIDs) { _, installed in
+            guard let pending = pendingWatchToastTrackID, installed.contains(pending) else { return }
+            pendingWatchToastTrackID = nil
+            ToastCenter.shared.success("On Apple Watch", icon: "applewatch", tag: "dl.watch")
+        }
+        .onChange(of: appState.watchFailedCount) { old, new in
+            guard new > old, pendingWatchToastTrackID != nil else { return }
+            pendingWatchToastTrackID = nil
+            ToastCenter.shared.error("Apple Watch download failed", icon: "applewatch.slash", tag: "dl.watch")
         }
     }
 
@@ -321,9 +334,21 @@ struct NowPlayingView: View {
         Button {
             switch state {
             case .notDownloaded:
-                if let row { Task { await appState.download(rows: [row]) } }
+                if let row {
+                    ToastCenter.shared.progress("Downloading…", tag: "dl.phone")
+                    Task {
+                        let added = await appState.download(rows: [row])
+                        ToastCenter.shared.success(added > 0 ? "Saved to iPhone" : "Already saved",
+                                                   tag: "dl.phone")
+                    }
+                }
             case .downloaded:
-                if let row { Task { await appState.removeDownloadFromPhone(rows: [row]) } }
+                if let row {
+                    Task {
+                        await appState.removeDownloadFromPhone(rows: [row])
+                        ToastCenter.shared.info("Removed download")
+                    }
+                }
             case .downloading:
                 break
             }
@@ -343,12 +368,20 @@ struct NowPlayingView: View {
         let state = row.map { appState.watchGlyphState(for: $0) } ?? .notOnWatch
         Button {
             switch state {
-            case .notOnWatch:
-                if let row { Task { await appState.downloadToWatch(rows: [row]) } }
+            case .notOnWatch, .failed:
+                if let row {
+                    pendingWatchToastTrackID = PhoneWatchID.track(row.track).rawValue
+                    ToastCenter.shared.progress("Sending to Apple Watch…", icon: "applewatch",
+                                                tag: "dl.watch")
+                    Task { await appState.downloadToWatch(rows: [row]) }
+                }
             case .onWatch:
-                if let row { Task { await appState.removeFromWatch(rows: [row]) } }
-            case .failed:
-                if let row { Task { await appState.downloadToWatch(rows: [row]) } }
+                if let row {
+                    Task {
+                        await appState.removeFromWatch(rows: [row])
+                        ToastCenter.shared.info("Removed from Apple Watch", icon: "applewatch")
+                    }
+                }
             case .transferring:
                 break
             }

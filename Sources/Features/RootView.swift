@@ -48,6 +48,8 @@ struct RootView: View {
                     .animation(.easeInOut(duration: 0.3), value: player.networkSkipMessage)
             }
         }
+        .toastLayer(bottomInset: 96)
+        .task { await announceWatchConnection() }
         .tint(Palette.brass)
         .fullScreenCover(isPresented: Binding(
             get: { !appState.didOnboard },
@@ -139,6 +141,27 @@ struct RootView: View {
                 appState.artworkChangeTrackId = nil
             }
         }
+    }
+
+    // MARK: - Apple Watch connection toast
+
+    /// On launch, if a watch is paired, say we're connecting, then resolve to "Connected" or
+    /// "not reachable" once the session settles. Skipped in UI tests.
+    private func announceWatchConnection() async {
+        guard !ProcessInfo.processInfo.arguments.contains("UI_TESTING") else { return }
+        guard appState.watchSessionState == .installedNotReachable
+                || appState.watchSessionState == .reachable else { return }
+
+        ToastCenter.shared.progress("Connecting to Apple Watch…", icon: "applewatch", tag: "watch.link")
+        let deadline = Date().addingTimeInterval(6)
+        while Date() < deadline {
+            if appState.watchSessionState == .reachable {
+                ToastCenter.shared.success("Connected to Apple Watch", icon: "applewatch", tag: "watch.link")
+                return
+            }
+            try? await Task.sleep(nanoseconds: 400_000_000)
+        }
+        ToastCenter.shared.info("Apple Watch not reachable", icon: "applewatch.slash", tag: "watch.link")
     }
 
     private var backgroundLayer: some View {
