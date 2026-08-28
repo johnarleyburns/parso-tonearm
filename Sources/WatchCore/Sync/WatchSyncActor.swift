@@ -10,6 +10,7 @@ import TonearmWatchProtocol
 public actor WatchSyncActor: WatchConnectivityObserver {
     private let repository: WatchLibraryRepository
     private let installer: WatchFileInstaller
+    private let diagnostics: WatchDiagnosticsRecorder?
     private weak var coordinator: WatchConnectivityCoordinator?
 
     /// Fired when the phone's paired-library identity differs from the bound one (A-08). The UI
@@ -21,10 +22,12 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     public init(repository: WatchLibraryRepository,
                 installer: WatchFileInstaller,
                 coordinator: WatchConnectivityCoordinator? = nil,
+                diagnostics: WatchDiagnosticsRecorder? = nil,
                 onPairedLibraryChange: @escaping @Sendable (WatchPairedLibraryID, WatchPairedLibraryID) async -> Void = { _, _ in },
                 onLibraryChanged: @escaping @Sendable () async -> Void = {}) {
         self.repository = repository
         self.installer = installer
+        self.diagnostics = diagnostics
         self.coordinator = coordinator
         self.onPairedLibraryChange = onPairedLibraryChange
         self.onLibraryChanged = onLibraryChanged
@@ -124,9 +127,26 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     }
 
     public func didReceiveAudioFile(at stagedURL: URL, metadata: [String: String]) async {
-        _ = await installer.install(stagedURL: stagedURL, metadata: metadata)
+        let outcome = await installer.install(stagedURL: stagedURL, metadata: metadata)
+        await recordInstall(outcome)
         await onLibraryChanged()
         await publishManifest()
+    }
+
+    /// §12 install-result diagnostics: the outcome kind and, when the file landed, its byte count.
+    /// The track ID never leaves the installer — only the shape of what happened.
+    private func recordInstall(_ outcome: WatchInstallOutcome) async {
+        guard let diagnostics else { return }
+        switch outcome {
+        case .installed(_, _, let bytes):
+            await diagnostics.record(.installResult, "installed", byteCount: bytes)
+        case .duplicateIgnored:
+            await diagnostics.record(.installResult, "duplicateIgnored")
+        case .deferredAwaitingMetadata:
+            await diagnostics.record(.installResult, "deferredAwaitingMetadata")
+        case .rejected(_, let fault):
+            await diagnostics.record(.installResult, fault.code.rawValue)
+        }
     }
 
     public func pairedLibraryChangeRequiresConfirmation(current: WatchPairedLibraryID,
@@ -173,6 +193,12 @@ public actor WatchSyncActor: WatchConnectivityObserver {
             capacityBytes: storage?.capacityBytes ?? 0,
             freeBytes: storage?.freeBytes ?? 0)
         await coordinator.sendManifest(payload)
+        // §12 manifest-convergence diagnostics: each time the watch reports where it stands, log the
+        // ready count and installed bytes. Watching `count` climb toward the desired set across a
+        // soak is how convergence is verified without a title ever being recorded.
+        await diagnostics?.record(.manifestConvergence, "reported",
+                                  byteCount: snapshot.installedBytes,
+                                  count: snapshot.readyTrackIDs.count)
     }
 
     private func displayTitle(_ raw: String, fallback: String) -> String {

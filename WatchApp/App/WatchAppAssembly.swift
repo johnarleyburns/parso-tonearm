@@ -146,11 +146,13 @@ final class WatchAppAssembly {
         let inst = WatchFileInstaller(repository: repo, audioDirectory: audio, stagingDirectory: staging)
         let mdl = WatchLibraryModel(repository: repo, recoveryNotice: bootstrap.recoveryNotice)
         let reach = WatchReachabilityObserver(model: mdl)
-        let sync = WatchSyncActor(repository: repo, installer: inst,
+        let diag = diagnostics
+        let sync = WatchSyncActor(repository: repo, installer: inst, diagnostics: diag,
                                   onLibraryChanged: { [weak mdl] in await mdl?.refresh() })
         let coord = WatchConnectivityCoordinator(
             transport: WatchProtocolSessionAdapter.transport,
             stateStore: stateStore,
+            diagnostics: diag,
             observer: nil)
 
         let searchPresenter = WatchSearchPresenter(
@@ -175,7 +177,8 @@ final class WatchAppAssembly {
 
         let chromeObs = WatchChromeObserver(chrome: chrome, model: mdl, search: searchPresenter)
         let remotePlayback = WatchRemotePlaybackObserver()
-        let fan = WatchFanoutObserver([sync, reach, chromeObs, remotePlayback])
+        let diagObs = WatchDiagnosticsObserver(diagnostics: diag)
+        let fan = WatchFanoutObserver([sync, reach, chromeObs, remotePlayback, diagObs])
         let adpt = WatchProtocolSessionAdapter(endpoint: coord)
 
         self.repository = repo

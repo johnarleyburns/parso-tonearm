@@ -18,6 +18,7 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         let phoneObserver: RecordingPhoneObserver
         let watchState: WatchInMemorySyncStateStore
         let revisions: WatchInMemoryRevisionStore
+        let diagnostics: WatchDiagnosticsRecorder?
     }
 
     private func makeHarness(
@@ -27,7 +28,8 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         boundLibraryID: WatchPairedLibraryID? = nil,
         gracePeriod: TimeInterval = 0.05,
         immediateDeadline: Duration = .milliseconds(200),
-        phoneRevision: Int64 = 0
+        phoneRevision: Int64 = 0,
+        diagnostics: WatchDiagnosticsRecorder? = nil
     ) async -> Harness {
         let id = libraryID ?? self.libraryID
         let link = WatchFakeDuplexLink()
@@ -44,17 +46,18 @@ final class WatchProtocolIntegrationTests: XCTestCase {
             transport: link.transport(for: .watch), stateStore: watchState,
             configuration: .init(capabilities: watchCapabilities,
                                  immediateDeadline: immediateDeadline, gracePeriod: gracePeriod),
+            diagnostics: diagnostics,
             observer: watchObserver)
 
         await link.attach(phone, as: .phone)
         await link.attach(watch, as: .watch)
         return Harness(link: link, phone: phone, watch: watch, handler: handler,
                        watchObserver: watchObserver, phoneObserver: phoneObserver,
-                       watchState: watchState, revisions: revisions)
+                       watchState: watchState, revisions: revisions, diagnostics: diagnostics)
     }
 
-    private func makeConnectedHarness() async -> Harness {
-        let harness = await makeHarness(boundLibraryID: libraryID)
+    private func makeConnectedHarness(diagnostics: WatchDiagnosticsRecorder? = nil) async -> Harness {
+        let harness = await makeHarness(boundLibraryID: libraryID, diagnostics: diagnostics)
         await harness.phone.activate(reachable: true)
         await harness.watch.activate(reachable: true)
         return harness
@@ -470,6 +473,35 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         XCTAssertEqual(removals.count, 1, "eight concurrent redeliveries are still one delete")
         let playbacks = await harness.watchObserver.playbacks
         XCTAssertEqual(playbacks.last?.revision, 11)
+    }
+
+    // MARK: - §12 diagnostics wiring (Phase 10e)
+
+    func testASearchRoundTripRecordsARequestLatencyDiagnostic() async {
+        let diag = WatchDiagnosticsRecorder()
+        let harness = await makeConnectedHarness(diagnostics: diag)
+        await harness.handler.setRows([WatchResultRow(kind: .track, id: "t1", title: "Blue Monday")])
+        _ = await harness.watch.search("blue")
+
+        let events = await diag.events()
+        let requests = events.filter { $0.category == .request }
+        XCTAssertTrue(requests.contains { $0.stateCode == "hello" }, "negotiation is a recorded request")
+        let search = requests.first { $0.stateCode == "searchRequest" }
+        XCTAssertNotNil(search, "the search round trip is recorded by its message kind")
+        XCTAssertNotNil(search?.durationMillis)
+        XCTAssertGreaterThanOrEqual(search?.durationMillis ?? -1, 0)
+        // No event may carry a correlation id or any free text — only kinds and numbers.
+        XCTAssertTrue(events.allSatisfy { $0.correlationID == nil })
+    }
+
+    func testAFailedRequestRecordsTheFaultCodeNotTheKind() async {
+        let diag = WatchDiagnosticsRecorder()
+        let harness = await makeConnectedHarness(diagnostics: diag)
+        await harness.link.setSwallowImmediateReplies(true)
+        _ = await harness.watch.search("anything")
+
+        let codes = await diag.events().filter { $0.category == .request }.map(\.stateCode)
+        XCTAssertTrue(codes.contains("requestTimedOut"), "a timed-out request is recorded by its fault code")
     }
 
     // MARK: - Helpers

@@ -45,6 +45,9 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
     private let stateStore: any WatchSyncStateStore
     private let ledger: WatchAppliedMessageLedger
     private let configuration: Configuration
+    /// §12 — request-latency and negotiation diagnostics. Optional so `swift test` can drive the
+    /// coordinator without one; the watch app injects the shared recorder.
+    private let diagnostics: WatchDiagnosticsRecorder?
     private weak var observer: (any WatchConnectivityObserver)?
 
     private var reducer: WatchConnectionReducer
@@ -62,11 +65,13 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
                 stateStore: any WatchSyncStateStore = WatchInMemorySyncStateStore(),
                 ledger: WatchAppliedMessageLedger? = nil,
                 configuration: Configuration = Configuration(),
+                diagnostics: WatchDiagnosticsRecorder? = nil,
                 observer: (any WatchConnectivityObserver)? = nil) {
         self.transport = transport
         self.stateStore = stateStore
         self.configuration = configuration
         self.ledger = ledger ?? WatchAppliedMessageLedger(capacity: configuration.ledgerCapacity)
+        self.diagnostics = diagnostics
         self.observer = observer
         let reducer = WatchConnectionReducer(gracePeriod: configuration.gracePeriod)
         self.reducer = reducer
@@ -411,12 +416,16 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
     /// correlated to this request and of the kind we asked for.
     private func request(kind: WatchMessageKind, payload: some Encodable,
                          expecting: WatchMessageKind) async throws -> WatchProtocolEnvelope {
-        if let blocked = reducer.blockingErrorCode { throw WatchProtocolFault(code: blocked) }
+        if let blocked = reducer.blockingErrorCode {
+            await recordRequest(kind, since: nil, failure: blocked)
+            throw WatchProtocolFault(code: blocked)
+        }
         let messageID = UUID()
         let data = try WatchProtocolEnvelope.encode(
             kind: kind, payload: payload, pairedLibraryID: boundLibraryID ?? .unknown,
             messageID: messageID)
         let transport = self.transport
+        let startedAt = DispatchTime.now()
         do {
             let replyData = try await withWatchRequestDeadline(configuration.immediateDeadline) {
                 try await transport.sendImmediate(data)
@@ -424,21 +433,39 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
             let envelope = try WatchProtocolEnvelope.decode(replyData).get()
             await run(reducer.apply(.peerResponded, at: Date()))
             if envelope.kind == .error {
-                throw try envelope.decodePayload(WatchProtocolFault.self)
+                let fault = try envelope.decodePayload(WatchProtocolFault.self)
+                await recordRequest(kind, since: startedAt, failure: fault.code)
+                throw fault
             }
             guard envelope.correlationID == messageID, envelope.kind == expecting else {
                 // A reply for a different request reached us. Dropping it is the only safe read;
                 // treating it as ours is how a search result lands in a collection detail view.
+                await recordRequest(kind, since: startedAt, failure: .requestTimedOut)
                 throw WatchProtocolFault(code: .requestTimedOut)
             }
+            await recordRequest(kind, since: startedAt, failure: nil)
             return envelope
         } catch let failure as WatchEnvelopeFailure {
             if case .unsupportedVersion = failure { await markIncompatible() }
+            await recordRequest(kind, since: startedAt, failure: failure.errorCode)
             throw WatchProtocolFault(code: failure.errorCode)
         } catch let fault as WatchProtocolFault {
+            await recordRequest(kind, since: startedAt, failure: fault.code)
             await noteCommandFailure(fault)
             throw fault
         }
+    }
+
+    /// §12 request-latency diagnostics: one `.request` event per round trip, `stateCode` the message
+    /// kind on success or the fault code on failure, `durationMillis` the elapsed wall time. Carries
+    /// no payload, no ids — a kind and a number.
+    private func recordRequest(_ kind: WatchMessageKind, since startedAt: DispatchTime?,
+                               failure: WatchProtocolErrorCode?) async {
+        guard let diagnostics else { return }
+        let millis = startedAt.map {
+            Int(Double(DispatchTime.now().uptimeNanoseconds &- $0.uptimeNanoseconds) / 1_000_000)
+        }
+        await diagnostics.record(.request, failure?.rawValue ?? kind.rawValue, durationMillis: millis)
     }
 
     /// §6.3: a failed command may surface immediately, but the global mode still waits out the

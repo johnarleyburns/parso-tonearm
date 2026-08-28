@@ -1706,5 +1706,16 @@ by compiler or device evidence.
     architecture. No compatibility flag remains (`WatchFeatureFlags.swift` went in Phase 6).
     Gate: `rm -rf .build && swift build --target TonearmWatchCore` clean; `make ci-guards` clean;
     `WatchLibraryRepositoryTests` green.
-    Remaining in Phase 10: request-latency / install-result / manifest-convergence call sites
-    (deeper in the connectivity/sync/installer actors); fault-injection / soak harnesses.
+  - **10e (2026-08-27, this commit): the remaining diagnostics call sites (§12).** All nine
+    signals now record. `WatchConnectivityCoordinator` takes an optional `WatchDiagnosticsRecorder`
+    and logs one `.request` per round trip (`stateCode` = message kind on success / fault code on
+    failure, `durationMillis` = wall time — covers request latency and negotiation, a `hello`
+    request). `WatchSyncActor` takes it too: `.installResult` per install outcome (`installed`
+    carries `byteCount`, a rejection its fault code) and `.manifestConvergence "reported"` on every
+    `publishManifest` with ready `count` + installed `byteCount`. New `WatchDiagnosticsObserver`
+    (record-only `WatchConnectivityObserver`) joins the fanout for `.transferState`, `.activation`,
+    and `.routeEvent`. `WatchAppAssembly` threads the shared `diagnostics` into all three. Tests:
+    `Tests/WatchDiagnosticsWiringTests.swift` (3) + two `WatchProtocolIntegrationTests` cases; each
+    asserts no event carries a correlation id or free text. Gate: `swift test` watch subset +
+    `xcodebuild build -scheme TonearmWatch` (watchOS sim) + `make ci-guards` green; full suite by
+    the hook. Remaining in Phase 10: fault-injection / soak harnesses.

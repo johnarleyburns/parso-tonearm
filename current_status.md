@@ -94,8 +94,26 @@ it is idempotent behind a metadata key, and it does not duplicate the new
 architecture. There is no compatibility flag left to delete — Phase 6 removed
 `WatchFeatureFlags.swift` and the guard already forbids its return.
 
-**Still in Phase 10:** the remaining diagnostics call sites (request latency,
-install result, manifest convergence); add privacy-safe structured diagnostics (activation, request latency,
+**10e (`this commit`)** wired the remaining diagnostics call sites, so all nine
+§12 signals now record. `WatchConnectivityCoordinator` takes an optional
+`WatchDiagnosticsRecorder` and logs one `.request` per round trip — `stateCode`
+the message kind on success or the fault code on failure, `durationMillis` the
+wall time (covers request latency **and** negotiation, which is a `hello`
+request). `WatchSyncActor` takes the recorder too: `.installResult` per install
+outcome (`installed` carries `byteCount`; a rejection carries its fault code) and
+`.manifestConvergence "reported"` on every `publishManifest` with the ready
+`count` and installed `byteCount` — watching that count climb across a soak is
+the convergence check. New `WatchDiagnosticsObserver` (a no-op
+`WatchConnectivityObserver` that only records) joins the fanout for
+`.transferState` (roots received / status buckets / removeAssets),
+`.activation` (negotiated / negotiation-fault code), and `.routeEvent`
+(connectivity changes). `WatchAppAssembly` threads the shared `diagnostics` into
+all three. New tests: `Tests/WatchDiagnosticsWiringTests.swift` (3) and two cases
+in `WatchProtocolIntegrationTests` — every one also asserts no event carries a
+correlation id or free text. `swift test` subset + watch sim build + `ci-guards`
+all green.
+
+**Still in Phase 10:** the fault-injection / soak harnesses; add privacy-safe structured diagnostics (activation, request latency,
 transfer state, install result, manifest convergence, playback target, route
 events, store recovery, disconnect duration) and an in-app diagnostics export
 carrying only per-export-hashed IDs, state codes, timestamps, versions, byte
