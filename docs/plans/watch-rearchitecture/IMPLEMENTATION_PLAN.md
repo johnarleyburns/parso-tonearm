@@ -1644,6 +1644,42 @@ by compiler or device evidence.
   fault/soak harnesses), so it was split into commits 10a–10f like Phase 9. DoD met: no legacy
   implementation remains in the watch target, all structural guards pass, the six fault/soak
   scenarios converge, memory/disk are bounded. Phase 11 is next.
+- Phase 11 (agent-closable slice COMPLETE, 2026-08-28; commits 11a–11d): the parts that do not
+  need paired hardware. What landed:
+  - **11a (`f34162a`): the one watch smoke covers the basic-functions journey.** Open the
+    app → search surface → find a track in the Tracks list, start/stop → find an album, play,
+    start/stop → playlist transport journey → exit while playing. Still exactly one test
+    method (`verify-ui-smoke-tests.sh` enforces it). New stable a11y ids `watch.albums` /
+    `watch.songs` (root nav rows) and `watch.album.<stableID>` (album rows), added to the §9
+    contract table. A `reveal` helper swipes the root `.carousel` to bring below-fold rows
+    into the a11y tree before asserting. Owner pushed this commit 2026-08-27.
+  - **11b (`e444fc5`): root Now Playing chip reflects the active target + accessibility pass.**
+    The chip (Phase 9 deferral) is now its own `WatchNowPlayingChip` view with its own
+    `@ObservedObject`s, so a churny remote/target update invalidates only the chip and not
+    `WatchRootView.body` — the isolation the Phase 9 note called for, without moving the chip
+    out of the list. It shows the predicted iPhone state when the target is iPhone ("On
+    iPhone"), the local player otherwise. Accessibility (I-01/I-02): VoiceOver labels on every
+    icon-only control (local + remote transport, Up Next, volume, target row + hint); the
+    "downloaded on watch" state carries a VoiceOver label in the search and phone-collection
+    lists (not colour-alone); queue rows announce "Now playing"/"Paused here".
+  - **11c (`e780131`): Siri / Shortcuts entry for downloaded playback.** Two watchOS App
+    Intents driving the local engine only — `PlayDownloadedPlaylistIntent` (name resolved by
+    the pure host-tested `WatchPlaylistNameMatch`) and `ResumeWatchPlaybackIntent` —
+    registered by `WatchShortcutsProvider`. New: `WatchPlaylistNameMatch.swift`,
+    `WatchApp/AppIntents/WatchPlaybackIntents.swift`, `WatchPlaylistNameMatchTests.swift` (6).
+  - **11d (this commit): docs** — the `ACCEPTANCE_MATRIX.md` run record, this audit entry, and
+    the `current_status.md` Phase 11 block.
+  - Gates across 11a–11c: `rm`-clean `swift test` green via the pre-commit hook (1,756 + 6);
+    watch simulator build green; the one watch smoke green (3× locally for 11b); `make
+    ci-guards` clean; `make project` regenerated for 11c with a clean `.xcodeproj` diff.
+  - I-04 (Reduce Motion) is satisfied by construction: `grep` finds no
+    `withAnimation`/`.animation(`/`.transition(` anywhere in `WatchApp/`, and the only motion
+    is `ProgressView` (a progress indicator, kept).
+  - **Deferred to the owner (paired hardware + sign-off):** I-05..I-13 measured targets
+    (launch/search/transport p95, Instruments main-thread stalls, battery/thermal for the
+    60-minute run, the TestFlight upgrade, the full mockup-screenshot audit); every `Device`
+    row in sections C/G/H; and the final listening + UX pass. These are Phase 11's DoD and
+    are not agent-closable.
   - **10a (2026-08-27, this commit): pre-cutover watch transfer pipeline deleted (§10, §12).**
     The Phase 6 cutover left the old full-catalog / transfer-queue code compiling but
     unreferenced; it is now gone. Deleted sources: `Sources/WatchSync/{WatchCatalog,

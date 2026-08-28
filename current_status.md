@@ -29,8 +29,46 @@ Nothing is pushed — the owner's `git push` is the CI/TestFlight gate.**
 
 **Phase 10 — reliability, observability, and legacy deletion — is COMPLETE**
 ([`IMPLEMENTATION_PLAN.md`](docs/plans/watch-rearchitecture/IMPLEMENTATION_PLAN.md) §12),
-landed as six commits 10a–10f (below). The next work is Phase 11 — award-quality
-polish, the physical-device matrix, and release. Nothing is pushed.
+landed as six commits 10a–10f (below).
+
+**Phase 11 — award-quality polish + release — the agent-closable slice is landed**
+(commits 11a–11d below); everything that remains needs paired hardware and the
+owner. Nothing new is pushed beyond 11a (the owner pushed it on 2026-08-27).
+
+**11a (`f34162a`, pushed)** — the one watch smoke now covers the basic-functions
+journey end to end: open the app, find a track in the Tracks list and start/stop
+it, find an album and start/stop it, run the playlist transport journey, and exit
+while playing. Still exactly one test method. New a11y ids `watch.albums` /
+`watch.songs` / `watch.album.<id>`, added to the §9 contract; a `reveal` helper
+scrolls the `.carousel` to reach below-fold rows.
+
+**11b (`e444fc5`)** — the root Now Playing chip (the Phase 9 deferral) is its own
+`WatchNowPlayingChip` view with its own `@ObservedObject`s, so a churny
+remote/target update invalidates only the chip, not `WatchRootView.body` — that
+was what re-realised the `.carousel` rows and dropped below-fold rows from the
+a11y tree. The chip reflects whichever engine owns transport (predicted iPhone
+state when the target is iPhone, local player otherwise). Plus the accessibility
+pass: VoiceOver labels on every icon-only control (transport, Up Next, volume,
+target row + hint); the "downloaded on watch" state carries a VoiceOver label so
+it is not colour-alone; queue rows announce "Now playing" / "Paused here".
+
+**11c (`e780131`)** — two watchOS App Intents for downloaded playback, local
+engine only: `PlayDownloadedPlaylistIntent` (name → downloaded playlist, via the
+pure host-tested `WatchPlaylistNameMatch`) and `ResumeWatchPlaybackIntent`, both
+registered by `WatchShortcutsProvider`. New host tests (6).
+
+**11d (`this commit`)** — docs: the acceptance-matrix run record and the plan §15
+audit entry for the Phase 11 agent-closable rows, and this status block.
+
+**Phase 11 — what remains, all owner / paired-hardware (the owner will attend to
+these):** the measured p95 targets I-05..I-08 (warm/cold launch, local 5k search,
+connected search, transport ack); I-09/I-11 Instruments + battery/thermal for the
+60-minute playback run; I-12 the TestFlight upgrade from the legacy watch app;
+I-13 the full mockup-screenshot audit; every `Device` row in
+[`ACCEPTANCE_MATRIX.md`](docs/plans/watch-rearchitecture/ACCEPTANCE_MATRIX.md)
+sections C/G/H; and the owner's final listening + UX sign-off. Reduce Motion
+(I-04) is satisfied by construction — the watch UI has no explicit animation, and
+the only motion is `ProgressView`, which is a progress indicator.
 
 **10a (`this commit`)** deleted the pre-cutover watch transfer pipeline: the
 full-catalog `WatchCatalog`, `WatchLibraryFilter`, `WatchTransferController`,
