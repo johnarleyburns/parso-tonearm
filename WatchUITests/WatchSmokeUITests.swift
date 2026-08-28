@@ -3,15 +3,20 @@ import XCTest
 /// The single watchOS simulator smoke test for Platterhead. The simulator has no paired iPhone, so
 /// the app runs in **offline mode**: it must boot, render the seeded downloads, expose search over
 /// them, play a downloaded track from the Tracks list and an album from the Albums list with the
-/// iPhone absent — asserting the elapsed clock advances while playing and is frozen after a stop
-/// (real audio, not a relabelled button) — keep a playlist journey working, and survive being
-/// exited while playing.
+/// iPhone absent — asserting the elapsed clock advances while playing and is frozen after a stop,
+/// and that Now Playing renders the artwork frame — keep a playlist journey working, and survive
+/// being exited while playing.
+///
+/// **Audio *output* is not verifiable here** — the watchOS simulator has no audio hardware, so the
+/// media-clock advance/freeze is the closest proxy. The `watch.now.debugRate` element (AVPlayer's
+/// transport rate) is for the on-device pass.
 ///
 /// **Every fixture here is bundled audio; this test never touches the network.** A gate on our own
 /// code must not be closable by a third party's outage — live remote servers belong to the by-hand
 /// UI regression suite (§53). The connected-mode search / browse / play-on-iPhone journey is host-
 /// covered (`WatchSearchPresenterTests`, `WatchConnectionChromeTests`, `WatchProtocolIntegrationTests`)
 /// because the simulator cannot pair a phone.
+@MainActor
 final class WatchSmokeUITests: XCTestCase {
 
     override func setUp() {
@@ -149,11 +154,20 @@ final class WatchSmokeUITests: XCTestCase {
                           "Playback time did not advance for \(context)")
         }
 
+        // The Now Playing screen renders real content: the artwork frame.
+        XCTAssertTrue(app.images["watch.now.artwork"].waitForExistence(timeout: 5)
+                      || app.otherElements["watch.now.artwork"].exists,
+                      "Now Playing showed no artwork frame for \(context)")
+
         playPause.tap()
         XCTAssertTrue(waitForValue(playPause, equals: "paused", timeout: 5),
                       "Stopping playback from \(context) did not pause the transport")
 
         if requireElapsedFrozenAfterStop {
+            // The media clock is genuinely frozen — playback stopped, not just a relabelled button.
+            // (True audio *output* can only be confirmed on a real device: the watchOS simulator
+            // has no audio hardware. `watch.now.debugRate` surfaces AVPlayer's transport rate for
+            // that on-device pass.)
             let before = elapsedString(app)
             XCTAssertFalse(before.isEmpty, "No elapsed label to check after stopping \(context)")
             Thread.sleep(forTimeInterval: 3.0)

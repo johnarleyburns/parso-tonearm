@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 import AVFoundation
 import MediaPlayer
 import TonearmWatchCore
@@ -15,6 +16,15 @@ final class WatchPlayer: ObservableObject {
     }
     /// Non-nil when the audio route went away; drives the "Choose headphones or a speaker" hint.
     @Published var routeHint: String?
+    /// Non-nil when the audio session could not be activated — the watch has no usable output route.
+    /// Distinct from `routeHint` (a transient policy nudge): this is a hard "no audio is playing"
+    /// state with a "Choose Output" affordance.
+    @Published var audioRouteProblem: String?
+    /// Embedded cover art for the current local track, or `nil` — the view falls back to a glyph.
+    @Published var artwork: UIImage?
+    /// The AVPlayer's actual transport rate. 0 while paused/stalled, ~1 while audio is running.
+    /// Surfaced so a test (and a curious user) can tell real playback from a relabelled button.
+    @Published private(set) var outputRate: Double = 0
     @Published var elapsed: Double = 0
     @Published var duration: Double = 0
     @Published var isShuffled = false
@@ -44,6 +54,24 @@ final class WatchPlayer: ObservableObject {
                 guard let self else { return }
                 self.elapsed = time
                 self.updateNowPlayingTime()
+            }
+        }
+        output.onRateChange = { [weak self] rate in
+            Task { @MainActor in self?.outputRate = rate }
+        }
+        output.onSessionProblem = { [weak self] reason in
+            Task { @MainActor in
+                self?.audioRouteProblem = reason
+                if let reason {
+                    NSLog("WatchPlayer: audio route problem — \(reason)")
+                    await WatchAppAssembly.shared.diagnostics.record(.routeEvent, "sessionUnavailable")
+                }
+            }
+        }
+        output.onArtwork = { [weak self] image in
+            Task { @MainActor in
+                self?.artwork = image
+                if let track = self?.currentTrack { self?.updateNowPlayingInfo(track: track) }
             }
         }
         setupRemoteCommands()
@@ -79,6 +107,15 @@ final class WatchPlayer: ObservableObject {
     func next() { handleCommand(.next) }
     func previous() { handleCommand(.previous) }
     func seek(to seconds: Double) { handleCommand(.seek(to: seconds)) }
+
+    /// "Choose Output" — re-request the audio route, then resume if the engine wants to be playing.
+    /// On watchOS activating a long-form session with no route makes the system present its picker.
+    func retryAudioRoute() {
+        Task { @MainActor in
+            await output.requestRoute()
+            if audioRouteProblem == nil, engine.isPlaying { await output.play() }
+        }
+    }
 
     func jump(to index: Int) {
         guard index >= 0, index < queue.count else { return }
@@ -308,6 +345,9 @@ final class WatchPlayer: ObservableObject {
         ]
         if !track.artist.isEmpty { info[MPMediaItemPropertyArtist] = track.artist }
         if !track.albumTitle.isEmpty { info[MPMediaItemPropertyAlbumTitle] = track.albumTitle }
+        if let artwork {
+            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artwork.size) { _ in artwork }
+        }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
@@ -320,5 +360,6 @@ final class WatchPlayer: ObservableObject {
 
     private func clearNowPlaying() {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        artwork = nil
     }
 }

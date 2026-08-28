@@ -650,7 +650,7 @@ Identifiers are test/API contracts and must not be localized:
 | Root | `watch.root`, `watch.connection.banner`, `watch.nowPlaying`, `watch.search`, `watch.playlists`, `watch.albums`, `watch.songs`, `watch.downloads` |
 | Search | `watch.search.field`, `.scope`, `.loading`, `.retry`, `.downloads`, `watch.search.result.<stableID>` |
 | Collection | `watch.collection.playPhone`, `.playLocal`, `.download`, `.status`, `watch.album.<stableID>`, `watch.track.<stableID>` |
-| Now Playing | `watch.now.target`, `.title`, `.elapsed`, `.previous`, `.playPause`, `.next`, `.upNext`, `.more`, `.continueLocal`, `.chooseRoute` |
+| Now Playing | `watch.now.target`, `.artwork`, `.title`, `.elapsed`, `.remaining`, `.previous`, `.playPause`, `.next`, `.upNext`, `.more`, `.continue`, `.routeHint`, `.chooseRoute` |
 | Downloads | `watch.downloads.activity`, `.storage`, `.removeAll`, `watch.download.<requestID>`, `watch.download.retry.<requestID>` |
 | Recovery | `watch.store.opening`, `.recovery`, `.continue`, `.details` |
 | iPhone management | `settings.watch`, `settings.watch.queue`, `.storage`, `.reconcile`, `.removeAll`, `watchRoot.<rootID>`, `watchJob.<requestID>` |
@@ -1667,11 +1667,29 @@ by compiler or device evidence.
     the pure host-tested `WatchPlaylistNameMatch`) and `ResumeWatchPlaybackIntent` —
     registered by `WatchShortcutsProvider`. New: `WatchPlaylistNameMatch.swift`,
     `WatchApp/AppIntents/WatchPlaybackIntents.swift`, `WatchPlaylistNameMatchTests.swift` (6).
-  - **11d (this commit): docs** — the `ACCEPTANCE_MATRIX.md` run record, this audit entry, and
+  - **11d (`09f9149`): docs** — the `ACCEPTANCE_MATRIX.md` run record, this audit entry, and
     the `current_status.md` Phase 11 block.
-  - Gates across 11a–11c: `rm`-clean `swift test` green via the pre-commit hook (1,756 + 6);
-    watch simulator build green; the one watch smoke green (3× locally for 11b); `make
-    ci-guards` clean; `make project` regenerated for 11c with a clean `.xcodeproj` diff.
+  - **11e (`75dbbef`): the smoke asserts the elapsed clock freezes on stop.** The
+    downloaded-track and album legs read `watch.now.elapsed`, wait 3s, and assert it has not
+    moved — a stop that only relabels the Play button can't pass. Both legs run with the
+    iPhone absent (simulator default); the fixture seeder's ready-asset copy is the simulated
+    download.
+  - **11f (this commit): Now Playing reworked + the watch audio path hardened.** The screen is
+    a vertical `ScrollView` (Apple Music / Spotify class): 104pt rounded artwork, rounded
+    title/artist, a real scrubber with monospaced times, a roomy transport row, a footer —
+    fixes the toolbar/title overlap and the crowded bottom the owner reported. Artwork comes
+    from the downloaded file's embedded cover metadata (`AVAsset.load(.commonMetadata)`) — no
+    protocol change — and is also handed to `MPNowPlayingInfoCenter`; gradient+glyph
+    placeholder otherwise. `AVPlayerOutput` stops swallowing `AVAudioSession.activate()`
+    failures: it reports a reason, records a `.routeEvent` diagnostic, and the W8 body shows a
+    "Choose an Audio Output" card (`watch.now.chooseRoute`) that re-requests the route. A KVO
+    observer on `AVPlayer.rate` publishes `outputRate` → `watch.now.debugRate` under
+    UI_TESTING for the on-device audio pass. New a11y id `watch.now.artwork`; §9 contract
+    updated. **Not closable here:** true audio *output* — the watchOS simulator has no audio
+    hardware — stays an owner/device check.
+  - Gates across 11a–11f: `rm`-clean `swift test` green via the pre-commit hook (1,756 + 6);
+    watch simulator build green; the one watch smoke green (3× locally for 11b and 11f);
+    `make ci-guards` clean; `make project` regenerated for 11c with a clean `.xcodeproj` diff.
   - I-04 (Reduce Motion) is satisfied by construction: `grep` finds no
     `withAnimation`/`.animation(`/`.transition(` anywhere in `WatchApp/`, and the only motion
     is `ProgressView` (a progress indicator, kept).

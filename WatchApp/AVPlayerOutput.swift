@@ -1,4 +1,5 @@
 import AVFoundation
+import UIKit
 import TonearmWatchCore
 
 @MainActor
@@ -7,26 +8,39 @@ final class AVPlayerOutput: WatchAudioOutput {
     private var timeObserver: Any?
     private var itemEndObserver: NSObjectProtocol?
     private var itemFailedObserver: NSObjectProtocol?
+    private var rateObserver: NSKeyValueObservation?
     private var currentURL: URL?
     private var currentVolume: Float = 0.5
+    private var artworkToken = 0
 
     var onItemEnded: (() -> Void)?
     var onItemFailed: (() -> Void)?
     var onTimeUpdate: ((Double) -> Void)?
+    /// Fires with the AVPlayer's transport rate whenever it changes — a direct read of whether audio
+    /// is actually running, distinct from the pure engine's `isPlaying`.
+    var onRateChange: ((Double) -> Void)?
+    /// Fires with a short, user-facing reason when the audio session cannot be activated (on the
+    /// watch this is almost always "no audio route selected").
+    var onSessionProblem: ((String?) -> Void)?
+    /// Embedded cover art for the current item, or `nil` when the file carries none.
+    var onArtwork: ((UIImage?) -> Void)?
 
     private(set) var currentDuration: Double = 0
 
+    init() {
+        rateObserver = player.observe(\.rate, options: [.new]) { [weak self] player, _ in
+            let rate = Double(player.rate)
+            Task { @MainActor in self?.onRateChange?(rate) }
+        }
+    }
+
     func load(url: URL) async {
-        removeObservers()
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .default, policy: .longFormAudio)
-        #if os(watchOS)
-        _ = try? await session.activate()
-        #else
-        try? session.setActive(true)
-        #endif
+        removeItemObservers()
+        await activateSession()
 
         currentURL = url
+        artworkToken &+= 1
+        let token = artworkToken
         let item = AVPlayerItem(url: url)
         player.replaceCurrentItem(with: item)
         player.volume = currentVolume
@@ -55,18 +69,12 @@ final class AVPlayerOutput: WatchAudioOutput {
         } else {
             currentDuration = 0
         }
+
+        await loadArtwork(from: item.asset, token: token)
     }
 
     func play() async {
-        let session = AVAudioSession.sharedInstance()
-        if session.category != .playback {
-            try? session.setCategory(.playback, mode: .default, policy: .longFormAudio)
-        }
-        #if os(watchOS)
-        _ = try? await session.activate()
-        #else
-        try? session.setActive(true)
-        #endif
+        await activateSession()
         player.play()
     }
 
@@ -88,20 +96,69 @@ final class AVPlayerOutput: WatchAudioOutput {
     /// Rebuild the audio session and reload the current item, keeping the player paused. Callers
     /// resume explicitly if the policy says to.
     func rebuildSession() async {
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .default, policy: .longFormAudio)
-        #if os(watchOS)
-        _ = try? await session.activate()
-        #else
-        try? session.setActive(true)
-        #endif
+        await activateSession()
         guard let url = currentURL else { return }
         let resumeAt = player.currentTime()
         await load(url: url)
         await player.seek(to: resumeAt)
     }
 
+    /// Explicitly re-request the audio route — wired to the "Choose Output" affordance. On watchOS
+    /// activating a long-form session with no route makes the system present its output picker.
+    func requestRoute() async {
+        await activateSession()
+    }
+
     func removeObservers() {
+        removeItemObservers()
+        rateObserver?.invalidate()
+        rateObserver = nil
+    }
+
+    // MARK: - Private
+
+    private func activateSession() async {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .default, policy: .longFormAudio)
+            #if os(watchOS)
+            try await session.activate()
+            #else
+            try session.setActive(true)
+            #endif
+            onSessionProblem?(nil)
+        } catch {
+            NSLog("WatchAudio: audio session activation failed: \(error.localizedDescription)")
+            onSessionProblem?(sessionProblemReason(error))
+        }
+    }
+
+    private func sessionProblemReason(_ error: Error) -> String {
+        #if os(watchOS)
+        let code = (error as NSError).code
+        // AVAudioSession.ErrorCode.cannotStartPlaying / .cannotInterruptOthers surface here when
+        // there is no eligible Bluetooth route.
+        if code == AVAudioSession.ErrorCode.cannotStartPlaying.rawValue
+            || code == AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue {
+            return "Connect Bluetooth headphones or a speaker to play audio."
+        }
+        #endif
+        return "Can't start audio — check your audio output."
+    }
+
+    private func loadArtwork(from asset: AVAsset, token: Int) async {
+        let metadata = (try? await asset.load(.commonMetadata)) ?? []
+        guard token == artworkToken else { return }
+        for item in metadata where item.commonKey == .commonKeyArtwork {
+            if let data = try? await item.load(.dataValue), let image = UIImage(data: data) {
+                if token == artworkToken { onArtwork?(image) }
+                return
+            }
+        }
+        if token == artworkToken { onArtwork?(nil) }
+    }
+
+    private func removeItemObservers() {
         if let obs = timeObserver {
             player.removeTimeObserver(obs)
             timeObserver = nil

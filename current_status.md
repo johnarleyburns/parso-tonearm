@@ -57,8 +57,31 @@ engine only: `PlayDownloadedPlaylistIntent` (name → downloaded playlist, via t
 pure host-tested `WatchPlaylistNameMatch`) and `ResumeWatchPlaybackIntent`, both
 registered by `WatchShortcutsProvider`. New host tests (6).
 
-**11d (`this commit`)** — docs: the acceptance-matrix run record and the plan §15
+**11d (`09f9149`)** — docs: the acceptance-matrix run record and the plan §15
 audit entry for the Phase 11 agent-closable rows, and this status block.
+
+**11e (`75dbbef`)** — the smoke's downloaded-track and album legs now assert the
+elapsed clock is *frozen* after a stop (read, wait 3s, assert unchanged) — a stop
+that only relabels the Play button can't pass.
+
+**11f (`this commit`)** — Now Playing reworked + the watch audio path hardened.
+The screen is now a vertical `ScrollView` (Apple Music / Spotify class): 104pt
+rounded artwork, rounded title + artist, a real scrubber with monospaced times, a
+roomy transport row, and a footer — nothing clipped under the toolbar, nothing
+crowded. Artwork is extracted from the downloaded file's embedded cover metadata
+(`AVAsset` common metadata) — no protocol change, no new download — and also fed
+to `MPNowPlayingInfoCenter`; a gradient + glyph placeholder when the file has
+none. **Audio hardening:** `AVPlayerOutput` no longer swallows
+`AVAudioSession.activate()` failures — it surfaces a reason (on the watch,
+"Connect Bluetooth headphones or a speaker"), records a `.routeEvent`
+diagnostic, and the W8 body shows a "Choose an Audio Output" card with a
+**Choose Output** button (`watch.now.chooseRoute`) that re-requests the route
+(watchOS presents its picker). A KVO observer on `AVPlayer.rate` publishes
+`outputRate`, surfaced as `watch.now.debugRate` under UI_TESTING for the
+on-device audio pass. New a11y id `watch.now.artwork`, contract updated.
+**Note:** true audio *output* still can't be verified in the simulator (no audio
+hardware) — that stays an owner/device check; the smoke proves the media clock
+advances and freezes and that Now Playing renders.
 
 **Phase 11 — what remains, all owner / paired-hardware (the owner will attend to
 these):** the measured p95 targets I-05..I-08 (warm/cold launch, local 5k search,
