@@ -1679,5 +1679,18 @@ by compiler or device evidence.
     `WatchProtocolVersion.current`, and the numeric measurements. `Tests/WatchDiagnosticsTests.swift`
     (6): ring eviction, clock stamping, hash stability/salt sensitivity, and a raw correlation
     id never appears in the encoded JSON. No call sites wired yet — that is 10c. Gate: `rm -rf
-    .build && swift build --target TonearmWatchCore` clean; the new suite green. Remaining in
-    Phase 10: wire diagnostics call sites + Settings export (10c); fault-injection / soak harnesses.
+    .build && swift build --target TonearmWatchCore` clean; the new suite green.
+  - **10c (2026-08-27, this commit): first diagnostics call sites + the in-app export UI (§12).**
+    `WatchAppAssembly` owns the shared `WatchDiagnosticsRecorder` (`diagnostics`) and
+    `diagnosticsExport()` (stamps `CFBundleShortVersionString`, fresh salt). Wired:
+    `start()` → `.activation "started"` + `.storeRecovery <launchState.rawValue>`;
+    `WatchPlaybackCoordinator.setTarget` → `.playbackTarget <rawValue>` on every explicit switch;
+    `WatchRemotePlaybackObserver` (converted `final class` → `actor` to hold a `disconnectedAt`
+    stamp) → `.routeEvent "disconnected"` and `.disconnectDuration "reconnected"` with the
+    measured `durationMillis`. New `WatchDiagnosticsView` (Storage › Diagnostics,
+    `watch.storage.diagnostics`) renders the encoded JSON in a monospaced `ScrollView` +
+    Refresh (`watch.diagnostics.json` / `watch.diagnostics.refresh`). Gate: `make project` +
+    `xcodebuild build -scheme TonearmWatch` (watchOS sim) green; `make ci-guards` clean; full
+    `swift test` + smokes by the hook. Remaining in Phase 10: request-latency / install-result /
+    manifest-convergence call sites (deeper in the connectivity/sync/installer actors);
+    fault-injection / soak harnesses.

@@ -70,6 +70,7 @@
 		7A3B9D3BDEBED8D945FA809F /* ATTRIBUTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */; };
 		7EC0CA2A51F83AC350BF5AEE /* TonearmWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		817CD786F8CC3FC747B95A61 /* WatchAlbumsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 783A00C9B2142335E1E6936B /* WatchAlbumsView.swift */; };
+		83C6C3AFB6460B1E19995D71 /* WatchDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 645D617838A06D3AE39AD11B /* WatchDiagnosticsView.swift */; };
 		8553DC45ADAE9EC2DCB3101A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B48E8BCEBBB60820A867070 /* LibraryView.swift */; };
 		8AE40034D4CB1F72F61EC466 /* CacheGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071CC5C8B79CC1A10F456254 /* CacheGlyph.swift */; };
 		8CAE2413950A993A4E9E9B11 /* AddRemoteTracksSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A2D9AEA288319B031257A7 /* AddRemoteTracksSheet.swift */; };
@@ -246,6 +247,7 @@
 		59CB1F5051BC2E45CAFEFCB5 /* TonearmUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TonearmUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5D0D0E117897F3AD1FBCF091 /* WatchRemotePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRemotePlayer.swift; sourceTree = "<group>"; };
 		5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TonearmShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		645D617838A06D3AE39AD11B /* WatchDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchDiagnosticsView.swift; sourceTree = "<group>"; };
 		6880A895082E93827E5ED5BA /* AnalysisModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisModel.swift; sourceTree = "<group>"; };
 		68C41942DAE2689F40567DDD /* ambient-flowing-water.mp4 */ = {isa = PBXFileReference; path = "ambient-flowing-water.mp4"; sourceTree = "<group>"; };
 		6A0894E26B1776B29602DF7C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -498,6 +500,7 @@
 				F264152278DB935FBFB188F5 /* WatchComponents.swift */,
 				4DEABC4B2EE4B6BECF37202B /* WatchConnectedViews.swift */,
 				4FA71918C2C0556DD804C456 /* WatchConnectionBanner.swift */,
+				645D617838A06D3AE39AD11B /* WatchDiagnosticsView.swift */,
 				73C123D981D52AC1C9DE3751 /* WatchNowPlayingView.swift */,
 				0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */,
 				D0974BD26C3A62104181966A /* WatchRootView.swift */,
@@ -1103,6 +1106,7 @@
 				549A1230D744E47360C31C8A /* WatchConnectionBanner.swift in Sources */,
 				A44043A17124189F1AB84D88 /* WatchConnectivityObservers.swift in Sources */,
 				4FAC5A9709F7937D3BFBA535 /* WatchDefaultsSyncStateStore.swift in Sources */,
+				83C6C3AFB6460B1E19995D71 /* WatchDiagnosticsView.swift in Sources */,
 				A874CDAAE6139A6C31115E30 /* WatchFixtureSeeder.swift in Sources */,
 				C85F03E2D591668E95D27F9B /* WatchLibraryModel.swift in Sources */,
 				781C7C906ED63132DF7CCDB2 /* WatchNowPlayingView.swift in Sources */,

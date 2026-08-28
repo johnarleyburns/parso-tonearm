@@ -28,6 +28,8 @@ final class WatchPlaybackCoordinator: ObservableObject {
         self.target = target
         WatchPlaybackTargetStore.save(target, defaults: defaults)
         continuePrompt = nil
+        let code = target.rawValue
+        Task { await WatchAppAssembly.shared.diagnostics.record(.playbackTarget, code) }
         if target == .iPhone {
             // Coming back to the phone: drop any stale local prediction so the W7 view shows a
             // fresh "updating…" rather than a frozen old clock until the next snapshot lands.

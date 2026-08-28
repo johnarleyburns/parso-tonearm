@@ -34,6 +34,15 @@ struct WatchStorageView: View {
                 .accessibilityValue(model.phoneReachable ? "connected" : "unreachable")
             }
 
+            Section {
+                NavigationLink {
+                    WatchDiagnosticsView()
+                } label: {
+                    Label("Diagnostics", systemImage: "waveform.path.ecg")
+                }
+                .accessibilityIdentifier("watch.storage.diagnostics")
+            }
+
             if let notice = model.recoveryNotice {
                 Section {
                     Text(notice)

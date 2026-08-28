@@ -20,6 +20,10 @@ final class WatchAppAssembly {
     /// The store's launch state — drives the W12 recovery screen.
     let launchState: WatchStoreLaunchState
 
+    /// §12 — the privacy-safe diagnostics sink. Call sites record coarse state codes and numeric
+    /// measurements; `WatchDiagnosticsView` renders the per-export-hashed JSON.
+    let diagnostics = WatchDiagnosticsRecorder()
+
     private let coordinator: WatchConnectivityCoordinator?
     private let installer: WatchFileInstaller?
     private let syncActor: WatchSyncActor?
@@ -195,11 +199,23 @@ final class WatchAppAssembly {
     /// migration of audio left behind by the pre-cutover watch build.
     func start() {
         adapter?.activate()
+        let launch = launchState
+        Task {
+            await diagnostics.record(.activation, "started")
+            await diagnostics.record(.storeRecovery, launch.rawValue)
+        }
         guard let repository, let audioDirectory else { return }
         Task {
             await Self.migrateLegacyAudioIfNeeded(into: audioDirectory, repository: repository)
             await model.refresh()
         }
+    }
+
+    /// The current diagnostics export, ready to render. A fresh salt is drawn on every call, so the
+    /// hashed correlation ids are not linkable between two exports (§12).
+    func diagnosticsExport() async -> WatchDiagnosticsExport {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        return await diagnostics.export(appVersion: version)
     }
 
     /// The pre-cutover watch stored audio in `Application Support/WatchAudio`. Move any survivors

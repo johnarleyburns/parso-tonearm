@@ -61,8 +61,24 @@ eviction, clock stamping, hash stability vs salt sensitivity, and asserts a raw
 correlation id never appears in the encoded JSON. No call sites are wired yet —
 that is 10c.
 
-**Still in Phase 10:** wire the diagnostics call sites and the Settings export
-affordance (10c); the superseded GRDB catalog import beyond what 10a took,
+**10c (`this commit`)** wired the first diagnostics call sites and the in-app
+export UI. `WatchAppAssembly` owns the shared `WatchDiagnosticsRecorder`
+(`diagnostics`) and a `diagnosticsExport()` that stamps the app's
+`CFBundleShortVersionString` and draws a fresh salt. Call sites: `start()` records
+`.activation "started"` and `.storeRecovery <launchState.rawValue>`;
+`WatchPlaybackCoordinator.setTarget` records `.playbackTarget <target.rawValue>`
+on every explicit switch; `WatchRemotePlaybackObserver` (now an `actor`, since it
+holds a `disconnectedAt` timestamp) records `.routeEvent "disconnected"` on a
+confirmed drop and `.disconnectDuration "reconnected"` with the measured
+down-time in `durationMillis` on reconnect. New `WatchDiagnosticsView` (Storage ›
+Diagnostics, `watch.storage.diagnostics`) renders the encoded export JSON in a
+monospaced `ScrollView` with a Refresh button (`watch.diagnostics.json` /
+`watch.diagnostics.refresh`). Watch simulator build green; `make ci-guards`
+clean. Still unwired: request latency, install result, manifest convergence —
+they live deeper in the connectivity/sync/installer actors.
+
+**Still in Phase 10:** the remaining diagnostics call sites (request latency,
+install result, manifest convergence); the superseded GRDB catalog import beyond what 10a took,
 the compatibility flag and any remaining dead tests; add privacy-safe structured diagnostics (activation, request latency,
 transfer state, install result, manifest convergence, playback target, route
 events, store recovery, disconnect duration) and an in-app diagnostics export
