@@ -10,7 +10,8 @@ import TonearmWatchCore
 
 struct PlayDownloadedPlaylistIntent: AppIntent {
     static let title: LocalizedStringResource = "Play Downloaded Playlist"
-    static let description = IntentDescription("Plays a playlist downloaded to this Apple Watch.")
+    // Note: App Intent descriptions must not contain the word "apple" (App Store validation 90626).
+    static let description = IntentDescription("Plays a playlist you've downloaded for offline listening.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Playlist")
@@ -38,8 +39,8 @@ struct PlayDownloadedPlaylistIntent: AppIntent {
 }
 
 struct ResumeWatchPlaybackIntent: AppIntent {
-    static let title: LocalizedStringResource = "Resume Platterhead on Watch"
-    static let description = IntentDescription("Resumes the last downloaded track on this Apple Watch.")
+    static let title: LocalizedStringResource = "Resume Platterhead"
+    static let description = IntentDescription("Resumes your last downloaded track.")
     static let openAppWhenRun = true
 
     @MainActor
