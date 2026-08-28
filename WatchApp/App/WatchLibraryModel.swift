@@ -23,6 +23,9 @@ final class WatchLibraryModel: ObservableObject {
     @Published private(set) var recoveryNotice: String?
     /// Live iPhone reachability, pushed by the connectivity coordinator's observer.
     @Published private(set) var phoneReachable = false
+    /// Sender-side byte progress for tracks the phone is transferring right now, keyed by raw track
+    /// ID. Drives the Now Playing download ring; empty when nothing is in flight.
+    @Published private(set) var transferFractions: [String: Double] = [:]
 
     private let repository: WatchLibraryRepository?
 
@@ -74,4 +77,9 @@ final class WatchLibraryModel: ObservableObject {
     }
 
     func setPhoneReachable(_ reachable: Bool) { phoneReachable = reachable }
+
+    func setTransferFractions(_ fractions: [String: Double]) { transferFractions = fractions }
+
+    /// Byte progress for one track, or `nil` when the phone isn't transferring it.
+    func transferFraction(forTrackID id: String) -> Double? { transferFractions[id] }
 }

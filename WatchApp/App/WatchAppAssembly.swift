@@ -184,7 +184,8 @@ final class WatchAppAssembly {
         let chromeObs = WatchChromeObserver(chrome: chrome, model: mdl, search: searchPresenter)
         let remotePlayback = WatchRemotePlaybackObserver()
         let diagObs = WatchDiagnosticsObserver(diagnostics: diag)
-        let fan = WatchFanoutObserver([sync, reach, chromeObs, remotePlayback, diagObs])
+        let downloadStatusObs = WatchDownloadStatusObserver(model: mdl)
+        let fan = WatchFanoutObserver([sync, reach, chromeObs, remotePlayback, diagObs, downloadStatusObs])
         let adpt = WatchProtocolSessionAdapter(endpoint: coord)
 
         self.repository = repo

@@ -83,6 +83,17 @@ on-device audio pass. New a11y id `watch.now.artwork`, contract updated.
 hardware) — that stays an owner/device check; the smoke proves the media clock
 advances and freezes and that Now Playing renders.
 
+**Post-11 follow-ups (owner-requested, pushed as their own commits):** iPhone
+download/connection toasts; a watch→phone `requestDownload` message so the watch
+Now Playing screen can ask for a track (iPhone stays the authority); and
+**sender-side byte-progress rings** — the phone reads its own
+`WCSession.outstandingFileTransfers` fractions, shows a closing ring on the
+iPhone Now Playing watch button, and forwards them in
+`WatchDownloadStatusSnapshot.activeTransfers` (optional on the wire) so the watch
+Now Playing download row closes a real ring too (E-14; E-13 preserved — the watch
+renders the number, never invents it). App Intent descriptions reworded — App
+Store 90626 forbids the word "apple" in an intent description.
+
 **Phase 11 — what remains, all owner / paired-hardware (the owner will attend to
 these):** the measured p95 targets I-05..I-08 (warm/cold launch, local 5k search,
 connected search, transport ack); I-09/I-11 Instruments + battery/thermal for the

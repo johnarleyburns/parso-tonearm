@@ -23,6 +23,12 @@ final class WatchGlyphStateTests: XCTestCase {
         XCTAssertEqual(state, .transferring(progress: nil))
     }
 
+    func testSendingCarriesByteProgressWhenKnown() {
+        let state = WatchGlyph.state(trackKey: "t1", manifest: [], transferState: .sending,
+                                     errorText: nil, sendingProgress: 0.6)
+        XCTAssertEqual(state, .transferring(progress: 0.6))
+    }
+
     func testOnWatchWhenSent() {
         let state = WatchGlyph.state(trackKey: "t1", manifest: [], transferState: .sent, errorText: nil)
         XCTAssertEqual(state, .onWatch)

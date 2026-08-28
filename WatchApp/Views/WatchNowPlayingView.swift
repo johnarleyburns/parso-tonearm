@@ -261,13 +261,10 @@ struct WatchNowPlayingView: View {
                 .labelStyle(.titleAndIcon)
                 .accessibilityIdentifier("watch.now.download")
                 .accessibilityValue("downloaded")
+        } else if let fraction = model.transferFraction(forTrackID: item.trackID.rawValue) {
+            downloadingRing(fraction: fraction)
         } else if pendingDownloadTrackID == item.trackID.rawValue {
-            HStack(spacing: 6) {
-                ProgressView().scaleEffect(0.7)
-                Text("Downloading…").font(.system(.caption2)).foregroundStyle(.secondary)
-            }
-            .accessibilityIdentifier("watch.now.download")
-            .accessibilityValue("downloading")
+            downloadingRing(fraction: nil)
         } else {
             Button {
                 requestDownload(of: item.trackID)
@@ -278,6 +275,28 @@ struct WatchNowPlayingView: View {
             .accessibilityIdentifier("watch.now.download")
             .accessibilityValue("not downloaded")
         }
+    }
+
+    /// The closing byte-ring (or an indeterminate spinner before the first byte).
+    private func downloadingRing(fraction: Double?) -> some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Circle().stroke(.secondary.opacity(0.25), lineWidth: 3)
+                if let fraction {
+                    Circle().trim(from: 0, to: max(0.02, min(1, fraction)))
+                        .stroke(.tint, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeInOut(duration: 0.35), value: fraction)
+                } else {
+                    ProgressView().scaleEffect(0.55)
+                }
+            }
+            .frame(width: 20, height: 20)
+            Text(fraction.map { "Downloading \(Int($0 * 100))%" } ?? "Downloading…")
+                .font(.system(.caption2)).foregroundStyle(.secondary)
+        }
+        .accessibilityIdentifier("watch.now.download")
+        .accessibilityValue(fraction.map { "downloading \(Int($0 * 100)) percent" } ?? "downloading")
     }
 
     private func requestDownload(of trackID: WatchTrackID) {

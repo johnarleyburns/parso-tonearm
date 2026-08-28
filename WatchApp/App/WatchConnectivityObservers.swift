@@ -78,6 +78,22 @@ final class WatchReachabilityObserver: WatchConnectivityObserver {
     }
 }
 
+/// Projects the phone's per-track transfer progress onto the model so the Now Playing download ring
+/// can close. State-only when the phone sends no fractions (an older phone) — E-13.
+final class WatchDownloadStatusObserver: WatchConnectivityObserver {
+    private let model: WatchLibraryModel
+
+    init(model: WatchLibraryModel) {
+        self.model = model
+    }
+
+    func didReceiveDownloadStatus(_ snapshot: WatchDownloadStatusSnapshot) async {
+        let fractions = Dictionary(uniqueKeysWithValues:
+            snapshot.activeTransfers.map { ($0.trackID.rawValue, $0.fractionComplete) })
+        await MainActor.run { model.setTransferFractions(fractions) }
+    }
+}
+
 /// Drives the Phase 7 connection chrome (banner, disconnect haptic, A-08 prompt) and flips the
 /// search presenter between connected and offline modes.
 final class WatchChromeObserver: WatchConnectivityObserver {

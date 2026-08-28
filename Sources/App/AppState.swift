@@ -1001,7 +1001,14 @@ final class AppState: ObservableObject {
     func watchGlyphState(for row: TrackRow) -> WatchGlyphState {
         let id = PhoneWatchID.track(row.track).rawValue
         return WatchGlyph.state(trackKey: id, manifest: watchInstalledTrackIDs,
-                                transferState: watchTransferState(forID: id), errorText: nil)
+                                transferState: watchTransferState(forID: id), errorText: nil,
+                                sendingProgress: liveWatchTransferFraction(forID: id))
+    }
+
+    /// Sender-side byte progress for a track WatchConnectivity is transferring to the watch right
+    /// now, read straight off the session so the Now Playing ring closes as it goes.
+    func liveWatchTransferFraction(forID id: String) -> Double? {
+        PhoneWatchProtocolAdapter.activeAudioTransferFractions()[id]
     }
 
     func watchAggregateState(for rows: [TrackRow]) -> (WatchGlyphState, Double) {

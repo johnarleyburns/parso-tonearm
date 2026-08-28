@@ -96,6 +96,19 @@ public struct WatchPhonePlaybackSnapshot: Codable, Equatable, Sendable {
 
 /// §5.3 `downloadStatusSnapshot`. Counts and states only — E-13 forbids fabricating incoming byte
 /// progress on the watch, so no byte counter appears here.
+/// Per-track transfer progress the phone can observe from its own `WCSession.outstandingFileTransfers`
+/// and forward. E-13: the watch renders it but never invents it — an empty list means "no number to
+/// show", and the UI falls back to a state indicator.
+public struct WatchTransferProgress: Codable, Equatable, Sendable {
+    public var trackID: WatchTrackID
+    public var fractionComplete: Double
+
+    public init(trackID: WatchTrackID, fractionComplete: Double) {
+        self.trackID = trackID
+        self.fractionComplete = min(1, max(0, fractionComplete))
+    }
+}
+
 public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
     public var revision: Int64
     public var queuedCount: Int
@@ -103,18 +116,42 @@ public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
     public var waitingForWiFiCount: Int
     public var failedCount: Int
     public var readyCount: Int
+    /// Sender-side byte progress for the transfers in flight right now. Optional on the wire —
+    /// an older phone omits it and the watch shows a state indicator instead.
+    public var activeTransfers: [WatchTransferProgress]
 
     public init(revision: Int64, queuedCount: Int = 0, activeCount: Int = 0,
-                waitingForWiFiCount: Int = 0, failedCount: Int = 0, readyCount: Int = 0) {
+                waitingForWiFiCount: Int = 0, failedCount: Int = 0, readyCount: Int = 0,
+                activeTransfers: [WatchTransferProgress] = []) {
         self.revision = revision
         self.queuedCount = queuedCount
         self.activeCount = activeCount
         self.waitingForWiFiCount = waitingForWiFiCount
         self.failedCount = failedCount
         self.readyCount = readyCount
+        self.activeTransfers = activeTransfers
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case revision, queuedCount, activeCount, waitingForWiFiCount, failedCount, readyCount, activeTransfers
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        revision = try c.decode(Int64.self, forKey: .revision)
+        queuedCount = try c.decodeIfPresent(Int.self, forKey: .queuedCount) ?? 0
+        activeCount = try c.decodeIfPresent(Int.self, forKey: .activeCount) ?? 0
+        waitingForWiFiCount = try c.decodeIfPresent(Int.self, forKey: .waitingForWiFiCount) ?? 0
+        failedCount = try c.decodeIfPresent(Int.self, forKey: .failedCount) ?? 0
+        readyCount = try c.decodeIfPresent(Int.self, forKey: .readyCount) ?? 0
+        activeTransfers = try c.decodeIfPresent([WatchTransferProgress].self, forKey: .activeTransfers) ?? []
     }
 
     public var isIdle: Bool { queuedCount == 0 && activeCount == 0 && waitingForWiFiCount == 0 }
+
+    public func fraction(for trackID: WatchTrackID) -> Double? {
+        activeTransfers.first { $0.trackID == trackID }?.fractionComplete
+    }
 }
 
 /// §5.3 `watchManifest` — the watch's *actual* state, which §1.6 makes the second authority: the

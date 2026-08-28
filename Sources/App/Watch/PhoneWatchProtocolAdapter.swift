@@ -30,6 +30,20 @@ public final class PhoneWatchProtocolAdapter: NSObject, WCSessionDelegate, Senda
         public var isReachable: Bool
     }
 
+    /// Sender-side byte progress for every audio file WatchConnectivity is currently transferring to
+    /// the watch, keyed by the raw track ID carried in each transfer's metadata. Read straight off
+    /// `WCSession.outstandingFileTransfers` — the only place this number exists.
+    public static func activeAudioTransferFractions() -> [String: Double] {
+        guard WCSession.isSupported() else { return [:] }
+        var out: [String: Double] = [:]
+        for transfer in WCSession.default.outstandingFileTransfers {
+            let raw = (transfer.file.metadata ?? [:]).compactMapValues { $0 as? String }
+            guard let metadata = WatchAudioFileMetadata(dictionary: raw) else { continue }
+            out[metadata.trackID.rawValue] = transfer.progress.fractionCompleted
+        }
+        return out
+    }
+
     public static func currentCapability() -> Capability {
         guard WCSession.isSupported() else {
             return Capability(isSupported: false, isPaired: false, isWatchAppInstalled: false, isReachable: false)

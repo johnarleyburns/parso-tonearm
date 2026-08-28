@@ -26,7 +26,8 @@ public enum WatchGlyph {
         trackKey: String,
         manifest: Set<String>,
         transferState: WatchTransferState?,
-        errorText: String?
+        errorText: String?,
+        sendingProgress: Double? = nil
     ) -> WatchGlyphState {
         // Transferring takes priority
         if let ts = transferState {
@@ -34,7 +35,7 @@ public enum WatchGlyph {
             case .queued:
                 return .transferring(progress: nil)
             case .sending:
-                return .transferring(progress: nil)
+                return .transferring(progress: sendingProgress)
             case .sent:
                 return .onWatch
             case .failed:

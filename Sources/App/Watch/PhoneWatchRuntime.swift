@@ -127,6 +127,19 @@ final class PhoneWatchRuntime {
         await tickDownloads()
         await refresh()
         await publishPlaybackIfChanged()
+        await publishDownloadStatusIfActive()
+    }
+
+    /// Push a download-status context (with per-track byte progress) while a transfer is in flight,
+    /// so the watch's Now Playing download ring can close. Silent when idle — I-10 forbids churn.
+    private func publishDownloadStatusIfActive() async {
+        guard var snapshot = try? await downloadManager.statusSnapshot() else { return }
+        let fractions = PhoneWatchProtocolAdapter.activeAudioTransferFractions()
+        snapshot.activeTransfers = fractions.map {
+            WatchTransferProgress(trackID: WatchTrackID($0.key), fractionComplete: $0.value)
+        }
+        guard !snapshot.isIdle || !snapshot.activeTransfers.isEmpty else { return }
+        await coordinator.publishContext(downloads: snapshot)
     }
 
     // MARK: - Autonomous now-playing push (§7.1)

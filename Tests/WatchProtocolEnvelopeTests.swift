@@ -49,8 +49,9 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         try check(.playCommand, WatchPlayCommand.playCollection(.album("al1"), startIndex: 3))
         try check(.commandReply, WatchCommandReply.accepted(playback))
         try check(.phonePlaybackSnapshot, playback)
-        try check(.downloadStatusSnapshot, WatchDownloadStatusSnapshot(revision: 5, queuedCount: 2,
-                                                                       activeCount: 1, failedCount: 1))
+        try check(.downloadStatusSnapshot, WatchDownloadStatusSnapshot(
+            revision: 5, queuedCount: 2, activeCount: 1, failedCount: 1,
+            activeTransfers: [WatchTransferProgress(trackID: "t1", fractionComplete: 0.42)]))
         try check(.setDownloadRoots, WatchSetDownloadRoots(revision: 6, roots: [
             WatchDownloadRootDescriptor(rootID: "r1", kind: .playlist, sourceID: "p1", title: "Set",
                                         trackIDs: ["t1", "t2"])
@@ -194,6 +195,14 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
         let dictionary = try XCTUnwrap(plist as? [String: Any])
         XCTAssertEqual(Set(dictionary.keys), ["code"])
+    }
+
+    func testDownloadStatusSnapshotToleratesAnOlderPhoneOmittingActiveTransfers() throws {
+        let legacyJSON = Data(#"{"revision":3,"queuedCount":1,"activeCount":1}"#.utf8)
+        let decoded = try JSONDecoder().decode(WatchDownloadStatusSnapshot.self, from: legacyJSON)
+        XCTAssertEqual(decoded.activeCount, 1)
+        XCTAssertTrue(decoded.activeTransfers.isEmpty)
+        XCTAssertNil(decoded.fraction(for: "t1"))
     }
 
     func testMessageKindsAreRoutedToTheChannelSection5_2Assigns() {

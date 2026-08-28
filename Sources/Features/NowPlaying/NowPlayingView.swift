@@ -402,14 +402,29 @@ struct NowPlayingView: View {
                 break
             }
         } label: {
-            WatchGlyphView(state: state)
-                .frame(width: 45, height: 45)
-                .background(.ultraThinMaterial, in: Circle())
-                .contentShape(Circle())
+            watchGlyph(for: row, fallback: state)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("np.watchDownload")
         .disabled(row == nil)
+    }
+
+    /// While a transfer to the watch is in flight, re-sample the sender-side byte fraction a couple
+    /// of times a second so `WatchGlyphView`'s ring closes.
+    @ViewBuilder
+    private func watchGlyph(for row: TrackRow?, fallback: WatchGlyphState) -> some View {
+        Group {
+            if case .transferring = fallback, let row {
+                TimelineView(.periodic(from: .now, by: 0.6)) { _ in
+                    WatchGlyphView(state: appState.watchGlyphState(for: row))
+                }
+            } else {
+                WatchGlyphView(state: fallback)
+            }
+        }
+        .frame(width: 45, height: 45)
+        .background(.ultraThinMaterial, in: Circle())
+        .contentShape(Circle())
     }
 
     private func cacheGlyphState(from state: PhoneDownloadState) -> CacheGlyphState {
