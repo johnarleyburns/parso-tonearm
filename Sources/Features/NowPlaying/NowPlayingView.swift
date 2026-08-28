@@ -353,14 +353,30 @@ struct NowPlayingView: View {
                 break
             }
         } label: {
-            CacheGlyph(state: cacheGlyphState(from: state))
-                .frame(width: 45, height: 45)
-                .background(.ultraThinMaterial, in: Circle())
-                .contentShape(Circle())
+            downloadGlyph(for: row, fallback: state)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("np.download")
         .disabled(row == nil)
+    }
+
+    /// The cache ring. While a download is in flight, re-sample the fraction a couple of times a
+    /// second (via `TimelineView`) so the ring visibly closes — nothing bumps a `@Published` while
+    /// `cachedBytes` grows.
+    @ViewBuilder
+    private func downloadGlyph(for row: TrackRow?, fallback: PhoneDownloadState) -> some View {
+        Group {
+            if case .downloading = fallback, let row {
+                TimelineView(.periodic(from: .now, by: 0.6)) { _ in
+                    CacheGlyph(state: cacheGlyphState(from: appState.phoneDownloadState(for: row)))
+                }
+            } else {
+                CacheGlyph(state: cacheGlyphState(from: fallback))
+            }
+        }
+        .frame(width: 45, height: 45)
+        .background(.ultraThinMaterial, in: Circle())
+        .contentShape(Circle())
     }
 
     @ViewBuilder
