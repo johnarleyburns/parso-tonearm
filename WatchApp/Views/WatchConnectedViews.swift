@@ -121,6 +121,7 @@ struct WatchPhoneCollectionView: View {
                             Image(systemName: track.isDownloadedOnWatch ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 11))
                                 .foregroundStyle(track.isDownloadedOnWatch ? .green : .secondary)
+                                .accessibilityLabel(track.isDownloadedOnWatch ? "Downloaded on watch" : "Not downloaded")
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(track.title).font(.system(.body)).lineLimit(1)
                                 if !track.artist.isEmpty {

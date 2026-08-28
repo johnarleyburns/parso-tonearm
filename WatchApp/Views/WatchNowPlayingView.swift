@@ -68,7 +68,9 @@ struct WatchNowPlayingView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("watch.now.target")
+        .accessibilityLabel("Playback target")
         .accessibilityValue(coordinator.target == .iPhone ? "iPhone" : "Apple Watch")
+        .accessibilityHint("Switches between iPhone and Apple Watch")
     }
 
     private var canOfferOtherTarget: Bool { otherTargetUnavailableReason == nil }
@@ -130,15 +132,18 @@ struct WatchNowPlayingView: View {
                         Image(systemName: "backward.fill").font(.system(size: 22))
                     }
                     .accessibilityIdentifier("watch.now.previous")
+                    .accessibilityLabel("Previous")
                     Button { remote.togglePlayPause() } label: {
                         Image(systemName: state.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 30))
                     }
                     .accessibilityIdentifier("watch.now.playPause")
+                    .accessibilityLabel(state.isPlaying ? "Pause" : "Play")
                     .accessibilityValue(state.isPlaying ? "playing" : "paused")
                     Button { remote.next() } label: {
                         Image(systemName: "forward.fill").font(.system(size: 22))
                     }
                     .accessibilityIdentifier("watch.now.next")
+                    .accessibilityLabel("Next")
                 }
                 .buttonStyle(.plain).frame(maxWidth: .infinity).padding(.vertical, 8)
 
@@ -147,6 +152,7 @@ struct WatchNowPlayingView: View {
                         Image(systemName: "list.bullet").font(.system(size: 14))
                     }
                     .accessibilityIdentifier("watch.now.upNext")
+                    .accessibilityLabel("Up Next")
                     Spacer()
                     if state.isStale(at: now) {
                         Text("Updating…").font(.system(.caption2)).foregroundStyle(.orange)
@@ -238,6 +244,7 @@ struct WatchNowPlayingView: View {
                         Image(systemName: "list.bullet").font(.system(size: 14))
                     }
                     .accessibilityIdentifier("watch.now.upNext")
+                    .accessibilityLabel("Up Next")
 
                     Spacer()
 
@@ -277,17 +284,20 @@ struct WatchNowPlayingView: View {
                 Image(systemName: "backward.fill").font(.system(size: 24))
             }
             .accessibilityIdentifier("watch.now.previous")
+            .accessibilityLabel("Previous")
 
             Button { player.togglePlayPause() } label: {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 32))
             }
             .accessibilityIdentifier("watch.now.playPause")
+            .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
             .accessibilityValue(player.isPlaying ? "playing" : "paused")
 
             Button { player.next() } label: {
                 Image(systemName: "forward.fill").font(.system(size: 24))
             }
             .accessibilityIdentifier("watch.now.next")
+            .accessibilityLabel("Next")
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
@@ -296,7 +306,9 @@ struct WatchNowPlayingView: View {
     private var volumeControl: some View {
         HStack(spacing: 4) {
             Image(systemName: "speaker.fill").font(.system(size: 10)).foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             Slider(value: $player.volume, in: 0...1).tint(.white.opacity(0.5)).frame(width: 60)
+                .accessibilityLabel("Volume")
         }
     }
 

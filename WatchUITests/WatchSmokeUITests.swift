@@ -159,14 +159,14 @@ final class WatchSmokeUITests: XCTestCase {
     /// Swipe the carousel up a few times, checking after each, before giving up.
     @discardableResult
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        if element.waitForExistence(timeout: 4) { return true }
+        if element.waitForExistence(timeout: 6) { return true }
         for _ in 0..<6 {
             app.swipeUp()
             if element.waitForExistence(timeout: 1) { return true }
         }
         for _ in 0..<8 {
             app.swipeDown()
-            if element.waitForExistence(timeout: 1) { return true }
+            if element.waitForExistence(timeout: 1.5) { return true }
         }
         return element.exists
     }

@@ -93,6 +93,7 @@ struct WatchSearchView: View {
             if row.isDownloadedOnWatch {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 11)).foregroundStyle(.green)
+                    .accessibilityLabel("Downloaded on watch")
             }
         }
     }
