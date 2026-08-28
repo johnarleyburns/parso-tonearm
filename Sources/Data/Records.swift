@@ -51,11 +51,3 @@ extension Favorite: FetchableRecord, MutablePersistableRecord {
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
-extension WatchTransferRecord: FetchableRecord, MutablePersistableRecord {
-    public static let databaseTableName = "watchTransfer"
-    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
-}
-
-extension WatchManifestRecord: FetchableRecord, MutablePersistableRecord {
-    public static let databaseTableName = "watchManifest"
-}

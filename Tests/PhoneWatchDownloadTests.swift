@@ -148,13 +148,13 @@ final class PhoneWatchDownloadTests: XCTestCase {
         }
     }
 
-    func testV15DoesNotDisturbLegacyWatchTransferTable() throws {
+    func testV17DropsLegacyWatchTransferTables() throws {
+        // Phase 10 (§10): the pre-cutover v12 `watchTransfer` / `watchManifest` tables are
+        // dropped once the v15 download-root stack is in place. Nothing reads them any more.
         let queue = try freshQueue()
         try queue.read { db in
-            let transfer = try db.tableExists("watchTransfer")
-            let manifestTable = try db.tableExists("watchManifest")
-            XCTAssertTrue(transfer)
-            XCTAssertTrue(manifestTable)
+            XCTAssertFalse(try db.tableExists("watchTransfer"))
+            XCTAssertFalse(try db.tableExists("watchManifest"))
         }
     }
 

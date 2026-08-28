@@ -177,6 +177,25 @@ if grep -rq 'swiftDataWatchArchitecture' WatchApp 2>/dev/null; then
   echo "    the swiftDataWatchArchitecture flag must not be referenced after the Phase 6 cutover"
   status=1; watch_ok=0
 fi
+# Phase 10 (§10, §12): the pre-cutover watch transfer pipeline is deleted. None of
+# these files may come back — the shipped path is the Phase 6 SwiftData / download-root
+# stack, and a resurrected legacy file would compile alongside it undetected.
+for legacy in \
+  Sources/WatchSync/WatchCatalog.swift \
+  Sources/WatchSync/WatchLibraryFilter.swift \
+  Sources/WatchSync/WatchTransferController.swift \
+  Sources/WatchSync/WatchTransferQueue.swift \
+  Sources/WatchProtocol/WatchSyncMessage.swift; do
+  if [ -f "$legacy" ]; then
+    echo "    $legacy was deleted in Phase 10 and must not return"
+    status=1; watch_ok=0
+  fi
+done
+if grep -rqE 'WatchCatalog|WatchSyncEnvelope|WatchTransferRecord|WatchManifestRecord' Sources Tests WatchApp 2>/dev/null; then
+  echo "    a Phase-10-deleted legacy watch symbol is still referenced"
+  grep -rnE 'WatchCatalog|WatchSyncEnvelope|WatchTransferRecord|WatchManifestRecord' Sources Tests WatchApp | sed 's/^/      /'
+  status=1; watch_ok=0
+fi
 [ "$watch_ok" = "1" ] && echo "    OK"
 
 # ── Watch protocol boundary (Phase 3) ──────────────────────────────────────

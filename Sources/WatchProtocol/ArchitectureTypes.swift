@@ -1,10 +1,9 @@
 import Foundation
 
-/// The protocol version both apps speak. Phase 3 makes this the *new* §5 envelope's version; the
-/// legacy `WatchSyncEnvelope` keeps its own constant so the two can diverge when Phase 6 retires it.
+/// The protocol version both apps speak — the §5 envelope's version. The pre-cutover
+/// sync envelope and its separate version constant were deleted in Phase 10.
 public enum WatchProtocolVersion {
     public static let current = WatchProtocolEnvelope.currentProtocolVersion
-    public static let legacy = WatchSyncEnvelope.currentProtocolVersion
 }
 
 /// §7.1 — playback targets are explicit and named. There is no "current device"; a command is

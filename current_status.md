@@ -27,11 +27,24 @@ reachable; `Play on Apple Watch` on a connected collection whose members are
 downloaded, via the shared `WatchAppAssembly.playLocalTrackIDs`).
 Nothing is pushed — the owner's `git push` is the CI/TestFlight gate.**
 
-**Phase 10 — reliability, observability, and legacy deletion — is next**
-([`IMPLEMENTATION_PLAN.md`](docs/plans/watch-rearchitecture/IMPLEMENTATION_PLAN.md) §12):
-delete the superseded GRDB watch code, catalog import, old `watchTransfer` /
-`watchManifest` tables (`WatchCatalog` too), the compatibility flag and dead
-tests; add privacy-safe structured diagnostics (activation, request latency,
+**Phase 10 — reliability, observability, and legacy deletion — is in progress**
+([`IMPLEMENTATION_PLAN.md`](docs/plans/watch-rearchitecture/IMPLEMENTATION_PLAN.md) §12),
+split into commits like Phase 9.
+
+**10a (`this commit`)** deleted the pre-cutover watch transfer pipeline: the
+full-catalog `WatchCatalog`, `WatchLibraryFilter`, `WatchTransferController`,
+`WatchTransferQueue`, and the legacy `WatchSyncMessage` / `WatchSyncEnvelope` /
+`Watch*DTO` cluster — all compiling-but-unreferenced since the Phase 6 cutover.
+`WatchTransferState` (the one still-live symbol, the four-case glyph enum) moved
+to `WatchGlyphState.swift`; the `WatchTransferRecord` / `WatchManifestRecord`
+GRDB structs are gone and schema **v17** drops the v12 `watchTransfer` /
+`watchManifest` tables. Six dead test files removed; new `check-ci-guards.sh`
+clauses keep the deleted files and symbols from returning. The *new* stack
+(`WatchManifestPayload`, the `.watchManifest` protocol message, the v15
+download-root tables) is untouched.
+
+**Still in Phase 10:** the superseded GRDB catalog import beyond what 10a took,
+the compatibility flag and any remaining dead tests; add privacy-safe structured diagnostics (activation, request latency,
 transfer state, install result, manifest convergence, playback target, route
 events, store recovery, disconnect duration) and an in-app diagnostics export
 carrying only per-export-hashed IDs, state codes, timestamps, versions, byte

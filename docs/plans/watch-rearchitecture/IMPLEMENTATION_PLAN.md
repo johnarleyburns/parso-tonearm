@@ -1640,3 +1640,31 @@ by compiler or device evidence.
     lazy row realisation (watch smoke), so the chip stays local-only until it can be laid out
     outside the List; (2) all paired-hardware behaviour (route/interruption/background/wrist-down,
     the disconnect→continue journey) — the watchOS simulator cannot pair a phone.
+- Phase 10 (in progress): spans more than 6–8 tasks (legacy deletion, diagnostics, fault/soak
+  harnesses), so it is split into commits like Phase 9.
+  - **10a (2026-08-27, this commit): pre-cutover watch transfer pipeline deleted (§10, §12).**
+    The Phase 6 cutover left the old full-catalog / transfer-queue code compiling but
+    unreferenced; it is now gone. Deleted sources: `Sources/WatchSync/{WatchCatalog,
+    WatchLibraryFilter,WatchTransferController,WatchTransferQueue}.swift`,
+    `Sources/WatchProtocol/WatchSyncMessage.swift` (the legacy `WatchSyncEnvelope` /
+    `WatchCatalogSnapshot` / `Watch*DTO` cluster). `WatchTransferState` (the four-case
+    queued/sending/sent/failed enum) was the one symbol still live — `AppState`'s track-row
+    glyph maps download-job state onto it — so it moved to `WatchGlyphState.swift` beside the
+    `WatchGlyph` API that is its only consumer. `WatchManifest.report(from:)` (returned the
+    deleted `WatchManifestReport`) dropped; its stats helpers and `WatchLocalManifestEntry`
+    stay. `WatchProtocolVersion.legacy` removed. Domain/GRDB: `WatchTransferRecord` /
+    `WatchManifestRecord` structs + their `FetchableRecord` extensions deleted; new schema
+    **v17** drops the v12 `watchTransfer` / `watchManifest` tables (no reader/writer since the
+    cutover; no data migration needed). `WatchManifestPayload` and the `.watchManifest`
+    protocol message are the *new* stack and untouched. Deleted tests:
+    `Tests/{WatchCatalogTests,WatchLibraryFilterTests,WatchTransferQueueTests,
+    WatchTransferPlannerTests,WatchSyncMessageTests,MigrationV12Tests}.swift`;
+    `PhoneWatchDownloadTests.testV15DoesNotDisturbLegacyWatchTransferTable` →
+    `testV17DropsLegacyWatchTransferTables`; one obsolete `WatchManifestTests` case removed.
+    New guards in `check-ci-guards.sh`: the five deleted source files must not return, and no
+    `WatchCatalog` / `WatchSyncEnvelope` / `WatchTransferRecord` / `WatchManifestRecord`
+    reference may reappear in `Sources`/`Tests`/`WatchApp`. Gates: `rm -rf .build && swift
+    build` clean, `make ci-guards` clean, `make project` regenerated (no `.xcodeproj` diff —
+    folder-globbed), watch/schema/download test subset green. Full `swift test` + simulator
+    smokes run by the pre-commit hook. Remaining in Phase 10: privacy-safe structured
+    diagnostics + in-app export; fault-injection / soak harnesses.

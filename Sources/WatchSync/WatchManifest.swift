@@ -26,13 +26,4 @@ public enum WatchManifest {
     public static func trackCount(_ entries: [WatchLocalManifestEntry]) -> Int {
         entries.count
     }
-
-    public static func report(from entries: [WatchLocalManifestEntry],
-                              freeBytes: Int64,
-                              catalogVersion: Int) -> WatchManifestReport {
-        WatchManifestReport(
-            entries: entries.map { WatchSyncManifestEntry(trackKey: $0.trackKey, bytes: $0.bytes, pinned: $0.pinned) },
-            freeBytes: freeBytes,
-            catalogVersion: catalogVersion)
-    }
 }

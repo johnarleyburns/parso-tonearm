@@ -1,5 +1,17 @@
 import Foundation
 
+/// The transfer phase of a single track toward the watch, as the iPhone track-row glyph
+/// needs to render it. The Phase-6 pipeline (`PhoneWatchDownloadManager` / `WatchGlyph`)
+/// is the only remaining consumer — `AppState.watchTransferState(forID:)` maps the
+/// download job's state string onto these four cases. Phase 10 deleted the rest of the
+/// pre-cutover transfer queue; this enum stays with the glyph API it now belongs to.
+public enum WatchTransferState: String, Equatable, Codable, Sendable {
+    case queued
+    case sending
+    case sent
+    case failed
+}
+
 public enum WatchGlyphState: Equatable {
     case notOnWatch
     case transferring(progress: Double?)
