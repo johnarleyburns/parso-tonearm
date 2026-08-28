@@ -2,8 +2,9 @@ import XCTest
 
 /// The single watchOS simulator smoke test for Platterhead. The simulator has no paired iPhone, so
 /// the app runs in **offline mode**: it must boot, render the seeded downloads, expose search over
-/// them, play a track from the Tracks list and an album from the Albums list (transport toggling
-/// both ways with the elapsed clock advancing), keep a playlist journey working, and survive being
+/// them, play a downloaded track from the Tracks list and an album from the Albums list with the
+/// iPhone absent — asserting the elapsed clock advances while playing and is frozen after a stop
+/// (real audio, not a relabelled button) — keep a playlist journey working, and survive being
 /// exited while playing.
 ///
 /// **Every fixture here is bundled audio; this test never touches the network.** A gate on our own
@@ -38,12 +39,18 @@ final class WatchSmokeUITests: XCTestCase {
                       "Search field never appeared")
         popToRoot(app)
 
-        // Find a track in the Tracks list, start it, confirm real playback, then stop it.
+        // A downloaded track, iPhone not connected (the simulator has no paired phone): find it in
+        // the Tracks list, play it, confirm the audio is really running — elapsed advancing — then
+        // stop it and confirm the elapsed clock is frozen, not just the button relabelled.
+        // The fixture seeder simulates the download: it copies bundled audio into the store's audio
+        // directory and marks the asset `.ready` with its real checksum, exactly as a real transfer
+        // would leave it.
         openRootRow(app, identifier: "watch.songs", named: "Tracks")
         let track = firstMatch(in: app, identifierPrefix: "watch.track.")
         XCTAssertTrue(track.waitForExistence(timeout: 15), "Seeded track row never appeared")
         track.tap()
-        assertPlaybackStartsThenStops(app, context: "the Tracks list", requireElapsedAdvance: true)
+        assertPlaybackStartsThenStops(app, context: "a downloaded track (no iPhone)",
+                                      requireElapsedAdvance: true, requireElapsedFrozenAfterStop: true)
         closeNowPlaying(app)
         popToRoot(app)
 
@@ -55,7 +62,8 @@ final class WatchSmokeUITests: XCTestCase {
         let playAll = app.buttons["watch.collection.playLocal"]
         XCTAssertTrue(playAll.waitForExistence(timeout: 10), "Album detail had no Play All")
         playAll.tap()
-        assertPlaybackStartsThenStops(app, context: "the Albums list", requireElapsedAdvance: true)
+        assertPlaybackStartsThenStops(app, context: "the Albums list",
+                                      requireElapsedAdvance: true, requireElapsedFrozenAfterStop: true)
         closeNowPlaying(app)
         popToRoot(app)
 
@@ -123,9 +131,11 @@ final class WatchSmokeUITests: XCTestCase {
     }
 
     /// Confirm playback actually started (elapsed clock advancing when asked), then pause it and
-    /// confirm the transport reflects the stop.
+    /// confirm the transport reflects the stop — and, when asked, that the elapsed clock is truly
+    /// frozen afterwards (audio stopped, not just the button relabelled).
     private func assertPlaybackStartsThenStops(_ app: XCUIApplication, context: String,
-                                               requireElapsedAdvance: Bool) {
+                                               requireElapsedAdvance: Bool,
+                                               requireElapsedFrozenAfterStop: Bool = false) {
         let playPause = app.buttons["watch.now.playPause"]
         XCTAssertTrue(playPause.waitForExistence(timeout: 10), "Now Playing never appeared for \(context)")
         XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 10),
@@ -142,6 +152,21 @@ final class WatchSmokeUITests: XCTestCase {
         playPause.tap()
         XCTAssertTrue(waitForValue(playPause, equals: "paused", timeout: 5),
                       "Stopping playback from \(context) did not pause the transport")
+
+        if requireElapsedFrozenAfterStop {
+            let before = elapsedString(app)
+            XCTAssertFalse(before.isEmpty, "No elapsed label to check after stopping \(context)")
+            Thread.sleep(forTimeInterval: 3.0)
+            let after = elapsedString(app)
+            XCTAssertEqual(after, before,
+                           "Elapsed advanced from \(before) to \(after) after pausing \(context) — "
+                           + "playback did not actually stop")
+        }
+    }
+
+    private func elapsedString(_ app: XCUIApplication) -> String {
+        let e = app.staticTexts["watch.now.elapsed"]
+        return (e.value as? String) ?? e.label
     }
 
     private func openRootRow(_ app: XCUIApplication, identifier: String, named: String) {
