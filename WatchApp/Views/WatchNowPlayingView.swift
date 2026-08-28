@@ -15,6 +15,8 @@ struct WatchNowPlayingView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var crownValue: Double = 0.5
     @State private var showTargetSwitch = false
+    /// Track we asked the phone to download, so the row shows a spinner until it lands.
+    @State private var pendingDownloadTrackID: String?
 
     var body: some View {
         ScrollView {
@@ -123,6 +125,7 @@ struct WatchNowPlayingView: View {
                 artwork(nil)
                 trackTitles(title: item.title,
                             subtitle: item.artist.isEmpty ? (state.collectionTitle ?? "iPhone") : item.artist)
+                downloadRow(for: item)
                 scrubber(elapsed: elapsed, duration: duration)
                 transport(isPlaying: state.isPlaying,
                           previous: remote.previous, toggle: remote.togglePlayPause, next: remote.next)
@@ -184,6 +187,13 @@ struct WatchNowPlayingView: View {
                 artwork(player.artwork)
                 trackTitles(title: track.title, subtitle: subtitle(for: track))
 
+                // Local playback means the file is on the watch — show it, solid (§7 polish).
+                Label("Downloaded", systemImage: "checkmark.circle.fill")
+                    .font(.system(.caption2, design: .rounded)).foregroundStyle(.green)
+                    .labelStyle(.titleAndIcon)
+                    .accessibilityIdentifier("watch.now.download")
+                    .accessibilityValue("downloaded")
+
                 if let problem = player.audioRouteProblem {
                     routeProblemCard(problem)
                 } else {
@@ -237,6 +247,49 @@ struct WatchNowPlayingView: View {
                 .multilineTextAlignment(.center)
         }
         .padding(.top, 4)
+    }
+
+    // MARK: - Download affordance (§7 polish)
+
+    /// W7: the phone is playing this track and it may not be on the watch. Offer to download it —
+    /// spinner while the phone works, solid check once it lands.
+    @ViewBuilder
+    private func downloadRow(for item: WatchTrackSummary) -> some View {
+        if item.isDownloadedOnWatch {
+            Label("Downloaded", systemImage: "checkmark.circle.fill")
+                .font(.system(.caption2, design: .rounded)).foregroundStyle(.green)
+                .labelStyle(.titleAndIcon)
+                .accessibilityIdentifier("watch.now.download")
+                .accessibilityValue("downloaded")
+        } else if pendingDownloadTrackID == item.trackID.rawValue {
+            HStack(spacing: 6) {
+                ProgressView().scaleEffect(0.7)
+                Text("Downloading…").font(.system(.caption2)).foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("watch.now.download")
+            .accessibilityValue("downloading")
+        } else {
+            Button {
+                requestDownload(of: item.trackID)
+            } label: {
+                Label("Download to Apple Watch", systemImage: "arrow.down.circle")
+                    .font(.system(.caption)).frame(maxWidth: .infinity)
+            }
+            .accessibilityIdentifier("watch.now.download")
+            .accessibilityValue("not downloaded")
+        }
+    }
+
+    private func requestDownload(of trackID: WatchTrackID) {
+        pendingDownloadTrackID = trackID.rawValue
+        Task { await WatchAppAssembly.shared.requestDownloadToThisWatch(trackID) }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 90_000_000_000)
+            if pendingDownloadTrackID == trackID.rawValue,
+               remote.state?.currentItem?.isDownloadedOnWatch != true {
+                pendingDownloadTrackID = nil   // give the button back if it never landed
+            }
+        }
     }
 
     // MARK: - Shared building blocks

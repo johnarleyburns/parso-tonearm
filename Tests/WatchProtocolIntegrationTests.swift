@@ -322,6 +322,25 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         XCTAssertEqual(reconciliations.first?.trigger, .storeRecovered)
     }
 
+    func testTheWatchCanAskThePhoneToDownloadAndDropASingleTrack() async {
+        let harness = await makeConnectedHarness()
+        await harness.watch.requestDownload(trackID: "t9", wantsDownload: true)
+        await harness.watch.requestDownload(trackID: "t9", wantsDownload: false)
+
+        let requests = await harness.handler.receivedDownloadRequests
+        XCTAssertEqual(requests.map(\.trackID), ["t9", "t9"])
+        XCTAssertEqual(requests.map(\.wantsDownload), [true, false])
+    }
+
+    func testARedeliveredWatchDownloadRequestIsAppliedOnce() async {
+        let harness = await makeConnectedHarness()
+        await harness.link.setDuplicateDeliveries(true)
+        await harness.watch.requestDownload(trackID: "t9", wantsDownload: true)
+
+        let requests = await harness.handler.receivedDownloadRequests
+        XCTAssertEqual(requests.count, 1, "a redelivered download request must not download twice")
+    }
+
     func testThePhoneAppliesAWatchManifestOnlyOnceWhenItIsRedelivered() async {
         let harness = await makeConnectedHarness()
         await harness.link.setDuplicateDeliveries(true)
@@ -561,6 +580,7 @@ private actor FakePhoneHandler: WatchPhoneRequestHandling {
     private(set) var commands: [WatchPlayCommand] = []
     private(set) var receivedManifests: [WatchManifestPayload] = []
     private(set) var receivedReconciliations: [WatchReconciliationRequest] = []
+    private(set) var receivedDownloadRequests: [WatchDownloadRequest] = []
 
     private var heldQuery: String?
     private var heldRequestArrived = false
@@ -628,6 +648,10 @@ private actor FakePhoneHandler: WatchPhoneRequestHandling {
 
     func handleReconciliationRequest(_ request: WatchReconciliationRequest) async {
         receivedReconciliations.append(request)
+    }
+
+    func handleDownloadRequest(_ request: WatchDownloadRequest) async {
+        receivedDownloadRequests.append(request)
     }
 }
 

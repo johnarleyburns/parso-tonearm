@@ -61,6 +61,7 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
                                                         generatedAt: Date(timeIntervalSince1970: 2_000)))
         try check(.requestReconciliation, WatchReconciliationRequest(scope: .manifest, trigger: .storeRecovered))
         try check(.removeAssets, WatchRemoveAssets(revision: 8, trackIDs: ["t1"], reason: .rootRemoved))
+        try check(.requestDownload, WatchDownloadRequest(trackID: "t1", wantsDownload: true))
         try check(.error, WatchProtocolFault(code: .insufficientWatchStorage, retryAfterSeconds: 30))
 
         XCTAssertEqual(covered, Set(WatchMessageKind.allCases),
@@ -200,8 +201,10 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         XCTAssertEqual(WatchMessageKind.phonePlaybackSnapshot.channel, .applicationContext)
         XCTAssertEqual(WatchMessageKind.setDownloadRoots.channel, .userInfo)
         XCTAssertEqual(WatchMessageKind.watchManifest.channel, .userInfo)
+        XCTAssertEqual(WatchMessageKind.requestDownload.channel, .userInfo)
         XCTAssertTrue(WatchMessageKind.removeAssets.isRevisioned)
         XCTAssertFalse(WatchMessageKind.searchRequest.isRevisioned)
+        XCTAssertFalse(WatchMessageKind.requestDownload.isRevisioned)
     }
 
     // MARK: - Negotiation

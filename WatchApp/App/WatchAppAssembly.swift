@@ -75,6 +75,12 @@ final class WatchAppAssembly {
 
     /// §7.1: ask the phone for a fresh authoritative playback snapshot (drives the W7 correction
     /// poll). No-op when the link is unavailable.
+    /// §7 polish — ask the phone to download (or drop) one track to this watch, from Now Playing.
+    /// The phone stays the download authority; this only asks.
+    func requestDownloadToThisWatch(_ trackID: WatchTrackID, wants: Bool = true) async {
+        await coordinator?.requestDownload(trackID: trackID, wantsDownload: wants)
+    }
+
     func refreshRemotePlayback() async {
         await coordinator?.refreshPlaybackSnapshot()
     }

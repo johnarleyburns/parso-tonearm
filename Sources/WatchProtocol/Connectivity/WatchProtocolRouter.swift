@@ -14,6 +14,7 @@ public protocol WatchPhoneRequestHandling: Sendable {
     func handlePlayCommand(_ command: WatchPlayCommand) async -> WatchCommandReply
     func handleWatchManifest(_ payload: WatchManifestPayload) async
     func handleReconciliationRequest(_ request: WatchReconciliationRequest) async
+    func handleDownloadRequest(_ request: WatchDownloadRequest) async
 }
 
 extension WatchPhoneRequestHandling {
@@ -33,6 +34,7 @@ extension WatchPhoneRequestHandling {
     }
     public func handleWatchManifest(_ payload: WatchManifestPayload) async {}
     public func handleReconciliationRequest(_ request: WatchReconciliationRequest) async {}
+    public func handleDownloadRequest(_ request: WatchDownloadRequest) async {}
 }
 
 /// Decodes one inbound envelope and produces the reply envelope, if any.
@@ -95,6 +97,11 @@ public struct WatchProtocolRouter: Sendable {
             case .requestReconciliation:
                 await handler.handleReconciliationRequest(
                     try envelope.decodePayload(WatchReconciliationRequest.self))
+                return nil
+
+            case .requestDownload:
+                await handler.handleDownloadRequest(
+                    try envelope.decodePayload(WatchDownloadRequest.self))
                 return nil
 
             case .helloReply, .searchResponse, .browseResponse, .collectionResponse, .commandReply,

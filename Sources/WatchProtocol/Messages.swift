@@ -13,6 +13,10 @@ public enum WatchMessageKind: String, Codable, Sendable, CaseIterable {
     case watchManifest
     case requestReconciliation
     case removeAssets
+    /// Watch → phone: "please start (or stop) downloading this one track to me." The iPhone stays
+    /// the download authority — it validates and turns this into a real download root — but the
+    /// watch can now ask from its own Now Playing screen (§7 polish).
+    case requestDownload
     case error
 
     /// Which WCSession channel §5.2 assigns this kind. The router uses it to refuse, for example, a
@@ -25,7 +29,7 @@ public enum WatchMessageKind: String, Codable, Sendable, CaseIterable {
             .immediate
         case .phonePlaybackSnapshot, .downloadStatusSnapshot:
             .applicationContext
-        case .setDownloadRoots, .watchManifest, .requestReconciliation, .removeAssets:
+        case .setDownloadRoots, .watchManifest, .requestReconciliation, .removeAssets, .requestDownload:
             .userInfo
         }
     }
@@ -52,6 +56,8 @@ public enum WatchCapability: String, Codable, Sendable, CaseIterable {
     case downloadRoots
     case manifestAcknowledgement
     case reconciliation
+    /// The watch can ask the phone to download a single track (from Now Playing).
+    case watchInitiatedDownload
 }
 
 public struct WatchHello: Codable, Equatable, Sendable {
@@ -391,6 +397,18 @@ public struct WatchSetDownloadRoots: Codable, Equatable, Sendable {
 
 public enum WatchRemovalReason: String, Codable, Sendable, CaseIterable {
     case userRemoved, rootRemoved, sourceDeleted, storageReclaimed
+}
+
+/// §7 polish — payload of `requestDownload`. `wantsDownload == false` is the watch asking the phone
+/// to drop the single-track root it created for this track (removing it from the watch).
+public struct WatchDownloadRequest: Codable, Equatable, Sendable {
+    public var trackID: WatchTrackID
+    public var wantsDownload: Bool
+
+    public init(trackID: WatchTrackID, wantsDownload: Bool = true) {
+        self.trackID = trackID
+        self.wantsDownload = wantsDownload
+    }
 }
 
 public struct WatchRemoveAssets: Codable, Equatable, Sendable {

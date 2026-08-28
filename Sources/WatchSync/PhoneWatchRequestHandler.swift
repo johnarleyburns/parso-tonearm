@@ -21,6 +21,7 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
     private let downloadedProvider: @Sendable () async -> Set<WatchTrackID>
     private let onManifest: @Sendable (WatchManifestPayload) async -> Void
     private let onReconciliation: @Sendable (WatchReconciliationRequest) async -> Void
+    private let onDownloadRequest: @Sendable (WatchDownloadRequest) async -> Void
 
     public init(store: LibraryStore,
                 player: any PhoneWatchPlaybackBridge,
@@ -29,7 +30,8 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
                 capabilities: [WatchCapability] = WatchCapability.allCases,
                 downloadedProvider: @escaping @Sendable () async -> Set<WatchTrackID> = { [] },
                 onManifest: @escaping @Sendable (WatchManifestPayload) async -> Void = { _ in },
-                onReconciliation: @escaping @Sendable (WatchReconciliationRequest) async -> Void = { _ in }) {
+                onReconciliation: @escaping @Sendable (WatchReconciliationRequest) async -> Void = { _ in },
+                onDownloadRequest: @escaping @Sendable (WatchDownloadRequest) async -> Void = { _ in }) {
         self.store = store
         self.player = player
         self.libraryID = libraryID
@@ -38,6 +40,7 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
         self.downloadedProvider = downloadedProvider
         self.onManifest = onManifest
         self.onReconciliation = onReconciliation
+        self.onDownloadRequest = onDownloadRequest
     }
 
     // MARK: - Negotiation
@@ -219,6 +222,10 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
 
     public func handleReconciliationRequest(_ request: WatchReconciliationRequest) async {
         await onReconciliation(request)
+    }
+
+    public func handleDownloadRequest(_ request: WatchDownloadRequest) async {
+        await onDownloadRequest(request)
     }
 
     // MARK: - Resolution

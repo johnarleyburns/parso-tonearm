@@ -75,7 +75,8 @@ final class PhoneWatchRuntime {
             revisionStore: revisionStore,
             downloadedProvider: downloadedProvider,
             onManifest: { [inbound] payload in await inbound.manifest(payload) },
-            onReconciliation: { [inbound] request in await inbound.reconciliation(request) })
+            onReconciliation: { [inbound] request in await inbound.reconciliation(request) },
+            onDownloadRequest: { [inbound] request in await inbound.downloadRequest(request) })
 
         let coordinator = PhoneWatchProtocolCoordinator(
             transport: PhoneWatchProtocolAdapter.transport,
@@ -258,6 +259,32 @@ final class PhoneWatchRuntime {
         await refresh()
     }
 
+    /// §7 polish — the watch asked (from its Now Playing screen) to download or drop one track.
+    /// The phone is still the authority: it resolves the id against the real library and turns the
+    /// ask into a normal single-track download root (or removes that root).
+    fileprivate func applyWatchDownloadRequest(_ request: WatchDownloadRequest) async {
+        let id = request.trackID
+        let rootID = "track:\(id.rawValue)"
+        if request.wantsDownload {
+            let row: TrackRow?
+            if let localID = PhoneWatchID.trackRowID(id) {
+                row = try? await store.trackRow(id: localID)
+            } else {
+                row = try? await store.trackRow(syncID: id.rawValue)
+            }
+            guard let row else { return }
+            let root = PhoneWatchDownloadRoot(
+                rootID: rootID, kind: .track, sourceID: id.rawValue,
+                title: row.track.title, desiredTrackIDs: [id.rawValue],
+                phoneRevision: (try? await downloadStore.currentRevision()) ?? 0)
+            try? await downloadManager.addRoot(root)
+        } else {
+            try? await downloadManager.removeRoot(rootID: rootID)
+            _ = await coordinator.sendRemoveAssets([id])
+        }
+        await refresh()
+    }
+
     // MARK: - Internal
 
     private func refresh() async {
@@ -348,6 +375,10 @@ private actor PhoneWatchInbound {
 
     func reconciliation(_ request: WatchReconciliationRequest) async {
         await runtime?.tickDownloads()
+    }
+
+    func downloadRequest(_ request: WatchDownloadRequest) async {
+        await runtime?.applyWatchDownloadRequest(request)
     }
 }
 #endif

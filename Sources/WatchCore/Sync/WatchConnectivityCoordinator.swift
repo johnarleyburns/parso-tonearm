@@ -244,6 +244,16 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         await transport.transferUserInfo(data)
     }
 
+    /// §7 polish — ask the phone to download (or drop) a single track. The phone stays the
+    /// authority; this only asks. Durable so a locked phone still picks it up.
+    public func requestDownload(trackID: WatchTrackID, wantsDownload: Bool) async {
+        let payload = WatchDownloadRequest(trackID: trackID, wantsDownload: wantsDownload)
+        guard let data = try? WatchProtocolEnvelope.encode(
+            kind: .requestDownload, payload: payload,
+            pairedLibraryID: boundLibraryID ?? .unknown) else { return }
+        await transport.transferUserInfo(data)
+    }
+
     public func requestReconciliation(scope: WatchReconciliationScope = .all,
                                       trigger: WatchProtocolErrorCode? = nil) async {
         let payload = WatchReconciliationRequest(scope: scope, trigger: trigger)
@@ -394,9 +404,11 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
             await observer?.negotiationDidFail(fault)
 
         case .hello, .helloReply, .searchRequest, .searchResponse, .browseRequest, .browseResponse,
-             .collectionRequest, .collectionResponse, .playCommand, .commandReply, .watchManifest:
-            // Request/reply kinds are consumed by the caller that correlated them; a stray copy
-            // arriving over a broadcast channel is not something to act on twice.
+             .collectionRequest, .collectionResponse, .playCommand, .commandReply, .watchManifest,
+             .requestDownload:
+            // Request/reply kinds are consumed by the caller that correlated them; `requestDownload`
+            // is watch→phone and never comes back. A stray copy on a broadcast channel is not
+            // something to act on twice.
             break
         }
     }
