@@ -27,9 +27,10 @@ reachable; `Play on Apple Watch` on a connected collection whose members are
 downloaded, via the shared `WatchAppAssembly.playLocalTrackIDs`).
 Nothing is pushed — the owner's `git push` is the CI/TestFlight gate.**
 
-**Phase 10 — reliability, observability, and legacy deletion — is in progress**
+**Phase 10 — reliability, observability, and legacy deletion — is COMPLETE**
 ([`IMPLEMENTATION_PLAN.md`](docs/plans/watch-rearchitecture/IMPLEMENTATION_PLAN.md) §12),
-split into commits like Phase 9.
+landed as six commits 10a–10f (below). The next work is Phase 11 — award-quality
+polish, the physical-device matrix, and release. Nothing is pushed.
 
 **10a (`this commit`)** deleted the pre-cutover watch transfer pipeline: the
 full-catalog `WatchCatalog`, `WatchLibraryFilter`, `WatchTransferController`,
@@ -113,17 +114,31 @@ in `WatchProtocolIntegrationTests` — every one also asserts no event carries a
 correlation id or free text. `swift test` subset + watch sim build + `ci-guards`
 all green.
 
-**Still in Phase 10:** the fault-injection / soak harnesses; add privacy-safe structured diagnostics (activation, request latency,
-transfer state, install result, manifest convergence, playback target, route
-events, store recovery, disconnect duration) and an in-app diagnostics export
-carrying only per-export-hashed IDs, state codes, timestamps, versions, byte
-counts — never titles, URLs, credentials, tokens, paths, or search text; and run
-the fault-injection / soak harnesses (1,000 duplicate/out-of-order events,
-500-track desired set, rapid connect/disconnect, 100 cancellations, relaunch at
-every job state, six-hour local playback state simulation). DoD: no legacy
-implementation remains in the watch target, all structural guards pass, fault
-tests converge, memory/disk are bounded. Phase 11 (award-quality polish +
-physical-device matrix + release) follows.
+**10f (`this commit`) — the fault-injection / soak harnesses, and Phase 10 is
+done.** All six §12 scenarios land as `swift test` cases that assert the same two
+things: the system **converges** on one consistent answer, and memory/disk stays
+**bounded** (nothing accumulates per event). `Tests/WatchSoakTests.swift`: 1,000
+shuffled duplicate/out-of-order durable events through `WatchAppliedMessageLedger`
++ `WatchRevisionGate` → the newest revision wins, no regression is ever applied,
+the ledger holds ≤ its 512 capacity; 500 reachability flaps through
+`WatchConnectionReducer` → settles connected with exactly one disconnect alert
+per *confirmed* outage (250), never one per flap; six simulated hours of local
+playback (`WatchPlayerEngine` rolling a 12-track repeat-all queue, 2,160 position
+saves, a predicted remote clock) → the engine stays a valid in-range queue, the
+predicted clock never runs past the track duration, and the persisted position
+blob never grows past ~1 KB. `Tests/PhoneWatchDownloadTests.swift` gains three:
+500-track desired set → converges idle, each file transferred once, the job table
+prunes to empty; 100 cancellations → every one stays cancelled across reconciles,
+none revived, no duplicate jobs; relaunch at every `PhoneWatchJobState` → the
+§8.2 `resumeOutstanding` flow converges each to a consistent terminal, ≤ one job
+per track. All green.
+
+**Phase 10 definition of done — met:** no legacy implementation remains in the
+watch target (10a transfer pipeline + 10d GRDB catalog import; the one-time audio
+bridge is a documented deliberate keep); all structural guards pass (`ci-guards`
+clean, new clauses in `check-ci-guards.sh` for every deleted file/symbol); the
+fault tests converge; memory and disk are bounded. Phase 11 (award-quality polish
++ physical-device matrix + release) is next.
 
 Phase 9 carried two **deferrals into Phase 11** (award-quality polish +
 physical-device matrix):

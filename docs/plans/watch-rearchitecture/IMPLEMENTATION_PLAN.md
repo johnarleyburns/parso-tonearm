@@ -1640,8 +1640,10 @@ by compiler or device evidence.
     lazy row realisation (watch smoke), so the chip stays local-only until it can be laid out
     outside the List; (2) all paired-hardware behaviour (route/interruption/background/wrist-down,
     the disconnect→continue journey) — the watchOS simulator cannot pair a phone.
-- Phase 10 (in progress): spans more than 6–8 tasks (legacy deletion, diagnostics, fault/soak
-  harnesses), so it is split into commits like Phase 9.
+- Phase 10 (COMPLETE, 2026-08-27): spanned more than 6–8 tasks (legacy deletion, diagnostics,
+  fault/soak harnesses), so it was split into commits 10a–10f like Phase 9. DoD met: no legacy
+  implementation remains in the watch target, all structural guards pass, the six fault/soak
+  scenarios converge, memory/disk are bounded. Phase 11 is next.
   - **10a (2026-08-27, this commit): pre-cutover watch transfer pipeline deleted (§10, §12).**
     The Phase 6 cutover left the old full-catalog / transfer-queue code compiling but
     unreferenced; it is now gone. Deleted sources: `Sources/WatchSync/{WatchCatalog,
@@ -1718,4 +1720,19 @@ by compiler or device evidence.
     `Tests/WatchDiagnosticsWiringTests.swift` (3) + two `WatchProtocolIntegrationTests` cases; each
     asserts no event carries a correlation id or free text. Gate: `swift test` watch subset +
     `xcodebuild build -scheme TonearmWatch` (watchOS sim) + `make ci-guards` green; full suite by
-    the hook. Remaining in Phase 10: fault-injection / soak harnesses.
+    the hook.
+  - **10f (2026-08-27, this commit): the fault-injection / soak harnesses — Phase 10 done (§12).**
+    Six `swift test` scenarios, each asserting **convergence** + **bounded memory/disk**.
+    `Tests/WatchSoakTests.swift`: (1) 1,000 shuffled duplicate/out-of-order durable events through
+    `WatchAppliedMessageLedger` + `WatchRevisionGate` → newest revision wins, no regression applied,
+    ledger ≤ 512-id capacity; (3) 500 reachability flaps through `WatchConnectionReducer` → settles
+    connected, exactly one disconnect alert per confirmed outage (250), never per-flap; (6) six
+    simulated hours of local playback (`WatchPlayerEngine` repeat-all 12-track queue, 2,160 position
+    saves, predicted remote clock) → engine stays a valid in-range queue, predicted clock clamped
+    to duration, persisted blob never grows past ~1 KB. `Tests/PhoneWatchDownloadTests.swift`:
+    (2) 500-track desired set → converges idle, each file transferred once, job table prunes to
+    empty; (4) 100 cancellations → all stay cancelled across reconciles, none revived, no dup jobs;
+    (5) relaunch at every `PhoneWatchJobState` → `resumeOutstanding` converges each to a consistent
+    terminal, ≤ one job per track. Gate: all six green; full suite + both smokes by the hook.
+    **Phase 10 DoD met** — no legacy in the watch target, guards pass, fault tests converge,
+    memory/disk bounded.

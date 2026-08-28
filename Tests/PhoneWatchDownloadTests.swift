@@ -690,4 +690,101 @@ final class PhoneWatchDownloadTests: XCTestCase {
         let revived = try await store.jobs().first { $0.trackID == "a" }
         XCTAssertNotEqual(revived?.state, .cancelled)
     }
+
+    // MARK: - Phase 10f — fault-injection / soak harnesses (§12)
+
+    /// 500-track desired set: the pipeline converges (idle, all ready, nothing outstanding), every
+    /// file crosses the transfer seam exactly once, and the job table does not grow unbounded — it
+    /// prunes to empty once the manifest confirms the installs.
+    func test500TrackDesiredSetConvergesAndTheJobTableIsBounded() async throws {
+        let db = try freshQueue()
+        let ids = (0..<500).map { "t\($0)" }
+        let resolver = FakeResolver(local: Set(ids))
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: resolver, transfer: transfer)
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+
+        try await manager.setRoots([root("big", kind: .playlist, tracks: ids)])
+
+        let sent = await transfer.sent
+        XCTAssertEqual(sent.count, 500)
+        XCTAssertEqual(Set(sent).count, 500, "each track transferred exactly once")
+
+        try await manager.ingestManifest(manifest(ids))
+        let snap = try await manager.statusSnapshot()
+        XCTAssertTrue(snap.isIdle)
+        XCTAssertEqual(snap.readyCount, 500)
+        let remaining = try await manager.estimatedRemainingBytes()
+        XCTAssertEqual(remaining, 0)
+
+        // Bounded: settled jobs for installed+desired tracks are pruned, so the table does not carry
+        // one row per track forever.
+        let jobs = try await store.jobs()
+        XCTAssertTrue(jobs.isEmpty, "the job table should prune to empty after convergence, had \(jobs.count)")
+
+        // Idempotent: another tick moves nothing.
+        try await manager.tick()
+        let sentAfterTick = await transfer.sent
+        XCTAssertEqual(sentAfterTick.count, 500)
+    }
+
+    /// 100 cancellations: every cancelled job stays cancelled across a reconcile, none is revived by
+    /// a bare tick, and no duplicate job is created for a still-desired track.
+    func test100CancellationsAllStayCancelled() async throws {
+        let db = try freshQueue()
+        let ids = (0..<100).map { "c\($0)" }
+        let transfer = FakeTransfer()
+        // Fail every resolve so nothing races to `.sent` before we cancel it.
+        await transfer.setFailAlways(Dictionary(uniqueKeysWithValues: ids.map { ($0, .sourceUnavailable) }))
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: Set(ids)), transfer: transfer)
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+
+        try await manager.setRoots([root("pl", kind: .playlist, tracks: ids)])
+        let requestIDs = try await store.jobs().map(\.requestID)
+        XCTAssertEqual(requestIDs.count, 100)
+
+        for requestID in requestIDs {
+            try await manager.cancelJob(requestID: requestID)
+        }
+        try await manager.tick()
+        try await manager.tick()
+
+        let jobs = try await store.jobs()
+        XCTAssertEqual(jobs.count, 100, "no duplicate jobs for still-desired tracks")
+        XCTAssertTrue(jobs.allSatisfy { $0.state == .cancelled }, "every cancelled job stayed cancelled")
+        let active = try await store.activeJobs()
+        XCTAssertTrue(active.isEmpty)
+    }
+
+    /// Relaunch at every job state: a crash can leave a job in any `PhoneWatchJobState`. After the
+    /// §8.2 relaunch flow (`resumeOutstanding`), each converges to a consistent terminal — the
+    /// in-flight-ish states resume and complete, and `sent` / `failed` / `cancelled` are respected —
+    /// with never more than one job per track.
+    func testRelaunchAtEveryJobStateConvergesConsistently() async throws {
+        let resumesToSent: Set<PhoneWatchJobState> = [.queued, .resolving, .waitingForWiFi, .transferring]
+
+        for state in PhoneWatchJobState.allCases {
+            let db = try freshQueue()
+            let store = PhoneWatchDownloadStore(dbQueue: db)
+            try await store.replaceRoots([root("r1", tracks: ["a"])])
+            try await store.upsertJob(PhoneWatchDownloadJob(trackID: "a", rootIDs: ["r1"], state: state))
+
+            let transfer = FakeTransfer()
+            let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]), transfer: transfer)
+
+            try await manager.resumeOutstanding()
+
+            let jobs = try await store.jobs().filter { $0.trackID == "a" }
+            XCTAssertEqual(jobs.count, 1, "state \(state): exactly one job per track")
+            let sent = await transfer.sent
+
+            if resumesToSent.contains(state) {
+                XCTAssertEqual(sent, ["a"], "state \(state) should resume and complete the transfer")
+                XCTAssertEqual(jobs.first?.state, .sent)
+            } else {
+                XCTAssertTrue(sent.isEmpty, "state \(state) is terminal — nothing should transfer")
+                XCTAssertEqual(jobs.first?.state, state, "state \(state) should be left untouched")
+            }
+        }
+    }
 }
