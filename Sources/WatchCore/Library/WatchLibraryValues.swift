@@ -106,8 +106,8 @@ public struct WatchOrphanSnapshot: Identifiable, Hashable, Sendable {
     }
 }
 
-/// Audio retained across a store rebuild or an unreadable legacy database. Deliberately carries no
-/// checksum: hashing every file would block launch, and a placeholder digest would be a lie.
+/// Audio retained across a store rebuild. Deliberately carries no checksum: hashing every file
+/// would block launch, and a placeholder digest would be a lie.
 public struct WatchRecoverableFileSnapshot: Identifiable, Hashable, Sendable {
     public var id: String { relativeFilename }
     public let relativeFilename: String
@@ -130,35 +130,6 @@ public struct WatchPlaybackSnapshot: Equatable, Sendable {
     public let elapsedSeconds: Double
     public let shuffleEnabled: Bool
     public let repeatMode: String
-}
-
-public struct WatchLegacyTrackSnapshot: Hashable, Sendable {
-    public let trackID: String
-    public let title: String
-    public let artist: String
-    public let albumTitle: String
-    public let relativeFilename: String?
-    public init(trackID: String, title: String, artist: String = "", albumTitle: String = "", relativeFilename: String? = nil) {
-        self.trackID = trackID; self.title = title; self.artist = artist
-        self.albumTitle = albumTitle; self.relativeFilename = relativeFilename
-    }
-}
-
-public struct WatchLegacyPlaylistSnapshot: Hashable, Sendable {
-    public let playlistID: String
-    public let title: String
-    public let trackIDs: [String]
-    public init(playlistID: String, title: String, trackIDs: [String]) {
-        self.playlistID = playlistID; self.title = title; self.trackIDs = trackIDs
-    }
-}
-
-public struct WatchLegacyLibrarySnapshot: Equatable, Sendable {
-    public let tracks: [WatchLegacyTrackSnapshot]
-    public let playlists: [WatchLegacyPlaylistSnapshot]
-    public init(tracks: [WatchLegacyTrackSnapshot], playlists: [WatchLegacyPlaylistSnapshot]) {
-        self.tracks = tracks; self.playlists = playlists
-    }
 }
 
 public enum WatchLibraryError: Error, Equatable { case unknownTrack(String), invalidOrphan(String) }

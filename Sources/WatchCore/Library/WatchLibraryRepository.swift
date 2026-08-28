@@ -257,32 +257,7 @@ public actor WatchLibraryRepository {
                                      repeatMode: state.repeatMode)
     }
 
-    // MARK: - Legacy adoption and fixtures
-
-    /// Adopt an old GRDB watch library. Metadata is written first so audio can be validated against
-    /// it; a file that fails validation is left on disk as an orphan rather than deleted.
-    @discardableResult
-    public func migrateLegacy(_ snapshot: WatchLegacyLibrarySnapshot) throws -> Int {
-        for track in snapshot.tracks {
-            try upsertTrack(.init(trackID: track.trackID, title: track.title,
-                                  artist: track.artist, albumTitle: track.albumTitle))
-        }
-        for playlist in snapshot.playlists {
-            try upsertPlaylist(.init(playlistID: playlist.playlistID, title: playlist.title,
-                                     trackIDs: playlist.trackIDs), desiredOnWatch: true)
-        }
-        var adopted = 0
-        for track in snapshot.tracks {
-            guard let filename = track.relativeFilename else { continue }
-            let url = audioDirectory.appendingPathComponent(filename)
-            guard FileManager.default.fileExists(atPath: url.path) else { continue }
-            let measured = try WatchFileDigest.measure(url)
-            try markAsset(trackID: track.trackID, relativeFilename: filename,
-                          installedBytes: measured.bytes, sha256: measured.sha256, state: .ready)
-            adopted += 1
-        }
-        return adopted
-    }
+    // MARK: - Fixtures
 
     public func seedDeterministicFixture() throws {
         try upsertTrack(.init(trackID: "fixture-track", title: "Ocean", artist: "Built-in", albumTitle: "Built-in Sounds"))

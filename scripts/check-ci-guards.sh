@@ -185,15 +185,20 @@ for legacy in \
   Sources/WatchSync/WatchLibraryFilter.swift \
   Sources/WatchSync/WatchTransferController.swift \
   Sources/WatchSync/WatchTransferQueue.swift \
-  Sources/WatchProtocol/WatchSyncMessage.swift; do
+  Sources/WatchProtocol/WatchSyncMessage.swift \
+  Sources/WatchCore/Library/WatchLegacyUpgrade.swift; do
   if [ -f "$legacy" ]; then
     echo "    $legacy was deleted in Phase 10 and must not return"
     status=1; watch_ok=0
   fi
 done
-if grep -rqE 'WatchCatalog|WatchSyncEnvelope|WatchTransferRecord|WatchManifestRecord' Sources Tests WatchApp 2>/dev/null; then
+# 10d deleted the superseded GRDB→SwiftData catalog import (there is no legacy product to
+# read from since the Phase 6 cutover; metadata is rebuilt from the phone by reconciliation).
+# The one-time *audio* bridge (WatchAppAssembly.migrateLegacyAudioIfNeeded) is deliberately
+# kept — it is the only thing that preserves downloaded tracks across the TestFlight upgrade.
+if grep -rqE 'WatchCatalog|WatchSyncEnvelope|WatchTransferRecord|WatchManifestRecord|WatchLegacyUpgrade|WatchLegacyLibrarySnapshot|migrateLegacy\(' Sources Tests WatchApp 2>/dev/null; then
   echo "    a Phase-10-deleted legacy watch symbol is still referenced"
-  grep -rnE 'WatchCatalog|WatchSyncEnvelope|WatchTransferRecord|WatchManifestRecord' Sources Tests WatchApp | sed 's/^/      /'
+  grep -rnE 'WatchCatalog|WatchSyncEnvelope|WatchTransferRecord|WatchManifestRecord|WatchLegacyUpgrade|WatchLegacyLibrarySnapshot|migrateLegacy\(' Sources Tests WatchApp | sed 's/^/      /'
   status=1; watch_ok=0
 fi
 [ "$watch_ok" = "1" ] && echo "    OK"

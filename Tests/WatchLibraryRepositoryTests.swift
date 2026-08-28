@@ -214,19 +214,6 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         XCTAssertEqual(restored?.elapsedSeconds, 0)
     }
 
-    func testLegacyUpgradeIsIdempotentAndAdoptsValidatedAudio() async throws {
-        let fixture = try Fixture(); _ = try fixture.write("old.m4a", bytes: Data("old-audio".utf8))
-        let legacy = WatchLegacyLibrarySnapshot(
-            tracks: [.init(trackID: "stable", title: "Old Song", artist: "Artist", relativeFilename: "old.m4a")],
-            playlists: [.init(playlistID: "old-list", title: "Old List", trackIDs: ["stable"])])
-        try await fixture.repository.migrateLegacy(legacy); try await fixture.repository.migrateLegacy(legacy)
-        let trackIDs = try await fixture.repository.tracks().map(\.id)
-        let playlist = try await fixture.repository.playlists().first
-        let manifest = try await fixture.repository.manifest()
-        XCTAssertEqual(trackIDs, ["stable"]); XCTAssertEqual(playlist?.trackIDs, ["stable"])
-        XCTAssertEqual(manifest.installedBytes, 9)
-    }
-
     func testDeterministicSeedCanRunRepeatedly() async throws {
         let fixture = try Fixture()
         try await fixture.repository.seedDeterministicFixture(); try await fixture.repository.seedDeterministicFixture()
@@ -328,79 +315,6 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         catch let error as WatchLibraryError { XCTAssertEqual(error, expected, file: file, line: line) }
         catch { XCTFail("unexpected error \(error)", file: file, line: line) }
     }
-}
-
-final class WatchLegacyUpgradeTests: XCTestCase {
-    private enum LegacyStoreUnreadable: Error { case corrupt }
-
-    func testUpgradeRunsOnceAndAdoptsLegacyAudio() async throws {
-        let fixture = try Fixture()
-        _ = try fixture.write("old.m4a", bytes: Data("old-audio".utf8))
-        let snapshot = WatchLegacyLibrarySnapshot(
-            tracks: [.init(trackID: "stable", title: "Old Song", relativeFilename: "old.m4a"),
-                     .init(trackID: "metadata-only", title: "No Audio", relativeFilename: nil)],
-            playlists: [.init(playlistID: "old-list", title: "Old List", trackIDs: ["stable"])])
-        let upgrade = WatchLegacyUpgrade(repository: fixture.repository)
-        let reads = Counter()
-
-        let first = try await upgrade.run { await reads.increment(); return snapshot }
-        XCTAssertEqual(first, .completed(tracks: 2, playlists: 1, adoptedAssets: 1))
-        XCTAssertFalse(first.requiresPhoneReconciliation)
-
-        // Second launch: the reader is never consulted again and nothing is rewritten.
-        let second = try await upgrade.run { await reads.increment(); return snapshot }
-        XCTAssertEqual(second, .alreadyCompleted)
-        let readCount = await reads.value
-        let readyIDs = try await fixture.repository.tracks(readyOnly: true).map(\.id)
-        let members = try await fixture.repository.playlists().first?.trackIDs
-        XCTAssertEqual(readCount, 1)
-        XCTAssertEqual(readyIDs, ["stable"])
-        XCTAssertEqual(members, ["stable"])
-    }
-
-    // The governing rule: unreadable legacy metadata must never cost the user their audio.
-    func testUnreadableLegacyStoreRetainsAudioAndAsksForReconciliation() async throws {
-        let fixture = try Fixture()
-        _ = try fixture.write("keep.m4a", bytes: Data("still-here".utf8))
-        _ = try fixture.write("also-keep.m4a", bytes: Data("also".utf8))
-        let upgrade = WatchLegacyUpgrade(repository: fixture.repository)
-
-        let outcome = try await upgrade.run { throw LegacyStoreUnreadable.corrupt }
-        XCTAssertEqual(outcome, .legacyUnreadable(retainedFiles: [
-            .init(relativeFilename: "also-keep.m4a", bytes: 4),
-            .init(relativeFilename: "keep.m4a", bytes: 10)]))
-        XCTAssertTrue(outcome.requiresPhoneReconciliation)
-        for name in ["keep.m4a", "also-keep.m4a"] {
-            XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.audio.appendingPathComponent(name).path))
-        }
-        // The failure is recorded, so a broken legacy database is not re-read on every launch.
-        let rerun = try await upgrade.run { throw LegacyStoreUnreadable.corrupt }
-        XCTAssertEqual(rerun, .alreadyCompleted)
-    }
-
-    func testUpgradeSurvivesRelaunchOfThePersistentStore() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let store = root.appendingPathComponent("library.store"), audio = root.appendingPathComponent("audio")
-        let snapshot = WatchLegacyLibrarySnapshot(
-            tracks: [.init(trackID: "stable", title: "Old Song")], playlists: [])
-
-        var first: WatchStoreBootstrapResult? = WatchStoreBootstrap.open(storeURL: store, audioDirectory: audio)
-        let firstRepository = WatchLibraryRepository(container: try XCTUnwrap(first?.container), audioDirectory: audio)
-        _ = try await WatchLegacyUpgrade(repository: firstRepository).run { snapshot }
-        first = nil
-
-        let second = WatchStoreBootstrap.open(storeURL: store, audioDirectory: audio)
-        let secondRepository = WatchLibraryRepository(container: try XCTUnwrap(second.container), audioDirectory: audio)
-        let outcome = try await WatchLegacyUpgrade(repository: secondRepository).run {
-            XCTFail("the legacy database must not be read a second time"); return snapshot
-        }
-        XCTAssertEqual(outcome, .alreadyCompleted)
-    }
-}
-
-private actor Counter {
-    private(set) var value = 0
-    func increment() { value += 1 }
 }
 
 private struct Fixture {

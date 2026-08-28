@@ -77,9 +77,25 @@ monospaced `ScrollView` with a Refresh button (`watch.diagnostics.json` /
 clean. Still unwired: request latency, install result, manifest convergence —
 they live deeper in the connectivity/sync/installer actors.
 
+**10d (`this commit`)** finished the legacy deletion. The superseded GRDB→SwiftData
+*catalog import* is gone: `WatchLegacyUpgrade` (whole file),
+`WatchLibraryRepository.migrateLegacy(_:)`, and the `WatchLegacyLibrarySnapshot` /
+`WatchLegacyTrackSnapshot` / `WatchLegacyPlaylistSnapshot` value types — all
+unreachable since Phase 6 deleted the legacy product that was the only thing that
+could supply the GRDB reader closure. Watch metadata is rebuilt from the phone by
+reconciliation, so nothing is lost. Dead tests removed
+(`WatchLegacyUpgradeTests`, `testLegacyUpgradeIsIdempotentAndAdoptsValidatedAudio`,
+the `Counter` helper). `check-ci-guards.sh` grows a clause: the deleted file must
+not return and none of `WatchLegacyUpgrade` / `WatchLegacyLibrarySnapshot` /
+`migrateLegacy(` may reappear. **Deliberately kept:** the one-time *audio* bridge
+`WatchAppAssembly.migrateLegacyAudioIfNeeded` — it is the only thing that
+preserves downloaded tracks across the TestFlight upgrade from the old watch app,
+it is idempotent behind a metadata key, and it does not duplicate the new
+architecture. There is no compatibility flag left to delete — Phase 6 removed
+`WatchFeatureFlags.swift` and the guard already forbids its return.
+
 **Still in Phase 10:** the remaining diagnostics call sites (request latency,
-install result, manifest convergence); the superseded GRDB catalog import beyond what 10a took,
-the compatibility flag and any remaining dead tests; add privacy-safe structured diagnostics (activation, request latency,
+install result, manifest convergence); add privacy-safe structured diagnostics (activation, request latency,
 transfer state, install result, manifest convergence, playback target, route
 events, store recovery, disconnect duration) and an in-app diagnostics export
 carrying only per-export-hashed IDs, state codes, timestamps, versions, byte

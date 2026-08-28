@@ -1691,6 +1691,20 @@ by compiler or device evidence.
     `watch.storage.diagnostics`) renders the encoded JSON in a monospaced `ScrollView` +
     Refresh (`watch.diagnostics.json` / `watch.diagnostics.refresh`). Gate: `make project` +
     `xcodebuild build -scheme TonearmWatch` (watchOS sim) green; `make ci-guards` clean; full
-    `swift test` + smokes by the hook. Remaining in Phase 10: request-latency / install-result /
-    manifest-convergence call sites (deeper in the connectivity/sync/installer actors);
-    fault-injection / soak harnesses.
+    `swift test` + smokes by the hook.
+  - **10d (2026-08-27, this commit): legacy deletion finished (§10, §12).** The superseded
+    GRDB→SwiftData *catalog import* is deleted — `Sources/WatchCore/Library/WatchLegacyUpgrade.swift`
+    (whole file), `WatchLibraryRepository.migrateLegacy(_:)`, and the `WatchLegacyLibrarySnapshot`
+    / `WatchLegacyTrackSnapshot` / `WatchLegacyPlaylistSnapshot` value types — unreachable since
+    Phase 6 removed the legacy product that supplied the GRDB reader. Metadata is rebuilt from
+    the phone by reconciliation, so no user data is lost. Dead tests removed
+    (`WatchLegacyUpgradeTests`, `testLegacyUpgradeIsIdempotentAndAdoptsValidatedAudio`, `Counter`).
+    `check-ci-guards.sh`: the deleted file must not return and no `WatchLegacyUpgrade` /
+    `WatchLegacyLibrarySnapshot` / `migrateLegacy(` reference may reappear. **Kept on purpose:**
+    `WatchAppAssembly.migrateLegacyAudioIfNeeded` — the one-time, idempotent *audio* bridge that
+    preserves downloaded tracks across the TestFlight upgrade; it does not duplicate the new
+    architecture. No compatibility flag remains (`WatchFeatureFlags.swift` went in Phase 6).
+    Gate: `rm -rf .build && swift build --target TonearmWatchCore` clean; `make ci-guards` clean;
+    `WatchLibraryRepositoryTests` green.
+    Remaining in Phase 10: request-latency / install-result / manifest-convergence call sites
+    (deeper in the connectivity/sync/installer actors); fault-injection / soak harnesses.
