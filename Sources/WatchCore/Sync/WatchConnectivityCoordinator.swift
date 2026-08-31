@@ -335,7 +335,11 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
     public func receiveFile(_ url: URL, metadata: [String: String]) async {
         // A delivered file proves the phone is alive, then goes to the installer via the observer.
         await run(reducer.apply(.peerResponded, at: Date()))
-        await observer?.didReceiveAudioFile(at: url, metadata: metadata)
+        if metadata["assetKind"] == WatchArtworkFileMetadata.assetKind {
+            await observer?.didReceiveArtworkFile(at: url, metadata: metadata)
+        } else {
+            await observer?.didReceiveAudioFile(at: url, metadata: metadata)
+        }
     }
 
     // MARK: - Private

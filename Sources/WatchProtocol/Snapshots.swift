@@ -167,15 +167,17 @@ public struct WatchManifestPayload: Codable, Equatable, Sendable {
     public var installedBytes: Int64
     public var capacityBytes: Int64
     public var freeBytes: Int64
+    public var installedArtworkIDs: [String]
     public var generatedAt: Date
 
     public init(manifestID: String, readyTrackIDs: [WatchTrackID], installedBytes: Int64,
-                capacityBytes: Int64 = 0, freeBytes: Int64 = 0, generatedAt: Date = Date()) {
+                capacityBytes: Int64 = 0, freeBytes: Int64 = 0, installedArtworkIDs: [String] = [], generatedAt: Date = Date()) {
         self.manifestID = manifestID
         self.readyTrackIDs = readyTrackIDs
         self.installedBytes = installedBytes
         self.capacityBytes = capacityBytes
         self.freeBytes = freeBytes
+        self.installedArtworkIDs = installedArtworkIDs
         self.generatedAt = generatedAt
     }
 }

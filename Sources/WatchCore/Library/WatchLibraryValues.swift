@@ -91,6 +91,13 @@ public struct WatchManifestSnapshot: Equatable, Sendable {
     public let manifestID: String
     public let readyTrackIDs: [String]
     public let installedBytes: Int64
+    public let installedArtworkIDs: [String]
+
+    public init(manifestID: String, readyTrackIDs: [String], installedBytes: Int64,
+                installedArtworkIDs: [String] = []) {
+        self.manifestID = manifestID; self.readyTrackIDs = readyTrackIDs
+        self.installedBytes = installedBytes; self.installedArtworkIDs = installedArtworkIDs
+    }
 }
 
 public struct WatchStorageSnapshot: Equatable, Sendable {

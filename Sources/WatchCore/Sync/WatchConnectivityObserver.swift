@@ -23,6 +23,7 @@ public protocol WatchConnectivityObserver: AnyObject, Sendable {
     /// §5.2 `transferFile`: one audio delivery has been staged by the transport adapter and is the
     /// observer's to install (§8.3) or defer. `stagedURL` is consumed by the implementation.
     func didReceiveAudioFile(at stagedURL: URL, metadata: [String: String]) async
+    func didReceiveArtworkFile(at stagedURL: URL, metadata: [String: String]) async
     func phoneRequestedReconciliation(_ request: WatchReconciliationRequest) async
     /// A-08: the phone's library identity differs from the one this watch is bound to. Nothing has
     /// been applied; the app must ask the user before `confirmPairedLibraryReplacement()`.
@@ -42,6 +43,7 @@ extension WatchConnectivityObserver {
     public func didReceiveDownloadRoots(_ payload: WatchSetDownloadRoots) async {}
     public func didReceiveRemoveAssets(_ payload: WatchRemoveAssets) async {}
     public func didReceiveAudioFile(at stagedURL: URL, metadata: [String: String]) async {}
+    public func didReceiveArtworkFile(at stagedURL: URL, metadata: [String: String]) async {}
     public func phoneRequestedReconciliation(_ request: WatchReconciliationRequest) async {}
     public func pairedLibraryChangeRequiresConfirmation(current: WatchPairedLibraryID,
                                                         incoming: WatchPairedLibraryID) async {}

@@ -10,6 +10,7 @@ import TonearmWatchProtocol
 public actor WatchSyncActor: WatchConnectivityObserver {
     private let repository: WatchLibraryRepository
     private let installer: WatchFileInstaller
+    private let artworkInstaller: WatchArtworkInstaller?
     private let diagnostics: WatchDiagnosticsRecorder?
     private weak var coordinator: WatchConnectivityCoordinator?
 
@@ -21,12 +22,14 @@ public actor WatchSyncActor: WatchConnectivityObserver {
 
     public init(repository: WatchLibraryRepository,
                 installer: WatchFileInstaller,
+                artworkInstaller: WatchArtworkInstaller? = nil,
                 coordinator: WatchConnectivityCoordinator? = nil,
                 diagnostics: WatchDiagnosticsRecorder? = nil,
                 onPairedLibraryChange: @escaping @Sendable (WatchPairedLibraryID, WatchPairedLibraryID) async -> Void = { _, _ in },
                 onLibraryChanged: @escaping @Sendable () async -> Void = {}) {
         self.repository = repository
         self.installer = installer
+        self.artworkInstaller = artworkInstaller
         self.diagnostics = diagnostics
         self.coordinator = coordinator
         self.onPairedLibraryChange = onPairedLibraryChange
@@ -108,6 +111,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
                 title: displayTitle(summary.title, fallback: summary.trackID.rawValue),
                 artist: summary.artist, albumTitle: summary.albumTitle,
                 durationSeconds: summary.durationSeconds, artworkID: summary.artworkID,
+                coverArtworkID: summary.coverArtworkID, customArtworkID: summary.customArtworkID,
                 phoneRevision: revision))
         }
     }
@@ -129,6 +133,12 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     public func didReceiveAudioFile(at stagedURL: URL, metadata: [String: String]) async {
         let outcome = await installer.install(stagedURL: stagedURL, metadata: metadata)
         await recordInstall(outcome)
+        await onLibraryChanged()
+        await publishManifest()
+    }
+
+    public func didReceiveArtworkFile(at stagedURL: URL, metadata: [String: String]) async {
+        if let artworkInstaller { _ = await artworkInstaller.install(stagedURL: stagedURL, metadata: metadata) }
         await onLibraryChanged()
         await publishManifest()
     }
@@ -191,7 +201,8 @@ public actor WatchSyncActor: WatchConnectivityObserver {
             readyTrackIDs: snapshot.readyTrackIDs.map(WatchTrackID.init),
             installedBytes: snapshot.installedBytes,
             capacityBytes: storage?.capacityBytes ?? 0,
-            freeBytes: storage?.freeBytes ?? 0)
+            freeBytes: storage?.freeBytes ?? 0,
+            installedArtworkIDs: snapshot.installedArtworkIDs)
         await coordinator.sendManifest(payload)
         // §12 manifest-convergence diagnostics: each time the watch reports where it stands, log the
         // ready count and installed bytes. Watching `count` climb toward the desired set across a

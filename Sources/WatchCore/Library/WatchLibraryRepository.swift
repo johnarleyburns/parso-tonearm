@@ -5,9 +5,10 @@ import SwiftData
 public actor WatchLibraryRepository {
     private let container: ModelContainer
     private let audioDirectory: URL
+    private let artworkDirectory: URL?
 
-    public init(container: ModelContainer, audioDirectory: URL) {
-        self.container = container; self.audioDirectory = audioDirectory
+    public init(container: ModelContainer, audioDirectory: URL, artworkDirectory: URL? = nil) {
+        self.container = container; self.audioDirectory = audioDirectory; self.artworkDirectory = artworkDirectory
     }
 
     // MARK: - Ingest
@@ -101,6 +102,20 @@ public actor WatchLibraryRepository {
         try context.save()
     }
 
+    public func markArtworkAsset(artworkID: String, relativeFilename: String,
+                                 installedBytes: Int64, state: WatchAssetValidationState) throws {
+        let context = ModelContext(container)
+        var descriptor = FetchDescriptor<WatchArtworkAssetModel>(predicate: #Predicate { $0.artworkID == artworkID })
+        descriptor.fetchLimit = 1
+        let asset = try context.fetch(descriptor).first ?? WatchArtworkAssetModel(
+            artworkID: artworkID, relativeFilename: relativeFilename, bytes: installedBytes,
+            validationState: state)
+        if asset.modelContext == nil { context.insert(asset) }
+        asset.relativeFilename = relativeFilename; asset.bytes = installedBytes
+        asset.validationState = state; asset.installedAt = Date()
+        try context.save()
+    }
+
     /// §5.3 `removeAssets`: drop the track, its asset row, and its on-disk audio. Returns the IDs
     /// actually removed so the caller can report an accurate manifest. A track that is a member of a
     /// still-desired playlist is still removed here — the phone resolved references before sending.
@@ -119,7 +134,19 @@ public actor WatchLibraryRepository {
         // A playlist entry pointing at a now-deleted track is left in place: membership is the
         // phone's, and `WatchPlaylistSnapshot.isPartial` already tells the UI the row is incomplete.
         try context.save()
+        try sweepUnreferencedArtwork(context: context)
         return removed.sorted()
+    }
+
+    private func sweepUnreferencedArtwork(context: ModelContext) throws {
+        let referenced = Set(try context.fetch(FetchDescriptor<WatchTrackModel>()).flatMap { track in
+            [track.coverArtworkID, track.customArtworkID, track.artworkID].compactMap { $0 }
+        })
+        for asset in try context.fetch(FetchDescriptor<WatchArtworkAssetModel>()) where !referenced.contains(asset.artworkID) {
+            if let artworkDirectory { try? FileManager.default.removeItem(at: artworkDirectory.appendingPathComponent(asset.relativeFilename)) }
+            context.delete(asset)
+        }
+        try context.save()
     }
 
     // MARK: - Queries
@@ -178,14 +205,17 @@ public actor WatchLibraryRepository {
     public func manifest() throws -> WatchManifestSnapshot {
         let context = ModelContext(container)
         let assets = try context.fetch(FetchDescriptor<WatchAssetModel>()).filter { $0.validationState == .ready }.sorted { $0.trackID < $1.trackID }
-        let payload = assets.map { "\($0.trackID):\($0.installedBytes):\($0.sha256)" }.joined(separator: "|")
+        let artwork = (try? context.fetch(FetchDescriptor<WatchArtworkAssetModel>()).filter { $0.validationState == .ready }.sorted { $0.artworkID < $1.artworkID }) ?? []
+        let payload = assets.map { "\($0.trackID):\($0.installedBytes):\($0.sha256)" }.joined(separator: "|") + artwork.map { "art:\($0.artworkID):\($0.bytes)" }.joined(separator: "|")
         return WatchManifestSnapshot(manifestID: WatchFileDigest.hex(Data(payload.utf8)), readyTrackIDs: assets.map(\.trackID),
-                                     installedBytes: assets.reduce(0) { $0 + $1.installedBytes })
+                                     installedBytes: assets.reduce(0) { $0 + $1.installedBytes },
+                                     installedArtworkIDs: artwork.map(\.artworkID))
     }
 
     public func storage() throws -> WatchStorageSnapshot {
         let context = ModelContext(container)
         let assets = try context.fetch(FetchDescriptor<WatchAssetModel>())
+        let artwork = try context.fetch(FetchDescriptor<WatchArtworkAssetModel>())
         let known = Set(assets.map(\.relativeFilename))
         let orphanBytes = Self.audioFiles(at: audioDirectory)
             .filter { !known.contains($0.lastPathComponent) }
@@ -195,7 +225,7 @@ public actor WatchLibraryRepository {
         let volume = try? audioDirectory.resourceValues(forKeys: [
             .volumeAvailableCapacityKey, .volumeTotalCapacityKey])
         return WatchStorageSnapshot(
-            readyBytes: assets.filter { $0.validationState == .ready }.reduce(0) { $0 + $1.installedBytes },
+            readyBytes: assets.filter { $0.validationState == .ready }.reduce(0) { $0 + $1.installedBytes } + artwork.filter { $0.validationState == .ready }.reduce(0) { $0 + $1.bytes },
             stagingBytes: assets.filter { $0.validationState == .installing }.reduce(0) { $0 + $1.installedBytes },
             orphanBytes: orphanBytes,
             freeBytes: Int64(volume?.volumeAvailableCapacity ?? 0),
