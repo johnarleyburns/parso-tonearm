@@ -40,6 +40,7 @@ final class WatchPlayer: ObservableObject {
     private var queue: [WatchTrackSnapshot] = []
     private var positionTimer: Timer?
     private var resolvedArtworkTrackID: String?
+    private var pendingRoutePlayback = false
 
     var queueTracks: [WatchTrackSnapshot] { queue }
 
@@ -99,6 +100,11 @@ final class WatchPlayer: ObservableObject {
         // the choice rides the play action; it is not an automatic switch).
         WatchPlaybackCoordinator.shared.setTarget(.thisWatch)
         navigateToNowPlaying()
+        guard output.hasUsableRoute() else {
+            pendingRoutePlayback = true
+            audioRouteProblem = "Connect headphones or a speaker to play audio."
+            return
+        }
         handleCommand(.play)
     }
 
@@ -119,7 +125,13 @@ final class WatchPlayer: ObservableObject {
     func retryAudioRoute() {
         Task { @MainActor in
             await output.requestRoute()
-            if audioRouteProblem == nil, engine.isPlaying { await output.play() }
+            guard audioRouteProblem == nil else { return }
+            if pendingRoutePlayback {
+                pendingRoutePlayback = false
+                handleCommand(.play)
+            } else if engine.isPlaying {
+                await output.play()
+            }
         }
     }
 
@@ -142,6 +154,11 @@ final class WatchPlayer: ObservableObject {
     // MARK: - Engine commands
 
     private func handleCommand(_ cmd: WatchEngineCommand) {
+        if case .play = cmd, !output.hasUsableRoute() {
+            pendingRoutePlayback = true
+            audioRouteProblem = "Connect headphones or a speaker to play audio."
+            return
+        }
         let directives = engine.command(cmd) { [weak self] key in
             guard let self else { return nil }
             return self.queue.first(where: { $0.id == key }).flatMap { self.localFileURL(for: $0) }
@@ -297,6 +314,11 @@ final class WatchPlayer: ObservableObject {
         isShuffled = restored.isShuffled
         repeatMode = restored.repeatMode
         isPlaying = false
+        // The production launch surface is Now Playing when a persisted queue is present. UI smoke
+        // runs intentionally start on the root list so they can exercise every entry point.
+        if currentTrack != nil && !ProcessInfo.processInfo.arguments.contains("UI_TESTING") {
+            navigateToNowPlaying()
+        }
     }
 
     func clearPosition() { WatchPositionStore.clear() }

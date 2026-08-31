@@ -124,6 +124,13 @@ final class AVPlayerOutput: WatchAudioOutput {
         await activateSession()
     }
 
+    /// Whether Core Audio currently exposes an output. Built-in speaker/receiver routes count on
+    /// speaker-capable watch hardware; an empty route is the only state that needs the app-owned
+    /// route card before attempting playback.
+    func hasUsableRoute() -> Bool {
+        !AVAudioSession.sharedInstance().currentRoute.outputs.isEmpty
+    }
+
     func removeObservers() {
         removeItemObservers()
         rateObserver?.invalidate()
