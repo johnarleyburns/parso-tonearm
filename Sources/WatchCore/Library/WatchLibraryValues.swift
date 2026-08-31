@@ -58,10 +58,25 @@ public struct WatchTrackSnapshot: Identifiable, Hashable, Sendable {
     public let trackNumber: Int?
     public let discNumber: Int?
     public let artworkID: String?
+    public let coverArtworkID: String?
+    public let customArtworkID: String?
     public let codec: String?
     public let phoneRevision: Int64
     public let localFilename: String?
+    public let artworkFilename: String?
     public let isReady: Bool
+
+    public init(id: String, title: String, artist: String, albumTitle: String,
+                durationSeconds: Double?, trackNumber: Int?, discNumber: Int?, artworkID: String?,
+                coverArtworkID: String? = nil, customArtworkID: String? = nil,
+                codec: String?, phoneRevision: Int64, localFilename: String?,
+                artworkFilename: String? = nil, isReady: Bool) {
+        self.id = id; self.title = title; self.artist = artist; self.albumTitle = albumTitle
+        self.durationSeconds = durationSeconds; self.trackNumber = trackNumber; self.discNumber = discNumber
+        self.artworkID = artworkID; self.coverArtworkID = coverArtworkID; self.customArtworkID = customArtworkID
+        self.codec = codec; self.phoneRevision = phoneRevision; self.localFilename = localFilename
+        self.artworkFilename = artworkFilename; self.isReady = isReady
+    }
 }
 
 public struct WatchPlaylistSnapshot: Identifiable, Hashable, Sendable {

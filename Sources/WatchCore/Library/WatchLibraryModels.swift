@@ -17,6 +17,8 @@ public enum WatchDownloadRootKind: String, Codable, Sendable { case track, playl
     public var trackNumber: Int?
     public var discNumber: Int?
     public var artworkID: String?
+    public var coverArtworkID: String?
+    public var customArtworkID: String?
     public var localThumbnailFilename: String?
     public var codec: String?
     public var expectedBytes: Int64?
@@ -27,16 +29,35 @@ public enum WatchDownloadRootKind: String, Codable, Sendable { case track, playl
 
     public init(trackID: String, title: String, artist: String = "", albumTitle: String = "",
                 durationSeconds: Double? = nil, trackNumber: Int? = nil, discNumber: Int? = nil,
-                artworkID: String? = nil, localThumbnailFilename: String? = nil, codec: String? = nil,
+                artworkID: String? = nil, coverArtworkID: String? = nil, customArtworkID: String? = nil,
+                localThumbnailFilename: String? = nil, codec: String? = nil,
                 expectedBytes: Int64? = nil, expectedSHA256: String? = nil, phoneRevision: Int64 = 0,
                 metadataUpdatedAt: Date = Date()) {
         self.trackID = trackID; self.title = title; normalizedTitle = WatchTextNormalizer.normalize(title)
         self.artist = artist; normalizedArtist = WatchTextNormalizer.normalize(artist)
         self.albumTitle = albumTitle; normalizedAlbum = WatchTextNormalizer.normalize(albumTitle)
         self.durationSeconds = durationSeconds; self.trackNumber = trackNumber; self.discNumber = discNumber
-        self.artworkID = artworkID; self.localThumbnailFilename = localThumbnailFilename; self.codec = codec
+        self.artworkID = artworkID; self.coverArtworkID = coverArtworkID ?? artworkID
+        self.customArtworkID = customArtworkID; self.localThumbnailFilename = localThumbnailFilename; self.codec = codec
         self.expectedBytes = expectedBytes; self.expectedSHA256 = expectedSHA256
         self.phoneRevision = phoneRevision; self.metadataUpdatedAt = metadataUpdatedAt
+    }
+}
+
+@Model public final class WatchArtworkAssetModel {
+    @Attribute(.unique) public var artworkID: String
+    public var relativeFilename: String
+    public var bytes: Int64
+    public var installedAt: Date
+    public var validationStateRaw: String
+    public var validationState: WatchAssetValidationState {
+        get { WatchAssetValidationState(rawValue: validationStateRaw) ?? .corrupt }
+        set { validationStateRaw = newValue.rawValue }
+    }
+    public init(artworkID: String, relativeFilename: String, bytes: Int64,
+                installedAt: Date = Date(), validationState: WatchAssetValidationState) {
+        self.artworkID = artworkID; self.relativeFilename = relativeFilename; self.bytes = bytes
+        self.installedAt = installedAt; self.validationStateRaw = validationState.rawValue
     }
 }
 

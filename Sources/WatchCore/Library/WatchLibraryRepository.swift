@@ -24,6 +24,7 @@ public actor WatchLibraryRepository {
                 trackID: id, title: value.title, artist: value.artist, albumTitle: value.albumTitle,
                 durationSeconds: value.durationSeconds, trackNumber: value.trackNumber,
                 discNumber: value.discNumber, artworkID: value.artworkID,
+                coverArtworkID: value.coverArtworkID, customArtworkID: value.customArtworkID,
                 localThumbnailFilename: value.localThumbnailFilename, codec: value.codec,
                 expectedBytes: value.expectedBytes, expectedSHA256: value.expectedSHA256,
                 phoneRevision: value.phoneRevision))
@@ -37,6 +38,8 @@ public actor WatchLibraryRepository {
         model.albumTitle = value.albumTitle; model.normalizedAlbum = WatchTextNormalizer.normalize(value.albumTitle)
         model.durationSeconds = value.durationSeconds; model.trackNumber = value.trackNumber
         model.discNumber = value.discNumber; model.artworkID = value.artworkID
+        model.coverArtworkID = value.coverArtworkID ?? value.artworkID
+        model.customArtworkID = value.customArtworkID
         model.localThumbnailFilename = value.localThumbnailFilename; model.codec = value.codec
         model.expectedBytes = value.expectedBytes; model.expectedSHA256 = value.expectedSHA256
         model.phoneRevision = value.phoneRevision; model.metadataUpdatedAt = Date()
@@ -123,10 +126,12 @@ public actor WatchLibraryRepository {
 
     public func tracks(readyOnly: Bool = false) throws -> [WatchTrackSnapshot] {
         let context = ModelContext(container)
+        let installedArtwork = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<WatchArtworkAssetModel>())
+            .filter { $0.validationState == .ready }.map { ($0.artworkID, $0.relativeFilename) })
         return try context.fetch(FetchDescriptor<WatchTrackModel>()).compactMap {
             let ready = $0.asset?.validationState == .ready
             guard !readyOnly || ready else { return nil }
-            return Self.snapshot($0)
+            return Self.snapshot($0, installedArtwork: installedArtwork)
         }.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
@@ -159,7 +164,8 @@ public actor WatchLibraryRepository {
                 else if album.contains(term) { score += 10 }
                 else { return nil }
             }
-            return (score, Self.snapshot(model))
+            let installedArtwork = Dictionary(uniqueKeysWithValues: (try? context.fetch(FetchDescriptor<WatchArtworkAssetModel>()).filter { $0.validationState == .ready }.map { ($0.artworkID, $0.relativeFilename) }) ?? [])
+            return (score, Self.snapshot(model, installedArtwork: installedArtwork))
         }.sorted { $0.0 == $1.0 ? $0.1.id < $1.1.id : $0.0 > $1.0 }.map(\.1)
     }
 
@@ -295,14 +301,19 @@ public actor WatchLibraryRepository {
             .sorted { $0.relativeFilename < $1.relativeFilename }
     }
 
-    private static func snapshot(_ model: WatchTrackModel) -> WatchTrackSnapshot {
+    private static func snapshot(_ model: WatchTrackModel, installedArtwork: [String: String] = [:]) -> WatchTrackSnapshot {
         let ready = model.asset?.validationState == .ready
         return WatchTrackSnapshot(id: model.trackID, title: model.title, artist: model.artist,
                                   albumTitle: model.albumTitle, durationSeconds: model.durationSeconds,
                                   trackNumber: model.trackNumber, discNumber: model.discNumber,
-                                  artworkID: model.artworkID, codec: model.codec,
-                                  phoneRevision: model.phoneRevision,
-                                  localFilename: ready ? model.asset?.relativeFilename : nil, isReady: ready)
+                                  artworkID: model.artworkID, coverArtworkID: model.coverArtworkID,
+                                  customArtworkID: model.customArtworkID,
+                                  codec: model.codec,
+                                  phoneRevision: model.phoneRevision, localFilename: ready ? model.asset?.relativeFilename : nil,
+                                  artworkFilename: WatchArtworkResolver.resolve(customArtworkID: model.customArtworkID,
+                                      coverArtworkID: model.coverArtworkID ?? model.artworkID,
+                                      installed: installedArtwork.keys.contains).artworkID.flatMap { installedArtwork[$0] },
+                                  isReady: ready)
     }
     private static func audioFiles(at directory: URL) -> [URL] {
         (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.fileSizeKey], options: [.skipsHiddenFiles]))?.filter { !$0.hasDirectoryPath } ?? []

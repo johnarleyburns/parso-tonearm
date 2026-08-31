@@ -41,6 +41,21 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         XCTAssertFalse(track.isReady)
     }
 
+    func testArtworkProjectionUsesInstalledCustomBeforeCover() async throws {
+        let fixture = try Fixture()
+        try await fixture.repository.upsertTrack(.init(trackID: "art", title: "Art", artworkID: "legacy",
+                                                        coverArtworkID: "cover", customArtworkID: "custom"))
+        let context = ModelContext(fixture.container)
+        context.insert(WatchArtworkAssetModel(artworkID: "cover", relativeFilename: "cover.jpg", bytes: 1,
+                                              validationState: .ready))
+        context.insert(WatchArtworkAssetModel(artworkID: "custom", relativeFilename: "custom.jpg", bytes: 1,
+                                              validationState: .ready))
+        try context.save()
+        let tracks = try await fixture.repository.tracks()
+        let track = try XCTUnwrap(tracks.first)
+        XCTAssertEqual(track.artworkFilename, "custom.jpg")
+    }
+
     // §5.4: a late-arriving older revision is acknowledged, never applied over newer metadata.
     func testStaleRevisionIsAcknowledgedButNotApplied() async throws {
         let fixture = try Fixture()

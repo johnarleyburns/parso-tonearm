@@ -114,7 +114,7 @@ public enum WatchStoreBootstrap {
 public enum WatchSchemaV1: VersionedSchema {
     public static let versionIdentifier = Schema.Version(1, 0, 0)
     public static var models: [any PersistentModel.Type] {
-        [WatchStoreMetadata.self, WatchTrackModel.self, WatchAssetModel.self, WatchPlaylistModel.self,
+        [WatchStoreMetadata.self, WatchTrackModel.self, WatchAssetModel.self, WatchArtworkAssetModel.self, WatchPlaylistModel.self,
          WatchPlaylistEntryModel.self, WatchDownloadJobModel.self, WatchDownloadRootModel.self,
          WatchPlaybackStateModel.self, WatchSyncStateModel.self]
     }
