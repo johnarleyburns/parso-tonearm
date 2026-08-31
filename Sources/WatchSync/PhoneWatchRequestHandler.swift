@@ -142,8 +142,13 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
         let resolved = try await resolveCollection(request.collection)
         let offset = PhoneWatchPageToken.decode(request.pageToken).offset
         let (slice, next) = PhoneWatchPageToken.page(resolved.rows, offset: offset, limit: request.limit)
-        let tracks = slice.map {
-            PhoneWatchProjection.trackSummary(from: $0, downloadedOnWatch: downloaded)
+        var tracks: [WatchTrackSummary] = []
+        for row in slice {
+            let custom: String?
+            if let id = row.track.id { custom = try? await store.customArtworkId(for: id) }
+            else { custom = nil }
+            tracks.append(PhoneWatchProjection.trackSummary(from: row, downloadedOnWatch: downloaded,
+                                                             customArtworkID: custom))
         }
         return WatchCollectionResponse(collection: request.collection, title: resolved.title,
                                        tracks: Array(tracks), totalCount: resolved.rows.count,

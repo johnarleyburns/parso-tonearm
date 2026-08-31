@@ -108,9 +108,13 @@ struct NowPlayingView: View {
             guard let item else { return }
             Task {
                 guard let data = try? await item.loadTransferable(type: Data.self),
-                      let artworkId = await ArtworkStore.shared.store(data),
+                      let originalID = await ArtworkStore.shared.store(data),
                       let row = player.currentTrack else { return }
-                try? await appState.store.setCustomArtwork(trackId: row.id, artworkId: artworkId)
+                let originalURL = await ArtworkStore.shared.fileURL(id: originalID)
+                guard let variant = try? WatchArtworkVariant.make(from: originalURL),
+                      let variantData = try? Data(contentsOf: variant.fileURL),
+                      await ArtworkStore.shared.storeWatchVariant(variantData, artworkID: variant.artworkID) else { return }
+                try? await appState.store.setCustomArtwork(trackId: row.id, artworkId: variant.artworkID)
                 npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
                 ArtworkInvalidation.shared.invalidate()
                 selectedPhotoItem = nil

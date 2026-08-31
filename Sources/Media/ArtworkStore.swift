@@ -34,6 +34,16 @@ actor ArtworkStore {
         return img
     }
 
+    func fileURL(id: String) -> URL { dir.appendingPathComponent("\(id).jpg") }
+
+    /// Persists a deterministic watch derivative under its content address while keeping the
+    /// phone's existing custom-art lookup path (`<id>.jpg`) intact.
+    func storeWatchVariant(_ data: Data, artworkID: String) -> Bool {
+        guard UIImage(data: data) != nil else { return false }
+        do { try data.write(to: fileURL(id: artworkID), options: .atomic); return true }
+        catch { return false }
+    }
+
     func delete(id: String) {
         memory.removeObject(forKey: id as NSString)
         let url = dir.appendingPathComponent("\(id).jpg")

@@ -1,5 +1,6 @@
 #if !os(watchOS)
 import Foundation
+import UIKit
 import TonearmCore
 import TonearmWatchProtocol
 
@@ -91,8 +92,8 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
 /// job identity is a later refinement. A relaunch conservatively re-queues any job the store left
 /// `transferring`, which the watch manifest then dedupes.
 public struct PhoneWatchSessionFileTransfer: PhoneWatchFileTransferring {
-    private let transport: any WatchProtocolTransport
-    private let phoneRevision: @Sendable () async -> Int64
+    let transport: any WatchProtocolTransport
+    let phoneRevision: @Sendable () async -> Int64
 
     public init(transport: any WatchProtocolTransport,
                 phoneRevision: @escaping @Sendable () async -> Int64 = { 0 }) {
@@ -125,5 +126,44 @@ public struct PhoneWatchPolicyNetworkGate: PhoneWatchNetworkGate {
     }
 
     public func canTransferNow() async -> Bool { await allow() }
+}
+
+/// Deterministic ≤300 px JPEG derivative used for watch artwork transfers.
+public enum WatchArtworkVariant {
+    public static let defaultMaxEdge: CGFloat = 300
+    public static let jpegQuality: CGFloat = 0.78
+    public struct Result: Sendable, Equatable { public let fileURL: URL; public let artworkID: String; public let bytes: Int64 }
+
+    public static func make(from sourceURL: URL, maxEdge: CGFloat = defaultMaxEdge) throws -> Result {
+        guard let image = UIImage(contentsOfFile: sourceURL.path), image.size.width > 0, image.size.height > 0,
+              let data = encoded(image: image, maxEdge: maxEdge) else { throw CocoaError(.fileReadCorruptFile) }
+        let id = WatchFileDigest.hex(data)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("watch-art-\(id).jpg")
+        try data.write(to: url, options: .atomic)
+        return Result(fileURL: url, artworkID: id, bytes: Int64(data.count))
+    }
+
+    private static func encoded(image: UIImage, maxEdge: CGFloat) -> Data? {
+        let edge = max(1, maxEdge), scale = min(1, edge / max(image.size.width, image.size.height))
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let format = UIGraphicsImageRendererFormat(); format.scale = 1; format.opaque = true
+        let rendered = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        return rendered.jpegData(compressionQuality: jpegQuality)
+    }
+}
+
+public extension PhoneWatchSessionFileTransfer {
+    func transferArtwork(fileURL: URL, artworkID: String, role: WatchArtworkRole,
+                         expectedBytes: Int64, sha256: String? = nil,
+                         artworkCapability: Bool = true) async -> Bool {
+        guard artworkCapability else { return false }
+        let metadata = WatchArtworkFileMetadata(artworkID: artworkID, expectedBytes: expectedBytes,
+                                                sha256: sha256 ?? artworkID, role: role,
+                                                phoneRevision: await phoneRevision())
+        await transport.transferFile(fileURL, metadata: metadata.dictionary)
+        return true
+    }
 }
 #endif

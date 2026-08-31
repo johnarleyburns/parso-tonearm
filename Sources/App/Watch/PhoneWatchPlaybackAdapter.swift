@@ -26,8 +26,13 @@ public final class PhoneWatchPlaybackAdapter: PhoneWatchPlaybackBridge {
 
     public func snapshot(revision: Int64) async -> WatchPhonePlaybackSnapshot {
         let downloaded = await downloadedProvider()
-        let queue = player.queue.map {
-            PhoneWatchProjection.trackSummary(from: $0, downloadedOnWatch: downloaded)
+        var queue: [WatchTrackSummary] = []
+        for row in player.queue {
+            let custom: String?
+            if let id = row.track.id { custom = try? await LibraryStore.shared.customArtworkId(for: id) }
+            else { custom = nil }
+            queue.append(PhoneWatchProjection.trackSummary(from: row, downloadedOnWatch: downloaded,
+                                                           customArtworkID: custom))
         }
         let input = WatchPlaybackSnapshotBuilder.Input(
             revision: revision,

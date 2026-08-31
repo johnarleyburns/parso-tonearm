@@ -94,7 +94,8 @@ public enum PhoneWatchProjection {
     }
 
     public static func trackSummary(from row: TrackRow,
-                                    downloadedOnWatch: Set<WatchTrackID>) -> WatchTrackSummary {
+                                    downloadedOnWatch: Set<WatchTrackID>,
+                                    customArtworkID: String? = nil) -> WatchTrackSummary {
         let id = PhoneWatchID.track(row.track)
         return WatchTrackSummary(
             trackID: id,
@@ -103,6 +104,8 @@ public enum PhoneWatchProjection {
             albumTitle: row.album?.title ?? "",
             durationSeconds: row.track.durationSec,
             artworkID: row.album?.artworkId,
+            coverArtworkID: row.album?.artworkId,
+            customArtworkID: customArtworkID,
             isDownloadedOnWatch: downloadedOnWatch.contains(id))
     }
 
