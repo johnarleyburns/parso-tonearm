@@ -278,14 +278,17 @@ Ordered so each commit compiles and is independently testable. Watch-core/protoc
 
 ### Local progress (2026-08-30)
 
-Tasks 1–5 are implemented on `main`. The artwork pipeline now includes protocol metadata and
+Tasks 1–7 are implemented on `main`. The artwork pipeline now includes protocol metadata and
 capability negotiation, precedence resolution, SwiftData persistence, content-addressed installation
 and routing, storage accounting, refcount cleanup, manifest reporting, and recovery adoption of
 hash-valid artwork files. The implementation commit for tasks 4–5 is kept local until explicitly
 approved for push.
 
-Next locally: task 6 (`AVPlayerOutput` status observation), followed by task 7's Now Playing duration
-re-post and resolved-artwork consumption.
+Tasks 6–7 additionally observe failed `AVPlayerItem` loads, record a safe playback diagnostic,
+re-post Now Playing metadata after async duration loading, and load resolved watch artwork before
+falling back to embedded art. The task 6–7 commit is kept local until explicitly approved for push.
+
+Next locally: tasks 8–9 (canonical in-app Now Playing routing and first-play audio route UX).
 
 - **`swift test` (CI):** protocol round-trip + missing-optional decode; resolver precedence table; artwork installer outcomes + routing; GC/refcount + orphan adoption; repository projection + migration; failure→skip directive path; first-play park/resume policy; phone planner/transfer/binding.
 - **Simulator smoke (pre-commit hook):** existing downloaded-track/album legs, extended to assert published duration is non-zero and that Now Playing renders the resolved cover placeholder path.

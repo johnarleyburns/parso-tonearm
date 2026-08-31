@@ -8,10 +8,12 @@ final class AVPlayerOutput: WatchAudioOutput {
     private var timeObserver: Any?
     private var itemEndObserver: NSObjectProtocol?
     private var itemFailedObserver: NSObjectProtocol?
+    private var statusObserver: NSKeyValueObservation?
     private var rateObserver: NSKeyValueObservation?
     private var currentURL: URL?
     private var currentVolume: Float = 0.5
     private var artworkToken = 0
+    private var itemFailureReported = false
 
     var onItemEnded: (() -> Void)?
     var onItemFailed: (() -> Void)?
@@ -42,6 +44,7 @@ final class AVPlayerOutput: WatchAudioOutput {
         artworkToken &+= 1
         let token = artworkToken
         let item = AVPlayerItem(url: url)
+        itemFailureReported = false
         player.replaceCurrentItem(with: item)
         player.volume = currentVolume
 
@@ -56,7 +59,19 @@ final class AVPlayerOutput: WatchAudioOutput {
             forName: .AVPlayerItemFailedToPlayToEndTime,
             object: item, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.onItemFailed?() }
+            guard let self, !self.itemFailureReported else { return }
+            self.itemFailureReported = true
+            Task { @MainActor in self.onItemFailed?() }
+        }
+
+        statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+            guard item.status == .failed else { return }
+            let error = item.error as NSError?
+            let reason = item.error?.localizedDescription ?? "unknown"
+            NSLog("AVPlayerOutput: item failed to load — \(reason); underlying=\(String(describing: error?.userInfo[NSUnderlyingErrorKey]))")
+            guard let self, !self.itemFailureReported else { return }
+            self.itemFailureReported = true
+            Task { @MainActor in self.onItemFailed?() }
         }
 
         let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
@@ -171,5 +186,7 @@ final class AVPlayerOutput: WatchAudioOutput {
             NotificationCenter.default.removeObserver(obs)
             itemFailedObserver = nil
         }
+        statusObserver?.invalidate()
+        statusObserver = nil
     }
 }

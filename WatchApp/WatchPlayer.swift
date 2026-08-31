@@ -39,6 +39,7 @@ final class WatchPlayer: ObservableObject {
     private var output = AVPlayerOutput()
     private var queue: [WatchTrackSnapshot] = []
     private var positionTimer: Timer?
+    private var resolvedArtworkTrackID: String?
 
     var queueTracks: [WatchTrackSnapshot] { queue }
 
@@ -47,7 +48,11 @@ final class WatchPlayer: ObservableObject {
             Task { @MainActor in self?.handleCommand(.itemEnded) }
         }
         output.onItemFailed = { [weak self] in
-            Task { @MainActor in self?.handleCommand(.itemFailed) }
+            Task { @MainActor in
+                guard let self else { return }
+                await WatchAppAssembly.shared.diagnostics.record(.routeEvent, "itemLoadFailed")
+                self.handleCommand(.itemFailed)
+            }
         }
         output.onTimeUpdate = { [weak self] time in
             Task { @MainActor in
@@ -70,6 +75,7 @@ final class WatchPlayer: ObservableObject {
         }
         output.onArtwork = { [weak self] image in
             Task { @MainActor in
+                guard self?.resolvedArtworkTrackID == nil else { return }
                 self?.artwork = image
                 if let track = self?.currentTrack { self?.updateNowPlayingInfo(track: track) }
             }
@@ -155,6 +161,10 @@ final class WatchPlayer: ObservableObject {
             await applyWatchDirectives(directives, to: output)
             self.duration = self.output.currentDuration
             if hadStop { self.clearNowPlaying() }
+            else if let track = self.currentTrack {
+                self.loadResolvedArtwork(for: track)
+                self.updateNowPlayingInfo(track: track)
+            }
         }
 
         savePosition()
@@ -361,5 +371,16 @@ final class WatchPlayer: ObservableObject {
     private func clearNowPlaying() {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         artwork = nil
+        resolvedArtworkTrackID = nil
+    }
+
+    private func loadResolvedArtwork(for track: WatchTrackSnapshot) {
+        resolvedArtworkTrackID = nil
+        guard let filename = track.artworkFilename,
+              let directory = WatchAppAssembly.shared.artworkDirectory else { return }
+        let url = directory.appendingPathComponent(filename)
+        guard let data = try? Data(contentsOf: url), let image = UIImage(data: data) else { return }
+        resolvedArtworkTrackID = track.id
+        artwork = image
     }
 }
