@@ -304,8 +304,11 @@ Screen → view file map (all in `WatchApp/Views/`):
 | W13 | `WatchEmptyStateView` | never a blank list |
 
 Accessibility identifiers (smoke-test anchors — must exist exactly):
-`root.nowPlaying, root.playlists, root.albums, root.songs, root.storage,
-np.prev, np.playpause, np.next`.
+`watch.nowPlaying, watch.playlists, watch.albums, watch.songs, watch.downloads,
+watch.now.previous, watch.now.playPause, watch.now.next`.
+
+The complete artwork/Now Playing behavior and stable identifier table lives in
+`docs/plans/watch-rearchitecture/ARTWORK_NOW_PLAYING_CONTRACT.md`.
 
 ## 9 · iPhone UI spec
 

@@ -278,7 +278,7 @@ Ordered so each commit compiles and is independently testable. Watch-core/protoc
 
 ### Local progress (2026-08-30)
 
-Tasks 1–11 are implemented on `main`. The artwork pipeline now includes protocol metadata and
+Tasks 1–12 are implemented on `main`. The artwork pipeline now includes protocol metadata and
 capability negotiation, precedence resolution, SwiftData persistence, content-addressed installation
 and routing, storage accounting, refcount cleanup, manifest reporting, and recovery adoption of
 hash-valid artwork files. The implementation commit for tasks 4–5 is kept local until explicitly
@@ -296,7 +296,10 @@ Tasks 10–11 add the deterministic ≤300 px JPEG variant and content-addressed
 propagate cover/custom bindings in phone summaries, and store phone custom-art assignments under
 the derivative hash. The task 10–11 commit is kept local until explicitly approved for push.
 
-Next locally: task 12 (documentation and accessibility contract review).
+Task 12 updates this handoff, the watch-app smoke-anchor documentation, and the dedicated artwork /
+Now Playing accessibility contract. All implementation tasks in this handoff are complete; remaining
+work is owner-only device verification for physical audio routes, system Now Playing, hardware
+VoiceOver traversal, and TestFlight upgrade behavior.
 
 - **`swift test` (CI):** protocol round-trip + missing-optional decode; resolver precedence table; artwork installer outcomes + routing; GC/refcount + orphan adoption; repository projection + migration; failure→skip directive path; first-play park/resume policy; phone planner/transfer/binding.
 - **Simulator smoke (pre-commit hook):** existing downloaded-track/album legs, extended to assert published duration is non-zero and that Now Playing renders the resolved cover placeholder path.
