@@ -19,13 +19,15 @@ public struct WatchStoreBootstrapResult: @unchecked Sendable {
     public let recoverableFiles: [WatchRecoverableFileSnapshot]
     /// Where watch audio lives, so callers can build a repository without recomputing the path.
     public let audioDirectory: URL?
+    public let artworkDirectory: URL?
 
     public init(container: ModelContainer?, state: WatchStoreLaunchState, recoveryNotice: String?,
                 quarantinedStoreURL: URL?, recoverableFiles: [WatchRecoverableFileSnapshot],
-                audioDirectory: URL? = nil) {
+                audioDirectory: URL? = nil, artworkDirectory: URL? = nil) {
         self.container = container; self.state = state; self.recoveryNotice = recoveryNotice
         self.quarantinedStoreURL = quarantinedStoreURL; self.recoverableFiles = recoverableFiles
         self.audioDirectory = audioDirectory
+        self.artworkDirectory = artworkDirectory
     }
 }
 
@@ -39,20 +41,22 @@ public enum WatchStoreBootstrap {
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent(storeName, isDirectory: true)
         return open(storeURL: root.appendingPathComponent("library.store"),
-                    audioDirectory: root.appendingPathComponent("WatchAudio", isDirectory: true))
+                    audioDirectory: root.appendingPathComponent("WatchAudio", isDirectory: true),
+                    artworkDirectory: root.appendingPathComponent("WatchArtwork", isDirectory: true))
     }
 
     /// Never `fatalError`s. On an unreadable store the failed files are moved to a dated quarantine
     /// directory, a fresh store is opened in their place, and the audio directory is left untouched
     /// so downloaded tracks can be adopted back after the phone reconciles.
-    public static func open(storeURL: URL, audioDirectory: URL, now: Date = Date()) -> WatchStoreBootstrapResult {
+    public static func open(storeURL: URL, audioDirectory: URL, artworkDirectory: URL? = nil, now: Date = Date()) -> WatchStoreBootstrapResult {
         let fileManager = FileManager.default
         try? fileManager.createDirectory(at: storeURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? fileManager.createDirectory(at: audioDirectory, withIntermediateDirectories: true)
+        if let artworkDirectory { try? fileManager.createDirectory(at: artworkDirectory, withIntermediateDirectories: true) }
 
         if let container = try? makeContainer(inMemory: false, storeURL: storeURL) {
             return .init(container: container, state: .ready, recoveryNotice: nil,
-                         quarantinedStoreURL: nil, recoverableFiles: [], audioDirectory: audioDirectory)
+                         quarantinedStoreURL: nil, recoverableFiles: [], audioDirectory: audioDirectory, artworkDirectory: artworkDirectory)
         }
 
         let quarantined = quarantine(storeURL: storeURL, now: now)
@@ -61,11 +65,11 @@ public enum WatchStoreBootstrap {
             let container = try makeContainer(inMemory: false, storeURL: storeURL)
             return .init(container: container, state: .recovered,
                          recoveryNotice: "Your watch library was rebuilt. Downloaded music is safe and will be checked against your iPhone.",
-                         quarantinedStoreURL: quarantined, recoverableFiles: retained, audioDirectory: audioDirectory)
+                         quarantinedStoreURL: quarantined, recoverableFiles: retained, audioDirectory: audioDirectory, artworkDirectory: artworkDirectory)
         } catch {
             return .init(container: nil, state: .degraded,
                          recoveryNotice: "Your watch library is unavailable. Downloaded music has been kept — reopen Platterhead to try again.",
-                         quarantinedStoreURL: quarantined, recoverableFiles: retained, audioDirectory: audioDirectory)
+                         quarantinedStoreURL: quarantined, recoverableFiles: retained, audioDirectory: audioDirectory, artworkDirectory: artworkDirectory)
         }
     }
 

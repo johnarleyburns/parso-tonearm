@@ -175,6 +175,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     // MARK: - Helpers
 
     private func reconcileAndAdopt() async {
+        try? await repository.reconcileArtworkFiles()
         guard let snapshot = try? await repository.reconcileFiles() else { return }
         let tracks = (try? await repository.tracks(readyOnly: false)) ?? []
         for orphan in snapshot.orphans {

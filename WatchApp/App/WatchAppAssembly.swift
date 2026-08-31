@@ -14,6 +14,7 @@ final class WatchAppAssembly {
 
     let repository: WatchLibraryRepository?
     let audioDirectory: URL?
+    let artworkDirectory: URL?
     let model: WatchLibraryModel
     let chrome: WatchConnectionChrome
     let search: WatchSearchPresenter
@@ -26,6 +27,7 @@ final class WatchAppAssembly {
 
     private let coordinator: WatchConnectivityCoordinator?
     private let installer: WatchFileInstaller?
+    private let artworkInstaller: WatchArtworkInstaller?
     private let syncActor: WatchSyncActor?
     private let fanout: WatchFanoutObserver?
     private let chromeObserver: WatchChromeObserver?
@@ -126,6 +128,7 @@ final class WatchAppAssembly {
     private init() {
         let bootstrap = WatchStoreBootstrap.open()
         self.audioDirectory = bootstrap.audioDirectory
+        self.artworkDirectory = bootstrap.artworkDirectory
         self.launchState = bootstrap.state
         self.stateStore = WatchDefaultsSyncStateStore()
         let chrome = WatchConnectionChrome()
@@ -134,6 +137,7 @@ final class WatchAppAssembly {
         guard let container = bootstrap.container, let audio = bootstrap.audioDirectory else {
             self.repository = nil
             self.installer = nil
+            self.artworkInstaller = nil
             self.syncActor = nil
             self.coordinator = nil
             self.fanout = nil
@@ -147,13 +151,16 @@ final class WatchAppAssembly {
             return
         }
 
-        let repo = WatchLibraryRepository(container: container, audioDirectory: audio)
+        let artwork = bootstrap.artworkDirectory ?? audio.deletingLastPathComponent().appendingPathComponent("WatchArtwork", isDirectory: true)
+        let repo = WatchLibraryRepository(container: container, audioDirectory: audio, artworkDirectory: artwork)
         let staging = audio.deletingLastPathComponent().appendingPathComponent("Staging", isDirectory: true)
         let inst = WatchFileInstaller(repository: repo, audioDirectory: audio, stagingDirectory: staging)
+        let artworkInst = WatchArtworkInstaller(repository: repo, artworkDirectory: artwork)
         let mdl = WatchLibraryModel(repository: repo, recoveryNotice: bootstrap.recoveryNotice)
         let reach = WatchReachabilityObserver(model: mdl)
         let diag = diagnostics
-        let sync = WatchSyncActor(repository: repo, installer: inst, diagnostics: diag,
+        let sync = WatchSyncActor(repository: repo, installer: inst,
+                                  artworkInstaller: artworkInst, diagnostics: diag,
                                   onLibraryChanged: { [weak mdl] in await mdl?.refresh() })
         let coord = WatchConnectivityCoordinator(
             transport: WatchProtocolSessionAdapter.transport,
@@ -190,6 +197,7 @@ final class WatchAppAssembly {
 
         self.repository = repo
         self.installer = inst
+        self.artworkInstaller = artworkInst
         self.model = mdl
         self.reachability = reach
         self.syncActor = sync

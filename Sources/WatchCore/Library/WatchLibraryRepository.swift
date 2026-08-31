@@ -258,6 +258,23 @@ public actor WatchLibraryRepository {
         return WatchReconciliationSnapshot(missingTrackIDs: missing.sorted(), corruptTrackIDs: corrupt.sorted(), orphans: orphans)
     }
 
+    /// Rebuild artwork rows from content-addressed files left behind by a store recovery.
+    /// Filename hashes are self-authenticating; bindings are applied when track metadata arrives.
+    public func reconcileArtworkFiles() throws {
+        guard let artworkDirectory else { return }
+        let context = ModelContext(container)
+        let known = Set(try context.fetch(FetchDescriptor<WatchArtworkAssetModel>()).map(\.relativeFilename))
+        for url in Self.audioFiles(at: artworkDirectory) where !known.contains(url.lastPathComponent) {
+            let measured = try WatchFileDigest.measure(url)
+            let stem = url.deletingPathExtension().lastPathComponent.lowercased()
+            guard measured.sha256.lowercased() == stem else { continue }
+            context.insert(WatchArtworkAssetModel(artworkID: measured.sha256,
+                                                  relativeFilename: url.lastPathComponent,
+                                                  bytes: measured.bytes, validationState: .ready))
+        }
+        try context.save()
+    }
+
     /// Adopt a recovered file only when it still matches its own measurement *and* whatever the
     /// track's metadata claims. Anything less would let a rebuilt store call an unrelated file ready.
     public func adoptOrphan(_ orphan: WatchOrphanSnapshot, forTrackID trackID: String) throws {

@@ -45,6 +45,9 @@ actor WatchFanoutObserver: WatchConnectivityObserver {
         // turn. In practice only the sync actor implements this.
         for o in observers { await o.didReceiveAudioFile(at: stagedURL, metadata: metadata) }
     }
+    func didReceiveArtworkFile(at stagedURL: URL, metadata: [String: String]) async {
+        for o in observers { await o.didReceiveArtworkFile(at: stagedURL, metadata: metadata) }
+    }
     func phoneRequestedReconciliation(_ request: WatchReconciliationRequest) async {
         for o in observers { await o.phoneRequestedReconciliation(request) }
     }
