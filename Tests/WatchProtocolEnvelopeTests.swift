@@ -145,6 +145,22 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         XCTAssertNil(decoded.startIndex)
     }
 
+    func testArtworkMetadataRoundTripsAndUsesArtworkDiscriminator() throws {
+        let metadata = WatchArtworkFileMetadata(
+            artworkID: String(repeating: "a", count: 64), expectedBytes: 12_345,
+            sha256: String(repeating: "a", count: 64), role: .custom, phoneRevision: 9)
+        XCTAssertEqual(WatchArtworkFileMetadata(dictionary: metadata.dictionary), metadata)
+        XCTAssertEqual(metadata.dictionary["assetKind"], "artwork")
+        XCTAssertNil(WatchArtworkFileMetadata(dictionary: ["assetKind": "audio"]))
+    }
+
+    func testTrackSummaryDecodesWhenArtworkBindingsAreAbsent() throws {
+        let legacyJSON = Data(#"{"trackID":"t1","title":"Song","artist":"","albumTitle":"","artworkID":null,"isDownloadedOnWatch":false}"#.utf8)
+        let decoded = try JSONDecoder().decode(WatchTrackSummary.self, from: legacyJSON)
+        XCTAssertNil(decoded.coverArtworkID)
+        XCTAssertNil(decoded.customArtworkID)
+    }
+
     // MARK: - Correlation
 
     func testReplyCarriesTheRequestsMessageIDAsCorrelation() throws {
@@ -219,14 +235,15 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
     // MARK: - Negotiation
 
     func testCapabilityNegotiationIntersectsAndRejectsAVersionMismatch() {
-        let local = WatchHello(capabilities: [.connectedSearch, .connectedBrowse, .downloadRoots])
+        let local = WatchHello(capabilities: [.connectedSearch, .connectedBrowse, .downloadRoots, .artworkAssets])
         let remote = WatchHelloReply(pairedLibraryID: library,
-                                     capabilities: [.connectedSearch, .phonePlaybackControl],
+                                     capabilities: [.connectedSearch, .phonePlaybackControl, .artworkAssets],
                                      phoneRevision: 4)
         guard case .success(let session) = WatchCapabilityNegotiation.negotiate(local: local, remote: remote) else {
             return XCTFail("same-version peers must negotiate")
         }
-        XCTAssertEqual(session.capabilities, [.connectedSearch])
+        XCTAssertEqual(session.capabilities, [.connectedSearch, .artworkAssets])
+        XCTAssertTrue(session.supports(.artworkAssets))
         XCTAssertTrue(session.supports(.connectedSearch))
         XCTAssertFalse(session.supports(.phonePlaybackControl))
         XCTAssertEqual(session.phoneRevision, 4)

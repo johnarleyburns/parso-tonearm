@@ -58,6 +58,8 @@ public enum WatchCapability: String, Codable, Sendable, CaseIterable {
     case reconciliation
     /// The watch can ask the phone to download a single track (from Now Playing).
     case watchInitiatedDownload
+    /// The watch accepts content-addressed artwork files and track artwork bindings.
+    case artworkAssets
 }
 
 public struct WatchHello: Codable, Equatable, Sendable {

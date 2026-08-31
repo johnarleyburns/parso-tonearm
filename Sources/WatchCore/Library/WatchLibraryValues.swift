@@ -13,6 +13,8 @@ public struct WatchTrackUpsert: Hashable, Sendable {
     public let trackNumber: Int?
     public let discNumber: Int?
     public let artworkID: String?
+    public let coverArtworkID: String?
+    public let customArtworkID: String?
     public let localThumbnailFilename: String?
     public let codec: String?
     public let expectedBytes: Int64?
@@ -21,11 +23,13 @@ public struct WatchTrackUpsert: Hashable, Sendable {
 
     public init(trackID: String, title: String, artist: String = "", albumTitle: String = "",
                 durationSeconds: Double? = nil, trackNumber: Int? = nil, discNumber: Int? = nil,
-                artworkID: String? = nil, localThumbnailFilename: String? = nil, codec: String? = nil,
+                artworkID: String? = nil, coverArtworkID: String? = nil,
+                customArtworkID: String? = nil, localThumbnailFilename: String? = nil, codec: String? = nil,
                 expectedBytes: Int64? = nil, expectedSHA256: String? = nil, phoneRevision: Int64 = 0) {
         self.trackID = trackID; self.title = title; self.artist = artist; self.albumTitle = albumTitle
         self.durationSeconds = durationSeconds; self.trackNumber = trackNumber; self.discNumber = discNumber
-        self.artworkID = artworkID; self.localThumbnailFilename = localThumbnailFilename; self.codec = codec
+        self.artworkID = artworkID; self.coverArtworkID = coverArtworkID
+        self.customArtworkID = customArtworkID; self.localThumbnailFilename = localThumbnailFilename; self.codec = codec
         self.expectedBytes = expectedBytes; self.expectedSHA256 = expectedSHA256; self.phoneRevision = phoneRevision
     }
 }

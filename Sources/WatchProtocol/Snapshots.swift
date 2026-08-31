@@ -10,12 +10,15 @@ public struct WatchTrackSummary: Codable, Equatable, Sendable, Identifiable {
     public var albumTitle: String
     public var durationSeconds: Double?
     public var artworkID: String?
+    public var coverArtworkID: String?
+    public var customArtworkID: String?
     public var isDownloadedOnWatch: Bool
 
     public var id: WatchTrackID { trackID }
 
     public init(trackID: WatchTrackID, title: String, artist: String = "", albumTitle: String = "",
                 durationSeconds: Double? = nil, artworkID: String? = nil,
+                coverArtworkID: String? = nil, customArtworkID: String? = nil,
                 isDownloadedOnWatch: Bool = false) {
         self.trackID = trackID
         self.title = title
@@ -23,6 +26,8 @@ public struct WatchTrackSummary: Codable, Equatable, Sendable, Identifiable {
         self.albumTitle = albumTitle
         self.durationSeconds = durationSeconds
         self.artworkID = artworkID
+        self.coverArtworkID = coverArtworkID
+        self.customArtworkID = customArtworkID
         self.isDownloadedOnWatch = isDownloadedOnWatch
     }
 }

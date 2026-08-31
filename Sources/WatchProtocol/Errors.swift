@@ -12,6 +12,7 @@ public enum WatchProtocolErrorCode: String, Codable, Sendable, CaseIterable {
     case authenticationRequired
     case waitingForWiFi
     case unsupportedAudio
+    case unsupportedArtwork
     case insufficientWatchStorage
     case transferFailed
     case checksumMismatch
@@ -59,7 +60,7 @@ extension WatchProtocolErrorCode {
         case .sourceUnavailable: .externalActionRequired
         case .authenticationRequired: .externalActionRequired
         case .waitingForWiFi: .automaticWhenPolicyPermits
-        case .unsupportedAudio: .permanentForContent
+        case .unsupportedAudio, .unsupportedArtwork: .permanentForContent
         case .insufficientWatchStorage: .freeSpaceThenRetry
         case .transferFailed: .boundedSchedulerRetry
         case .checksumMismatch: .boundedSchedulerRetry
@@ -85,6 +86,7 @@ extension WatchProtocolErrorCode {
         case .authenticationRequired: "Sign in to that source on iPhone."
         case .waitingForWiFi: "Waiting for Wi‑Fi."
         case .unsupportedAudio: "This audio can't play on Apple Watch."
+        case .unsupportedArtwork: "This artwork can't display on Apple Watch."
         case .insufficientWatchStorage: "Not enough space on Apple Watch."
         case .transferFailed: "The transfer didn't finish. Trying again."
         case .checksumMismatch: "The downloaded file was damaged. Trying again."
