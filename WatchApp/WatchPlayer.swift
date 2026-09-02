@@ -25,6 +25,12 @@ final class WatchPlayer: ObservableObject {
     /// The AVPlayer's actual transport rate. 0 while paused/stalled, ~1 while audio is running.
     /// Surfaced so a test (and a curious user) can tell real playback from a relabelled button.
     @Published private(set) var outputRate: Double = 0
+    @Published private(set) var playbackPhase: WatchPlaybackPhase = .idle
+    @Published private(set) var itemReadiness: WatchItemReadiness = .noItem
+    @Published private(set) var sessionStatus = "unknown"
+    @Published private(set) var lastPlaybackErrorCode: String?
+    @Published private(set) var playbackErrorMessage: String?
+    @Published private(set) var playbackGenerationForDiagnostics: Int64 = 0
     @Published var elapsed: Double = 0
     @Published var duration: Double = 0
     @Published var isShuffled = false
@@ -41,6 +47,9 @@ final class WatchPlayer: ObservableObject {
     private var positionTimer: Timer?
     private var resolvedArtworkTrackID: String?
     private var pendingRoutePlayback = false
+    private var pendingSeek: Double?
+    private var playbackGeneration: Int64 = 0
+    private var playbackTask: Task<Void, Never>?
 
     var queueTracks: [WatchTrackSnapshot] { queue }
 
@@ -48,11 +57,10 @@ final class WatchPlayer: ObservableObject {
         output.onItemEnded = { [weak self] in
             Task { @MainActor in self?.handleCommand(.itemEnded) }
         }
-        output.onItemFailed = { [weak self] in
+        output.onItemFailed = { [weak self] code in
             Task { @MainActor in
                 guard let self else { return }
-                await WatchAppAssembly.shared.diagnostics.record(.routeEvent, "itemLoadFailed")
-                self.handleCommand(.itemFailed)
+                self.handleFailedItem(code: code)
             }
         }
         output.onTimeUpdate = { [weak self] time in
@@ -63,14 +71,12 @@ final class WatchPlayer: ObservableObject {
             }
         }
         output.onRateChange = { [weak self] rate in
-            Task { @MainActor in self?.outputRate = rate }
-        }
-        output.onSessionProblem = { [weak self] reason in
             Task { @MainActor in
-                self?.audioRouteProblem = reason
-                if let reason {
-                    NSLog("WatchPlayer: audio route problem — \(reason)")
-                    await WatchAppAssembly.shared.diagnostics.record(.routeEvent, "sessionUnavailable")
+                guard let self else { return }
+                self.outputRate = rate
+                if self.playbackPhase == .playing {
+                    self.isPlaying = rate > 0
+                    self.updateNowPlayingTime()
                 }
             }
         }
@@ -88,24 +94,42 @@ final class WatchPlayer: ObservableObject {
     // MARK: - Public API
 
     func play(tracks: [WatchTrackSnapshot], startAt: Int) {
-        // Offline truth: only tracks whose audio actually resolves are playable.
+        guard !tracks.isEmpty else {
+            failWithoutTrack(code: "emptyQueue", message: "There is nothing to play.")
+            return
+        }
+        let safeIndex = min(max(0, startAt), tracks.count - 1)
+        startLocalPlayback(tracks: tracks, selectedTrackID: tracks[safeIndex].id)
+    }
+
+    /// One entry point for every local start. The selected stable ID survives list refreshes and the
+    /// actual queue replacement happens before the serialized platform transaction begins.
+    func startLocalPlayback(tracks: [WatchTrackSnapshot], selectedTrackID: String,
+                            seekTo: Double? = nil) {
         let playable = tracks.filter { localFileURL(for: $0) != nil }
-        guard !playable.isEmpty else { return }
-        let anchor = startAt < tracks.count ? tracks[startAt] : tracks[0]
-        let start = playable.firstIndex(where: { $0.id == anchor.id }) ?? 0
+        guard !playable.isEmpty else {
+            failWithoutTrack(code: "localFileMissing", message: "This download is not available on the watch.")
+            return
+        }
+        let start = playable.firstIndex(where: { $0.id == selectedTrackID }) ?? 0
         queue = playable
         engine.setQueue(playable.map(\.id), startIndex: start)
         currentTrack = playable[start]
-        // Starting local playback is the user explicitly choosing the this-watch target (§7.1 —
-        // the choice rides the play action; it is not an automatic switch).
+        pendingSeek = seekTo.map { max(0, $0) }
+        pendingRoutePlayback = false
+        audioRouteProblem = nil
+        lastPlaybackErrorCode = nil
+        playbackErrorMessage = nil
+        playbackPhase = .activating
+        itemReadiness = .noItem
+        sessionStatus = "pending"
+        isPlaying = false
+        elapsed = 0
+        duration = 0
+        outputRate = 0
         WatchPlaybackCoordinator.shared.setTarget(.thisWatch)
         navigateToNowPlaying()
-        guard output.hasUsableRoute() else {
-            pendingRoutePlayback = true
-            audioRouteProblem = "Connect headphones or a speaker to play audio."
-            return
-        }
-        handleCommand(.play)
+        scheduleCurrentTrackPlayback()
     }
 
     func navigateToNowPlaying() { isShowingNowPlaying = true }
@@ -113,7 +137,14 @@ final class WatchPlayer: ObservableObject {
 
     func togglePlayPause() {
         guard !queue.isEmpty else { return }
-        handleCommand(.togglePlayPause)
+        // The engine's request bit can briefly diverge from the platform-confirmed state while
+        // AVPlayer KVO callbacks are being delivered. Drive the visible control from the same
+        // confirmed state the view renders, so a button showing "playing" always pauses.
+        if isPlaying && playbackPhase == .playing && outputRate > 0 {
+            handleCommand(.pause)
+        } else {
+            handleCommand(.play)
+        }
     }
 
     func next() { handleCommand(.next) }
@@ -123,16 +154,10 @@ final class WatchPlayer: ObservableObject {
     /// "Choose Output" — re-request the audio route, then resume if the engine wants to be playing.
     /// On watchOS activating a long-form session with no route makes the system present its picker.
     func retryAudioRoute() {
-        Task { @MainActor in
-            await output.requestRoute()
-            guard audioRouteProblem == nil else { return }
-            if pendingRoutePlayback {
-                pendingRoutePlayback = false
-                handleCommand(.play)
-            } else if engine.isPlaying {
-                await output.play()
-            }
-        }
+        guard currentTrack != nil else { return }
+        pendingRoutePlayback = true
+        audioRouteProblem = nil
+        scheduleCurrentTrackPlayback()
     }
 
     func jump(to index: Int) {
@@ -154,44 +179,280 @@ final class WatchPlayer: ObservableObject {
     // MARK: - Engine commands
 
     private func handleCommand(_ cmd: WatchEngineCommand) {
-        if case .play = cmd, !output.hasUsableRoute() {
-            pendingRoutePlayback = true
+        switch cmd {
+        case .pause:
+            playbackGeneration &+= 1
+            playbackTask?.cancel()
+            playbackTask = nil
+            engine.command(.pause)
+            engine.setConfirmedPlaying(false)
+            isPlaying = false
+            playbackPhase = .paused
+            outputRate = 0
+            stopPositionTimer()
+            scheduleOutputPause()
+            savePosition()
+            updateNowPlayingTime()
+
+        case .seek(let position):
+            let target = max(0, position)
+            elapsed = target
+            pendingSeek = target
+            if playbackPhase == .activating || playbackPhase == .loading || playbackPhase == .ready || playbackPhase == .waitingForRoute {
+                // A seek made while a new item is loading belongs to that item. Restart the
+                // transaction so the seek is applied after readiness instead of touching whatever
+                // item happened to be current when the button was pressed.
+                scheduleCurrentTrackPlayback()
+            } else {
+                playbackGeneration &+= 1
+                playbackGenerationForDiagnostics = playbackGeneration
+                let generation = playbackGeneration
+                playbackTask?.cancel()
+                playbackTask = Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    guard self.playbackGeneration == generation else { return }
+                    await self.output.seek(to: target)
+                    guard self.playbackGeneration == generation else { return }
+                    self.pendingSeek = nil
+                    self.updateNowPlayingTime()
+                }
+            }
+
+        case .routeLost:
+            playbackGeneration &+= 1
+            playbackTask?.cancel()
+            playbackTask = nil
+            engine.command(.routeLost)
+            engine.setConfirmedPlaying(false)
+            isPlaying = false
+            playbackPhase = .waitingForRoute
+            outputRate = 0
+            stopPositionTimer()
             audioRouteProblem = "Connect headphones or a speaker to play audio."
+            scheduleOutputPause()
+            savePosition()
+            updateNowPlayingTime()
+            Task {
+                await recordPlaybackDiagnostic("routeLost", generation: playbackGeneration)
+            }
+
+        case .play, .togglePlayPause, .next, .previous, .jump, .itemEnded, .itemFailed:
+            let directives = engine.command(cmd) { [weak self] key in
+                guard let self else { return nil }
+                return self.queue.first(where: { $0.id == key }).flatMap { self.localFileURL(for: $0) }
+            }
+            guard !directives.isEmpty else {
+                failWithoutTrack(code: "localFileMissing", message: "This download is not available on the watch.")
+                return
+            }
+            elapsed = engine.elapsed
+            if let key = engine.currentTrack {
+                currentTrack = queue.first(where: { $0.id == key })
+            }
+            if directives.contains(.stop) {
+                playbackGeneration &+= 1
+                playbackTask?.cancel()
+                playbackTask = nil
+                engine.setConfirmedPlaying(false)
+                isPlaying = false
+                playbackPhase = .idle
+                outputRate = 0
+                scheduleOutputPause()
+                stopPositionTimer()
+                clearNowPlaying()
+            } else {
+                pendingRoutePlayback = false
+                playbackPhase = .activating
+                itemReadiness = .noItem
+                sessionStatus = "pending"
+                isPlaying = false
+                outputRate = 0
+                scheduleCurrentTrackPlayback()
+            }
+        }
+    }
+
+    private func scheduleCurrentTrackPlayback() {
+        guard let track = currentTrack, let url = localFileURL(for: track) else {
+            failWithoutTrack(code: "localFileMissing", message: "This download is not available on the watch.")
             return
         }
-        let directives = engine.command(cmd) { [weak self] key in
+        playbackGeneration &+= 1
+        playbackGenerationForDiagnostics = playbackGeneration
+        let generation = playbackGeneration
+        playbackTask?.cancel()
+        playbackTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.runPlaybackTransaction(track: track, url: url, generation: generation)
+        }
+    }
+
+    private func runPlaybackTransaction(track: WatchTrackSnapshot, url: URL, generation: Int64) async {
+        guard generation == playbackGeneration else { return }
+        // Stop the previous item before beginning a new activation/load transaction. This closes the
+        // old audio window during rapid next/previous taps and prevents an obsolete player from
+        // continuing while the new item is still only "requested".
+        await output.pause()
+        guard generation == playbackGeneration else { return }
+        playbackPhase = .activating
+        let activation = await output.activateSession()
+        guard generation == playbackGeneration else { return }
+        sessionStatus = activation.isActive ? "active" : (activation.code ?? "failed")
+        guard activation.isActive else {
+            pendingRoutePlayback = true
+            audioRouteProblem = "Connect headphones or a speaker to play audio."
+            playbackPhase = .waitingForRoute
+            isPlaying = false
+            outputRate = 0
+            lastPlaybackErrorCode = activation.code
+            await recordPlaybackDiagnostic("activationFailed", generation: generation,
+                                           count: activation.route.outputCount)
+            return
+        }
+        await recordPlaybackDiagnostic("activationSucceeded", generation: generation,
+                                       count: activation.route.outputCount)
+        audioRouteProblem = nil
+        playbackErrorMessage = nil
+        playbackPhase = .loading
+        let loaded = await output.load(url: url)
+        guard generation == playbackGeneration else { return }
+        itemReadiness = output.currentItemReadiness()
+        switch loaded {
+        case .cancelled:
+            return
+        case .failed(let code):
+            handleFailedItem(code: code, generation: generation)
+            return
+        case .ready(let loadedDuration):
+            duration = loadedDuration
+            itemReadiness = .ready
+            playbackPhase = .ready
+            lastPlaybackErrorCode = nil
+            await recordPlaybackDiagnostic("itemReady", generation: generation,
+                                           durationMillis: Int(max(0, loadedDuration) * 1000))
+        }
+        loadResolvedArtwork(for: track)
+        if let seek = pendingSeek {
+            pendingSeek = nil
+            await output.seek(to: seek)
+            guard generation == playbackGeneration else { return }
+            elapsed = seek
+        }
+        let result = await output.play()
+        guard generation == playbackGeneration else { return }
+        switch result {
+        case .cancelled:
+            return
+        case .failed(let code):
+            failCurrentPlayback(code: code, generation: generation)
+        case .playing(let rate):
+            outputRate = rate
+            isPlaying = true
+            engine.setConfirmedPlaying(true)
+            playbackPhase = .playing
+            audioRouteProblem = nil
+            lastPlaybackErrorCode = nil
+            startPositionTimer()
+            updateNowPlayingInfo(track: track)
+            await recordPlaybackDiagnostic("playing", generation: generation,
+                                           durationMillis: Int(max(0, duration) * 1000))
+        }
+    }
+
+    private func failCurrentPlayback(code: String, generation: Int64? = nil) {
+        if let generation, generation != playbackGeneration { return }
+        playbackTask?.cancel()
+        playbackTask = nil
+        isPlaying = false
+        engine.setConfirmedPlaying(false)
+        outputRate = 0
+        itemReadiness = output.currentItemReadiness()
+        playbackPhase = .failed
+        lastPlaybackErrorCode = code
+        playbackErrorMessage = userMessage(for: code)
+        audioRouteProblem = nil
+        stopPositionTimer()
+        updateNowPlayingTime()
+        scheduleOutputPause()
+        Task {
+            await recordPlaybackDiagnostic("playbackFailed:\(code)",
+                                           generation: generation ?? playbackGeneration)
+        }
+    }
+
+    private func handleFailedItem(code: String, generation: Int64? = nil) {
+        if let generation, generation != playbackGeneration { return }
+        let directives = engine.command(.itemFailed) { [weak self] key in
             guard let self else { return nil }
             return self.queue.first(where: { $0.id == key }).flatMap { self.localFileURL(for: $0) }
         }
-
-        isPlaying = engine.isPlaying
+        Task {
+            await recordPlaybackDiagnostic("itemLoadFailed:\(code)",
+                                           generation: generation ?? playbackGeneration)
+        }
+        guard !directives.isEmpty else {
+            failWithoutTrack(code: code, message: userMessage(for: code))
+            return
+        }
         elapsed = engine.elapsed
         if let key = engine.currentTrack {
             currentTrack = queue.first(where: { $0.id == key })
         }
-        duration = output.currentDuration
-
-        // Directives must be applied in order — `.loadItem` has to finish before `.play`. One Task
-        // per directive would race them.
-        let hadStop = directives.contains(.stop)
-        Task { @MainActor in
-            await applyWatchDirectives(directives, to: output)
-            self.duration = self.output.currentDuration
-            if hadStop { self.clearNowPlaying() }
-            else if let track = self.currentTrack {
-                self.loadResolvedArtwork(for: track)
-                self.updateNowPlayingInfo(track: track)
-            }
+        if directives.contains(.stop) {
+            failCurrentPlayback(code: code, generation: generation)
+        } else {
+            pendingRoutePlayback = false
+            playbackPhase = .activating
+            itemReadiness = .noItem
+            isPlaying = false
+            engine.setConfirmedPlaying(false)
+            outputRate = 0
+            scheduleCurrentTrackPlayback()
         }
+    }
 
-        savePosition()
-        if let track = currentTrack {
-            updateNowPlayingInfo(track: track)
-            startPositionTimer()
-        } else if engine.queue.isEmpty || !engine.isPlaying {
-            stopPositionTimer()
-            clearNowPlaying()
+    private func failWithoutTrack(code: String, message: String) {
+        playbackGeneration &+= 1
+        playbackTask?.cancel()
+        playbackTask = nil
+        isPlaying = false
+        engine.setConfirmedPlaying(false)
+        outputRate = 0
+        playbackPhase = .failed
+        lastPlaybackErrorCode = code
+        playbackErrorMessage = message
+        audioRouteProblem = nil
+        stopPositionTimer()
+        let generation = playbackGeneration
+        Task {
+            await recordPlaybackDiagnostic("playbackFailed:\(code)", generation: generation)
         }
+    }
+
+    private func recordPlaybackDiagnostic(_ state: String, generation: Int64,
+                                          durationMillis: Int? = nil, count: Int? = nil) async {
+        let trackCorrelation = currentTrack.map { "t\($0.id)" } ?? "none"
+        await WatchAppAssembly.shared.diagnostics.record(.routeEvent, state,
+                                                          correlationID: "g\(generation):\(trackCorrelation)",
+                                                          durationMillis: durationMillis, count: count)
+    }
+
+    private func scheduleOutputPause() {
+        let generation = playbackGeneration
+        playbackTask?.cancel()
+        playbackTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.output.pause()
+            guard self.playbackGeneration == generation else { return }
+        }
+    }
+
+    private func userMessage(for code: String) -> String {
+        if code == "localFileMissing" { return "This download is not available on the watch." }
+        if code == "itemReadinessTimeout" { return "The audio file did not become ready." }
+        if code == "playbackRateZero" { return "Audio did not start on the selected output." }
+        if code.hasPrefix("item-") { return "The downloaded audio file could not be played." }
+        return "Audio could not start. Choose an output and try again."
     }
 
     // MARK: - Audio session lifecycle
@@ -228,6 +489,16 @@ final class WatchPlayer: ObservableObject {
 
     func handleAudioEvent(_ event: WatchAudioEvent) {
         let wasPlaying = isPlaying
+        if case .interruptionEnded(let shouldResume) = event, shouldResume, wasPlaying {
+            rebuildCurrentItemAndResume()
+            return
+        }
+        if event == .mediaServicesReset {
+            handleCommand(.pause)
+            rebuildCurrentItem(resume: false)
+            savePosition()
+            return
+        }
         for action in WatchAudioSessionPolicy.actions(for: event, wasPlaying: wasPlaying) {
             switch action {
             case .pause:
@@ -239,9 +510,58 @@ final class WatchPlayer: ObservableObject {
             case .clearRouteHint:
                 routeHint = nil
             case .rebuildSession:
-                Task { @MainActor in await output.rebuildSession() }
+                rebuildCurrentItem(resume: false)
             case .resumeIfWasPlaying:
                 if wasPlaying { handleCommand(.play) }
+            }
+        }
+    }
+
+    private func rebuildCurrentItemAndResume() {
+        rebuildCurrentItem(resume: true)
+    }
+
+    private func rebuildCurrentItem(resume: Bool) {
+        guard let track = currentTrack, localFileURL(for: track) != nil else { return }
+        playbackGeneration &+= 1
+        playbackGenerationForDiagnostics = playbackGeneration
+        let generation = playbackGeneration
+        playbackTask?.cancel()
+        isPlaying = false
+        engine.setConfirmedPlaying(false)
+        outputRate = 0
+        playbackPhase = .activating
+        playbackTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await self.output.rebuildSession()
+            guard generation == self.playbackGeneration else { return }
+            switch result {
+            case .cancelled:
+                return
+            case .failed(let code):
+                self.failCurrentPlayback(code: code, generation: generation)
+            case .ready(let loadedDuration):
+                self.duration = loadedDuration
+                self.itemReadiness = self.output.currentItemReadiness()
+                self.playbackPhase = .ready
+                self.loadResolvedArtwork(for: track)
+                if resume {
+                    switch await self.output.play() {
+                    case .playing(let rate):
+                        guard generation == self.playbackGeneration else { return }
+                        self.outputRate = rate
+                        self.isPlaying = true
+                        self.engine.setConfirmedPlaying(true)
+                        self.playbackPhase = .playing
+                        self.updateNowPlayingInfo(track: track)
+                    case .failed(let code):
+                        self.failCurrentPlayback(code: code, generation: generation)
+                    case .cancelled:
+                        return
+                    }
+                } else {
+                    self.updateNowPlayingInfo(track: track)
+                }
             }
         }
     }
@@ -296,6 +616,9 @@ final class WatchPlayer: ObservableObject {
     }
 
     func restorePositionIfAvailable() async {
+        // The UI smoke test seeds and starts its own deterministic queue. Do not let a persisted
+        // queue from a previous simulator run race that seed and cover the root surface.
+        if ProcessInfo.processInfo.arguments.contains("UI_TESTING") { return }
         guard let snap = WatchPositionStore.loadOrClear(), !snap.trackKeys.isEmpty,
               let repository = WatchAppAssembly.shared.repository else { return }
         let rows = (try? await repository.tracks(readyOnly: true)) ?? []
@@ -314,6 +637,10 @@ final class WatchPlayer: ObservableObject {
         isShuffled = restored.isShuffled
         repeatMode = restored.repeatMode
         isPlaying = false
+        playbackPhase = .paused
+        itemReadiness = .noItem
+        sessionStatus = "unknown"
+        outputRate = 0
         // The production launch surface is Now Playing when a persisted queue is present. UI smoke
         // runs intentionally start on the root list so they can exercise every entry point.
         if currentTrack != nil && !ProcessInfo.processInfo.arguments.contains("UI_TESTING") {
@@ -373,7 +700,7 @@ final class WatchPlayer: ObservableObject {
             MPMediaItemPropertyTitle: track.title,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsed,
             MPMediaItemPropertyPlaybackDuration: duration,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
+            MPNowPlayingInfoPropertyPlaybackRate: outputRate
         ]
         if !track.artist.isEmpty { info[MPMediaItemPropertyArtist] = track.artist }
         if !track.albumTitle.isEmpty { info[MPMediaItemPropertyAlbumTitle] = track.albumTitle }
@@ -386,7 +713,7 @@ final class WatchPlayer: ObservableObject {
     private func updateNowPlayingTime() {
         guard var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsed
-        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
+        info[MPNowPlayingInfoPropertyPlaybackRate] = outputRate
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
@@ -398,11 +725,13 @@ final class WatchPlayer: ObservableObject {
 
     private func loadResolvedArtwork(for track: WatchTrackSnapshot) {
         resolvedArtworkTrackID = nil
+        artwork = nil
         guard let filename = track.artworkFilename,
               let directory = WatchAppAssembly.shared.artworkDirectory else { return }
         let url = directory.appendingPathComponent(filename)
         guard let data = try? Data(contentsOf: url), let image = UIImage(data: data) else { return }
         resolvedArtworkTrackID = track.id
         artwork = image
+        updateNowPlayingInfo(track: track)
     }
 }

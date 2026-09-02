@@ -13,7 +13,6 @@ public enum SyntheticAudio {
                                   beatsPerBar: Int = 4,
                                   accentAmplitude: Float = 0.9,
                                   beatAmplitude: Float = 0.45) -> [Float] {
-        let hopSeconds = 2048.0 / 48_000.0
         let beatInterval = 60.0 / bpm
         var samples = [Float](repeating: 0, count: Int(48_000 * seconds))
         var i = Int(0.5 * 48_000)
@@ -155,9 +154,8 @@ final class DownbeatTests: XCTestCase {
         // No accent: the offset is still well-defined (all equal), and every
         // 4th beat from an arbitrary start is picked.
         let bpm = 120.0
-        var samples = SyntheticAudio.clickTrack(bpm: bpm, seconds: 6, beatsPerBar: 4,
+        let samples = SyntheticAudio.clickTrack(bpm: bpm, seconds: 6, beatsPerBar: 4,
                                                 accentAmplitude: 0.6, beatAmplitude: 0.6)
-        _ = samples
         let (env, hopSeconds) = SyntheticAudio.onsetEnvelope(from: samples)
         let peaks = OnsetDetector.peaks(env, frameRateHz: 1 / hopSeconds)
         let best = TempoAnalyzer.estimate(novelty: env, hopSeconds: hopSeconds).first

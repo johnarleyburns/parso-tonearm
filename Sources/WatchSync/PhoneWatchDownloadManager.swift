@@ -15,6 +15,69 @@ public enum PhoneWatchAudioResolution: Sendable, Equatable {
     case needsAuth
 }
 
+/// A watch-compatible derivative that is ready to hand to the file-transfer channel. The URL is
+/// phone-local and never crosses the protocol; only the opaque content hash and the bytes do.
+public struct PhoneWatchArtworkTransfer: Sendable, Equatable {
+    public let fileURL: URL
+    public let artworkID: String
+    public let role: WatchArtworkRole
+    public let expectedBytes: Int64
+    public let sha256: String
+
+    public init(fileURL: URL, artworkID: String, role: WatchArtworkRole,
+                expectedBytes: Int64, sha256: String) {
+        self.fileURL = fileURL
+        self.artworkID = artworkID
+        self.role = role
+        self.expectedBytes = expectedBytes
+        self.sha256 = sha256
+    }
+}
+
+/// The derivative-backed bindings and bytes prepared for one desired track. A cover and custom
+/// asset are deliberately independent so the cover remains a fallback while custom art arrives.
+public struct PhoneWatchArtworkResolution: Sendable, Equatable {
+    public let coverArtworkID: String?
+    public let customArtworkID: String?
+    public let transfers: [PhoneWatchArtworkTransfer]
+
+    public init(coverArtworkID: String? = nil, customArtworkID: String? = nil,
+                transfers: [PhoneWatchArtworkTransfer] = []) {
+        self.coverArtworkID = coverArtworkID
+        self.customArtworkID = customArtworkID
+        self.transfers = transfers
+    }
+}
+
+/// Shared projection cache between the transfer manager and the request handler. It contains only
+/// derivative IDs, never source artwork identifiers or file URLs.
+public actor PhoneWatchArtworkBindingRegistry {
+    private var bindings: [String: (cover: String?, custom: String?)] = [:]
+
+    public init() {}
+
+    public func set(trackID: String, coverArtworkID: String?, customArtworkID: String?) {
+        bindings[trackID] = (coverArtworkID, customArtworkID)
+    }
+
+    public func binding(for trackID: String) -> (coverArtworkID: String?, customArtworkID: String?) {
+        let binding = bindings[trackID]
+        return (binding?.cover, binding?.custom)
+    }
+}
+
+/// Resolves the real selected phone cover/custom art at watch-transfer time. Implementations may
+/// persist a derivative-backed custom binding while preparing the resolution.
+public protocol PhoneWatchArtworkResolving: Sendable {
+    func resolveArtwork(trackID: WatchTrackID) async -> PhoneWatchArtworkResolution?
+}
+
+/// Sibling to the audio transfer seam. Keeping artwork separate lets the manager gate it without
+/// making older test transports or mixed-version peers understand a new operation.
+public protocol PhoneWatchArtworkTransferring: Sendable {
+    func transferArtwork(_ transfer: PhoneWatchArtworkTransfer) async throws
+}
+
 /// Resolves watch track IDs into transferable phone-local files (§8.1 "resolve remote audio into
 /// the existing phone cache before transfer"). The real implementation lives in `Sources/App/Watch`;
 /// tests inject a deterministic fake.
@@ -61,8 +124,15 @@ public actor PhoneWatchDownloadManager {
     private let emitRoots: @Sendable ([WatchDownloadRootDescriptor], Int64) async -> Void
     private let rootExpander: @Sendable (PhoneWatchDownloadRoot) async -> [String]
     private let now: @Sendable () -> Date
+    private let artworkResolver: (any PhoneWatchArtworkResolving)?
+    private let artworkTransfer: (any PhoneWatchArtworkTransferring)?
+    private let artworkCapability: @Sendable () async -> Bool
+    private let publishArtworkBindings: @Sendable (String, String?, String?) async -> Void
 
     private var explicitRetryTrackIDs: Set<String> = []
+    private var desiredArtworkTrackIDs: Set<String> = []
+    private var artworkPlans: [String: PhoneWatchArtworkResolution] = [:]
+    private var artworkSentIDs: Set<String> = []
 
     public init(store: PhoneWatchDownloadStore,
                 resolver: any PhoneWatchAudioResolving,
@@ -70,7 +140,11 @@ public actor PhoneWatchDownloadManager {
                 networkGate: any PhoneWatchNetworkGate = PhoneWatchAlwaysOnNetworkGate(),
                 emitRoots: @escaping @Sendable ([WatchDownloadRootDescriptor], Int64) async -> Void = { _, _ in },
                 rootExpander: @escaping @Sendable (PhoneWatchDownloadRoot) async -> [String] = { $0.desiredTrackIDs },
-                now: @escaping @Sendable () -> Date = { Date() }) {
+                now: @escaping @Sendable () -> Date = { Date() },
+                artworkResolver: (any PhoneWatchArtworkResolving)? = nil,
+                artworkTransfer: (any PhoneWatchArtworkTransferring)? = nil,
+                artworkCapability: @escaping @Sendable () async -> Bool = { true },
+                publishArtworkBindings: @escaping @Sendable (String, String?, String?) async -> Void = { _, _, _ in }) {
         self.store = store
         self.resolver = resolver
         self.transfer = transfer
@@ -78,6 +152,10 @@ public actor PhoneWatchDownloadManager {
         self.emitRoots = emitRoots
         self.rootExpander = rootExpander
         self.now = now
+        self.artworkResolver = artworkResolver
+        self.artworkTransfer = artworkTransfer
+        self.artworkCapability = artworkCapability
+        self.publishArtworkBindings = publishArtworkBindings
     }
 
     // MARK: - Root mutations
@@ -85,20 +163,28 @@ public actor PhoneWatchDownloadManager {
     /// Replace the complete desired-root set (§5.3 `setDownloadRoots` is never a delta).
     public func setRoots(_ roots: [PhoneWatchDownloadRoot]) async throws {
         try await store.replaceRoots(roots)
-        try await emitCurrentRoots()
         try await reconcile()
+        try await emitCurrentRoots()
+    }
+
+    /// Re-run the desired-root reconciliation after a phone-side custom-art assignment. The
+    /// binding and derivative are prepared lazily here, so no watch UI or Now Playing surface is
+    /// required to schedule the bytes.
+    public func artworkDidChange() async throws {
+        try await reconcile()
+        try await emitCurrentRoots()
     }
 
     public func addRoot(_ root: PhoneWatchDownloadRoot) async throws {
         try await store.upsertRoot(root)
-        try await emitCurrentRoots()
         try await reconcile()
+        try await emitCurrentRoots()
     }
 
     public func removeRoot(rootID: String) async throws {
         try await store.deleteRoot(rootID: rootID)
-        try await emitCurrentRoots()
         try await reconcile()
+        try await emitCurrentRoots()
     }
 
     /// A retry the user explicitly asked for — one attempt, higher priority (§8.1 bucket 2).
@@ -158,6 +244,9 @@ public actor PhoneWatchDownloadManager {
     /// Apply the watch's latest manifest (§1.6 second authority) and re-reconcile. Per-track bytes
     /// are not in the payload, so a known job's `expectedBytes` fills in where available.
     public func ingestManifest(_ payload: WatchManifestPayload) async throws {
+        // A manifest is the watch's authority. Anything absent must be eligible for a resend,
+        // including an asset that was previously accepted by WCSession but never installed.
+        artworkSentIDs.formIntersection(Set(payload.installedArtworkIDs.map { $0.lowercased() }))
         let existing = try await store.jobs()
         let jobsByTrack = Dictionary(existing.map { ($0.trackID, $0) },
                                      uniquingKeysWith: { a, b in a.updatedAt >= b.updatedAt ? a : b })
@@ -198,6 +287,24 @@ public actor PhoneWatchDownloadManager {
         // Phase 8: paused roots stay declared to the watch (installed tracks are kept) but are
         // excluded from planning, so their in-flight jobs are cancelled and nothing new is queued.
         let activeRoots = roots.filter { !$0.paused }
+        desiredArtworkTrackIDs = Set(activeRoots.flatMap(\.desiredTrackIDs))
+
+        artworkPlans = [:]
+        if await artworkCapability(), await networkGate.canTransferNow(),
+           let artworkResolver {
+            for trackID in desiredArtworkTrackIDs.sorted() {
+                let resolved = await artworkResolver.resolveArtwork(trackID: WatchTrackID(trackID))
+                if let resolved {
+                    artworkPlans[trackID] = resolved
+                    await publishArtworkBindings(trackID, resolved.coverArtworkID, resolved.customArtworkID)
+                } else {
+                    // The phone's authoritative custom-art binding may have been cleared since
+                    // the previous reconcile. Remove the cached projection so a later collection
+                    // response cannot resurrect a stale derivative ID on the watch.
+                    await publishArtworkBindings(trackID, nil, nil)
+                }
+            }
+        }
 
         let installed = try await store.installedTrackIDs()
         let existing = try await store.jobs()
@@ -268,9 +375,10 @@ public actor PhoneWatchDownloadManager {
     /// Dispatch transfers until the in-flight caps or the network gate stop us. Failed jobs with a
     /// future `nextAttemptAt` are naturally excluded, so this terminates.
     public func pump() async throws {
+        var canNetwork = false
         while true {
             let jobs = try await store.jobs()
-            let canNetwork = await networkGate.canTransferNow()
+            canNetwork = await networkGate.canTransferNow()
 
             if !canNetwork {
                 let waiting = jobs.filter {
@@ -295,7 +403,7 @@ public actor PhoneWatchDownloadManager {
             let next = PhoneWatchTransferScheduler.nextDispatch(
                 jobs: jobs, now: now(), canTransferOnNetwork: canNetwork)
             guard let requestID = next.first,
-                  var job = jobs.first(where: { $0.requestID == requestID }) else { return }
+                  var job = jobs.first(where: { $0.requestID == requestID }) else { break }
 
             job.state = .resolving
             job.updatedAt = now()
@@ -330,6 +438,29 @@ public actor PhoneWatchDownloadManager {
                 } catch {
                     try await failFromError(&job, code: .transferFailed)
                 }
+            }
+        }
+        guard canNetwork else { return }
+        await pumpArtwork()
+    }
+
+    /// Artwork is dispatched after the audio queue has had its turn. It has no independent job
+    /// row because content-addressed IDs plus the watch manifest are the durable dedup truth.
+    private func pumpArtwork() async {
+        guard await artworkCapability(), let artworkTransfer else { return }
+        for trackID in desiredArtworkTrackIDs.sorted() {
+            guard let plan = artworkPlans[trackID] else { continue }
+            for asset in plan.transfers {
+                let normalizedID = asset.artworkID.lowercased()
+                guard !artworkSentIDs.contains(normalizedID) else { continue }
+                do {
+                    try await artworkTransfer.transferArtwork(asset)
+                    artworkSentIDs.insert(normalizedID)
+                } catch {
+                    // The next manifest/reconcile retries a missing asset. A failed artwork
+                    // delivery must not poison the independent audio job.
+                }
+                try? FileManager.default.removeItem(at: asset.fileURL)
             }
         }
     }

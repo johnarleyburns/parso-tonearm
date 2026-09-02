@@ -82,7 +82,7 @@ final class WatchGlyphStateTests: XCTestCase {
     }
 
     func testAggregateHasTransferring() {
-        let (state, fraction) = WatchGlyph.aggregateState(
+        let (state, _) = WatchGlyph.aggregateState(
             trackKeys: ["t1", "t2"],
             manifest: [],
             transferStates: ["t1": .queued],

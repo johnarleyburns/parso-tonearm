@@ -95,6 +95,7 @@ public enum PhoneWatchProjection {
 
     public static func trackSummary(from row: TrackRow,
                                     downloadedOnWatch: Set<WatchTrackID>,
+                                    coverArtworkID: String? = nil,
                                     customArtworkID: String? = nil) -> WatchTrackSummary {
         let id = PhoneWatchID.track(row.track)
         return WatchTrackSummary(
@@ -104,7 +105,9 @@ public enum PhoneWatchProjection {
             albumTitle: row.album?.title ?? "",
             durationSeconds: row.track.durationSec,
             artworkID: row.album?.artworkId,
-            coverArtworkID: row.album?.artworkId,
+            // `artworkID` is retained as the phone catalog's source identifier for legacy rows;
+            // watch bindings are derivative hashes supplied by the transfer-time resolver.
+            coverArtworkID: coverArtworkID,
             customArtworkID: customArtworkID,
             isDownloadedOnWatch: downloadedOnWatch.contains(id))
     }

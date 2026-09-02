@@ -20,6 +20,7 @@ final class PhoneWatchRuntime {
     private let downloadManager: PhoneWatchDownloadManager
     private let inbound: PhoneWatchInbound
     private let libraryID: WatchPairedLibraryID
+    private let artworkBindings: PhoneWatchArtworkBindingRegistry
 
     /// The phone player and its snapshot builder, kept so autonomous now-playing changes (a track
     /// ending, someone pressing play on the phone) are pushed to the watch as an application
@@ -54,8 +55,11 @@ final class PhoneWatchRuntime {
         self.downloadStore = downloadStore
 
         let revisionStore = PhoneWatchDownloadRevisionAdapter(store: downloadStore)
-        let inbound = PhoneWatchInbound()
+        let negotiatedCapabilities = PhoneWatchNegotiatedCapabilities()
+        let inbound = PhoneWatchInbound(negotiatedCapabilities: negotiatedCapabilities)
         self.inbound = inbound
+        let artworkBindings = PhoneWatchArtworkBindingRegistry()
+        self.artworkBindings = artworkBindings
 
         let downloadedProvider: @Sendable () async -> Set<WatchTrackID> = { [weak downloadStore] in
             guard let downloadStore else { return [] }
@@ -64,7 +68,10 @@ final class PhoneWatchRuntime {
         }
 
         let playbackAdapter = PhoneWatchPlaybackAdapter(player: player,
-                                                        downloadedProvider: downloadedProvider)
+                                                        downloadedProvider: downloadedProvider,
+                                                        artworkBindingProvider: { [artworkBindings] trackID in
+                                                            await artworkBindings.binding(for: trackID)
+                                                        })
         self.player = player
         self.playbackAdapter = playbackAdapter
 
@@ -74,6 +81,9 @@ final class PhoneWatchRuntime {
             libraryID: libraryID,
             revisionStore: revisionStore,
             downloadedProvider: downloadedProvider,
+            artworkBindingProvider: { [artworkBindings] trackID in
+                await artworkBindings.binding(for: trackID)
+            },
             onManifest: { [inbound] payload in await inbound.manifest(payload) },
             onReconciliation: { [inbound] request in await inbound.reconciliation(request) },
             onDownloadRequest: { [inbound] request in await inbound.downloadRequest(request) })
@@ -82,11 +92,13 @@ final class PhoneWatchRuntime {
             transport: PhoneWatchProtocolAdapter.transport,
             handler: requestHandler,
             libraryID: libraryID,
-            revisionStore: revisionStore)
+            revisionStore: revisionStore,
+            observer: inbound)
         self.coordinator = coordinator
         self.protocolAdapter = PhoneWatchProtocolAdapter(endpoint: coordinator)
 
         let audioResolver = PhoneWatchLibraryAudioResolver(store: store)
+        let artworkResolver = PhoneWatchLibraryArtworkResolver(store: store)
         let fileTransfer = PhoneWatchSessionFileTransfer(
             transport: PhoneWatchProtocolAdapter.transport,
             phoneRevision: { [weak downloadStore] in (try? await downloadStore?.currentRevision()) ?? 0 })
@@ -109,7 +121,17 @@ final class PhoneWatchRuntime {
             emitRoots: { [weak coordinator] descriptors, _ in
                 _ = await coordinator?.sendDownloadRoots(descriptors)
             },
-            rootExpander: rootExpander)
+            rootExpander: rootExpander,
+            artworkResolver: artworkResolver,
+            artworkTransfer: fileTransfer,
+            artworkCapability: { [negotiatedCapabilities] in
+                let session = PhoneWatchProtocolAdapter.currentCapability()
+                guard session.isSupported && session.isPaired && session.isWatchAppInstalled else { return false }
+                return await negotiatedCapabilities.supports(.artworkAssets)
+            },
+            publishArtworkBindings: { [artworkBindings] trackID, cover, custom in
+                await artworkBindings.set(trackID: trackID, coverArtworkID: cover, customArtworkID: custom)
+            })
 
         Task { await inbound.connect(self) }
     }
@@ -216,6 +238,11 @@ final class PhoneWatchRuntime {
     func requestReconciliation() async {
         await coordinator.requestReconciliation()
         await tickDownloads()
+    }
+
+    func artworkDidChange() async {
+        try? await downloadManager.artworkDidChange()
+        await refresh()
     }
 
     // MARK: - Phase 8 management actions
@@ -377,10 +404,19 @@ private actor PhoneWatchDownloadRevisionAdapter: WatchPhoneRevisionStore {
 /// Late-bound trampoline for the request handler's manifest / reconciliation callbacks. The handler
 /// needs them at construction — before `PhoneWatchRuntime` exists — so they land here and are
 /// forwarded once `connect` supplies the runtime.
-private actor PhoneWatchInbound {
+private actor PhoneWatchInbound: PhoneWatchProtocolObserver {
+    private let negotiatedCapabilities: PhoneWatchNegotiatedCapabilities
     private weak var runtime: PhoneWatchRuntime?
 
+    init(negotiatedCapabilities: PhoneWatchNegotiatedCapabilities) {
+        self.negotiatedCapabilities = negotiatedCapabilities
+    }
+
     func connect(_ runtime: PhoneWatchRuntime) { self.runtime = runtime }
+
+    func watchDidNegotiate(_ hello: WatchHello) async {
+        await negotiatedCapabilities.set(hello.capabilities)
+    }
 
     func manifest(_ payload: WatchManifestPayload) async {
         await runtime?.ingestManifest(payload)
@@ -393,5 +429,12 @@ private actor PhoneWatchInbound {
     func downloadRequest(_ request: WatchDownloadRequest) async {
         await runtime?.applyWatchDownloadRequest(request)
     }
+}
+
+private actor PhoneWatchNegotiatedCapabilities {
+    private var capabilities: Set<WatchCapability> = []
+
+    func set(_ capabilities: [WatchCapability]) { self.capabilities = Set(capabilities) }
+    func supports(_ capability: WatchCapability) -> Bool { capabilities.contains(capability) }
 }
 #endif

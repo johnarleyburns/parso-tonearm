@@ -208,7 +208,15 @@ public struct WatchPlayerEngine: Equatable {
         queue = newQueue
         currentIndex = min(startIndex, max(0, newQueue.count - 1))
         elapsed = 0
+        isPlaying = false
         if isShuffled { buildShuffleOrder() }
+    }
+
+    /// Reconciles the pure request state with the platform adapter. Commands optimistically request
+    /// playback so they can emit directives, while the AVPlayer adapter may later report that the
+    /// route or item was not actually usable.
+    public mutating func setConfirmedPlaying(_ playing: Bool) {
+        isPlaying = playing
     }
 
     public var snapshot: WatchQueueSnapshot {

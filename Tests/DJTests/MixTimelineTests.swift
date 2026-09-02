@@ -145,7 +145,7 @@ final class MixTimelineTests: XCTestCase {
             }
         }
         try file.write(from: buffer)
-        try file.close()
+        file.close()
 
         let model = try MixWaveformBuilder.build(from: url, bins: 24)
         XCTAssertEqual(model.binCount, 24)

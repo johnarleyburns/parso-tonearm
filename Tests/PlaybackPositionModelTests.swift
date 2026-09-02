@@ -31,7 +31,7 @@ final class PlaybackPositionModelTests: XCTestCase {
     private func runOne(seed: UInt64) async throws {
         let fakeCloud = FakePlaybackCloudBackend()
         let persistor = PlaybackPositionPersistor(cloudBackend: fakeCloud)
-        var rng = RNG(seed: seed)
+        let rng = RNG(seed: seed)
         let ids: [Int64] = [1, 2, 3, 4, 5]
         let syncs: [String] = ["s1", "s2", "s3", "s4", "s5"]
         var index = 0, elapsed = 0.0

@@ -165,7 +165,7 @@ final class CoordinatorTests: XCTestCase {
 
         let trackID = try await pool.write { try Self.seedTrack(in: $0, title: "tone", url: url) }
         let coordinator = AnalysisCoordinator(pool: pool, assetURL: { trackID, db in
-            try? Self.fetchURL(for: db, trackID: trackID)
+            Self.fetchURL(for: db, trackID: trackID)
         })
         await coordinator.analyzeAll()
 
@@ -197,7 +197,7 @@ final class CoordinatorTests: XCTestCase {
 
         let trackID = try await pool.write { try Self.seedTrack(in: $0, title: "tone", url: url) }
         let coordinator = AnalysisCoordinator(pool: pool, assetURL: { trackID, db in
-            try? Self.fetchURL(for: db, trackID: trackID)
+            Self.fetchURL(for: db, trackID: trackID)
         })
         await coordinator.analyzeAll()
         await coordinator.analyzeAll()

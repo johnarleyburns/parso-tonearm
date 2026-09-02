@@ -17,22 +17,24 @@ import TonearmWatchProtocol
 public final class PhoneWatchPlaybackAdapter: PhoneWatchPlaybackBridge {
     private let player: AudioPlayer
     private let downloadedProvider: @Sendable () async -> Set<WatchTrackID>
+    private let artworkBindingProvider: @Sendable (String) async -> (coverArtworkID: String?, customArtworkID: String?)
 
     public init(player: AudioPlayer,
-                downloadedProvider: @escaping @Sendable () async -> Set<WatchTrackID> = { [] }) {
+                downloadedProvider: @escaping @Sendable () async -> Set<WatchTrackID> = { [] },
+                artworkBindingProvider: @escaping @Sendable (String) async -> (coverArtworkID: String?, customArtworkID: String?) = { _ in (nil, nil) }) {
         self.player = player
         self.downloadedProvider = downloadedProvider
+        self.artworkBindingProvider = artworkBindingProvider
     }
 
     public func snapshot(revision: Int64) async -> WatchPhonePlaybackSnapshot {
         let downloaded = await downloadedProvider()
         var queue: [WatchTrackSummary] = []
         for row in player.queue {
-            let custom: String?
-            if let id = row.track.id { custom = try? await LibraryStore.shared.customArtworkId(for: id) }
-            else { custom = nil }
+            let binding = await artworkBindingProvider(PhoneWatchID.track(row.track).rawValue)
             queue.append(PhoneWatchProjection.trackSummary(from: row, downloadedOnWatch: downloaded,
-                                                           customArtworkID: custom))
+                                                           coverArtworkID: binding.coverArtworkID,
+                                                           customArtworkID: binding.customArtworkID))
         }
         let input = WatchPlaybackSnapshotBuilder.Input(
             revision: revision,

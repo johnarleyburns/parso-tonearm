@@ -189,7 +189,7 @@ final class RecordTapTests: XCTestCase {
         defer { engine.stop() }
 
         XCTAssertFalse(engine.isRecording)
-        try await engine.startRecording()
+        _ = try await engine.startRecording()
         XCTAssertTrue(engine.isRecording)
 
         let source = sineSource(frames: 48_000)
@@ -214,7 +214,7 @@ final class RecordTapTests: XCTestCase {
         try engine.start()
         defer { engine.stop() }
         do {
-            try await engine.startRecording()
+            _ = try await engine.startRecording()
             XCTFail("startRecording without a record tap must throw")
         } catch RecordingEncoder.RecordingError.tapNotRecording {
             // expected

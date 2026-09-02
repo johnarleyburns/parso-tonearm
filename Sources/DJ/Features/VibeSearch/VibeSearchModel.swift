@@ -85,7 +85,7 @@ public enum SuggestionChips {
     /// Read the distribution straight from the DJ library — one cheap aggregate
     /// query per descriptor, no object graph.
     public static func summary(pool: DatabasePool) async -> LibraryDescriptorSummary {
-        let rows = (try? await pool.read { db in
+        let rows = (try? pool.read { db in
             try Row.fetchAll(db, sql: "SELECT bpm, energy, durationSec, camelot FROM track")
         }) ?? []
         var bpm: [Double] = []

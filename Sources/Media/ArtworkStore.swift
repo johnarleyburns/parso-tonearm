@@ -36,6 +36,11 @@ actor ArtworkStore {
 
     func fileURL(id: String) -> URL { dir.appendingPathComponent("\(id).jpg") }
 
+    func fileURLIfPresent(id: String) -> URL? {
+        let url = fileURL(id: id)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
     /// Persists a deterministic watch derivative under its content address while keeping the
     /// phone's existing custom-art lookup path (`<id>.jpg`) intact.
     func storeWatchVariant(_ data: Data, artworkID: String) -> Bool {

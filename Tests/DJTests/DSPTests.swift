@@ -35,7 +35,7 @@ final class STFTTests: XCTestCase {
 
     func testSilenceProducesTinyPower() {
         let kernel = STFTKernel(config: config)
-        var frame = [Float](repeating: 0, count: config.fftSize)
+        let frame = [Float](repeating: 0, count: config.fftSize)
         let spec = frame.withUnsafeBufferPointer { kernel.spectrum($0.baseAddress!) }
         XCTAssertTrue(spec.power.allSatisfy { $0.isFinite })
     }
@@ -72,9 +72,6 @@ final class SpectralFeatureTests: XCTestCase {
         var centroids: [Float] = []
         var prev = spectra[0].power
         for spec in spectra {
-            var frame = [Float](repeating: 0, count: config.fftSize)
-            // Reuse the first window (approximation for the monotonicity check).
-            _ = frame
             let feats = SpectralFeatures.frame(spec, prevPower: prev,
                                                frameSamples: [Float](repeating: 0, count: 1).withUnsafeBufferPointer { $0 })
             centroids.append(feats.centroid)
@@ -94,7 +91,7 @@ final class SpectralFeatureTests: XCTestCase {
         let kernel = STFTKernel(config: config)
 
         // Silent frame then a loud burst: flux should spike.
-        var silent = [Float](repeating: 0, count: config.fftSize)
+        let silent = [Float](repeating: 0, count: config.fftSize)
         var burst = [Float](repeating: 0, count: config.fftSize)
         for i in burst.indices { burst[i] = 0.9 * Float(sin(2 * Double.pi * 1000 * Double(i) / 48_000)) }
 

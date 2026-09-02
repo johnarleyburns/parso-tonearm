@@ -82,7 +82,7 @@ public struct SmartCrateRepository: Sendable {
 
     /// Delete a crate; `crate_rule` rows cascade (§14.3).
     public func delete(id: Int64) throws {
-        try pool.write { db in
+        _ = try pool.write { db in
             try SmartCrate.deleteOne(db, key: id)
         }
     }

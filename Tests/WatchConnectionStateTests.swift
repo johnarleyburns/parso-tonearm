@@ -107,7 +107,7 @@ final class WatchConnectionStateTests: XCTestCase {
         // Ten blips, each shorter than the grace period.
         for _ in 0..<10 {
             now += 0.3
-            _ = reducer.apply(.reachabilityChanged(false), at: at(now)).forEach { if $0 == .announceDisconnected { announcements += 1 } }
+            reducer.apply(.reachabilityChanged(false), at: at(now)).forEach { if $0 == .announceDisconnected { announcements += 1 } }
             now += 0.3
             reducer.apply(.peerResponded, at: at(now)).forEach { if $0 == .announceReconnected { reconnections += 1 } }
         }

@@ -82,6 +82,90 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
     }
 }
 
+/// Resolves catalog/custom artwork only when a desired track is about to be sent. The resolver
+/// always produces a deterministic JPEG derivative, so the ID exposed to the watch is the hash of
+/// the exact bytes delivered there rather than an IA identifier or the phone's UUID-backed source.
+public struct PhoneWatchLibraryArtworkResolver: PhoneWatchArtworkResolving {
+    private let store: LibraryStore
+
+    public init(store: LibraryStore) { self.store = store }
+
+    public func resolveArtwork(trackID: WatchTrackID) async -> PhoneWatchArtworkResolution? {
+        guard let row = try? await resolveRow(trackID) else { return nil }
+        var coverID: String?
+        var customID: String?
+        var transfers: [PhoneWatchArtworkTransfer] = []
+
+        var rawCustom: String?
+        if let localID = row.track.id { rawCustom = try? await store.customArtworkId(for: localID) }
+        if let rawCustom, !rawCustom.isEmpty,
+           let sourceURL = await ArtworkStore.shared.fileURLIfPresent(id: rawCustom) {
+            if let exact = Self.exactDerivativeTransfer(sourceURL: sourceURL, artworkID: rawCustom, role: .custom) {
+                customID = exact.artworkID
+                transfers.append(exact)
+            } else if let derivative = try? WatchArtworkVariant.make(from: sourceURL),
+                      let transfer = Self.transfer(from: derivative, role: .custom) {
+                customID = derivative.artworkID
+                transfers.append(transfer)
+
+                // Assignment may have predated the watch pipeline and therefore used the phone's
+                // UUID-backed source ID. Make the durable binding derivative-backed now.
+                if rawCustom.lowercased() != derivative.artworkID.lowercased(), let localID = row.track.id {
+                    let derivativeData = (try? Data(contentsOf: derivative.fileURL)) ?? Data()
+                    if await ArtworkStore.shared.storeWatchVariant(derivativeData, artworkID: derivative.artworkID) {
+                        try? await store.setCustomArtwork(trackId: localID, artworkId: derivative.artworkID)
+                        let remaining = (try? await store.allCustomArtworkIds()) ?? []
+                        if !remaining.contains(rawCustom) { await ArtworkStore.shared.delete(id: rawCustom) }
+                    }
+                }
+            }
+        }
+
+        // IA's metadata/file picker remains the source of truth for catalog covers. For providers
+        // without an IA album identifier, use the existing track artwork resolver as its fallback.
+        let coverImage: UIImage?
+        if let sourceID = row.album?.artworkId, !sourceID.isEmpty {
+            coverImage = await ArtworkService.shared.artwork(forIdentifier: sourceID)
+        } else if customID == nil {
+            coverImage = await ArtworkService.shared.trackArtwork(forTrackRow: row)?.image
+        } else {
+            coverImage = nil
+        }
+        if let coverImage, let derivative = try? WatchArtworkVariant.make(image: coverImage),
+           let transfer = Self.transfer(from: derivative, role: .cover) {
+            coverID = derivative.artworkID
+            transfers.append(transfer)
+        }
+
+        guard coverID != nil || customID != nil else { return nil }
+        return PhoneWatchArtworkResolution(coverArtworkID: coverID, customArtworkID: customID,
+                                           transfers: transfers)
+    }
+
+    private func resolveRow(_ id: WatchTrackID) async throws -> TrackRow? {
+        if let rowID = PhoneWatchID.trackRowID(id) { return try await store.trackRow(id: rowID) }
+        return try await store.trackRow(syncID: id.rawValue)
+    }
+
+    private static func transfer(from result: WatchArtworkVariant.Result,
+                                 role: WatchArtworkRole) -> PhoneWatchArtworkTransfer? {
+        guard result.bytes > 0 else { return nil }
+        return PhoneWatchArtworkTransfer(fileURL: result.fileURL, artworkID: result.artworkID,
+                                         role: role, expectedBytes: result.bytes,
+                                         sha256: result.artworkID)
+    }
+
+    private static func exactDerivativeTransfer(sourceURL: URL, artworkID: String,
+                                                role: WatchArtworkRole) -> PhoneWatchArtworkTransfer? {
+        let id = artworkID.lowercased()
+        guard id.count == 64, id.allSatisfy({ $0.isHexDigit }),
+              let digest = try? WatchFileDigest.measure(sourceURL),
+              digest.sha256.lowercased() == id, digest.bytes > 0 else { return nil }
+        return PhoneWatchArtworkTransfer(fileURL: sourceURL, artworkID: id, role: role,
+                                         expectedBytes: digest.bytes, sha256: id)
+    }
+}
+
 // MARK: - File transfer
 
 /// Sends a resolved file to the watch through the §5 transport seam. The metadata rides as the
@@ -114,6 +198,16 @@ public struct PhoneWatchSessionFileTransfer: PhoneWatchFileTransferring {
     public func cancelTransfer(trackID: WatchTrackID) async {}
 }
 
+extension PhoneWatchSessionFileTransfer: PhoneWatchArtworkTransferring {
+    public func transferArtwork(_ transfer: PhoneWatchArtworkTransfer) async throws {
+        let metadata = WatchArtworkFileMetadata(
+            artworkID: transfer.artworkID, expectedBytes: transfer.expectedBytes,
+            sha256: transfer.sha256, role: transfer.role,
+            phoneRevision: await phoneRevision())
+        await transport.transferFile(transfer.fileURL, metadata: metadata.dictionary)
+    }
+}
+
 // MARK: - Network gate
 
 /// Answers §8.2's Wi-Fi question from an injected policy closure (the phone's `NetworkPolicy` /
@@ -132,11 +226,25 @@ public struct PhoneWatchPolicyNetworkGate: PhoneWatchNetworkGate {
 public enum WatchArtworkVariant {
     public static let defaultMaxEdge: CGFloat = 300
     public static let jpegQuality: CGFloat = 0.78
-    public struct Result: Sendable, Equatable { public let fileURL: URL; public let artworkID: String; public let bytes: Int64 }
+    public struct Result: Sendable, Equatable {
+        public let fileURL: URL
+        public let artworkID: String
+        public let bytes: Int64
+    }
 
     public static func make(from sourceURL: URL, maxEdge: CGFloat = defaultMaxEdge) throws -> Result {
         guard let image = UIImage(contentsOfFile: sourceURL.path), image.size.width > 0, image.size.height > 0,
               let data = encoded(image: image, maxEdge: maxEdge) else { throw CocoaError(.fileReadCorruptFile) }
+        return try write(data)
+    }
+
+    public static func make(image: UIImage, maxEdge: CGFloat = defaultMaxEdge) throws -> Result {
+        guard image.size.width > 0, image.size.height > 0,
+              let data = encoded(image: image, maxEdge: maxEdge) else { throw CocoaError(.fileReadCorruptFile) }
+        return try write(data)
+    }
+
+    private static func write(_ data: Data) throws -> Result {
         let id = WatchFileDigest.hex(data)
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("watch-art-\(id).jpg")
         try data.write(to: url, options: .atomic)
@@ -155,15 +263,20 @@ public enum WatchArtworkVariant {
 }
 
 public extension PhoneWatchSessionFileTransfer {
+    /// Compatibility wrapper for callers that used the pre-manager helper. New production code
+    /// goes through `PhoneWatchArtworkTransferring` so capability/network gating is centralized.
     func transferArtwork(fileURL: URL, artworkID: String, role: WatchArtworkRole,
                          expectedBytes: Int64, sha256: String? = nil,
                          artworkCapability: Bool = true) async -> Bool {
         guard artworkCapability else { return false }
-        let metadata = WatchArtworkFileMetadata(artworkID: artworkID, expectedBytes: expectedBytes,
-                                                sha256: sha256 ?? artworkID, role: role,
-                                                phoneRevision: await phoneRevision())
-        await transport.transferFile(fileURL, metadata: metadata.dictionary)
-        return true
+        do {
+            try await transferArtwork(PhoneWatchArtworkTransfer(
+                fileURL: fileURL, artworkID: artworkID, role: role,
+                expectedBytes: expectedBytes, sha256: sha256 ?? artworkID))
+            return true
+        } catch {
+            return false
+        }
     }
 }
 #endif

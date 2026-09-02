@@ -18,9 +18,11 @@ enum WatchFixtureSeeder {
         let destination = audioDirectory.appendingPathComponent(filename)
         do {
             try fm.createDirectory(at: audioDirectory, withIntermediateDirectories: true)
-            if !fm.fileExists(atPath: destination.path) {
-                try fm.copyItem(at: source, to: destination)
-            }
+            // UI tests may reuse a simulator's application container after a failed run. Replace
+            // the fixture so a stale/partial prior copy cannot make a ready library point at a
+            // different or corrupt AVPlayer input.
+            if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
+            try fm.copyItem(at: source, to: destination)
             let measured = try WatchFileDigest.measure(destination)
             try await repository.upsertTrack(.init(
                 trackID: trackID, title: trackTitle, artist: "Built-in", albumTitle: "Built-in Sounds"))

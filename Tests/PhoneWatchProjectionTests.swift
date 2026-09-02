@@ -192,6 +192,29 @@ final class PhoneWatchProjectionTests: XCTestCase {
         XCTAssertNotNil(response.nextPageToken)
     }
 
+    func testCollectionDetailUsesTransferTimeDerivativeBindings() async throws {
+        let fixture = try await makeFixture()
+        let cover = String(repeating: "c", count: 64)
+        let custom = String(repeating: "d", count: 64)
+        let handler = PhoneWatchRequestHandler(
+            store: fixture.store, player: SpyPlaybackBridge(), libraryID: libraryID,
+            revisionStore: WatchInMemoryRevisionStore(revision: 3),
+            artworkBindingProvider: { trackID in
+                XCTAssertFalse(trackID.isEmpty)
+                return (coverArtworkID: cover, customArtworkID: custom)
+            })
+
+        let response = try await handler.handleCollection(
+            WatchCollectionRequest(collection: fixture.playlistRef, limit: 1))
+
+        let track = try XCTUnwrap(response.tracks.first)
+        XCTAssertEqual(track.coverArtworkID, cover)
+        XCTAssertEqual(track.customArtworkID, custom)
+        // The catalog's IA artwork identifier is retained only as a legacy source field; it is
+        // not used as either watch-installed derivative binding.
+        XCTAssertEqual(track.artworkID, "art-1")
+    }
+
     func testEmptyPlaylistIsVisiblyNonPlayable() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)

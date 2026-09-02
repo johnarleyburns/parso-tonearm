@@ -47,6 +47,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
             await applyRoot(root, revision: payload.revision)
         }
         await installer.retryDeferred()
+        await artworkInstaller?.retryDeferred()
         await onLibraryChanged()
         await publishManifest()
     }
@@ -138,7 +139,19 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     }
 
     public func didReceiveArtworkFile(at stagedURL: URL, metadata: [String: String]) async {
-        if let artworkInstaller { _ = await artworkInstaller.install(stagedURL: stagedURL, metadata: metadata) }
+        guard let artworkInstaller else {
+            try? FileManager.default.removeItem(at: stagedURL)
+            return
+        }
+        let outcome = await artworkInstaller.install(stagedURL: stagedURL, metadata: metadata)
+        if let diagnostics {
+            switch outcome {
+            case .installed(_, _, let bytes): await diagnostics.record(.installResult, "artworkInstalled", byteCount: bytes)
+            case .duplicateIgnored: await diagnostics.record(.installResult, "artworkDuplicateIgnored")
+            case .deferredAwaitingMetadata: await diagnostics.record(.installResult, "artworkDeferredAwaitingMetadata")
+            case .rejected(_, let fault): await diagnostics.record(.installResult, fault.code.rawValue)
+            }
+        }
         await onLibraryChanged()
         await publishManifest()
     }
@@ -191,6 +204,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
             }
         }
         await installer.retryDeferred()
+        await artworkInstaller?.retryDeferred()
     }
 
     private func publishManifest() async {

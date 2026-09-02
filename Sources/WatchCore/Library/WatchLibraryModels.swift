@@ -37,7 +37,7 @@ public enum WatchDownloadRootKind: String, Codable, Sendable { case track, playl
         self.artist = artist; normalizedArtist = WatchTextNormalizer.normalize(artist)
         self.albumTitle = albumTitle; normalizedAlbum = WatchTextNormalizer.normalize(albumTitle)
         self.durationSeconds = durationSeconds; self.trackNumber = trackNumber; self.discNumber = discNumber
-        self.artworkID = artworkID; self.coverArtworkID = coverArtworkID ?? artworkID
+        self.artworkID = artworkID; self.coverArtworkID = coverArtworkID
         self.customArtworkID = customArtworkID; self.localThumbnailFilename = localThumbnailFilename; self.codec = codec
         self.expectedBytes = expectedBytes; self.expectedSHA256 = expectedSHA256
         self.phoneRevision = phoneRevision; self.metadataUpdatedAt = metadataUpdatedAt

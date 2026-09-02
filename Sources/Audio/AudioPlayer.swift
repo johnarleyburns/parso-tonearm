@@ -94,6 +94,7 @@ public final class AudioPlayer: ObservableObject {
     private var preloadedNextItem: AVPlayerItem?
     private var preloadedNextTrackId: Int64?
     private var preloadedNextLoader: CachingResourceLoader?
+    private var loadedSourceSampleRate: Double = 0
     private var crossfadePlayer: AVPlayer?
     private var crossfadeNextTrackId: Int64?
     private var crossfadeNextIndex: Int?
@@ -840,16 +841,7 @@ public final class AudioPlayer: ObservableObject {
     /// The nominal sample rate of the currently loaded source audio track, or 0
     /// when unknown (e.g. nothing playing yet).
     public var currentSourceSampleRate: Double {
-        guard let track = player.currentItem?.tracks.first(where: {
-            $0.assetTrack?.mediaType == .audio
-        }), let assetTrack = track.assetTrack else { return 0 }
-        let descriptions = assetTrack.formatDescriptions as? [CMFormatDescription] ?? []
-        for description in descriptions {
-            if let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(description) {
-                return asbd.pointee.mSampleRate
-            }
-        }
-        return 0
+        loadedSourceSampleRate
     }
 
     /// Honest bit-perfect plan for the current state: derived from the REAL
@@ -871,6 +863,22 @@ public final class AudioPlayer: ObservableObject {
 
     private func replaceItem(_ item: AVPlayerItem) {
         player.replaceCurrentItem(with: item)
+        loadedSourceSampleRate = 0
+        let asset = item.asset
+        Task { @MainActor [weak self, asset, item] in
+            guard let self,
+                  self.player.currentItem === item,
+                  let audioTracks = try? await asset.loadTracks(withMediaType: .audio),
+                  let audioTrack = audioTracks.first,
+                  let descriptions = try? await audioTrack.load(.formatDescriptions)
+            else { return }
+            for description in descriptions {
+                if let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(description) {
+                    self.loadedSourceSampleRate = asbd.pointee.mSampleRate
+                    return
+                }
+            }
+        }
         observeEnd(of: item)
     }
 

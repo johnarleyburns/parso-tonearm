@@ -136,7 +136,7 @@ final class EnergyTests: XCTestCase {
 final class WaveformTests: XCTestCase {
 
     func testSilenceIsFlat() {
-        var samples = [Float](repeating: 0, count: 48_000 * 2)
+        let samples = [Float](repeating: 0, count: 48_000 * 2)
         samples.withUnsafeBufferPointer { buf in
             let pyramid = WaveformPyramidBuilder.build(buf, sampleRate: 48_000)
             XCTAssertFalse(pyramid.levels.isEmpty)

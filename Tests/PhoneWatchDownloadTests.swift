@@ -83,6 +83,22 @@ private actor FakeGate: PhoneWatchNetworkGate {
     func canTransferNow() async -> Bool { allowed }
 }
 
+private actor FakeArtworkResolver: PhoneWatchArtworkResolving {
+    let resolution: PhoneWatchArtworkResolution
+    private(set) var calls = 0
+
+    init(_ resolution: PhoneWatchArtworkResolution) { self.resolution = resolution }
+    func resolveArtwork(trackID: WatchTrackID) async -> PhoneWatchArtworkResolution? {
+        calls += 1
+        return resolution
+    }
+}
+
+private actor FakeArtworkTransfer: PhoneWatchArtworkTransferring {
+    private(set) var sent: [PhoneWatchArtworkTransfer] = []
+    func transferArtwork(_ transfer: PhoneWatchArtworkTransfer) async throws { sent.append(transfer) }
+}
+
 private final class EmittedRoots: @unchecked Sendable {
     private let lock = NSLock()
     private var _calls: [(roots: [WatchDownloadRootDescriptor], revision: Int64)] = []
@@ -288,6 +304,92 @@ final class PhoneWatchDownloadTests: XCTestCase {
         XCTAssertEqual(sharedCount, 1)
         let resolveCount = await resolver.resolveCount("b")
         XCTAssertEqual(resolveCount, 1)
+    }
+
+    func testDesiredDownloadResolvesAndTransfersDerivativeArtworkWithBindings() async throws {
+        let db = try freshQueue()
+        let resolver = FakeResolver(local: ["a"])
+        let transfer = FakeTransfer()
+        let artworkFile = FileManager.default.temporaryDirectory.appendingPathComponent("watch-art-test.jpg")
+        try Data("derivative".utf8).write(to: artworkFile, options: .atomic)
+        let artwork = PhoneWatchArtworkTransfer(fileURL: artworkFile, artworkID: String(repeating: "a", count: 64),
+                                                 role: .cover, expectedBytes: 10,
+                                                 sha256: String(repeating: "a", count: 64))
+        let artworkResolver = FakeArtworkResolver(.init(coverArtworkID: artwork.artworkID,
+                                                        transfers: [artwork]))
+        let artworkTransfer = FakeArtworkTransfer()
+        let bindings = PhoneWatchArtworkBindingRegistry()
+        let manager = PhoneWatchDownloadManager(
+            store: PhoneWatchDownloadStore(dbQueue: db), resolver: resolver, transfer: transfer,
+            artworkResolver: artworkResolver, artworkTransfer: artworkTransfer,
+            publishArtworkBindings: { trackID, cover, custom in
+                await bindings.set(trackID: trackID, coverArtworkID: cover, customArtworkID: custom)
+            })
+
+        try await manager.setRoots([root("art", tracks: ["a"])])
+        let sentArtworkIDs = await artworkTransfer.sent.map(\.artworkID)
+        let binding = await bindings.binding(for: "a")
+        XCTAssertEqual(sentArtworkIDs, [artwork.artworkID])
+        XCTAssertEqual(binding.coverArtworkID, artwork.artworkID)
+    }
+
+    func testMissingArtworkInManifestIsResentOnReconcile() async throws {
+        let db = try freshQueue()
+        let audioResolver = FakeResolver(local: ["a"])
+        let audioTransfer = FakeTransfer()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("watch-art-resend.jpg")
+        try Data("derivative".utf8).write(to: file, options: .atomic)
+        let id = String(repeating: "b", count: 64)
+        let artworkResolver = FakeArtworkResolver(.init(coverArtworkID: id,
+                                                        transfers: [.init(fileURL: file, artworkID: id,
+                                                                          role: .cover, expectedBytes: 10, sha256: id)]))
+        let artworkTransfer = FakeArtworkTransfer()
+        let manager = PhoneWatchDownloadManager(
+            store: PhoneWatchDownloadStore(dbQueue: db), resolver: audioResolver, transfer: audioTransfer,
+            artworkResolver: artworkResolver, artworkTransfer: artworkTransfer)
+        try await manager.setRoots([root("resend", tracks: ["a"])])
+        let firstSendCount = await artworkTransfer.sent.count
+        XCTAssertEqual(firstSendCount, 1)
+        try await manager.ingestManifest(.init(manifestID: "missing", readyTrackIDs: [], installedBytes: 0,
+                                               installedArtworkIDs: []))
+        let resendCount = await artworkTransfer.sent.count
+        XCTAssertEqual(resendCount, 2)
+    }
+
+    func testArtworkPlanningAndTransferRespectCapabilityAndNetworkGates() async throws {
+        let db = try freshQueue()
+        let audioResolver = FakeResolver(local: ["a"])
+        let audioTransfer = FakeTransfer()
+        let artworkID = String(repeating: "f", count: 64)
+        let artworkURL = FileManager.default.temporaryDirectory.appendingPathComponent("gated-artwork.jpg")
+        try Data("artwork".utf8).write(to: artworkURL, options: .atomic)
+        let artworkResolver = FakeArtworkResolver(.init(
+            coverArtworkID: artworkID,
+            transfers: [.init(fileURL: artworkURL, artworkID: artworkID, role: .cover,
+                               expectedBytes: 7, sha256: artworkID)]))
+        let artworkTransfer = FakeArtworkTransfer()
+        let gate = FakeGate(false)
+        let manager = PhoneWatchDownloadManager(
+            store: PhoneWatchDownloadStore(dbQueue: db), resolver: audioResolver, transfer: audioTransfer,
+            networkGate: gate, artworkResolver: artworkResolver, artworkTransfer: artworkTransfer,
+            artworkCapability: { false })
+
+        try await manager.setRoots([root("gated", tracks: ["a"])])
+        let resolverCallsWithoutCapability = await artworkResolver.calls
+        let sentWithoutCapability = await artworkTransfer.sent.count
+        XCTAssertEqual(resolverCallsWithoutCapability, 0)
+        XCTAssertEqual(sentWithoutCapability, 0)
+
+        let networked = FakeGate(true)
+        let networkManager = PhoneWatchDownloadManager(
+            store: PhoneWatchDownloadStore(dbQueue: try freshQueue()), resolver: FakeResolver(local: ["a"]),
+            transfer: FakeTransfer(), networkGate: networked, artworkResolver: artworkResolver,
+            artworkTransfer: artworkTransfer, artworkCapability: { true })
+        try await networkManager.setRoots([root("networked", tracks: ["a"])])
+        let resolverCallsWithNetwork = await artworkResolver.calls
+        let sentWithNetwork = await artworkTransfer.sent.count
+        XCTAssertEqual(resolverCallsWithNetwork, 1)
+        XCTAssertEqual(sentWithNetwork, 1)
     }
 
     func testSetRootsEmitsDescriptorsWithBumpedRevision() async throws {

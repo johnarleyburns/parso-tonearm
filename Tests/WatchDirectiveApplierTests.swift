@@ -8,20 +8,33 @@ final class WatchDirectiveApplierTests: XCTestCase {
 
     final class Spy: WatchAudioOutput {
         private(set) var calls: [String] = []
+        var loadResult: WatchItemLoadResult = .ready(durationSeconds: 1)
+        var playResult: WatchPlayResult = .playing(rate: 1)
         var onItemEnded: (() -> Void)?
-        var onItemFailed: (() -> Void)?
+        var onItemFailed: ((String) -> Void)?
         var onTimeUpdate: ((Double) -> Void)?
 
-        func load(url: URL) async {
+        func activateSession() async -> WatchAudioActivationResult {
+            calls.append("activate")
+            return .active(route: WatchRouteSnapshot(outputCount: 1, outputPortTypes: ["test"]))
+        }
+        func load(url: URL) async -> WatchItemLoadResult {
             calls.append("load:\(url.lastPathComponent)")
             await Task.yield()
             calls.append("loaded:\(url.lastPathComponent)")
+            return loadResult
         }
-        func play() async { calls.append("play") }
+        func play() async -> WatchPlayResult { calls.append("play"); return playResult }
         func pause() async { calls.append("pause") }
         func seek(to time: Double) async { calls.append("seek:\(time)") }
         func setVolume(_ volume: Double) { calls.append("volume:\(volume)") }
-        func rebuildSession() async { calls.append("rebuild") }
+        func rebuildSession() async -> WatchSessionRebuildResult {
+            calls.append("rebuild")
+            return .ready(durationSeconds: 1)
+        }
+        func currentRate() -> Double { 0 }
+        func currentRoute() -> WatchRouteSnapshot { WatchRouteSnapshot() }
+        func currentItemReadiness() -> WatchItemReadiness { .noItem }
     }
 
     func testLoadFullyCompletesBeforePlay() async {
@@ -53,5 +66,32 @@ final class WatchDirectiveApplierTests: XCTestCase {
         XCTAssertEqual(directives, [.stop])
         await applyWatchDirectives(directives, to: spy)
         XCTAssertEqual(spy.calls, ["pause"])
+    }
+
+    func testLoadFailureStopsBeforePlay() async {
+        let spy = Spy()
+        spy.loadResult = .failed(code: "item-bad-file")
+        let result = await applyWatchDirectives([.loadItem(URL(fileURLWithPath: "/tmp/a.mp3")), .play], to: spy)
+
+        XCTAssertEqual(result, .failed(code: "item-bad-file"))
+        XCTAssertEqual(spy.calls, ["load:a.mp3", "loaded:a.mp3"])
+    }
+
+    func testPlayFailureIsReturnedToCaller() async {
+        let spy = Spy()
+        spy.playResult = .failed(code: "playbackRateZero")
+        let result = await applyWatchDirectives([.loadItem(URL(fileURLWithPath: "/tmp/a.mp3")), .play], to: spy)
+
+        XCTAssertEqual(result, .failed(code: "playbackRateZero"))
+        XCTAssertEqual(spy.calls, ["load:a.mp3", "loaded:a.mp3", "play"])
+    }
+
+    func testCancellationStopsDirectiveBatch() async {
+        let spy = Spy()
+        spy.loadResult = .cancelled
+        let result = await applyWatchDirectives([.loadItem(URL(fileURLWithPath: "/tmp/a.mp3")), .play], to: spy)
+
+        XCTAssertEqual(result, .cancelled)
+        XCTAssertEqual(spy.calls, ["load:a.mp3", "loaded:a.mp3"])
     }
 }

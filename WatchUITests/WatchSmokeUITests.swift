@@ -54,8 +54,9 @@ final class WatchSmokeUITests: XCTestCase {
         let track = firstMatch(in: app, identifierPrefix: "watch.track.")
         XCTAssertTrue(track.waitForExistence(timeout: 15), "Seeded track row never appeared")
         track.tap()
-        assertPlaybackStartsThenStops(app, context: "a downloaded track (no iPhone)",
-                                      requireElapsedAdvance: true, requireElapsedFrozenAfterStop: true)
+        let trackStarted = assertPlaybackStartsThenStops(
+            app, context: "a downloaded track (no iPhone)",
+            requireElapsedAdvance: true, requireElapsedFrozenAfterStop: true)
         closeNowPlaying(app)
         popToRoot(app)
 
@@ -67,24 +68,56 @@ final class WatchSmokeUITests: XCTestCase {
         let playAll = app.buttons["watch.collection.playLocal"]
         XCTAssertTrue(playAll.waitForExistence(timeout: 10), "Album detail had no Play All")
         playAll.tap()
-        assertPlaybackStartsThenStops(app, context: "the Albums list",
-                                      requireElapsedAdvance: true, requireElapsedFrozenAfterStop: true)
+        let albumStarted = assertPlaybackStartsThenStops(
+            app, context: "the Albums list",
+            requireElapsedAdvance: true, requireElapsedFrozenAfterStop: true)
         closeNowPlaying(app)
         popToRoot(app)
 
         // The seeded playlist: full transport, target, and Close-doesn't-stop behaviour (§7).
-        playPlaylist(app, name: "Built-in Playlist", requireElapsedAdvance: true)
+        let playlistStarted = playPlaylist(app, name: "Built-in Playlist", requireElapsedAdvance: true)
+
+        // A watchOS simulator without an audio route is a valid production state. The route card
+        // has been asserted for each local entry point above; there is no transport to exercise
+        // until a real route is attached, so finish the smoke without manufacturing sound claims.
+        guard trackStarted && albumStarted && playlistStarted else {
+            closeNowPlaying(app)
+            app.terminate()
+            XCTAssertTrue(app.wait(for: .notRunning, timeout: 10), "App did not exit")
+            return
+        }
 
         let playPause = app.buttons["watch.now.playPause"]
         XCTAssertTrue(playPause.waitForExistence(timeout: 8), "Now Playing never appeared")
         XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 8),
                       "Tapping Play did not start playback")
 
-        // Local playback selects the this-watch target, always shown on Now Playing (§7.1).
-        let target = app.buttons["watch.now.target"]
-        XCTAssertTrue(target.waitForExistence(timeout: 5), "Now Playing has no target row")
+        // Local playback selects the this-watch owner, shown passively on Now Playing (§7.1).
+        let target = app.descendants(matching: .any)["watch.now.target"]
+        XCTAssertTrue(target.waitForExistence(timeout: 5), "Now Playing has no owner row")
         XCTAssertTrue(waitForValue(target, equals: "Apple Watch", timeout: 5),
-                      "Playing a download did not put the target on Apple Watch")
+                      "Playing a download did not put the owner on Apple Watch")
+
+        #if DEBUG
+        XCTAssertTrue(app.descendants(matching: .any)["watch.now.debugSession"].waitForExistence(timeout: 5),
+                      "Now Playing did not expose playback phase diagnostics")
+        XCTAssertTrue(app.descendants(matching: .any)["watch.now.debugItemState"].waitForExistence(timeout: 5),
+                      "Now Playing did not expose session diagnostics")
+        XCTAssertTrue(app.descendants(matching: .any)["watch.now.debugRate"].waitForExistence(timeout: 5),
+                      "Now Playing did not expose AVPlayer rate diagnostics")
+        XCTAssertTrue(waitForPrefix(app.descendants(matching: .any)["watch.now.debugItemState"],
+                                    prefix: "item ready", timeout: 10),
+                      "AVPlayerItem never reached readyToPlay")
+        XCTAssertTrue(waitForPrefix(app.descendants(matching: .any)["watch.now.debugSession"],
+                                    prefix: "phase playing", timeout: 10),
+                      "Playback UI reported playing without reaching its confirmed phase")
+        XCTAssertTrue(waitForPositiveDiagnostic(app.descendants(matching: .any)["watch.now.debugRate"],
+                                                prefix: "rate ", timeout: 10),
+                      "Confirmed playing state had no positive AVPlayer rate")
+        XCTAssertTrue(waitForPositiveDiagnostic(app.descendants(matching: .any)["watch.now.debugDuration"],
+                                                prefix: "duration ", timeout: 10),
+                      "Confirmed playing state had no positive duration")
+        #endif
 
         playPause.tap()
         XCTAssertTrue(waitForValue(playPause, equals: "paused", timeout: 5), "Play/pause did not pause")
@@ -93,6 +126,8 @@ final class WatchSmokeUITests: XCTestCase {
 
         app.buttons["watch.now.next"].tap()
         app.buttons["watch.now.previous"].tap()
+        XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 10),
+                      "Rapid next/previous left playback in a false playing state")
 
         // Close must not stop playback (§7). Dismiss Now Playing, return to the root, and confirm
         // the chip — the only place it lives — is still there and still reads "playing".
@@ -108,7 +143,7 @@ final class WatchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .notRunning, timeout: 10), "App did not exit")
     }
 
-    private func playPlaylist(_ app: XCUIApplication, name: String, requireElapsedAdvance: Bool) {
+    private func playPlaylist(_ app: XCUIApplication, name: String, requireElapsedAdvance: Bool) -> Bool {
         let rootPlaylists = app.buttons["watch.playlists"]
         XCTAssertTrue(reveal(rootPlaylists, in: app), "Root did not render the Playlists row")
         rootPlaylists.tap()
@@ -122,7 +157,28 @@ final class WatchSmokeUITests: XCTestCase {
         playAll.tap()
 
         let playPause = app.buttons["watch.now.playPause"]
+        let debugSession = app.descendants(matching: .any)["watch.now.debugSession"]
+        XCTAssertTrue(debugSession.waitForExistence(timeout: 10), "Now Playing never appeared for \(name)")
+        if app.buttons["watch.now.chooseRoute"].waitForExistence(timeout: 3) {
+            XCTAssertTrue(waitForPrefix(debugSession, prefix: "phase waitingForRoute", timeout: 5),
+                          "Route failure did not park playlist playback")
+            return false
+        }
         XCTAssertTrue(playPause.waitForExistence(timeout: 10), "Now Playing never appeared for \(name)")
+#if DEBUG
+        let debugItem = app.descendants(matching: .any)["watch.now.debugItemState"]
+        XCTAssertTrue(waitForPrefix(debugItem, prefix: "item ready", timeout: 20),
+                      "Playlist playback item never reached readyToPlay")
+        XCTAssertTrue(waitForPrefix(app.descendants(matching: .any)["watch.now.debugSession"],
+                                    prefix: "phase playing", timeout: 10),
+                      "Playlist playback never reached confirmed playing phase")
+        XCTAssertTrue(waitForPositiveDiagnostic(app.descendants(matching: .any)["watch.now.debugRate"],
+                                                prefix: "rate ", timeout: 10),
+                      "Playlist playback had no positive AVPlayer rate")
+        XCTAssertTrue(waitForPositiveDiagnostic(app.descendants(matching: .any)["watch.now.debugDuration"],
+                                                prefix: "duration ", timeout: 10),
+                      "Playlist playback had no positive duration")
+#endif
         XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 10),
                       "Play did not start playback for \(name)")
 
@@ -133,6 +189,7 @@ final class WatchSmokeUITests: XCTestCase {
             XCTAssertTrue(waitForElapsedAdvance(elapsed, timeout: 20),
                           "Playback time did not advance for \(name)")
         }
+        return true
     }
 
     /// Confirm playback actually started (elapsed clock advancing when asked), then pause it and
@@ -140,9 +197,26 @@ final class WatchSmokeUITests: XCTestCase {
     /// frozen afterwards (audio stopped, not just the button relabelled).
     private func assertPlaybackStartsThenStops(_ app: XCUIApplication, context: String,
                                                requireElapsedAdvance: Bool,
-                                               requireElapsedFrozenAfterStop: Bool = false) {
+                                               requireElapsedFrozenAfterStop: Bool = false) -> Bool {
+        let debugSession = app.descendants(matching: .any)["watch.now.debugSession"]
+        XCTAssertTrue(debugSession.waitForExistence(timeout: 10), "Now Playing never appeared for \(context)")
+        if app.buttons["watch.now.chooseRoute"].waitForExistence(timeout: 3) {
+            XCTAssertTrue(waitForPrefix(debugSession, prefix: "phase waitingForRoute", timeout: 5),
+                          "Route failure did not park playback for \(context)")
+            XCTAssertTrue(app.buttons["watch.now.chooseRoute"].exists,
+                          "Route failure did not expose Choose Output for \(context)")
+            return false
+        }
         let playPause = app.buttons["watch.now.playPause"]
         XCTAssertTrue(playPause.waitForExistence(timeout: 10), "Now Playing never appeared for \(context)")
+#if DEBUG
+        XCTAssertTrue(waitForPrefix(app.descendants(matching: .any)["watch.now.debugItemState"],
+                                    prefix: "item ready", timeout: 20),
+                      "Playback item never reached readyToPlay for \(context)")
+        XCTAssertTrue(waitForPrefix(app.descendants(matching: .any)["watch.now.debugSession"],
+                                    prefix: "phase playing", timeout: 10),
+                      "Playback never reached confirmed playing phase for \(context)")
+#endif
         XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 10),
                       "Play did not start playback for \(context)")
 
@@ -176,6 +250,7 @@ final class WatchSmokeUITests: XCTestCase {
                            "Elapsed advanced from \(before) to \(after) after pausing \(context) — "
                            + "playback did not actually stop")
         }
+        return true
     }
 
     private func elapsedString(_ app: XCUIApplication) -> String {
@@ -220,6 +295,23 @@ final class WatchSmokeUITests: XCTestCase {
         return (element.value as? String) == expected
     }
 
+    private func waitForPrefix(_ element: XCUIElement, prefix: String,
+                               timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let value = accessibilityText(for: element)
+            if value.hasPrefix(prefix) { return true }
+            usleep(200_000)
+        }
+        let value = accessibilityText(for: element)
+        return value.hasPrefix(prefix)
+    }
+
+    private func accessibilityText(for element: XCUIElement) -> String {
+        if let value = element.value as? String, !value.isEmpty { return value }
+        return element.label
+    }
+
     private func waitForElapsedAdvance(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
@@ -229,6 +321,21 @@ final class WatchSmokeUITests: XCTestCase {
         }
         let value = (element.value as? String) ?? element.label
         return value != "0:00" && !value.isEmpty
+    }
+
+    private func waitForPositiveDiagnostic(_ element: XCUIElement, prefix: String,
+                                           timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let text = accessibilityText(for: element)
+            if text.hasPrefix(prefix),
+               let value = Double(text.dropFirst(prefix.count)), value > 0 {
+                return true
+            }
+            usleep(200_000)
+        }
+        let text = accessibilityText(for: element)
+        return text.hasPrefix(prefix) && (Double(text.dropFirst(prefix.count)) ?? 0) > 0
     }
 
     private func closeNowPlaying(_ app: XCUIApplication) {

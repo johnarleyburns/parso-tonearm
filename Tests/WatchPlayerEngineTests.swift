@@ -143,6 +143,28 @@ final class WatchPlayerEngineTests: XCTestCase {
         XCTAssertEqual(engine.currentTrack, "b")
     }
 
+    func testSetQueueClearsRequestedPlayingState() {
+        var engine = WatchPlayerEngine(queue: ["old"])
+        _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
+        XCTAssertTrue(engine.isPlaying)
+
+        engine.setQueue(["new"])
+
+        XCTAssertFalse(engine.isPlaying)
+        XCTAssertEqual(engine.currentTrack, "new")
+    }
+
+    func testConfirmedPlayingCanReconcileAnOptimisticPlayRequest() {
+        var engine = WatchPlayerEngine(queue: ["track"])
+        _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
+        XCTAssertTrue(engine.isPlaying)
+
+        engine.setConfirmedPlaying(false)
+
+        XCTAssertFalse(engine.isPlaying)
+        XCTAssertFalse(engine.snapshot.isPlaying)
+    }
+
     func testJumpToTrack() {
         var engine = WatchPlayerEngine(queue: ["t1", "t2", "t3"])
         let directives = engine.command(.jump(to: 2), urlForTrack: { [self] in urlMap($0) })

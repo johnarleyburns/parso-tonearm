@@ -134,8 +134,7 @@ struct RootView: View {
                   let trackId = appState.artworkChangeTrackId else { return }
             Task {
                 guard let data = try? await item.loadTransferable(type: Data.self),
-                      let artworkId = await ArtworkStore.shared.store(data) else { return }
-                try? await appState.store.setCustomArtwork(trackId: trackId, artworkId: artworkId)
+                      await appState.assignCustomArtwork(trackId: trackId, data: data) else { return }
                 ArtworkInvalidation.shared.invalidate()
                 artworkPickerItem = nil
                 appState.artworkChangeTrackId = nil

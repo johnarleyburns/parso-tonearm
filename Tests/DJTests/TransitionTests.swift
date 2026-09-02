@@ -88,7 +88,7 @@ final class TransitionTests: XCTestCase {
         engine.setFilter(.a, knob: 0) // centre: hard bypass, bit-exact
 
         engine.pause(.b)
-        let aBefore = try steadyMagnitudes(engine, windows: 2)
+        _ = try steadyMagnitudes(engine, windows: 2)
         engine.play(.b)
         engine.pause(.a)
         let bBefore = try steadyMagnitudes(engine, windows: 2)

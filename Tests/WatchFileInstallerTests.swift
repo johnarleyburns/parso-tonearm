@@ -228,3 +228,115 @@ private struct Fixture {
         return url
     }
 }
+
+final class WatchArtworkInstallerTests: XCTestCase {
+    func testArtworkSuccessAndDuplicateDoNotRewrite() async throws {
+        let fx = try ArtworkFixture()
+        let bytes = Data("jpeg-derivative".utf8)
+        let staged = try fx.stage("incoming.jpg", bytes: bytes)
+        let digest = try WatchFileDigest.measure(staged)
+        try await fx.repository.upsertTrack(.init(trackID: "track", title: "Track",
+                                                   coverArtworkID: digest.sha256))
+        let metadata = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes,
+                                                sha256: digest.sha256, role: .cover)
+        let first = await fx.installer.install(stagedURL: staged, metadata: metadata)
+        XCTAssertEqual(first, .installed(artworkID: digest.sha256, relativeFilename: "\(digest.sha256).jpg", bytes: digest.bytes))
+        let destination = fx.artwork.appendingPathComponent("\(digest.sha256).jpg")
+        let before = try Data(contentsOf: destination)
+        let duplicate = try fx.stage("duplicate.jpg", bytes: bytes)
+        let duplicateOutcome = await fx.installer.install(stagedURL: duplicate, metadata: metadata)
+        XCTAssertEqual(duplicateOutcome, .duplicateIgnored(artworkID: digest.sha256))
+        XCTAssertEqual(try Data(contentsOf: destination), before)
+    }
+
+    func testArtworkRejectsUnsupportedAndEveryIntegrityMismatch() async throws {
+        let fx = try ArtworkFixture()
+        let staged = try fx.stage("incoming.jpg", bytes: Data("derivative".utf8))
+        let digest = try WatchFileDigest.measure(staged)
+        let wrongSize = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes + 1,
+                                                 sha256: digest.sha256, role: .cover)
+        let wrongSizeOutcome = await fx.installer.install(stagedURL: staged, metadata: wrongSize)
+        XCTAssertEqual(wrongSizeOutcome,
+                       .rejected(artworkID: digest.sha256, WatchProtocolFault(code: .checksumMismatch)))
+        let unsupported = try fx.stage("incoming.gif", bytes: Data("derivative".utf8))
+        let unsupportedMetadata = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes,
+                                                           sha256: digest.sha256, role: .cover)
+        let unsupportedOutcome = await fx.installer.install(stagedURL: unsupported, metadata: unsupportedMetadata)
+        XCTAssertEqual(unsupportedOutcome,
+                       .rejected(artworkID: digest.sha256, WatchProtocolFault(code: .unsupportedArtwork)))
+        let mismatch = try fx.stage("mismatch.jpg", bytes: Data("different".utf8))
+        let mismatchOutcome = await fx.installer.install(stagedURL: mismatch, metadata: unsupportedMetadata)
+        XCTAssertEqual(mismatchOutcome,
+                       .rejected(artworkID: digest.sha256, WatchProtocolFault(code: .checksumMismatch)))
+    }
+
+    func testArtworkIDMustEqualCanonicalSHA256AndReserveIsHonoured() async throws {
+        let fx = try ArtworkFixture(freeBytes: 1_000)
+        let staged = try fx.stage("incoming.jpg", bytes: Data("derivative".utf8))
+        let digest = try WatchFileDigest.measure(staged)
+        try await fx.repository.upsertTrack(.init(trackID: "track", title: "Track", coverArtworkID: digest.sha256))
+        let mismatchedID = WatchArtworkFileMetadata(artworkID: String(repeating: "A", count: 64),
+                                                    expectedBytes: digest.bytes, sha256: digest.sha256, role: .cover)
+        let mismatchedIDOutcome = await fx.installer.install(stagedURL: staged, metadata: mismatchedID)
+        XCTAssertEqual(mismatchedIDOutcome,
+                       .rejected(artworkID: String(repeating: "a", count: 64), WatchProtocolFault(code: .checksumMismatch)))
+        let reserve = try fx.stage("reserve.jpg", bytes: Data("derivative".utf8))
+        let metadata = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes,
+                                                sha256: digest.sha256, role: .cover)
+        let reserveOutcome = await fx.installer.install(stagedURL: reserve, metadata: metadata)
+        XCTAssertEqual(reserveOutcome,
+                       .rejected(artworkID: digest.sha256, WatchProtocolFault(code: .insufficientWatchStorage)))
+    }
+
+    func testArtworkBeforeBindingDefersThenInstallsAndManifestListsIt() async throws {
+        let fx = try ArtworkFixture()
+        let staged = try fx.stage("incoming.png", bytes: Data("derivative".utf8))
+        let digest = try WatchFileDigest.measure(staged)
+        let metadata = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes,
+                                                sha256: digest.sha256, role: .custom)
+        let deferredOutcome = await fx.installer.install(stagedURL: staged, metadata: metadata)
+        XCTAssertEqual(deferredOutcome, .deferredAwaitingMetadata(artworkID: digest.sha256))
+        try await fx.repository.upsertTrack(.init(trackID: "track", title: "Track",
+                                                   customArtworkID: digest.sha256))
+        let retryOutcomes = await fx.installer.retryDeferred()
+        let manifest = try await fx.repository.manifest()
+        XCTAssertEqual(retryOutcomes,
+                       [.installed(artworkID: digest.sha256, relativeFilename: "\(digest.sha256).png", bytes: digest.bytes)])
+        XCTAssertEqual(manifest.installedArtworkIDs, [digest.sha256])
+    }
+}
+
+private struct ArtworkFixture {
+    let root: URL
+    let artwork: URL
+    let staging: URL
+    let container: ModelContainer
+    let repository: WatchLibraryRepository
+    let installer: WatchArtworkInstaller
+
+    init(freeBytes: Int64? = nil) throws {
+        root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        artwork = root.appendingPathComponent("artwork")
+        staging = root.appendingPathComponent("stagingArtwork")
+        for directory in [artwork, staging] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        container = try WatchStoreBootstrap.inMemory()
+        repository = WatchLibraryRepository(container: container, audioDirectory: root.appendingPathComponent("audio"),
+                                            artworkDirectory: artwork)
+        let configuredFreeBytes = freeBytes
+        let provider: (@Sendable () async -> WatchStorageSnapshot?)? = {
+            guard let configuredFreeBytes else { return nil }
+            return WatchStorageSnapshot(readyBytes: 0, stagingBytes: 0, orphanBytes: 0,
+                                        freeBytes: configuredFreeBytes, capacityBytes: configuredFreeBytes)
+        }
+        installer = WatchArtworkInstaller(repository: repository, artworkDirectory: artwork,
+                                          stagingDirectory: staging, storageProvider: provider)
+    }
+
+    func stage(_ name: String, bytes: Data) throws -> URL {
+        let url = root.appendingPathComponent(name)
+        try bytes.write(to: url, options: .atomic)
+        return url
+    }
+}

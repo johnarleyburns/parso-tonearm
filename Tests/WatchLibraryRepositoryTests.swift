@@ -56,6 +56,52 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         XCTAssertEqual(track.artworkFilename, "custom.jpg")
     }
 
+    func testArtworkGCRemovesUnreferencedAssetsButKeepsSharedReferences() async throws {
+        let fixture = try Fixture()
+        let fileURL = fixture.artwork.appendingPathComponent("shared.jpg")
+        try Data("shared-art".utf8).write(to: fileURL)
+        let digest = try WatchFileDigest.measure(fileURL)
+        try await fixture.repository.upsertTrack(.init(trackID: "one", title: "One", coverArtworkID: digest.sha256))
+        try await fixture.repository.upsertTrack(.init(trackID: "two", title: "Two", coverArtworkID: digest.sha256))
+        let context = ModelContext(fixture.container)
+        context.insert(WatchArtworkAssetModel(artworkID: digest.sha256, relativeFilename: fileURL.lastPathComponent,
+                                              bytes: digest.bytes, validationState: .ready))
+        try context.save()
+
+        try await fixture.repository.upsertTrack(.init(trackID: "one", title: "One", coverArtworkID: nil))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path), "shared art must survive")
+        let sharedAsset = try await fixture.repository.artworkAsset(artworkID: digest.sha256)
+        XCTAssertNotNil(sharedAsset)
+
+        try await fixture.repository.removeTracks(["two"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path), "zero-reference art must be swept")
+        let removedAsset = try await fixture.repository.artworkAsset(artworkID: digest.sha256)
+        XCTAssertNil(removedAsset)
+    }
+
+    func testArtworkReconciliationAdoptsHashValidOrphansAndInvalidatesCorruptRows() async throws {
+        let fixture = try Fixture()
+        let validURL = fixture.artwork.appendingPathComponent("orphan.jpg")
+        try Data("valid-art".utf8).write(to: validURL)
+        let validDigest = try WatchFileDigest.measure(validURL)
+        let canonicalURL = fixture.artwork.appendingPathComponent("\(validDigest.sha256).jpg")
+        try FileManager.default.moveItem(at: validURL, to: canonicalURL)
+        try await fixture.repository.reconcileArtworkFiles()
+        let adoptedManifest = try await fixture.repository.manifest()
+        XCTAssertEqual(adoptedManifest.installedArtworkIDs, [validDigest.sha256])
+
+        let missingID = String(repeating: "e", count: 64)
+        let context = ModelContext(fixture.container)
+        context.insert(WatchArtworkAssetModel(artworkID: missingID, relativeFilename: "\(missingID).png",
+                                              bytes: 1, validationState: .ready))
+        try context.save()
+        try await fixture.repository.reconcileArtworkFiles()
+        let missingAsset = try await fixture.repository.artworkAsset(artworkID: missingID)
+        let reconciledManifest = try await fixture.repository.manifest()
+        XCTAssertEqual(missingAsset?.validationState, .corrupt)
+        XCTAssertEqual(reconciledManifest.installedArtworkIDs, [validDigest.sha256])
+    }
+
     // §5.4: a late-arriving older revision is acknowledged, never applied over newer metadata.
     func testStaleRevisionIsAcknowledgedButNotApplied() async throws {
         let fixture = try Fixture()
@@ -335,13 +381,15 @@ final class WatchLibraryRepositoryTests: XCTestCase {
 private struct Fixture {
     let root: URL
     let audio: URL
+    let artwork: URL
     let container: ModelContainer
     let repository: WatchLibraryRepository
     init() throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         audio = root.appendingPathComponent("audio"); try FileManager.default.createDirectory(at: audio, withIntermediateDirectories: true)
+        artwork = root.appendingPathComponent("artwork"); try FileManager.default.createDirectory(at: artwork, withIntermediateDirectories: true)
         container = try WatchStoreBootstrap.inMemory()
-        repository = WatchLibraryRepository(container: container, audioDirectory: audio)
+        repository = WatchLibraryRepository(container: container, audioDirectory: audio, artworkDirectory: artwork)
     }
     @discardableResult
     func write(_ name: String, bytes: Data) throws -> (sha256: String, bytes: Int64) {

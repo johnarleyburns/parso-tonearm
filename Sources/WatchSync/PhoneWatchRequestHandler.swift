@@ -19,6 +19,7 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
     private let revisionStore: any WatchPhoneRevisionStore
     private let capabilities: [WatchCapability]
     private let downloadedProvider: @Sendable () async -> Set<WatchTrackID>
+    private let artworkBindingProvider: @Sendable (String) async -> (coverArtworkID: String?, customArtworkID: String?)
     private let onManifest: @Sendable (WatchManifestPayload) async -> Void
     private let onReconciliation: @Sendable (WatchReconciliationRequest) async -> Void
     private let onDownloadRequest: @Sendable (WatchDownloadRequest) async -> Void
@@ -29,6 +30,7 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
                 revisionStore: any WatchPhoneRevisionStore,
                 capabilities: [WatchCapability] = WatchCapability.allCases,
                 downloadedProvider: @escaping @Sendable () async -> Set<WatchTrackID> = { [] },
+                artworkBindingProvider: @escaping @Sendable (String) async -> (coverArtworkID: String?, customArtworkID: String?) = { _ in (nil, nil) },
                 onManifest: @escaping @Sendable (WatchManifestPayload) async -> Void = { _ in },
                 onReconciliation: @escaping @Sendable (WatchReconciliationRequest) async -> Void = { _ in },
                 onDownloadRequest: @escaping @Sendable (WatchDownloadRequest) async -> Void = { _ in }) {
@@ -38,6 +40,7 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
         self.revisionStore = revisionStore
         self.capabilities = capabilities
         self.downloadedProvider = downloadedProvider
+        self.artworkBindingProvider = artworkBindingProvider
         self.onManifest = onManifest
         self.onReconciliation = onReconciliation
         self.onDownloadRequest = onDownloadRequest
@@ -144,11 +147,10 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
         let (slice, next) = PhoneWatchPageToken.page(resolved.rows, offset: offset, limit: request.limit)
         var tracks: [WatchTrackSummary] = []
         for row in slice {
-            let custom: String?
-            if let id = row.track.id { custom = try? await store.customArtworkId(for: id) }
-            else { custom = nil }
+            let binding = await artworkBindingProvider(PhoneWatchID.track(row.track).rawValue)
             tracks.append(PhoneWatchProjection.trackSummary(from: row, downloadedOnWatch: downloaded,
-                                                             customArtworkID: custom))
+                                                             coverArtworkID: binding.coverArtworkID,
+                                                             customArtworkID: binding.customArtworkID))
         }
         return WatchCollectionResponse(collection: request.collection, title: resolved.title,
                                        tracks: Array(tracks), totalCount: resolved.rows.count,

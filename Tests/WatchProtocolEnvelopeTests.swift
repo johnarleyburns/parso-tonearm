@@ -161,6 +161,14 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         XCTAssertNil(decoded.customArtworkID)
     }
 
+    func testLegacyManifestDecodesWhenArtworkIDsWereNotPresent() throws {
+        let legacyJSON = Data(#"{"manifestID":"m1","readyTrackIDs":["t1"],"installedBytes":42}"#.utf8)
+        let decoded = try JSONDecoder().decode(WatchManifestPayload.self, from: legacyJSON)
+        XCTAssertEqual(decoded.readyTrackIDs, [WatchTrackID("t1")])
+        XCTAssertEqual(decoded.installedBytes, 42)
+        XCTAssertEqual(decoded.installedArtworkIDs, [])
+    }
+
     // MARK: - Correlation
 
     func testReplyCarriesTheRequestsMessageIDAsCorrelation() throws {

@@ -22,9 +22,11 @@ final class ShuffleRepeatTests: XCTestCase {
         return TrackRow(track: t, album: album, source: src, asset: a)
     }
 
-    override func tearDown() {
-        AudioPlayer.shared.shuffle = false
-        AudioPlayer.shared.repeatMode = .off
+    nonisolated override func tearDown() {
+        MainActor.assumeIsolated {
+            AudioPlayer.shared.shuffle = false
+            AudioPlayer.shared.repeatMode = .off
+        }
         super.tearDown()
     }
 

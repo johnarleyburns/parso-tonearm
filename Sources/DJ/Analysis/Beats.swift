@@ -212,7 +212,7 @@ public enum BeatTracker {
         guard beatSamples.count >= beatsPerBar else { return [] }
 
         // Per-beat strength = novelty at the nearest frame.
-        var strengths = beatSamples.map { sample -> Double in
+        let strengths = beatSamples.map { sample -> Double in
             let frame = Int((Double(sample) / sampleRate / hopSeconds).rounded())
             let idx = max(0, min(novelty.count - 1, frame))
             return Double(novelty[idx])
@@ -245,7 +245,7 @@ public enum BeatTracker {
     /// period, try every phase offset within one period, and keep the alignment
     /// maximizing summed onset strength. Returns a rigid grid of frame indices.
     static func rephase(_ frames: [Int], novelty: [Float], period: Double) -> [Int]? {
-        guard let first = frames.first, frames.count > 1 else { return frames }
+        guard frames.first != nil, frames.count > 1 else { return frames }
         let n = novelty.count
         let periodInt = max(1, Int(period.rounded()))
         var bestFrames = frames

@@ -39,12 +39,13 @@ public actor WatchLibraryRepository {
         model.albumTitle = value.albumTitle; model.normalizedAlbum = WatchTextNormalizer.normalize(value.albumTitle)
         model.durationSeconds = value.durationSeconds; model.trackNumber = value.trackNumber
         model.discNumber = value.discNumber; model.artworkID = value.artworkID
-        model.coverArtworkID = value.coverArtworkID ?? value.artworkID
+        model.coverArtworkID = value.coverArtworkID
         model.customArtworkID = value.customArtworkID
         model.localThumbnailFilename = value.localThumbnailFilename; model.codec = value.codec
         model.expectedBytes = value.expectedBytes; model.expectedSHA256 = value.expectedSHA256
         model.phoneRevision = value.phoneRevision; model.metadataUpdatedAt = Date()
         try context.save()
+        try sweepUnreferencedArtwork(context: context)
         return .updated
     }
 
@@ -113,6 +114,33 @@ public actor WatchLibraryRepository {
         if asset.modelContext == nil { context.insert(asset) }
         asset.relativeFilename = relativeFilename; asset.bytes = installedBytes
         asset.validationState = state; asset.installedAt = Date()
+        refreshArtworkThumbnails(context: context)
+        try context.save()
+    }
+
+    public func artworkAsset(artworkID: String) throws -> WatchArtworkAssetSnapshot? {
+        let context = ModelContext(container)
+        var descriptor = FetchDescriptor<WatchArtworkAssetModel>(predicate: #Predicate { $0.artworkID == artworkID })
+        descriptor.fetchLimit = 1
+        guard let asset = try context.fetch(descriptor).first else { return nil }
+        return WatchArtworkAssetSnapshot(artworkID: asset.artworkID, relativeFilename: asset.relativeFilename,
+                                         bytes: asset.bytes, validationState: asset.validationState)
+    }
+
+    public func hasArtworkReference(artworkID: String) throws -> Bool {
+        let context = ModelContext(container)
+        let id = artworkID.lowercased()
+        return try context.fetch(FetchDescriptor<WatchTrackModel>()).contains {
+            $0.coverArtworkID?.lowercased() == id || $0.customArtworkID?.lowercased() == id
+        }
+    }
+
+    public func removeArtworkAsset(artworkID: String) throws {
+        let context = ModelContext(container)
+        var descriptor = FetchDescriptor<WatchArtworkAssetModel>(predicate: #Predicate { $0.artworkID == artworkID })
+        descriptor.fetchLimit = 1
+        if let asset = try context.fetch(descriptor).first { context.delete(asset) }
+        refreshArtworkThumbnails(context: context)
         try context.save()
     }
 
@@ -140,13 +168,28 @@ public actor WatchLibraryRepository {
 
     private func sweepUnreferencedArtwork(context: ModelContext) throws {
         let referenced = Set(try context.fetch(FetchDescriptor<WatchTrackModel>()).flatMap { track in
-            [track.coverArtworkID, track.customArtworkID, track.artworkID].compactMap { $0 }
+            [track.coverArtworkID, track.customArtworkID].compactMap { $0?.lowercased() }
         })
-        for asset in try context.fetch(FetchDescriptor<WatchArtworkAssetModel>()) where !referenced.contains(asset.artworkID) {
+        for asset in try context.fetch(FetchDescriptor<WatchArtworkAssetModel>())
+            where !referenced.contains(asset.artworkID.lowercased()) {
             if let artworkDirectory { try? FileManager.default.removeItem(at: artworkDirectory.appendingPathComponent(asset.relativeFilename)) }
             context.delete(asset)
         }
         try context.save()
+    }
+
+    private func refreshArtworkThumbnails(context: ModelContext) {
+        let installed = (try? context.fetch(FetchDescriptor<WatchArtworkAssetModel>()))?.reduce(into: [String: String]()) {
+            if $1.validationState == .ready { $0[$1.artworkID.lowercased()] = $1.relativeFilename }
+        } ?? [:]
+        if let tracks = try? context.fetch(FetchDescriptor<WatchTrackModel>()) {
+            for track in tracks {
+                let resolved = WatchArtworkResolver.resolve(
+                    customArtworkID: track.customArtworkID, coverArtworkID: track.coverArtworkID,
+                    installed: { installed[$0.lowercased()] != nil })
+                track.localThumbnailFilename = resolved.artworkID.flatMap { installed[$0.lowercased()] }
+            }
+        }
     }
 
     // MARK: - Queries
@@ -154,7 +197,7 @@ public actor WatchLibraryRepository {
     public func tracks(readyOnly: Bool = false) throws -> [WatchTrackSnapshot] {
         let context = ModelContext(container)
         let installedArtwork = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<WatchArtworkAssetModel>())
-            .filter { $0.validationState == .ready }.map { ($0.artworkID, $0.relativeFilename) })
+            .filter { $0.validationState == .ready }.map { ($0.artworkID.lowercased(), $0.relativeFilename) })
         return try context.fetch(FetchDescriptor<WatchTrackModel>()).compactMap {
             let ready = $0.asset?.validationState == .ready
             guard !readyOnly || ready else { return nil }
@@ -191,7 +234,7 @@ public actor WatchLibraryRepository {
                 else if album.contains(term) { score += 10 }
                 else { return nil }
             }
-            let installedArtwork = Dictionary(uniqueKeysWithValues: (try? context.fetch(FetchDescriptor<WatchArtworkAssetModel>()).filter { $0.validationState == .ready }.map { ($0.artworkID, $0.relativeFilename) }) ?? [])
+            let installedArtwork = Dictionary(uniqueKeysWithValues: (try? context.fetch(FetchDescriptor<WatchArtworkAssetModel>()).filter { $0.validationState == .ready }.map { ($0.artworkID.lowercased(), $0.relativeFilename) }) ?? [])
             return (score, Self.snapshot(model, installedArtwork: installedArtwork))
         }.sorted { $0.0 == $1.0 ? $0.1.id < $1.1.id : $0.0 > $1.0 }.map(\.1)
     }
@@ -216,9 +259,19 @@ public actor WatchLibraryRepository {
         let context = ModelContext(container)
         let assets = try context.fetch(FetchDescriptor<WatchAssetModel>())
         let artwork = try context.fetch(FetchDescriptor<WatchArtworkAssetModel>())
-        let known = Set(assets.map(\.relativeFilename))
-        let orphanBytes = Self.audioFiles(at: audioDirectory)
-            .filter { !known.contains($0.lastPathComponent) }
+        let knownAudio = Set(assets.map(\.relativeFilename))
+        let knownArtwork = Set(artwork.map(\.relativeFilename))
+        let audioOrphans = Self.audioFiles(at: audioDirectory)
+            .filter { !knownAudio.contains($0.lastPathComponent) }
+        let artworkOrphans = artworkDirectory.map { directory in
+            Self.audioFiles(at: directory).filter { !knownArtwork.contains($0.lastPathComponent) }
+        } ?? []
+        let orphanBytes = (audioOrphans + artworkOrphans).reduce(Int64(0)) { $0 + Self.fileSize($1) }
+        let stagingDirectories = [
+            audioDirectory.deletingLastPathComponent().appendingPathComponent("Staging", isDirectory: true),
+            artworkDirectory?.deletingLastPathComponent().appendingPathComponent("StagingArtwork", isDirectory: true)
+        ].compactMap { $0 }
+        let diskStagingBytes = stagingDirectories.flatMap(Self.audioFiles(at:))
             .reduce(Int64(0)) { $0 + Self.fileSize($1) }
         // `volumeAvailableCapacityForImportantUsage` does not exist on watchOS; the plain
         // available-capacity key is the conservative number §2.5 wants anyway.
@@ -226,7 +279,7 @@ public actor WatchLibraryRepository {
             .volumeAvailableCapacityKey, .volumeTotalCapacityKey])
         return WatchStorageSnapshot(
             readyBytes: assets.filter { $0.validationState == .ready }.reduce(0) { $0 + $1.installedBytes } + artwork.filter { $0.validationState == .ready }.reduce(0) { $0 + $1.bytes },
-            stagingBytes: assets.filter { $0.validationState == .installing }.reduce(0) { $0 + $1.installedBytes },
+            stagingBytes: assets.filter { $0.validationState == .installing }.reduce(0) { $0 + $1.installedBytes } + diskStagingBytes,
             orphanBytes: orphanBytes,
             freeBytes: Int64(volume?.volumeAvailableCapacity ?? 0),
             capacityBytes: Int64(volume?.volumeTotalCapacity ?? 0))
@@ -263,16 +316,40 @@ public actor WatchLibraryRepository {
     public func reconcileArtworkFiles() throws {
         guard let artworkDirectory else { return }
         let context = ModelContext(container)
-        let known = Set(try context.fetch(FetchDescriptor<WatchArtworkAssetModel>()).map(\.relativeFilename))
+        let assets = try context.fetch(FetchDescriptor<WatchArtworkAssetModel>())
+        for asset in assets where asset.validationState == .ready {
+            let url = artworkDirectory.appendingPathComponent(asset.relativeFilename)
+            guard FileManager.default.fileExists(atPath: url.path),
+                  Self.artworkExtensionIsSupported(url.pathExtension),
+                  let measured = try? WatchFileDigest.measure(url),
+                  measured.bytes == asset.bytes,
+                  measured.sha256.lowercased() == asset.artworkID.lowercased(),
+                  url.deletingPathExtension().lastPathComponent.lowercased() == asset.artworkID.lowercased()
+            else {
+                asset.validationState = .corrupt
+                try? FileManager.default.removeItem(at: url)
+                continue
+            }
+        }
+        let known = Set(assets.map(\.relativeFilename))
         for url in Self.audioFiles(at: artworkDirectory) where !known.contains(url.lastPathComponent) {
-            let measured = try WatchFileDigest.measure(url)
-            let stem = url.deletingPathExtension().lastPathComponent.lowercased()
-            guard measured.sha256.lowercased() == stem else { continue }
-            context.insert(WatchArtworkAssetModel(artworkID: measured.sha256,
+            guard Self.artworkExtensionIsSupported(url.pathExtension),
+                  let measured = try? WatchFileDigest.measure(url),
+                  url.deletingPathExtension().lastPathComponent.lowercased() == measured.sha256.lowercased()
+            else {
+                try? FileManager.default.removeItem(at: url)
+                continue
+            }
+            context.insert(WatchArtworkAssetModel(artworkID: measured.sha256.lowercased(),
                                                   relativeFilename: url.lastPathComponent,
                                                   bytes: measured.bytes, validationState: .ready))
         }
+        refreshArtworkThumbnails(context: context)
         try context.save()
+    }
+
+    private static func artworkExtensionIsSupported(_ ext: String) -> Bool {
+        ["jpg", "jpeg", "png", "heic"].contains(ext.lowercased())
     }
 
     /// Adopt a recovered file only when it still matches its own measurement *and* whatever the
@@ -358,8 +435,8 @@ public actor WatchLibraryRepository {
                                   codec: model.codec,
                                   phoneRevision: model.phoneRevision, localFilename: ready ? model.asset?.relativeFilename : nil,
                                   artworkFilename: WatchArtworkResolver.resolve(customArtworkID: model.customArtworkID,
-                                      coverArtworkID: model.coverArtworkID ?? model.artworkID,
-                                      installed: installedArtwork.keys.contains).artworkID.flatMap { installedArtwork[$0] },
+                                      coverArtworkID: model.coverArtworkID,
+                                      installed: { installedArtwork[$0.lowercased()] != nil }).artworkID.flatMap { installedArtwork[$0.lowercased()] },
                                   isReady: ready)
     }
     private static func audioFiles(at directory: URL) -> [URL] {

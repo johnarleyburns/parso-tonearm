@@ -100,6 +100,21 @@ public struct WatchManifestSnapshot: Equatable, Sendable {
     }
 }
 
+public struct WatchArtworkAssetSnapshot: Equatable, Sendable {
+    public let artworkID: String
+    public let relativeFilename: String
+    public let bytes: Int64
+    public let validationState: WatchAssetValidationState
+
+    public init(artworkID: String, relativeFilename: String, bytes: Int64,
+                validationState: WatchAssetValidationState) {
+        self.artworkID = artworkID
+        self.relativeFilename = relativeFilename
+        self.bytes = bytes
+        self.validationState = validationState
+    }
+}
+
 public struct WatchStorageSnapshot: Equatable, Sendable {
     public let readyBytes: Int64
     public let stagingBytes: Int64

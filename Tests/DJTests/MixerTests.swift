@@ -187,7 +187,7 @@ final class MixerTests: XCTestCase {
         let limiter = LookaheadLimiter(ceiling: 0.95, lookaheadFrames: 240, sampleRate: 48_000)
         var out: [Float] = []
         for _ in 0..<240 { out.append(limiter.process(0.25)) }
-        for i in 0..<240 { out.append(limiter.process(0.25)) }
+        for _ in 0..<240 { out.append(limiter.process(0.25)) }
         XCTAssertTrue(out[0..<240].allSatisfy { $0 == 0 },
                       "the lookahead window primes with silence")
         for i in 240..<480 {

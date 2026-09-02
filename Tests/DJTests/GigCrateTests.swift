@@ -200,7 +200,7 @@ final class GigCrateTests: XCTestCase {
             try crate.insert(db)
             return crate.id!
         }
-        let cID: Int64 = try await env.pool.write { db in
+        _ = try await env.pool.write { db in
             var crate = GigCrate(syncID: UUID().uuidString, name: "C",
                                  storageBudgetBytes: 4_000_000_000,
                                  createdAt: now)

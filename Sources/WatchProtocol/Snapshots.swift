@@ -180,6 +180,21 @@ public struct WatchManifestPayload: Codable, Equatable, Sendable {
         self.installedArtworkIDs = installedArtworkIDs
         self.generatedAt = generatedAt
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case manifestID, readyTrackIDs, installedBytes, capacityBytes, freeBytes, installedArtworkIDs, generatedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        manifestID = try container.decode(String.self, forKey: .manifestID)
+        readyTrackIDs = try container.decode([WatchTrackID].self, forKey: .readyTrackIDs)
+        installedBytes = try container.decode(Int64.self, forKey: .installedBytes)
+        capacityBytes = try container.decodeIfPresent(Int64.self, forKey: .capacityBytes) ?? 0
+        freeBytes = try container.decodeIfPresent(Int64.self, forKey: .freeBytes) ?? 0
+        installedArtworkIDs = try container.decodeIfPresent([String].self, forKey: .installedArtworkIDs) ?? []
+        generatedAt = try container.decodeIfPresent(Date.self, forKey: .generatedAt) ?? Date()
+    }
 }
 
 /// The coalesced application-context payload (§5.2: newest state only). Both sides publish one of

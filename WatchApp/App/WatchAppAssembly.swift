@@ -121,8 +121,9 @@ final class WatchAppAssembly {
         let tracks = ids.compactMap { byID[$0.rawValue] }
         guard !tracks.isEmpty else { return }
         let start = anchor.flatMap { a in tracks.firstIndex { $0.id == a.rawValue } } ?? 0
-        WatchPlayer.shared.play(tracks: tracks, startAt: start)
-        if let seekTo, seekTo > 0 { WatchPlayer.shared.seek(to: seekTo) }
+        let selectedID = tracks[start].id
+        WatchPlayer.shared.startLocalPlayback(tracks: tracks, selectedTrackID: selectedID,
+                                               seekTo: seekTo)
     }
 
     private init() {
@@ -155,7 +156,9 @@ final class WatchAppAssembly {
         let repo = WatchLibraryRepository(container: container, audioDirectory: audio, artworkDirectory: artwork)
         let staging = audio.deletingLastPathComponent().appendingPathComponent("Staging", isDirectory: true)
         let inst = WatchFileInstaller(repository: repo, audioDirectory: audio, stagingDirectory: staging)
-        let artworkInst = WatchArtworkInstaller(repository: repo, artworkDirectory: artwork)
+        let artworkStaging = audio.deletingLastPathComponent().appendingPathComponent("StagingArtwork", isDirectory: true)
+        let artworkInst = WatchArtworkInstaller(repository: repo, artworkDirectory: artwork,
+                                                 stagingDirectory: artworkStaging)
         let mdl = WatchLibraryModel(repository: repo, recoveryNotice: bootstrap.recoveryNotice)
         let reach = WatchReachabilityObserver(model: mdl)
         let diag = diagnostics

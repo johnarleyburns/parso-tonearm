@@ -208,7 +208,7 @@ final class StemServiceTests: XCTestCase {
     func testRerunIsANoOpForReadyTracks() async throws {
         let env = try makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.dir) }
-        let (crateID, trackIDs, urls) = try await seedCrate(env, trackCount: 2)
+        let (crateID, _, urls) = try await seedCrate(env, trackCount: 2)
         let service = makeService(env, assetURL: { id, _ in urls[id] })
 
         await service.runCrateLane(crateID: crateID, budget: 12_000_000_000)

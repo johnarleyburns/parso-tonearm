@@ -322,6 +322,19 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         XCTAssertEqual(reconciliations.first?.trigger, .storeRecovered)
     }
 
+    func testFileIngressRoutesArtworkByDiscriminatorAndLegacyFilesToAudio() async {
+        let harness = await makeConnectedHarness()
+        let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent("legacy-audio-\(UUID().uuidString).m4a")
+        let artworkURL = FileManager.default.temporaryDirectory.appendingPathComponent("art-\(UUID().uuidString).jpg")
+        await harness.watch.receiveFile(audioURL, metadata: ["trackID": "t1", "expectedBytes": "1"])
+        await harness.watch.receiveFile(artworkURL, metadata: ["assetKind": "artwork", "artworkID": "a"])
+
+        let audioFiles = await harness.watchObserver.audioFiles
+        let artworkFiles = await harness.watchObserver.artworkFiles
+        XCTAssertEqual(audioFiles, [audioURL.lastPathComponent])
+        XCTAssertEqual(artworkFiles, [artworkURL.lastPathComponent])
+    }
+
     func testTheWatchCanAskThePhoneToDownloadAndDropASingleTrack() async {
         let harness = await makeConnectedHarness()
         await harness.watch.requestDownload(trackID: "t9", wantsDownload: true)
@@ -667,6 +680,8 @@ private final actor RecordingWatchObserver: WatchConnectivityObserver {
     private(set) var removals: [WatchRemoveAssets] = []
     private(set) var reconciliations: [WatchReconciliationRequest] = []
     private(set) var libraryChangePrompts: [(current: WatchPairedLibraryID, incoming: WatchPairedLibraryID)] = []
+    private(set) var audioFiles: [String] = []
+    private(set) var artworkFiles: [String] = []
 
     func connectionStateDidChange(_ state: WatchConnectionReducer.State,
                                   connectivity: WatchConnectivityState) async {
@@ -681,6 +696,12 @@ private final actor RecordingWatchObserver: WatchConnectivityObserver {
     func didReceiveDownloadRoots(_ payload: WatchSetDownloadRoots) async { downloadRoots.append(payload) }
     func didReceiveRemoveAssets(_ payload: WatchRemoveAssets) async { removals.append(payload) }
     func phoneRequestedReconciliation(_ request: WatchReconciliationRequest) async { reconciliations.append(request) }
+    func didReceiveAudioFile(at stagedURL: URL, metadata: [String: String]) async {
+        audioFiles.append(stagedURL.lastPathComponent)
+    }
+    func didReceiveArtworkFile(at stagedURL: URL, metadata: [String: String]) async {
+        artworkFiles.append(stagedURL.lastPathComponent)
+    }
     func pairedLibraryChangeRequiresConfirmation(current: WatchPairedLibraryID,
                                                  incoming: WatchPairedLibraryID) async {
         libraryChangePrompts.append((current, incoming))

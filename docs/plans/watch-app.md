@@ -232,7 +232,7 @@ Envelope: `{ protocolVersion: 1, catalogVersion: Int, kind, payload }`.
 | Kind | Channel | Direction | Payload |
 |---|---|---|---|
 | `catalog` | `transferFile` (gzipped JSON) | phone → watch | full catalog snapshot: playlists, albums, artists, tracks (key, title, artist, albumKey, durationSec, codec, sizeBytes, trackNo, discNo, sortKey), artwork refs |
-| `artwork` | `transferFile` (JPEG ≤180×180) | phone → watch | `albumKey` in metadata |
+| `artwork` | `transferFile` (JPEG, longest edge ≤300 px) | phone → watch | content-addressed derivative metadata |
 | `audio` | `transferFile` | phone → watch | file + metadata: `trackKey, bytes, pinned, catalogVersion` |
 | `deleteTracks` | `transferUserInfo` | phone → watch | `[trackKey]` |
 | `manifestReport` | `transferUserInfo` | watch → phone | all on-watch keys + bytes + pinned + free-space + catalogVersion |

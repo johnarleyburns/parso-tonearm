@@ -3,8 +3,8 @@ import UIKit
 import TonearmWatchCore
 import TonearmWatchProtocol
 
-/// W7 (iPhone target) / W8 (this-watch target) Now Playing. One transport layout, one engine at a
-/// time, target always visible (§7.1). Laid out like Apple Music / Spotify on the watch: a vertical
+/// W7 (iPhone-owned) / W8 (this-watch-owned) Now Playing. One transport layout, one engine at a
+/// time, with the owner shown passively (§7.1). Laid out like Apple Music / Spotify on the watch: a vertical
 /// `ScrollView` so nothing is clipped under the toolbar, artwork up top, then title/artist, the
 /// scrubber, a roomy transport row, and a footer. Closing only dismisses the sheet (§7).
 struct WatchNowPlayingView: View {
@@ -14,23 +14,16 @@ struct WatchNowPlayingView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
     @Environment(\.dismiss) private var dismiss
     @State private var crownValue: Double = 0.5
-    @State private var showTargetSwitch = false
     /// Track we asked the phone to download, so the row shows a spinner until it lands.
     @State private var pendingDownloadTrackID: String?
 
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
+                ownerLabel
                 #if DEBUG
-                // Surfaces AVPlayer's transport rate (0 paused / ~1 playing) for the on-device
-                // audio-output pass — the simulator has no audio hardware. DEBUG + UI_TESTING only.
-                if ProcessInfo.processInfo.arguments.contains("UI_TESTING") {
-                    Text("rate \(String(format: "%.2f", player.outputRate))")
-                        .font(.system(size: 9)).foregroundStyle(.secondary)
-                        .accessibilityIdentifier("watch.now.debugRate")
-                }
+                debugPlaybackState
                 #endif
-                targetPill
                 Group {
                     if coordinator.target == .iPhone {
                         remoteBody
@@ -56,57 +49,37 @@ struct WatchNowPlayingView: View {
                 Button("Close") { dismiss() }
             }
         }
-        .confirmationDialog("Playback Target", isPresented: $showTargetSwitch) {
-            if canOfferOtherTarget {
-                Button(otherTargetTitle) { coordinator.setTarget(coordinator.target.other) }
+    }
+
+    private var ownerLabel: some View {
+        Label(coordinator.target == .iPhone ? "On iPhone" : "On Apple Watch",
+              systemImage: coordinator.target == .iPhone ? "iphone" : "applewatch")
+            .font(.system(.caption2, design: .rounded)).foregroundStyle(.secondary)
+            .accessibilityIdentifier("watch.now.target")
+            .accessibilityValue(coordinator.target == .iPhone ? "iPhone" : "Apple Watch")
+    }
+
+    @ViewBuilder
+    private var debugPlaybackState: some View {
+        VStack(spacing: 1) {
+            Text("phase \(player.playbackPhase.rawValue)")
+                .accessibilityIdentifier("watch.now.debugSession")
+            Text("session \(player.sessionStatus)")
+                .accessibilityIdentifier("watch.now.debugSessionStatus")
+            Text("item \(player.itemReadiness.rawValue)")
+                .accessibilityIdentifier("watch.now.debugItemState")
+            Text("rate \(String(format: "%.2f", player.outputRate))")
+                .accessibilityIdentifier("watch.now.debugRate")
+            Text("duration \(String(format: "%.2f", player.duration))")
+                .accessibilityIdentifier("watch.now.debugDuration")
+            Text("generation \(player.playbackGenerationForDiagnostics)")
+                .accessibilityIdentifier("watch.now.debugGeneration")
+            if let code = player.lastPlaybackErrorCode {
+                Text("error \(code)").accessibilityIdentifier("watch.now.debugError")
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(otherTargetUnavailableReason ?? "Choose where playback runs.")
         }
-    }
-
-    // MARK: - Target pill (always visible, §7.1)
-
-    private var targetPill: some View {
-        Button {
-            showTargetSwitch = true
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: coordinator.target == .iPhone ? "iphone" : "applewatch")
-                    .font(.system(size: 11))
-                Text(coordinator.target == .iPhone ? "iPhone" : "Apple Watch")
-                    .font(.system(.caption2, design: .rounded)).fontWeight(.medium)
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 8))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(.quaternary, in: Capsule())
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("watch.now.target")
-        .accessibilityLabel("Playback target")
-        .accessibilityValue(coordinator.target == .iPhone ? "iPhone" : "Apple Watch")
-        .accessibilityHint("Switches between iPhone and Apple Watch")
-    }
-
-    private var canOfferOtherTarget: Bool { otherTargetUnavailableReason == nil }
-
-    private var otherTargetTitle: String {
-        coordinator.target == .iPhone ? "Switch to Apple Watch" : "Switch to iPhone"
-    }
-
-    /// Why the other target can't be chosen right now, or `nil` when it can.
-    private var otherTargetUnavailableReason: String? {
-        switch coordinator.target {
-        case .iPhone:
-            if remote.state?.currentItem?.isDownloadedOnWatch == true { return nil }
-            if player.currentTrack != nil { return nil }
-            return "This track isn't downloaded on your watch."
-        case .thisWatch:
-            return model.phoneReachable ? nil : "Your iPhone isn't reachable."
-        }
+        .font(.system(size: 9)).foregroundStyle(.secondary)
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: - W7 — iPhone target (remote)
@@ -196,6 +169,8 @@ struct WatchNowPlayingView: View {
 
                 if let problem = player.audioRouteProblem {
                     routeProblemCard(problem)
+                } else if let problem = player.playbackErrorMessage {
+                    playbackProblemCard(problem)
                 } else {
                     if let hint = player.routeHint {
                         Label(hint, systemImage: "exclamationmark.triangle")
@@ -206,11 +181,7 @@ struct WatchNowPlayingView: View {
                     scrubber(elapsed: player.elapsed, duration: player.duration)
                     transport(isPlaying: player.isPlaying,
                               previous: player.previous, toggle: player.togglePlayPause, next: player.next)
-                    HStack(spacing: 12) {
-                        upNextLink
-                        Spacer()
-                        volumeControl
-                    }
+                    HStack { upNextLink; Spacer() }
                 }
             }
             .onAppear { crownValue = player.volume }
@@ -245,6 +216,25 @@ struct WatchNowPlayingView: View {
             Text("Playback stays paused. Your queue is safe.")
                 .font(.system(.caption2)).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+        }
+        .padding(.top, 4)
+    }
+
+    private func playbackProblemCard(_ problem: String) -> some View {
+        VStack(spacing: 8) {
+            Label("Playback Failed", systemImage: "exclamationmark.triangle")
+                .font(.system(.headline)).labelStyle(.titleAndIcon)
+                .multilineTextAlignment(.center)
+            Text(problem)
+                .font(.system(.caption2)).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                player.retryAudioRoute()
+            } label: {
+                Label("Try Again", systemImage: "arrow.clockwise")
+                    .font(.system(.caption)).frame(maxWidth: .infinity)
+            }
+            .accessibilityIdentifier("watch.now.retryPlayback")
         }
         .padding(.top, 4)
     }
@@ -399,15 +389,6 @@ struct WatchNowPlayingView: View {
         }
         .accessibilityIdentifier("watch.now.upNext")
         .accessibilityLabel("Up Next")
-    }
-
-    private var volumeControl: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "speaker.fill").font(.system(size: 10)).foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            Slider(value: $player.volume, in: 0...1).tint(.white.opacity(0.5)).frame(width: 64)
-                .accessibilityLabel("Volume")
-        }
     }
 
     private func fraction(_ elapsed: Double, _ duration: Double) -> Double {

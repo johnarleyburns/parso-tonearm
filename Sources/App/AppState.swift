@@ -1079,6 +1079,53 @@ final class AppState: ObservableObject {
         await watchRuntime.collectionDetail(rootID)
     }
 
+    /// Persist phone-authored art as a derivative-backed custom binding and nudge the active watch
+    /// roots so the same desired-download reconciliation schedules its bytes.
+    func assignCustomArtwork(trackId: Int64, data: Data) async -> Bool {
+        let previous = (try? await store.customArtworkId(for: trackId)) ?? nil
+        guard let sourceID = await ArtworkStore.shared.store(data) else { return false }
+        var variantID: String?
+        var temporaryURL: URL?
+        do {
+            guard let sourceURL = await ArtworkStore.shared.fileURLIfPresent(id: sourceID) else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+            let variant = try WatchArtworkVariant.make(from: sourceURL)
+            variantID = variant.artworkID
+            temporaryURL = variant.fileURL
+            let variantData = try Data(contentsOf: variant.fileURL)
+            guard await ArtworkStore.shared.storeWatchVariant(variantData, artworkID: variant.artworkID) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            try await store.setCustomArtwork(trackId: trackId, artworkId: variant.artworkID)
+            let stillUsed = (try? await store.allCustomArtworkIds()) ?? []
+            for oldID in Set([sourceID, previous].compactMap { $0 })
+                where oldID != variant.artworkID && !stillUsed.contains(oldID) {
+                await ArtworkStore.shared.delete(id: oldID)
+            }
+            if let temporaryURL { try? FileManager.default.removeItem(at: temporaryURL) }
+            await watchRuntime.artworkDidChange()
+            return true
+        } catch {
+            await ArtworkStore.shared.delete(id: sourceID)
+            if let temporaryURL { try? FileManager.default.removeItem(at: temporaryURL) }
+            if let variantID, variantID != previous,
+               !((try? await store.allCustomArtworkIds()) ?? []).contains(variantID) {
+                await ArtworkStore.shared.delete(id: variantID)
+            }
+            return false
+        }
+    }
+
+    func clearCustomArtwork(trackId: Int64) async {
+        let oldID = try? await store.customArtworkId(for: trackId)
+        try? await store.deleteCustomArtwork(trackId: trackId)
+        if let oldID, !((try? await store.allCustomArtworkIds()) ?? []).contains(oldID) {
+            await ArtworkStore.shared.delete(id: oldID)
+        }
+        await watchRuntime.artworkDidChange()
+    }
+
 
     func renamePlaylist(_ playlist: Playlist, title: String) async {
         guard let id = playlist.id else { return }

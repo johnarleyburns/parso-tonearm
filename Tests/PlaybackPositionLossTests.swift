@@ -27,7 +27,10 @@ final class SpyingUserDefaults: UserDefaults {
 @MainActor
 final class PlaybackPositionLossTests: XCTestCase {
 
-    private var createdSuites: [String] = []
+    // XCTest's synchronous teardown hook is nonisolated even though this test case is main-actor
+    // isolated. XCTest invokes setup/tests/teardown serially for one instance, so this small piece
+    // of lifecycle bookkeeping is explicitly safe to read from that hook.
+    nonisolated(unsafe) private var createdSuites: [String] = []
 
     private func ephemeralSuite() throws -> UserDefaults {
         let name = "test.loss.\(UUID().uuidString)"
@@ -37,17 +40,20 @@ final class PlaybackPositionLossTests: XCTestCase {
         return suite
     }
 
-    override func tearDown() {
-        PlaybackStateStore.defaultsProvider = { PlaybackStateStore.sharedDefaults() }
-        for name in createdSuites {
-            UserDefaults().removePersistentDomain(forName: name)
-        }
+    nonisolated override func tearDown() {
+        let suites = createdSuites
         createdSuites.removeAll()
-        let player = AudioPlayer.shared
-        if !player.queue.isEmpty {
-            player.removeFromQueue(atOffsets: IndexSet(0..<player.queue.count))
+        MainActor.assumeIsolated {
+            PlaybackStateStore.defaultsProvider = { PlaybackStateStore.sharedDefaults() }
+            for name in suites {
+                UserDefaults().removePersistentDomain(forName: name)
+            }
+            let player = AudioPlayer.shared
+            if !player.queue.isEmpty {
+                player.removeFromQueue(atOffsets: IndexSet(0..<player.queue.count))
+            }
+            player.resetRestoreForTesting()
         }
-        player.resetRestoreForTesting()
         super.tearDown()
     }
 
