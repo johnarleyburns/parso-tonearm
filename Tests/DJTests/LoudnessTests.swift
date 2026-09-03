@@ -78,8 +78,10 @@ final class LoudnessTests: XCTestCase {
             return
         }
         XCTAssertEqual(pb - pa, 6.02, accuracy: 0.5)
-        // Full-scale sine true peak is at or above 0 dBTP (K-weighting can push it up).
-        XCTAssertGreaterThan(pb, 0)
+        // Phase 5b: true peak is now libebur128's, measured on the raw signal
+        // (not the K-weighted one Tonearm's old analyzer used), so a full-scale
+        // sine sits right at 0 dBTP rather than being pushed above it.
+        XCTAssertEqual(pb, 0, accuracy: 0.3)
     }
 
     func testReplayGainIsMinus18MinusIntegrated() {

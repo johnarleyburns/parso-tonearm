@@ -1,6 +1,5 @@
 import Foundation
 import GRDB
-import Accelerate
 import TonearmCore
 
 /// Errors surfaced by the coordinator (§19, §46.2 guards).
@@ -47,96 +46,27 @@ public enum AnalyzePipeline {
     /// per §46.2 guards — only decode failure is fatal.
     public static func run(url: URL) throws -> AnalyzeResult {
         let pcm = try AudioDecoder.decode(url)
-        let loudness = LoudnessAnalyzer.analyze(pcm)
+        return run(pcm)
+    }
 
-        // STFT → features → onset envelope.
-        let stft = STFTConfig()
-        let kernel = STFTKernel(config: stft)
-        let spectra = pcm.mono.withUnsafeBufferPointer { kernel.spectra($0) }
-        let hopSeconds = Double(stft.hopSize) / stft.sampleRate
-
-        var frames: [SpectralFrame] = []
-        if !spectra.isEmpty {
-            frames.reserveCapacity(spectra.count)
-            for (i, spec) in spectra.enumerated() {
-                let prev = i > 0 ? spectra[i - 1].power : spec.power
-                let offset = Int(stft.hopSize) * i
-                let frame = pcm.mono.withUnsafeBufferPointer { buf in
-                    let slice = UnsafeBufferPointer(
-                        start: buf.baseAddress!.advanced(by: offset),
-                        count: min(stft.fftSize, max(0, buf.count - offset)))
-                    return SpectralFeatures.frame(spec, prevPower: prev, frameSamples: slice)
-                }
-                frames.append(frame)
-            }
-        }
-
-        let envelope = OnsetDetector.envelope(spectra: spectra)
-        let onsets = OnsetDetector.peaks(envelope, frameRateHz: 1 / hopSeconds)
-        let tempo = TempoAnalyzer.estimate(novelty: envelope, hopSeconds: hopSeconds).first
-
-        var bpm: Double?
-        var beatGrid: BeatGrid?
-        var downbeatIndices: [Int] = []
-        var beatFeatures: [BeatFeature] = []
-        if let tempo {
-            bpm = tempo.bpm
-            if let grid = BeatTracker.grid(novelty: envelope, hopSeconds: hopSeconds,
-                                           sampleRate: stft.sampleRate,
-                                           onsets: onsets, bpm: tempo.bpm) {
-                beatGrid = grid
-                downbeatIndices = BeatTracker.downbeats(beatSamples: grid.beatSamples,
-                                                        novelty: envelope,
-                                                        hopSeconds: hopSeconds,
-                                                        sampleRate: stft.sampleRate)
-                // Beat-synchronous features for phrasing (§25.1): chroma of the
-                // frame nearest each beat, energy from RMS.
-                beatFeatures = grid.beatSamples.map { sample -> BeatFeature in
-                    let frame = Int((Double(sample) / stft.sampleRate / hopSeconds).rounded())
-                    let idx = max(0, min(spectra.count - 1, frame))
-                    let chroma = KeyDetector.chroma(spectra[idx])
-                    let rms = frames.isEmpty ? 0 : frames[idx].rms
-                    return BeatFeature(chroma: chroma, energy: rms)
-                }
-            }
-        }
-
-        // Key from per-frame chroma.
-        var key: KeyEstimate?
-        if !spectra.isEmpty {
-            let chromaFrames = spectra.map { KeyDetector.chroma($0) }
-            key = KeyDetector.estimate(chromaFrames)
-        }
-
-        // Energy curve + scalar (§19.4 `energy_curve` — carried, not discarded).
-        var energy: Float?
-        var energyCurve: [Float] = []
-        if let beatGrid, !frames.isEmpty {
-            energyCurve = EnergyAnalyzer.curve(frames: frames, beatSamples: beatGrid.beatSamples,
-                                               frameRateHz: 1 / hopSeconds,
-                                               sampleRate: stft.sampleRate)
-            energy = EnergyAnalyzer.scalar(energyCurve)
-        }
-
-        // Phrases.
-        var phrases: [Phrase] = []
-        if !beatFeatures.isEmpty && !downbeatIndices.isEmpty, let beatGrid {
-            phrases = PhraseSegmenter.segment(features: beatFeatures,
-                                              beats: beatGrid.beatSamples,
-                                              downbeats: downbeatIndices,
-                                              sampleRate: stft.sampleRate)
-        }
-
-        // Waveform pyramid.
-        var waveform: WaveformPyramid?
-        pcm.mono.withUnsafeBufferPointer { buf in
-            waveform = WaveformPyramidBuilder.build(buf, sampleRate: stft.sampleRate)
-        }
-
-        return AnalyzeResult(loudness: loudness, bpm: bpm, key: key, energy: energy,
-                             beatGrid: beatGrid, downbeats: downbeatIndices,
-                             phrases: phrases, waveform: waveform,
-                             energyCurve: energyCurve, hopSeconds: hopSeconds)
+    /// Run every Stage-1 stage over an already-decoded analysis buffer. The DSP
+    /// itself now lives in `ParsoAudioAnalysis.FullAnalysis` (Phase 5b); this
+    /// method maps its `FullAnalysisResult` onto the coordinator's persist
+    /// contract and layers on the loudness shim (`replayGainDB` /
+    /// `dynamicRangeDB`, §20.1).
+    public static func run(_ pcm: PCMBuffer) -> AnalyzeResult {
+        let full = FullAnalysis.run(pcm)
+        let loudness = LoudnessAnalyzer.map(full.loudness, pcm: pcm)
+        return AnalyzeResult(loudness: loudness,
+                             bpm: full.bpm,
+                             key: full.key,
+                             energy: full.energy?.scalar,
+                             beatGrid: full.beatGrid,
+                             downbeats: full.downbeats,
+                             phrases: full.phrases,
+                             waveform: full.waveform,
+                             energyCurve: full.energy?.curve ?? [],
+                             hopSeconds: full.hopSeconds)
     }
 
     /// Non-fatal aggregate returned by the pipeline. Through M4 this carried

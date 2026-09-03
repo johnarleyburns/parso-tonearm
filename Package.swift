@@ -121,7 +121,8 @@ let package = Package(
             dependencies: [
                 "TonearmCore",
                 "CSQLiteVec",
-                .product(name: "GRDB", package: "GRDB.swift")
+                .product(name: "GRDB", package: "GRDB.swift"),
+                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine")
             ],
             path: "Sources/DJ",
             swiftSettings: [.swiftLanguageMode(.v6)],
@@ -156,7 +157,10 @@ let package = Package(
         ),
         .testTarget(
             name: "TonearmDJTests",
-            dependencies: ["TonearmDJ"],
+            dependencies: [
+                "TonearmDJ",
+                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine")
+            ],
             path: "Tests/DJTests",
             resources: [.copy("Fixtures")],
             swiftSettings: [.swiftLanguageMode(.v6)]
