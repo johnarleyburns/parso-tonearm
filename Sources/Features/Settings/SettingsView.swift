@@ -397,7 +397,7 @@ struct SettingsView: View {
 
     private var aboutCard: some View {
         VStack(spacing: 0) {
-            aboutRow("Licenses", "GPLv3 + third-party")
+            aboutRow("Terms", "Proprietary + third-party notices")
             Divider().overlay(Palette.hairline)
             aboutRow("About", "Platterhead 0.1 — you bring the records")
         }

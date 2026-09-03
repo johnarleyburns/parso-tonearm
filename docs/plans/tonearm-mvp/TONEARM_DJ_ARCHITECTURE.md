@@ -4,7 +4,7 @@
 **Status:** Implementation-ready · supersedes HLD/LLD v0.2
 **Repository:** `johnarleyburns/parso-tonearm`
 **Platform target:** macOS 14+ (Apple Silicon only) with iOS 17+ read-only companion
-**License:** GPL-3.0 (source-available; Pro built-in from source per repo policy)
+**License:** Proprietary; all rights reserved
 **Audience:** Agentic coding systems and human contributors implementing Platterhead with minimal ambiguity.
 
 ---
@@ -3193,7 +3193,7 @@ Control latency from a pad/knob follows the §34.1 budget (HID/MIDI → intent �
 
 ### 45.1 Principles
 
-The DJ app inherits the ecosystem's stance: **no accounts, no telemetry, no ads, no third-party servers**; all data is local or in the **user's private iCloud**; open-source (GPL-3.0) (NFR-PRIV-\*, §2). There is nothing to log in to and nowhere for data to go except the user's own devices and iCloud.
+The DJ app inherits the ecosystem's stance: **no accounts, no telemetry, no ads, no third-party servers**; all data is local or in the **user's private iCloud** (NFR-PRIV-\*, §2). There is nothing to log in to and nowhere for data to go except the user's own devices and iCloud.
 
 ### 45.2 Data at rest
 
@@ -4408,7 +4408,7 @@ Every functional and non-functional requirement family (§4–5) maps to the sec
 | **FR-SYNC** (mix → iPhone, browse/play, retention) | §38–39, §42 (iOS surfaces) | AT-SYNC-\* |
 | **FR-HW** (audio devices, multichannel, MIDI-learn, controllers) | §44, §41.9 (Hardware) | AT-MIDI-\* |
 | **NFR-PERF** (latency, render-load, throughput budgets) | §34, §43 | AT-ENGINE-\* (load), performance measurements |
-| **NFR-PRIV** (no accounts/telemetry/backend; private iCloud; open-source) | §38.7, §45, CI zero-telemetry gate | CI telemetry gate, code review |
+| **NFR-PRIV** (no accounts/telemetry/backend; private iCloud) | §38.7, §45, CI zero-telemetry gate | CI telemetry gate, code review |
 | **NFR-REL** (resilience, crash-safety, graceful degrade) | §46, §37.3 | AT-REC-\* (recovery), fault-injection tests |
 | **NFR-DET** (deterministic, versioned analysis) | §17, Appendix F (pure kernels) | Determinism/golden gates |
 | **NFR-A11Y** (accessibility, legibility of data views) | §40, §42A (Glass only on chrome, not data) | Snapshot/accessibility audits |
@@ -4732,7 +4732,7 @@ The captured message's identity (channel/status/data1) plus the chosen `EngineAc
 
 # Appendix Q — Dependency and licensing manifest
 
-Because Platterhead ships as an open-source (GPL-3.0) application that also bundles machine-learning models, the dependency and licensing picture needs to be explicit — model weights in particular carry license terms distinct from code and must be cleared before shipping.
+Because Platterhead ships as proprietary software that also bundles machine-learning models, the dependency and licensing picture needs to be explicit — model weights in particular carry terms distinct from code and must be cleared before shipping.
 
 ## Q.1 Runtime code dependencies
 
@@ -4749,8 +4749,8 @@ The **only** third-party Swift package additions beyond the platform are GRDB (a
 
 The ML models are **not** code and are governed by their own licenses; the app bundles converted `.mlpackage`s (App. D), so their weight licenses flow into the shipped product:
 
-- **CLAP (music-domain checkpoint):** the specific checkpoint's license must permit redistribution in a (commercial, GPL-distributed) app. Several music-audio CLAP checkpoints are research-licensed; **before shipping, the chosen checkpoint's terms must be verified as compatible with GPL-3.0 distribution and commercial use**, or a permissively-licensed/self-trained alternative substituted. This is a tracked pre-ship gate, not an assumption.
-- **Demucs (htdemucs) weights:** Demucs code is MIT, but pretrained weights have historically carried terms tied to their training data (e.g., research/non-commercial in some releases). **The stem-model weights must likewise be license-cleared for commercial GPL distribution**, or replaced with cleared weights, before stems ship. If clearance fails, stems degrade to a disabled feature (the architecture already treats stems as optional, §36.6) rather than blocking release.
+- **CLAP (music-domain checkpoint):** the specific checkpoint's terms must permit redistribution in a commercial proprietary app. Several music-audio CLAP checkpoints are research-licensed; **before shipping, the chosen checkpoint's terms must be verified for commercial use**, or a cleared/self-trained alternative substituted. This is a tracked pre-ship gate, not an assumption.
+- **Demucs (htdemucs) weights:** Demucs code is MIT, but pretrained weights have historically carried terms tied to their training data (e.g., research/non-commercial in some releases). **The stem-model weights must likewise be cleared for commercial distribution**, or replaced with cleared weights, before stems ship. If clearance fails, stems degrade to a disabled feature (the architecture already treats stems as optional, §36.6) rather than blocking release.
 
 Both models are **versioned** (`embedding_version` / stem-model version, App. D) so a weight substitution is a clean cache-invalidating swap, not a code change. The document deliberately isolates model choice behind the embedder/separator façades (App. I.3, I.5) so the app is not coupled to any one checkpoint.
 
@@ -4763,9 +4763,13 @@ Both models are **versioned** (`embedding_version` / stem-model version, App. D)
 | **Swift Testing / XCTest** | Unit, golden, engine, sync tests | The test tiers of §47 |
 | **CI (grep/registry gates)** | Enforce privacy/determinism/RT-safety invariants | Build-failing gates (§47.4) |
 
-## Q.4 GPL-3.0 posture
+## Q.4 Proprietary distribution posture
 
-The application source is GPL-3.0, consistent with the ecosystem (§2). The "Pro" capabilities are built from source per repo policy (there is no proprietary binary gate); monetization is a one-time purchase of the packaged product, not a code restriction. Bundled model weights are redistributed under their own (verified-compatible) licenses alongside the GPL source. The permissive licenses of the code dependencies (MIT/Apache-2.0) are GPL-compatible; the model-weight clearance in Q.2 is the one item that must be closed before a public commercial release.
+The application source and signed binaries are proprietary and may be used or distributed only
+under the terms in the repository's `LICENSE` or another written agreement from the owner. The
+"Pro" capabilities are delivered through the signed product and StoreKit entitlement flow.
+Bundled model weights and third-party dependencies remain subject to their own verified terms;
+the model-weight clearance in Q.2 must be closed before a public commercial release.
 
 ---
 
@@ -4834,7 +4838,7 @@ Sync tests use the CloudKit local/test environment with **synthetic mixes** (a f
 
 ## R.5 Fixture provenance and CI hygiene
 
-- **Licensing:** every checked-in audio fixture is synthetic or public-domain/CC, recorded in a `Tests/DJTests/Fixtures/PROVENANCE.md` with source and license — consistent with the project's open-source posture (Appendix Q) and so the test corpus can be redistributed with the GPL source.
+- **Provenance:** every checked-in audio fixture is synthetic or public-domain/CC, recorded in a `Tests/DJTests/Fixtures/PROVENANCE.md` with source and applicable terms.
 - **Size:** fixtures are short (a few seconds to ~30 s) and, where possible, low-bitrate, to keep the repo small; the goldens, not the audio, carry the assertions.
 - **Regeneration:** a developer tool (`tonearm_tools.regen_goldens`) recomputes goldens after an intentional `analysisVersion`/`embeddingVersion` bump; the resulting diff is reviewed as a deliberate change, never an incidental one.
 

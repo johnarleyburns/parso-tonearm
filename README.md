@@ -52,8 +52,7 @@ account.
 
 Two decks, mixing, beat sync, hot cues, stems, recording and MIDI hardware — one time, no
 subscription, no account. Anyone who bought the retired remote-libraries product before the
-transition receives Platterhead DJ at no charge. And because Tonearm is GPLv3, you can always
-build Pro from source instead.
+transition receives Platterhead DJ at no charge.
 
 ## Roadmap
 
@@ -170,7 +169,9 @@ plays downloaded music completely off-grid — no iPhone required.
   when untethered.
 - **Storage**: View and manage on-watch content with byte counts and per-item delete.
 
-## License
+## Terms
 
-GPLv3. Tonearm is a clean-room app inspired by foobar2000's *values* — format breadth,
-gapless, zero telemetry, power-user transparency. It shares no code with it.
+Tonearm is proprietary software. All rights are reserved; use and distribution require
+permission under the terms in [`LICENSE`](LICENSE). Tonearm is a clean-room app inspired by
+foobar2000's *values* — format breadth, gapless, zero telemetry, power-user transparency. It
+shares no code with it.

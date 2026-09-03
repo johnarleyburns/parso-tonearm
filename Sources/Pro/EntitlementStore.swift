@@ -234,7 +234,6 @@ public final class EntitlementStore: ObservableObject {
         case purchased        // bought guru.parso.tonearm.pro
         case foundersGrant    // legacy cache row; the retired product no longer exists (M4 decision 1)
         case familyShared     // Family Sharing from another member's purchase
-        case builtFromSource  // GPL build; see T.6
 
         /// How the grant is described to the person who has it.
         ///
@@ -248,7 +247,6 @@ public final class EntitlementStore: ObservableObject {
             case .purchased: return "Purchased"
             case .foundersGrant: return "Founders grant"
             case .familyShared: return "Family Sharing"
-            case .builtFromSource: return "Built from source"
             }
         }
     }

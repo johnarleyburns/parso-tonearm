@@ -103,7 +103,12 @@ let package = Package(
             path: "Sources/CSQLiteVec",
             sources: ["sqlite-vec.c"],
             publicHeadersPath: "include",
-            cSettings: [.define("SQLITE_CORE", to: "1")]
+            cSettings: [
+                .define("SQLITE_CORE", to: "1"),
+                // sqlite-vec is vendored C code whose upstream integer-width
+                // conversions are intentional for its SQLite ABI.
+                .unsafeFlags(["-Wno-shorten-64-to-32"])
+            ]
         ),
         .target(
             name: "TonearmDJ",

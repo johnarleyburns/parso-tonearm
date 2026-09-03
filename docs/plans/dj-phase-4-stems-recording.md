@@ -181,7 +181,7 @@ Decisions 15–24 are new with the re-scope.
     rule. `.test-credentials` carries the real value and is never committed.
 22. **The export format is AAC in M4A; MP3 is deferred to M6** (§37.6, FR-REC-7). The platform
     ships no system MP3 *encoder*; producing `.mp3` requires vendoring LAME — a new dependency and
-    an LGPL review. Owner-decided. The UI names the format it produces and never promises MP3.
+    a distribution-terms review. Owner-decided. The UI names the format it produces and never promises MP3.
 23. **Beat FX ships exactly one effect.** The §35A post-fader beat-synced echo, because it is the
     one the five transitions require. The FX module's other pads stay honestly unavailable (§36.5's
     convention) rather than shipping a filter-sweep pad that duplicates the CFX knob. More Beat FX

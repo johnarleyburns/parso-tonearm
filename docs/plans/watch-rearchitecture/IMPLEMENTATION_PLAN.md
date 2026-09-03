@@ -450,7 +450,7 @@ Transport and domain errors use these machine codes; localized copy maps in the 
 | `pairedLibraryChanged` | Phone library identity differs | User confirms replacement/reconcile |
 | `contentNotFound` | Track/collection disappeared | Refresh result; no automatic retry |
 | `sourceUnavailable` | Phone cannot resolve source | User/source action required |
-| `authenticationRequired` | Remote source needs phone sign-in | Open source settings on iPhone |
+| `authenticationRequired` | Remote source needs phone sign-in | Open the source settings on iPhone |
 | `waitingForWiFi` | Network policy blocks source download | Automatic when policy permits |
 | `unsupportedAudio` | Codec/source cannot be prepared | Permanent until content changes |
 | `insufficientWatchStorage` | Reserve would be violated | Remove downloads, then retry |

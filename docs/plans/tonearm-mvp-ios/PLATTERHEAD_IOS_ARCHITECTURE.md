@@ -5,7 +5,7 @@
 **Repository:** `johnarleyburns/parso-tonearm`
 **Platform target:** **iOS 18+ / iPadOS 18+** (universal, one binary, Apple Silicon) · watchOS 11+ remote
 **Monetization:** Free = the complete listener (including remote libraries, semantic search and auto-playlists) · **Pro = performing, one-time purchase**
-**License:** GPL-3.0 (source-available; Pro builds from source with no gate — Appendix T.6)
+**License:** Proprietary; all rights reserved
 **Audience:** Agentic coding systems and human contributors implementing Platterhead with minimal ambiguity.
 
 > **What changed from v1.0.** The DJ product was specified as a macOS application with the iPhone
@@ -695,8 +695,8 @@ roadmap.
 - **FR-STORE-4** Users who purchased the retired `remoteLibraries` product before the transition
   MUST receive Platterhead DJ at no charge (**Founders grant**, Appendix T.4).
 - **FR-STORE-5** The paywall MUST be **contextual and honest**: shown when the user reaches for a
-  Pro capability, stating the one-time price, what is included, that the source is GPLv3 and
-  buildable, and that nothing free is being taken away.
+  Pro capability, stating the one-time price, what is included, and that nothing currently
+  included is being taken away.
 - **FR-STORE-6** The app MUST NOT nag. No repeated interstitials, no countdown timers, no
   "limited time" language, no artificial trial expiry. **A single "try the decks" session
   limited to 10 minutes MAY be offered once**, and if used, the paywall is not shown again
@@ -4393,7 +4393,7 @@ does not, so the decision is not relitigated every milestone.
   encode it. `AVAudioConverter` offers AAC, ALAC, and the uncompressed formats. There is no
   system API that produces an `.mp3` file.
 - **Producing one requires vendoring a third-party encoder** (LAME being the practical choice),
-  which is a new dependency — a standing prohibition — and carries an LGPL review before it could
+  which is a new dependency — a standing prohibition — and carries a distribution-terms review before it could
   ship in a paid App Store binary. The repo has a precedent for vendoring C (`sqlite-vec.c`, §9.1),
   so this is *possible*; it is not *free*, and it is not on M5's critical path.
 - **AAC in M4A satisfies the actual requirement.** The user-facing goal is "a file my friends can
@@ -4658,7 +4658,7 @@ commercial damage than any missing feature:
    launch, never on a timer, never over playback (FR-STORE-6).
 4. **Never imply the free tier is a trial.** No "upgrade to unlock your music". The free tier is
    a complete product and the copy must say so.
-5. **State the deal plainly.** One-time price, what's included, Family Sharing, GPLv3 source,
+5. **State the deal plainly.** One-time price, what's included, Family Sharing,
    and an explicit line that nothing free is being removed (§2.4).
 
 `EntitlementStore.isPro` is a single `@Published` source of truth injected into the environment.
@@ -5090,7 +5090,7 @@ and nothing is fake (§40.4).
 - One-time price, "yours forever", Family Sharing, restore.
 - An explicit, non-negotiable line: **"Everything you have now stays free — including remote
   libraries, search and playlists."**
-- The GPLv3 note: you can build this from source instead, with the link.
+- A clear statement that the product is distributed under proprietary terms.
 - Optional single 10-minute trial session (FR-STORE-6), offered once and never again.
 - No countdown, no strikethrough price, no scarcity language.
 
@@ -5708,7 +5708,7 @@ authority via its grids and sync, §32); syncing *to* external clock is a roadma
 
 ### 45.1 Principles
 
-The DJ app inherits the ecosystem's stance: **no accounts, no telemetry, no ads, no third-party servers**; all data is local or in the **user's private iCloud**; open-source (GPL-3.0) (NFR-PRIV-\*, §2). There is nothing to log in to and nowhere for data to go except the user's own devices and iCloud.
+The DJ app inherits the ecosystem's stance: **no accounts, no telemetry, no ads, no third-party servers**; all data is local or in the **user's private iCloud** (NFR-PRIV-\*, §2). There is nothing to log in to and nowhere for data to go except the user's own devices and iCloud.
 
 ### 45.2 Data at rest
 
@@ -6190,7 +6190,7 @@ the tier the change lands in.
 - That **`grid_correction` composed at render time is fast enough** to redraw the grid at
   performance zoom without a frame hitch on a track with many corrections (§26A.3).
 - **Deferred, recorded rather than dropped:** MP3 export via a vendored encoder (§37.6) — an M6
-  candidate contingent on an LGPL review. Revisit only if real users ask for `.mp3` specifically
+  candidate contingent on a distribution-terms review. Revisit only if real users ask for `.mp3` specifically
   rather than "a file I can send someone".
 
 ---
@@ -7577,7 +7577,7 @@ public struct SequencingConstraints: Codable, Sendable { /* §28A.2 */ }
 // Appendix T — Entitlement/ .
 @MainActor public final class EntitlementStore: ObservableObject {  // T.2, FR-STORE-1..7
     @Published public private(set) var isPro: Bool
-    @Published public private(set) var source: Source                // purchased | foundersGrant | familyShared | builtFromSource
+    @Published public private(set) var source: Source                // purchased | foundersGrant | familyShared
     public func purchase() async throws
     public func restore() async throws
 }
@@ -8302,7 +8302,7 @@ The captured message's identity (channel/status/data1) plus the chosen `EngineAc
 
 # Appendix Q — Dependency and licensing manifest
 
-Because Platterhead ships as an open-source (GPL-3.0) application that also bundles machine-learning models, the dependency and licensing picture needs to be explicit — model weights in particular carry license terms distinct from code and must be cleared before shipping.
+Because Platterhead ships as proprietary software that also bundles machine-learning models, the dependency and licensing picture needs to be explicit — model weights in particular carry terms distinct from code and must be cleared before shipping.
 
 ## Q.1 Runtime code dependencies
 
@@ -8340,16 +8340,15 @@ Three constraints ride with it:
 
 **Deferred, and tracked here rather than dropped:** an **MP3 encoder** (LAME or equivalent) for
 FR-REC-7. The platform ships no system MP3 encoder, so `.mp3` export would be the first
-third-party *runtime* dependency since sqlite-vec, under LGPL, inside a GPL-3.0-distributed
-commercial binary. M5 ships AAC/M4A instead (§37.6); revisit in M6 only with a completed licence
-review.
+    third-party *runtime* dependency inside a commercial binary. M5 ships AAC/M4A instead (§37.6);
+    revisit in M6 only after the encoder and its distribution terms have been cleared.
 
 ## Q.2 Model weights (the licensing-sensitive part)
 
 The ML models are **not** code and are governed by their own licenses; the app bundles converted `.mlpackage`s (App. D), so their weight licenses flow into the shipped product:
 
-- **CLAP (music-domain checkpoint):** the specific checkpoint's license must permit redistribution in a (commercial, GPL-distributed) app. Several music-audio CLAP checkpoints are research-licensed; **before shipping, the chosen checkpoint's terms must be verified as compatible with GPL-3.0 distribution and commercial use**, or a permissively-licensed/self-trained alternative substituted. This is a tracked pre-ship gate, not an assumption.
-- **Demucs (htdemucs) weights:** Demucs code is MIT, but pretrained weights have historically carried terms tied to their training data (e.g., research/non-commercial in some releases). **The stem-model weights must likewise be license-cleared for commercial GPL distribution**, or replaced with cleared weights, before stems ship. If clearance fails, stems degrade to a disabled feature (the architecture already treats stems as optional, §36.6) rather than blocking release.
+- **CLAP (music-domain checkpoint):** the specific checkpoint's terms must permit redistribution in a commercial proprietary app. Several music-audio CLAP checkpoints are research-licensed; **before shipping, the chosen checkpoint's terms must be verified for commercial use**, or a cleared/self-trained alternative substituted. This is a tracked pre-ship gate, not an assumption.
+- **Demucs (htdemucs) weights:** Demucs code is MIT, but pretrained weights have historically carried terms tied to their training data (e.g., research/non-commercial in some releases). **The stem-model weights must likewise be cleared for commercial distribution**, or replaced with cleared weights, before stems ship. If clearance fails, stems degrade to a disabled feature (the architecture already treats stems as optional, §36.6) rather than blocking release.
 
 Both models are **versioned** (`embedding_version` / stem-model version, App. D) so a weight substitution is a clean cache-invalidating swap, not a code change. The document deliberately isolates model choice behind the embedder/separator façades (App. I.3, I.5) so the app is not coupled to any one checkpoint.
 
@@ -8362,27 +8361,21 @@ Both models are **versioned** (`embedding_version` / stem-model version, App. D)
 | **Swift Testing / XCTest** | Unit, golden, engine, sync tests | The test tiers of §47 |
 | **CI (grep/registry gates)** | Enforce privacy/determinism/RT-safety invariants | Build-failing gates (§47.4) |
 
-## Q.4 GPL-3.0 posture
+## Q.4 Proprietary distribution posture
 
-The application source is GPL-3.0, consistent with the ecosystem (§2). The "Pro" capabilities
-are built from source per repo policy — **there is no proprietary binary gate and no obfuscated
-entitlement check**. Anyone may clone the repository, remove the four-line entitlement guard, and
-build Platterhead DJ for themselves. This is not a leak in the business model; it is the business
-model's honesty clause, and §41.16 states it on the paywall itself.
-
-Monetization is therefore a one-time purchase of the *packaged, signed, App-Store-delivered*
-product: convenience, updates, and supporting the work. This is the same bargain a great many
-GPL apps on the App Store make, and it caps how aggressively the product can be priced — which
-is exactly why `DJ_PLATFORM_STRATEGY.md` lands where it does rather than at a professional-tool
-price.
+The application source and signed binaries are proprietary and may be used or distributed only
+under the terms in the repository's `LICENSE` or another written agreement from the owner. The
+"Pro" capabilities are delivered through the signed product and StoreKit entitlement flow.
+Bundled model weights and third-party dependencies remain subject to their own verified terms;
+the model-weight clearance in Q.2 must be closed before a public commercial release.
 
 Two consequences an implementer must respect:
 
 - **The entitlement check must be simple and legible**, not obfuscated. Obfuscating it would
   achieve nothing (the source is published) while making the code worse and the promise dishonest.
-- **Model weights are redistributed under their own (verified-compatible) licenses**, delivered
-  as ODR alongside the GPL source. The model-weight clearance in Q.2 remains the one item that
-  must be closed before a public commercial release — and it now covers a **free-tier** feature
+- **Model weights are redistributed under their own verified terms**, delivered as ODR with the
+  signed application. The model-weight clearance in Q.2 remains the one item that must be closed
+  before a public commercial release — and it now covers a **free-tier** feature
   (CLAP powers free semantic search), which raises its priority: it gates M2, not M5.
 
 ---
@@ -8452,7 +8445,7 @@ Sync tests use the CloudKit local/test environment with **synthetic mixes** (a f
 
 ## R.5 Fixture provenance and CI hygiene
 
-- **Licensing:** every checked-in audio fixture is synthetic or public-domain/CC, recorded in a `Tests/DJTests/Fixtures/PROVENANCE.md` with source and license — consistent with the project's open-source posture (Appendix Q) and so the test corpus can be redistributed with the GPL source.
+- **Provenance:** every checked-in audio fixture is synthetic or public-domain/CC, recorded in a `Tests/DJTests/Fixtures/PROVENANCE.md` with source and applicable terms.
 - **Size:** fixtures are short (a few seconds to ~30 s) and, where possible, low-bitrate, to keep the repo small; the goldens, not the audio, carry the assertions.
 - **Regeneration:** a developer tool (`tonearm_tools.regen_goldens`) recomputes goldens after an intentional `analysisVersion`/`embeddingVersion` bump; the resulting diff is reviewed as a deliberate change, never an incidental one.
 
@@ -8530,7 +8523,6 @@ final class EntitlementStore: ObservableObject {
         case purchased        // bought guru.parso.tonearm.pro.dj
         case foundersGrant    // owned the retired remote-libraries product (T.4)
         case familyShared     // Family Sharing from another member's purchase
-        case builtFromSource  // GPL build; see T.6
     }
 }
 ```
@@ -8569,8 +8561,8 @@ thing to buy. The existing structure anticipated this; it is a contained change,
 
 The gate is checked at **intent boundaries**, never inside the engine. `PerformanceEngine` has no
 knowledge of entitlement; a view model refuses to load a deck. This keeps the RT path free of
-policy, keeps the engine testable without StoreKit, and means the GPL build (T.6) removes four
-lines rather than threading a flag through the audio graph.
+policy, keeps the engine testable without StoreKit, and keeps entitlement decisions out of the
+audio graph.
 
 ## T.4 The Founders grant
 
@@ -8630,15 +8622,11 @@ the README says these are free forever, and the build fails if anyone makes them
 
 `AT-FREE-*` is this test. It runs on every change.
 
-## T.6 Building from source
+## T.6 Proprietary distribution
 
-Per Q.4, the GPL build has no gate. `EntitlementStore` compiles with a `PLATTERHEAD_SOURCE_BUILD`
-flag that sets `isPro = true` and `source = .builtFromSource`, and the App Store build does not
-define it. Four lines, legible, documented in the README, and stated on the paywall (§41.16).
-
-This is a feature. A product whose paywall admits you can remove it is making a claim about the
-value of what is on the other side, and it is the same claim §1 makes about not needing a
-license server.
+The signed application is the authorized distribution artifact. Entitlement checks remain in the
+StoreKit boundary and are not replaced by an entitlement bypass. Any alternate use or distribution
+requires the owner's written permission.
 
 ## T.7 What the paywall may never do
 

@@ -414,7 +414,8 @@ with spec T.3, so resolve it the clean way: **all StoreKit stays in `Sources/Pro
 (`EntitlementStore`, `ProStore`, the grant logic). Every DJ paywall view consumes the published
 `isPro` and never imports StoreKit. The engine has **no knowledge of entitlement at all** — the
 gate is checked at intent boundaries in view models (T.3), which is also what keeps
-`PerformanceEngine` testable without StoreKit and makes the GPL build a four-line change (T.6).
+`PerformanceEngine` testable without StoreKit and keeps entitlement policy at the StoreKit
+boundary.
 
 ### 6.4 Naming
 

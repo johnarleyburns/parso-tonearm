@@ -5,8 +5,8 @@ import SwiftUI
 /// `purchase()`/`restore()` — it **never imports StoreKit** (App. T.3, §6.3).
 ///
 /// Copy rules per §40.4 + Appendix T.7: one-time price, "yours forever",
-/// Family Sharing, the explicit "everything you have now stays free" line, the
-/// GPLv3 build-it-yourself note, and a visible Restore button. Absent by
+/// Family Sharing, the explicit "everything you have now stays free" line,
+/// and a visible Restore button. Absent by
 /// design: countdowns, strikethrough anchors, scarcity language, and any
 /// framing of the free tier as a trial. The optional 10-minute trial
 /// (FR-STORE-6) is **not** implemented in M4 (plan §2.10).
@@ -27,7 +27,6 @@ public struct PaywallView: View {
                 featureGrid
                 freeTierPanel
                 pillRow
-                gplNote
                 actionRow
             }
             .padding(24)
@@ -154,7 +153,7 @@ public struct PaywallView: View {
         let pills = ["No subscription, ever",
                      "Works offline forever once bought",
                      "No account, no telemetry",
-                     "GPLv3 — build it yourself instead"]
+                     "Signed updates included"]
         return FlowLayout(spacing: 8) {
             ForEach(pills, id: \.self) { pill in
                 Text(pill)
@@ -165,16 +164,6 @@ public struct PaywallView: View {
             }
         }
         .padding(.bottom, 16)
-    }
-
-    private var gplNote: some View {
-        (Text("Platterhead is free software. If you'd rather not pay, clone the repository, delete the four-line entitlement check, and build it. We mean that — it's written into the architecture spec. Buying gets you the signed build, the updates, and our continued ability to do this. ")
-            .foregroundStyle(.secondary)
-         + Text("github.com/johnarleyburns/parso-tonearm")
-            .foregroundStyle(Color.accentColor))
-            .font(.system(size: 11))
-            .lineSpacing(2)
-            .padding(.bottom, 16)
     }
 
     private var actionRow: some View {

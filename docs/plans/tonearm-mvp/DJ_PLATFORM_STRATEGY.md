@@ -253,9 +253,8 @@ AUM launched at $9.99 and raised its price repeatedly as the product matured, wh
 pattern to imitate. DJ Player Professional's ~$9.99 was, in hindsight, priced too low to fund
 the product or to signal seriousness against a $50/yr incumbent.
 
-The GPLv3 posture (spec §Q.4 — anyone may build from source) caps aggression but does not
-eliminate pricing power; it makes the purchase a convenience-and-support transaction. It
-argues for a *fair, obviously-good-value* price rather than a professional-tool price.
+The proprietary posture makes the purchase a product-and-support transaction. It argues for a
+*fair, obviously-good-value* price rather than a professional-tool price.
 
 ### 5.2 Recommended price
 
@@ -326,7 +325,7 @@ performance surface that respects the screen; iPad gets the full two-deck worksp
 This is the part that matters more than the platform choice.
 
 **Do not ship "a DJ app for iPhone."** That is the frame DJ Player Professional has been
-losing in for a decade, and it puts a solo GPLv3 project in a feature war with a
+losing in for a decade, and it puts a small project in a feature war with a
 well-capitalized incumbent that has better hardware support, better streaming deals and a
 head start on stems.
 
