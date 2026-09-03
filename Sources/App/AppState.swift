@@ -140,7 +140,7 @@ final class AppState: ObservableObject {
 
     func applySettingsToPlayer() {
         AudioPlayer.shared.streamOnCellular = streamOnCellular
-        AudioPlayer.shared.prefetchDepth = TonearmCore.PrefetchDepthPolicy.clamp(prefetchDepth)
+        AudioPlayer.shared.prefetchDepth = PrefetchDepthPolicy.clamp(prefetchDepth)
         AudioPlayer.shared.preferFLAC = preferFLAC
         let lookup = artworkLookup
         Task { await ArtworkService.shared.setArtworkLookupEnabled(lookup) }

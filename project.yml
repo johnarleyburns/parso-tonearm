@@ -102,6 +102,8 @@ targets:
         product: TonearmDJ
       - package: ParsoAudioEngine
         product: ParsoAudioStreaming
+      - package: ParsoAudioEngine
+        product: ParsoAudioPlayback
       - target: TonearmShareExtension
         embed: true
       - target: TonearmWidgetsExtension

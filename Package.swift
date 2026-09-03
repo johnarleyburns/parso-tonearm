@@ -24,7 +24,8 @@ let package = Package(
                 "TonearmWatchProtocol",
                 "TonearmWatchCore",
                 .product(name: "GRDB", package: "GRDB.swift"),
-                .product(name: "ParsoAudioStreaming", package: "parso-audio-engine")
+                .product(name: "ParsoAudioStreaming", package: "parso-audio-engine"),
+                .product(name: "ParsoAudioPlayback", package: "parso-audio-engine")
             ],
             path: ".",
             exclude: [
@@ -140,7 +141,8 @@ let package = Package(
                 "TonearmCore",
                 "TonearmWatchProtocol",
                 "TonearmWatchCore",
-                .product(name: "ParsoAudioStreaming", package: "parso-audio-engine")
+                .product(name: "ParsoAudioStreaming", package: "parso-audio-engine"),
+                .product(name: "ParsoAudioPlayback", package: "parso-audio-engine")
             ],
             path: "Tests",
             exclude: [

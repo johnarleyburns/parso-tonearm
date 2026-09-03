@@ -203,7 +203,7 @@ struct SettingsView: View {
             }
             Spacer()
             Stepper(value: $appState.prefetchDepth,
-                    in: TonearmCore.PrefetchDepthPolicy.minimum...TonearmCore.PrefetchDepthPolicy.maximum) {
+                    in: PrefetchDepthPolicy.minimum...PrefetchDepthPolicy.maximum) {
                 Text("\(appState.prefetchDepth)").font(.system(size: 13, weight: .semibold))
                     .monospacedDigit()
             }
@@ -430,7 +430,7 @@ struct SettingsView: View {
     private func applyCustomCacheLimit() {
         let mb = Int64(customCacheLimitMB.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
         let requested = mb * 1024 * 1024
-        let result = TonearmCore.CacheLimitPolicy.validate(requestedBytes: requested, freeDiskBytes: freeDiskBytes())
+        let result = CacheLimitPolicy.validate(requestedBytes: requested, freeDiskBytes: freeDiskBytes())
         cacheLimit = result.allowedBytes
         customCacheLimitMessage = result.reason
         Task { await AudioCache.setLimit(result.allowedBytes); await refresh() }
