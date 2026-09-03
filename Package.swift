@@ -11,7 +11,11 @@ let package = Package(
         .library(name: "TonearmWatchCore", targets: ["TonearmWatchCore"])
     ],
     dependencies: [
-        .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0")
+        .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
+        // Audio-engine unification (parso-audio-engine/docs/UNIFICATION_PLAN.md).
+        // Local path override on the migration branch; swaps to a tag pin on
+        // merge. Requires parso-audio-engine checked out as a sibling directory.
+        .package(path: "../parso-audio-engine")
     ],
     targets: [
         .target(
@@ -19,7 +23,8 @@ let package = Package(
             dependencies: [
                 "TonearmWatchProtocol",
                 "TonearmWatchCore",
-                .product(name: "GRDB", package: "GRDB.swift")
+                .product(name: "GRDB", package: "GRDB.swift"),
+                .product(name: "ParsoAudioStreaming", package: "parso-audio-engine")
             ],
             path: ".",
             exclude: [
@@ -134,7 +139,8 @@ let package = Package(
             dependencies: [
                 "TonearmCore",
                 "TonearmWatchProtocol",
-                "TonearmWatchCore"
+                "TonearmWatchCore",
+                .product(name: "ParsoAudioStreaming", package: "parso-audio-engine")
             ],
             path: "Tests",
             exclude: [

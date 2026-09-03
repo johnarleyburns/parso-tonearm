@@ -51,10 +51,11 @@ final class OpusPolicyTests: XCTestCase {
         let track = try XCTUnwrap(FileSelectionPolicy(preferFLAC: false)
             .selectTracks(files: files, identifier: "gv", itemArtist: nil).first)
         let opusURL = try XCTUnwrap(track.opusURL)
-        let caf1 = CacheStore.cafURL(forRemoteOpus: opusURL)
-        let caf2 = CacheStore.cafURL(forRemoteOpus: opusURL)
+        let caf1 = AudioCache.cafURL(forRemoteOpus: opusURL)
+        let caf2 = AudioCache.cafURL(forRemoteOpus: opusURL)
         XCTAssertEqual(caf1, caf2)
         XCTAssertEqual(caf1.pathExtension, "caf")
+        XCTAssertTrue(caf1.deletingLastPathComponent().lastPathComponent.hasSuffix("-opus"))
     }
 
     // An Opus-only item still produces a track flagged for remux-before-play.

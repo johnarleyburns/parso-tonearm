@@ -1,4 +1,5 @@
 import XCTest
+import ParsoAudioStreaming
 @testable import TonearmCore
 
 final class InvariantTests: XCTestCase {

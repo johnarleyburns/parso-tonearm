@@ -36,9 +36,10 @@ public actor OpusRemuxer {
     /// cached artifact); deletes any partial `.caf` on failure/cancel.
     @discardableResult
     public func remux(opusFileURL sourceURL: URL, cacheKey: String,
+               outputURL: URL? = nil,
                deleteSourceOnSuccess: Bool = true) async throws -> URL {
         if unavailable.contains(cacheKey) { throw RemuxError.alreadyUnavailable }
-        let cafURL = Self.cafURL(forOpusFile: sourceURL)
+        let cafURL = outputURL ?? Self.cafURL(forOpusFile: sourceURL)
 
         // Already remuxed.
         if FileManager.default.fileExists(atPath: cafURL.path) { return cafURL }

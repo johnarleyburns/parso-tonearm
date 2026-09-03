@@ -95,8 +95,8 @@ public struct PlaylistCrateImporter: PlaylistCrateImporting, Sendable {
             if FileManager.default.fileExists(atPath: url.path) { return url }
         }
         if asset.kind == .remote, let raw = asset.remoteURL, let remote = URL(string: raw),
-           CacheStore.completeCacheExists(for: remote) {
-            return CacheStore.fileURL(for: CacheKeyGenerator.key(for: remote))
+           AudioCache.completeCacheExists(for: remote) {
+            return AudioCache.fileURL(for: AudioCache.key(for: remote))
         }
         return nil
     }

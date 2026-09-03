@@ -1,31 +1,35 @@
 import XCTest
+import ParsoAudioStreaming
 @testable import TonearmCore
 
 final class CacheAdoptionTests: XCTestCase {
-    func testAdoptionMakesWholeFileCompleteAndPinned() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CacheAdoption-\(UUID().uuidString)", isDirectory: true)
-        let cache = CacheStore(rootDirectory: root)
-        await cache.adoptCompleteFile(byteCount: 1000, for: "k")
-        let state = await cache.state(for: "k")
+    private func makeStore() -> SparseCacheStore {
+        SparseCacheStore(rootDirectory: FileManager.default.temporaryDirectory
+            .appendingPathComponent("CacheAdoption-\(UUID().uuidString)", isDirectory: true))
+    }
+
+    func testAdoptionMakesWholeFileCompleteAndDurable() async throws {
+        let cache = makeStore()
+        await cache.adoptCompleteFile(byteCount: 1000, for: "k", durable: true)
+
+        let glyph = CacheGlyphState.of(await cache.meta(for: "k"))
         let rangeBytes = await cache.rangeMap(for: "k").totalBytes()
         let total = await cache.totalBytes(for: "k")
-        let pinned = await cache.isPinned("k")
-        XCTAssertEqual(state, .cached)
+        let durable = await cache.isDurable("k")
+        XCTAssertEqual(glyph, .cached)
         XCTAssertEqual(rangeBytes, 1000)
         XCTAssertEqual(total, 1000)
-        XCTAssertTrue(pinned)
-        await cache.adoptCompleteFile(byteCount: 1000, for: "k")
-        let secondRangeBytes = await cache.rangeMap(for: "k").totalBytes()
-        XCTAssertEqual(secondRangeBytes, 1000)
+        XCTAssertTrue(durable)
+
+        await cache.adoptCompleteFile(byteCount: 1000, for: "k", durable: true)
+        let secondRange = await cache.rangeMap(for: "k").totalBytes()
+        XCTAssertEqual(secondRange, 1000)
     }
 
     func testContentLengthAloneRemainsEmpty() async {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CacheLength-\(UUID().uuidString)", isDirectory: true)
-        let cache = CacheStore(rootDirectory: root)
+        let cache = makeStore()
         await cache.setContentLength(1000, for: "k")
-        let state = await cache.state(for: "k")
-        XCTAssertEqual(state, .filling(0))
+        let glyph = CacheGlyphState.of(await cache.meta(for: "k"))
+        guard case .filling = glyph else { return XCTFail("expected .filling, got \(glyph)") }
     }
 }

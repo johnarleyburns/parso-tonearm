@@ -1,3 +1,4 @@
+import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
 
@@ -5,7 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject var appState: AppState
 
     @State private var cacheUsed: Int64 = 0
-    @State private var cacheLimit: Int64 = CacheStore.defaultLimit
+    @State private var cacheLimit: Int64 = SparseCacheStore.defaultLimit
     @State private var cachedCount: Int = 0
     @State private var customArtworkBytes: Int64 = 0
     @State private var showPrivacy = false
@@ -57,7 +58,7 @@ struct SettingsView: View {
                             isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button("Clear Cache", role: .destructive) {
                 Task {
-                    await CacheStore.shared.clearAll()
+                    await AudioCache.shared.clearAll()
                     await ArtworkService.shared.clearAll()
                     try? await appState.store.clearAllCacheEntries()
                     await refresh()
@@ -140,7 +141,7 @@ struct SettingsView: View {
         return Button {
             cacheLimit = bytes
             customCacheLimitMessage = nil
-            Task { await CacheStore.shared.setLimit(bytes); await refresh() }
+            Task { await AudioCache.setLimit(bytes); await refresh() }
         } label: {
             Text(label)
             .font(.system(size: 11, weight: .semibold))
@@ -202,7 +203,7 @@ struct SettingsView: View {
             }
             Spacer()
             Stepper(value: $appState.prefetchDepth,
-                    in: PrefetchDepthPolicy.minimum...PrefetchDepthPolicy.maximum) {
+                    in: TonearmCore.PrefetchDepthPolicy.minimum...TonearmCore.PrefetchDepthPolicy.maximum) {
                 Text("\(appState.prefetchDepth)").font(.system(size: 13, weight: .semibold))
                     .monospacedDigit()
             }
@@ -420,19 +421,19 @@ struct SettingsView: View {
     }
 
     private func refresh() async {
-        cacheUsed = await CacheStore.shared.totalCachedBytes()
-        cacheLimit = await CacheStore.shared.currentLimit()
-        cachedCount = await CacheStore.shared.cachedTrackCount()
+        cacheUsed = await AudioCache.shared.totalCachedBytes()
+        cacheLimit = await AudioCache.shared.currentLimit()
+        cachedCount = await AudioCache.shared.completeEntryCount(kind: "audio")
         customArtworkBytes = customArtworkSize()
     }
 
     private func applyCustomCacheLimit() {
         let mb = Int64(customCacheLimitMB.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
         let requested = mb * 1024 * 1024
-        let result = CacheLimitPolicy.validate(requestedBytes: requested, freeDiskBytes: freeDiskBytes())
+        let result = TonearmCore.CacheLimitPolicy.validate(requestedBytes: requested, freeDiskBytes: freeDiskBytes())
         cacheLimit = result.allowedBytes
         customCacheLimitMessage = result.reason
-        Task { await CacheStore.shared.setLimit(result.allowedBytes); await refresh() }
+        Task { await AudioCache.setLimit(result.allowedBytes); await refresh() }
     }
 
     private func freeDiskBytes() -> Int64 {

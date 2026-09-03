@@ -1,4 +1,5 @@
 import Foundation
+import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
 
@@ -78,7 +79,7 @@ final class AppState: ObservableObject {
         applySettingsToPlayer()
         await AudioPlayer.shared.restorePersistedQueue()
         await reload()
-        await CacheStore.shared.garbageCollectStalePartials()
+        await AudioCache.shared.garbageCollectStalePartials()
         Task { await warmLocalSourceArtwork() }
         watchRuntime.onChange = { [weak self] in self?.refreshWatchStateFromRuntime() }
         await watchRuntime.activate()
@@ -139,7 +140,7 @@ final class AppState: ObservableObject {
 
     func applySettingsToPlayer() {
         AudioPlayer.shared.streamOnCellular = streamOnCellular
-        AudioPlayer.shared.prefetchDepth = PrefetchDepthPolicy.clamp(prefetchDepth)
+        AudioPlayer.shared.prefetchDepth = TonearmCore.PrefetchDepthPolicy.clamp(prefetchDepth)
         AudioPlayer.shared.preferFLAC = preferFLAC
         let lookup = artworkLookup
         Task { await ArtworkService.shared.setArtworkLookupEnabled(lookup) }
@@ -584,8 +585,8 @@ final class AppState: ObservableObject {
             guard let remoteStr = track.asset?.remoteURL,
                   let remoteURL = URL(string: remoteStr) else { continue }
 
-            let cacheKey = CachingResourceLoader.key(for: remoteURL)
-            let destURL = CacheStore.fileURL(for: cacheKey)
+            let cacheKey = AudioCache.key(for: remoteURL)
+            let destURL = AudioCache.fileURL(for: cacheKey)
 
             if !FileManager.default.fileExists(atPath: destURL.path) {
                 var request = URLRequest(url: remoteURL)
@@ -595,11 +596,12 @@ final class AppState: ObservableObject {
                     }
                 }
                 if let (data, _) = try? await URLSession.shared.data(for: request) {
+                    try? FileManager.default.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
                     try? data.write(to: destURL, options: .atomic)
-                    await CacheStore.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey)
+                    await AudioCache.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey, durable: true)
                 }
             } else if let size = try? FileManager.default.attributesOfItem(atPath: destURL.path)[.size] as? NSNumber {
-                await CacheStore.shared.adoptCompleteFile(byteCount: size.int64Value, for: cacheKey)
+                await AudioCache.shared.adoptCompleteFile(byteCount: size.int64Value, for: cacheKey, durable: true)
             }
             completed += 1
             offlineProgress = OfflineProgress(sourceID: sourceID, completed: completed, total: estimate.trackCount, failed: false, message: nil)
@@ -620,8 +622,8 @@ final class AppState: ObservableObject {
         for row in rows {
             guard let remoteStr = row.asset?.remoteURL,
                   let remoteURL = URL(string: remoteStr) else { continue }
-            let cacheKey = CachingResourceLoader.key(for: remoteURL)
-            let destURL = CacheStore.fileURL(for: cacheKey)
+            let cacheKey = AudioCache.key(for: remoteURL)
+            let destURL = AudioCache.fileURL(for: cacheKey)
             activePhoneDownloads.insert(row.id)
             do {
                 defer { activePhoneDownloads.remove(row.id) }
@@ -633,11 +635,12 @@ final class AppState: ObservableObject {
                         }
                     }
                     if let (data, _) = try? await URLSession.shared.data(for: request) {
-                        try? data.write(to: destURL, options: .atomic)
-                        await CacheStore.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey)
+                        try? FileManager.default.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try? data.write(to: destURL, options: .atomic)
+                        await AudioCache.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey, durable: true)
                     }
                 } else if let size = try? FileManager.default.attributesOfItem(atPath: destURL.path)[.size] as? NSNumber {
-                    await CacheStore.shared.adoptCompleteFile(byteCount: size.int64Value, for: cacheKey)
+                    await AudioCache.shared.adoptCompleteFile(byteCount: size.int64Value, for: cacheKey, durable: true)
                 }
             }
             downloaded += 1
@@ -655,14 +658,14 @@ final class AppState: ObservableObject {
         guard asset.kind == .remote,
               let remoteStr = asset.remoteURL,
               let remoteURL = URL(string: remoteStr) else { return .notDownloaded }
-        let cacheKey = CachingResourceLoader.key(for: remoteURL)
-        let metaURL = CacheStore.cacheMetaDirectory.appendingPathComponent("\(cacheKey).json")
+        let cacheKey = AudioCache.key(for: remoteURL)
+        let metaURL = AudioCache.metaURL(for: cacheKey)
         guard let data = try? Data(contentsOf: metaURL),
-              let meta = try? JSONDecoder().decode(CacheStore.Meta.self, from: data) else {
+              let meta = try? JSONDecoder().decode(SparseCacheStore.Meta.self, from: data) else {
             return .notDownloaded
         }
-        if meta.pinned == true || meta.complete {
-            let destURL = CacheStore.fileURL(for: cacheKey)
+        if meta.isDurable || meta.complete {
+            let destURL = AudioCache.fileURL(for: cacheKey)
             if FileManager.default.fileExists(atPath: destURL.path) {
                 return .downloaded
             }
@@ -679,8 +682,8 @@ final class AppState: ObservableObject {
             guard let asset = row.asset, asset.kind == .remote,
                   let remoteStr = asset.remoteURL,
                   let remoteURL = URL(string: remoteStr) else { continue }
-            let cacheKey = CachingResourceLoader.key(for: remoteURL)
-            await CacheStore.shared.setPinned(false, for: cacheKey)
+            let cacheKey = AudioCache.key(for: remoteURL)
+            await AudioCache.shared.setDurable(false, for: cacheKey)
         }
         downloadRevision += 1
     }

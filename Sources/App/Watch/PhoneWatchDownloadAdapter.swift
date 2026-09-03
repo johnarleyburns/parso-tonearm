@@ -71,8 +71,8 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
             return base?.appendingPathComponent(relPath)
         }
         if let remote = asset.remoteURL.flatMap(URL.init(string:)),
-           CacheStore.completeCacheExists(for: remote) {
-            return CacheStore.fileURL(for: CacheKeyGenerator.key(for: remote))
+           AudioCache.completeCacheExists(for: remote) {
+            return AudioCache.fileURL(for: AudioCache.key(for: remote))
         }
         return nil
     }
