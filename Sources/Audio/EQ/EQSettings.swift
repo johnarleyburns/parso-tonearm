@@ -1,10 +1,11 @@
 import Foundation
+import ParsoAudioPlayback
 
 /// User-facing EQ state. This is a pure value: no UI frameworks, no I/O.
 public struct EQSettings: Equatable, Codable, Sendable {
     public var bands: [Float]
     public var enabled: Bool
-    public var activePresetID: String?
+    public var activePresetID: UUID?
 
     public static let flat = EQSettings(
         bands: Array(repeating: 0, count: EQEngine.bandCount),
@@ -22,7 +23,7 @@ public struct EQSettingsStore {
     public struct Payload: Equatable, Codable {
         var bands: [Float]
         var enabled: Bool
-        var activePresetID: String?
+        var activePresetID: UUID?
     }
 
     public var presets: [EQPreset] = EQPreset.builtIns
@@ -40,7 +41,7 @@ public struct EQSettingsStore {
         return EQSettings(bands: bands, enabled: settings.enabled, activePresetID: settings.activePresetID)
     }
 
-    public func bands(forPresetID presetID: String?) -> [Float] {
+    public func bands(forPresetID presetID: UUID?) -> [Float] {
         guard let presetID,
               let preset = presets.first(where: { $0.id == presetID }) else {
             return EQPreset.flat.floatGains
@@ -48,7 +49,7 @@ public struct EQSettingsStore {
         return normalized(EQSettings(bands: preset.floatGains, enabled: true, activePresetID: preset.id)).bands
     }
 
-    public func applyingPreset(id presetID: String, to settings: EQSettings) -> EQSettings {
+    public func applyingPreset(id presetID: UUID, to settings: EQSettings) -> EQSettings {
         let resolvedID = presets.contains(where: { $0.id == presetID }) ? presetID : EQPreset.flat.id
         return normalized(EQSettings(
             bands: bands(forPresetID: resolvedID),

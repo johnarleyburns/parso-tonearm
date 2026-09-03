@@ -58,7 +58,7 @@ final class EQTests: XCTestCase {
 
     func testBuiltInPresets() {
         XCTAssertEqual(EQPreset.builtIns.map { $0.name },
-                       ["Flat", "Concert hall", "Spoken", "78 rpm"])
+                       ["Flat", "Concert Hall", "Spoken", "78 rpm"])
         for preset in EQPreset.builtIns {
             XCTAssertEqual(preset.gains.count, EQEngine.bandCount)
         }

@@ -30,7 +30,7 @@ final class EQSettingsTests: XCTestCase {
     }
 
     func testUnknownPresetFallsBackToFlat() {
-        let settings = store.applyingPreset(id: "missing", to: EQSettings(
+        let settings = store.applyingPreset(id: UUID(), to: EQSettings(
             bands: Array(repeating: 4, count: EQEngine.bandCount),
             enabled: true,
             activePresetID: nil
