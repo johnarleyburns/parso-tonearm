@@ -17,6 +17,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # audio-engine unification: this branch consumes parso-audio-engine via
+      # `.package(path: "../parso-audio-engine")`. Check it out as a sibling so
+      # the migration branch has a real CI gate. Swapped for a version tag at
+      # merge (parso-audio-engine/docs/UNIFICATION_PLAN.md §4c / current_status.md).
+      - name: Check out parso-audio-engine (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: johnarleyburns/parso-audio-engine
+          ref: audio-engine-unification
+          path: .pae-sibling
+      - name: Position parso-audio-engine as a sibling checkout
+        run: |
+          rm -rf ../parso-audio-engine
+          mv .pae-sibling ../parso-audio-engine
+
       - name: Select latest Xcode
         run: |
           XCODE=$(ls /Applications/ | grep "^Xcode_" | sort -V | tail -1)
@@ -113,6 +128,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Check out parso-audio-engine (sibling)
+        if: env.HAS_TESTFLIGHT_SECRETS == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: johnarleyburns/parso-audio-engine
+          ref: audio-engine-unification
+          path: .pae-sibling
+      - name: Position parso-audio-engine as a sibling checkout
+        if: env.HAS_TESTFLIGHT_SECRETS == 'true'
+        run: |
+          rm -rf ../parso-audio-engine
+          mv .pae-sibling ../parso-audio-engine
 
       - name: Select latest Xcode
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
