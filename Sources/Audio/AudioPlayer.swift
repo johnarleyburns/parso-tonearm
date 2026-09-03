@@ -444,7 +444,7 @@ public final class AudioPlayer: ObservableObject {
         item.automaticallyPreservesTimeOffsetFromLive = false
 
         replaceItem(item)
-        applyEQ(to: item, row: row, setLiveTap: true)
+        applyEQ(to: item, row: row)
         protectCacheKeys(for: asset)
         if autoplay {
             player.play()
@@ -565,7 +565,7 @@ public final class AudioPlayer: ObservableObject {
         guard preloadedNextTrackId != row.track.id else { return }
         guard let built = buildItem(for: asset) else { return }
         built.item.preferredForwardBufferDuration = 120
-        applyEQ(to: built.item, row: row, setLiveTap: false)
+        applyEQ(to: built.item, row: row)
         preloadedNextItem = built.item
         preloadedNextTrackId = row.track.id
         preloadedNextLoader = built.loader
@@ -653,7 +653,7 @@ public final class AudioPlayer: ObservableObject {
         guard let built else { return false }
         built.item.preferredForwardBufferDuration = 120
         built.item.automaticallyPreservesTimeOffsetFromLive = false
-        applyEQ(to: built.item, row: row, setLiveTap: false)
+        applyEQ(to: built.item, row: row)
 
         let nextPlayer = AVPlayer(playerItem: built.item)
         nextPlayer.volume = 0
@@ -750,12 +750,13 @@ public final class AudioPlayer: ObservableObject {
 
     // MARK: - EQ (T4.1)
 
-    /// Applies the current EQ state to an item via `MTAudioProcessingTap` when the
-    /// EQ is enabled. Detaching happens naturally in the same teardown path as
-    /// `shutdownLoaders()` (the item's audioMix is dropped when the item is
-    /// replaced). Reattaches on the preloaded next item so EQ survives near-gapless
-    /// swaps.
-    private func applyEQ(to item: AVPlayerItem, row: TrackRow, setLiveTap: Bool) {
+    /// Applies the current EQ state to an item via the shared `EQTapInstaller`
+    /// (`EQAudioTap`) when any stage is non-transparent. Detaching happens
+    /// naturally in the same teardown path as `shutdownLoaders()` (the item's
+    /// audioMix is dropped when the item is replaced). The one persistent
+    /// `eqTap` installs on both the current and the preloaded next item so EQ
+    /// survives near-gapless swaps.
+    private func applyEQ(to item: AVPlayerItem, row: TrackRow) {
         let settings = EQSettingsPersistence.load()
         let store = EQSettingsStore(presets: EQSettingsPersistence.allPresets())
         let proAudio = ProAudioSettingsPersistence.load()
@@ -770,16 +771,16 @@ public final class AudioPlayer: ObservableObject {
         }
         let gains = settings.enabled ? store.effectiveBands(for: settings).map(Double.init)
             : Array(repeating: 0, count: EQEngine.bandCount)
-        let tap = EQAudioTap(
-            engine: EQEngine(gains: gains, bypassed: !settings.enabled),
+        let kernel = ProAudioKernel(
+            eqGains: gains,
+            eqBypassed: !settings.enabled,
             settings: proAudio,
-            replayGain: replayGain)
-        if setLiveTap { eqTap = tap }
-        Task { @MainActor in
-            if let mix = await tap.makeAudioMix(for: item) {
-                item.audioMix = mix
-            }
-        }
+            replayGain: replayGain,
+            sampleRate: ProAudioSettings.convolutionSampleRate)
+        let tap = eqTap ?? EQAudioTap(kernel: kernel)
+        eqTap = tap
+        // Each item gets its own processor seeded with that track's ReplayGain.
+        tap.install(on: item, kernel: kernel)
     }
 
     /// Live-updates EQ gains on the currently playing item without interrupting
@@ -818,11 +819,13 @@ public final class AudioPlayer: ObservableObject {
         if let tap = eqTap, needsTap {
             tap.update(gains: gains, bypassed: !eqEnabled, settings: proAudio, replayGain: replayGain)
         } else if !needsTap {
+            eqTap?.removeAll()
             player.currentItem?.audioMix = nil
+            preloadedNextItem?.audioMix = nil
             eqTap = nil
         } else if let item = player.currentItem, let row = currentTrack {
             // Toggled on from a clean chain: (re)attach the mix on the live item.
-            applyEQ(to: item, row: row, setLiveTap: true)
+            applyEQ(to: item, row: row)
         }
     }
 
@@ -865,6 +868,9 @@ public final class AudioPlayer: ObservableObject {
     private func replaceItem(_ item: AVPlayerItem) {
         player.replaceCurrentItem(with: item)
         loadedSourceSampleRate = 0
+        // Drop EQ taps for items no longer in play (the outgoing current item,
+        // and any preloaded item that wasn't the one we advanced to).
+        eqTap?.prune(keeping: [item, preloadedNextItem].compactMap { $0 })
         let asset = item.asset
         Task { @MainActor [weak self, asset, item] in
             guard let self,
