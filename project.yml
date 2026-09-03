@@ -36,6 +36,11 @@ options:
 packages:
   TonearmCore:
     path: .
+  # Audio-engine unification (parso-audio-engine/docs/UNIFICATION_PLAN.md).
+  # Local path override during the migration; swaps to a tag pin on merge to
+  # main. Requires parso-audio-engine checked out as a sibling directory.
+  ParsoAudioEngine:
+    path: ../parso-audio-engine
 
 settings:
   base:
@@ -95,6 +100,8 @@ targets:
         product: TonearmWatchProtocol
       - package: TonearmCore
         product: TonearmDJ
+      - package: ParsoAudioEngine
+        product: ParsoAudioStreaming
       - target: TonearmShareExtension
         embed: true
       - target: TonearmWidgetsExtension
