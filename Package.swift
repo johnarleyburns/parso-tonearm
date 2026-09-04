@@ -122,7 +122,10 @@ let package = Package(
                 "TonearmCore",
                 "CSQLiteVec",
                 .product(name: "GRDB", package: "GRDB.swift"),
-                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine")
+                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
+                // Phase 6c — the PAE DJ engine behind `PAEWorkspaceEngine`,
+                // selected at the construction site with `-D PAE_DJ_ENGINE`.
+                .product(name: "ParsoDJEngine", package: "parso-audio-engine")
             ],
             path: "Sources/DJ",
             swiftSettings: [.swiftLanguageMode(.v6)],
@@ -159,7 +162,8 @@ let package = Package(
             name: "TonearmDJTests",
             dependencies: [
                 "TonearmDJ",
-                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine")
+                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
+                .product(name: "ParsoDJEngine", package: "parso-audio-engine")
             ],
             path: "Tests/DJTests",
             resources: [.copy("Fixtures")],

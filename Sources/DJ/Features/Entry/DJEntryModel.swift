@@ -93,6 +93,12 @@ public enum DJWorkspaceAssembly {
         // harness omits it to stay frame-exact — the app must not. 0.95 is
         // `LookaheadLimiter`'s own default; 240 frames of lookahead is the
         // value the §35.5 acceptance tests exercise.
+        // Phase 6c — `-D PAE_DJ_ENGINE` selects the PAE `ParsoDJEngine` renderer
+        // (`PAEWorkspaceEngine`) over Tonearm's GPLv3 `PerformanceEngine`. Both
+        // conform to `WorkspaceEngine`; nothing downstream changes.
+        #if PAE_DJ_ENGINE
+        let engine: WorkspaceEngine = PAEWorkspaceEngine(maxFramesPerRender: 128)
+        #else
         guard let engine = try? PerformanceEngine(configuration: .init(maximumFrameCount: 128,
                                                                        rendering: .realtime,
                                                                        limiterCeiling: 0.95,
@@ -100,6 +106,7 @@ public enum DJWorkspaceAssembly {
                                                                        recordTapEnabled: true)) else {
             return nil
         }
+        #endif
         // The §37.3 journal (plan 5.11): writes the `mix`/`mix_asset` rows and
         // reconciles crashed recordings. `-uiRegression` is the hand-run DJ
         // suite's launch flag (dj-regression-suite hook 5.11) — only then does
