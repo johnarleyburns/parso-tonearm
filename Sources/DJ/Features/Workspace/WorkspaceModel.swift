@@ -52,11 +52,11 @@ public protocol WorkspaceEngine: AnyObject {
     /// plan 5.8). A disarmed deck reads the single full-mix source.
     func armStemSet(_ deck: Deck, stemSet: StemSet?)
     /// Set a stem voice's gain target — a linear gain, smoothed render-side.
-    func setStemGain(_ deck: Deck, stem: StemKind, gain: Float)
+    func setStemGain(_ deck: Deck, stem: SeparationVoice, gain: Float)
     /// Mute a stem voice — its gain target ramps to 0.
-    func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool)
+    func setStemMute(_ deck: Deck, stem: SeparationVoice, muted: Bool)
     /// Solo a stem voice — when any voice is soloed, only soloed voices sound.
-    func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool)
+    func setStemSolo(_ deck: Deck, stem: SeparationVoice, soloed: Bool)
     /// Start recording the post-limiter master bus (§37.2, plan 5.10). The
     /// record toggle (decision 14) forwards this; the engine starts the tap +
     /// encoder. Returns the per-session output directory — 5.11's journal
@@ -166,24 +166,24 @@ public enum DeckStemStatus: Equatable, Sendable {
 /// voices' gains plus the mute/solo sets, mirrored here (like the EQ/fader
 /// state) so every surface's STEMS faders read and write the same state.
 public struct StemControlState: Equatable, Sendable {
-    /// Per-voice linear gain targets, indexed by `StemKind`. Defaults to unity.
-    public var gains: [StemKind: Float]
+    /// Per-voice linear gain targets, indexed by `SeparationVoice`. Defaults to unity.
+    public var gains: [SeparationVoice: Float]
     /// The muted voices.
-    public var muted: Set<StemKind>
+    public var muted: Set<SeparationVoice>
     /// The soloed voices.
-    public var soloed: Set<StemKind>
+    public var soloed: Set<SeparationVoice>
 
-    public init(gains: [StemKind: Float] = StemControlState.unityGains,
-                muted: Set<StemKind> = [],
-                soloed: Set<StemKind> = []) {
+    public init(gains: [SeparationVoice: Float] = StemControlState.unityGains,
+                muted: Set<SeparationVoice> = [],
+                soloed: Set<SeparationVoice> = []) {
         self.gains = gains
         self.muted = muted
         self.soloed = soloed
     }
 
     /// Unity gains for all four voices.
-    public static var unityGains: [StemKind: Float] {
-        Dictionary(uniqueKeysWithValues: StemKind.allCases.map { ($0, Float(1)) })
+    public static var unityGains: [SeparationVoice: Float] {
+        Dictionary(uniqueKeysWithValues: SeparationVoice.allCases.map { ($0, Float(1)) })
     }
 
     /// The stem fader's full-travel gain (1.5× = +3.5 dB boost). The faders
@@ -847,17 +847,17 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     /// A stem voice's gain target (0…1.5, unity default).
-    public func stemGain(_ deck: Deck, stem: StemKind) -> Float {
+    public func stemGain(_ deck: Deck, stem: SeparationVoice) -> Float {
         controls(deck).gains[stem] ?? 1
     }
 
     /// Whether a stem voice is muted.
-    public func stemIsMuted(_ deck: Deck, stem: StemKind) -> Bool {
+    public func stemIsMuted(_ deck: Deck, stem: SeparationVoice) -> Bool {
         controls(deck).muted.contains(stem)
     }
 
     /// Whether a stem voice is soloed.
-    public func stemIsSoloed(_ deck: Deck, stem: StemKind) -> Bool {
+    public func stemIsSoloed(_ deck: Deck, stem: SeparationVoice) -> Bool {
         controls(deck).soloed.contains(stem)
     }
 
@@ -865,7 +865,7 @@ public final class WorkspaceModel: ObservableObject {
     /// when the deck's stems are prepared: an unprepared fader is **fully
     /// inert**, because a fader that moves while doing nothing is §36.5's exact
     /// prohibition ("never a fader that looks live and does nothing").
-    public func setStemGain(_ deck: Deck, stem: StemKind, gain: Float) {
+    public func setStemGain(_ deck: Deck, stem: SeparationVoice, gain: Float) {
         guard stemStatus(deck) == .prepared else { return }
         let clamped = min(StemControlState.maxGain, max(0, gain))
         let previous = controls(deck).gains[stem] ?? 0
@@ -886,7 +886,7 @@ public final class WorkspaceModel: ObservableObject {
 
     /// Mute a stem voice — its gain target ramps to 0. Inert unless prepared
     /// (§36.5's honest-fader rule).
-    public func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool) {
+    public func setStemMute(_ deck: Deck, stem: SeparationVoice, muted: Bool) {
         guard stemStatus(deck) == .prepared else { return }
         setControls(deck) {
             if muted { $0.muted.insert(stem) } else { $0.muted.remove(stem) }
@@ -896,7 +896,7 @@ public final class WorkspaceModel: ObservableObject {
 
     /// Solo a stem voice — when any voice is soloed, only soloed voices sound.
     /// Inert unless prepared.
-    public func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool) {
+    public func setStemSolo(_ deck: Deck, stem: SeparationVoice, soloed: Bool) {
         guard stemStatus(deck) == .prepared else { return }
         setControls(deck) {
             if soloed { $0.soloed.insert(stem) } else { $0.soloed.remove(stem) }

@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var icloudSync = SyncGating.isEnabled
     @State private var showWatchSettings = false
     @State private var showJamendoKey = false
+    @State private var showThirdPartyNotices = false
 
     private let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
@@ -51,6 +52,7 @@ struct SettingsView: View {
         .foregroundStyle(Palette.ink)
         .task { await refresh() }
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
+        .sheet(isPresented: $showThirdPartyNotices) { ThirdPartyNoticesView() }
         .sheet(isPresented: $showEQ) { EQView() }
         .sheet(isPresented: $showTools) { ProToolsView() }
         .sheet(isPresented: $showJamendoKey) { JamendoCredentialView() }
@@ -398,7 +400,13 @@ struct SettingsView: View {
 
     private var aboutCard: some View {
         VStack(spacing: 0) {
-            aboutRow("Terms", "Proprietary + third-party notices")
+            Button { showThirdPartyNotices = true } label: {
+                HStack {
+                    aboutRow("Terms", "Proprietary + third-party notices")
+                    Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
+                }
+            }
+            .buttonStyle(.plain)
             Divider().overlay(Palette.hairline)
             aboutRow("About", "Platterhead 0.1 — you bring the records")
         }
@@ -476,6 +484,52 @@ struct PrivacyView: View {
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
             .navigationTitle("Privacy")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.tint(Palette.brass)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func privacyPoint(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.brass)
+            Text(body).font(.system(size: 13)).foregroundStyle(Palette.ink2)
+        }
+    }
+}
+
+/// Third-party model/library notices (Settings → Terms). Stem separation in
+/// particular gets its own, non-buried explanation — see
+/// `parso-audio-engine`'s README "On-device neural: CLAP search, and stem
+/// separation" and `current_status.md` "Phase 7" for the full citation trail
+/// behind these determinations.
+struct ThirdPartyNoticesView: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Third-party notices")
+                        .font(.system(size: 20, weight: .bold))
+                    privacyPoint("Semantic / vibe search",
+                        "Vibe search uses LAION CLAP (music_audioset_epoch_15_esc_90.14, HTSAT-base), licensed Apache-2.0.")
+                    privacyPoint("Stem separation — Spleeter (current default)",
+                        "Splitting a track into vocals/drums/bass/other uses Spleeter (Deezer), licensed MIT for both code and pretrained weights, trained on Deezer's own catalogue. Spleeter is a 2018-era model — noticeably behind current transformer-based separators on quality (some vocal bleed into \"other\", softer transients on drums/percussion). It ships because it is the best separation model currently known to be cleanly, commercially licensed for an app like this — not because it is the best available. We track newer, better-licensed models and will upgrade when one clears; the app is built so that upgrade is a background model swap, not a rewrite.")
+                    privacyPoint("Why not a better model today",
+                        "Every higher-quality separator we evaluated — Demucs/htdemucs, community \"BS-RoFormer\"/Mel-Band RoFormer checkpoints, Open-Unmix, and others — traces its weights back to training data restricted to non-commercial use (MUSDB18, MoisesDB), even when the checkpoint itself is casually labeled MIT by whoever uploaded it. We did not take those labels at face value. Full technical detail is public: see parso-audio-engine's README and issue tracker.")
+                    privacyPoint("Vendored audio/DSP libraries",
+                        "Platterhead's audio engine vendors permissively-licensed open-source libraries for decode/encode and DSP (libFLAC, libebur128, libsamplerate, libogg/libopus, and others) — BSD, MIT, and public-domain terms. See parso-audio-engine's ATTRIBUTION.md for the complete per-file list.")
+                    privacyPoint("GRDB.swift", "SQLite access, MIT licensed.")
+                }
+                .foregroundStyle(Palette.ink)
+                .padding(20)
+            }
+            .background(Palette.libraryBackground.ignoresSafeArea())
+            .navigationTitle("Terms & Notices")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

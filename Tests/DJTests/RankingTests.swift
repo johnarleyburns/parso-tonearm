@@ -149,13 +149,13 @@ final class RankingTests: XCTestCase {
         let b3 = RankBreakdown(semantic: 0.6, bpm: 0.5, key: 0.5, energy: 0.5,
                                phrase: 0.5, fused: 0.5)
         let input = [
-            RankedMatch(trackID: 30, semantic: 0.6, breakdown: b2),
-            RankedMatch(trackID: 10, semantic: 0.6, breakdown: b3),
-            RankedMatch(trackID: 20, semantic: 0.5, breakdown: b1),
-            RankedMatch(trackID: 40, semantic: 0.9, breakdown: b1),
+            RankedMatch(rowID: 30, semantic: 0.6, breakdown: b2),
+            RankedMatch(rowID: 10, semantic: 0.6, breakdown: b3),
+            RankedMatch(rowID: 20, semantic: 0.5, breakdown: b1),
+            RankedMatch(rowID: 40, semantic: 0.9, breakdown: b1),
         ]
         let ordered = HybridRankerOrdering.order(input)
-        XCTAssertEqual(ordered.map(\.trackID), [40, 10, 30, 20])
+        XCTAssertEqual(ordered.map(\.rowID), [40, 10, 30, 20])
     }
 
     func testOrderingIsStableAndDeterministic() {
@@ -165,7 +165,7 @@ final class RankingTests: XCTestCase {
             let fused = Double((i * 5) % 7) / 7
             let breakdown = RankBreakdown(semantic: 0.5, bpm: 0.5, key: 0.5,
                                           energy: 0.5, phrase: 0.5, fused: fused)
-            seed.append(RankedMatch(trackID: Int64(i), semantic: semantic,
+            seed.append(RankedMatch(rowID: Int64(i), semantic: semantic,
                                     breakdown: breakdown))
         }
         let shuffled = seed.shuffled()

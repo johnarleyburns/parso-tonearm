@@ -235,9 +235,9 @@ final class TransitionCoachTests: XCTestCase {
         func setEchoDepth(_ deck: Deck, depth: Float) { calls.append("setEchoDepth") }
         func setEchoFeedback(_ deck: Deck, feedback: Float) { calls.append("setEchoFeedback") }
         func armStemSet(_ deck: Deck, stemSet: StemSet?) { calls.append("armStemSet") }
-        func setStemGain(_ deck: Deck, stem: StemKind, gain: Float) { calls.append("setStemGain") }
-        func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool) { calls.append("setStemMute") }
-        func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool) { calls.append("setStemSolo") }
+        func setStemGain(_ deck: Deck, stem: SeparationVoice, gain: Float) { calls.append("setStemGain") }
+        func setStemMute(_ deck: Deck, stem: SeparationVoice, muted: Bool) { calls.append("setStemMute") }
+        func setStemSolo(_ deck: Deck, stem: SeparationVoice, soloed: Bool) { calls.append("setStemSolo") }
         func startRecording() async throws -> URL { calls.append("startRecording"); return .init(fileURLWithPath: "/tmp") }
         func stopRecording() async throws -> RecordingEncoder.RecordingOutput? { calls.append("stopRecording"); return nil }
         var isRecording: Bool { calls.append("isRecording"); return false }

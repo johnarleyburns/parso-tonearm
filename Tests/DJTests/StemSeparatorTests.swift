@@ -139,7 +139,7 @@ final class StemSeparatorTests: XCTestCase {
         let separated = try XCTUnwrap(result,
                                       "an available model never returns nil")
         let interior = 1024..<(left.count - 1024)
-        for kind in StemKind.allCases {
+        for kind in SeparationVoice.allCases {
             let voice = separated.voice(kind)
             XCTAssertEqual(voice.frameCount, left.count, "each voice spans the whole track")
             XCTAssertEqual(voice.sampleRate, 48_000)
@@ -223,7 +223,7 @@ final class StemSeparatorTests: XCTestCase {
         let result = try await separator.separate(pcm: pcm)
         let separated = try XCTUnwrap(result)
         let interior = hop..<(left.count - hop)
-        for kind in StemKind.allCases {
+        for kind in SeparationVoice.allCases {
             let voice = separated.voice(kind)
             XCTAssertEqual(voice.frameCount, left.count)
             for i in interior {
@@ -315,7 +315,7 @@ final class StemSeparatorTests: XCTestCase {
         let result = try await separator.separate(pcm: pcm)
         let separated = try XCTUnwrap(result,
                                       "an available model never returns nil")
-        for kind in StemKind.allCases {
+        for kind in SeparationVoice.allCases {
             let voice = separated.voice(kind)
             XCTAssertEqual(voice.sampleRate, 48_000,
                            "voices return at the working rate")

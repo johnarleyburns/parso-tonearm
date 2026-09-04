@@ -37,9 +37,9 @@ final class WorkspaceModelTests: XCTestCase {
         private(set) var echoFeedback: [Deck: Float] = [:]
         private(set) var armedStemSets: [Deck: StemSet] = [:]
         private(set) var disarmedStemSets: Set<Deck> = []
-        private(set) var stemGains: [Deck: [StemKind: Float]] = [:]
-        private(set) var stemMutes: [Deck: Set<StemKind>] = [:]
-        private(set) var stemSolos: [Deck: Set<StemKind>] = [:]
+        private(set) var stemGains: [Deck: [SeparationVoice: Float]] = [:]
+        private(set) var stemMutes: [Deck: Set<SeparationVoice>] = [:]
+        private(set) var stemSolos: [Deck: Set<SeparationVoice>] = [:]
         private(set) var recordingStarts = 0
         private(set) var recordingStops = 0
         private(set) var interruptionFlushes = 0
@@ -116,13 +116,13 @@ final class WorkspaceModelTests: XCTestCase {
                 disarmedStemSets.insert(deck)
             }
         }
-        func setStemGain(_ deck: Deck, stem: StemKind, gain: Float) {
+        func setStemGain(_ deck: Deck, stem: SeparationVoice, gain: Float) {
             stemGains[deck, default: [:]][stem] = gain
         }
-        func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool) {
+        func setStemMute(_ deck: Deck, stem: SeparationVoice, muted: Bool) {
             if muted { stemMutes[deck, default: []].insert(stem) } else { stemMutes[deck]?.remove(stem) }
         }
-        func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool) {
+        func setStemSolo(_ deck: Deck, stem: SeparationVoice, soloed: Bool) {
             if soloed { stemSolos[deck, default: []].insert(stem) } else { stemSolos[deck]?.remove(stem) }
         }
         func startRecording() async throws -> URL {
@@ -1200,8 +1200,8 @@ final class WorkspaceModelTests: XCTestCase {
 
     func testStemControlStateUnityDefaultsAndGainClamp() {
         let state = StemControlState()
-        XCTAssertEqual(state.gains.count, StemKind.allCases.count)
-        for stem in StemKind.allCases {
+        XCTAssertEqual(state.gains.count, SeparationVoice.allCases.count)
+        for stem in SeparationVoice.allCases {
             XCTAssertEqual(state.gains[stem], 1, "unity is the armed default (§35.1)")
         }
         XCTAssertTrue(state.muted.isEmpty)

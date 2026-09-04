@@ -96,17 +96,17 @@ final class DemucsStemModelTests: XCTestCase {
     // MARK: - The source-order table
 
     /// The model's S axis is `['drums', 'bass', 'other', 'vocals']` — **not**
-    /// `StemKind.allCases` order (`vocals, drums, bass, other`). Mapping the
+    /// `SeparationVoice.allCases` order (`vocals, drums, bass, other`). Mapping the
     /// axes straight across would silently swap every stem: the vocal fader
     /// would mute the drums. The table is locked by name, and it must cover
     /// every stem exactly once.
     func testSourceOrderMapsByDemucsNames() {
         XCTAssertEqual(DemucsStemModel.sourceOrder, [.drums, .bass, .other, .vocals],
                        "the model's S axis is drums, bass, other, vocals (S1 §5.1)")
-        XCTAssertNotEqual(DemucsStemModel.sourceOrder, StemKind.allCases,
-                          "StemKind.allCases is vocals, drums, bass, other — "
+        XCTAssertNotEqual(DemucsStemModel.sourceOrder, SeparationVoice.allCases,
+                          "SeparationVoice.allCases is vocals, drums, bass, other — "
                           + "a straight-across mapping would swap every stem")
-        XCTAssertEqual(Set(DemucsStemModel.sourceOrder), Set(StemKind.allCases),
+        XCTAssertEqual(Set(DemucsStemModel.sourceOrder), Set(SeparationVoice.allCases),
                        "every stem is covered exactly once")
         // The named mapping the separator's caller relies on: model source 3
         // is vocals, model source 0 is drums.

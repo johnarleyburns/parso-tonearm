@@ -208,7 +208,7 @@ private struct StemsModuleView: View {
                     .foregroundStyle(status == .prepared ? Color.green : .secondary)
             }
             if status == .prepared {
-                ForEach(StemKind.allCases, id: \.self) { stem in
+                ForEach(SeparationVoice.allCases, id: \.self) { stem in
                     StemFaderRow(label: title(stem),
                                  gain: model.stemGain(deck, stem: stem),
                                  muted: model.stemIsMuted(deck, stem: stem),
@@ -223,7 +223,7 @@ private struct StemsModuleView: View {
                 // The honest disabled state: unity bars, dimmed — the status
                 // label is carried by the header. Never a live-looking fader
                 // that does nothing (§36.5).
-                ForEach(StemKind.allCases, id: \.self) { stem in
+                ForEach(SeparationVoice.allCases, id: \.self) { stem in
                     HStack(spacing: 6) {
                         Text(title(stem))
                             .font(.system(size: 10))
@@ -237,7 +237,7 @@ private struct StemsModuleView: View {
         }
     }
 
-    private func title(_ stem: StemKind) -> String {
+    private func title(_ stem: SeparationVoice) -> String {
         switch stem {
         case .vocals: return "Vocals"
         case .drums: return "Drums"

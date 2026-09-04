@@ -6,7 +6,11 @@ import Foundation
 public enum ModelTag: String, Sendable, CaseIterable {
     case clapText = "clap-text"
     case clapAudio = "clap-audio"
+    /// Demucs (kept registered as a non-default `StemModelProviding`; not
+    /// established as commercially clean — see current_status.md "Phase 7").
     case stems = "demucs-stems"
+    /// Spleeter (Phase 7c default separation backend — MIT code + weights).
+    case spleeterStems = "spleeter-stems"
 }
 
 /// A snapshot of one tag's state for the UI (§41.3 / FR-SEM-6 honesty).
@@ -74,6 +78,7 @@ public struct BundleResourceProvider: ModelResourceProviding {
         .clapText: "CLAPTextEncoder.mlpackage",
         .clapAudio: "CLAPAudioEncoder.mlpackage",
         .stems: "DemucsStems.mlpackage",
+        .spleeterStems: "SpleeterStems.mlpackage",
     ]) {
         self.tagFileNames = tagFileNames
         self.state = State()
@@ -122,6 +127,7 @@ public struct BundleResourceProvider: ModelResourceProviding {
         .clapText: "CLAPTextEncoder.mlpackage",
         .clapAudio: "CLAPAudioEncoder.mlpackage",
         .stems: "DemucsStems.mlpackage",
+        .spleeterStems: "SpleeterStems.mlpackage",
     ]) {
         self.tagFileNames = tagFileNames
     }

@@ -122,14 +122,14 @@ public enum AnalyzePipeline {
     /// encoder, so this is concurrency-1 regardless of callers.
     public static func embed(url: URL, embedder: CLAPEmbedder) async throws -> PooledEmbedding {
         let pcm = try AudioDecoder.decode(url)
-        let windows = try Preprocess.logMel(pcm: pcm, spec: embedder.spec)
+        let windows = try SemanticPreprocess.logMel(pcm: pcm, spec: embedder.spec)
         let windowVectors = try await embedder.embedWindows(windows)
         // §27.4 energy blend: mean log-mel magnitude per window — a §25-loudness
         // proxy; Stage-1's RMS curve can refine it later without ABI change.
         let energies = windows.map { window in
             window.logMel.reduce(0, +) / Float(max(1, window.logMel.count))
         }
-        let pooled = Pooling.pool(windowVectors, strategy: embedder.spec.pooling,
+        let pooled = SemanticPooling.pool(windowVectors, strategy: embedder.spec.pooling,
                                   energy: energies)
         return PooledEmbedding(pooled: pooled, windowVectors: windowVectors)
     }

@@ -157,8 +157,8 @@ public struct StemLoader: StemProviding, Sendable {
                                               modelVersion: AnalysisVersions.stems) else {
             return nil
         }
-        var voices: [StemKind: (buffer: UnsafeBufferPointer<Float>, count: Int)] = [:]
-        for kind in StemKind.allCases {
+        var voices: [SeparationVoice: (buffer: UnsafeBufferPointer<Float>, count: Int)] = [:]
+        for kind in SeparationVoice.allCases {
             guard let url = urls[kind] else { return nil }
             let decoded = try AudioDecoder.decode(url)
             guard decoded.mono.baseAddress != nil, decoded.frameCount > 0 else { return nil }

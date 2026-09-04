@@ -87,7 +87,7 @@ final class StemCacheTests: XCTestCase {
 
         let base = env.root.appendingPathComponent("hash-a")
             .appendingPathComponent(String(AnalysisVersions.stems))
-        for kind in StemKind.allCases {
+        for kind in SeparationVoice.allCases {
             let url = base.appendingPathComponent(kind.fileName)
             XCTAssertTrue(FileManager.default.fileExists(atPath: url.path),
                           "\(kind.fileName) lives under Stems/<contentHash>/<version>/")
@@ -155,7 +155,7 @@ final class StemCacheTests: XCTestCase {
 
         let urls = try await env.cache.load(trackID: env.trackID, modelVersion: AnalysisVersions.stems)
         let loaded = try XCTUnwrap(urls, "a stored set always loads")
-        for kind in StemKind.allCases {
+        for kind in SeparationVoice.allCases {
             let url = try XCTUnwrap(loaded[kind])
             let audio = try readAll(url)
             let expected = separation.voice(kind)

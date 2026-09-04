@@ -157,7 +157,7 @@ final class SmartCrateTests: XCTestCase {
                                  pool: DatabasePool, store: any VectorStore,
                                  embedder: CLAPEmbedder) async throws {
         let vector = try await embedder.embedText(text)
-        let (int8, scale) = Quantization.quantize(vector)
+        let (int8, scale) = VectorQuantization.quantize(vector)
         try await pool.write { db in
             try store.upsert(DJTrackEmbedding(trackID: trackID, int8Vector: int8,
                                               scale: Double(scale), matrixRow: nil,

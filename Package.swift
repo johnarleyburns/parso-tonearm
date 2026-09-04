@@ -126,7 +126,10 @@ let package = Package(
                 // Phase 6d — the PAE DJ engine behind `PAEWorkspaceEngine`,
                 // the only DJ engine now that the GPLv3 `PerformanceEngine`
                 // is deleted.
-                .product(name: "ParsoDJEngine", package: "parso-audio-engine")
+                .product(name: "ParsoDJEngine", package: "parso-audio-engine"),
+                // Phase 7b/7c — CLAP semantic search + swappable stem
+                // separation plumbing (StemModelProviding, SeparationBackendRegistry).
+                .product(name: "ParsoAudioNeural", package: "parso-audio-engine")
             ],
             path: "Sources/DJ",
             swiftSettings: [.swiftLanguageMode(.v6)],
@@ -164,7 +167,8 @@ let package = Package(
             dependencies: [
                 "TonearmDJ",
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
-                .product(name: "ParsoDJEngine", package: "parso-audio-engine")
+                .product(name: "ParsoDJEngine", package: "parso-audio-engine"),
+                .product(name: "ParsoAudioNeural", package: "parso-audio-engine")
             ],
             path: "Tests/DJTests",
             resources: [.copy("Fixtures")],

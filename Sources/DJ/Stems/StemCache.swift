@@ -37,7 +37,7 @@ public struct StemCachePaths: Codable, Equatable, Sendable {
         self.other = other
     }
 
-    public func path(for kind: StemKind) -> String {
+    public func path(for kind: SeparationVoice) -> String {
         switch kind {
         case .vocals: return vocals
         case .drums: return drums
@@ -175,7 +175,7 @@ public actor StemCache {
     /// The four on-disk `.caf` URLs for a cached (track, version) set, or nil
     /// when there is no row or a file is missing (§36.5 — the caller then plays
     /// the full mix). The URLs resolve from the row's recorded relative paths.
-    public func load(trackID: Int64, modelVersion: Int) throws -> [StemKind: URL]? {
+    public func load(trackID: Int64, modelVersion: Int) throws -> [SeparationVoice: URL]? {
         let fileManager = FileManager.default
         guard let record = try pool.read({ db in
             try StemCacheRecord.fetchOne(db, sql: """
@@ -186,8 +186,8 @@ public actor StemCache {
                                               from: Data(record.pathsJSON.utf8)) else {
             return nil
         }
-        var urls: [StemKind: URL] = [:]
-        for kind in StemKind.allCases {
+        var urls: [SeparationVoice: URL] = [:]
+        for kind in SeparationVoice.allCases {
             let url = root.appendingPathComponent(paths.path(for: kind))
             guard fileManager.fileExists(atPath: url.path) else { return nil }
             urls[kind] = url

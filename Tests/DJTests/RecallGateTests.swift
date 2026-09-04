@@ -43,10 +43,10 @@ final class RecallGateTests: XCTestCase {
         var data = Data()
         data.reserveCapacity(corpus.count * VectorMatrixScanner.rowBytes(dims: corpus[0].count))
         for vector in corpus {
-            let (int8, scale) = Quantization.quantize(vector)
+            let (int8, scale) = VectorQuantization.quantize(vector)
             var scaleLE = Float(scale)
             withUnsafeBytes(of: &scaleLE) { data.append(contentsOf: $0) }
-            data.append(Quantization.data(int8))
+            data.append(VectorQuantization.data(int8))
         }
         return data
     }
@@ -83,7 +83,7 @@ final class RecallGateTests: XCTestCase {
             let groundTruth = exactTopK(query: query, corpus: corpus, k: k)
             let approximate = VectorMatrixScanner.scan(
                 matrix: matrix, dims: dims, query: query, rowMapping: nil,
-                topK: k, isCancelled: { false }).map(\.trackID).map { Int($0) }
+                topK: k, isCancelled: { false }).map(\.rowID).map { Int($0) }
             hits += Set(groundTruth).intersection(approximate).count
         }
         let recall = Double(hits) / Double(queries * k)
@@ -99,12 +99,12 @@ final class RecallGateTests: XCTestCase {
     func testQuantizationIsDeterministic() throws {
         var rng = SplitMix64(seed: 0xDEAD_BEEF)
         let v = unitVector(&rng, dims: 512)
-        let a = Quantization.quantize(v)
-        let b = Quantization.quantize(v)
-        let c = Quantization.quantize(v)
+        let a = VectorQuantization.quantize(v)
+        let b = VectorQuantization.quantize(v)
+        let c = VectorQuantization.quantize(v)
         XCTAssertEqual(a.scale, b.scale)
         XCTAssertEqual(a.int8, b.int8)
-        XCTAssertEqual(Quantization.data(a.int8), Quantization.data(c.int8))
+        XCTAssertEqual(VectorQuantization.data(a.int8), VectorQuantization.data(c.int8))
     }
 
     /// The same matrix + query scanned twice returns the identical ordering.
@@ -119,7 +119,7 @@ final class RecallGateTests: XCTestCase {
                                              rowMapping: nil, topK: 10, isCancelled: { false })
         let second = VectorMatrixScanner.scan(matrix: matrix, dims: dims, query: query,
                                               rowMapping: nil, topK: 10, isCancelled: { false })
-        XCTAssertEqual(first.map(\.trackID), second.map(\.trackID))
+        XCTAssertEqual(first.map(\.rowID), second.map(\.rowID))
         XCTAssertEqual(first.map(\.similarity), second.map(\.similarity))
     }
 
@@ -131,8 +131,8 @@ final class RecallGateTests: XCTestCase {
     func testDequantizeStaysWithinPinnedErrorBound() throws {
         var rng = SplitMix64(seed: 0xC0FFEE)
         let v = unitVector(&rng, dims: 512)
-        let (int8, scale) = Quantization.quantize(v)
-        let back = Quantization.dequantize(int8, scale: scale)
+        let (int8, scale) = VectorQuantization.quantize(v)
+        let back = VectorQuantization.dequantize(int8, scale: scale)
         XCTAssertGreaterThan(scale, 0)
         for i in 0..<v.count {
             XCTAssertEqual(back[i], v[i], accuracy: scale,

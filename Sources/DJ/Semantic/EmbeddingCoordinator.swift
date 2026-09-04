@@ -143,7 +143,7 @@ public actor EmbeddingCoordinator {
             return
         }
 
-        let (int8, scale) = Quantization.quantize(result.pooled)
+        let (int8, scale) = VectorQuantization.quantize(result.pooled)
         do {
             try await pool.write { db in
                 let record = DJTrackEmbedding(trackID: trackID, int8Vector: int8,

@@ -309,7 +309,7 @@ public actor PlaylistGenerator {
 
         var matches = try store.search(query: anchor, topK: topK, isCancelled: { false })
         if audioSeeded, let seedID = slotZeroLock {
-            matches.removeAll { $0.trackID == seedID }
+            matches.removeAll { $0.rowID == seedID }
         }
         var candidates = try await loadCandidates(matches: matches,
                                                   constraints: request.constraints)
@@ -322,7 +322,7 @@ public actor PlaylistGenerator {
             let widened = min(PlaylistSequencer.generatorPoolCap * 4, topK * 4)
             matches = try store.search(query: anchor, topK: widened, isCancelled: { false })
             if audioSeeded, let seedID = slotZeroLock {
-                matches.removeAll { $0.trackID == seedID }
+                matches.removeAll { $0.rowID == seedID }
             }
             candidates = try await loadCandidates(matches: matches,
                                                   constraints: request.constraints)
@@ -331,7 +331,7 @@ public actor PlaylistGenerator {
         let rejections = try await loadRejections()
         candidates.removeAll { rejections.contains($0.trackID) }
         let semanticScores = Dictionary(uniqueKeysWithValues:
-            matches.map { ($0.trackID, Double($0.similarity)) })
+            matches.map { ($0.rowID, Double($0.similarity)) })
 
         // Audio-seeded briefs pin their opening: the seed track joins the pool
         // (it may be outside the semantic pool) and is locked at slot 0.
@@ -353,7 +353,7 @@ public actor PlaylistGenerator {
         -> (vector: [Float], slotZeroLock: Int64?, audioSeeded: Bool) {
         if let seedID = request.seedTrackID {
             if let stored = try await loadEmbedding(trackID: seedID) {
-                let vector = Quantization.dequantize(stored.int8Vector,
+                let vector = VectorQuantization.dequantize(stored.int8Vector,
                                                      scale: Float(stored.scale))
                 return (vector, seedID, true)
             }
@@ -382,11 +382,11 @@ public actor PlaylistGenerator {
         if !text.isEmpty { vec = try await embedder.embedText(text) }
         for term in request.positiveTerms {
             let termVector = try await embedder.embedText(term)
-            vec = Pooling.l2Normalized(zip(vec, termVector).map(+))
+            vec = SemanticPooling.l2Normalized(zip(vec, termVector).map(+))
         }
         for term in request.negativeTerms {
             let termVector = try await embedder.embedText(term)
-            vec = Pooling.l2Normalized(zip(vec, termVector).map { $0 - $1 })
+            vec = SemanticPooling.l2Normalized(zip(vec, termVector).map { $0 - $1 })
         }
         return vec
     }
@@ -398,11 +398,11 @@ public actor PlaylistGenerator {
         if !text.isEmpty { vec = try await embedder.embedText(text) }
         for term in query.positiveTerms + request.positiveTerms {
             let termVector = try await embedder.embedText(term)
-            vec = Pooling.l2Normalized(zip(vec, termVector).map(+))
+            vec = SemanticPooling.l2Normalized(zip(vec, termVector).map(+))
         }
         for term in query.negativeTerms + request.negativeTerms {
             let termVector = try await embedder.embedText(term)
-            vec = Pooling.l2Normalized(zip(vec, termVector).map { $0 - $1 })
+            vec = SemanticPooling.l2Normalized(zip(vec, termVector).map { $0 - $1 })
         }
         return vec
     }
@@ -448,7 +448,7 @@ public actor PlaylistGenerator {
 
     private func loadCandidates(matches: [VectorMatch],
                                 constraints: SequencingConstraints) async throws -> [TrackFeatures] {
-        let ids = matches.map(\.trackID)
+        let ids = matches.map(\.rowID)
         guard !ids.isEmpty else { return [] }
         let rows = try await pool.read { db in
             try DJTrack.filter(ids.contains(Column("id"))).fetchAll(db)
@@ -462,31 +462,31 @@ public actor PlaylistGenerator {
         let cached = try await cachedTrackIDs(ids)
 
         return matches.compactMap { match in
-            guard let row = rowsByID[match.trackID] else { return nil }
+            guard let row = rowsByID[match.rowID] else { return nil }
             let bpm = row.bpm ?? row.detectedBPM
             if let range = constraints.bpmRange {
                 guard let bpm, range.contains(bpm) else { return nil }
             }
-            if constraints.requireCached && !cached.contains(match.trackID) { return nil }
+            if constraints.requireCached && !cached.contains(match.rowID) { return nil }
             if !constraints.excludeGenres.isEmpty,
-               let genres = genreNames[match.trackID],
+               let genres = genreNames[match.rowID],
                genres.contains(where: { constraints.excludeGenres.contains($0) }) {
                 return nil
             }
             // M3: the DJ schema carries no explicit flag (plan §3.3), so
             // `allowExplicit` is honoured structurally but is a no-op in practice.
-            let embedding = embeddings[match.trackID]
-                .map { Quantization.dequantize($0.int8Vector, scale: Float($0.scale)) }
-            return TrackFeatures(trackID: match.trackID,
+            let embedding = embeddings[match.rowID]
+                .map { VectorQuantization.dequantize($0.int8Vector, scale: Float($0.scale)) }
+            return TrackFeatures(trackID: match.rowID,
                                  durationSec: row.durationSec ?? 0,
                                  bpm: bpm,
                                  camelot: row.camelot.flatMap(CamelotKey.init(code:)),
                                  energy: row.energy,
                                  embedding: embedding,
-                                 artistIDs: artistIDs[match.trackID] ?? [],
+                                 artistIDs: artistIDs[match.rowID] ?? [],
                                  albumID: row.albumID,
                                  isExplicit: false,
-                                 isFullyCached: cached.contains(match.trackID))
+                                 isFullyCached: cached.contains(match.rowID))
         }
     }
 
@@ -509,7 +509,7 @@ public actor PlaylistGenerator {
                                  camelot: row.camelot.flatMap(CamelotKey.init(code:)),
                                  energy: row.energy,
                                  embedding: embedding.map {
-                                     Quantization.dequantize($0.int8Vector,
+                                     VectorQuantization.dequantize($0.int8Vector,
                                                             scale: Float($0.scale))
                                  },
                                  artistIDs: artistIDs,

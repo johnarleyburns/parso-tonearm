@@ -63,7 +63,7 @@ public enum EngineAction: Sendable, Equatable, Hashable, Codable {
     case tempo(deck: DeckID)
     case crossfader
     case headphoneCue(deck: DeckID)
-    case stemGain(deck: DeckID, stem: StemKind)
+    case stemGain(deck: DeckID, stem: SeparationVoice)
     case hotCue(deck: DeckID, index: Int)
     case loopToggle(deck: DeckID)
     case echoToggle(deck: DeckID)
@@ -110,7 +110,7 @@ public enum EngineAction: Sendable, Equatable, Hashable, Codable {
                         .loopToggle(deck: deck),
                         .jog(deck: deck), .jogTouch(deck: deck)]
             actions += EQBand.allCases.map { .eq(deck: deck, band: $0) }
-            actions += StemKind.allCases.map { .stemGain(deck: deck, stem: $0) }
+            actions += SeparationVoice.allCases.map { .stemGain(deck: deck, stem: $0) }
         }
         return actions
     }
@@ -222,7 +222,7 @@ public enum EngineAction: Sendable, Equatable, Hashable, Codable {
             guard parts.count == 3, let band = EQBand(rawValue: parts[2]) else { return nil }
             return .eq(deck: deck, band: band)
         case "stem":
-            guard parts.count == 3, let stem = StemKind(rawValue: parts[2]) else { return nil }
+            guard parts.count == 3, let stem = SeparationVoice(rawValue: parts[2]) else { return nil }
             return .stemGain(deck: deck, stem: stem)
         case "hotcue":
             guard parts.count == 3, let index = Int(parts[2]) else { return nil }

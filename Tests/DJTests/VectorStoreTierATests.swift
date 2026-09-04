@@ -37,7 +37,7 @@ final class VectorStoreTierATests: XCTestCase {
 
     private func embedding(for trackID: Int64, vector: [Float],
                            matrixRow: Int? = nil) -> DJTrackEmbedding {
-        let (int8, scale) = Quantization.quantize(vector)
+        let (int8, scale) = VectorQuantization.quantize(vector)
         return DJTrackEmbedding(trackID: trackID, int8Vector: int8,
                                 scale: Double(scale), matrixRow: matrixRow, version: 1)
     }
@@ -66,7 +66,7 @@ final class VectorStoreTierATests: XCTestCase {
 
         // Query near `vb` → beta first.
         let results = try store.search(query: vb, topK: 3, isCancelled: { false })
-        XCTAssertEqual(results.first?.trackID, b)
+        XCTAssertEqual(results.first?.rowID, b)
         XCTAssertEqual(results.first?.similarity ?? 0, 1.0, accuracy: 0.01)
 
         let rows = try pool.read { db in
@@ -114,7 +114,7 @@ final class VectorStoreTierATests: XCTestCase {
         // Search no longer returns `a`.
         let results = try store.search(query: unitVector(phase: 0.0), topK: 2,
                                        isCancelled: { false })
-        XCTAssertEqual(results.map(\.trackID), [b])
+        XCTAssertEqual(results.map(\.rowID), [b])
     }
 
     func testCompactOnlyWhenTombstonesExceed20Percent() throws {
@@ -152,7 +152,7 @@ final class VectorStoreTierATests: XCTestCase {
         // Search still ranks correctly after compaction.
         let results = try store.search(query: unitVector(phase: 4.0), topK: 3,
                                        isCancelled: { false })
-        XCTAssertEqual(results.first?.trackID, ids[4])
+        XCTAssertEqual(results.first?.rowID, ids[4])
     }
 
     func testRebuildIsByteIdenticalRegeneration() throws {

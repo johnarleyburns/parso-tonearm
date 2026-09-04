@@ -433,9 +433,9 @@ private final class JogFakeEngine: WorkspaceEngine {
     func setEchoDepth(_ deck: Deck, depth: Float) {}
     func setEchoFeedback(_ deck: Deck, feedback: Float) {}
     func armStemSet(_ deck: Deck, stemSet: StemSet?) {}
-    func setStemGain(_ deck: Deck, stem: StemKind, gain: Float) {}
-    func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool) {}
-    func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool) {}
+    func setStemGain(_ deck: Deck, stem: SeparationVoice, gain: Float) {}
+    func setStemMute(_ deck: Deck, stem: SeparationVoice, muted: Bool) {}
+    func setStemSolo(_ deck: Deck, stem: SeparationVoice, soloed: Bool) {}
     func startRecording() async throws -> URL { FileManager.default.temporaryDirectory }
     func stopRecording() async throws -> RecordingEncoder.RecordingOutput? { nil }
     var isRecording: Bool { false }

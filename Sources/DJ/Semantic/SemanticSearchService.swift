@@ -177,10 +177,10 @@ public actor SemanticSearchService {
             return SearchResponse(state: .unindexedReference, results: [],
                                   coverage: coverage, latencyMillis: elapsed(from: start))
         }
-        let qvec = Quantization.dequantize(stored.int8Vector, scale: Float(stored.scale))
+        let qvec = VectorQuantization.dequantize(stored.int8Vector, scale: Float(stored.scale))
         let pool = try store.search(query: qvec, topK: max(poolSize, limit),
                                     isCancelled: { false })
-            .filter { $0.trackID != trackID }
+            .filter { $0.rowID != trackID }
         let target = try await target(for: nil, referenceTrackID: trackID)
         let ranked = try await rank(pool, target: target, hardBPM: nil, hardKey: nil)
         let results = try await materialize(Array(ranked.prefix(limit)))
@@ -234,11 +234,11 @@ public actor SemanticSearchService {
         }
         for term in query.positiveTerms {
             let termVec = try await embedder.embedText(term)
-            vec = Pooling.l2Normalized(zip(vec, termVec).map(+))
+            vec = SemanticPooling.l2Normalized(zip(vec, termVec).map(+))
         }
         for term in query.negativeTerms {
             let termVec = try await embedder.embedText(term)
-            vec = Pooling.l2Normalized(zip(vec, termVec).map { $0 - $1 })
+            vec = SemanticPooling.l2Normalized(zip(vec, termVec).map { $0 - $1 })
         }
         return vec
     }
@@ -272,7 +272,7 @@ public actor SemanticSearchService {
     private func rank(_ matches: [VectorMatch], target: RankTarget,
                       hardBPM: ClosedRange<Double>?, hardKey: CamelotKey?) async throws
         -> [RankedMatch] {
-        let ids = matches.map(\.trackID)
+        let ids = matches.map(\.rowID)
         let rows = try await pool.read { db in
             try DJTrack.filter(ids.contains(Column("id"))).fetchAll(db)
         }
@@ -282,7 +282,7 @@ public actor SemanticSearchService {
 
         var scored: [RankedMatch] = []
         for match in matches {
-            guard let row = rowsByID[match.trackID] else { continue }
+            guard let row = rowsByID[match.rowID] else { continue }
             if let hardBPM {
                 guard let bpm = row.bpm, hardBPM.contains(bpm) else { continue }
             }
@@ -294,8 +294,8 @@ public actor SemanticSearchService {
                                           bpm: row.bpm,
                                           camelot: camelot,
                                           energy: row.energy,
-                                          phraseLength: phrases[match.trackID])
-            scored.append(RankedMatch(trackID: match.trackID,
+                                          phraseLength: phrases[match.rowID])
+            scored.append(RankedMatch(rowID: match.rowID,
                                       semantic: Double(match.similarity),
                                       breakdown: HybridRanker.fusedScore(candidate, target: target,
                                                                           weights: weights)))
@@ -306,13 +306,13 @@ public actor SemanticSearchService {
     /// Join ranked matches back to their `DJTrackRow` listings, preserving rank.
     private func materialize(_ ranked: [RankedMatch]) async throws -> [SearchResult] {
         guard !ranked.isEmpty else { return [] }
-        let ids = ranked.map(\.trackID)
+        let ids = ranked.map(\.rowID)
         let listings = try DJTrackRepository(pool: pool).tracks(ids: ids)
         var byID: [Int64: DJTrackRow] = [:]
         for listing in listings { byID[listing.id] = listing }
 
         return ranked.compactMap { match in
-            guard let listing = byID[match.trackID] else { return nil }
+            guard let listing = byID[match.rowID] else { return nil }
             return SearchResult(track: listing,
                                 similarity: match.semantic,
                                 finalScore: match.breakdown.fused,

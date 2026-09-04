@@ -257,7 +257,7 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
         }
         var voices: [ParsoDJEngine.StemKind: PAEPCMBuffer] = [:]
         var retained: [PAEPCMBuffer] = []
-        for kind in StemKind.allCases {
+        for kind in SeparationVoice.allCases {
             let buffer = Self.pcmBuffer(from: stemSet.source(kind))
             retained.append(buffer)
             if let paeKind = ParsoDJEngine.StemKind(rawValue: kind.rawValue) {
@@ -268,15 +268,15 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
         self.deck(deck).armStems(voices)
     }
 
-    public func setStemGain(_ deck: Deck, stem: StemKind, gain: Float) {
+    public func setStemGain(_ deck: Deck, stem: SeparationVoice, gain: Float) {
         guard let k = ParsoDJEngine.StemKind(rawValue: stem.rawValue) else { return }
         self.deck(deck).setStemGain(k, Double(gain))
     }
-    public func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool) {
+    public func setStemMute(_ deck: Deck, stem: SeparationVoice, muted: Bool) {
         guard let k = ParsoDJEngine.StemKind(rawValue: stem.rawValue) else { return }
         self.deck(deck).setStemMute(k, muted)
     }
-    public func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool) {
+    public func setStemSolo(_ deck: Deck, stem: SeparationVoice, soloed: Bool) {
         guard let k = ParsoDJEngine.StemKind(rawValue: stem.rawValue) else { return }
         self.deck(deck).setStemSolo(k, soloed)
     }

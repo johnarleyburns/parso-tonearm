@@ -42,7 +42,7 @@ public struct StemSet: @unchecked Sendable {
         self.other = other
     }
 
-    public func source(_ kind: StemKind) -> DeckSource {
+    public func source(_ kind: SeparationVoice) -> DeckSource {
         switch kind {
         case .vocals: return vocals
         case .drums: return drums

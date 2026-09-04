@@ -59,10 +59,10 @@ final class FakeEmbeddingTests: XCTestCase {
         let frameCount = 1_001 * 64
         let windowLength = 480_000
         let hop = 240_000
-        var windows: [Preprocess.MelWindow] = []
+        var windows: [SemanticPreprocess.MelWindow] = []
         for i in 0..<3 {
             let start = i * hop
-            windows.append(Preprocess.MelWindow(
+            windows.append(SemanticPreprocess.MelWindow(
                 startSample: Int64(start),
                 endSample: Int64(start + windowLength),
                 logMel: [Float](repeating: Float(i), count: frameCount),
