@@ -123,8 +123,9 @@ let package = Package(
                 "CSQLiteVec",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
-                // Phase 6c — the PAE DJ engine behind `PAEWorkspaceEngine`,
-                // selected at the construction site with `-D PAE_DJ_ENGINE`.
+                // Phase 6d — the PAE DJ engine behind `PAEWorkspaceEngine`,
+                // the only DJ engine now that the GPLv3 `PerformanceEngine`
+                // is deleted.
                 .product(name: "ParsoDJEngine", package: "parso-audio-engine")
             ],
             path: "Sources/DJ",

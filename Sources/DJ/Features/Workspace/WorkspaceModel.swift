@@ -3,7 +3,7 @@ import CoreGraphics
 import Foundation
 import TonearmCore
 
-/// The control/telemetry seam the session view model talks to. `PerformanceEngine`
+/// The control/telemetry seam the session view model talks to. `PAEWorkspaceEngine`
 /// conforms; tests inject a recording fake so the model's states and gate are
 /// exercised deterministically (plan 4.6, §47.2).
 @MainActor
@@ -19,44 +19,44 @@ public protocol WorkspaceEngine: AnyObject {
     /// from this (mockup `iphone/05a`'s −mm:ss readouts).
     var sampleRate: Double { get }
     /// The deck's current playback rate — the jog's pitch-bend base (§40.7.3).
-    func deckRate(_ deck: PerformanceEngine.Deck) -> Double
+    func deckRate(_ deck: Deck) -> Double
     func start() throws
     func stop()
-    func load(_ deck: PerformanceEngine.Deck, source: DeckSource)
-    func play(_ deck: PerformanceEngine.Deck)
-    func pause(_ deck: PerformanceEngine.Deck)
-    func cue(_ deck: PerformanceEngine.Deck)
-    func releaseCue(_ deck: PerformanceEngine.Deck)
-    func seek(_ deck: PerformanceEngine.Deck, toSample: Int64, quantized: Bool)
-    func setCue(_ deck: PerformanceEngine.Deck, atSample: Int64)
-    func triggerHotCue(_ deck: PerformanceEngine.Deck, atSample: Int64)
-    func setLoopRange(_ deck: PerformanceEngine.Deck, start: Int64, end: Int64)
-    func setLoop(_ deck: PerformanceEngine.Deck, beats: Double)
-    func exitLoop(_ deck: PerformanceEngine.Deck)
+    func load(_ deck: Deck, source: DeckSource)
+    func play(_ deck: Deck)
+    func pause(_ deck: Deck)
+    func cue(_ deck: Deck)
+    func releaseCue(_ deck: Deck)
+    func seek(_ deck: Deck, toSample: Int64, quantized: Bool)
+    func setCue(_ deck: Deck, atSample: Int64)
+    func triggerHotCue(_ deck: Deck, atSample: Int64)
+    func setLoopRange(_ deck: Deck, start: Int64, end: Int64)
+    func setLoop(_ deck: Deck, beats: Double)
+    func exitLoop(_ deck: Deck)
     func setQuantize(_ on: Bool, resolution: QuantizeResolution)
-    func setRate(_ deck: PerformanceEngine.Deck, rate: Float)
-    func setKeyLock(_ deck: PerformanceEngine.Deck, locked: Bool)
-    func setKeyShift(_ deck: PerformanceEngine.Deck, semitones: Float)
-    func sync(_ deck: PerformanceEngine.Deck, to master: PerformanceEngine.Deck, barSync: Bool)
-    func unsync(_ deck: PerformanceEngine.Deck)
-    func isSynced(_ deck: PerformanceEngine.Deck) -> Bool
-    func setEQKnobs(_ deck: PerformanceEngine.Deck, low: Float, mid: Float, high: Float)
-    func setFilter(_ deck: PerformanceEngine.Deck, knob: Float)
-    func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float)
+    func setRate(_ deck: Deck, rate: Float)
+    func setKeyLock(_ deck: Deck, locked: Bool)
+    func setKeyShift(_ deck: Deck, semitones: Float)
+    func sync(_ deck: Deck, to master: Deck, barSync: Bool)
+    func unsync(_ deck: Deck)
+    func isSynced(_ deck: Deck) -> Bool
+    func setEQKnobs(_ deck: Deck, low: Float, mid: Float, high: Float)
+    func setFilter(_ deck: Deck, knob: Float)
+    func setChannelFader(_ deck: Deck, gain: Float)
     func setCrossfader(_ position: Float, curve: CrossfaderCurve)
-    func setEchoEnabled(_ deck: PerformanceEngine.Deck, enabled: Bool)
-    func setEchoBeats(_ deck: PerformanceEngine.Deck, beats: Double)
-    func setEchoDepth(_ deck: PerformanceEngine.Deck, depth: Float)
-    func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float)
+    func setEchoEnabled(_ deck: Deck, enabled: Bool)
+    func setEchoBeats(_ deck: Deck, beats: Double)
+    func setEchoDepth(_ deck: Deck, depth: Float)
+    func setEchoFeedback(_ deck: Deck, feedback: Float)
     /// Arm a prepared `StemSet` for a deck, or disarm it with `nil` (§35.1,
     /// plan 5.8). A disarmed deck reads the single full-mix source.
-    func armStemSet(_ deck: PerformanceEngine.Deck, stemSet: StemSet?)
+    func armStemSet(_ deck: Deck, stemSet: StemSet?)
     /// Set a stem voice's gain target — a linear gain, smoothed render-side.
-    func setStemGain(_ deck: PerformanceEngine.Deck, stem: StemKind, gain: Float)
+    func setStemGain(_ deck: Deck, stem: StemKind, gain: Float)
     /// Mute a stem voice — its gain target ramps to 0.
-    func setStemMute(_ deck: PerformanceEngine.Deck, stem: StemKind, muted: Bool)
+    func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool)
     /// Solo a stem voice — when any voice is soloed, only soloed voices sound.
-    func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool)
+    func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool)
     /// Start recording the post-limiter master bus (§37.2, plan 5.10). The
     /// record toggle (decision 14) forwards this; the engine starts the tap +
     /// encoder. Returns the per-session output directory — 5.11's journal
@@ -69,7 +69,7 @@ public protocol WorkspaceEngine: AnyObject {
     /// Whether a recording is currently in flight (decision 14's session state).
     var isRecording: Bool { get }
     /// §44.2a: route a deck to the pre-fader cue bus.
-    func setHeadphoneCue(_ deck: PerformanceEngine.Deck, enabled: Bool)
+    func setHeadphoneCue(_ deck: Deck, enabled: Bool)
     /// §44.2a: the global cue mode.
     func setCueMode(_ mode: CueMode)
     /// Frames the record tap dropped because the ring was full (§37.2) — what
@@ -107,13 +107,10 @@ public extension WorkspaceEngine {
     func recoverGraph() throws {}
 
     /// The offline harness has no output route, so there is nothing to monitor
-    /// on: cue is inert there by construction, and the graph's own cue tests
-    /// (`CueBusTests`) drive the real engine directly (§44.2a).
-    func setHeadphoneCue(_ deck: PerformanceEngine.Deck, enabled: Bool) {}
+    /// on: cue is inert there by construction (§44.2a).
+    func setHeadphoneCue(_ deck: Deck, enabled: Bool) {}
     func setCueMode(_ mode: CueMode) {}
 }
-
-extension PerformanceEngine: WorkspaceEngine {}
 
 /// The per-deck load state of the `WorkspaceModel.load(_:trackID:)` one-gesture
 /// path (plan 5.1). The gate and decode failures are **honest states with a
@@ -260,7 +257,7 @@ public final class WorkspaceModel: ObservableObject {
     private let injectedStemProvider: (any StemProviding)?
     /// The track currently loaded on each deck — what the deck's waveform is
     /// built from. Cleared when the deck is reloaded.
-    private var loadedTrackIDs: [PerformanceEngine.Deck: Int64] = [:]
+    private var loadedTrackIDs: [Deck: Int64] = [:]
     /// The thermal state the waveform models were last built under, so a
     /// crossing into/out of `.serious` rebuilds them (one level coarser,
     /// §26A.7).
@@ -281,7 +278,7 @@ public final class WorkspaceModel: ObservableObject {
     private let pinnedDrawerIdle: Duration
     private var drawerIdleTask: Task<Void, Never>?
     /// The per-deck remembered bank the drawer springs to (§42.7b).
-    private var bankByDeck: [PerformanceEngine.Deck: TwinBank] = [:]
+    private var bankByDeck: [Deck: TwinBank] = [:]
 
     @Published public var telemetry = EngineTelemetry()
     @Published public private(set) var isPro: Bool
@@ -347,16 +344,16 @@ public final class WorkspaceModel: ObservableObject {
     private var jogTransportB: JogTransport?
     /// The accumulated MIDI jog bend (relative-encoder deltas, clamped to the
     /// ring's ±16 % ceiling) and the per-deck idle-release tasks.
-    private var midiJogBend: [PerformanceEngine.Deck: Double] = [:]
-    private var midiJogReleaseTasks: [PerformanceEngine.Deck: Task<Void, Never>] = [:]
+    private var midiJogBend: [Deck: Double] = [:]
+    private var midiJogReleaseTasks: [Deck: Task<Void, Never>] = [:]
     /// Whether a jogTouch is currently held (the platter's touch sensor), and
     /// the accumulated scrub radians while held in vinyl mode.
-    private var midiJogHeld: [PerformanceEngine.Deck: Bool] = [:]
-    private var midiJogRadians: [PerformanceEngine.Deck: Double] = [:]
+    private var midiJogHeld: [Deck: Bool] = [:]
+    private var midiJogRadians: [Deck: Double] = [:]
 
     /// The per-deck jog transport, created lazily on first use (finger or
     /// MIDI) so an idle surface costs nothing.
-    func jogTransport(for deck: PerformanceEngine.Deck) -> JogTransport {
+    func jogTransport(for deck: Deck) -> JogTransport {
         switch deck {
         case .a:
             if let transport = jogTransportA { return transport }
@@ -486,11 +483,11 @@ public final class WorkspaceModel: ObservableObject {
     /// PCM alive until the deck is reloaded. Dropping the box on reload frees
     /// the previous source — the offline harness is synchronous, so the engine
     /// has already retired it.
-    private var sourceBoxes: [PerformanceEngine.Deck: DeckSourceBox] = [:]
+    private var sourceBoxes: [Deck: DeckSourceBox] = [:]
     /// The §12.2 ownership-transfer boxes for armed stem sets: the model keeps
     /// each deck's prepared set alive until the deck reloads. Dropping the box
     /// disarms nothing by itself — `resolveStems` disarms first.
-    private var stemSetBoxes: [PerformanceEngine.Deck: StemSetBox] = [:]
+    private var stemSetBoxes: [Deck: StemSetBox] = [:]
 
     public init(engine: any WorkspaceEngine,
                 store: EntitlementStore,
@@ -717,7 +714,7 @@ public final class WorkspaceModel: ObservableObject {
 
     /// Log "the deck started playing its loaded track" into the §37.4 timeline
     /// (plan 5.12). The offset is the recording's own frames (§37.2).
-    private func recordTimelineEvent(for deck: PerformanceEngine.Deck) {
+    private func recordTimelineEvent(for deck: Deck) {
         guard let trackID = loadedTrackIDs[deck] else { return }
         recordingTimeline.record(trackID: trackID,
                                  deck: deck == .a ? "A" : "B",
@@ -728,11 +725,11 @@ public final class WorkspaceModel: ObservableObject {
 
     /// The deck's current playback rate — the jog reads it as the base for a
     /// temporary pitch bend (§40.7.3).
-    public func deckRate(_ deck: PerformanceEngine.Deck) -> Double {
+    public func deckRate(_ deck: Deck) -> Double {
         engine.deckRate(deck)
     }
 
-    public func load(_ deck: PerformanceEngine.Deck, source: DeckSource) {
+    public func load(_ deck: Deck, source: DeckSource) {
         engine.load(deck, source: source)
     }
 
@@ -740,11 +737,11 @@ public final class WorkspaceModel: ObservableObject {
 
     /// A deck's current queue (its source + rows). Both decks stay independent:
     /// `selectQueue(_:for:)` touches only the named deck (FR-ENG-13).
-    public func queue(for deck: PerformanceEngine.Deck) -> DeckQueue {
+    public func queue(for deck: Deck) -> DeckQueue {
         deck == .a ? queueA : queueB
     }
 
-    public func importedCrate(for deck: PerformanceEngine.Deck) -> DeckQueueSource? {
+    public func importedCrate(for deck: Deck) -> DeckQueueSource? {
         deck == .a ? importedCrateA : importedCrateB
     }
 
@@ -757,7 +754,7 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     public func importCrate(playlistID: Int64, title: String,
-                            into deck: PerformanceEngine.Deck) async {
+                            into deck: Deck) async {
         isImportingCrate = true
         crateImportError = nil
         defer { isImportingCrate = false }
@@ -774,7 +771,7 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     /// The deck's current load state — the crate rows render it.
-    public func loadState(for deck: PerformanceEngine.Deck) -> DeckLoadState {
+    public func loadState(for deck: Deck) -> DeckLoadState {
         deck == .a ? loadStateA : loadStateB
     }
 
@@ -782,7 +779,7 @@ public final class WorkspaceModel: ObservableObject {
     /// (which carry the same `trackID` the load gesture used). `nil` until a
     /// track is loaded — the honest "nothing loaded" state, surfaced on the
     /// surface's accessibility tree as `dj.deck.<a|b>.loaded`.
-    public func loadedTrackTitle(for deck: PerformanceEngine.Deck) -> String? {
+    public func loadedTrackTitle(for deck: Deck) -> String? {
         guard let id = loadedTrackIDs[deck] else { return nil }
         return queue(for: deck).rows.first { $0.trackID == id }?.title
     }
@@ -799,7 +796,7 @@ public final class WorkspaceModel: ObservableObject {
     /// Point one deck at a source. **The other deck is untouched** — setting
     /// deck A's queue never changes deck B's (FR-ENG-13), and neither queue ever
     /// advances on its own (there is no auto-play-next on a deck, §41.9c).
-    public func selectQueue(_ source: DeckQueueSource, for deck: PerformanceEngine.Deck) async {
+    public func selectQueue(_ source: DeckQueueSource, for deck: Deck) async {
         let rows = (try? await library.rows(in: source)) ?? []
         switch deck {
         case .a: queueA = DeckQueue(source: source, rows: rows)
@@ -814,7 +811,7 @@ public final class WorkspaceModel: ObservableObject {
     /// deck's stems are resolved (§36.5): a prepared set is armed and the
     /// faders go live; otherwise the deck plays the full mix with the honest
     /// `unavailable` status.
-    public func load(_ deck: PerformanceEngine.Deck, trackID: Int64) async {
+    public func load(_ deck: Deck, trackID: Int64) async {
         setLoadState(.loading(trackID: trackID), for: deck)
         switch await library.load(trackID: trackID) {
         case .loaded(let box):
@@ -836,7 +833,7 @@ public final class WorkspaceModel: ObservableObject {
     /// surface is the field-test user's track selection gesture; leaving the
     /// deck merely armed made the UI appear inert and required a second,
     /// hidden transport action before any music could be heard.
-    public func loadAndPlay(_ deck: PerformanceEngine.Deck, trackID: Int64) async {
+    public func loadAndPlay(_ deck: Deck, trackID: Int64) async {
         await load(deck, trackID: trackID)
         guard case .loaded = loadState(for: deck) else { return }
         play(deck)
@@ -845,22 +842,22 @@ public final class WorkspaceModel: ObservableObject {
     // MARK: - Per-deck stems (§36.5, §35.1; plan 5.8)
 
     /// The deck's stem status — `prepared` makes the STEMS faders live.
-    public func stemStatus(_ deck: PerformanceEngine.Deck) -> DeckStemStatus {
+    public func stemStatus(_ deck: Deck) -> DeckStemStatus {
         deck == .a ? stemStatusA : stemStatusB
     }
 
     /// A stem voice's gain target (0…1.5, unity default).
-    public func stemGain(_ deck: PerformanceEngine.Deck, stem: StemKind) -> Float {
+    public func stemGain(_ deck: Deck, stem: StemKind) -> Float {
         controls(deck).gains[stem] ?? 1
     }
 
     /// Whether a stem voice is muted.
-    public func stemIsMuted(_ deck: PerformanceEngine.Deck, stem: StemKind) -> Bool {
+    public func stemIsMuted(_ deck: Deck, stem: StemKind) -> Bool {
         controls(deck).muted.contains(stem)
     }
 
     /// Whether a stem voice is soloed.
-    public func stemIsSoloed(_ deck: PerformanceEngine.Deck, stem: StemKind) -> Bool {
+    public func stemIsSoloed(_ deck: Deck, stem: StemKind) -> Bool {
         controls(deck).soloed.contains(stem)
     }
 
@@ -868,7 +865,7 @@ public final class WorkspaceModel: ObservableObject {
     /// when the deck's stems are prepared: an unprepared fader is **fully
     /// inert**, because a fader that moves while doing nothing is §36.5's exact
     /// prohibition ("never a fader that looks live and does nothing").
-    public func setStemGain(_ deck: PerformanceEngine.Deck, stem: StemKind, gain: Float) {
+    public func setStemGain(_ deck: Deck, stem: StemKind, gain: Float) {
         guard stemStatus(deck) == .prepared else { return }
         let clamped = min(StemControlState.maxGain, max(0, gain))
         let previous = controls(deck).gains[stem] ?? 0
@@ -889,7 +886,7 @@ public final class WorkspaceModel: ObservableObject {
 
     /// Mute a stem voice — its gain target ramps to 0. Inert unless prepared
     /// (§36.5's honest-fader rule).
-    public func setStemMute(_ deck: PerformanceEngine.Deck, stem: StemKind, muted: Bool) {
+    public func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool) {
         guard stemStatus(deck) == .prepared else { return }
         setControls(deck) {
             if muted { $0.muted.insert(stem) } else { $0.muted.remove(stem) }
@@ -899,7 +896,7 @@ public final class WorkspaceModel: ObservableObject {
 
     /// Solo a stem voice — when any voice is soloed, only soloed voices sound.
     /// Inert unless prepared.
-    public func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool) {
+    public func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool) {
         guard stemStatus(deck) == .prepared else { return }
         setControls(deck) {
             if soloed { $0.soloed.insert(stem) } else { $0.soloed.remove(stem) }
@@ -908,13 +905,13 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     /// The deck's stem control state (the mirrored gain/mute/solo state).
-    private func controls(_ deck: PerformanceEngine.Deck) -> StemControlState {
+    private func controls(_ deck: Deck) -> StemControlState {
         deck == .a ? stemControlsA : stemControlsB
     }
 
     /// Reassign a deck's control state through a mutation, publishing the new
     /// value so the faders follow.
-    private func setControls(_ deck: PerformanceEngine.Deck,
+    private func setControls(_ deck: Deck,
                              _ mutate: (inout StemControlState) -> Void) {
         var state = controls(deck)
         mutate(&state)
@@ -928,7 +925,7 @@ public final class WorkspaceModel: ObservableObject {
     /// set is armed and the status goes `prepared`; otherwise the deck plays
     /// the full mix with the honest `unavailable` status. The engine is armed
     /// or disarmed exactly once per load.
-    private func resolveStems(for deck: PerformanceEngine.Deck, trackID: Int64,
+    private func resolveStems(for deck: Deck, trackID: Int64,
                               grid: DeckGrid) async {
         setStemStatus(.unavailable, for: deck)
         engine.armStemSet(deck, stemSet: nil)
@@ -948,11 +945,11 @@ public final class WorkspaceModel: ObservableObject {
     /// Report that a separation job for the deck's loaded track has started
     /// (driven by the §36.3 service in 5.9). The faders stay disabled — the
     /// honest `separating` status renders until the set is prepared and armed.
-    public func markStemSeparation(_ deck: PerformanceEngine.Deck) {
+    public func markStemSeparation(_ deck: Deck) {
         setStemStatus(.separating, for: deck)
     }
 
-    private func setStemStatus(_ status: DeckStemStatus, for deck: PerformanceEngine.Deck) {
+    private func setStemStatus(_ status: DeckStemStatus, for deck: Deck) {
         switch deck {
         case .a: stemStatusA = status
         case .b: stemStatusB = status
@@ -964,13 +961,13 @@ public final class WorkspaceModel: ObservableObject {
     /// A deck's §26A render model — `nil` until it loads an analysed track, or
     /// for an unanalysed track (the honest empty state). The views draw from
     /// this and take the live playhead from telemetry.
-    public func waveform(for deck: PerformanceEngine.Deck) -> WaveformRenderModel? {
+    public func waveform(for deck: Deck) -> WaveformRenderModel? {
         deck == .a ? waveformA : waveformB
     }
 
     /// Whether a deck currently has a track loaded (drives the waveform's
     /// empty-state wording — "not analysed" vs "load a track").
-    public func hasLoadedTrack(_ deck: PerformanceEngine.Deck) -> Bool {
+    public func hasLoadedTrack(_ deck: Deck) -> Bool {
         loadedTrackIDs[deck] != nil
     }
 
@@ -981,7 +978,7 @@ public final class WorkspaceModel: ObservableObject {
         rebuildWaveform(for: .b)
     }
 
-    private func rebuildWaveform(for deck: PerformanceEngine.Deck) {
+    private func rebuildWaveform(for deck: Deck) {
         guard let trackID = loadedTrackIDs[deck] else {
             setWaveform(nil, for: deck)
             return
@@ -994,19 +991,19 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     @MainActor
-    private func publishWaveform(_ model: WaveformRenderModel?, for deck: PerformanceEngine.Deck) {
+    private func publishWaveform(_ model: WaveformRenderModel?, for deck: Deck) {
         lastWaveformThermal = WaveformThermal.current
         setWaveform(model, for: deck)
     }
 
-    private func setWaveform(_ model: WaveformRenderModel?, for deck: PerformanceEngine.Deck) {
+    private func setWaveform(_ model: WaveformRenderModel?, for deck: Deck) {
         switch deck {
         case .a: waveformA = model
         case .b: waveformB = model
         }
     }
 
-    private func reloadQueue(for deck: PerformanceEngine.Deck) async {
+    private func reloadQueue(for deck: Deck) async {
         let current = queue(for: deck)
         let rows = (try? await library.rows(in: current.source)) ?? []
         switch deck {
@@ -1015,7 +1012,7 @@ public final class WorkspaceModel: ObservableObject {
         }
     }
 
-    private func setLoadState(_ state: DeckLoadState, for deck: PerformanceEngine.Deck) {
+    private func setLoadState(_ state: DeckLoadState, for deck: Deck) {
         switch deck {
         case .a: loadStateA = state
         case .b: loadStateB = state
@@ -1031,39 +1028,39 @@ public final class WorkspaceModel: ObservableObject {
         }
     }
 
-    public func play(_ deck: PerformanceEngine.Deck) {
+    public func play(_ deck: Deck) {
         engine.play(deck)
     }
 
-    public func pause(_ deck: PerformanceEngine.Deck) {
+    public func pause(_ deck: Deck) {
         engine.pause(deck)
     }
 
-    public func cue(_ deck: PerformanceEngine.Deck) {
+    public func cue(_ deck: Deck) {
         engine.cue(deck)
     }
 
-    public func releaseCue(_ deck: PerformanceEngine.Deck) {
+    public func releaseCue(_ deck: Deck) {
         engine.releaseCue(deck)
     }
 
-    public func seek(_ deck: PerformanceEngine.Deck, toSample: Int64, quantized: Bool) {
+    public func seek(_ deck: Deck, toSample: Int64, quantized: Bool) {
         engine.seek(deck, toSample: toSample, quantized: quantized)
     }
 
-    public func setCue(_ deck: PerformanceEngine.Deck, atSample: Int64) {
+    public func setCue(_ deck: Deck, atSample: Int64) {
         engine.setCue(deck, atSample: atSample)
     }
 
-    public func triggerHotCue(_ deck: PerformanceEngine.Deck, atSample: Int64) {
+    public func triggerHotCue(_ deck: Deck, atSample: Int64) {
         engine.triggerHotCue(deck, atSample: atSample)
     }
 
-    public func setLoop(_ deck: PerformanceEngine.Deck, beats: Double) {
+    public func setLoop(_ deck: Deck, beats: Double) {
         engine.setLoop(deck, beats: beats)
     }
 
-    public func exitLoop(_ deck: PerformanceEngine.Deck) {
+    public func exitLoop(_ deck: Deck) {
         engine.exitLoop(deck)
     }
 
@@ -1071,15 +1068,15 @@ public final class WorkspaceModel: ObservableObject {
         engine.setQuantize(on, resolution: resolution)
     }
 
-    public func setRate(_ deck: PerformanceEngine.Deck, rate: Float) {
+    public func setRate(_ deck: Deck, rate: Float) {
         engine.setRate(deck, rate: rate)
     }
 
-    public func setKeyLock(_ deck: PerformanceEngine.Deck, locked: Bool) {
+    public func setKeyLock(_ deck: Deck, locked: Bool) {
         engine.setKeyLock(deck, locked: locked)
     }
 
-    public func setKeyShift(_ deck: PerformanceEngine.Deck, semitones: Float) {
+    public func setKeyShift(_ deck: Deck, semitones: Float) {
         engine.setKeyShift(deck, semitones: semitones)
     }
 
@@ -1230,21 +1227,21 @@ public final class WorkspaceModel: ObservableObject {
         gestures[key] = (entry.origin, entry.touched, true)
     }
 
-    private func deckID(_ deck: PerformanceEngine.Deck) -> String {
+    private func deckID(_ deck: Deck) -> String {
         deck == .a ? "a" : "b"
     }
 
-    /// `PerformanceEngine.Deck` → the MIDI vocabulary's `EngineAction.DeckID`
+    /// `Deck` → the MIDI vocabulary's `EngineAction.DeckID`
     /// (same two decks, two type systems; M2's pickup resets need the action
     /// type).
-    private func midiDeckID(_ deck: PerformanceEngine.Deck) -> EngineAction.DeckID {
+    private func midiDeckID(_ deck: Deck) -> EngineAction.DeckID {
         deck == .a ? .a : .b
     }
 
     /// The Bass Swap (§26A.3, transition 1): one deck's low band is killed
     /// while the other's low is already killed — the low end changes hands and
     /// the mids stay put. The `outgoing` deck is the one whose low falls.
-    private func detectBassSwap(deck: PerformanceEngine.Deck, newLow: Float) {
+    private func detectBassSwap(deck: Deck, newLow: Float) {
         let key = "eq.low.\(deckID(deck))"
         let previous = gestureOrigin(key, current: deck == .a ? eqALow : eqBLow)
         let other = deck == .a ? eqBLow : eqALow
@@ -1265,7 +1262,7 @@ public final class WorkspaceModel: ObservableObject {
     /// *state* (the filter was engaged, now it is in the bypass region) rather
     /// than a crossing threshold, because a real sweep's last step can land
     /// anywhere in the bypass band.
-    private func detectFilter(deck: PerformanceEngine.Deck, newKnob: Float) {
+    private func detectFilter(deck: Deck, newKnob: Float) {
         let engaged = deck == .a ? filterEngagedA : filterEngagedB
         // Mark the sweep where it **starts** — the knob leaving the bypass band
         // is the moment the DJ began moving it, and a filter transition is the
@@ -1295,7 +1292,7 @@ public final class WorkspaceModel: ObservableObject {
 
     private var filterEngagedA = false
     private var filterEngagedB = false
-    private func setFilterEngaged(_ value: Bool, for deck: PerformanceEngine.Deck) {
+    private func setFilterEngaged(_ value: Bool, for deck: Deck) {
         switch deck {
         case .a: filterEngagedA = value
         case .b: filterEngagedB = value
@@ -1305,7 +1302,7 @@ public final class WorkspaceModel: ObservableObject {
     /// The Fader Cut (transition 4) vs Echo Out (transition 3): a channel
     /// fader dropped to the floor is an Echo Out when that deck's §35A echo is
     /// running (the tail is post-fader and keeps ringing), else a plain cut.
-    private func detectChannelFader(deck: PerformanceEngine.Deck, newGain: Float) {
+    private func detectChannelFader(deck: Deck, newGain: Float) {
         let key = "fader.\(deckID(deck))"
         let previous = gestureOrigin(key, current: deck == .a ? channelA : channelB)
         guard !gestureHasFired(key), previous >= 0.5, newGain <= 0.05 else { return }
@@ -1373,22 +1370,22 @@ public final class WorkspaceModel: ObservableObject {
 
     // MARK: - Sync (§32)
 
-    public func sync(_ deck: PerformanceEngine.Deck, to master: PerformanceEngine.Deck,
+    public func sync(_ deck: Deck, to master: Deck,
                      barSync: Bool = false) {
         engine.sync(deck, to: master, barSync: barSync)
     }
 
-    public func unsync(_ deck: PerformanceEngine.Deck) {
+    public func unsync(_ deck: Deck) {
         engine.unsync(deck)
     }
 
-    public func isSynced(_ deck: PerformanceEngine.Deck) -> Bool {
+    public func isSynced(_ deck: Deck) -> Bool {
         engine.isSynced(deck)
     }
 
     // MARK: - Mixer (§35)
 
-    public func setEQKnobs(_ deck: PerformanceEngine.Deck, low: Float, mid: Float, high: Float) {
+    public func setEQKnobs(_ deck: Deck, low: Float, mid: Float, high: Float) {
         detectBassSwap(deck: deck, newLow: low)
         engine.setEQKnobs(deck, low: low, mid: mid, high: high)
         switch deck {
@@ -1403,7 +1400,7 @@ public final class WorkspaceModel: ObservableObject {
         resetMidiPickup(for: .eq(deck: id, band: .high))
     }
 
-    public func setFilter(_ deck: PerformanceEngine.Deck, knob: Float) {
+    public func setFilter(_ deck: Deck, knob: Float) {
         detectFilter(deck: deck, newKnob: knob)
         engine.setFilter(deck, knob: knob)
         switch deck {
@@ -1413,7 +1410,7 @@ public final class WorkspaceModel: ObservableObject {
         resetMidiPickup(for: .filter(deck: midiDeckID(deck)))
     }
 
-    public func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float) {
+    public func setChannelFader(_ deck: Deck, gain: Float) {
         detectChannelFader(deck: deck, newGain: gain)
         engine.setChannelFader(deck, gain: gain)
         switch deck {
@@ -1691,7 +1688,7 @@ public final class WorkspaceModel: ObservableObject {
         }
     }
 
-    private func engineDeck(_ deck: EngineAction.DeckID) -> PerformanceEngine.Deck {
+    private func engineDeck(_ deck: EngineAction.DeckID) -> Deck {
         deck == .a ? .a : .b
     }
 
@@ -1708,7 +1705,7 @@ public final class WorkspaceModel: ObservableObject {
     /// Accumulate a relative-encoder delta into the deck's jog bend (clamped
     /// to the ring's ±16 % ceiling) and push it through the shared transport.
     /// An idle timer releases the bend; a controller never says "I stopped".
-    private func midiJogNudge(_ deck: PerformanceEngine.Deck, delta: Double) {
+    private func midiJogNudge(_ deck: Deck, delta: Double) {
         midiJogReleaseTasks[deck]?.cancel()
         let next = min(max((midiJogBend[deck] ?? 0) + delta,
                            -JogGestureModel.maxBendRate), JogGestureModel.maxBendRate)
@@ -1724,7 +1721,7 @@ public final class WorkspaceModel: ObservableObject {
     /// The encoder went quiet. If the platter is still held, only the bend is
     /// restored — the hold (and the deck paused behind it) survives; otherwise
     /// the transport fully releases.
-    private func midiJogRelease(_ deck: PerformanceEngine.Deck) {
+    private func midiJogRelease(_ deck: Deck) {
         midiJogBend[deck] = 0
         guard midiJogHeld[deck] != true else {
             jogTransport(for: deck).restoreBend()
@@ -1734,13 +1731,13 @@ public final class WorkspaceModel: ObservableObject {
         jogTransport(for: deck).route(.release)
     }
 
-    private func midiJogTouchHold(_ deck: PerformanceEngine.Deck) {
+    private func midiJogTouchHold(_ deck: Deck) {
         midiJogHeld[deck] = true
         midiJogRadians[deck] = 0
         jogTransport(for: deck).route(.hold)
     }
 
-    private func midiJogTouchRelease(_ deck: PerformanceEngine.Deck) {
+    private func midiJogTouchRelease(_ deck: Deck) {
         midiJogHeld[deck] = false
         midiJogRadians[deck] = nil
         midiJogReleaseTasks[deck]?.cancel()
@@ -1757,19 +1754,19 @@ public final class WorkspaceModel: ObservableObject {
     /// incoming deck for a whole transition, and switching modes must not
     /// silently disarm it.
     @Published public private(set) var cueMode: CueMode = .off
-    @Published public private(set) var cuedDecks: Set<PerformanceEngine.Deck> = []
+    @Published public private(set) var cuedDecks: Set<Deck> = []
 
     /// The channels the current output route offers, so a mode that cannot be
     /// delivered is refused rather than approximated (§44.2a). Two until a
     /// route says otherwise.
     @Published public private(set) var outputChannelCount: Int = 2
 
-    public func isCued(_ deck: PerformanceEngine.Deck) -> Bool { cuedDecks.contains(deck) }
+    public func isCued(_ deck: Deck) -> Bool { cuedDecks.contains(deck) }
 
     /// Toggle a deck's pre-listen. Engaging cue on a deck while the mode is
     /// `.off` also selects a usable mode — otherwise the button does nothing
     /// visible and the user concludes cue is broken.
-    public func toggleCue(_ deck: PerformanceEngine.Deck) {
+    public func toggleCue(_ deck: Deck) {
         let enabled = !cuedDecks.contains(deck)
         if enabled {
             cuedDecks.insert(deck)
@@ -1819,29 +1816,29 @@ public final class WorkspaceModel: ObservableObject {
     // MARK: - Beat FX — the §35A post-fader echo (FR-TRANS-4, plan 5.5)
 
     /// Whether a deck's echo is currently on.
-    public func echoEnabled(_ deck: PerformanceEngine.Deck) -> Bool {
+    public func echoEnabled(_ deck: Deck) -> Bool {
         deck == .a ? echoEnabledA : echoEnabledB
     }
 
     /// A deck's echo beat length (1/4 … 4, §35A.2).
-    public func echoBeats(_ deck: PerformanceEngine.Deck) -> Double {
+    public func echoBeats(_ deck: Deck) -> Double {
         deck == .a ? echoBeatsA : echoBeatsB
     }
 
     /// A deck's echo wet depth (0…1, §35A.2).
-    public func echoDepth(_ deck: PerformanceEngine.Deck) -> Float {
+    public func echoDepth(_ deck: Deck) -> Float {
         deck == .a ? echoDepthA : echoDepthB
     }
 
     /// A deck's echo feedback — tail length, 0…0.85 (clamped below unity).
-    public func echoFeedback(_ deck: PerformanceEngine.Deck) -> Float {
+    public func echoFeedback(_ deck: Deck) -> Float {
         deck == .a ? echoFeedbackA : echoFeedbackB
     }
 
     /// Turn a deck's echo on/off. Disabling stops new input to the line but
     /// the tail keeps ringing until it decays, then bypasses (§35A.2) — this
     /// is what makes Echo Out an exit rather than a cut (FR-TRANS-4).
-    public func setEchoEnabled(_ deck: PerformanceEngine.Deck, enabled: Bool) {
+    public func setEchoEnabled(_ deck: Deck, enabled: Bool) {
         engine.setEchoEnabled(deck, enabled: enabled)
         switch deck {
         case .a: echoEnabledA = enabled
@@ -1852,7 +1849,7 @@ public final class WorkspaceModel: ObservableObject {
     /// Set a deck's echo beat length, clamped into the §35A.2 range (1/4 … 4).
     /// The delay is derived from the master clock, so a tempo change moves the
     /// echo with it.
-    public func setEchoBeats(_ deck: PerformanceEngine.Deck, beats: Double) {
+    public func setEchoBeats(_ deck: Deck, beats: Double) {
         let clamped = min(BeatEcho.maxBeats, max(BeatEcho.minBeats, beats))
         engine.setEchoBeats(deck, beats: clamped)
         switch deck {
@@ -1862,7 +1859,7 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     /// Set a deck's echo wet depth, clamped into 0…1.
-    public func setEchoDepth(_ deck: PerformanceEngine.Deck, depth: Float) {
+    public func setEchoDepth(_ deck: Deck, depth: Float) {
         let clamped = min(BeatEcho.maxDepth, max(0, depth))
         engine.setEchoDepth(deck, depth: clamped)
         switch deck {
@@ -1873,7 +1870,7 @@ public final class WorkspaceModel: ObservableObject {
 
     /// Set a deck's echo feedback, clamped into 0…0.85 — always below unity so
     /// the tail always decays (§35A.2).
-    public func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float) {
+    public func setEchoFeedback(_ deck: Deck, feedback: Float) {
         let clamped = min(BeatEcho.maxFeedback, max(BeatEcho.minFeedback, feedback))
         engine.setEchoFeedback(deck, feedback: clamped)
         switch deck {
@@ -1886,7 +1883,7 @@ public final class WorkspaceModel: ObservableObject {
 
     /// A deck's tempo-fader position: the signed fraction off unity in
     /// `ClubGeometry.tempoFaderRange`.
-    public func tempo(_ deck: PerformanceEngine.Deck) -> Double {
+    public func tempo(_ deck: Deck) -> Double {
         deck == .a ? tempoA : tempoB
     }
 
@@ -1894,7 +1891,7 @@ public final class WorkspaceModel: ObservableObject {
     /// rate directly (`rate = 1 + fraction`), clamped to the ±8% range. A
     /// synced deck's continuous rate tracking may override it, exactly as a
     /// pitch fader on club gear overrides sync while it is moved.
-    public func setTempo(_ deck: PerformanceEngine.Deck, fraction: Double) {
+    public func setTempo(_ deck: Deck, fraction: Double) {
         let clamped = min(ClubGeometry.tempoFaderRange.upperBound,
                           max(ClubGeometry.tempoFaderRange.lowerBound, fraction))
         switch deck {
@@ -1937,7 +1934,7 @@ public final class WorkspaceModel: ObservableObject {
     /// The deck in focus on the compact solo-deck surface. The swap is a
     /// view-only change: both decks stay live in the engine and swapping or
     /// rotating changes no engine state (FR-ENG-10, §42.1).
-    @Published public var focusedDeck: PerformanceEngine.Deck = .a
+    @Published public var focusedDeck: Deck = .a
 
     /// Swap which deck the compact surface focuses. View-only — no engine
     /// call is made, telemetry is untouched, both decks remain live (§42.1).
@@ -2084,10 +2081,10 @@ public final class WorkspaceModel: ObservableObject {
     /// nothing else (FR-ENG-12, AT-TWIN-2).
     public enum DrawerState: Equatable, Sendable {
         case idle
-        case spring(deck: PerformanceEngine.Deck, bank: TwinBank)
-        case pinned(deck: PerformanceEngine.Deck, bank: TwinBank)
+        case spring(deck: Deck, bank: TwinBank)
+        case pinned(deck: Deck, bank: TwinBank)
 
-        public var deck: PerformanceEngine.Deck? {
+        public var deck: Deck? {
             switch self {
             case .idle: return nil
             case .spring(let deck, _): return deck
@@ -2116,14 +2113,14 @@ public final class WorkspaceModel: ObservableObject {
 
     /// The bank a deck's tab springs to and pins with (§42.7b). Defaults to
     /// `EQ`; the remembered selection survives a rotate and a dismiss.
-    public func selectedBank(_ deck: PerformanceEngine.Deck) -> TwinBank {
+    public func selectedBank(_ deck: Deck) -> TwinBank {
         bankByDeck[deck] ?? .eq
     }
 
     /// Spring the drawer open over a deck's jog + transport (§42.7b). Called
     /// on the bank tab's touch-down; the drawer stays up exactly as long as
     /// the thumb holds it.
-    public func springDrawer(deck: PerformanceEngine.Deck) {
+    public func springDrawer(deck: Deck) {
         drawerIdleTask?.cancel()
         drawerState = .spring(deck: deck, bank: selectedBank(deck))
     }
@@ -2222,7 +2219,7 @@ public final class WorkspaceModel: ObservableObject {
     /// the opposite deck — the crossfader, both waveforms, the beat-phase
     /// meter and the opposite jog stay live and hit-testable (FR-ENG-12,
     /// AT-TWIN-2).
-    public static func drawerXRange(deck: PerformanceEngine.Deck) -> Range<CGFloat> {
+    public static func drawerXRange(deck: Deck) -> Range<CGFloat> {
         switch deck {
         case .a:
             let start = TwinGeometry.outerMargin
@@ -2341,7 +2338,7 @@ public final class WorkspaceModel: ObservableObject {
 
     /// The module slot a deck currently occupies — the remembered selection,
     /// `STEMS` by default (§41.9a).
-    public func moduleSlot(_ deck: PerformanceEngine.Deck) -> DeckModuleSlot {
+    public func moduleSlot(_ deck: Deck) -> DeckModuleSlot {
         deck == .a ? moduleSlotA : moduleSlotB
     }
 
@@ -2350,7 +2347,7 @@ public final class WorkspaceModel: ObservableObject {
     /// module changes no engine state — the decks keep playing, the mixer and
     /// transport stay live, and only the deck's own lower third re-renders
     /// (AT-TWIN-2).
-    public func setModuleSlot(_ slot: DeckModuleSlot, deck: PerformanceEngine.Deck) {
+    public func setModuleSlot(_ slot: DeckModuleSlot, deck: Deck) {
         switch deck {
         case .a: moduleSlotA = slot
         case .b: moduleSlotB = slot
@@ -2361,13 +2358,13 @@ public final class WorkspaceModel: ObservableObject {
 
     /// The deck's jog platter action (§41.9a): vinyl = scratch, CDJ = nudge.
     /// Remembered per deck, defaulting to vinyl.
-    public func jogMode(_ deck: PerformanceEngine.Deck) -> JogGestureModel.JogMode {
+    public func jogMode(_ deck: Deck) -> JogGestureModel.JogMode {
         deck == .a ? jogModeA : jogModeB
     }
 
     /// Set the deck's jog platter action. Remembered per deck. **View-only** —
     /// it changes the jog's gesture model, never the engine (FR-ENG-11).
-    public func setJogMode(_ mode: JogGestureModel.JogMode, deck: PerformanceEngine.Deck) {
+    public func setJogMode(_ mode: JogGestureModel.JogMode, deck: Deck) {
         switch deck {
         case .a: jogModeA = mode
         case .b: jogModeB = mode
@@ -2377,14 +2374,14 @@ public final class WorkspaceModel: ObservableObject {
     }
 
     /// The deck's jog sensitivity, 0.5–2.0 (§40.7.4).
-    public func jogSensitivity(_ deck: PerformanceEngine.Deck) -> Double {
+    public func jogSensitivity(_ deck: Deck) -> Double {
         deck == .a ? jogSensitivityA : jogSensitivityB
     }
 
     /// Set the deck's jog sensitivity, clamped into the §40.7.4 range. **View-
     /// only** — sensitivity scales the jog gesture's displacement; it never
     /// reaches the engine.
-    public func setJogSensitivity(_ deck: PerformanceEngine.Deck, value: Double) {
+    public func setJogSensitivity(_ deck: Deck, value: Double) {
         let clamped = JogGestureModel.clampSensitivity(value)
         switch deck {
         case .a: jogSensitivityA = clamped
@@ -2392,26 +2389,26 @@ public final class WorkspaceModel: ObservableObject {
         }
     }
 
-    private static func deckName(_ deck: PerformanceEngine.Deck) -> String {
+    private static func deckName(_ deck: Deck) -> String {
         deck == .a ? "a" : "b"
     }
 
-    private static func moduleSlotKey(_ deck: PerformanceEngine.Deck) -> String {
+    private static func moduleSlotKey(_ deck: Deck) -> String {
         moduleSlotDefaultsPrefix + deckName(deck)
     }
 
-    private static func jogModeKey(_ deck: PerformanceEngine.Deck) -> String {
+    private static func jogModeKey(_ deck: Deck) -> String {
         jogModeDefaultsPrefix + deckName(deck)
     }
 
     private static func readModuleSlot(defaults: UserDefaults,
-                                       deck: PerformanceEngine.Deck) -> DeckModuleSlot {
+                                       deck: Deck) -> DeckModuleSlot {
         let raw = defaults.string(forKey: moduleSlotKey(deck)) ?? ""
         return DeckModuleSlot(rawValue: raw) ?? .stems
     }
 
     private static func readJogMode(defaults: UserDefaults,
-                                    deck: PerformanceEngine.Deck) -> JogGestureModel.JogMode {
+                                    deck: Deck) -> JogGestureModel.JogMode {
         defaults.string(forKey: jogModeKey(deck)) == "cdj" ? .cdj : .vinyl
     }
 

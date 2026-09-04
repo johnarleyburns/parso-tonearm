@@ -240,20 +240,14 @@ final class JogGestureModelTests: XCTestCase {
     }
 
     // MARK: - AT-TWIN-4: no jog code on the render thread (§46.3)
-
-    func testJogTransportIsGuardedByTheRTSafeShim() {
-        XCTAssertFalse(RTGuard.isInRenderContext)
-        XCTAssertNil(RTGuard.checkRTSafe(JogTransport.guardMessage),
-                     "outside a render the jog path is safe")
-        let violation = RTGuard.withRenderContext {
-            RTGuard.checkRTSafe(JogTransport.guardMessage)
-        }
-        XCTAssertEqual(violation, JogTransport.guardMessage,
-                       "AT-TWIN-4: if a jog callback ever ran on the render thread "
-                       + "the §46.3 shim flags it — the offline harness wraps every "
-                       + "render in withRenderContext")
-        XCTAssertFalse(RTGuard.isInRenderContext, "the flag is restored after the context")
-    }
+    //
+    // Phase 6d deleted `RTGuard` along with the GPLv3 render callback it
+    // guarded against (`parso-audio-engine/docs/phase6-parity.md`, "6d
+    // backlog" / the `RTGuard` parity row): PAE's render path is C++,
+    // allocation-free by construction, and never calls back into
+    // `JogTransport`, so the reentrancy this test used to assert against
+    // cannot happen post-cutover. Nothing to pin here any more; PAE's own
+    // RT-stability acceptance suite (`ParsoDJEngineTests`) is the check.
 
     // MARK: - FR-ENG-11: the jog reaches the engine only via transport intents
 
@@ -401,53 +395,53 @@ private final class JogFakeEngine: WorkspaceEngine {
     var bufferPeriodMillis: Double = 85.3
     var limiterCeiling: Float?
     var sampleRate: Double = 48_000
-    var rates: [PerformanceEngine.Deck: Double] = [.a: 1.0, .b: 1.0]
+    var rates: [Deck: Double] = [.a: 1.0, .b: 1.0]
 
-    private(set) var played: [PerformanceEngine.Deck] = []
-    private(set) var paused: [PerformanceEngine.Deck] = []
-    private(set) var seeks: [(deck: PerformanceEngine.Deck, sample: Int64, quantized: Bool)] = []
-    private(set) var rateCommands: [(deck: PerformanceEngine.Deck, rate: Double)] = []
+    private(set) var played: [Deck] = []
+    private(set) var paused: [Deck] = []
+    private(set) var seeks: [(deck: Deck, sample: Int64, quantized: Bool)] = []
+    private(set) var rateCommands: [(deck: Deck, rate: Double)] = []
 
     func start() throws {}
     func stop() {}
-    func load(_ deck: PerformanceEngine.Deck, source: DeckSource) {}
-    func play(_ deck: PerformanceEngine.Deck) { played.append(deck) }
-    func pause(_ deck: PerformanceEngine.Deck) { paused.append(deck) }
-    func cue(_ deck: PerformanceEngine.Deck) {}
-    func releaseCue(_ deck: PerformanceEngine.Deck) {}
-    func seek(_ deck: PerformanceEngine.Deck, toSample: Int64, quantized: Bool) {
+    func load(_ deck: Deck, source: DeckSource) {}
+    func play(_ deck: Deck) { played.append(deck) }
+    func pause(_ deck: Deck) { paused.append(deck) }
+    func cue(_ deck: Deck) {}
+    func releaseCue(_ deck: Deck) {}
+    func seek(_ deck: Deck, toSample: Int64, quantized: Bool) {
         seeks.append((deck, toSample, quantized))
     }
-    func setCue(_ deck: PerformanceEngine.Deck, atSample: Int64) {}
-    func triggerHotCue(_ deck: PerformanceEngine.Deck, atSample: Int64) {}
-    func setLoopRange(_ deck: PerformanceEngine.Deck, start: Int64, end: Int64) {}
-    func setLoop(_ deck: PerformanceEngine.Deck, beats: Double) {}
-    func exitLoop(_ deck: PerformanceEngine.Deck) {}
+    func setCue(_ deck: Deck, atSample: Int64) {}
+    func triggerHotCue(_ deck: Deck, atSample: Int64) {}
+    func setLoopRange(_ deck: Deck, start: Int64, end: Int64) {}
+    func setLoop(_ deck: Deck, beats: Double) {}
+    func exitLoop(_ deck: Deck) {}
     func setQuantize(_ on: Bool, resolution: QuantizeResolution) {}
-    func setRate(_ deck: PerformanceEngine.Deck, rate: Float) { rateCommands.append((deck, Double(rate))) }
-    func setKeyLock(_ deck: PerformanceEngine.Deck, locked: Bool) {}
-    func setKeyShift(_ deck: PerformanceEngine.Deck, semitones: Float) {}
-    func sync(_ deck: PerformanceEngine.Deck, to master: PerformanceEngine.Deck, barSync: Bool) {}
-    func unsync(_ deck: PerformanceEngine.Deck) {}
-    func isSynced(_ deck: PerformanceEngine.Deck) -> Bool { false }
-    func setEQKnobs(_ deck: PerformanceEngine.Deck, low: Float, mid: Float, high: Float) {}
-    func setFilter(_ deck: PerformanceEngine.Deck, knob: Float) {}
-    func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float) {}
+    func setRate(_ deck: Deck, rate: Float) { rateCommands.append((deck, Double(rate))) }
+    func setKeyLock(_ deck: Deck, locked: Bool) {}
+    func setKeyShift(_ deck: Deck, semitones: Float) {}
+    func sync(_ deck: Deck, to master: Deck, barSync: Bool) {}
+    func unsync(_ deck: Deck) {}
+    func isSynced(_ deck: Deck) -> Bool { false }
+    func setEQKnobs(_ deck: Deck, low: Float, mid: Float, high: Float) {}
+    func setFilter(_ deck: Deck, knob: Float) {}
+    func setChannelFader(_ deck: Deck, gain: Float) {}
     func setCrossfader(_ position: Float, curve: CrossfaderCurve) {}
-    func setEchoEnabled(_ deck: PerformanceEngine.Deck, enabled: Bool) {}
-    func setEchoBeats(_ deck: PerformanceEngine.Deck, beats: Double) {}
-    func setEchoDepth(_ deck: PerformanceEngine.Deck, depth: Float) {}
-    func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float) {}
-    func armStemSet(_ deck: PerformanceEngine.Deck, stemSet: StemSet?) {}
-    func setStemGain(_ deck: PerformanceEngine.Deck, stem: StemKind, gain: Float) {}
-    func setStemMute(_ deck: PerformanceEngine.Deck, stem: StemKind, muted: Bool) {}
-    func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool) {}
+    func setEchoEnabled(_ deck: Deck, enabled: Bool) {}
+    func setEchoBeats(_ deck: Deck, beats: Double) {}
+    func setEchoDepth(_ deck: Deck, depth: Float) {}
+    func setEchoFeedback(_ deck: Deck, feedback: Float) {}
+    func armStemSet(_ deck: Deck, stemSet: StemSet?) {}
+    func setStemGain(_ deck: Deck, stem: StemKind, gain: Float) {}
+    func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool) {}
+    func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool) {}
     func startRecording() async throws -> URL { FileManager.default.temporaryDirectory }
     func stopRecording() async throws -> RecordingEncoder.RecordingOutput? { nil }
     var isRecording: Bool { false }
     func interruptRecordingForInterruption() async throws {}
     func resumeRecordingFromInterruption() async throws {}
-    func deckRate(_ deck: PerformanceEngine.Deck) -> Double { rates[deck] ?? 1.0 }
+    func deckRate(_ deck: Deck) -> Double { rates[deck] ?? 1.0 }
     func sampleTelemetry() -> EngineTelemetry { current }
     func pushTelemetry() { stream.push(current) }
 }

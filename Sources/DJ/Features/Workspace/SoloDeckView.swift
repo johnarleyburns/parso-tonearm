@@ -305,7 +305,7 @@ private func clampUnit(_ value: CGFloat) -> CGFloat {
 /// intents reach the transport only through `JogTransport`.
 private struct SoloDeckColumnView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
     let isMaster: Bool
 
     @State private var bank: SoloBank = .stems
@@ -677,7 +677,7 @@ private struct GainVerticalSlider: View {
 /// A tap or a swipe up swaps focus — a view-only change, both decks stay live.
 private struct SoloStripView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
 
     private var telemetryDeck: EngineTelemetry.Deck {
         deck == .a ? model.telemetry.deckA : model.telemetry.deckB
@@ -823,7 +823,7 @@ struct QueueSourcePicker: View, Equatable {
 private struct LegacyCrateSheetView: View {
     @ObservedObject var model: WorkspaceModel
 
-    private var deck: PerformanceEngine.Deck { model.focusedDeck }
+    private var deck: Deck { model.focusedDeck }
     private var queue: DeckQueue { model.queue(for: deck) }
     private var loadState: DeckLoadState { model.loadState(for: deck) }
 

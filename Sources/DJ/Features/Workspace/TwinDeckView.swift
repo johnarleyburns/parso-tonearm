@@ -156,7 +156,7 @@ public struct TwinDeckView: View {
     /// §42.7a canvas) coordinate space: the 59 pt dead band, then the §42.7a
     /// 30 pt outer margin, then the 228 pt column.
     private func drawerPosition(in proxy: GeometryProxy,
-                                deck: PerformanceEngine.Deck) -> CGPoint {
+                                deck: Deck) -> CGPoint {
         let width = WorkspaceModel.DrawerGeometry.width
         let x: CGFloat
         switch deck {
@@ -307,7 +307,7 @@ public struct TwinDeckView: View {
 /// sits at the left thumb, deck B's at the right), with the bank tab below.
 private struct TwinDeckColumnView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
     let transportFirst: Bool
     let onJogIntent: (JogGestureModel.Intent) -> Void
 
@@ -387,7 +387,7 @@ private struct TwinDeckColumnView: View {
 /// already-pinned bank toggles it off.
 private struct BankTabButton: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
 
     @State private var pressStart: Date?
     @State private var dismissedPinned = false
@@ -459,7 +459,7 @@ private struct StackedWaveformView: View {
         .frame(height: 90)
     }
 
-    private func waveRow(deck: PerformanceEngine.Deck) -> some View {
+    private func waveRow(deck: Deck) -> some View {
         let waveform = model.waveform(for: deck)
         let grid = waveform?.grid
         let playhead = deck == .a ? model.telemetry.deckA.playheadSample
@@ -501,7 +501,7 @@ private struct StackedWaveformView: View {
 /// decision) — the identity row carries the honest deck placeholder.
 private struct DeckIdentityView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
     let alignsTrailing: Bool
 
     private var telemetryDeck: EngineTelemetry.Deck {

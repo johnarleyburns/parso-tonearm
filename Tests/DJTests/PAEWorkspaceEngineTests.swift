@@ -68,6 +68,21 @@ final class PAEWorkspaceEngineTests: XCTestCase {
         XCTAssertEqual(analysis.tempo.downbeatPositions.first ?? -1, 0, accuracy: 1e-6)
     }
 
+    /// Tonearm's `StemKind` and PAE's `ParsoDJEngine.StemKind` are bridged by
+    /// `rawValue` string, not a switch (`armStemSet`/`setStemGain`/…) — a
+    /// rename on either side would silently drop a voice. Pin the round-trip
+    /// for all four cases (Phase 6d, `parso-audio-engine/docs/phase6-parity.md`,
+    /// "6c — carried into 6d" item 5).
+    func testStemKindRawValueRoundTripsWithPAE() {
+        for kind in TonearmDJ.StemKind.allCases {
+            let mapped = ParsoDJEngine.StemKind(rawValue: kind.rawValue)
+            XCTAssertNotNil(mapped, "Tonearm's \(kind) must map onto a PAE StemKind by rawValue")
+            XCTAssertEqual(mapped?.rawValue, kind.rawValue)
+        }
+        XCTAssertEqual(TonearmDJ.StemKind.allCases.count, ParsoDJEngine.StemKind.allCases.count,
+                       "both sides must enumerate exactly the same four voices")
+    }
+
     func testTelemetrySnapshotIsFinite() {
         let engine = PAEWorkspaceEngine()
         let t = engine.sampleTelemetry()

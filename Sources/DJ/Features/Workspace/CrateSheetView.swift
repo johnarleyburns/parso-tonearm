@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CrateSheetView: View {
     @ObservedObject var model: WorkspaceModel
-    @State private var pickingDeck: PerformanceEngine.Deck?
+    @State private var pickingDeck: Deck?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,7 +26,7 @@ struct CrateSheetView: View {
         }
     }
 
-    private func deckHalf(_ deck: PerformanceEngine.Deck) -> some View {
+    private func deckHalf(_ deck: Deck) -> some View {
         let imported = model.importedCrate(for: deck)
         let code = deck == .a ? "a" : "b"
         return VStack(alignment: .leading, spacing: 8) {
@@ -62,7 +62,7 @@ struct CrateSheetView: View {
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    private func crateRow(_ row: DeckQueueRow, deck: PerformanceEngine.Deck) -> some View {
+    private func crateRow(_ row: DeckQueueRow, deck: Deck) -> some View {
         Button {
             guard row.readiness.isReady else { return }
             Task { await model.loadAndPlay(deck, trackID: row.trackID) }
@@ -83,7 +83,7 @@ struct CrateSheetView: View {
 
 private struct CratePlaylistPickerView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
     let close: () -> Void
     @State private var playlists: [CratePlaylistSummary] = []
     @State private var tracks: [Int64: [CrateTrackSummary]] = [:]

@@ -21,7 +21,7 @@ import SwiftUI
 /// mode readout that compensates for iPad's lack of a Taptic Engine.
 public struct JogView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
     let onIntent: (JogGestureModel.Intent) -> Void
     let mode: JogGestureModel.JogMode
     let sensitivity: Double
@@ -30,7 +30,7 @@ public struct JogView: View {
     @State private var gesture = JogGestureModel()
     @State private var detents = JogDetentDriver()
 
-    public init(model: WorkspaceModel, deck: PerformanceEngine.Deck,
+    public init(model: WorkspaceModel, deck: Deck,
                 onIntent: @escaping (JogGestureModel.Intent) -> Void,
                 mode: JogGestureModel.JogMode = .vinyl,
                 sensitivity: Double = 1.0,

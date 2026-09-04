@@ -89,24 +89,13 @@ public enum DJWorkspaceAssembly {
         }
         // The master limiter is part of the shipped signal path (§35.5): two
         // decks blended hot sum past full scale, and without a ceiling that
-        // clips into the speakers *and* into the recording. The offline reader
-        // harness omits it to stay frame-exact — the app must not. 0.95 is
-        // `LookaheadLimiter`'s own default; 240 frames of lookahead is the
-        // value the §35.5 acceptance tests exercise.
-        // Phase 6c — `-D PAE_DJ_ENGINE` selects the PAE `ParsoDJEngine` renderer
-        // (`PAEWorkspaceEngine`) over Tonearm's GPLv3 `PerformanceEngine`. Both
-        // conform to `WorkspaceEngine`; nothing downstream changes.
-        #if PAE_DJ_ENGINE
+        // clips into the speakers *and* into the recording. `ParsoDJEngine`
+        // ships its own look-ahead brickwall limiter enabled by default
+        // (`Mixer.master.limiterEnabled == true`, `limiterCeilingDB == -0.3`).
+        // Phase 6d — the GPLv3 `PerformanceEngine` is deleted;
+        // `PAEWorkspaceEngine` over PAE's `ParsoDJEngine` is the only engine
+        // (`parso-audio-engine/docs/phase6-parity.md`, "6d backlog").
         let engine: WorkspaceEngine = PAEWorkspaceEngine(maxFramesPerRender: 128)
-        #else
-        guard let engine = try? PerformanceEngine(configuration: .init(maximumFrameCount: 128,
-                                                                       rendering: .realtime,
-                                                                       limiterCeiling: 0.95,
-                                                                       limiterLookaheadFrames: 240,
-                                                                       recordTapEnabled: true)) else {
-            return nil
-        }
-        #endif
         // The §37.3 journal (plan 5.11): writes the `mix`/`mix_asset` rows and
         // reconciles crashed recordings. `-uiRegression` is the hand-run DJ
         // suite's launch flag (dj-regression-suite hook 5.11) — only then does

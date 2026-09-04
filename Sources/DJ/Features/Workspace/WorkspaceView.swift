@@ -150,7 +150,7 @@ private struct WaveformRegion: View {
         }
     }
 
-    private func overviewColumn(deck: PerformanceEngine.Deck) -> some View {
+    private func overviewColumn(deck: Deck) -> some View {
         let waveform = model.waveform(for: deck)
         let playhead = deck == .a ? model.telemetry.deckA.playheadSample
                                   : model.telemetry.deckB.playheadSample
@@ -168,7 +168,7 @@ private struct WaveformRegion: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func detailRow(deck: PerformanceEngine.Deck) -> some View {
+    private func detailRow(deck: Deck) -> some View {
         let waveform = model.waveform(for: deck)
         let grid = waveform?.grid
         let playhead = deck == .a ? model.telemetry.deckA.playheadSample
@@ -208,7 +208,7 @@ private struct WaveformRegion: View {
 /// pattern; mockup `ipad/07` shows no queue panel in the deck column).
 private struct DeckColumnView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
     let isMaster: Bool
     let onJogIntent: (JogGestureModel.Intent) -> Void
 
@@ -366,7 +366,7 @@ private struct DeckColumnView: View {
 /// control column; the mode is shown inside the platter and toggled here.
 private struct TempoFader: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
 
     var body: some View {
         VStack(spacing: 4) {
@@ -485,7 +485,7 @@ private struct JogSensitivitySlider: View {
 /// the club-standard geometry (eight, under the selector, ≥ 44 pt).
 private struct PadBlock: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
 
     @State private var modeIndex = 0
 
@@ -543,7 +543,7 @@ private struct PadBlock: View {
 /// here auto-advances (§41.9c).
 struct DeckQueuePanel: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
 
     private var queue: DeckQueue { model.queue(for: deck) }
     private var loadState: DeckLoadState { model.loadState(for: deck) }
@@ -953,7 +953,7 @@ private struct MixerColumnView: View {
 private struct BeatFXBlock: View {
     @ObservedObject var model: WorkspaceModel
 
-    @State private var echoDeck: PerformanceEngine.Deck = .a
+    @State private var echoDeck: Deck = .a
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1024,7 +1024,7 @@ private struct BeatFXBlock: View {
     /// is sending.
     private var channelSelector: some View {
         HStack(spacing: 4) {
-            ForEach([PerformanceEngine.Deck.a, .b], id: \.self) { deck in
+            ForEach([Deck.a, .b], id: \.self) { deck in
                 Button {
                     echoDeck = deck
                 } label: {
@@ -1077,7 +1077,7 @@ private struct BeatFXBlock: View {
 /// §53.11 accessibility identifier.
 private struct ChannelStripView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
 
     private var name: String { deck == .a ? "a" : "b" }
 

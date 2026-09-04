@@ -9,7 +9,7 @@ import SwiftUI
 /// identifier between them would make a regression lane drive the wrong one.
 struct CueButton: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
     var height: CGFloat = 32
 
     private var isCued: Bool { model.isCued(deck) }

@@ -19,7 +19,7 @@ import SwiftUI
 ///   honestly unavailable until a later milestone (§35A.4).
 struct DeckModuleSlotView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
     let onJogIntent: (JogGestureModel.Intent) -> Void
 
     private var slot: WorkspaceModel.DeckModuleSlot { model.moduleSlot(deck) }
@@ -80,7 +80,7 @@ struct DeckModuleSlotView: View {
 /// the club column share the same jog module).
 struct JogModuleView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
     let onJogIntent: (JogGestureModel.Intent) -> Void
 
     var body: some View {
@@ -192,7 +192,7 @@ private struct BendButton: View {
 /// pads + transport).
 private struct StemsModuleView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
 
     private var status: DeckStemStatus { model.stemStatus(deck) }
     private var deckID: String { deck == .a ? "a" : "b" }
@@ -326,7 +326,7 @@ private struct PadsModuleView: View {
 /// (§35A.4, the stems convention).
 private struct FXModuleView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
 
     var body: some View {
         VStack(spacing: 6) {

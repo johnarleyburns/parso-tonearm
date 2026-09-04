@@ -17,7 +17,7 @@ import SwiftUI
 struct EchoReleaseToCommitButton: View {
     @ObservedObject var model: WorkspaceModel
     /// The channel the button's echo starts on; the flyout can switch it.
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
     /// Whether the flyout carries the A/B channel chips (the twin surface's
     /// button is shared between both channels; the solo's targets its focus).
     var showsChannelSelector = true
@@ -27,12 +27,12 @@ struct EchoReleaseToCommitButton: View {
     /// A press that wanders past this before the delay is a slide, not a hold.
     private let pressTolerance: CGFloat = 20
 
-    @State private var activeDeck: PerformanceEngine.Deck
+    @State private var activeDeck: Deck
     @State private var pressStart: Date?
     @State private var dragStart: CGPoint?
     @State private var flyoutOpen = false
 
-    init(model: WorkspaceModel, deck: PerformanceEngine.Deck,
+    init(model: WorkspaceModel, deck: Deck,
          showsChannelSelector: Bool = true) {
         self.model = model
         self.deck = deck
@@ -154,7 +154,7 @@ struct EchoReleaseToCommitButton: View {
 /// to what the user sees.
 private struct EchoFlyoutContent: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
     var showsChannelSelector = true
 
     var body: some View {
@@ -171,7 +171,7 @@ private struct EchoFlyoutContent: View {
                     if showsChannelSelector {
                         ForEach(0..<2, id: \.self) { index in
                             let frame = WorkspaceModel.EchoFlyout.channelChipFrame(index: index)
-                            let isActive = (index == 0 ? PerformanceEngine.Deck.a : .b) == deck
+                            let isActive = (index == 0 ? Deck.a : .b) == deck
                             Text(index == 0 ? "A" : "B")
                                 .font(.system(size: 10, weight: .bold))
                                 .frame(width: WorkspaceModel.EchoFlyout.channelChipWidth,

@@ -2,9 +2,15 @@ import Foundation
 
 /// The jog's only contact with the transport (FR-ENG-11, §40.7.7). Maps the
 /// four `JogGestureModel.Intent`s onto the `WorkspaceEngine` transport intents
-/// the engine already defines, and is guarded by `RTGuard.assertRTSafe` so a
-/// jog callback could never execute on the render thread under the §46.3 shim
-/// (AT-TWIN-4).
+/// the engine already defines.
+///
+/// Phase 6d: the Swift `RTGuard.assertRTSafe` call this used to open with is
+/// gone along with the GPLv3 render callback it guarded against — PAE's render
+/// path is C++, allocation-free by construction, and never calls back into
+/// this Swift control code, so the render-thread-reentrancy this guarded
+/// against cannot happen (`parso-audio-engine/docs/phase6-parity.md`, row on
+/// `RTGuard`). The invariant is now enforced by construction, not asserted
+/// here; PAE's own RT-stability acceptance suite is the check (AT-TWIN-4).
 ///
 /// The mapping is the honest one for the current engine surface:
 /// - `.hold` pauses a playing deck (touch = hold) and `.release` resumes it —
@@ -19,21 +25,17 @@ import Foundation
 /// share the same transport, or their `bendBaseRate` bookkeeping would fight.
 @MainActor
 final class JogTransport {
-    /// The §46.3 violation message carried by the jog's RT-safety guard.
-    static let guardMessage = "jog → transport"
-
     private let engine: any WorkspaceEngine
-    private let deck: PerformanceEngine.Deck
+    private let deck: Deck
     private var heldWasPlaying = false
     private var bendBaseRate: Double?
 
-    init(engine: any WorkspaceEngine, deck: PerformanceEngine.Deck) {
+    init(engine: any WorkspaceEngine, deck: Deck) {
         self.engine = engine
         self.deck = deck
     }
 
     func route(_ intent: JogGestureModel.Intent) {
-        RTGuard.assertRTSafe(Self.guardMessage)
         switch intent {
         case .hold:
             heldWasPlaying = telemetry(for: deck).playing
@@ -71,7 +73,7 @@ final class JogTransport {
         }
     }
 
-    private func telemetry(for deck: PerformanceEngine.Deck) -> EngineTelemetry.Deck {
+    private func telemetry(for deck: Deck) -> EngineTelemetry.Deck {
         let t = engine.sampleTelemetry()
         return deck == .a ? t.deckA : t.deckB
     }

@@ -15,7 +15,7 @@ import SwiftUI
 /// surface in a mode the user has forgotten about.
 struct BankDrawerView: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
 
     private var currentBank: WorkspaceModel.TwinBank {
         model.drawerState.bank ?? model.selectedBank(deck)
@@ -311,7 +311,7 @@ private struct EQKnobWithReadout: View {
     private var readout: String {
         if knob <= -0.95 { return "KILL" }
         if abs(knob) < 0.01 { return "0.0" }
-        return String(format: "%+.1f", 20 * log10(Double(ThreeBandEQ.knobToGain(knob))))
+        return String(format: "%+.1f", PAEWorkspaceEngine.eqKnobToDB(knob))
     }
 
     private var readoutColor: Color {
@@ -337,7 +337,7 @@ private struct EQKnobWithReadout: View {
 /// the beat-phase meter or the opposite deck (FR-ENG-12, AT-TWIN-2).
 struct LoopReleaseToCommitButton: View {
     @ObservedObject var model: WorkspaceModel
-    let deck: PerformanceEngine.Deck
+    let deck: Deck
 
     /// A press held past this opens the flyout; a shorter press is the tap.
     private let openDelay: TimeInterval = 0.30

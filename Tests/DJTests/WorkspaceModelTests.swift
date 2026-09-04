@@ -21,25 +21,25 @@ final class WorkspaceModelTests: XCTestCase {
 
         private(set) var started = false
         private(set) var stopped = false
-        private(set) var played: [PerformanceEngine.Deck] = []
-        private(set) var paused: [PerformanceEngine.Deck] = []
-        private(set) var synced: [(deck: PerformanceEngine.Deck,
-                                   master: PerformanceEngine.Deck,
+        private(set) var played: [Deck] = []
+        private(set) var paused: [Deck] = []
+        private(set) var synced: [(deck: Deck,
+                                   master: Deck,
                                    barSync: Bool)] = []
-        private(set) var unsynced: [PerformanceEngine.Deck] = []
-        private(set) var eqKnobs: [PerformanceEngine.Deck: (low: Float, mid: Float, high: Float)] = [:]
-        private var syncedState: [PerformanceEngine.Deck: Bool] = [:]
-        private(set) var rates: [PerformanceEngine.Deck: Double] = [:]
-        private(set) var rateCommands: [(deck: PerformanceEngine.Deck, rate: Double)] = []
-        private(set) var echoEnabled: [PerformanceEngine.Deck: Bool] = [:]
-        private(set) var echoBeats: [PerformanceEngine.Deck: Double] = [:]
-        private(set) var echoDepth: [PerformanceEngine.Deck: Float] = [:]
-        private(set) var echoFeedback: [PerformanceEngine.Deck: Float] = [:]
-        private(set) var armedStemSets: [PerformanceEngine.Deck: StemSet] = [:]
-        private(set) var disarmedStemSets: Set<PerformanceEngine.Deck> = []
-        private(set) var stemGains: [PerformanceEngine.Deck: [StemKind: Float]] = [:]
-        private(set) var stemMutes: [PerformanceEngine.Deck: Set<StemKind>] = [:]
-        private(set) var stemSolos: [PerformanceEngine.Deck: Set<StemKind>] = [:]
+        private(set) var unsynced: [Deck] = []
+        private(set) var eqKnobs: [Deck: (low: Float, mid: Float, high: Float)] = [:]
+        private var syncedState: [Deck: Bool] = [:]
+        private(set) var rates: [Deck: Double] = [:]
+        private(set) var rateCommands: [(deck: Deck, rate: Double)] = []
+        private(set) var echoEnabled: [Deck: Bool] = [:]
+        private(set) var echoBeats: [Deck: Double] = [:]
+        private(set) var echoDepth: [Deck: Float] = [:]
+        private(set) var echoFeedback: [Deck: Float] = [:]
+        private(set) var armedStemSets: [Deck: StemSet] = [:]
+        private(set) var disarmedStemSets: Set<Deck> = []
+        private(set) var stemGains: [Deck: [StemKind: Float]] = [:]
+        private(set) var stemMutes: [Deck: Set<StemKind>] = [:]
+        private(set) var stemSolos: [Deck: Set<StemKind>] = [:]
         private(set) var recordingStarts = 0
         private(set) var recordingStops = 0
         private(set) var interruptionFlushes = 0
@@ -50,64 +50,64 @@ final class WorkspaceModelTests: XCTestCase {
 
         func start() throws { started = true }
         func stop() { stopped = true }
-        private(set) var loadedDeck: PerformanceEngine.Deck?
+        private(set) var loadedDeck: Deck?
         private(set) var loadedSource: DeckSource?
-        func load(_ deck: PerformanceEngine.Deck, source: DeckSource) {
+        func load(_ deck: Deck, source: DeckSource) {
             loadedDeck = deck
             loadedSource = source
         }
-        func play(_ deck: PerformanceEngine.Deck) { played.append(deck) }
-        func pause(_ deck: PerformanceEngine.Deck) { paused.append(deck) }
-        func cue(_ deck: PerformanceEngine.Deck) {}
-        func releaseCue(_ deck: PerformanceEngine.Deck) {}
-        private(set) var seeks: [(deck: PerformanceEngine.Deck, sample: Int64, quantized: Bool)] = []
-        func seek(_ deck: PerformanceEngine.Deck, toSample: Int64, quantized: Bool) {
+        func play(_ deck: Deck) { played.append(deck) }
+        func pause(_ deck: Deck) { paused.append(deck) }
+        func cue(_ deck: Deck) {}
+        func releaseCue(_ deck: Deck) {}
+        private(set) var seeks: [(deck: Deck, sample: Int64, quantized: Bool)] = []
+        func seek(_ deck: Deck, toSample: Int64, quantized: Bool) {
             seeks.append((deck, toSample, quantized))
         }
-        func setCue(_ deck: PerformanceEngine.Deck, atSample: Int64) {}
-        func triggerHotCue(_ deck: PerformanceEngine.Deck, atSample: Int64) {}
-        func setLoopRange(_ deck: PerformanceEngine.Deck, start: Int64, end: Int64) {}
-        func setLoop(_ deck: PerformanceEngine.Deck, beats: Double) {}
-        func exitLoop(_ deck: PerformanceEngine.Deck) {}
+        func setCue(_ deck: Deck, atSample: Int64) {}
+        func triggerHotCue(_ deck: Deck, atSample: Int64) {}
+        func setLoopRange(_ deck: Deck, start: Int64, end: Int64) {}
+        func setLoop(_ deck: Deck, beats: Double) {}
+        func exitLoop(_ deck: Deck) {}
         func setQuantize(_ on: Bool, resolution: QuantizeResolution) {}
-        func setRate(_ deck: PerformanceEngine.Deck, rate: Float) {
+        func setRate(_ deck: Deck, rate: Float) {
             rates[deck] = Double(rate)
             rateCommands.append((deck, Double(rate)))
         }
-        func setKeyLock(_ deck: PerformanceEngine.Deck, locked: Bool) {}
-        func setKeyShift(_ deck: PerformanceEngine.Deck, semitones: Float) {}
-        func sync(_ deck: PerformanceEngine.Deck, to master: PerformanceEngine.Deck, barSync: Bool) {
+        func setKeyLock(_ deck: Deck, locked: Bool) {}
+        func setKeyShift(_ deck: Deck, semitones: Float) {}
+        func sync(_ deck: Deck, to master: Deck, barSync: Bool) {
             synced.append((deck, master, barSync))
             syncedState[deck] = true
         }
-        func unsync(_ deck: PerformanceEngine.Deck) {
+        func unsync(_ deck: Deck) {
             unsynced.append(deck)
             syncedState[deck] = false
         }
-        func isSynced(_ deck: PerformanceEngine.Deck) -> Bool { syncedState[deck] ?? false }
-        func deckRate(_ deck: PerformanceEngine.Deck) -> Double { rates[deck] ?? 1.0 }
-        func setEQKnobs(_ deck: PerformanceEngine.Deck, low: Float, mid: Float, high: Float) {
+        func isSynced(_ deck: Deck) -> Bool { syncedState[deck] ?? false }
+        func deckRate(_ deck: Deck) -> Double { rates[deck] ?? 1.0 }
+        func setEQKnobs(_ deck: Deck, low: Float, mid: Float, high: Float) {
             eqKnobs[deck] = (low, mid, high)
         }
-        func setFilter(_ deck: PerformanceEngine.Deck, knob: Float) {}
-        func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float) {}
+        func setFilter(_ deck: Deck, knob: Float) {}
+        func setChannelFader(_ deck: Deck, gain: Float) {}
         private(set) var crossfaders: [Float] = []
         func setCrossfader(_ position: Float, curve: CrossfaderCurve) {
             crossfaders.append(position)
         }
-        func setEchoEnabled(_ deck: PerformanceEngine.Deck, enabled: Bool) {
+        func setEchoEnabled(_ deck: Deck, enabled: Bool) {
             echoEnabled[deck] = enabled
         }
-        func setEchoBeats(_ deck: PerformanceEngine.Deck, beats: Double) {
+        func setEchoBeats(_ deck: Deck, beats: Double) {
             echoBeats[deck] = beats
         }
-        func setEchoDepth(_ deck: PerformanceEngine.Deck, depth: Float) {
+        func setEchoDepth(_ deck: Deck, depth: Float) {
             echoDepth[deck] = depth
         }
-        func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float) {
+        func setEchoFeedback(_ deck: Deck, feedback: Float) {
             echoFeedback[deck] = feedback
         }
-        func armStemSet(_ deck: PerformanceEngine.Deck, stemSet: StemSet?) {
+        func armStemSet(_ deck: Deck, stemSet: StemSet?) {
             if let stemSet {
                 armedStemSets[deck] = stemSet
                 disarmedStemSets.remove(deck)
@@ -116,13 +116,13 @@ final class WorkspaceModelTests: XCTestCase {
                 disarmedStemSets.insert(deck)
             }
         }
-        func setStemGain(_ deck: PerformanceEngine.Deck, stem: StemKind, gain: Float) {
+        func setStemGain(_ deck: Deck, stem: StemKind, gain: Float) {
             stemGains[deck, default: [:]][stem] = gain
         }
-        func setStemMute(_ deck: PerformanceEngine.Deck, stem: StemKind, muted: Bool) {
+        func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool) {
             if muted { stemMutes[deck, default: []].insert(stem) } else { stemMutes[deck]?.remove(stem) }
         }
-        func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool) {
+        func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool) {
             if soloed { stemSolos[deck, default: []].insert(stem) } else { stemSolos[deck]?.remove(stem) }
         }
         func startRecording() async throws -> URL {
@@ -145,9 +145,9 @@ final class WorkspaceModelTests: XCTestCase {
 
         // Cue monitoring (§44.2a, plan 6.4) — recorded so the model's
         // forwarding is asserted rather than assumed.
-        private(set) var cuedDecks: Set<PerformanceEngine.Deck> = []
+        private(set) var cuedDecks: Set<Deck> = []
         private(set) var cueModes: [CueMode] = []
-        func setHeadphoneCue(_ deck: PerformanceEngine.Deck, enabled: Bool) {
+        func setHeadphoneCue(_ deck: Deck, enabled: Bool) {
             if enabled { cuedDecks.insert(deck) } else { cuedDecks.remove(deck) }
         }
         func setCueMode(_ mode: CueMode) { cueModes.append(mode) }
@@ -435,35 +435,15 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(model.telemetry.renderLoad, 0.21, accuracy: 1e-9)
     }
 
-    func testRealOfflineEngineSamplesPublishedAtomics() async throws {
-        // The model against the §2.5 offline harness: the atomics → telemetry
-        // pipeline reads real render output, not a fake's canned value.
-        let engine = try PerformanceEngine(configuration: .init(sampleRate: 48_000,
-                                                                channelCount: 1,
-                                                                ringCapacity: 16))
-        let store = makeStore(isPro: true)
-        let model = WorkspaceModel(engine: engine, store: store, pump: nil)
-        try model.begin()
-        defer { model.end() }
-
-        let buffer = OfflineSource(frames: 20_000)
-        model.load(.a, source: buffer.source)
-        model.play(.a)
-        _ = try engine.renderMono(1024)
-
-        for _ in 0..<50 { await Task.yield() }
-        model.pumpTelemetryNow()
-        for _ in 0..<50 { await Task.yield() }
-
-        XCTAssertEqual(model.telemetry.masterSample, 1024)
-        XCTAssertEqual(model.telemetry.deckA.playheadSample, 1024, "frame-exact playhead telemetry")
-        XCTAssertEqual(model.telemetry.deckA.bpmEffective, 120, accuracy: 1e-6,
-                       "default grid is 120 BPM at unity rate")
-        XCTAssertTrue(model.telemetry.deckA.playing)
-        XCTAssertFalse(model.telemetry.deckA.synced)
-        XCTAssertEqual(model.telemetry.masterBPM, 120, accuracy: 1e-6, "the master clock snapshot")
-        XCTAssertEqual(model.telemetry.masterSample, 1024)
-    }
+    // `testRealOfflineEngineSamplesPublishedAtomics` (the model against the
+    // §2.5 offline harness, driving a real render and reading its published
+    // atomics) drove the GPLv3 `PerformanceEngine`'s offline pull-render path,
+    // deleted in Phase 6d. PAE's engine has no equivalent Swift-side pull-
+    // render seam on `WorkspaceEngine` (it renders through an `AVAudioEngine`
+    // source node); the atomics→telemetry mapping this pinned is still
+    // covered above by `SpyEngine`-driven tests, and PAE's own render-side
+    // telemetry correctness is `ParsoDJEngineTests`' territory
+    // (`parso-audio-engine/docs/phase6-parity.md`, "6d backlog").
 
     // MARK: - Compact posture (§42.1, §42.6–42.7)
 
@@ -2382,16 +2362,4 @@ final class WorkspaceModelTests: XCTestCase {
         return defaults
     }
 
-    private final class OfflineSource {
-        let buffer: UnsafeMutablePointer<Float>
-        let source: DeckSource
-        init(frames: Int) {
-            buffer = .allocate(capacity: frames)
-            for i in 0..<frames { buffer[i] = Float(i) * 0.001 }
-            source = DeckSource(pcm: UnsafeRawPointer(buffer), frameCount: Int64(frames),
-                                channelCount: 1, sampleRate: 48_000,
-                                grid: DeckGrid(bpm: 120, sampleRate: 48_000))
-        }
-        deinit { buffer.deallocate() }
-    }
 }

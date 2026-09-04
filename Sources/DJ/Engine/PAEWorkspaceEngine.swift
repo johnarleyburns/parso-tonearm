@@ -15,15 +15,16 @@ typealias PAEKeyResult = ParsoAudioAnalysis.KeyResult
 typealias PAEWaveform = ParsoAudioAnalysis.Waveform
 typealias PAELoudnessResult = ParsoAudioCore.LoudnessResult
 
-/// Phase 6c — the `WorkspaceEngine` seam implemented over PAE's `ParsoDJEngine`
-/// instead of Tonearm's GPLv3 `PerformanceEngine` (`parso-audio-engine/docs/
-/// phase6-parity.md`, "6c backlog").
+/// Phase 6c/6d — the `WorkspaceEngine` seam implemented over PAE's
+/// `ParsoDJEngine`, replacing Tonearm's GPLv3 `PerformanceEngine`
+/// (`parso-audio-engine/docs/phase6-parity.md`, "6c backlog" / "6d backlog").
 ///
 /// This is the adapter half of the DJ-engine convergence: the control/telemetry
 /// vocabulary the session view model talks to is unchanged, but every call maps
 /// onto `ParsoDJEngine.DJEngine`'s `@MainActor` control objects, and the DSP
-/// runs in `CParsoEngine`. It coexists with `PerformanceEngine`; the one
-/// construction site selects between them with `-D PAE_DJ_ENGINE` (§6c).
+/// runs in `CParsoEngine`. As of Phase 6d this is the **only** engine — the
+/// GPLv3 `PerformanceEngine` and its `-D PAE_DJ_ENGINE` coexistence flag are
+/// gone (§6d).
 ///
 /// Author decision (2026-09-03): **PAE's mixer curves are the reference.** The
 /// knob→dB EQ curve here is fresh (not `ThreeBandEQ.knobToGain`), and the
@@ -40,18 +41,18 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
     /// PAE's `Deck.load` / `armStems` retain the `PAEPCMBuffer`s, but the adapter
     /// keeps its own strong refs so a reload cannot free memory the render
     /// thread might still touch mid-callback (the `SourceBoxRegistry` analogue).
-    private var deckBuffers: [PerformanceEngine.Deck: PAEPCMBuffer] = [:]
-    private var stemBuffers: [PerformanceEngine.Deck: [PAEPCMBuffer]] = [:]
+    private var deckBuffers: [Deck: PAEPCMBuffer] = [:]
+    private var stemBuffers: [Deck: [PAEPCMBuffer]] = [:]
 
     /// A rotating 8-slot hot-cue map: `triggerHotCue(_:atSample:)` is
     /// sample-addressed on the seam but PAE's hot cues are index-keyed.
-    private var hotCueSlots: [PerformanceEngine.Deck: [Int64]] = [:]
-    private var hotCueNext: [PerformanceEngine.Deck: Int] = [:]
+    private var hotCueSlots: [Deck: [Int64]] = [:]
+    private var hotCueNext: [Deck: Int] = [:]
 
     /// Per-deck echo parameters — the seam sets them one at a time, PAE takes
     /// them together in `Deck.setEcho`.
     private struct Echo { var enabled = false; var beats = 1.0; var depth: Float = 0.5; var feedback: Float = 0.4 }
-    private var echo: [PerformanceEngine.Deck: Echo] = [.a: Echo(), .b: Echo()]
+    private var echo: [Deck: Echo] = [.a: Echo(), .b: Echo()]
 
     // Recording (§37.2 / §34A.4).
     private var recorder: MixRecorder?
@@ -88,20 +89,20 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
         return Float(pow(10.0, engine.mixer.master.limiterCeilingDB / 20.0))
     }
 
-    public func deckRate(_ deck: PerformanceEngine.Deck) -> Double {
+    public func deckRate(_ deck: Deck) -> Double {
         self.deck(deck).effectiveRate
     }
 
     // MARK: - Transport & loading
 
-    private func deck(_ d: PerformanceEngine.Deck) -> ParsoDJEngine.Deck {
+    private func deck(_ d: Deck) -> ParsoDJEngine.Deck {
         d == .a ? engine.deckA : engine.deckB
     }
-    private func channel(_ d: PerformanceEngine.Deck) -> Channel {
+    private func channel(_ d: Deck) -> Channel {
         d == .a ? engine.mixer.channelA : engine.mixer.channelB
     }
 
-    public func load(_ deck: PerformanceEngine.Deck, source: DeckSource) {
+    public func load(_ deck: Deck, source: DeckSource) {
         let buffer = Self.pcmBuffer(from: source)
         let analysis = Self.trackAnalysis(from: source)
         deckBuffers[deck] = buffer
@@ -110,20 +111,20 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
         self.deck(deck).load(analysis, buffer: buffer)
     }
 
-    public func play(_ deck: PerformanceEngine.Deck) { self.deck(deck).play() }
-    public func pause(_ deck: PerformanceEngine.Deck) { self.deck(deck).pause() }
-    public func cue(_ deck: PerformanceEngine.Deck) { self.deck(deck).cuePlayPress() }
-    public func releaseCue(_ deck: PerformanceEngine.Deck) { self.deck(deck).cuePlayRelease() }
+    public func play(_ deck: Deck) { self.deck(deck).play() }
+    public func pause(_ deck: Deck) { self.deck(deck).pause() }
+    public func cue(_ deck: Deck) { self.deck(deck).cuePlayPress() }
+    public func releaseCue(_ deck: Deck) { self.deck(deck).cuePlayRelease() }
 
-    public func seek(_ deck: PerformanceEngine.Deck, toSample: Int64, quantized: Bool) {
+    public func seek(_ deck: Deck, toSample: Int64, quantized: Bool) {
         self.deck(deck).seek(toSample: toSample, quantized: quantized)
     }
 
-    public func setCue(_ deck: PerformanceEngine.Deck, atSample: Int64) {
+    public func setCue(_ deck: Deck, atSample: Int64) {
         self.deck(deck).setCue(atSample: atSample)
     }
 
-    public func triggerHotCue(_ deck: PerformanceEngine.Deck, atSample: Int64) {
+    public func triggerHotCue(_ deck: Deck, atSample: Int64) {
         var slots = hotCueSlots[deck] ?? Array(repeating: 0, count: 8)
         var next = hotCueNext[deck] ?? 0
         // Reuse a slot already pointing here, else take the next in rotation.
@@ -135,15 +136,15 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
         self.deck(deck).triggerHotCue(slot, atSample: atSample)
     }
 
-    public func setLoopRange(_ deck: PerformanceEngine.Deck, start: Int64, end: Int64) {
+    public func setLoopRange(_ deck: Deck, start: Int64, end: Int64) {
         self.deck(deck).setLoop(startSample: start, endSample: end)
     }
 
-    public func setLoop(_ deck: PerformanceEngine.Deck, beats: Double) {
+    public func setLoop(_ deck: Deck, beats: Double) {
         self.deck(deck).autoBeatLoop(beats: beats)
     }
 
-    public func exitLoop(_ deck: PerformanceEngine.Deck) {
+    public func exitLoop(_ deck: Deck) {
         self.deck(deck).setActiveLoop(false)
     }
 
@@ -155,7 +156,7 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
         case .bar: mapped = .bar
         case .fourBars: mapped = .fourBars
         }
-        for d in [PerformanceEngine.Deck.a, .b] {
+        for d in [Deck.a, .b] {
             let dk = self.deck(d)
             dk.quantize = on
             dk.quantizeResolution = mapped
@@ -164,30 +165,30 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
 
     // MARK: - Tempo / pitch / key
 
-    public func setRate(_ deck: PerformanceEngine.Deck, rate: Float) {
+    public func setRate(_ deck: Deck, rate: Float) {
         let dk = self.deck(deck)
         dk.tempoRange = .wide
         dk.tempoPercent = (Double(rate) - 1) * 100
     }
 
-    public func setKeyLock(_ deck: PerformanceEngine.Deck, locked: Bool) {
+    public func setKeyLock(_ deck: Deck, locked: Bool) {
         self.deck(deck).keyLock = locked
     }
 
-    public func setKeyShift(_ deck: PerformanceEngine.Deck, semitones: Float) {
+    public func setKeyShift(_ deck: Deck, semitones: Float) {
         self.deck(deck).pitchSemitones = Double(semitones)
     }
 
     // MARK: - Sync (§32)
 
-    public func sync(_ deck: PerformanceEngine.Deck, to master: PerformanceEngine.Deck, barSync: Bool) {
+    public func sync(_ deck: Deck, to master: Deck, barSync: Bool) {
         guard deck != master else { return }
         self.deck(master).setAsMaster()
         self.deck(deck).sync(barSync: barSync)
     }
 
-    public func unsync(_ deck: PerformanceEngine.Deck) { self.deck(deck).unsync() }
-    public func isSynced(_ deck: PerformanceEngine.Deck) -> Bool { self.deck(deck).isSynced }
+    public func unsync(_ deck: Deck) { self.deck(deck).unsync() }
+    public func isSynced(_ deck: Deck) -> Bool { self.deck(deck).isSynced }
 
     // MARK: - Mixer (§35) — PAE curves are the reference
 
@@ -200,20 +201,20 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
         return 30.0 * x / (1.0 + x)   // x=−0.5 → −30 dB, x→−1 → −∞
     }
 
-    public func setEQKnobs(_ deck: PerformanceEngine.Deck, low: Float, mid: Float, high: Float) {
+    public func setEQKnobs(_ deck: Deck, low: Float, mid: Float, high: Float) {
         let ch = channel(deck)
         ch.eqLow = Self.eqKnobToDB(low)
         ch.eqMid = Self.eqKnobToDB(mid)
         ch.eqHigh = Self.eqKnobToDB(high)
     }
 
-    public func setFilter(_ deck: PerformanceEngine.Deck, knob: Float) {
+    public func setFilter(_ deck: Deck, knob: Float) {
         let ch = channel(deck)
         ch.colorFX = .filter
         ch.colorAmount = Double(max(-1, min(1, knob)))
     }
 
-    public func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float) {
+    public func setChannelFader(_ deck: Deck, gain: Float) {
         channel(deck).fader = Double(max(0, min(1, gain)))
     }
 
@@ -228,27 +229,27 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
 
     // MARK: - Beat FX — per-deck §35A echo
 
-    private func pushEcho(_ deck: PerformanceEngine.Deck) {
+    private func pushEcho(_ deck: Deck) {
         let e = echo[deck] ?? Echo()
         self.deck(deck).setEcho(enabled: e.enabled, beats: e.beats,
                                 depth: Double(e.depth), feedback: Double(e.feedback))
     }
-    public func setEchoEnabled(_ deck: PerformanceEngine.Deck, enabled: Bool) {
+    public func setEchoEnabled(_ deck: Deck, enabled: Bool) {
         echo[deck, default: Echo()].enabled = enabled; pushEcho(deck)
     }
-    public func setEchoBeats(_ deck: PerformanceEngine.Deck, beats: Double) {
+    public func setEchoBeats(_ deck: Deck, beats: Double) {
         echo[deck, default: Echo()].beats = beats; pushEcho(deck)
     }
-    public func setEchoDepth(_ deck: PerformanceEngine.Deck, depth: Float) {
+    public func setEchoDepth(_ deck: Deck, depth: Float) {
         echo[deck, default: Echo()].depth = depth; pushEcho(deck)
     }
-    public func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float) {
+    public func setEchoFeedback(_ deck: Deck, feedback: Float) {
         echo[deck, default: Echo()].feedback = feedback; pushEcho(deck)
     }
 
     // MARK: - Stems — per-deck 4-voice (§35.1)
 
-    public func armStemSet(_ deck: PerformanceEngine.Deck, stemSet: StemSet?) {
+    public func armStemSet(_ deck: Deck, stemSet: StemSet?) {
         guard let stemSet else {
             self.deck(deck).disarmStems()
             stemBuffers[deck] = nil
@@ -267,22 +268,22 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
         self.deck(deck).armStems(voices)
     }
 
-    public func setStemGain(_ deck: PerformanceEngine.Deck, stem: StemKind, gain: Float) {
+    public func setStemGain(_ deck: Deck, stem: StemKind, gain: Float) {
         guard let k = ParsoDJEngine.StemKind(rawValue: stem.rawValue) else { return }
         self.deck(deck).setStemGain(k, Double(gain))
     }
-    public func setStemMute(_ deck: PerformanceEngine.Deck, stem: StemKind, muted: Bool) {
+    public func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool) {
         guard let k = ParsoDJEngine.StemKind(rawValue: stem.rawValue) else { return }
         self.deck(deck).setStemMute(k, muted)
     }
-    public func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool) {
+    public func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool) {
         guard let k = ParsoDJEngine.StemKind(rawValue: stem.rawValue) else { return }
         self.deck(deck).setStemSolo(k, soloed)
     }
 
     // MARK: - Cue monitoring (§44.2a)
 
-    public func setHeadphoneCue(_ deck: PerformanceEngine.Deck, enabled: Bool) {
+    public func setHeadphoneCue(_ deck: Deck, enabled: Bool) {
         channel(deck).cuePFL = enabled
     }
 
@@ -350,7 +351,7 @@ public final class PAEWorkspaceEngine: WorkspaceEngine {
 
     public func sampleTelemetry() -> EngineTelemetry {
         let stats = engine.telemetry()
-        func deckRow(_ d: PerformanceEngine.Deck, _ dk: ParsoDJEngine.Deck,
+        func deckRow(_ d: Deck, _ dk: ParsoDJEngine.Deck,
                      bpm: Double, phase: Double, synced: Bool, level: Float) -> EngineTelemetry.Deck {
             EngineTelemetry.Deck(
                 playheadSample: Int64((dk.playhead * engine.sampleRate).rounded()),

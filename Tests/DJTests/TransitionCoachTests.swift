@@ -205,39 +205,39 @@ final class TransitionCoachTests: XCTestCase {
         var limiterCeiling: Float? { nil }
         var sampleRate: Double { 48_000 }
 
-        func deckRate(_ deck: PerformanceEngine.Deck) -> Double { calls.append("deckRate"); return 1 }
+        func deckRate(_ deck: Deck) -> Double { calls.append("deckRate"); return 1 }
         func start() throws { calls.append("start") }
         func stop() { calls.append("stop") }
-        func load(_ deck: PerformanceEngine.Deck, source: DeckSource) { calls.append("load") }
-        func play(_ deck: PerformanceEngine.Deck) { calls.append("play") }
-        func pause(_ deck: PerformanceEngine.Deck) { calls.append("pause") }
-        func cue(_ deck: PerformanceEngine.Deck) { calls.append("cue") }
-        func releaseCue(_ deck: PerformanceEngine.Deck) { calls.append("releaseCue") }
-        func seek(_ deck: PerformanceEngine.Deck, toSample: Int64, quantized: Bool) { calls.append("seek") }
-        func setCue(_ deck: PerformanceEngine.Deck, atSample: Int64) { calls.append("setCue") }
-        func triggerHotCue(_ deck: PerformanceEngine.Deck, atSample: Int64) { calls.append("triggerHotCue") }
-        func setLoopRange(_ deck: PerformanceEngine.Deck, start: Int64, end: Int64) { calls.append("setLoopRange") }
-        func setLoop(_ deck: PerformanceEngine.Deck, beats: Double) { calls.append("setLoop") }
-        func exitLoop(_ deck: PerformanceEngine.Deck) { calls.append("exitLoop") }
+        func load(_ deck: Deck, source: DeckSource) { calls.append("load") }
+        func play(_ deck: Deck) { calls.append("play") }
+        func pause(_ deck: Deck) { calls.append("pause") }
+        func cue(_ deck: Deck) { calls.append("cue") }
+        func releaseCue(_ deck: Deck) { calls.append("releaseCue") }
+        func seek(_ deck: Deck, toSample: Int64, quantized: Bool) { calls.append("seek") }
+        func setCue(_ deck: Deck, atSample: Int64) { calls.append("setCue") }
+        func triggerHotCue(_ deck: Deck, atSample: Int64) { calls.append("triggerHotCue") }
+        func setLoopRange(_ deck: Deck, start: Int64, end: Int64) { calls.append("setLoopRange") }
+        func setLoop(_ deck: Deck, beats: Double) { calls.append("setLoop") }
+        func exitLoop(_ deck: Deck) { calls.append("exitLoop") }
         func setQuantize(_ on: Bool, resolution: QuantizeResolution) { calls.append("setQuantize") }
-        func setRate(_ deck: PerformanceEngine.Deck, rate: Float) { calls.append("setRate") }
-        func setKeyLock(_ deck: PerformanceEngine.Deck, locked: Bool) { calls.append("setKeyLock") }
-        func setKeyShift(_ deck: PerformanceEngine.Deck, semitones: Float) { calls.append("setKeyShift") }
-        func sync(_ deck: PerformanceEngine.Deck, to master: PerformanceEngine.Deck, barSync: Bool) { calls.append("sync") }
-        func unsync(_ deck: PerformanceEngine.Deck) { calls.append("unsync") }
-        func isSynced(_ deck: PerformanceEngine.Deck) -> Bool { calls.append("isSynced"); return false }
-        func setEQKnobs(_ deck: PerformanceEngine.Deck, low: Float, mid: Float, high: Float) { calls.append("setEQ") }
-        func setFilter(_ deck: PerformanceEngine.Deck, knob: Float) { calls.append("setFilter") }
-        func setChannelFader(_ deck: PerformanceEngine.Deck, gain: Float) { calls.append("setChannelFader") }
+        func setRate(_ deck: Deck, rate: Float) { calls.append("setRate") }
+        func setKeyLock(_ deck: Deck, locked: Bool) { calls.append("setKeyLock") }
+        func setKeyShift(_ deck: Deck, semitones: Float) { calls.append("setKeyShift") }
+        func sync(_ deck: Deck, to master: Deck, barSync: Bool) { calls.append("sync") }
+        func unsync(_ deck: Deck) { calls.append("unsync") }
+        func isSynced(_ deck: Deck) -> Bool { calls.append("isSynced"); return false }
+        func setEQKnobs(_ deck: Deck, low: Float, mid: Float, high: Float) { calls.append("setEQ") }
+        func setFilter(_ deck: Deck, knob: Float) { calls.append("setFilter") }
+        func setChannelFader(_ deck: Deck, gain: Float) { calls.append("setChannelFader") }
         func setCrossfader(_ position: Float, curve: CrossfaderCurve) { calls.append("setCrossfader") }
-        func setEchoEnabled(_ deck: PerformanceEngine.Deck, enabled: Bool) { calls.append("setEchoEnabled") }
-        func setEchoBeats(_ deck: PerformanceEngine.Deck, beats: Double) { calls.append("setEchoBeats") }
-        func setEchoDepth(_ deck: PerformanceEngine.Deck, depth: Float) { calls.append("setEchoDepth") }
-        func setEchoFeedback(_ deck: PerformanceEngine.Deck, feedback: Float) { calls.append("setEchoFeedback") }
-        func armStemSet(_ deck: PerformanceEngine.Deck, stemSet: StemSet?) { calls.append("armStemSet") }
-        func setStemGain(_ deck: PerformanceEngine.Deck, stem: StemKind, gain: Float) { calls.append("setStemGain") }
-        func setStemMute(_ deck: PerformanceEngine.Deck, stem: StemKind, muted: Bool) { calls.append("setStemMute") }
-        func setStemSolo(_ deck: PerformanceEngine.Deck, stem: StemKind, soloed: Bool) { calls.append("setStemSolo") }
+        func setEchoEnabled(_ deck: Deck, enabled: Bool) { calls.append("setEchoEnabled") }
+        func setEchoBeats(_ deck: Deck, beats: Double) { calls.append("setEchoBeats") }
+        func setEchoDepth(_ deck: Deck, depth: Float) { calls.append("setEchoDepth") }
+        func setEchoFeedback(_ deck: Deck, feedback: Float) { calls.append("setEchoFeedback") }
+        func armStemSet(_ deck: Deck, stemSet: StemSet?) { calls.append("armStemSet") }
+        func setStemGain(_ deck: Deck, stem: StemKind, gain: Float) { calls.append("setStemGain") }
+        func setStemMute(_ deck: Deck, stem: StemKind, muted: Bool) { calls.append("setStemMute") }
+        func setStemSolo(_ deck: Deck, stem: StemKind, soloed: Bool) { calls.append("setStemSolo") }
         func startRecording() async throws -> URL { calls.append("startRecording"); return .init(fileURLWithPath: "/tmp") }
         func stopRecording() async throws -> RecordingEncoder.RecordingOutput? { calls.append("stopRecording"); return nil }
         var isRecording: Bool { calls.append("isRecording"); return false }
