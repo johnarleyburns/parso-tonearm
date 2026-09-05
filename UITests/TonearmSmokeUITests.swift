@@ -54,6 +54,24 @@ final class TonearmSmokeUITests: XCTestCase {
         nextButton.tap()
         XCTAssertTrue(waitForLabel(miniTitle, equals: "Ocean Waves", timeout: 5),
                       "Skipping forward should advance to the next built-in track")
+
+        // User-reported: tapping the DJ tab, and opening the DJ mixer from
+        // it, crashes the app.
+        app.buttons["DJ"].firstMatch.tap()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10),
+                      "App should still be in the foreground after opening the DJ tab")
+        let decksEntry = app.buttons["dj.decks"].firstMatch
+        XCTAssertTrue(decksEntry.waitForExistence(timeout: 10),
+                      "DJ entry screen should render its Decks card after opening the DJ tab.\n\(app.debugDescription)")
+
+        decksEntry.tap()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10),
+                      "App should still be in the foreground after opening the DJ mixer")
+        // `dj.master.bar` only renders once a track is loaded (it reads the
+        // beat grid), so it's not a usable anchor for a no-track smoke check.
+        // `dj.transport.record` is always present.
+        XCTAssertTrue(element("dj.transport.record").waitForExistence(timeout: 10),
+                      "DJ mixer workspace should render its transport controls after tapping Open DJ Mixer.\n\(app.debugDescription)")
     }
 
     private func launch(arguments: [String] = []) {
