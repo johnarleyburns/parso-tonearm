@@ -524,7 +524,7 @@ struct ThirdPartyNoticesView: View {
                     Text("Third-party notices")
                         .font(.system(size: 20, weight: .bold))
                     privacyPoint("License — GNU GPL v3.0 or later",
-                        "Tonearm is free software: the complete source code is public at github.com/johnarleyburns/parso-tonearm, under the GNU General Public License v3.0 or later. Because the GPL's own terms conflict with the App Store's distribution terms, an additional permission under GPLv3 §7 specifically allows distributing Tonearm through the App Store, provided the source of the exact version distributed stays publicly available under this License — which it does, at the address above. Full text, including that permission: the LICENSE file in the repository.")
+                        "Platterhead DJ is free software: the complete source code is public at github.com/johnarleyburns/parso-tonearm, under the GNU General Public License v3.0 or later. Because the GPL's own terms conflict with the App Store's distribution terms, an additional permission under GPLv3 §7 specifically allows distributing Platterhead DJ through the App Store, provided the source of the exact version distributed stays publicly available under this License — which it does, at the address above. Full text, including that permission: the LICENSE file in the repository.")
                     privacyPoint("Semantic / vibe search",
                         "Vibe search uses LAION CLAP (music_audioset_epoch_15_esc_90.14, HTSAT-base), licensed Apache-2.0.")
                     privacyPoint("Stem separation — Spleeter (current default)",
