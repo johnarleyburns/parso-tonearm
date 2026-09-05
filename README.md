@@ -171,7 +171,7 @@ plays downloaded music completely off-grid — no iPhone required.
 
 ## Terms
 
-Tonearm is proprietary software. All rights are reserved; use and distribution require
-permission under the terms in [`LICENSE`](LICENSE). Tonearm is a clean-room app inspired by
-foobar2000's *values* — format breadth, gapless, zero telemetry, power-user transparency. It
-shares no code with it.
+Tonearm is free software, licensed under the GNU General Public License v3.0 or later, with an
+additional permission under GPLv3 §7 allowing distribution through Apple's App Store — see
+[`LICENSE`](LICENSE). Tonearm is a clean-room app inspired by foobar2000's *values* — format
+breadth, gapless, zero telemetry, power-user transparency. It shares no code with it.

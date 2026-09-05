@@ -402,8 +402,16 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             Button { showThirdPartyNotices = true } label: {
                 HStack {
-                    aboutRow("Terms", "Proprietary + third-party notices")
+                    aboutRow("Terms", "GPLv3+ · third-party notices")
                     Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
+                }
+            }
+            .buttonStyle(.plain)
+            Divider().overlay(Palette.hairline)
+            Link(destination: URL(string: "https://github.com/johnarleyburns/parso-tonearm")!) {
+                HStack {
+                    aboutRow("Source", "View on GitHub")
+                    Image(systemName: "arrow.up.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
                 }
             }
             .buttonStyle(.plain)
@@ -515,6 +523,8 @@ struct ThirdPartyNoticesView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Third-party notices")
                         .font(.system(size: 20, weight: .bold))
+                    privacyPoint("License — GNU GPL v3.0 or later",
+                        "Tonearm is free software: the complete source code is public at github.com/johnarleyburns/parso-tonearm, under the GNU General Public License v3.0 or later. Because the GPL's own terms conflict with the App Store's distribution terms, an additional permission under GPLv3 §7 specifically allows distributing Tonearm through the App Store, provided the source of the exact version distributed stays publicly available under this License — which it does, at the address above. Full text, including that permission: the LICENSE file in the repository.")
                     privacyPoint("Semantic / vibe search",
                         "Vibe search uses LAION CLAP (music_audioset_epoch_15_esc_90.14, HTSAT-base), licensed Apache-2.0.")
                     privacyPoint("Stem separation — Spleeter (current default)",

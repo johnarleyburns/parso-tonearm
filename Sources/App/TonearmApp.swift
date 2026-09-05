@@ -1,3 +1,11 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Tonearm (Platterhead DJ) — Copyright (C) 2026 John Arley Burns.
+// Licensed under the GNU General Public License v3.0 or later, with an
+// additional permission under GPLv3 §7 allowing distribution through
+// Apple's App Store. Full text, including that permission: ../../LICENSE.
+// Source: https://github.com/johnarleyburns/parso-tonearm
+
 import SwiftUI
 import TonearmCore
 import TonearmDJ
