@@ -21,11 +21,14 @@ private struct ModelResourceTagSource: NeuralModelProviding {
 }
 
 /// Composes this app's `SeparationBackendRegistry` (Phase 7c,
-/// current_status.md "Phase 7"): Spleeter registered and **active by
-/// default** (the author's licensing determination — MIT code + weights;
-/// see `SpleeterStemModel.swift`'s header in `ParsoAudioNeural`); Demucs
-/// registered but inactive (its pretrained weights are not established as
-/// commercially clean — same doc, "The Demucs finding").
+/// current_status.md "Phase 7"). Both backends are registered; **Demucs is
+/// active by default** as of Phase 9 (docs/GPL-BACKENDS.md) — the author's
+/// own licensing call for this app specifically, made independently of
+/// PAE's own stance (PAE's README still names Spleeter as *its*
+/// recommended default for consumers who haven't made that call). Spleeter
+/// stays registered as a fallback backend (e.g. for a future device-class
+/// or licensing-mode switch) but is not selected unless explicitly
+/// activated.
 ///
 /// Swapping the active backend, including to a future BS-RoFormer-class
 /// model once one is cleanly licensed, is exactly `registry.register(...)`
@@ -37,7 +40,7 @@ public enum StemSeparationBackends {
     /// - Parameter resource: the app's `ModelResourceService` (ODR delivery
     ///   for both `.spleeterStems` and `.stems`).
     public static func makeRegistry(resource: ModelResourceService) async -> SeparationBackendRegistry {
-        let registry = SeparationBackendRegistry(default: .spleeter)
+        let registry = SeparationBackendRegistry(default: demucs)
         await registry.register(.spleeter) {
             SpleeterStemModel(source: ModelResourceTagSource(resource: resource, tag: .spleeterStems))
         }

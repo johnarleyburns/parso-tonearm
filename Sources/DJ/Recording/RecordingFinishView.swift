@@ -270,6 +270,28 @@ public struct RecordingFinishView: View {
             }
             .tint(.green)
 
+            Toggle(isOn: $model.includeMP3Export) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Also export MP3 (256 kbps)").font(.system(size: 13))
+                    Text("The recording itself stays M4A · AAC — this adds an MP3 copy to the share.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .tint(.green)
+            .disabled(model.isPreparingMP3Export)
+
+            if model.isPreparingMP3Export {
+                Label("Preparing MP3…", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            if let mp3ExportError = model.mp3ExportError {
+                Text(mp3ExportError)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+            }
+
             HStack(spacing: 10) {
                 Button {
                     showSaveToFiles = true
@@ -299,7 +321,7 @@ public struct RecordingFinishView: View {
                     .buttonStyle(.borderedProminent)
                 }
             }
-            .disabled(model.assetURLForExport == nil)
+            .disabled(model.assetURLForExport == nil || model.isPreparingMP3Export)
 
             if Self.isUIRegression {
                 // The harness reads the container export path from this element

@@ -82,6 +82,19 @@ public final class RecordingFinishModel: ObservableObject {
     @Published public var notes: String
     /// The export card's "Include tracklist / cue sheet" toggle (FR-REC-4).
     @Published public var includeCueSheet = true
+    /// Phase 9 (docs/GPL-BACKENDS.md): an additional "also export MP3"
+    /// toggle. The mix itself always stays recorded as M4A/AAC (FR-REC-7
+    /// honesty, `formatLabel`) — this re-encodes a copy via LAME for the
+    /// share sheet only, never replaces the recording.
+    @Published public var includeMP3Export = false {
+        didSet {
+            guard includeMP3Export, !oldValue else { return }
+            Task { await prepareMP3Export() }
+        }
+    }
+    @Published public private(set) var isPreparingMP3Export = false
+    @Published public private(set) var mp3ExportError: String?
+    private var mp3ExportURL: URL?
     /// The container path the `-uiRegression` export was written to (hook 5.12),
     /// nil until the harness share action runs. The runner reads it via
     /// `simctl get_app_container`; the finish screen publishes it on
@@ -286,7 +299,36 @@ public final class RecordingFinishModel: ObservableObject {
         if includeCueSheet, let cueSheet = cueSheetURL() {
             items.append(cueSheet)
         }
+        if includeMP3Export, let mp3ExportURL {
+            items.append(mp3ExportURL)
+        }
         return items
+    }
+
+    /// Transcodes the mix to MP3 (LAME, 256 kbps CBR) into a temp file and
+    /// publishes it for `shareItems`. Runs off the main actor — a long mix
+    /// takes real wall-clock time to decode + re-encode.
+    private func prepareMP3Export() async {
+        guard let assetURL else { return }
+        isPreparingMP3Export = true
+        mp3ExportError = nil
+        let base = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(base.isEmpty ? "mix" : base).mp3")
+        FileManager.default.removeItemIfPresent(destination)
+        do {
+            try await Task.detached(priority: .userInitiated) {
+                try MP3MixExporter.export(assetURL: assetURL, bitrateKbps: 256, to: destination)
+            }.value
+            mp3ExportURL = destination
+        } catch {
+            mp3ExportURL = nil
+            mp3ExportError = "Couldn't prepare the MP3 export: \(error.localizedDescription)"
+            includeMP3Export = false
+        }
+        isPreparingMP3Export = false
     }
 
     private func cueSheetURL() -> URL? {

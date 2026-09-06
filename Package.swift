@@ -117,10 +117,33 @@ let package = Package(
             ]
         ),
         .target(
+            name: "CLAMEBridge",
+            path: "Sources/CLAMEBridge",
+            exclude: [
+                "vendor/lame-3.100/COPYING",
+                "vendor/lame-3.100/LICENSE",
+                "vendor/lame-3.100/README"
+            ],
+            sources: ["src", "vendor/lame-3.100/libmp3lame"],
+            publicHeadersPath: "include",
+            cSettings: [
+                .headerSearchPath("vendor/lame-3.100/include"),
+                .headerSearchPath("vendor/lame-3.100/libmp3lame"),
+                .define("HAVE_CONFIG_H"),
+                .headerSearchPath("vendor/lame-3.100"),
+                // SwiftPM's debug configuration defines DEBUG for C targets;
+                // libmp3lame gates a lot of stderr/stdout tracing on it
+                // (bitstream.c "count1: real: ..." etc.) that has nothing to
+                // do with this app's own debug builds — always off.
+                .unsafeFlags(["-UDEBUG"])
+            ]
+        ),
+        .target(
             name: "TonearmDJ",
             dependencies: [
                 "TonearmCore",
                 "CSQLiteVec",
+                "CLAMEBridge",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
                 // Phase 6d — the PAE DJ engine behind `PAEWorkspaceEngine`,
@@ -129,7 +152,10 @@ let package = Package(
                 .product(name: "ParsoDJEngine", package: "parso-audio-engine"),
                 // Phase 7b/7c — CLAP semantic search + swappable stem
                 // separation plumbing (StemModelProviding, SeparationBackendRegistry).
-                .product(name: "ParsoAudioNeural", package: "parso-audio-engine")
+                .product(name: "ParsoAudioNeural", package: "parso-audio-engine"),
+                // Phase 9 — LAME (LGPL-2.1) MP3 export via PAE's MP3Encoding
+                // seam (docs/BYO-CODEC.md in parso-audio-engine).
+                .product(name: "ParsoAudioCore", package: "parso-audio-engine")
             ],
             path: "Sources/DJ",
             swiftSettings: [.swiftLanguageMode(.v6)],
@@ -168,7 +194,8 @@ let package = Package(
                 "TonearmDJ",
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
                 .product(name: "ParsoDJEngine", package: "parso-audio-engine"),
-                .product(name: "ParsoAudioNeural", package: "parso-audio-engine")
+                .product(name: "ParsoAudioNeural", package: "parso-audio-engine"),
+                .product(name: "ParsoAudioCore", package: "parso-audio-engine")
             ],
             path: "Tests/DJTests",
             resources: [.copy("Fixtures")],
