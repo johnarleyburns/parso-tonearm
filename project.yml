@@ -71,6 +71,7 @@ targets:
         excludes:
           - "Art/**"
           - "Audio/**"
+          - "CLAMEBridge/**"
           - "CSQLiteVec/**"
           - "Data/**"
           - "DJ/**"

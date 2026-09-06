@@ -7,6 +7,19 @@
 #ifndef LAME_APP_CONFIG_H
 #define LAME_APP_CONFIG_H
 
+/* Every vendored .c file includes <config.h> first (autotools convention)
+ * and then relies on it having already pulled in the standard headers for
+ * malloc/free/memset/memcpy, uint8_t, etc. — SwiftPM's own clang invocation
+ * exposes these transitively so this went unnoticed there, but Xcode's
+ * explicit-module build (used for the real device Archive) does not, and
+ * fails with "call to undeclared library function". Pull them in here,
+ * unconditionally, so every translation unit gets them regardless of build
+ * system. */
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #define STDC_HEADERS 1
 #define HAVE_MEMCPY 1
 #define HAVE_STRCHR 1
