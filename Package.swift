@@ -13,9 +13,8 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
         // Audio-engine unification (parso-audio-engine/docs/UNIFICATION_PLAN.md).
-        // Local path override on the migration branch; swaps to a tag pin on
-        // merge. Requires parso-audio-engine checked out as a sibling directory.
-        .package(path: "../parso-audio-engine")
+        // Migration complete; pinned to the tagged 1.0.0 release.
+        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.0.0")
     ],
     targets: [
         .target(

@@ -37,10 +37,10 @@ packages:
   TonearmCore:
     path: .
   # Audio-engine unification (parso-audio-engine/docs/UNIFICATION_PLAN.md).
-  # Local path override during the migration; swaps to a tag pin on merge to
-  # main. Requires parso-audio-engine checked out as a sibling directory.
+  # Migration complete; pinned to the tagged 1.0.0 release.
   ParsoAudioEngine:
-    path: ../parso-audio-engine
+    url: https://github.com/johnarleyburns/parso-audio-engine.git
+    exactVersion: 1.0.0
 
 settings:
   base:

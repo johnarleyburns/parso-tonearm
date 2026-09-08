@@ -310,7 +310,6 @@
 		CEB1F70B1E36FCA6BCADAB6B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CF21CDA1D35FD0F742088DF3 /* AddServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddServerSheet.swift; sourceTree = "<group>"; };
 		D0974BD26C3A62104181966A /* WatchRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRootView.swift; sourceTree = "<group>"; };
-		D15BD95A51CBC20D3C2508C6 /* parso-audio-engine */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "parso-audio-engine"; path = "../parso-audio-engine"; sourceTree = SOURCE_ROOT; };
 		D198A526169E0BB94CA5DC01 /* RemoteLibraryRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteLibraryRegressionUITests.swift; sourceTree = "<group>"; };
 		D80C464F1FF08824183F765F /* PlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsView.swift; sourceTree = "<group>"; };
 		E08FD7930B1AABFA3C2825E0 /* SourcesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcesView.swift; sourceTree = "<group>"; };
@@ -435,7 +434,6 @@
 		264AB505F29364FB7B0B6672 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				D15BD95A51CBC20D3C2508C6 /* parso-audio-engine */,
 				792522B037084CCCB22FF9D2 /* parso-tonearm */,
 			);
 			name = Packages;
@@ -980,7 +978,7 @@
 			mainGroup = E4A17E2C35C89B52EE42ED08;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				F80CD72CC8EA4BB5A9930142 /* XCLocalSwiftPackageReference "../parso-audio-engine" */,
+				808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */,
 				01691E235BE9D1455C36FBB1 /* XCLocalSwiftPackageReference "." */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -1718,11 +1716,18 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = .;
 		};
-		F80CD72CC8EA4BB5A9930142 /* XCLocalSwiftPackageReference "../parso-audio-engine" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = "../parso-audio-engine";
-		};
 /* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/johnarleyburns/parso-audio-engine.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		1C09B54EEFA4691DE4B5274A /* TonearmDJ */ = {
@@ -1739,6 +1744,7 @@
 		};
 		3B6FB098C448BE93A4F034FE /* ParsoAudioStreaming */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */;
 			productName = ParsoAudioStreaming;
 		};
 		65EC4F101281094B1EB48E18 /* TonearmCore */ = {
@@ -1747,6 +1753,7 @@
 		};
 		6647207692C56A15D1A0C61E /* ParsoAudioPlayback */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */;
 			productName = ParsoAudioPlayback;
 		};
 		B17E701B6BAC809CDAD73399 /* TonearmWatchProtocol */ = {
