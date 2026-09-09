@@ -1,6 +1,15 @@
 import SwiftUI
 import TonearmCore
 
+/// A zero-configuration "Services" entry, distinct from a persisted `Source`
+/// (see `JamendoBrowseView`'s doc comment) — its own navigation value so it
+/// can push alongside `Source` on the same stack without pretending to be one.
+enum LibraryService: String, Hashable, Identifiable {
+    case jamendo
+    var id: String { rawValue }
+    var title: String { "Jamendo" }
+}
+
 struct SourcesView: View {
     @EnvironmentObject var appState: AppState
 
@@ -11,11 +20,22 @@ struct SourcesView: View {
                     ScreenHeader(title: "Libraries")
                         .padding(.bottom, 12)
 
+                    SectionHeader(title: "Services")
+                    NavigationLink(value: LibraryService.jamendo) {
+                        LibraryServiceRow(service: .jamendo)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("Service Jamendo")
+                    Divider().overlay(Palette.hairline)
+
+                    SectionHeader(title: "Personal")
+                        .padding(.top, 18)
+
                     if appState.sources.isEmpty {
                         EmptyStateView(icon: "cloud",
                                        title: "No libraries yet",
                                        message: "Paste an archive.org link, add a local folder, or connect a remote library.")
-                            .padding(.top, 60)
+                            .padding(.top, 40)
                     } else {
                         ForEach(appState.sources) { source in
                             NavigationLink(value: source) {
@@ -41,8 +61,36 @@ struct SourcesView: View {
             .navigationDestination(for: Source.self) { source in
                 SourceDetailView(source: source)
             }
+            .navigationDestination(for: LibraryService.self) { service in
+                switch service {
+                case .jamendo: JamendoBrowseView()
+                }
+            }
             .toolbar(.hidden, for: .navigationBar)
         }
+    }
+}
+
+struct LibraryServiceRow: View {
+    let service: LibraryService
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "dot.radiowaves.left.and.right")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Palette.brass)
+                .frame(width: 42, height: 42)
+                .glassSurface(cornerRadius: 9)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(service.title).font(.system(size: 14, weight: .medium)).lineLimit(1)
+                Text("Browse by genre or search · streams from Jamendo")
+                    .font(.system(size: 11.5)).foregroundStyle(Palette.ink3).lineLimit(1)
+            }
+            Spacer()
+            Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Palette.ink3)
+        }
+        .padding(.vertical, 9)
+        .contentShape(Rectangle())
     }
 }
 

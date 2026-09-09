@@ -128,6 +128,7 @@ public struct JamendoGenreNode: Codable, Equatable, Hashable, Sendable, Identifi
 public enum JamendoGenreTree {
     public static let roots: [JamendoGenreNode] = [
         .init(name: "Electronic", path: "electronic", children: [
+            .init(name: "Dance", path: "electronic/dance"),
             .init(name: "Techno", path: "electronic/techno"),
             .init(name: "House", path: "electronic/house"),
             .init(name: "Drum & Bass", path: "electronic/drum-and-bass"),
@@ -307,6 +308,41 @@ public struct JamendoAPI: Sendable {
         }
         return Page(tracks: envelope.results, totalCount: envelope.headers.resultsFullcount)
     }
+
+    /// Full-catalogue text search (`namesearch` matches track name, artist,
+    /// and album — the closest single param to a general search box; verified
+    /// against the v3.0 docs sample), not scoped to any genre tag.
+    public func search(query: String, offset: Int, limit: Int) async throws -> Page {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clientID.isEmpty else { throw JamendoGenreError.notConfigured }
+        guard !trimmed.isEmpty else { throw JamendoGenreError.catalogue("empty search query") }
+
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("tracks"),
+            resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "client_id", value: clientID),
+            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "namesearch", value: trimmed),
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "offset", value: String(offset)),
+            URLQueryItem(name: "fullcount", value: "true"),
+            URLQueryItem(name: "include", value: "musicinfo"),
+            URLQueryItem(name: "audioformat", value: "mp32"),
+            URLQueryItem(name: "audiodlformat", value: "mp32"),
+        ]
+        guard let url = components?.url else { throw JamendoGenreError.transport }
+
+        let (data, response) = try await session.data(for: URLRequest(url: url))
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+            throw JamendoGenreError.transport
+        }
+        let envelope = try JSONDecoder().decode(JamendoEnvelope.self, from: data)
+        guard envelope.headers.code == 0, envelope.headers.status == "success" else {
+            throw JamendoGenreError.catalogue(envelope.headers.errorMessage)
+        }
+        return Page(tracks: envelope.results, totalCount: envelope.headers.resultsFullcount)
+    }
 }
 
 /// The genre-library connector — a normal `RemoteLibraryProvider`, registered
@@ -332,7 +368,15 @@ public struct JamendoGenreProvider: RemoteLibraryProvider {
     public func browse(path: String) async throws -> [RemoteNode] {
         let page = try await api.tracks(tag: tag(from: path), offset: 0,
                                         limit: JamendoAPI.maxPageLimit)
-        return page.tracks.map { track in
+        return Self.nodes(from: page.tracks)
+    }
+
+    /// Shared `JamendoTrack` → `RemoteNode` mapping, used by both the
+    /// persisted-library `browse(path:)` above and the ad-hoc Jamendo browse
+    /// screen (genre paging + full-catalogue search), so both paths produce
+    /// identically-shaped nodes.
+    public static func nodes(from tracks: [JamendoTrack]) -> [RemoteNode] {
+        tracks.map { track in
             RemoteNode(
                 id: track.id,
                 title: track.name,
