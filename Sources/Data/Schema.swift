@@ -4,7 +4,7 @@ import GRDB
 public enum Schema {
     private static let migrationOrder = [
         "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14",
-        "v15", "v16", "v17"
+        "v15", "v16", "v17", "v18", "v19", "v20", "v21"
     ]
 
     public static func migrator(upTo target: String? = nil) -> DatabaseMigrator {
@@ -518,6 +518,49 @@ public enum Schema {
                 // them so no legacy schema remains.
                 try db.execute(sql: "DROP TABLE IF EXISTS watchTransfer")
                 try db.execute(sql: "DROP TABLE IF EXISTS watchManifest")
+            }
+        }
+
+        if shouldRegister("v18", upTo: target) {
+            migrator.registerMigration("v18") { db in
+                try DiscoveryMigrations.v18(db)
+            }
+        }
+
+        if shouldRegister("v19", upTo: target) {
+            migrator.registerMigration("v19") { db in
+                try DiscoveryMigrations.v19(db)
+            }
+        }
+
+        if shouldRegister("v20", upTo: target) {
+            migrator.registerMigration("v20") { db in
+                try DiscoveryMigrations.v20(db)
+            }
+        }
+
+        if shouldRegister("v21", upTo: target) {
+            migrator.registerMigration("v21") { db in
+                // Album- and source-level custom artwork (mirrors the v5 track-level
+                // `custom_artwork` table). Lets a user set one image for a whole
+                // album or source, not just individual tracks. `syncID` is carried
+                // for CloudKit parity but is not yet wired into the sync engine,
+                // matching `custom_artwork`'s own current (unwired) syncID column.
+                try db.create(table: "custom_artwork_album") { t in
+                    t.column("albumId", .integer).notNull().unique()
+                        .references("album", onDelete: .cascade)
+                    t.column("artworkId", .text).notNull()
+                    t.column("syncID", .text)
+                }
+                try db.create(indexOn: "custom_artwork_album", columns: ["syncID"], options: .unique)
+
+                try db.create(table: "custom_artwork_source") { t in
+                    t.column("sourceId", .integer).notNull().unique()
+                        .references("source", onDelete: .cascade)
+                    t.column("artworkId", .text).notNull()
+                    t.column("syncID", .text)
+                }
+                try db.create(indexOn: "custom_artwork_source", columns: ["syncID"], options: .unique)
             }
         }
 

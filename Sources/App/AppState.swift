@@ -2,6 +2,7 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
+import UIKit
 
 enum AppTab: Int, CaseIterable {
     case listen, playlists, library, sources, settings, dj
@@ -40,7 +41,10 @@ final class AppState: ObservableObject {
     @Published var showCreatePlaylist = false
     @Published private(set) var downloadRevision = 0
     @Published private(set) var activePhoneDownloads: Set<Int64> = []
-    @Published var artworkChangeTrackId: Int64?
+    /// The row (not just id) whose "Change Artwork" picker is open — a remote
+    /// row's id can still be transient/negative here, so the picker's
+    /// `onChange` must persist it before assigning artwork.
+    @Published var artworkChangeTrackRow: TrackRow?
     @Published var offlineProgress: OfflineProgress?
     @Published var offlineSourceID: Int64?
     @Published var backgroundTitle: String?
@@ -198,12 +202,20 @@ final class AppState: ObservableObject {
         var identifier: String?
         var trackRow: TrackRow?
         var fallbackIcon: String
+        var image: UIImage? = nil
     }
 
     func resolvedArtwork(for source: Source) async -> ResolvedSourceArtwork {
         let icon = source.fallbackIcon
         guard let id = source.id else {
             return ResolvedSourceArtwork(identifier: nil, trackRow: nil, fallbackIcon: icon)
+        }
+
+        // Source-level custom artwork (highest priority for the source tile/hero).
+        if let customId = try? await store.sourceCustomArtworkId(for: id),
+           !customId.isEmpty,
+           let image = await ArtworkStore.shared.image(id: customId) {
+            return ResolvedSourceArtwork(identifier: nil, trackRow: nil, fallbackIcon: icon, image: image)
         }
 
         if source.kind == .local {
@@ -1120,6 +1132,22 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Persist-if-needed then assign: a remote/streamed `TrackRow` can carry a
+    /// negative, transient id until it's actually written into the core
+    /// library. Assigning custom artwork straight to that transient id would
+    /// either no-op or write a `custom_artwork` row keyed to an id that never
+    /// becomes the track's real, lasting one. Ensures a real id first, then
+    /// assigns to it. Shared by every UI picker call site so none of them can
+    /// skip the guard.
+    func assignCustomArtwork(toTrack row: TrackRow, data: Data) async -> Bool {
+        var target = row
+        if target.id < 0 {
+            guard let persisted = await persistRemoteTrack(target) else { return false }
+            target = persisted
+        }
+        return await assignCustomArtwork(trackId: target.id, data: data)
+    }
+
     func clearCustomArtwork(trackId: Int64) async {
         let oldID = try? await store.customArtworkId(for: trackId)
         try? await store.deleteCustomArtwork(trackId: trackId)
@@ -1129,6 +1157,59 @@ final class AppState: ObservableObject {
         await watchRuntime.artworkDidChange()
     }
 
+    /// Sets one image to represent an entire album (falls back to it for every
+    /// track in the album that has no track-level custom artwork of its own).
+    /// Album/source rows are always durable (never a transient id like a
+    /// not-yet-persisted remote track), so there's no persist-first step here.
+    func assignCustomArtwork(albumId: Int64, data: Data) async -> Bool {
+        let previous = (try? await store.albumCustomArtworkId(for: albumId)) ?? nil
+        guard let newID = await ArtworkStore.shared.store(data) else { return false }
+        do {
+            try await store.setAlbumCustomArtwork(albumId: albumId, artworkId: newID)
+            if let previous, previous != newID,
+               !((try? await store.allAlbumCustomArtworkIds()) ?? []).contains(previous) {
+                await ArtworkStore.shared.delete(id: previous)
+            }
+            return true
+        } catch {
+            await ArtworkStore.shared.delete(id: newID)
+            return false
+        }
+    }
+
+    func clearCustomArtwork(albumId: Int64) async {
+        let oldID = try? await store.albumCustomArtworkId(for: albumId)
+        try? await store.deleteAlbumCustomArtwork(albumId: albumId)
+        if let oldID, !((try? await store.allAlbumCustomArtworkIds()) ?? []).contains(oldID) {
+            await ArtworkStore.shared.delete(id: oldID)
+        }
+    }
+
+    /// Sets one image to represent an entire source/library (the last rung
+    /// before the remote/embedded/iTunes/generated fallback chain).
+    func assignCustomArtwork(sourceId: Int64, data: Data) async -> Bool {
+        let previous = (try? await store.sourceCustomArtworkId(for: sourceId)) ?? nil
+        guard let newID = await ArtworkStore.shared.store(data) else { return false }
+        do {
+            try await store.setSourceCustomArtwork(sourceId: sourceId, artworkId: newID)
+            if let previous, previous != newID,
+               !((try? await store.allSourceCustomArtworkIds()) ?? []).contains(previous) {
+                await ArtworkStore.shared.delete(id: previous)
+            }
+            return true
+        } catch {
+            await ArtworkStore.shared.delete(id: newID)
+            return false
+        }
+    }
+
+    func clearCustomArtwork(sourceId: Int64) async {
+        let oldID = try? await store.sourceCustomArtworkId(for: sourceId)
+        try? await store.deleteSourceCustomArtwork(sourceId: sourceId)
+        if let oldID, !((try? await store.allSourceCustomArtworkIds()) ?? []).contains(oldID) {
+            await ArtworkStore.shared.delete(id: oldID)
+        }
+    }
 
     func renamePlaylist(_ playlist: Playlist, title: String) async {
         guard let id = playlist.id else { return }

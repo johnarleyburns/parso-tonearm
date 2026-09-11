@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import TonearmCore
 
 struct LibraryView: View {
@@ -186,7 +187,16 @@ private struct LibraryBrowseEntryRow: View {
 private struct LibraryGroupDetailView: View {
     let entry: LibraryBrowse.Entry
     @EnvironmentObject var player: AudioPlayer
+    @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @State private var showArtworkPicker = false
+    @State private var artworkPickerItem: PhotosPickerItem?
+    @State private var showRemoveArtworkAlert = false
+
+    private var albumId: Int64? {
+        guard entry.kind == .album else { return nil }
+        return entry.rows.first?.album?.id
+    }
 
     var body: some View {
         ScrollView {
@@ -232,6 +242,47 @@ private struct LibraryGroupDetailView: View {
                     .glassSurface(cornerRadius: 16.5)
             }
             Spacer()
+            if let albumId {
+                Menu {
+                    Button {
+                        showArtworkPicker = true
+                    } label: {
+                        Label("Change Artwork", systemImage: "photo.badge.plus")
+                    }
+                    Button(role: .destructive) {
+                        showRemoveArtworkAlert = true
+                    } label: {
+                        Label("Remove Artwork", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Palette.brass)
+                        .frame(width: 33, height: 33)
+                        .glassSurface(cornerRadius: 16.5)
+                }
+                .photosPicker(isPresented: $showArtworkPicker, selection: $artworkPickerItem, matching: .images)
+                .onChange(of: artworkPickerItem) { _, item in
+                    guard let item else { return }
+                    Task {
+                        guard let data = try? await item.loadTransferable(type: Data.self),
+                              await appState.assignCustomArtwork(albumId: albumId, data: data) else { return }
+                        ArtworkInvalidation.shared.invalidate()
+                        artworkPickerItem = nil
+                    }
+                }
+                .alert("Remove Artwork", isPresented: $showRemoveArtworkAlert) {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Remove", role: .destructive) {
+                        Task {
+                            await appState.clearCustomArtwork(albumId: albumId)
+                            ArtworkInvalidation.shared.invalidate()
+                        }
+                    }
+                } message: {
+                    Text("This will remove the custom artwork for this album.")
+                }
+            }
         }
         .padding(.top, 8)
     }

@@ -98,15 +98,17 @@ struct SourceArtworkView: View {
     let source: Source
     var cornerRadius: CGFloat = 12
     @EnvironmentObject var appState: AppState
+    @ObservedObject private var invalidation = ArtworkInvalidation.shared
     @State private var resolved: AppState.ResolvedSourceArtwork?
 
     var body: some View {
-        ArtworkView(identifier: resolved?.identifier,
+        ArtworkView(image: resolved?.image,
+                    identifier: resolved?.identifier,
                     trackRow: resolved?.trackRow,
                     seed: source.title,
                     cornerRadius: cornerRadius,
                     fallbackIcon: resolved?.fallbackIcon ?? source.fallbackIcon)
-            .task(id: source.id) {
+            .task(id: "\(source.id ?? -1)-v\(invalidation.version)") {
                 resolved = await appState.resolvedArtwork(for: source)
             }
     }
@@ -234,7 +236,7 @@ struct TrackContextMenu: ViewModifier {
             }
             Divider()
             Button {
-                appState.artworkChangeTrackId = row.id
+                appState.artworkChangeTrackRow = row
             } label: {
                 Label("Change Artwork", systemImage: "photo.badge.plus")
             }

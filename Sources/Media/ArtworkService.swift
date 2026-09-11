@@ -159,6 +159,23 @@ actor ArtworkService {
             return (image, true)
         }
 
+        // 0a. Album-level custom artwork (falls back before source-level and
+        // before the remote/embedded/iTunes/generated chain).
+        if let albumId = row.album?.id,
+           let customId = try? await LibraryStore.shared.albumCustomArtworkId(for: albumId),
+           !customId.isEmpty,
+           let image = await ArtworkStore.shared.image(id: customId) {
+            return (image, true)
+        }
+
+        // 0b. Source-level custom artwork.
+        if let sourceId = row.source?.id,
+           let customId = try? await LibraryStore.shared.sourceCustomArtworkId(for: sourceId),
+           !customId.isEmpty,
+           let image = await ArtworkStore.shared.image(id: customId) {
+            return (image, true)
+        }
+
         let isRemote = row.asset?.kind == .remote
         if let asset = row.asset,
            let result = await remoteProviderArtwork(asset: asset) {

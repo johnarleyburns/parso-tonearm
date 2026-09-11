@@ -71,15 +71,20 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
             Button("Delete All", role: .destructive) {
                 Task {
-                    if let ids = try? await appState.store.allCustomArtworkIds() {
-                        for aid in ids { await ArtworkStore.shared.delete(id: aid) }
-                    }
+                    var allIDs: [String] = []
+                    if let ids = try? await appState.store.allCustomArtworkIds() { allIDs += ids }
+                    if let ids = try? await appState.store.allAlbumCustomArtworkIds() { allIDs += ids }
+                    if let ids = try? await appState.store.allSourceCustomArtworkIds() { allIDs += ids }
+                    for aid in Set(allIDs) { await ArtworkStore.shared.delete(id: aid) }
                     try? await appState.store.clearAllCustomArtwork()
+                    try? await appState.store.clearAllAlbumCustomArtwork()
+                    try? await appState.store.clearAllSourceCustomArtwork()
+                    ArtworkInvalidation.shared.invalidate()
                     await refresh()
                 }
             }
         } message: {
-            Text("Custom artwork you've uploaded will be permanently lost. This cannot be undone.")
+            Text("Custom artwork you've uploaded — for tracks, albums, and libraries — will be permanently lost. This cannot be undone.")
         }
         .alert("Custom Cache Limit", isPresented: $showCustomCacheLimit) {
             TextField("MB", text: $customCacheLimitMB)
@@ -362,7 +367,7 @@ struct SettingsView: View {
             }
             .padding(.bottom, 4)
 
-            Text("Images you attach to tracks. Never auto-deleted.")
+            Text("Images you attach to tracks, albums, and libraries. Never auto-deleted.")
                 .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                 .padding(.bottom, 12)
 

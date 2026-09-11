@@ -109,7 +109,7 @@ struct NowPlayingView: View {
             Task {
                 guard let data = try? await item.loadTransferable(type: Data.self),
                       let row = player.currentTrack,
-                      await appState.assignCustomArtwork(trackId: row.id, data: data) else { return }
+                      await appState.assignCustomArtwork(toTrack: row, data: data) else { return }
                 npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
                 ArtworkInvalidation.shared.invalidate()
                 selectedPhotoItem = nil

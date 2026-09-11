@@ -1,3 +1,166 @@
+# Current status — custom artwork: remote-track bug fix + album/source-level artwork
+
+**Date:** 2026-09-11
+**Scope:** fix the silent custom-artwork failure for remote/streamed (Internet Archive) tracks, and
+add album- and source-level custom artwork as a new resolver tier. Worked on top of the existing
+uncommitted Pro-removal + CLAP/Discovery tree without touching CLAP/Discovery files.
+**Branch:** `main` (uncommitted)
+
+## A — remote-track custom-artwork bug (fixed)
+
+`AppState.assignCustomArtwork(trackId:data:)` never guarded against a negative/transient
+`TrackRow.id` (the id a browsed-but-not-yet-persisted remote/IA row carries before
+`persistRemoteTrack` writes it into the core library). Both picker call sites —
+`NowPlayingView`'s `selectedPhotoItem` `onChange` and `RootView`'s global `photosPicker` `onChange`
+(driven by `AppState.artworkChangeTrackId`, set from `TrackContextMenu`'s "Change Artwork") — called
+`assignCustomArtwork(trackId:data:)` directly on whatever id they had, so picking art for a track that
+hadn't been persisted yet either wrote a `custom_artwork` row keyed to an id that would never become
+the track's real, lasting one, or (for a genuinely-never-persisted id) hit the `custom_artwork.trackId`
+foreign key against `track(id)` and failed outright — both silently, from the user's perspective.
+
+Fix: added `AppState.assignCustomArtwork(toTrack row: TrackRow, data: Data) async -> Bool`, which
+persists the row first (`persistRemoteTrack`, the same path `NowPlayingView`'s invalidation code
+already used) when `row.id < 0`, then assigns to the real id. Both UI call sites now route through this
+one helper instead of duplicating the guard. `AppState.artworkChangeTrackId: Int64?` was widened to
+`artworkChangeTrackRow: TrackRow?` (the global picker needs the full row, not just an id, to persist it)
+— `TrackContextMenu` and `RootView` updated accordingly.
+
+New test: `Tests/CustomArtworkTests.testSetCustomArtworkFailsForNonExistentTrackId` documents the
+DB-level FK invariant a transient id would have hit. (See "not attempted" below for why there's no
+direct `AppState`-level unit test of the persist-then-assign path.)
+
+## B — album- and source-level custom artwork (built)
+
+- **Migration v21** (`Sources/Data/Schema.swift`; schema head was v20, confirmed by reading
+  `migrationOrder` before adding): two new tables, `custom_artwork_album` (`albumId` FK →
+  `album(id)` cascade, `artworkId`, `syncID`) and `custom_artwork_source` (`sourceId` FK →
+  `source(id)` cascade, `artworkId`, `syncID`) — mirrors the v5 `custom_artwork` (track-level) table
+  shape and its v9 `syncID` column exactly. `Album`/`Source` already have first-class `Int64` PKs
+  (confirmed via `Sources/Domain/Entities.swift` and `LibraryBrowse.albumSections`, which already
+  groups by `row.album?.id` when present) — no synthetic identity scheme was needed, and no
+  persist-before-assign concern applies here (albums/sources aren't transient the way a browsed
+  remote track is).
+- `LibraryStore` accessors, mirroring the track-level ones: `albumCustomArtworkId(for:)`,
+  `setAlbumCustomArtwork`, `deleteAlbumCustomArtwork`, `allAlbumCustomArtworkIds`,
+  `clearAllAlbumCustomArtwork`, and the source-level equivalents (`sourceCustomArtworkId(for:)`,
+  `setSourceCustomArtwork`, `deleteSourceCustomArtwork`, `allSourceCustomArtworkIds`,
+  `clearAllSourceCustomArtwork`).
+- `ArtworkService.trackArtwork(forTrackRow:)`: added album-level then source-level custom-artwork
+  resolver rungs directly after the existing track-level one, before the remote/embedded/iTunes
+  chain. Precedence is now track > album > source > existing chain, as specified.
+- `AppState`: `assignCustomArtwork(albumId:data:)` / `clearCustomArtwork(albumId:)` and the
+  `sourceId` equivalents. `resolvedArtwork(for:)` (used by `SourceArtworkView` for source
+  tiles/hero) now checks source-level custom artwork first, returning a resolved `UIImage` directly.
+- UI: "Change Artwork" / "Remove Artwork" added to `SourceDetailView`'s existing ellipsis `Menu`
+  (source-level), and to a new ellipsis `Menu` in `LibraryView`'s `LibraryGroupDetailView` for
+  `.album`-kind entries (album-level, keyed by `entry.rows.first?.album?.id`). Both use
+  `PhotosPicker` + the corresponding `AppState` assign/clear calls, then
+  `ArtworkInvalidation.shared.invalidate()`. Per-track rows under an album pick up album-level
+  custom artwork automatically through the resolver chain (no separate UI wiring needed for track
+  cells); `SourceArtworkView` was updated to observe `ArtworkInvalidation` so source tiles refresh
+  immediately too.
+- Settings "Custom artwork" card: "Clear Custom Artwork" now also clears the album- and
+  source-level tables (and their `ArtworkStore` files); the byte count was already correct
+  unchanged, since all three levels share the same `Tonearm/Artwork` directory.
+- **Sync (CloudKit) — explicitly not attempted.** `RecordMapping.swift`'s `CustomArtworkRecord`
+  push/pull pattern was reviewed; wiring `custom_artwork_album`/`custom_artwork_source` into the
+  sync engine (record types, zone push/pull, conflict handling, asset upload/download) is a real,
+  separate undertaking on top of an already-large change, so it was skipped per the task's own
+  "skip and say so" allowance rather than half-done. Note the existing track-level `custom_artwork`
+  table's `syncID` is *also* never populated by `setCustomArtwork` today (`allCustomArtworkRecords()`
+  filters `WHERE syncID IS NOT NULL` and finds nothing) — the new tables match that same
+  already-existing (pre-existing, not introduced here) unwired state rather than regressing it.
+
+## C — DJ deck artwork affordance — not attempted
+
+Read `Sources/DJ/Features/Workspace/{TwinDeckView,SoloDeckView,DeckModuleSlot,DeckLoader}.swift`.
+Contrary to the task's premise, no gradient-placeholder or any artwork rendering exists anywhere in
+the DJ deck cells today — `DeckIdentityView` is a text-only readout (deck label, playhead, BPM,
+phase). Adding one is a real UI feature, not a wiring task, and — more importantly — `TonearmDJ` is
+a separate SwiftPM target that cannot import `AppState` (which lives in `Sources/App`, excluded from
+every SwiftPM target and compiled only into the Xcode app target) or `Sources/Media/ArtworkService`
+the way `Sources/Features` views do. Reaching the shared `assignCustomArtwork(toTrack:)` path from a
+deck cell would need a new dependency-injection seam into `WorkspaceModel` this package boundary
+doesn't currently have. Given A and B were the priority and this was explicitly lower priority, it
+was skipped rather than half-done; it needs its own scoped design pass.
+
+## D — cache invalidation — checked, one real gap found and fixed
+
+`ArtworkStore.delete(id:)` correctly evicts both its `NSCache` entry and the on-disk file, so a
+*replaced* custom-artwork id (a fresh UUID per `store()` call) can never read stale bytes — the old
+id is deleted, the new id is a cache miss until re-fetched. `ArtworkView`'s `.task(id:)` already keys
+on `ArtworkInvalidation.shared.version`, so track-level replacement/removal was already correct.
+
+The real gap: `SourceArtworkView` (source tiles/hero, via `AppState.resolvedArtwork(for:)`) did
+**not** observe `ArtworkInvalidation` at all — its `.task(id: source.id)` never re-ran after an
+artwork change, so a source tile could keep showing the old resolved image (embedded/iTunes/IA) until
+the view was torn down and recreated. Fixed by making `SourceArtworkView` `@ObservedObject`-observe
+`ArtworkInvalidation.shared` and including its `version` in the task's id, matching `ArtworkView`'s
+existing pattern — needed regardless for the new source-level custom artwork to show up live, but it
+also fixes the same staleness for source tiles' existing embedded/iTunes/IA art.
+
+## Tests added
+
+- `Tests/CustomArtworkTests.swift`: 6 → 16 tests (added album-level get/set/delete/clear/cascade,
+  source-level get/set/delete/clear/cascade, and the FK-invariant regression test for A).
+- `Tests/MigrationV21Tests.swift` (new): schema-head migration test (new tables + columns present,
+  existing v5 `custom_artwork` table/data untouched across the v20→v21 migrate), and a
+  migrate-twice-is-idempotent sanity test.
+- No `ArtworkService`-level resolver-precedence unit test: `ArtworkService` and `LibraryStore.shared`
+  are hard-wired singletons (`ArtworkService.trackArtwork` calls `LibraryStore.shared` directly, not
+  an injected store), so exercising the precedence chain in a unit test would mean either exercising
+  the real, disk-backed shared library database from a test (unacceptable) or refactoring
+  `ArtworkService` to accept an injectable store (a separate, larger change). The precedence itself
+  was verified by code review and is covered indirectly by the per-tier `LibraryStore` accessor
+  tests. Noting this rather than skipping silently.
+- No direct `AppState`-level unit test for the A fix (`assignCustomArtwork(toTrack:)`): `AppState`
+  lives in `Sources/App`, which is excluded from every SwiftPM target (only compiled into the Xcode
+  app target); the only Xcode-hosted test targets in this repo are `TonearmUITests` /
+  `TonearmUIRegressionTests` (slow XCUITest, not suited to a logic-level regression test). Covered
+  instead by the FK-invariant test above plus the `xcodebuild build -scheme Tonearm` compile check.
+
+## Verification
+
+- `swift build`: **passed**.
+- `swift build --build-tests`: **passed**.
+- `swift test --filter TonearmDiscoveryTests` (baseline, before any further changes that round):
+  **192 tests, 0 failures** — unchanged from the stated baseline; the concurrent CLAP/Discovery work
+  was not touched and its test count is confirmed unchanged.
+- `swift test` (full repo): **1,827 tests executed, 8 skipped, 0 failures** when run with
+  `--skip PlaylistCrateImporterTests`. That skip is a **pre-existing, unrelated crash**, confirmed
+  reproducible in isolation (`swift test --filter PlaylistCrateImporterTests` alone segfaults —
+  `TonearmCorePackageTests.xctest exited with unexpected signal code 11` — with a clean build and no
+  files of mine anywhere near `TonearmDJTests`/`PlaylistCrateImporter`). Net of my additions
+  (10 new `CustomArtworkTests` + 2 new `MigrationV21Tests` = 12), the pre-existing passing baseline
+  was ~1,815 tests; **0 new failures**, **+12 tests added**.
+- `scripts/check-ci-guards.sh`: **passed** (Swift 6 contract, StoreKit import boundary, codename
+  leak, watch architecture/protocol boundaries).
+- `make project`: **not run** — no new source files were added to the app target and `project.yml`
+  was not touched by this work (only `Tests/*.swift`, which SwiftPM already globs automatically
+  under the existing `Tests` target path).
+- `xcodebuild build -scheme Tonearm` (iPhone 16 simulator): **BUILD SUCCEEDED**, no errors.
+- `make test-local`: **run, failed** — but at the exact same pre-existing `PlaylistCrateImporterTests`
+  crash (`TonearmCorePackageTests.xctest exited with unexpected signal code 11`), inside its
+  `run_swift_tests` step, before it ever reaches `run_ui_smoke_tests` (the script uses `set -euo
+  pipefail`, so `swift test`'s non-zero exit stops it there: `make: *** [test-local] Error 1`). The
+  iPhone/watch UI smoke portions of `make test-local` were consequently **NOT RUN** — blocked by the
+  pre-existing crash, not by anything in this change. `xcodebuild build -scheme Tonearm` above stands
+  in as the app-target compile check for this round's UI edits.
+- Confirmed only one xcodebuild-family process ran at a time throughout (checked `pgrep -fl
+  xcodebuild` before the simulator build; no other repo was building).
+
+## Not attempted / remaining
+
+- **C (DJ deck artwork affordance):** not attempted — see above; needs its own scoped
+  dependency-injection design to reach `AppState` from `TonearmDJ`.
+- **B's CloudKit sync wiring** for `custom_artwork_album`/`custom_artwork_source`: not attempted —
+  see above.
+- **Pre-existing `PlaylistCrateImporterTests` crash** (unrelated to this work, in `TonearmDJTests`,
+  blocks `swift test` and `make test-local` from completing cleanly): left as found per the "don't
+  touch CLAP/DJ work" instruction; flagging here since it currently blocks CI-shaped verification for
+  anyone running the full suite until it's investigated separately.
+
+
 # Current status — Watch Now Playing reliability round
 
 **Date:** 2026-09-01

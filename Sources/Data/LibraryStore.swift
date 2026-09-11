@@ -191,6 +191,82 @@ public actor LibraryStore {
         }
     }
 
+    // MARK: - Custom Artwork (album-level)
+
+    public func albumCustomArtworkId(for albumId: Int64) throws -> String? {
+        try dbQueue.read { db in
+            try Row.fetchOne(db, sql: "SELECT artworkId FROM custom_artwork_album WHERE albumId = ?",
+                             arguments: [albumId])?["artworkId"]
+        }
+    }
+
+    public func setAlbumCustomArtwork(albumId: Int64, artworkId: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: """
+                INSERT INTO custom_artwork_album (albumId, artworkId) VALUES (?, ?)
+                ON CONFLICT(albumId) DO UPDATE SET artworkId = excluded.artworkId
+                """, arguments: [albumId, artworkId])
+        }
+    }
+
+    public func deleteAlbumCustomArtwork(albumId: Int64) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM custom_artwork_album WHERE albumId = ?",
+                           arguments: [albumId])
+        }
+    }
+
+    public func allAlbumCustomArtworkIds() throws -> [String] {
+        try dbQueue.read { db in
+            let rows = try Row.fetchAll(db, sql: "SELECT artworkId FROM custom_artwork_album")
+            return rows.compactMap { $0["artworkId"] }
+        }
+    }
+
+    public func clearAllAlbumCustomArtwork() throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM custom_artwork_album")
+        }
+    }
+
+    // MARK: - Custom Artwork (source-level)
+
+    public func sourceCustomArtworkId(for sourceId: Int64) throws -> String? {
+        try dbQueue.read { db in
+            try Row.fetchOne(db, sql: "SELECT artworkId FROM custom_artwork_source WHERE sourceId = ?",
+                             arguments: [sourceId])?["artworkId"]
+        }
+    }
+
+    public func setSourceCustomArtwork(sourceId: Int64, artworkId: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: """
+                INSERT INTO custom_artwork_source (sourceId, artworkId) VALUES (?, ?)
+                ON CONFLICT(sourceId) DO UPDATE SET artworkId = excluded.artworkId
+                """, arguments: [sourceId, artworkId])
+        }
+    }
+
+    public func deleteSourceCustomArtwork(sourceId: Int64) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM custom_artwork_source WHERE sourceId = ?",
+                           arguments: [sourceId])
+        }
+    }
+
+    public func allSourceCustomArtworkIds() throws -> [String] {
+        try dbQueue.read { db in
+            let rows = try Row.fetchAll(db, sql: "SELECT artworkId FROM custom_artwork_source")
+            return rows.compactMap { $0["artworkId"] }
+        }
+    }
+
+    public func clearAllSourceCustomArtwork() throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM custom_artwork_source")
+        }
+    }
+
     public func touchSourceResolved(id: Int64) throws {
         try dbQueue.write { db in
             try db.execute(sql: "UPDATE source SET lastResolvedAt = ? WHERE id = ?",

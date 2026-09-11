@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PhotosUI
 import TonearmCore
 
 struct SourceDetailView: View {
@@ -21,6 +22,9 @@ struct SourceDetailView: View {
     @State private var isLoadingStats = false
     @State private var statsError: String?
     @State private var showAddToPlaylist = false
+    @State private var showArtworkPicker = false
+    @State private var artworkPickerItem: PhotosPickerItem?
+    @State private var showRemoveArtworkAlert = false
 
     var body: some View {
         ScrollView {
@@ -162,6 +166,17 @@ struct SourceDetailView: View {
                     Label("Remove All from Apple Watch", systemImage: "applewatch.slash")
                 }
                 Divider()
+                Button {
+                    showArtworkPicker = true
+                } label: {
+                    Label("Change Artwork", systemImage: "photo.badge.plus")
+                }
+                Button(role: .destructive) {
+                    showRemoveArtworkAlert = true
+                } label: {
+                    Label("Remove Artwork", systemImage: "trash")
+                }
+                Divider()
                 Button("Remove Library", role: .destructive) {
                     Task { await appState.deleteSource(source); dismiss() }
                 }
@@ -172,6 +187,28 @@ struct SourceDetailView: View {
             }
         }
         .padding(.top, 8)
+        .photosPicker(isPresented: $showArtworkPicker, selection: $artworkPickerItem, matching: .images)
+        .onChange(of: artworkPickerItem) { _, item in
+            guard let item, let sourceId = source.id else { return }
+            Task {
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                      await appState.assignCustomArtwork(sourceId: sourceId, data: data) else { return }
+                ArtworkInvalidation.shared.invalidate()
+                artworkPickerItem = nil
+            }
+        }
+        .alert("Remove Artwork", isPresented: $showRemoveArtworkAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove", role: .destructive) {
+                guard let sourceId = source.id else { return }
+                Task {
+                    await appState.clearCustomArtwork(sourceId: sourceId)
+                    ArtworkInvalidation.shared.invalidate()
+                }
+            }
+        } message: {
+            Text("This will remove the custom artwork for this library.")
+        }
     }
 
     private var hero: some View {

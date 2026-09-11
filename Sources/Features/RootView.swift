@@ -10,42 +10,49 @@ struct RootView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            backgroundLayer.ignoresSafeArea()
-
-            Group {
-                switch appState.tab {
-                case .listen: ListenView()
-                case .playlists: PlaylistsView()
-                case .library: LibraryView()
-                case .sources: SourcesView()
-                case .settings: SettingsView()
-                case .dj: DJHomeView()
-                }
-            }
-
-            // The dock steps aside for a performance surface: the decks own the
-            // bottom edge (§42.7a), and an overlay there is not merely untidy —
-            // it swallows the crossfader's touches.
-            if !appState.isPerformanceSurfaceFullScreen {
-                GlassDock()
-                    .padding(.bottom, 8)
-            }
-
+            // AnimatedSplashView's own opacity fades in from 0, and it used to
+            // sit as an overlay directly above the real content (tabs + dock),
+            // both already built and rendering underneath — during that
+            // fade-in, the real content was genuinely visible through it
+            // (reported as "briefly seeing my last-used tab, very wide, then
+            // the splash"). Building the real content only once the splash is
+            // done removes anything for it to fade in over.
             if showSplash && appState.didOnboard {
                 AnimatedSplashView(isPresented: $showSplash)
                     .zIndex(10)
-            }
+            } else {
+                backgroundLayer.ignoresSafeArea()
 
-            if let title = appState.backgroundTitle {
-                backgroundBanner(title)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(.easeInOut(duration: 0.3), value: appState.backgroundTitle)
-            }
+                Group {
+                    switch appState.tab {
+                    case .listen: ListenView()
+                    case .playlists: PlaylistsView()
+                    case .library: LibraryView()
+                    case .sources: SourcesView()
+                    case .settings: SettingsView()
+                    case .dj: DJHomeView()
+                    }
+                }
 
-            if let message = player.networkSkipMessage {
-                skipBanner(message)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(.easeInOut(duration: 0.3), value: player.networkSkipMessage)
+                // The dock steps aside for a performance surface: the decks own
+                // the bottom edge (§42.7a), and an overlay there is not merely
+                // untidy — it swallows the crossfader's touches.
+                if !appState.isPerformanceSurfaceFullScreen {
+                    GlassDock()
+                        .padding(.bottom, 8)
+                }
+
+                if let title = appState.backgroundTitle {
+                    backgroundBanner(title)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .animation(.easeInOut(duration: 0.3), value: appState.backgroundTitle)
+                }
+
+                if let message = player.networkSkipMessage {
+                    skipBanner(message)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .animation(.easeInOut(duration: 0.3), value: player.networkSkipMessage)
+                }
             }
         }
         .toastLayer(bottomInset: 96)
@@ -125,19 +132,19 @@ struct RootView: View {
             appState.pendingImport = nil
         }
         .photosPicker(isPresented: Binding(
-            get: { appState.artworkChangeTrackId != nil },
-            set: { if !$0 { appState.artworkChangeTrackId = nil } }),
+            get: { appState.artworkChangeTrackRow != nil },
+            set: { if !$0 { appState.artworkChangeTrackRow = nil } }),
                       selection: $artworkPickerItem,
                       matching: .images)
         .onChange(of: artworkPickerItem) { _, item in
             guard let item,
-                  let trackId = appState.artworkChangeTrackId else { return }
+                  let row = appState.artworkChangeTrackRow else { return }
             Task {
                 guard let data = try? await item.loadTransferable(type: Data.self),
-                      await appState.assignCustomArtwork(trackId: trackId, data: data) else { return }
+                      await appState.assignCustomArtwork(toTrack: row, data: data) else { return }
                 ArtworkInvalidation.shared.invalidate()
                 artworkPickerItem = nil
-                appState.artworkChangeTrackId = nil
+                appState.artworkChangeTrackRow = nil
             }
         }
     }
