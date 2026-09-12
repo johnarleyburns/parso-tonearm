@@ -1,20 +1,27 @@
 import Foundation
 import GRDB
 import Combine
+import TonearmCore
+import TonearmDiscovery
 
 /// The search seam the Vibe Search view model talks to (§41.4 "SearchModel ▸
-/// SearchService"). `SemanticSearchService` conforms; tests inject a controllable
-/// fake so debounce/cancel/absence are exercised deterministically on macOS.
+/// SearchService"). C02 (IMPLEMENT_CLAP_PLAN.md, Slice B): re-pointed at the
+/// unified-catalog `SearchService`/`DiscoverySearchQuery` contract instead of
+/// the deleted DJ-local `SemanticSearchService`/`VectorStore` stack — the same
+/// engine `Sources/Features/Discovery/DiscoverySearchView.swift` uses, fixing
+/// the old stack's real bugs (top-400-before-filter, filter-only rejected, no
+/// selected-source scope, cancellation always false) for free. `SearchService`
+/// conforms via the extension below; tests inject a controllable fake so
+/// debounce/cancel/absence are exercised deterministically on macOS.
 public protocol VibeSearching: Sendable {
-    /// Text → embed (with +/− refine terms) → Tier A pool → hybrid re-rank.
-    func search(_ query: VibeQuery) async throws -> SearchResponse
-    /// Audio-to-audio "more like this" (FR-SEM-7), self-excluding.
-    func similar(to trackID: Int64, limit: Int) async throws -> SearchResponse
-    /// Indexed ÷ total tracks, honest (FR-SEM-8).
-    func coverageCounts() async -> (indexed: Int, total: Int)
+    func search(
+        _ query: DiscoverySearchQuery,
+        referenceTrackID: Int64?,
+        isCancelled: @escaping @Sendable () -> Bool
+    ) async -> DiscoverySearchResponse
 }
 
-extension SemanticSearchService: VibeSearching {}
+extension SearchService: VibeSearching {}
 
 /// A compact summary of the library's own descriptor distribution — what the
 /// suggestion chips are seeded from (mockup `ipad/04a`), never a hard-coded list.
@@ -82,11 +89,17 @@ public enum SuggestionChips {
         return Array(chips.prefix(limit))
     }
 
-    /// Read the distribution straight from the DJ library — one cheap aggregate
-    /// query per descriptor, no object graph.
-    public static func summary(pool: DatabasePool) async -> LibraryDescriptorSummary {
-        let rows = (try? pool.read { db in
-            try Row.fetchAll(db, sql: "SELECT bpm, energy, durationSec, camelot FROM track")
+    /// Read the distribution straight from the ONE core library (C02): track
+    /// duration from core `track`, bpm/energy/camelot from the core
+    /// `discovery_track_analysis` side table — one cheap aggregate query, no
+    /// object graph, no DJ-local `track.bpm/energy/camelot` columns.
+    public static func summary(library: LibraryStore) async -> LibraryDescriptorSummary {
+        let rows = (try? await library.dbQueue.read { db in
+            try Row.fetchAll(db, sql: """
+                SELECT t.durationSec AS durationSec, a.bpm AS bpm,
+                       a.energy AS energy, a.key AS camelot
+                FROM track t LEFT JOIN discovery_track_analysis a ON a.trackId = t.id
+                """)
         }) ?? []
         var bpm: [Double] = []
         bpm.reserveCapacity(rows.count)
@@ -122,19 +135,25 @@ public enum SuggestionChips {
 }
 
 /// View model for Vibe Search (§41.4/41.5, mockups `ipad/04a`+`04b`, `iphone/02`).
-/// Free tier. Owns debounced querying (250 ms, in-flight cancel — §27.5), honest
-/// coverage (FR-SEM-8), suggestion-chip seeding from the library's own
-/// descriptors, the stated model-not-downloaded state (FR-SEM-6) with an ODR
-/// fetch, +/− refinement (FR-SEM-4), audio-to-audio "more like this" (FR-SEM-7),
-/// and saving the query as a smart crate (FR-SEM-5). The privacy line is stated
-/// once, on first use (NFR-PRIV-5).
+/// Free tier. Owns debounced querying (250 ms, in-flight cancel via a
+/// generation guard — §27.5), honest coverage (FR-SEM-8), suggestion-chip
+/// seeding from the library's own descriptors, the stated model-not-downloaded
+/// state (FR-SEM-6) with an ODR fetch, +/− refinement (FR-SEM-4), audio-to-audio
+/// "more like this" (FR-SEM-7), and saving the query as a smart crate
+/// (FR-SEM-5). The privacy line is stated once, on first use (NFR-PRIV-5).
+///
+/// C02: results are core `TrackRow`/`track.id` (`DiscoverySearchResult`), never
+/// a `DJTrackRow`/DJ-local id — consistent with `DeckLoader`/`LibraryModel`/
+/// `GigCrateRepository`. `DiscoverySearchResult` carries no musical attributes
+/// of its own (unlike the old DJ-local `DJTrackRow`), so `analysisByTrackID` is
+/// hydrated separately from core `discovery_track_analysis` for display.
 @MainActor
 public final class VibeSearchModel: ObservableObject {
 
     public let searchService: any VibeSearching
     public let repository: SmartCrateRepository
     private let resource: ModelResourceService
-    private let pool: DatabasePool
+    private let library: LibraryStore
     private let debounceNanoseconds: UInt64
     private let resultLimit: Int
     private let defaults: UserDefaults
@@ -142,7 +161,7 @@ public final class VibeSearchModel: ObservableObject {
     @Published public var queryText: String = ""
     @Published public private(set) var positiveTerms: [String] = []
     @Published public private(set) var negativeTerms: [String] = []
-    @Published public private(set) var response: SearchResponse?
+    @Published public private(set) var response: DiscoverySearchResponse?
     @Published public private(set) var isSearching = false
     @Published public private(set) var suggestionChips: [String] = []
     @Published public private(set) var coverage: (indexed: Int, total: Int) = (0, 0)
@@ -150,10 +169,13 @@ public final class VibeSearchModel: ObservableObject {
     @Published public private(set) var lastError: String?
     @Published public private(set) var savedCrate: SmartCrate?
     @Published public private(set) var privacyAcknowledged: Bool
+    /// bpm/camelot per core track id, for the current `response.results`
+    /// (fetched from core `discovery_track_analysis` — see type doc).
+    @Published public private(set) var analysisByTrackID: [Int64: (bpm: Double?, camelot: String?)] = [:]
 
     /// Hooks the presenter wires to real playback (§41.5 Play · Queue).
-    public var onPlay: (([SearchResult]) -> Void)?
-    public var onQueue: (([SearchResult]) -> Void)?
+    public var onPlay: (([DiscoverySearchResult]) -> Void)?
+    public var onQueue: (([DiscoverySearchResult]) -> Void)?
 
     public static let privacyKey = "vibeSearch.privacyAcknowledged"
 
@@ -163,7 +185,7 @@ public final class VibeSearchModel: ObservableObject {
     public init(searchService: any VibeSearching,
                 repository: SmartCrateRepository,
                 resource: ModelResourceService,
-                pool: DatabasePool,
+                library: LibraryStore,
                 debounceNanoseconds: UInt64 = 250_000_000,
                 resultLimit: Int = 100,
                 defaults: UserDefaults = .standard,
@@ -171,7 +193,7 @@ public final class VibeSearchModel: ObservableObject {
         self.searchService = searchService
         self.repository = repository
         self.resource = resource
-        self.pool = pool
+        self.library = library
         self.debounceNanoseconds = debounceNanoseconds
         self.resultLimit = resultLimit
         self.defaults = defaults
@@ -180,11 +202,11 @@ public final class VibeSearchModel: ObservableObject {
     }
 
     /// The crate-able query for the current field + chips (FR-SEM-5).
-    public var currentQuery: VibeQuery {
-        VibeQuery(text: queryText,
-                  positiveTerms: positiveTerms,
-                  negativeTerms: negativeTerms,
-                  limit: resultLimit)
+    public var currentQuery: DiscoverySearchQuery {
+        DiscoverySearchQuery(text: queryText,
+                             positiveRefinements: positiveTerms,
+                             negativeRefinements: negativeTerms,
+                             limit: resultLimit)
     }
 
     // MARK: - Startup / refresh
@@ -195,13 +217,21 @@ public final class VibeSearchModel: ObservableObject {
         await refreshSuggestions()
     }
 
+    /// Honest coverage (FR-SEM-8): an ordinary unscoped query's own
+    /// `DiscoverySearchResponse.coverage` (indexed ÷ total in scope) — the
+    /// same coverage every `SearchService` caller gets, not a separate cache.
     public func refreshCoverage() async {
-        coverage = await searchService.coverageCounts()
+        let result = await searchService.search(
+            DiscoverySearchQuery(limit: ValidatedQuery.minLimit),
+            referenceTrackID: nil, isCancelled: { false })
+        if let c = result.coverage {
+            coverage = (indexed: c.indexed, total: c.totalInScope)
+        }
     }
 
     public func refreshSuggestions() async {
         suggestionChips = SuggestionChips.seed(
-            from: await SuggestionChips.summary(pool: pool))
+            from: await SuggestionChips.summary(library: library))
     }
 
     /// NFR-PRIV-5: stated once, on first use; remembered so it is not repeated.
@@ -242,8 +272,9 @@ public final class VibeSearchModel: ObservableObject {
     }
 
     /// Debounce: each keystroke cancels the previous pending search and starts a
-    /// fresh one after the window. An in-flight embed is effectively abandoned —
-    /// its stale result is discarded by the generation guard below.
+    /// fresh one after the window. An in-flight search is effectively
+    /// abandoned — its stale result is discarded by the generation guard below
+    /// (the outer Task itself is also cancelled, same as before this rewire).
     private func scheduleSearch(after delay: UInt64) {
         searchTask?.cancel()
         generation += 1
@@ -261,36 +292,32 @@ public final class VibeSearchModel: ObservableObject {
         guard generation == self.generation else { return }
         isSearching = true
         defer { isSearching = false }
-        do {
-            let result = try await searchService.search(currentQuery)
-            guard generation == self.generation else { return }
-            response = result
-            lastError = nil
-        } catch {
-            guard generation == self.generation else { return }
-            lastError = error.localizedDescription
-        }
+        let result = await searchService.search(currentQuery, referenceTrackID: nil,
+                                                 isCancelled: { false })
+        guard generation == self.generation else { return }
+        response = result
+        lastError = errorMessage(for: result.state)
+        await hydrateAnalysis(for: result.results)
     }
 
     // MARK: - Audio-to-audio (FR-SEM-7)
 
-    /// "More like this track": skip the text encoder entirely and use the track's
-    /// own stored pooled vector, excluding itself (§27.5).
+    /// "More like this track": the reference track's own stored embedding
+    /// drives the scan directly (`SearchService`'s `.similar` mode), excluding
+    /// itself (§27.5).
     public func searchSimilar(to trackID: Int64) async {
         searchTask?.cancel()
         generation += 1
         let thisGeneration = generation
         isSearching = true
         defer { isSearching = false }
-        do {
-            let result = try await searchService.similar(to: trackID, limit: resultLimit)
-            guard thisGeneration == self.generation else { return }
-            response = result
-            lastError = nil
-        } catch {
-            guard thisGeneration == self.generation else { return }
-            lastError = error.localizedDescription
-        }
+        let result = await searchService.search(
+            DiscoverySearchQuery(limit: resultLimit),
+            referenceTrackID: trackID, isCancelled: { false })
+        guard thisGeneration == self.generation else { return }
+        response = result
+        lastError = errorMessage(for: result.state)
+        await hydrateAnalysis(for: result.results)
     }
 
     // MARK: - ODR fetch (FR-SEM-6)
@@ -314,43 +341,82 @@ public final class VibeSearchModel: ObservableObject {
         savedCrate = try repository.crate(id: id)
         return id
     }
+
+    // MARK: - Result analysis hydration
+
+    /// `DiscoverySearchResult` carries a core `TrackRow`, which (unlike the old
+    /// DJ-local `DJTrackRow`) has no bpm/camelot of its own — batch-read them
+    /// from core `discovery_track_analysis` for the results currently shown.
+    private func hydrateAnalysis(for results: [DiscoverySearchResult]) async {
+        let ids = results.map(\.trackID)
+        guard !ids.isEmpty else {
+            analysisByTrackID = [:]
+            return
+        }
+        let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ",")
+        let rows = (try? await library.dbQueue.read { db in
+            try Row.fetchAll(db, sql: """
+                SELECT trackId, bpm, key FROM discovery_track_analysis
+                WHERE trackId IN (\(placeholders))
+                """, arguments: StatementArguments(ids))
+        }) ?? []
+        var built: [Int64: (bpm: Double?, camelot: String?)] = [:]
+        for row in rows {
+            let id: Int64 = row["trackId"]
+            let bpm: Double? = row["bpm"]
+            let camelot: String? = row["key"]
+            built[id] = (bpm, camelot)
+        }
+        analysisByTrackID = built
+    }
+
+    /// A real error/absence state surfaced as text; `.ready`/`.noMatches`/the
+    /// stated model-absent and unindexed-reference states already have their
+    /// own explicit UI treatment in `VibeSearchView` and are not errors.
+    private func errorMessage(for state: DiscoverySearchResponse.State) -> String? {
+        switch state {
+        case .searchFailed:
+            return "Search failed — please try again."
+        case .validationFailed(let issues):
+            return issues.map(\.description).joined(separator: " ")
+        default:
+            return nil
+        }
+    }
 }
 
-/// Assembles the production Vibe Search stack (§41.4 View ▸ VM ▸ data): Tier A
-/// store + the real CLAP text encoder behind ODR delivery. Absence is honest
-/// (FR-SEM-6): until the `clap-text` tag is fetched the encoder's URL doesn't
-/// exist, so every query lands in the stated model-not-downloaded state — the
-/// view turns that into an explicit fetch offer, never a silent empty list.
+/// Assembles the production Vibe Search stack (§41.4 View ▸ VM ▸ data): the
+/// unified `SearchService` (C02) + the DJ-local `SmartCrateRepository`
+/// (`smart_crate`/`crate_rule` are DJ-only operational data, intentionally
+/// still DJ-local per the plan amendment — the same decision session 12 made
+/// for `GridCorrectionRepository`/`MixRepository`). A dedicated `VectorIndex`/
+/// `ModelManager` is built per screen rather than sharing the app's one
+/// process-wide `DiscoveryAssembly` (owned by the App target, not reachable
+/// from this package) — a real, flagged duplication (mirrors the CLAP text
+/// model being loaded twice if both this screen and the core Discovery search
+/// screen are used in one session), not fixed here to keep this change scoped.
+/// Absence is honest (FR-SEM-6): until the `clap-text` ODR tag is fetched
+/// (through the SAME `BundleResourceProvider`/tag the old stack used — ODR
+/// content mounts into `Bundle.main` regardless of which request triggered
+/// it), `ModelManager.textEncoder` fails with `.resourcesUnavailable` and
+/// every query lands in the stated model-not-downloaded state — the view
+/// turns that into an explicit fetch offer, never a silent empty list.
 @MainActor
 public enum VibeSearchAssembly {
 
-    public static func makeModel(pool: DatabasePool) -> VibeSearchModel? {
+    public static func makeModel(pool: DatabasePool, library: LibraryStore = .shared) async -> VibeSearchModel {
         let provider = BundleResourceProvider()
         let resource = ModelResourceService(provider: provider)
-        let spec = EmbeddingModelSpec.musicCLAPMetadata
-        guard let store = try? VectorStoreTierA(pool: pool, dims: spec.dimensions) else {
-            return nil
-        }
-        let encoder = CoreMLSemanticModel(kind: .text,
-                                          url: modelURL(named: "CLAPTextEncoder.mlpackage"),
-                                          spec: spec)
-        let embedder = CLAPEmbedder(model: encoder)
-        let service = SemanticSearchService(pool: pool, store: store,
-                                            embedder: embedder, resource: resource)
+        let writer = await library.dbQueue
+        let index = VectorIndex(writer: writer)
+        let models = ModelManager(resourceProvider: {
+            let dirs = [Bundle.main.resourceURL].compactMap { $0 }
+            return ModelResourceLocator(searchDirectories: dirs).resolve()
+        })
+        let service = SearchService(writer: writer, index: index, models: models)
         return VibeSearchModel(searchService: service,
                                repository: SmartCrateRepository(pool: pool),
                                resource: resource,
-                               pool: pool)
-    }
-
-    /// The on-disk location the ODR tag lands at. Before the tag is fetched this
-    /// path doesn't exist, which is exactly the honest absence `isAvailable()`
-    /// reports (mirrors `BundleResourceProvider.url(for:)`).
-    private static func modelURL(named name: String) -> URL {
-        let path = (name as NSString).deletingPathExtension
-        let ext = (name as NSString).pathExtension
-        return Bundle.main.url(forResource: path, withExtension: ext)
-            ?? Bundle.main.resourceURL?.appendingPathComponent(name)
-            ?? URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(name)
+                               library: library)
     }
 }

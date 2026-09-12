@@ -1,4 +1,6 @@
 import SwiftUI
+import ParsoAudioNeural
+import TonearmDiscovery
 
 /// Vibe Search (§41.4/41.5, mockups `ipad/04a-vibe-search-query.html`,
 /// `ipad/04b-vibe-search-results.html`; collapsed to one scroll for the compact
@@ -123,13 +125,20 @@ public struct VibeSearchView: View {
         case unindexedReference
     }
 
+    /// C02: `DiscoverySearchResponse.State` has more cases than the old
+    /// DJ-local `SearchState` (real error/absence states the old stack didn't
+    /// distinguish — plan §9). Empty text + no refinements is now an ordinary
+    /// scoped browse rather than a dedicated response state, so "describe a
+    /// feeling" is driven by the query itself, not the response.
     private var phase: Phase {
         guard let response = model.response else { return .query }
+        if model.queryText.isEmpty && model.positiveTerms.isEmpty {
+            return .emptyQuery
+        }
         switch response.state {
-        case .textModelUnavailable: return .modelUnavailable
-        case .emptyQuery: return .emptyQuery
+        case .modelMissing, .modelDownloadFailed: return .modelUnavailable
         case .unindexedReference: return .unindexedReference
-        case .ready: return .results
+        default: return .results
         }
     }
 
@@ -305,50 +314,55 @@ public struct VibeSearchView: View {
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
     }
 
-    private func resultRow(_ result: SearchResult) -> some View {
-        HStack(spacing: 12) {
+    private func resultRow(_ result: DiscoverySearchResult) -> some View {
+        let analysis = model.analysisByTrackID[result.trackID]
+        return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(result.track.title)
+                Text(result.track.track.title)
                     .font(.system(size: 13, weight: .medium))
                     .lineLimit(1)
                 HStack(spacing: 6) {
-                    Text(result.track.artistNames)
+                    Text(result.track.artist?.name ?? result.track.album?.artist ?? "")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    if let bpm = result.track.bpm {
+                    if let bpm = analysis?.bpm {
                         Text(String(format: "%.1f", bpm))
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
-                    if let key = result.track.camelot {
+                    if let key = analysis?.camelot {
                         Text(key)
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
                 }
-                scorePills(result)
+                if let breakdown = result.breakdown {
+                    scorePills(breakdown)
+                }
             }
             Spacer()
-            Text(String(format: "%.2f", result.finalScore))
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            if let finalScore = result.finalScore {
+                Text(String(format: "%.2f", finalScore))
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            }
         }
         .padding(12)
         .contentShape(Rectangle())
         .contextMenu {
             Button("More like this") {
-                Task { await model.searchSimilar(to: result.track.id) }
+                Task { await model.searchSimilar(to: result.trackID) }
             }
         }
     }
 
     /// The hybrid score decomposed so ranking is legible, not magic (FR-SEM-2).
-    private func scorePills(_ result: SearchResult) -> some View {
+    private func scorePills(_ breakdown: RankBreakdown) -> some View {
         HStack(spacing: 4) {
-            scorePill("feel", result.reasons.semantic)
-            scorePill("bpm", result.reasons.bpm)
-            scorePill("key", result.reasons.key)
-            scorePill("energy", result.reasons.energy)
+            scorePill("feel", breakdown.semantic)
+            scorePill("bpm", breakdown.bpm)
+            scorePill("key", breakdown.key)
+            scorePill("energy", breakdown.energy)
         }
     }
 

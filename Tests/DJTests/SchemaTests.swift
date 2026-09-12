@@ -6,9 +6,48 @@ import GRDB
 final class DJSchemaTests: XCTestCase {
     func testMigrationOrderIsAppendOnly() {
         XCTAssertEqual(DJSchema.migrationOrder,
-                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7"])
+                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7", "dj_v8", "dj_v9", "dj_v10", "dj_v11", "dj_v12"])
         XCTAssertEqual(DJSchema.migrator().migrations,
-                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7"])
+                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7", "dj_v8", "dj_v9", "dj_v10", "dj_v11", "dj_v12"])
+    }
+
+    /// `dj_v8` (IMPLEMENT_CLAP_PLAN.md C02): `playlist_item.trackID` no longer
+    /// has a foreign key into this database's own `track` table, because
+    /// `PlaylistCrateImporter` now stores the *core* `LibraryStore` track id
+    /// there directly — an id that lives in a different database file and
+    /// never satisfies a DJ-local FK.
+    func testV8DropsPlaylistItemTrackForeignKey() throws {
+        let db = try DatabaseQueue()
+        try DJSchema.migrator().migrate(db)
+        try db.read { db in
+            let foreignKeys = try db.foreignKeys(on: "playlist_item")
+            XCTAssertFalse(foreignKeys.contains { $0.destinationTable == "track" },
+                           "playlist_item.trackID must not FK into the DJ-local track table")
+            XCTAssertTrue(foreignKeys.contains { $0.destinationTable == "playlist" },
+                          "playlist_item.playlistID must still cascade with its playlist")
+            let columns = try db.columns(in: "playlist_item").map(\.name)
+            XCTAssertEqual(Set(columns), ["id", "playlistID", "trackID", "position"])
+        }
+    }
+
+    /// `dj_v9` (IMPLEMENT_CLAP_PLAN.md C02, session 14): `gig_crate_track.
+    /// trackID` no longer has a foreign key into this database's own `track`
+    /// table, because `GigCrateRepository.promote` copies the (now core)
+    /// `playlist_item.trackID` straight through — an id that lives in a
+    /// different database file and never satisfies a DJ-local FK.
+    func testV9DropsGigCrateTrackTrackForeignKey() throws {
+        let db = try DatabaseQueue()
+        try DJSchema.migrator().migrate(db)
+        try db.read { db in
+            let foreignKeys = try db.foreignKeys(on: "gig_crate_track")
+            XCTAssertFalse(foreignKeys.contains { $0.destinationTable == "track" },
+                           "gig_crate_track.trackID must not FK into the DJ-local track table")
+            XCTAssertTrue(foreignKeys.contains { $0.destinationTable == "gig_crate" },
+                          "gig_crate_track.gigCrateID must still cascade with its gig_crate")
+            let columns = try db.columns(in: "gig_crate_track").map(\.name)
+            XCTAssertEqual(Set(columns), ["id", "gigCrateID", "trackID", "position",
+                                          "audioCached", "stemsState", "stemsBytes"])
+        }
     }
 
     /// `dj_v6` (plan dj-midi-alpha M2): the soft-takeover mode is a property of
@@ -42,13 +81,16 @@ final class DJSchemaTests: XCTestCase {
         }
     }
 
+    /// C02 (`dj_v12`): the DJ-local catalog tables (`artist`/`album`/`track`/
+    /// `track_artist`/`genre`/`track_genre`/`folder`/`asset`/`import_event`)
+    /// are dropped outright — every remaining table here stores only
+    /// DJ-local *supplementary* data keyed by a **core** `LibraryStore`
+    /// track id, never a second copy of track/artist/album identity.
     func testApplyingAllMigrationsCreatesRelationalCoreTables() throws {
         let db = try DatabaseQueue()
         try DJSchema.migrator().migrate(db)
 
         let expectedTables = [
-            "artist", "album", "track", "track_artist", "genre", "track_genre",
-            "folder", "asset", "import_event",
             "cue_point", "hot_cue_bank", "loop", "grid_correction",
             "playlist", "playlist_item", "smart_crate", "crate_rule",
             "auto_playlist_brief", "auto_playlist_result", "auto_playlist_item", "auto_playlist_rejection",
@@ -58,6 +100,17 @@ final class DJSchemaTests: XCTestCase {
         try db.read { db in
             for table in expectedTables {
                 XCTAssertTrue(try db.tableExists(table), "missing table \(table)")
+            }
+        }
+
+        let deletedCatalogTables = [
+            "artist", "album", "track", "track_artist", "genre", "track_genre",
+            "folder", "asset", "import_event",
+        ]
+        try db.read { db in
+            for table in deletedCatalogTables {
+                XCTAssertFalse(try db.tableExists(table),
+                               "\(table) is the deleted duplicate catalog — must not exist")
             }
         }
     }
@@ -90,17 +143,24 @@ final class DJSchemaTests: XCTestCase {
         }
     }
 
+    /// C02 (`dj_v12`): `track_embedding`/`window_embedding` backed the
+    /// semantic-search subsystem (`VectorStore`/`SemanticSearchService`/
+    /// `EmbeddingCoordinator`), already deleted from `Sources`, and were an
+    /// FK-to-the-deleted-catalog table besides — `dj_v12` drops both
+    /// outright rather than just stripping their FK. `embedding_version`/
+    /// `vector_matrix_meta` never referenced `track` and are untouched.
     func testV3CreatesEmbeddingTables() throws {
         let db = try DatabaseQueue()
         try DJSchema.migrator().migrate(db)
 
-        let expectedTables = [
-            "embedding_version", "track_embedding", "window_embedding",
-            "vector_matrix_meta",
-        ]
+        let survivingTables = ["embedding_version", "vector_matrix_meta"]
         try db.read { db in
-            for table in expectedTables {
+            for table in survivingTables {
                 XCTAssertTrue(try db.tableExists(table), "missing table \(table)")
+            }
+            for table in ["track_embedding", "window_embedding"] {
+                XCTAssertFalse(try db.tableExists(table),
+                               "\(table) backed the deleted semantic-search subsystem — must not exist")
             }
         }
     }
@@ -136,28 +196,64 @@ final class DJSchemaTests: XCTestCase {
         XCTAssertEqual(pk, ["trackID", "modelVersion"])
     }
 
-    func testTrackDefaultsMatchDDL() throws {
+    // `testTrackDefaultsMatchDDL` (DJ-local `track` table default-column
+    // DDL) was deleted by C02/`dj_v12`: the DJ-local catalog `track` table
+    // it tested no longer exists — that is a duplicate-catalog table this
+    // migration correctly retired, not a fixture-mechanics issue to patch.
+
+    /// `dj_v10` (IMPLEMENT_CLAP_PLAN.md C02): `auto_playlist_item.trackID`,
+    /// `auto_playlist_rejection.trackID` and `auto_playlist_brief.
+    /// seedTrackID` no longer have a foreign key into this database's own
+    /// `track` table, because `PlaylistGenerator`'s candidates now come from
+    /// `SearchService` keyed by the *core* `LibraryStore` track id — an id
+    /// that lives in a different database file and never satisfies a
+    /// DJ-local FK.
+    func testV10DropsAutoPlaylistTrackForeignKeys() throws {
         let db = try DatabaseQueue()
         try DJSchema.migrator().migrate(db)
-        let now = Date()
-        var track = DJTrack(
-            syncID: UUID().uuidString,
-            title: "Halcyon",
-            contentHash: "abc",
-            sortKey: "halcyon",
-            addedAt: now,
-            updatedAt: now
-        )
-        try db.write { try track.insert($0) }
+        try db.read { db in
+            let briefFKs = try db.foreignKeys(on: "auto_playlist_brief")
+            XCTAssertFalse(briefFKs.contains { $0.destinationTable == "track" },
+                           "auto_playlist_brief.seedTrackID must not FK into the DJ-local track table")
+            XCTAssertTrue(briefFKs.contains { $0.destinationTable == "smart_crate" },
+                          "auto_playlist_brief.seedCrateID must still set-null with its crate")
 
-        let row = try db.read { db in
-            try Row.fetchOne(db, sql: "SELECT analysisVersion, embeddingVersion, analysisState, stemState FROM track WHERE id = ?", arguments: [track.id!])
+            let itemFKs = try db.foreignKeys(on: "auto_playlist_item")
+            XCTAssertFalse(itemFKs.contains { $0.destinationTable == "track" },
+                           "auto_playlist_item.trackID must not FK into the DJ-local track table")
+            XCTAssertTrue(itemFKs.contains { $0.destinationTable == "auto_playlist_result" },
+                          "auto_playlist_item.resultID must still cascade with its result")
+
+            let rejectionFKs = try db.foreignKeys(on: "auto_playlist_rejection")
+            XCTAssertFalse(rejectionFKs.contains { $0.destinationTable == "track" },
+                           "auto_playlist_rejection.trackID must not FK into the DJ-local track table")
+            XCTAssertTrue(rejectionFKs.contains { $0.destinationTable == "auto_playlist_brief" },
+                          "auto_playlist_rejection.briefID must still cascade with its brief")
         }
-        let fetched = try XCTUnwrap(row)
-        XCTAssertEqual(fetched["analysisVersion"] as? Int64, 0)
-        XCTAssertEqual(fetched["embeddingVersion"] as? Int64, 0)
-        XCTAssertEqual(fetched["analysisState"] as? String, "pending")
-        XCTAssertEqual(fetched["stemState"] as? String, "none")
+    }
+
+    /// `dj_v11` (IMPLEMENT_CLAP_PLAN.md C02): `mix_track_event.trackID` no
+    /// longer has a foreign key into this database's own `track` table,
+    /// because `RecordingService` resolves the §37.4 timeline snapshot from
+    /// the *core* `LibraryStore` (`MixTimeline.entries.trackID` is a core id
+    /// everywhere deck-load happens) — an id that lives in a different
+    /// database file and never satisfies a DJ-local FK. Before this
+    /// migration, `foreignKeysEnabled = true` meant every `finalizeRecordingMix`
+    /// with a non-empty timeline threw on the INSERT and the mix was marked
+    /// corrupt — not merely a display bug.
+    func testV11DropsMixTrackEventTrackForeignKey() throws {
+        let db = try DatabaseQueue()
+        try DJSchema.migrator().migrate(db)
+        try db.read { db in
+            let foreignKeys = try db.foreignKeys(on: "mix_track_event")
+            XCTAssertFalse(foreignKeys.contains { $0.destinationTable == "track" },
+                           "mix_track_event.trackID must not FK into the DJ-local track table")
+            XCTAssertTrue(foreignKeys.contains { $0.destinationTable == "mix" },
+                          "mix_track_event.mixID must still cascade with its mix")
+            let columns = try db.columns(in: "mix_track_event").map(\.name)
+            XCTAssertEqual(Set(columns), ["id", "mixID", "trackID", "title", "artist", "deck",
+                                          "startOffsetSec", "bpmAtPlay", "camelotAtPlay", "position"])
+        }
     }
 
     /// dj_v5 — the hardware tables (§15, §44, FR-HW-1/2/4, plan 6.5).

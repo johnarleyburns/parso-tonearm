@@ -23,6 +23,13 @@ final class PlaylistCrateImporterTests: XCTestCase {
         }
         XCTAssertEqual(stored.0, 1)
         XCTAssertEqual(stored.1.count, 2)
+        // C02: the crate stores the CORE LibraryStore track ids directly —
+        // no DJ-local DJTrack/DJAsset copy is created for them.
+        XCTAssertEqual(Set(stored.1), Set([fixture.localOneID, fixture.localTwoID]))
+        let hasTrackTable = try await fixture.djStore.pool.read { db in
+            try db.tableExists("track")
+        }
+        XCTAssertFalse(hasTrackTable, "importCrate must not create DJ-local track rows")
     }
 
     func testReimportReplacesTheNamedCrateInsteadOfStacking() async throws {
@@ -46,6 +53,8 @@ final class PlaylistCrateImporterTests: XCTestCase {
         let djStore: DJLibraryStore
         let importer: PlaylistCrateImporter
         let playlistID: Int64
+        let localOneID: Int64
+        let localTwoID: Int64
     }
 
     private func makeFixture() async throws -> Fixture {
@@ -76,7 +85,8 @@ final class PlaylistCrateImporterTests: XCTestCase {
         let djStore = try DJLibraryStore(path: directory.appendingPathComponent("dj.sqlite"))
         return Fixture(directory: directory, djStore: djStore,
                        importer: PlaylistCrateImporter(library: library, djLibrary: djStore),
-                       playlistID: playlist.id!)
+                       playlistID: playlist.id!,
+                       localOneID: localOne.id!, localTwoID: localTwo.id!)
     }
 
     private func insertTrack(title: String, source: Source, assetURL: URL?, remoteURL: String?,

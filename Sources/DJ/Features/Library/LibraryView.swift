@@ -113,25 +113,39 @@ public struct LibraryView: View {
         }
     }
 
-    /// Lazily assemble the auto-playlist stack on first use; a missing store is
-    /// an honest absence and simply leaves the entry point inert.
+    /// Lazily assemble the auto-playlist stack on first use (now an `async`
+    /// build — C02 — since `AutoPlaylistAssembly.makeModel` awaits the core
+    /// `LibraryStore` actor to hand `SearchService` its writer, mirroring
+    /// `openVibeSearch`).
     private func openPlaylistBrief() {
-        if playlistModel == nil {
-            playlistModel = AutoPlaylistAssembly.makeModel(pool: model.store.pool)
+        if playlistModel != nil {
+            showPlaylistBrief = true
+            return
         }
-        showPlaylistBrief = playlistModel != nil
+        Task { @MainActor in
+            playlistModel = await AutoPlaylistAssembly.makeModel(pool: model.store.pool)
+            showPlaylistBrief = true
+        }
     }
 
-    /// Lazily assemble the search stack on first use; a missing store is an
-    /// honest absence (FR-SEM-6) and simply leaves the entry points inert.
+    /// Lazily assemble the search stack on first use (now an `async` build —
+    /// C02 — since `VibeSearchAssembly.makeModel` awaits the core
+    /// `LibraryStore` actor to hand `SearchService` its writer).
     private func openVibeSearch(_ destination: VibeDestination) {
-        if vibeModel == nil {
-            vibeModel = VibeSearchAssembly.makeModel(pool: model.store.pool)
+        if let vibeModel {
+            vibeDestination = destination
+            if case .moreLike(let trackID) = destination {
+                Task { await vibeModel.searchSimilar(to: trackID) }
+            }
+            return
         }
-        guard let vibeModel else { return }
-        vibeDestination = destination
-        if case .moreLike(let trackID) = destination {
-            Task { await vibeModel.searchSimilar(to: trackID) }
+        Task { @MainActor in
+            let built = await VibeSearchAssembly.makeModel(pool: model.store.pool)
+            vibeModel = built
+            vibeDestination = destination
+            if case .moreLike(let trackID) = destination {
+                await built.searchSimilar(to: trackID)
+            }
         }
     }
 }

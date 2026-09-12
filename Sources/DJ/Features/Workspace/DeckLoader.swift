@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import GRDB
 import TonearmCore
+import TonearmDiscovery
 
 // MARK: - FR-LIB-8 deck-readiness (§4.1, §41.9c)
 
@@ -245,17 +246,38 @@ public protocol DeckLibraryServicing: Sendable {
 /// A `Sendable` value holding the single-writer store, so the blocking decode
 /// runs on the cooperative executor the caller landed on — never the main
 /// actor.
+///
+/// **C02 (IMPLEMENT_CLAP_PLAN.md) identity note.** Both queue sources are
+/// fully re-pointed at the one core `LibraryStore` database: `.allTracks`
+/// resolves core track rows directly, and `.playlist` (a DJ crate, from
+/// `PlaylistCrateImporter`) stores core track IDs since dj_v8 dropped
+/// `playlist_item.trackID`'s FK into the DJ-local `track` table — so
+/// `rows(in: .playlist)` and `load(trackID:)` resolve those IDs through the
+/// SAME core `LibraryStore`, the same IDs the app's import path,
+/// `SearchService` and every other core-database consumer use. This is the
+/// identity path the plan's C02 integration test exercises for both queue
+/// sources. There is no legacy DJ-local track/asset fallback in
+/// `load(trackID:)` any more — a core lookup miss is an honest
+/// "not in the library" refusal.
 public struct DeckLoader: DeckLibraryServicing, Sendable {
-    public let store: DJLibraryStore
+    /// The one core music catalog (plan §3).
+    public let library: LibraryStore
+    /// DJ-local operational data that the plan's amendment leaves
+    /// intentionally un-migrated: manual beat-grid corrections (read here,
+    /// keyed by whatever ID space a given track's beat-grid row happens to be
+    /// under — see `authoritativeGrid`), and — until the crate-side follow-up
+    /// above lands — the legacy `.playlist` catalog rows.
+    public let djLibrary: DJLibraryStore
 
-    public init(store: DJLibraryStore = .shared) {
-        self.store = store
+    public init(library: LibraryStore = .shared, djLibrary: DJLibraryStore = .shared) {
+        self.library = library
+        self.djLibrary = djLibrary
     }
 
     // MARK: DeckLibraryServicing
 
     public func availableQueues() async throws -> [DeckQueueSource] {
-        let pool = store.pool
+        let pool = djLibrary.pool
         let playlists = try await pool.read { db in
             try DJPlaylist.order(Column("updatedAt").desc).fetchAll(db)
         }
@@ -267,13 +289,20 @@ public struct DeckLoader: DeckLibraryServicing, Sendable {
     }
 
     public func rows(in source: DeckQueueSource) async throws -> [DeckQueueRow] {
-        let pool = store.pool
-        let repo = DJTrackRepository(pool: pool)
-        let rows: [DJTrackRow]
         switch source {
         case .allTracks:
-            rows = try repo.tracks(matching: LibraryQuery())
+            let rows = try await library.allTrackRows()
+            return rows.map { row in
+                DeckQueueRow(trackID: row.id,
+                             title: row.track.title,
+                             artist: row.artist?.name ?? row.album?.artist ?? "",
+                             readiness: readiness(forCore: row.asset))
+            }
         case .playlist(let id, _):
+            // C02: playlist_item.trackID is a CORE LibraryStore track id
+            // (dj_v8) — resolve it through the same core library as
+            // .allTracks, not a DJ-local track/asset lookup.
+            let pool = djLibrary.pool
             let trackIDs = try await pool.read { db in
                 try DJPlaylistItem
                     .filter(Column("playlistID") == id)
@@ -281,36 +310,34 @@ public struct DeckLoader: DeckLibraryServicing, Sendable {
                     .fetchAll(db)
                     .compactMap(\.trackID)
             }
-            rows = try repo.tracks(ids: trackIDs)
-        }
-        let assets = try await assets(for: rows.map(\.id))
-        return rows.map { row in
-            DeckQueueRow(trackID: row.id,
-                         title: row.title,
-                         artist: row.artistNames,
-                         readiness: readiness(for: assets[row.id]))
+            var rows: [DeckQueueRow] = []
+            rows.reserveCapacity(trackIDs.count)
+            for trackID in trackIDs {
+                guard let row = try? await library.trackRow(id: trackID) else { continue }
+                rows.append(DeckQueueRow(trackID: row.id,
+                                         title: row.track.title,
+                                         artist: row.artist?.name ?? row.album?.artist ?? "",
+                                         readiness: readiness(forCore: row.asset)))
+            }
+            return rows
         }
     }
 
     public func load(trackID: Int64) async -> DeckLoadOutcome {
-        let pool = store.pool
-        guard let track = try? await pool.read({ db in try DJTrack.filter(key: trackID).fetchOne(db) }) else {
+        guard let row = try? await library.trackRow(id: trackID) else {
             return .refused(.unavailable(reason: "This track is no longer in the library"))
         }
-        guard let asset = try? await pool.read({ db in
-            try DJAsset.filter(Column("trackID") == trackID).fetchOne(db)
-        }) else {
-            return .refused(.unavailable(reason: "This track has no audio on file"))
-        }
+        return await loadCore(row)
+    }
 
-        // FR-LIB-8: the gate is decided here, before any decode. A missing or
-        // unreachable file is refused with an honest message — never a crash
-        // and never a deck armed with nothing to play.
-        let readiness = readiness(for: asset)
+    // MARK: - Core-identity load path (C02)
+
+    private func loadCore(_ row: TrackRow) async -> DeckLoadOutcome {
+        let readiness = readiness(forCore: row.asset)
         guard readiness.isReady else {
             return .refused(readiness)
         }
-        guard let url = resolveAudioURL(for: asset) else {
+        guard let asset = row.asset, let url = Self.resolveAudioURL(for: asset) else {
             return .refused(.unavailable(reason: "This track's file is no longer reachable"))
         }
 
@@ -325,7 +352,7 @@ public struct DeckLoader: DeckLibraryServicing, Sendable {
             let count = decoded.frameCount
             let storage = UnsafeMutableBufferPointer<Float>.allocate(capacity: count)
             storage.baseAddress!.update(from: mono, count: count)
-            let grid = await authoritativeGrid(track: track)
+            let grid = await authoritativeGrid(trackID: row.id)
             return .loaded(DeckSourceBox(samples: storage,
                                          sampleRate: AudioDecoder.workingSampleRate,
                                          grid: grid))
@@ -337,17 +364,23 @@ public struct DeckLoader: DeckLibraryServicing, Sendable {
     // MARK: - Grid
 
     /// The deck's grid at the decode sample rate: the authoritative grid when
-    /// the track has one (detected `beat_grid` + stored corrections replayed,
-    /// §23.3), else an honest default at the track's BPM. The reference sample
-    /// is re-anchored to the 48 kHz decode space, because that is the sample
-    /// space the `DeckSource` the deck actually plays is in.
-    private func authoritativeGrid(track: DJTrack) async -> DeckGrid {
-        let pool = store.pool
+    /// the track has a DJ-local `beat_grid` row for this core track ID
+    /// (detected + stored corrections replayed, §23.3), else an honest
+    /// default at the discovery-analyzed BPM (falling back to 120). The
+    /// reference sample is re-anchored to the 48 kHz decode space, because
+    /// that is the sample space the `DeckSource` the deck actually plays is
+    /// in.
+    ///
+    /// C02 note: `beat_grid`/`grid_correction` are still DJ-local tables keyed
+    /// by whatever ID they were written under; a core track ID that was never
+    /// analyzed by the (still un-migrated) DJ analysis pipeline simply has no
+    /// row here, which is the honest, expected state for every track until
+    /// that pipeline's own C02 follow-up re-keys it onto core IDs — not a
+    /// bug in this read path.
+    private func authoritativeGrid(trackID: Int64) async -> DeckGrid {
+        let pool = djLibrary.pool
         let decodeRate = AudioDecoder.workingSampleRate
-        guard let trackID = track.id else {
-            return DeckGrid(bpm: track.bpm ?? 120, sampleRate: decodeRate)
-        }
-        let corrections = (try? await store.gridCorrections(trackID: trackID)) ?? []
+        let corrections = (try? await djLibrary.gridCorrections(trackID: trackID)) ?? []
         var detectedBPM: Double?
         var firstBeatSample: Int64 = 0
         if let row = try? pool.read({ db in
@@ -372,18 +405,22 @@ public struct DeckLoader: DeckLibraryServicing, Sendable {
                                 sampleRate: decodeRate)
             }
         }
-        return DeckGrid(bpm: track.bpm ?? 120, sampleRate: decodeRate)
+        let discoveredBPM = (try? await library.dbQueue.read { db in
+            try DiscoveryTrackAnalysis.fetchOne(db, key: trackID)?.bpm
+        }) ?? nil
+        return DeckGrid(bpm: discoveredBPM ?? 120, sampleRate: decodeRate)
     }
 
-    // MARK: - Readiness
+    // MARK: - Readiness (core)
 
-    /// The FR-LIB-8 decision for an asset: fully local and reachable is ready;
-    /// anything else is an honest unavailable state with a user-facing reason.
-    private func readiness(for asset: DJAsset?) -> DeckReadiness {
+    /// The FR-LIB-8 decision for a core asset: fully local and reachable is
+    /// ready; anything else is an honest unavailable state with a
+    /// user-facing reason.
+    private func readiness(forCore asset: Asset?) -> DeckReadiness {
         guard let asset else {
             return .unavailable(reason: "This track has no audio on file")
         }
-        guard let url = resolveAudioURL(for: asset) else {
+        guard let url = Self.resolveAudioURL(for: asset) else {
             return .unavailable(reason: "This track's file is no longer reachable")
         }
         var isDirectory: ObjCBool = false
@@ -394,37 +431,31 @@ public struct DeckLoader: DeckLibraryServicing, Sendable {
         return .ready
     }
 
-    /// Batch asset fetch indexed by trackID — one query for a whole queue list,
-    /// so a crate's readiness never costs an N+1 round of reads.
-    private func assets(for trackIDs: [Int64]) async throws -> [Int64: DJAsset] {
-        guard !trackIDs.isEmpty else { return [:] }
-        let pool = store.pool
-        let placeholders = Array(repeating: "?", count: trackIDs.count).joined(separator: ",")
-        let sql = "SELECT * FROM asset WHERE trackID IN (\(placeholders))"
-        let assets = try await pool.read { db in
-            try SQLRequest<DJAsset>(sql: sql, arguments: StatementArguments(trackIDs)).fetchAll(db)
+    /// Resolves a core `Asset` to its local audio URL: a per-file bookmark, a
+    /// direct file:// remote URL, an app-relative path, or — for a fully
+    /// cached remote track — the complete stream-cache entry. Mirrors
+    /// `PhoneWatchLibraryAudioResolver.localURL(for:)` and
+    /// `PlaylistCrateImporter.localURL(for:)`, the other core-`Asset`
+    /// resolvers in this codebase.
+    private static func resolveAudioURL(for asset: Asset) -> URL? {
+        if let bookmark = asset.bookmark, let (url, _) = BookmarkVault.resolve(bookmark) {
+            return url
         }
-        var byTrackID: [Int64: DJAsset] = [:]
-        for asset in assets {
-            if byTrackID[asset.trackID] == nil { byTrackID[asset.trackID] = asset }
+        if let remote = asset.remoteURL.flatMap(URL.init(string:)), remote.isFileURL {
+            return remote
         }
-        return byTrackID
+        if let relPath = asset.relPath,
+           let base = try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                    in: .userDomainMask, appropriateFor: nil,
+                                                    create: false) {
+            let url = base.appendingPathComponent(relPath)
+            if FileManager.default.fileExists(atPath: url.path) { return url }
+        }
+        if let remote = asset.remoteURL.flatMap(URL.init(string:)),
+           AudioCache.completeCacheExists(for: remote) {
+            return AudioCache.fileURL(for: AudioCache.key(for: remote))
+        }
+        return nil
     }
 
-    // MARK: - URL resolution
-
-    /// Resolves an asset to its local audio URL: the per-file bookmark when
-    /// present, else the folder's bookmark + the relative path (the folder-
-    /// import shape §13.1 writes).
-    private func resolveAudioURL(for asset: DJAsset) -> URL? {
-        if let bookmark = asset.bookmark, let resolved = BookmarkVault.resolve(bookmark) {
-            return resolved.url
-        }
-        guard let folderID = asset.folderID, let relPath = asset.relPath else { return nil }
-        guard let folder = try? store.pool.read({ db in
-            try DJFolder.filter(key: folderID).fetchOne(db)
-        }) else { return nil }
-        guard let resolved = BookmarkVault.resolve(folder.bookmark) else { return nil }
-        return resolved.url.appendingPathComponent(relPath)
-    }
 }

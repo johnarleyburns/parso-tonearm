@@ -4,12 +4,19 @@ import TonearmCore
 struct ListenView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
+    @ObservedObject private var support = SupportDevelopmentStore.shared
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ScreenHeader(title: "Listen")
-                    .padding(.bottom, 16)
+                if support.isSupporter {
+                    supporterBadge
+                        .padding(.top, 6)
+                        .padding(.bottom, 10)
+                } else {
+                    Spacer().frame(height: 16)
+                }
 
                 if !appState.recentlyPlayed.isEmpty {
                     cardRow(title: "Jump Back In", rows: appState.recentlyPlayed)
@@ -25,6 +32,20 @@ struct ListenView: View {
         }
         .foregroundStyle(Palette.ink)
         .task { await appState.reload() }
+    }
+
+    /// Shown only when `SupportDevelopmentStore.isSupporter` is true — the
+    /// one, purely cosmetic acknowledgement of the optional "Contribute to
+    /// Development" purchase (business decision: nothing in Tonearm is
+    /// gated, so this badge unlocks nothing either).
+    private var supporterBadge: some View {
+        Label("Supporter", systemImage: "heart.fill")
+            .font(.system(size: 11.5, weight: .semibold))
+            .foregroundStyle(Palette.brass)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .glassSurface(cornerRadius: 12)
+            .accessibilityIdentifier("listen.supporterBadge")
     }
 
     private func cardRow(title: String, rows: [TrackRow]) -> some View {

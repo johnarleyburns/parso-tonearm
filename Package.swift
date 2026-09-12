@@ -7,6 +7,7 @@ let package = Package(
     products: [
         .library(name: "TonearmCore", targets: ["TonearmCore"]),
         .library(name: "TonearmDJ", targets: ["TonearmDJ"]),
+        .library(name: "TonearmDiscovery", targets: ["TonearmDiscovery"]),
         .library(name: "TonearmWatchProtocol", targets: ["TonearmWatchProtocol"]),
         .library(name: "TonearmWatchCore", targets: ["TonearmWatchCore"])
     ],
@@ -48,6 +49,7 @@ let package = Package(
                 "Sources/CSQLiteVec",
                 "Sources/DesignSystem",
                 "Sources/DJ",
+                "Sources/Discovery",
                 "Sources/Features",
                 "Sources/Media",
                 "Config",
@@ -148,6 +150,12 @@ let package = Package(
             name: "TonearmDJ",
             dependencies: [
                 "TonearmCore",
+                // C02 (IMPLEMENT_CLAP_PLAN.md): DJ consumers being ported off
+                // the separate DJ catalog onto the unified core retrieval
+                // engine (`SearchService`/`DiscoverySearchQuery`) and core
+                // track IDs. Does not create a cycle: TonearmDiscovery
+                // depends only on TonearmCore.
+                "TonearmDiscovery",
                 "CSQLiteVec",
                 "CLAMEBridge",
                 .product(name: "GRDB", package: "GRDB.swift"),
@@ -175,6 +183,17 @@ let package = Package(
                 .linkedLibrary("sqlite3")
             ]
         ),
+        .target(
+            name: "TonearmDiscovery",
+            dependencies: [
+                "TonearmCore",
+                .product(name: "GRDB", package: "GRDB.swift"),
+                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
+                .product(name: "ParsoAudioNeural", package: "parso-audio-engine")
+            ],
+            path: "Sources/Discovery",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .testTarget(
             name: "TonearmCoreTests",
             dependencies: [
@@ -189,7 +208,9 @@ let package = Package(
                 // Helper process used by optional integration smoke tests.
                 "Support",
                 // DJ tests live in their own target (TonearmDJTests).
-                "DJTests"
+                "DJTests",
+                // Discovery tests live in their own target (TonearmDiscoveryTests).
+                "DiscoveryTests"
             ],
             resources: [.copy("Fixtures")],
             swiftSettings: [.swiftLanguageMode(.v6)]
@@ -198,6 +219,7 @@ let package = Package(
             name: "TonearmDJTests",
             dependencies: [
                 "TonearmDJ",
+                "TonearmDiscovery",
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
                 .product(name: "ParsoDJEngine", package: "parso-audio-engine"),
                 .product(name: "ParsoAudioNeural", package: "parso-audio-engine"),
@@ -205,6 +227,16 @@ let package = Package(
             ],
             path: "Tests/DJTests",
             resources: [.copy("Fixtures")],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "TonearmDiscoveryTests",
+            dependencies: [
+                "TonearmDiscovery",
+                "TonearmCore",
+                .product(name: "GRDB", package: "GRDB.swift")
+            ],
+            path: "Tests/DiscoveryTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]

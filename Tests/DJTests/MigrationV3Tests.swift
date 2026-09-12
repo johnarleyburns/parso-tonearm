@@ -3,29 +3,37 @@ import GRDB
 
 @testable import TonearmDJ
 
+/// `dj_v3` originally created the embedding tables backing the DJ-local
+/// semantic-search subsystem (`VectorStore`/`SemanticSearchService`/
+/// `EmbeddingCoordinator`). That subsystem was deleted from `Sources`
+/// before C02's catalog deletion, and `dj_v12` (IMPLEMENT_CLAP_PLAN.md C02)
+/// went on to drop `track_embedding`/`window_embedding` themselves outright
+/// — they were both dead schema (no reader/writer left in `Sources`) AND an
+/// FK into the now-deleted DJ-local `track` table. `DJTrackEmbedding`/
+/// `DJWindowEmbedding` (the record types) were deleted along with the
+/// catalog surface, so the round-trip tests that exercised them are gone
+/// too — not fixture-mechanics issues, genuinely deleted functionality.
+/// `embedding_version`/`vector_matrix_meta` never referenced `track` and
+/// are untouched — their tests remain.
 final class MigrationV3Tests: XCTestCase {
 
     func testMigrationOrderIsAppendOnly() {
         XCTAssertEqual(DJSchema.migrationOrder,
-                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7"])
+                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7", "dj_v8", "dj_v9", "dj_v10", "dj_v11", "dj_v12"])
         XCTAssertEqual(DJSchema.migrator().migrations,
-                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7"])
+                       ["dj_v1", "dj_v2", "dj_v3", "dj_v4", "dj_v5", "dj_v6", "dj_v7", "dj_v8", "dj_v9", "dj_v10", "dj_v11", "dj_v12"])
     }
 
-    func testV3CreatesEmbeddingTables() throws {
+    func testV3EmbeddingVersionAndVectorMatrixMetaSurviveButTrackEmbeddingTablesAreGone() throws {
         let db = try DatabaseQueue()
         try DJSchema.migrator().migrate(db)
         try db.read { db in
-            for table in ["embedding_version", "track_embedding",
-                          "window_embedding", "vector_matrix_meta"] {
+            for table in ["embedding_version", "vector_matrix_meta"] {
                 XCTAssertTrue(try db.tableExists(table), "missing table \(table)")
             }
-            for index in ["idx_trackemb_row", "idx_winemb_track"] {
-                let exists = try Int.fetchOne(db, sql: """
-                    SELECT 1 FROM sqlite_master
-                    WHERE type = 'index' AND name = ?
-                    """, arguments: [index]) != nil
-                XCTAssertTrue(exists, "missing index \(index)")
+            for table in ["track_embedding", "window_embedding"] {
+                XCTAssertFalse(try db.tableExists(table),
+                               "\(table) backed the deleted semantic-search subsystem and had an FK into the deleted catalog `track` table — dj_v12 drops it outright")
             }
         }
     }
@@ -45,65 +53,6 @@ final class MigrationV3Tests: XCTestCase {
         XCTAssertEqual(seeded.pooling, "attention")
     }
 
-    func testTrackEmbeddingRoundTrip() throws {
-        let db = try DatabaseQueue()
-        try DJSchema.migrator().migrate(db)
-
-        let now = Date()
-        var track = DJTrack(syncID: UUID().uuidString, title: "Halcyon",
-                            contentHash: "abc", sortKey: "halcyon",
-                            addedAt: now, updatedAt: now)
-        try db.write { db in
-            try track.insert(db)
-
-            let int8 = [Int8](repeating: 0, count: 512)
-            var embedding = DJTrackEmbedding(trackID: track.id!, int8Vector: int8,
-                                             scale: 0.0078, matrixRow: 3, version: 1)
-            try embedding.insert(db)
-        }
-
-        let fetched = try db.read { db in
-            try DJTrackEmbedding
-                .filter(Column("trackID") == track.id!)
-                .fetchOne(db)
-        }
-        let value = try XCTUnwrap(fetched)
-        XCTAssertEqual(value.trackID, track.id!)
-        XCTAssertEqual(value.dims, 512)
-        XCTAssertEqual(value.scale, 0.0078)
-        XCTAssertEqual(value.matrixRow, 3)
-        XCTAssertEqual(value.version, 1)
-        XCTAssertEqual(value.int8Vector, [Int8](repeating: 0, count: 512))
-    }
-
-    func testWindowEmbeddingRoundTrip() throws {
-        let db = try DatabaseQueue()
-        try DJSchema.migrator().migrate(db)
-
-        let now = Date()
-        var track = DJTrack(syncID: UUID().uuidString, title: "Windowed",
-                            contentHash: "xyz", sortKey: "windowed",
-                            addedAt: now, updatedAt: now)
-        try db.write { db in
-            try track.insert(db)
-            var window = DJWindowEmbedding(trackID: track.id!, windowIndex: 2,
-                                           startSample: 480_000, endSample: 960_000,
-                                           vector: Data([1, 2, 3]), scale: 0.5, version: 1)
-            try window.insert(db)
-        }
-
-        let fetched = try db.read { db in
-            try DJWindowEmbedding
-                .filter(Column("trackID") == track.id!)
-                .fetchOne(db)
-        }
-        let value = try XCTUnwrap(fetched)
-        XCTAssertEqual(value.windowIndex, 2)
-        XCTAssertEqual(value.startSample, 480_000)
-        XCTAssertEqual(value.endSample, 960_000)
-        XCTAssertEqual(value.vector, Data([1, 2, 3]))
-    }
-
     func testVectorMatrixMetaSingleton() throws {
         let db = try DatabaseQueue()
         try DJSchema.migrator().migrate(db)
@@ -119,13 +68,19 @@ final class MigrationV3Tests: XCTestCase {
         XCTAssertEqual(fetched?.dims, 512)
     }
 
-    func testAppendOnlyKeepsPriorTables() throws {
+    /// C02 (`dj_v12`): `track` itself is the deleted duplicate catalog, not
+    /// a "prior table" append-only guarantees keep — `analysis_run`-family
+    /// tables (recreated FK-free by `dj_v12`, not dropped outright) are the
+    /// right survivors to check here.
+    func testAppendOnlyKeepsPriorSupplementaryTables() throws {
         let db = try DatabaseQueue()
         try DJSchema.migrator().migrate(db)
         try db.read { db in
-            for table in ["track", "analysis_version", "loudness", "beat_grid"] {
+            for table in ["analysis_version", "loudness", "beat_grid"] {
                 XCTAssertTrue(try db.tableExists(table), "missing table \(table)")
             }
+            XCTAssertFalse(try db.tableExists("track"),
+                           "the DJ-local catalog `track` table is deleted, not kept")
         }
     }
 }

@@ -1,5 +1,7 @@
 import AVFoundation
 import Foundation
+import GRDB
+import TonearmCore
 
 /// The §37.3 recording journal's contract — what the workspace's record toggle
 /// drives (plan 5.11, FR-REC-1/3, NFR-REL-2, FR-ENG-8). `RecordingService`
@@ -130,6 +132,13 @@ public actor RecordingService: RecordingJournaling {
     }
 
     private let store: DJLibraryStore
+    /// The core catalog (C02): `MixTimeline.entries.trackID` is a core
+    /// `LibraryStore` track id (every deck-load path resolves through it —
+    /// `DeckLoaderCoreIdentityTests`), so the §37.4 tracklist snapshot must be
+    /// resolved here, NOT against the separate DJ-local `track` table. Mixing
+    /// the two id spaces up is exactly the bug this dependency fixes: every
+    /// recorded mix's tracklist previously fell through to "Unknown track".
+    private let library: LibraryStore
     /// The root `mix_asset.localRelPath` is relative to. Production is
     /// `DJDatabase.mixesDirectory`; tests inject a temp root so the engine and
     /// the service agree on where a recording lives.
@@ -141,9 +150,11 @@ public actor RecordingService: RecordingJournaling {
     private var activeMixID: Int64?
 
     public init(store: DJLibraryStore = .shared,
+                library: LibraryStore = .shared,
                 mixesRoot: URL = DJDatabase.mixesDirectory,
                 exportJournalMetadata: Bool = false) {
         self.store = store
+        self.library = library
         self.mixesRoot = mixesRoot
         self.exportJournalMetadata = exportJournalMetadata
     }
@@ -181,7 +192,7 @@ public actor RecordingService: RecordingJournaling {
             // never disagree.
             let events = try await Self.trackEvents(mixID: mixID,
                                                     timeline: timeline,
-                                                    store: store)
+                                                    library: library)
             let finished = try await store.finalizeRecordingMix(
                 mixID: mixID,
                 durationSec: Double(frames) / output.sampleRate,
@@ -256,13 +267,13 @@ public actor RecordingService: RecordingJournaling {
     // MARK: - Helpers
 
     /// Build the §37.4 `mix_track_event` rows for a finished mix, resolving
-    /// each timeline track's title/artist/BPM/key snapshot from the store
-    /// (§15.5 — the snapshots survive track deletion). `position` is 1..n in
-    /// the order the tracks started playing.
+    /// each timeline track's title/artist/BPM/key snapshot (§15.5 — the
+    /// snapshots survive track deletion). `position` is 1..n in the order the
+    /// tracks started playing.
     private static func trackEvents(mixID: Int64, timeline: MixTimeline,
-                                    store: DJLibraryStore) async throws -> [DJMixTrackEvent] {
+                                    library: LibraryStore) async throws -> [DJMixTrackEvent] {
         let trackIDs = timeline.entries.map(\.trackID)
-        let snapshots = try await store.trackTimelineSnapshots(trackIDs: trackIDs)
+        let snapshots = await Self.trackTimelineSnapshots(trackIDs: trackIDs, library: library)
         return timeline.entries.enumerated().map { index, entry in
             let snapshot = snapshots[entry.trackID]
             return DJMixTrackEvent(
@@ -276,6 +287,47 @@ public actor RecordingService: RecordingJournaling {
                 camelotAtPlay: snapshot?.camelot,
                 position: index + 1)
         }
+    }
+
+    /// Resolve the timeline's per-track snapshots from the CORE catalog (C02):
+    /// `MixTimeline.entries.trackID` is a core `LibraryStore` track id
+    /// (every deck-load path shares that id space — `DeckLoaderCoreIdentityTests`),
+    /// so the title/artist come from core `track`/`artist`/`album` and the
+    /// bpm/key come from `discovery_track_analysis` — the same join
+    /// `AutoPlaylistModel.buildTrackRows`/`VibeSearchModel.analysisByTrackID`
+    /// already use. This REPLACES the pre-existing (buggy) lookup against the
+    /// separate DJ-local `track` table, which silently resolved to nil for
+    /// every entry once deck-load moved onto core ids.
+    private static func trackTimelineSnapshots(trackIDs: [Int64],
+                                                library: LibraryStore) async
+        -> [Int64: TrackTimelineSnapshot] {
+        let uniqueIDs = Array(Set(trackIDs))
+        guard !uniqueIDs.isEmpty else { return [:] }
+        var rows: [TrackRow] = []
+        rows.reserveCapacity(uniqueIDs.count)
+        for id in uniqueIDs {
+            if let row = try? await library.trackRow(id: id) { rows.append(row) }
+        }
+        guard !rows.isEmpty else { return [:] }
+        let ids = rows.map(\.id)
+        let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ",")
+        let analysisByID: [Int64: DiscoveryTrackAnalysis] = (try? await library.dbQueue.read { db in
+            let fetched = try DiscoveryTrackAnalysis.fetchAll(db, sql: """
+                SELECT * FROM discovery_track_analysis WHERE trackId IN (\(placeholders))
+                """, arguments: StatementArguments(ids))
+            return Dictionary(uniqueKeysWithValues: fetched.map { ($0.trackId, $0) })
+        }) ?? [:]
+        var byTrack: [Int64: TrackTimelineSnapshot] = [:]
+        for row in rows {
+            let analysis = analysisByID[row.id]
+            let artist = row.artist?.name ?? row.album?.artist
+            byTrack[row.id] = TrackTimelineSnapshot(
+                title: row.track.title,
+                artist: artist,
+                bpm: analysis?.bpm,
+                camelot: analysis?.key)
+        }
+        return byTrack
     }
 
     private static func salvaged(_ mix: DJMix, url: URL) -> DJMix {

@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import TonearmCore
 
 // MARK: - §26A read model types
 
@@ -148,14 +149,20 @@ public struct WaveformRepository: WaveformRendering, Sendable {
     public static let sampleSpaceRate: Double = AudioDecoder.workingSampleRate
 
     public let pool: DatabasePool
+    /// The one core music catalog (C02) — `trackID` here is always a core
+    /// `LibraryStore` track id, so a track's duration (the only catalog field
+    /// this repository needs) is read from there, not from a DJ-local
+    /// `DJTrack` row (deleted in dj_v12).
+    public let library: LibraryStore
 
-    public init(pool: DatabasePool) {
+    public init(pool: DatabasePool, library: LibraryStore = .shared) {
         self.pool = pool
+        self.library = library
     }
 
     public func renderModel(trackID: Int64) async throws -> WaveformRenderModel? {
-        try await pool.read { db in
-            guard let track = try DJTrack.filter(key: trackID).fetchOne(db) else { return nil }
+        guard let track = try await library.trackRow(id: trackID)?.track else { return nil }
+        return try await pool.read { db in
             guard let pyramid = try Self.readPyramid(trackID: trackID, in: db) else { return nil }
 
             let corrections = try Self.readCorrections(trackID: trackID, in: db)
@@ -164,7 +171,7 @@ public struct WaveformRepository: WaveformRendering, Sendable {
                                                               corrections: corrections)
 
             let beatsPerBar = max(1, grid?.beatsPerBar ?? 4)
-            let durationSamples = Self.durationSamples(track: track)
+            let durationSamples = Self.durationSamples(durationSec: track.durationSec)
 
             let beats = Self.beats(detected: detected,
                                    grid: grid,
@@ -306,8 +313,8 @@ public struct WaveformRepository: WaveformRendering, Sendable {
     }
 
     /// The track's duration in the 48 kHz analysis space.
-    private static func durationSamples(track: DJTrack) -> Int64 {
-        guard let seconds = track.durationSec, seconds > 0, seconds.isFinite else { return 0 }
+    private static func durationSamples(durationSec: Double?) -> Int64 {
+        guard let seconds = durationSec, seconds > 0, seconds.isFinite else { return 0 }
         return Int64(seconds * Self.sampleSpaceRate)
     }
 

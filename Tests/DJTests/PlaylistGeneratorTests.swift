@@ -1,12 +1,25 @@
 import XCTest
 import GRDB
+import ParsoAudioAnalysis
+import ParsoAudioNeural
 
+@testable import TonearmCore
 @testable import TonearmDJ
+@testable import TonearmDiscovery
 
-/// PlaylistGenerator + AutoPlaylistRepository (plan §3.3): fake-embedder
-/// end-to-end, brief→sequence→persist atomicity, rejection exclusion, locks
-/// honoured on regenerate, the honest short-pool state, and the byte-exact
-/// `constraintsJSON` / sync-mapping round-trips.
+/// PlaylistGenerator + AutoPlaylistRepository (plan §3.3): brief→sequence→
+/// persist atomicity, rejection exclusion, locks honoured on regenerate, the
+/// honest short-pool state, and the byte-exact `constraintsJSON` / sync-mapping
+/// round-trips.
+///
+/// C02 (IMPLEMENT_CLAP_PLAN.md, Slice B): rewired off the deleted DJ-local
+/// `VectorStore`/`DJTrack`/`CLAPEmbedder` pipeline onto the unified
+/// `SearchService`/`DiscoverySearchQuery` engine (the same one
+/// `VibeSearchModel`/`SmartCrateRepository` use in production) — every fixture
+/// track is now a REAL core `LibraryStore`-imported track, not a DJ-local
+/// `DJTrack` row, per session 14/15's explicit finding that DJ-local fixtures
+/// hid real core/DJ-local id bugs before. `auto_playlist_brief/result/item`
+/// themselves stay DJ-local (unchanged persistence).
 final class PlaylistGeneratorTests: XCTestCase {
 
     private let storeDims = 32
@@ -14,75 +27,87 @@ final class PlaylistGeneratorTests: XCTestCase {
     // MARK: - Environment
 
     private func makeSpec() -> EmbeddingModelSpec {
-        let fftSize = 256
-        let bins = fftSize / 2 + 1
-        return EmbeddingModelSpec(modelName: "plist-test",
-                                  dimensions: storeDims,
-                                  sampleRate: 48_000,
-                                  windowSeconds: 0.5,
-                                  hopSeconds: 0.25,
-                                  fftSize: fftSize,
-                                  hopSize: 120,
-                                  melBins: 8,
-                                  lowHz: 50,
-                                  highHz: 14_000,
-                                  clipSamples: 24_000,
-                                  frames: 201,
-                                  maxWindows: 240,
-                                  textMaxLength: 77,
-                                  pooling: .attention,
-                                  melFilterBank: [Float](repeating: 1, count: bins * 8))
+        var spec = EmbeddingModelSpec.musicCLAPMetadata
+        spec.dimensions = storeDims
+        return spec
     }
 
-    private func makeEmbedder() -> CLAPEmbedder {
-        CLAPEmbedder(model: DeterministicFakeSemanticModel(spec: makeSpec()))
+    private struct Environment {
+        var djPool: DatabasePool
+        var core: LibraryStore
+        var generator: PlaylistGenerator
+        var trackIDs: [Int64]
     }
 
-    private func makeEnvironment(trackCount: Int) async throws
-        -> (pool: DatabasePool, generator: PlaylistGenerator, trackIDs: [Int64]) {
+    private func makeEnvironment(trackCount: Int) async throws -> Environment {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("PlaylistGeneratorTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let pool = try DJDatabase.open(at: dir.appendingPathComponent("tonearm-dj.sqlite"))
-        let store = try VectorStoreTierA(pool: pool, dims: storeDims,
-                                         fileURL: dir.appendingPathComponent("vectors.i8"))
-        let embedder = makeEmbedder()
-        let generator = PlaylistGenerator(pool: pool, store: store, embedder: embedder)
+        let djPool = try DJDatabase.open(at: dir.appendingPathComponent("tonearm-dj.sqlite"))
+
+        let core = try LibraryStore(inMemory: true)
+        let writer = await core.dbQueue
+        let models = ModelManager(resourceProvider: { .unavailable })
+        await models.injectModelForTesting(DeterministicFakeSemanticModel(spec: makeSpec()))
+        let cacheURL = dir.appendingPathComponent("vectors.bin")
+        let searchService = SearchService(writer: writer,
+                                          index: VectorIndex(writer: writer, cacheURL: cacheURL),
+                                          models: models)
+        let generator = PlaylistGenerator(pool: djPool, library: core, searchService: searchService)
+
+        let source = try await core.insertSource(Source(
+            id: nil, kind: .local, iaIdentifier: nil, originalURL: nil, title: "Fixture",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
 
         var trackIDs: [Int64] = []
         for index in 0..<trackCount {
-            let id = try await seedTrack(index: index, in: pool, store: store, embedder: embedder)
+            let id = try await seedTrack(index: index, core: core, sourceID: source.id!, dims: storeDims)
             trackIDs.append(id)
         }
-        return (pool, generator, trackIDs)
+        return Environment(djPool: djPool, core: core, generator: generator, trackIDs: trackIDs)
     }
 
-    private func seedTrack(index: Int, in pool: DatabasePool, store: any VectorStore,
-                           embedder: CLAPEmbedder) async throws -> Int64 {
-        let track = DJTrack(syncID: UUID().uuidString,
-                            title: "Track \(index)",
-                            durationSec: 180 + Double((index % 12) * 20),
-                            contentHash: "hash-\(UUID().uuidString)",
-                            sortKey: "track-\(String(format: "%04d", index))",
-                            bpm: 110 + Double(index % 40),
-                            camelot: "\((index % 12) + 1)\(index % 2 == 0 ? "A" : "B")",
-                            energy: Double(index % 10),
-                            analysisState: "done",
-                            addedAt: Date(),
-                            updatedAt: Date())
-        let inserted = try await pool.write { db -> DJTrack in
-            var stored = track
-            try stored.insert(db)
-            return stored
-        }
-        let trackID = try XCTUnwrap(inserted.id)
-        let vector = try await embedder.embedText("seed phrase \(index)")
-        let (int8, scale) = VectorQuantization.quantize(vector)
-        try await pool.write { db in
-            try store.upsert(DJTrackEmbedding(trackID: trackID, int8Vector: int8,
-                                              scale: Double(scale), matrixRow: nil,
-                                              version: 1),
-                             db: db)
+    /// One real core track: `track` (bpm-free — bpm/camelot/energy live in
+    /// `discovery_track_analysis`), an `asset`, and a `discovery_embedding` row
+    /// with a deterministic pseudo-embedding (SHA-256-seeded, same primitive
+    /// production's `DeterministicFakeSemanticModel` uses for text).
+    @discardableResult
+    private func seedTrack(index: Int, core: LibraryStore, sourceID: Int64, dims: Int) async throws
+        -> Int64 {
+        let track = try await core.insertTrack(Track(
+            id: nil, albumId: nil, sourceId: sourceID, title: "Track \(index)", trackNo: nil,
+            discNo: nil, durationSec: 180 + Double((index % 12) * 20), codec: "WAV",
+            sampleRate: 44_100, bitDepthOrBitrate: nil, sortKey: "track-\(String(format: "%04d", index))"))
+        let trackID = try XCTUnwrap(track.id)
+        let asset = try await core.insertAsset(Asset(
+            id: nil, trackId: trackID, kind: .localRef, bookmark: nil,
+            relPath: "track-\(index).wav", remoteURL: nil, altRemoteURL: nil, sizeBytes: nil,
+            unsupportedReason: nil))
+        let assetID = try XCTUnwrap(asset.id)
+
+        let writer = await core.dbQueue
+        try await writer.write { db in
+            var analysis = DiscoveryTrackAnalysis(
+                trackId: trackID, assetId: assetID, assetRevision: 1,
+                analysisVersion: DiscoveryPipelineVersion.musicalAnalysis,
+                bpm: 110 + Double(index % 40),
+                key: "\((index % 12) + 1)\(index % 2 == 0 ? "A" : "B")",
+                energy: Double(index % 10), phraseSummary: nil,
+                analysisScopeSeconds: nil, completedAt: Date())
+            try analysis.insert(db)
+
+            let vector = DeterministicFakeSemanticModel.pseudoEmbedding(
+                from: Data("seed phrase \(index)".utf8), seed: Data("fake-clap-v1".utf8), dims: dims)
+            let (int8, scale) = VectorQuantization.quantize(vector)
+            var embedding = DiscoveryEmbedding(
+                trackId: trackID, assetId: assetID, assetRevision: 1,
+                modelVersion: DiscoveryPipelineVersion.model,
+                preprocessingVersion: DiscoveryPipelineVersion.preprocessing,
+                samplingVersion: DiscoveryPipelineVersion.sampling,
+                dimensions: dims, quantizedVector: VectorQuantization.data(int8),
+                scale: Double(scale), completedAt: Date())
+            try embedding.upsert(db)
         }
         return trackID
     }
@@ -109,7 +134,7 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     func testGeneratePersistsBriefResultAndItems() async throws {
         let env = try await makeEnvironment(trackCount: 30)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
 
         let generation = try await env.generator.generate(request())
 
@@ -117,16 +142,18 @@ final class PlaylistGeneratorTests: XCTestCase {
         let briefID = try XCTUnwrap(generation.brief.id)
         XCTAssertEqual(generation.brief.arcKind, "build")
         XCTAssertEqual(generation.brief.prompt, "rainy sunday dinner")
-        XCTAssertNotNil(try AutoPlaylistRepository(pool: env.pool).brief(id: briefID))
+        XCTAssertNotNil(try AutoPlaylistRepository(pool: env.djPool).brief(id: briefID))
 
         // Result persisted, items in order, no duplicates, positions dense.
         XCTAssertNotNil(generation.result.id)
         XCTAssertEqual(generation.items.map(\.position), Array(0..<generation.items.count))
         let ids = generation.items.map(\.trackID)
         XCTAssertEqual(Set(ids).count, ids.count)
+        XCTAssertTrue(ids.allSatisfy { env.trackIDs.contains($0) },
+                      "every generated track is a real core track id")
 
         // The repository reloads the brief's latest result with its items.
-        let latest = try XCTUnwrap(try AutoPlaylistRepository(pool: env.pool)
+        let latest = try XCTUnwrap(try AutoPlaylistRepository(pool: env.djPool)
             .latestResult(for: briefID))
         XCTAssertEqual(latest.items.map(\.trackID), ids)
         XCTAssertEqual(latest.result.totalSeconds, generation.result.totalSeconds)
@@ -135,7 +162,7 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     func testGenerationIsDeterministicForSameSeed() async throws {
         let env = try await makeEnvironment(trackCount: 40)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
 
         let first = try await env.generator.generate(request(randomSeed: 0x1234))
         let second = try await env.generator.generate(request(randomSeed: 0x1234))
@@ -145,26 +172,33 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     // MARK: - Persist atomicity (NFR-REL-1)
 
+    /// `auto_playlist_item.trackID` no longer FKs into the DJ-local `track`
+    /// table (dj_v10 — it holds a *core* id now), so an "orphan track id" can
+    /// no longer be the failure trigger here. A duplicate explicit primary
+    /// key is a real, still-enforced constraint violation that lands in the
+    /// same place (the items loop, after brief + result already inserted in
+    /// the same transaction) and proves the same thing: the whole write rolls
+    /// back, not just the failing row.
     func testPersistRollsBackAtomicallyOnFailedItemInsert() async throws {
         let env = try await makeEnvironment(trackCount: 4)
-        defer { try? env.pool.close() }
-        let repository = AutoPlaylistRepository(pool: env.pool)
+        defer { try? env.djPool.close() }
+        let repository = AutoPlaylistRepository(pool: env.djPool)
         let brief = AutoPlaylistBrief(syncID: "B-\(UUID().uuidString)", prompt: "x",
                                       arcKind: "build",
                                       constraintsJSON: try SequencingConstraints().encodedJSONString(),
                                       randomSeed: 1, createdAt: Date(), updatedAt: Date())
         let result = AutoPlaylistResult(briefID: 0, generatedAt: Date(), totalSeconds: 1,
                                         arcError: 0, meanTransitionCost: 0, analysisVersion: 1)
-        let good = AutoPlaylistItem(resultID: 0, trackID: env.trackIDs[0], position: 0,
+        let good = AutoPlaylistItem(id: 555, resultID: 0, trackID: env.trackIDs[0], position: 0,
                                     targetEnergy: 0.5, actualEnergy: 0.5,
                                     transitionCostIn: 0, semanticScore: 0.5)
-        let orphan = AutoPlaylistItem(resultID: 0, trackID: 999_999, position: 1,
-                                      targetEnergy: 0.5, actualEnergy: 0.5,
-                                      transitionCostIn: 0, semanticScore: 0.5)
+        let duplicateID = AutoPlaylistItem(id: 555, resultID: 0, trackID: env.trackIDs[1], position: 1,
+                                           targetEnergy: 0.5, actualEnergy: 0.5,
+                                           transitionCostIn: 0, semanticScore: 0.5)
         XCTAssertThrowsError(try repository.save(brief: brief, result: result,
-                                                 items: [good, orphan]))
-        let briefCount = try await env.pool.read { try AutoPlaylistBrief.fetchCount($0) }
-        let resultCount = try await env.pool.read { try AutoPlaylistResult.fetchCount($0) }
+                                                 items: [good, duplicateID]))
+        let briefCount = try await env.djPool.read { try AutoPlaylistBrief.fetchCount($0) }
+        let resultCount = try await env.djPool.read { try AutoPlaylistResult.fetchCount($0) }
         XCTAssertEqual(briefCount, 0, "failed save left no brief")
         XCTAssertEqual(resultCount, 0, "failed save left no result")
     }
@@ -173,7 +207,7 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     func testRejectedTrackIsExcludedOnRegenerate() async throws {
         let env = try await makeEnvironment(trackCount: 30)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
 
         let first = try await env.generator.generate(request())
         let rejected = first.items[3].trackID
@@ -183,7 +217,7 @@ final class PlaylistGeneratorTests: XCTestCase {
 
         XCTAssertFalse(second.items.map(\.trackID).contains(rejected),
                        "rejected track re-appeared after reject + re-run")
-        XCTAssertTrue(try AutoPlaylistRepository(pool: env.pool)
+        XCTAssertTrue(try AutoPlaylistRepository(pool: env.djPool)
             .rejections(for: briefID).contains(rejected))
     }
 
@@ -191,7 +225,7 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     func testLocksAreHonouredOnGenerateAndRegenerate() async throws {
         let env = try await makeEnvironment(trackCount: 30)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
 
         let lockedTrack = env.trackIDs[4]
         let locked = request(locks: [0: lockedTrack])
@@ -208,7 +242,7 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     func testSeedTrackPinsSlotZeroAndAnchorsSemantically() async throws {
         let env = try await makeEnvironment(trackCount: 30)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
 
         let seedID = env.trackIDs[7]
         let generation = try await env.generator.generate(
@@ -219,11 +253,44 @@ final class PlaylistGeneratorTests: XCTestCase {
                        "seed track appears nowhere else")
     }
 
+    /// A seed id with no stored embedding falls through to the prompt anchor
+    /// instead of throwing — same fallback chain the old pipeline had, now
+    /// gated on a real `discovery_embedding` existence check.
+    func testSeedTrackWithoutEmbeddingFallsBackToPrompt() async throws {
+        let env = try await makeEnvironment(trackCount: 10)
+        defer { try? env.djPool.close() }
+        let source = try await env.core.insertSource(Source(
+            id: nil, kind: .local, iaIdentifier: nil, originalURL: nil, title: "Fixture 2",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
+        let unindexed = try await env.core.insertTrack(Track(
+            id: nil, albumId: nil, sourceId: source.id!, title: "No embedding", trackNo: nil,
+            discNo: nil, durationSec: 200, codec: "WAV", sampleRate: 44_100,
+            bitDepthOrBitrate: nil, sortKey: "unindexed"))
+
+        let generation = try await env.generator.generate(
+            request(seedTrackID: unindexed.id!))
+        XCTAssertFalse(generation.items.map(\.trackID).contains(unindexed.id!),
+                       "an unindexed seed never appears — it isn't the anchor and isn't a candidate")
+    }
+
+    // MARK: - Filter-only (fixes "filter-only rejected")
+
+    func testBPMOnlyBriefWithNoTextIsAValidAnchor() async throws {
+        let env = try await makeEnvironment(trackCount: 30)
+        defer { try? env.djPool.close() }
+
+        let generation = try await env.generator.generate(
+            request(prompt: "", constraints: SequencingConstraints(bpmRange: 110...115)))
+        XCTAssertFalse(generation.items.isEmpty,
+                       "a BPM-only brief with no text/seed/crate must not throw .noAnchor")
+    }
+
     // MARK: - Honest short pool (plan §2.7)
 
     func testShortPoolGeneratesWhatIsPossibleAndSaysSo() async throws {
         let env = try await makeEnvironment(trackCount: 5)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
 
         let generation = try await env.generator.generate(
             request(targetTrackCount: 20))
@@ -235,7 +302,7 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     func testNoAnchorWhenNothingToSearchFor() async throws {
         let env = try await makeEnvironment(trackCount: 5)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
         do {
             _ = try await env.generator.generate(
                 PlaylistGenerationRequest(prompt: "   ", arc: .build, randomSeed: 1))
@@ -249,7 +316,7 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     func testReplaceSlotHoldsNeighbours() async throws {
         let env = try await makeEnvironment(trackCount: 40)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
 
         let first = try await env.generator.generate(request())
         XCTAssertGreaterThan(first.items.count, 5)
@@ -268,7 +335,7 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     func testExtendReParameterisesArcOverNewLength() async throws {
         let env = try await makeEnvironment(trackCount: 40)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
 
         let first = try await env.generator.generate(request(targetSeconds: 1800))
         let second = try await env.generator.extend(minutes: 30)
@@ -279,7 +346,7 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     func testReshuffleKeepsEndpointsFixed() async throws {
         let env = try await makeEnvironment(trackCount: 40)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
 
         let first = try await env.generator.generate(request())
         XCTAssertGreaterThan(first.items.count, 7)
@@ -293,23 +360,23 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     func testSaveAsPlaylistPersistsStaticRowsAndLinksResult() async throws {
         let env = try await makeEnvironment(trackCount: 30)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
 
         let generation = try await env.generator.generate(request())
         let briefID = try XCTUnwrap(generation.brief.id)
         let playlistID = try await env.generator.saveAsPlaylist(title: "Dinner Set")
 
-        let playlist = try await env.pool.read { db in
+        let playlist = try await env.djPool.read { db in
             try DJPlaylist.fetchOne(db, key: playlistID)
         }
         XCTAssertEqual(playlist?.title, "Dinner Set")
         XCTAssertEqual(playlist?.kind, "manual")
-        let storedItems = try await env.pool.read { db in
+        let storedItems = try await env.djPool.read { db in
             try DJPlaylistItem.filter(Column("playlistID") == playlistID)
                 .order(Column("position")).fetchAll(db)
         }
         XCTAssertEqual(storedItems.map(\.trackID), generation.items.map(\.trackID))
-        let linked = try await env.pool.read { db in
+        let linked = try await env.djPool.read { db in
             try AutoPlaylistResult.filter(Column("briefID") == briefID).fetchOne(db)
         }
         XCTAssertEqual(linked?.playlistID, playlistID)
@@ -335,13 +402,13 @@ final class PlaylistGeneratorTests: XCTestCase {
 
     func testGeneratorPersistsCanonicalConstraints() async throws {
         let env = try await makeEnvironment(trackCount: 20)
-        defer { try? env.pool.close() }
+        defer { try? env.djPool.close() }
 
         let constraints = SequencingConstraints(bpmRange: 100...130)
         let generation = try await env.generator.generate(request(constraints: constraints))
         XCTAssertEqual(generation.brief.constraints, constraints)
         let briefID = try XCTUnwrap(generation.brief.id)
-        let reloaded = try XCTUnwrap(try AutoPlaylistRepository(pool: env.pool)
+        let reloaded = try XCTUnwrap(try AutoPlaylistRepository(pool: env.djPool)
             .brief(id: briefID))
         XCTAssertEqual(reloaded.constraintsJSON, generation.brief.constraintsJSON)
     }

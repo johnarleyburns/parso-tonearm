@@ -68,8 +68,9 @@ public actor StemService {
                 separator: StemSeparator,
                 cache: StemCache,
                 repository: GigCrateRepository? = nil,
+                library: LibraryStore = .shared,
                 assetURL: @escaping @Sendable (Int64, Database) throws -> URL? =
-                    AnalysisCoordinator.defaultAssetURL,
+                    StemService.defaultAssetURL,
                 governorAllowsRun: @escaping @Sendable () -> Bool =
                     StemService.defaultGovernorGate,
                 onProgress: @escaping @Sendable (StemProgress) -> Void = { _ in },
@@ -77,7 +78,7 @@ public actor StemService {
         self.pool = pool
         self.separator = separator
         self.cache = cache
-        self.repository = repository ?? GigCrateRepository(pool: pool)
+        self.repository = repository ?? GigCrateRepository(pool: pool, library: library)
         self.assetURL = assetURL
         self.governorAllowsRun = governorAllowsRun
         self.onProgress = onProgress
@@ -90,6 +91,22 @@ public actor StemService {
     public static func defaultGovernorGate() -> Bool {
         !ThermalGovernor.decision(for: .stems,
                                   thermalState: ProcessInfo.processInfo.thermalState).isPaused
+    }
+
+    /// Default asset resolution. C02 (dj_v12) deleted the DJ-local `DJAsset`
+    /// table this used to resolve through; a track's asset now lives only in
+    /// core `LibraryStore` (keyed by the same core `trackID` every crate
+    /// member already uses — `GigCrateRepository.isAudioCached` resolves the
+    /// same way). This closure's signature (`(Int64, Database) throws ->
+    /// URL?`, scoped to a synchronous read of *this* DJ-local database) can't
+    /// reach the core `LibraryStore` actor, so it honestly returns absent
+    /// rather than a wrong/stale answer. `StemService` has no production
+    /// construction site today (confirmed by `rg`, same as every prior
+    /// session) — real wiring (an async core-`LibraryStore` lookup, like
+    /// `GigCrateRepository.isAudioCached`) is deferred to whoever builds this
+    /// lane for real, same as session 15/18 already deferred it.
+    public static func defaultAssetURL(trackID: Int64, _ db: Database) throws -> URL? {
+        nil
     }
 
     /// Mark a performance as live/ended; while live, the lane is paused.
@@ -140,7 +157,7 @@ public actor StemService {
                                 budget: Int64,
                                 protectedIDs: Set<Int64> = []) async throws -> StorageBudgetService.StemPlan {
         let allProtected = protectedIDs.union([crateID])
-        let usages = try repository.cratesByLRU(excluding: [])
+        let usages = try await repository.cratesByLRU(excluding: [])
             .map { StorageBudgetService.CrateUsage(crateID: $0.id,
                                                    name: $0.name,
                                                    stemsBytes: $0.stemsBytes,
@@ -177,9 +194,6 @@ public actor StemService {
                     SET stemsState = ?, stemsBytes = 0
                     WHERE gigCrateID = ? AND trackID = ?
                     """, arguments: [GigCrateStemsState.evicted.rawValue, crateID, trackID])
-                try db.execute(sql: """
-                    UPDATE track SET stemState = ? WHERE id = ?
-                    """, arguments: ["evicted", trackID])
             }
         }
     }
@@ -237,7 +251,7 @@ public actor StemService {
                 return // abandon the rest; they stay pending
             }
             done += 1
-            let title = trackTitle(track.trackID)
+            let title = await trackTitle(track.trackID)
             publishProgress(StemProgress(completed: done, total: total,
                                          currentTrackTitle: title,
                                          governorWords: currentGovernorWords()))
@@ -256,18 +270,12 @@ public actor StemService {
     @discardableResult
     public func separateOnDemand(trackID: Int64) async -> StemSeparation? {
         guard !isPerforming, governorAllowsRun() else { return nil }
-        guard let track = try? await pool.read({ db in
-            try DJTrack.fetchOne(db, key: trackID)
-        }) else { return nil }
-        guard let separation = await separate(track: track) else { return nil }
+        guard let separation = await separate(trackID: trackID) else { return nil }
         do {
+            // C02: no DJ-local `DJTrack.contentHash` exists any more — the
+            // core `trackID` is itself a stable per-track cache key.
             let record = try await cache.store(separation, trackID: trackID,
-                                               contentHash: track.contentHash)
-            try await pool.write { db in
-                try db.execute(sql: """
-                    UPDATE track SET stemState = ? WHERE id = ?
-                    """, arguments: ["ready", trackID])
-            }
+                                               contentHash: String(trackID))
             onStemsReady(trackID)
             _ = record
         } catch {
@@ -288,11 +296,7 @@ public actor StemService {
         } catch {
             return
         }
-        guard let row = try? await pool.read({ db in try DJTrack.fetchOne(db, key: trackID) }) else {
-            try? repository.setStemsState(crateID: crateID, trackID: trackID, state: .failed)
-            return
-        }
-        guard let separation = await separate(track: row) else {
+        guard let separation = await separate(trackID: trackID) else {
             // Model absent (FR-SEM-6): honest absence, not a failure — leave
             // the track pending so the lane re-attempts when the model lands.
             try? repository.setStemsState(crateID: crateID, trackID: trackID,
@@ -300,8 +304,10 @@ public actor StemService {
             return
         }
         do {
+            // C02: no DJ-local `DJTrack.contentHash` exists any more — the
+            // core `trackID` is itself a stable per-track cache key.
             let record = try await cache.store(separation, trackID: trackID,
-                                               contentHash: row.contentHash)
+                                               contentHash: String(trackID))
             try await pool.write { db in
                 try db.execute(sql: """
                     UPDATE gig_crate_track
@@ -309,9 +315,6 @@ public actor StemService {
                     WHERE gigCrateID = ? AND trackID = ?
                     """, arguments: [GigCrateStemsState.ready.rawValue,
                                      record.totalBytes, crateID, trackID])
-                try db.execute(sql: """
-                    UPDATE track SET stemState = ? WHERE id = ?
-                    """, arguments: ["ready", trackID])
             }
             onStemsReady(trackID)
         } catch {
@@ -321,9 +324,9 @@ public actor StemService {
     }
 
     /// Decode + separate one track. Returns nil when the model is absent — the
-    /// honest FR-SEM-6 absence, never an error and never a partial result.
-    private func separate(track: DJTrack) async -> StemSeparation? {
-        let trackID = track.id ?? 0
+    /// honest FR-SEM-6 absence, never an error and never a partial result — or
+    /// when the asset can't be resolved (§36.5, `defaultAssetURL`).
+    private func separate(trackID: Int64) async -> StemSeparation? {
         let url: URL
         do {
             guard let resolved = try await pool.read({ try assetURL(trackID, $0) }) else {
@@ -341,10 +344,11 @@ public actor StemService {
         }
     }
 
-    private func trackTitle(_ trackID: Int64) -> String? {
-        try? pool.read { db in
-            try DJTrack.fetchOne(db, key: trackID)?.title
-        }
+    /// The track's title for the progress readout — a core `LibraryStore`
+    /// read (C02); `nil` on any failure (a missing/renamed track never blocks
+    /// the lane, it just shows no title this step).
+    private func trackTitle(_ trackID: Int64) async -> String? {
+        try? await repository.library.trackRow(id: trackID)?.track.title
     }
 
     private func currentGovernorWords() -> String {

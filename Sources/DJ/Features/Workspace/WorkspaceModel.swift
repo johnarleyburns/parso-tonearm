@@ -230,10 +230,11 @@ public final class WorkspaceModel: ObservableObject {
     /// (§41.9c, FR-ENG-13) and the one gesture that loads a track to a deck
     /// through the FR-LIB-8 gate and the decode path. Injectable so the model's
     /// queue state and load forwarding are testable with a fake; the real
-    /// `DeckLoader(store: .shared)` is resolved lazily so a model that never
+    /// `DeckLoader()` (defaults: core `LibraryStore.shared` +
+    /// `DJLibraryStore.shared`) is resolved lazily so a model that never
     /// touches a queue costs no database I/O.
     public var library: any DeckLibraryServicing {
-        injectedLibrary ?? DeckLoader(store: .shared)
+        injectedLibrary ?? DeckLoader()
     }
     private let injectedLibrary: (any DeckLibraryServicing)?
     private let crateImporter: any PlaylistCrateImporting

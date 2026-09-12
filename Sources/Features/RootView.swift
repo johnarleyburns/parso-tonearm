@@ -71,6 +71,9 @@ struct RootView: View {
         .sheet(isPresented: $appState.showCreatePlaylist) {
             CreatePlaylistSheet()
         }
+        .sheet(isPresented: $appState.showSoundSearch) {
+            DiscoverySearchView()
+        }
         .sheet(isPresented: $appState.showNowPlaying) {
             NowPlayingView()
         }

@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import TonearmCore
 
 /// The read model the Track Prep surface renders (§41.8 `PreparationModel ▸
 /// GridCorrectionRepository`): the track's identity, the **free** analysis
@@ -103,16 +104,24 @@ public enum PrepError: LocalizedError, Sendable {
 
 /// The read/write seam over the DJ database for the Track Prep surface
 /// (§41.8). Reads go straight through the pool; grid-correction **writes** go
-/// through the `DJLibraryStore` actor, the single writer to the DJ database
-/// (§10.1) — an append is one GRDB transaction and a crash leaves the log
-/// either with the whole correction or none (NFR-REL-1).
+/// through the `DJLibraryStore` actor, the single writer to DJ-local
+/// supplementary data (§10.1) — an append is one GRDB transaction and a crash
+/// leaves the log either with the whole correction or none (NFR-REL-1).
+///
+/// `trackID` is always a **core** `LibraryStore` track id (C02): identity
+/// (title/artist/codec/duration/sample rate) is read from core `LibraryStore`,
+/// not from a DJ-local `DJTrack` row (deleted in dj_v12). Has no production
+/// construction site today (confirmed by `rg`, same as `StemService`) — the
+/// Track Prep surface is not yet wired into any navigation destination.
 public struct GridCorrectionRepository: Sendable {
     public let pool: DatabasePool
     public let store: DJLibraryStore
+    public let library: LibraryStore
 
-    public init(pool: DatabasePool, store: DJLibraryStore) {
+    public init(pool: DatabasePool, store: DJLibraryStore, library: LibraryStore = .shared) {
         self.pool = pool
         self.store = store
+        self.library = library
     }
 
     // MARK: - TrackPrepRepositing
@@ -120,12 +129,11 @@ public struct GridCorrectionRepository: Sendable {
     /// The prep read model for a track: identity + the free analysis readout +
     /// the stored correction log + the authoritative grid (detected + replay).
     public func snapshot(trackID: Int64) async throws -> TrackPrepSnapshot {
+        guard let row = try await library.trackRow(id: trackID) else {
+            throw PrepError.trackNotFound
+        }
         let corrections = try await store.gridCorrections(trackID: trackID)
         return try await pool.read { db in
-            guard let track = try DJTrack.filter(key: trackID).fetchOne(db) else {
-                throw PrepError.trackNotFound
-            }
-            let artistNames = try Self.artistNames(trackID: trackID, in: db)
             let gridRow = try Row.fetchOne(db, sql: """
                 SELECT bpm, firstBeatSample, confidence
                 FROM beat_grid WHERE trackID = ?
@@ -138,8 +146,12 @@ public struct GridCorrectionRepository: Sendable {
                 SELECT COUNT(*) AS count, MAX(lengthBeats) AS maxBeats
                 FROM phrase WHERE trackID = ?
                 """, arguments: [trackID])
+            let key = try Row.fetchOne(db, sql: """
+                SELECT camelot, tonic, mode
+                FROM key_estimate WHERE trackID = ? AND scope = 'global'
+                """, arguments: [trackID])
 
-            let sampleRate = Double(track.sampleRate ?? 48_000)
+            let sampleRate = Double(row.track.sampleRate ?? 48_000)
             var detectedBPM: Double?
             var firstBeat: Int64?
             var confidence: Double?
@@ -164,18 +176,23 @@ public struct GridCorrectionRepository: Sendable {
             let dynamicRange = loudness?["dynamicRangeDB"] as? Double
             let phraseCount = (phrase?["count"] as? Int64).map { Int($0) } ?? 0
             let longestPhrase = (phrase?["maxBeats"] as? Int64).map { Int($0) }
+            let camelot = key?["camelot"] as? String
+            let musicalKey: String? = {
+                guard let tonic = key?["tonic"] as? Int64, let mode = key?["mode"] as? String else { return nil }
+                return "\(tonic) \(mode)"
+            }()
 
             return TrackPrepSnapshot(
                 trackID: trackID,
-                title: track.title,
-                artistNames: artistNames,
-                codec: track.codec,
-                durationSec: track.durationSec,
-                bpm: grid?.bpm ?? track.bpm,
-                detectedBPM: detectedBPM ?? track.detectedBPM,
-                camelot: track.camelot,
-                musicalKey: track.musicalKey,
-                energy: track.energy,
+                title: row.track.title,
+                artistNames: row.artist?.name ?? row.album?.artist ?? "",
+                codec: row.track.codec,
+                durationSec: row.track.durationSec,
+                bpm: grid?.bpm,
+                detectedBPM: detectedBPM,
+                camelot: camelot,
+                musicalKey: musicalKey,
+                energy: nil,
                 lufs: lufs,
                 dynamicRangeDB: dynamicRange,
                 gridConfidence: confidence,
@@ -198,25 +215,5 @@ public struct GridCorrectionRepository: Sendable {
     /// Pop the newest correction — the prep surface's undo (FR-PREP-5).
     public func undoLast(trackID: Int64) async throws {
         try await store.undoLastGridCorrection(trackID: trackID)
-    }
-
-    // MARK: - Reads
-
-    /// The track's ordered primary artists, same `GROUP_CONCAT` shape as the
-    /// §18.2 listing so the prep header never needs an N+1 object graph.
-    private static func artistNames(trackID: Int64, in db: Database) throws -> String {
-        let row = try Row.fetchOne(db, sql: """
-            SELECT COALESCE((
-                SELECT GROUP_CONCAT(sub.name, ', ')
-                FROM (
-                    SELECT ar.name AS name
-                    FROM track_artist ta
-                    JOIN artist ar ON ar.id = ta.artistID
-                    WHERE ta.trackID = ?
-                    ORDER BY ta.position, ar.name
-                ) AS sub
-            ), '') AS names
-            """, arguments: [trackID])
-        return row?["names"] as? String ?? ""
     }
 }

@@ -1,13 +1,25 @@
 import XCTest
 import GRDB
 
+@testable import TonearmCore
 @testable import TonearmDJ
+@testable import TonearmDiscovery
 
 /// VibeSearchModel (plan commit 2.5): debounce 250 ms with in-flight cancel
 /// (§27.5), honest coverage (FR-SEM-8), stated model-absent state (FR-SEM-6)
 /// with an ODR fetch, suggestion chips seeded from the library's own
 /// descriptors, smart-crate save (FR-SEM-5), and the one-time privacy line
 /// (NFR-PRIV-5).
+///
+/// C02 (IMPLEMENT_CLAP_PLAN.md, Slice B): rewired off the deleted DJ-local
+/// `SemanticSearchService`/`VibeQuery`/`DJTrackRow` stack onto
+/// `SearchService`/`DiscoverySearchQuery`/`DiscoverySearchResult` (a core
+/// `TrackRow`/`track.id`). The debounce/cancel-mechanics tests below still use
+/// a scripted `VibeSearching` fake — they pin TIMING behavior, not track
+/// identity, so a fake is legitimate there (unlike the id-space bug session 14
+/// flagged); `testSuggestionChipsReflectTheLibraryDistribution` and every
+/// other test that touches real track data now seeds REAL core `LibraryStore`
+/// tracks, never a DJ-local `DJTrack` fixture.
 @MainActor
 final class SearchModelTests: XCTestCase {
 
@@ -16,8 +28,8 @@ final class SearchModelTests: XCTestCase {
     /// Records every query and answers from a scripted response queue.
     private final class RecordingSearch: VibeSearching, @unchecked Sendable {
         private let lock = NSLock()
-        private var _queries: [VibeQuery] = []
-        private var _responses: [SearchResponse] = []
+        private var _queries: [DiscoverySearchQuery] = []
+        private var _responses: [DiscoverySearchResponse] = []
         private var _coverage: (indexed: Int, total: Int)
 
         init(coverage: (indexed: Int, total: Int) = (0, 0)) {
@@ -31,7 +43,7 @@ final class SearchModelTests: XCTestCase {
             return body()
         }
 
-        var queries: [VibeQuery] {
+        var queries: [DiscoverySearchQuery] {
             withLock { _queries }
         }
 
@@ -39,31 +51,26 @@ final class SearchModelTests: XCTestCase {
             withLock { _coverage = value }
         }
 
-        func enqueue(_ response: SearchResponse) {
+        func enqueue(_ response: DiscoverySearchResponse) {
             withLock { _responses.append(response) }
         }
 
-        func search(_ query: VibeQuery) async throws -> SearchResponse {
-            let scripted = withLock { () -> SearchResponse? in
+        func search(_ query: DiscoverySearchQuery, referenceTrackID: Int64?,
+                    isCancelled: @escaping @Sendable () -> Bool) async -> DiscoverySearchResponse {
+            let scripted = withLock { () -> DiscoverySearchResponse? in
                 _queries.append(query)
                 if !_responses.isEmpty { return _responses.removeFirst() }
                 return nil
             }
             if let scripted { return scripted }
-            let fraction = withLock { () -> Double in
-                guard _coverage.total > 0 else { return 0 }
-                return Double(_coverage.indexed) / Double(_coverage.total)
-            }
-            return SearchResponse(state: .ready, results: [], coverage: fraction,
-                                  latencyMillis: 1)
-        }
-
-        func similar(to trackID: Int64, limit: Int) async throws -> SearchResponse {
-            SearchResponse(state: .ready, results: [], coverage: 0, latencyMillis: 0)
-        }
-
-        func coverageCounts() async -> (indexed: Int, total: Int) {
-            withLock { _coverage }
+            let cov = withLock { _coverage }
+            let coverage = SearchRepository.Coverage(
+                state: .ready, totalInScope: cov.total, indexed: cov.indexed,
+                awaitingIndex: max(0, cov.total - cov.indexed), waitingForAssets: 0,
+                failedOrUnsupported: 0, matchingHardFilters: nil)
+            return DiscoverySearchResponse(mode: .semantic, state: .ready, results: [],
+                                           coverage: coverage, indexGeneration: nil,
+                                           latencyMillis: 1)
         }
     }
 
@@ -72,7 +79,7 @@ final class SearchModelTests: XCTestCase {
     /// so responses are distinguishable.
     private final class GatedSearch: VibeSearching, @unchecked Sendable {
         private let lock = NSLock()
-        private var _queries: [VibeQuery] = []
+        private var _queries: [DiscoverySearchQuery] = []
         private var _pending: [CheckedContinuation<Void, Never>] = []
         private var _blockNext = true
 
@@ -81,11 +88,12 @@ final class SearchModelTests: XCTestCase {
             return body()
         }
 
-        var queries: [VibeQuery] {
+        var queries: [DiscoverySearchQuery] {
             withLock { _queries }
         }
 
-        func search(_ query: VibeQuery) async throws -> SearchResponse {
+        func search(_ query: DiscoverySearchQuery, referenceTrackID: Int64?,
+                    isCancelled: @escaping @Sendable () -> Bool) async -> DiscoverySearchResponse {
             let shouldBlock = withLock { () -> Bool in
                 _queries.append(query)
                 let block = _blockNext
@@ -97,8 +105,9 @@ final class SearchModelTests: XCTestCase {
                     withLock { _pending.append(continuation) }
                 }
             }
-            return SearchResponse(state: .ready, results: [], coverage: 1,
-                                  latencyMillis: Double(query.text.count))
+            return DiscoverySearchResponse(mode: .semantic, state: .ready, results: [],
+                                           coverage: nil, indexGeneration: nil,
+                                           latencyMillis: Double(query.text.count))
         }
 
         func releaseAll() {
@@ -109,12 +118,6 @@ final class SearchModelTests: XCTestCase {
             }
             for continuation in pending { continuation.resume() }
         }
-
-        func similar(to trackID: Int64, limit: Int) async throws -> SearchResponse {
-            SearchResponse(state: .ready, results: [], coverage: 1, latencyMillis: 0)
-        }
-
-        func coverageCounts() async -> (indexed: Int, total: Int) { (0, 0) }
     }
 
     /// Scripted ODR availability, deterministic for macOS `swift test`.
@@ -154,17 +157,17 @@ final class SearchModelTests: XCTestCase {
     }
 
     private func makeModel(search: any VibeSearching,
-                           pool: DatabasePool,
+                           library: LibraryStore? = nil,
                            repository: SmartCrateRepository? = nil,
                            resource: ModelResourceService? = nil,
                            debounceNanoseconds: UInt64 = 250_000_000,
-                           defaults: UserDefaults? = nil) -> VibeSearchModel {
+                           defaults: UserDefaults? = nil) throws -> VibeSearchModel {
         VibeSearchModel(
             searchService: search,
-            repository: repository ?? SmartCrateRepository(pool: pool),
+            repository: try repository ?? SmartCrateRepository(pool: makePool()),
             resource: resource ?? ModelResourceService(
                 provider: ScriptedProvider(available: [.clapText: true])),
-            pool: pool,
+            library: try library ?? LibraryStore(inMemory: true),
             debounceNanoseconds: debounceNanoseconds,
             defaults: defaults ?? makeDefaults())
     }
@@ -178,13 +181,41 @@ final class SearchModelTests: XCTestCase {
         }
     }
 
+    /// Seeds a real core-imported track (never a DJ-local `DJTrack` — session
+    /// 14's own finding) with a `discovery_track_analysis` row so
+    /// `SuggestionChips.summary(library:)` finds it.
+    private func seedLibraryTrack(in library: LibraryStore, title: String,
+                                  bpm: Double? = nil, camelot: String? = nil,
+                                  energy: Double? = nil,
+                                  durationSec: Double? = nil) async throws {
+        let source = try await library.insertSource(Source(
+            id: nil, kind: .local, iaIdentifier: nil, originalURL: nil, title: "Fixture",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
+        let track = try await library.insertTrack(Track(
+            id: nil, albumId: nil, sourceId: source.id!, title: title, trackNo: nil,
+            discNo: nil, durationSec: durationSec, codec: "WAV", sampleRate: 44_100,
+            bitDepthOrBitrate: nil, sortKey: title))
+        let asset = try await library.insertAsset(Asset(
+            id: nil, trackId: track.id!, kind: .localRef, bookmark: nil,
+            relPath: "\(title).wav", remoteURL: nil, altRemoteURL: nil,
+            sizeBytes: nil, unsupportedReason: nil))
+        let writer = await library.dbQueue
+        try await writer.write { db in
+            var row = DiscoveryTrackAnalysis(
+                trackId: track.id!, assetId: asset.id!, assetRevision: 1,
+                analysisVersion: DiscoveryPipelineVersion.musicalAnalysis,
+                bpm: bpm, key: camelot, energy: energy, phraseSummary: nil,
+                analysisScopeSeconds: nil, completedAt: Date())
+            try row.upsert(db)
+        }
+    }
+
     // MARK: - Debounce (§27.5)
 
     func testSearchIsDebouncedNotImmediate() async throws {
-        let pool = try makePool()
-        defer { try? pool.close() }
         let search = RecordingSearch()
-        let model = makeModel(search: search, pool: pool, debounceNanoseconds: 50_000_000)
+        let model = try makeModel(search: search, debounceNanoseconds: 50_000_000)
 
         model.updateQuery("dark")
         try await Task.sleep(nanoseconds: 5_000_000)
@@ -196,10 +227,8 @@ final class SearchModelTests: XCTestCase {
     }
 
     func testRapidTypingCoalescesToOneSearch() async throws {
-        let pool = try makePool()
-        defer { try? pool.close() }
         let search = RecordingSearch()
-        let model = makeModel(search: search, pool: pool, debounceNanoseconds: 50_000_000)
+        let model = try makeModel(search: search, debounceNanoseconds: 50_000_000)
 
         model.updateQuery("d")
         model.updateQuery("da")
@@ -213,10 +242,8 @@ final class SearchModelTests: XCTestCase {
     }
 
     func testInFlightSearchResultIsDiscardedOnNewQuery() async throws {
-        let pool = try makePool()
-        defer { try? pool.close() }
         let search = GatedSearch()
-        let model = makeModel(search: search, pool: pool, debounceNanoseconds: 20_000_000)
+        let model = try makeModel(search: search, debounceNanoseconds: 20_000_000)
 
         model.updateQuery("aa")   // first search blocks on the gate
         await waitUntil { !search.queries.isEmpty }
@@ -234,10 +261,8 @@ final class SearchModelTests: XCTestCase {
     // MARK: - Coverage (FR-SEM-8)
 
     func testCoverageReflectsTheServiceCounts() async throws {
-        let pool = try makePool()
-        defer { try? pool.close() }
         let search = RecordingSearch(coverage: (indexed: 2, total: 5))
-        let model = makeModel(search: search, pool: pool)
+        let model = try makeModel(search: search)
 
         await model.refreshCoverage()
         XCTAssertEqual(model.coverage.indexed, 2)
@@ -247,30 +272,30 @@ final class SearchModelTests: XCTestCase {
     // MARK: - Stated model-absent state (FR-SEM-6)
 
     func testModelAbsentStateIsStatedAndNeverEmptyPlausible() async throws {
-        let pool = try makePool()
-        defer { try? pool.close() }
         let search = RecordingSearch()
-        search.enqueue(SearchResponse(state: .textModelUnavailable, results: [],
-                                      coverage: 0, latencyMillis: 0))
         let provider = ScriptedProvider(available: [:])
-        let model = makeModel(search: search, pool: pool,
-                              resource: ModelResourceService(provider: provider))
+        let model = try makeModel(search: search,
+                                  resource: ModelResourceService(provider: provider))
 
+        // `start()` itself runs one coverage search — enqueue the scripted
+        // model-absent response only AFTER it, so it lands on the real
+        // `updateQuery("dark")` search below, not the coverage refresh.
         await model.start()
         XCTAssertFalse(model.textModelAvailable)
+        search.enqueue(DiscoverySearchResponse(mode: .semantic, state: .modelMissing, results: [],
+                                               coverage: nil, indexGeneration: nil,
+                                               latencyMillis: 0))
 
         model.updateQuery("dark")
         await waitUntil { model.response != nil }
-        XCTAssertEqual(model.response?.state, .textModelUnavailable)
+        XCTAssertEqual(model.response?.state, .modelMissing)
         XCTAssertTrue(model.response?.results.isEmpty ?? false)
     }
 
     func testFetchTextModelFlippedTheModelAvailableFlag() async throws {
-        let pool = try makePool()
-        defer { try? pool.close() }
         let provider = ScriptedProvider(available: [:])
-        let model = makeModel(search: RecordingSearch(), pool: pool,
-                              resource: ModelResourceService(provider: provider))
+        let model = try makeModel(search: RecordingSearch(),
+                                  resource: ModelResourceService(provider: provider))
 
         await model.start()
         XCTAssertFalse(model.textModelAvailable)
@@ -283,14 +308,13 @@ final class SearchModelTests: XCTestCase {
     // MARK: - Suggestion chips (library's own distribution)
 
     func testSuggestionChipsReflectTheLibraryDistribution() async throws {
-        let pool = try makePool()
-        defer { try? pool.close() }
+        let library = try LibraryStore(inMemory: true)
         for i in 0..<4 {
-            seedLibraryTrack(in: pool, title: "Track \(i)",
-                             bpm: 124 + Double(i % 2), camelot: "9A",
-                             energy: 8, durationSec: 300)
+            try await seedLibraryTrack(in: library, title: "Track \(i)",
+                                       bpm: 124 + Double(i % 2), camelot: "9A",
+                                       energy: 8, durationSec: 300)
         }
-        let model = makeModel(search: RecordingSearch(), pool: pool)
+        let model = try makeModel(search: RecordingSearch(), library: library)
         await model.refreshSuggestions()
         XCTAssertEqual(model.suggestionChips,
                        ["steady around 125 BPM", "in 9A", "high energy"],
@@ -298,35 +322,17 @@ final class SearchModelTests: XCTestCase {
     }
 
     func testEmptyLibraryYieldsNoChips() async throws {
-        let pool = try makePool()
-        defer { try? pool.close() }
-        let model = makeModel(search: RecordingSearch(), pool: pool)
+        let model = try makeModel(search: RecordingSearch())
         await model.refreshSuggestions()
         XCTAssertTrue(model.suggestionChips.isEmpty)
-    }
-
-    /// Inserts a descriptor-bearing track through the synchronous `write`
-    /// overload (GRDB's async overload takes a `@Sendable` closure that cannot
-    /// mutate the captured row).
-    private func seedLibraryTrack(in pool: DatabasePool, title: String,
-                                  bpm: Double? = nil, camelot: String? = nil,
-                                  energy: Double? = nil,
-                                  durationSec: Double? = nil) {
-        var track = DJTrack(syncID: UUID().uuidString, title: title,
-                            durationSec: durationSec,
-                            contentHash: "h-\(title)", sortKey: "s-\(title)",
-                            bpm: bpm, camelot: camelot, energy: energy,
-                            addedAt: Date(), updatedAt: Date())
-        try? pool.write { db in try track.insert(db) }
     }
 
     // MARK: - Smart crate save (FR-SEM-5)
 
     func testSaveAsSmartCratePersistsTheCurrentQuery() async throws {
         let pool = try makePool()
-        defer { try? pool.close() }
         let repo = SmartCrateRepository(pool: pool)
-        let model = makeModel(search: RecordingSearch(), pool: pool, repository: repo)
+        let model = try makeModel(search: RecordingSearch(), repository: repo)
 
         model.queryText = "dark driving bassline"
         model.addPositiveTerm("hypnotic")
@@ -335,23 +341,62 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(model.savedCrate?.id, id)
         let stored = try XCTUnwrap(repo.query(for: id))
         XCTAssertEqual(stored, model.currentQuery)
-        XCTAssertEqual(stored.positiveTerms, ["hypnotic"])
+        XCTAssertEqual(stored.positiveRefinements, ["hypnotic"])
     }
 
     // MARK: - Privacy line (NFR-PRIV-5)
 
     func testPrivacyLineIsStatedOnceAndRemembered() async throws {
-        let pool = try makePool()
-        defer { try? pool.close() }
         let defaults = makeDefaults()
-        let model = makeModel(search: RecordingSearch(), pool: pool, defaults: defaults)
+        let model = try makeModel(search: RecordingSearch(), defaults: defaults)
         XCTAssertFalse(model.privacyAcknowledged, "shown on first use")
 
         model.acknowledgePrivacy()
         XCTAssertTrue(model.privacyAcknowledged)
 
-        let secondModel = makeModel(search: RecordingSearch(), pool: pool, defaults: defaults)
+        let secondModel = try makeModel(search: RecordingSearch(), defaults: defaults)
         XCTAssertTrue(secondModel.privacyAcknowledged,
                       "acknowledgement persists so it is not repeated")
+    }
+
+    // MARK: - Real core-identity end-to-end (session 14's own standard)
+
+    /// Proves the whole rewired stack agrees on ONE core track id: a real
+    /// `SearchService` (not a fake), a real core `LibraryStore`-imported
+    /// track, a fixed text encoder for determinism, and `VibeSearchModel`
+    /// surfacing the result under `DiscoverySearchResult.trackID` — never a
+    /// `DJTrackRow`/DJ-local id anywhere in the path.
+    func testRealSearchServiceSurfacesCoreTrackIdentity() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VibeSearchRealID-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let library = try LibraryStore(inMemory: true)
+        let source = try await library.insertSource(Source(
+            id: nil, kind: .local, iaIdentifier: nil, originalURL: nil, title: "Fixture",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
+        let track = try await library.insertTrack(Track(
+            id: nil, albumId: nil, sourceId: source.id!, title: "One", trackNo: nil,
+            discNo: nil, durationSec: 180, codec: "WAV", sampleRate: 44_100,
+            bitDepthOrBitrate: nil, sortKey: "One"))
+        _ = try await library.insertAsset(Asset(
+            id: nil, trackId: track.id!, kind: .localRef, bookmark: nil, relPath: "one.wav",
+            remoteURL: nil, altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil))
+
+        let writer = await library.dbQueue
+        let index = VectorIndex(writer: writer, cacheURL: dir.appendingPathComponent("vectors.bin"))
+        let models = ModelManager(resourceProvider: { .unavailable })
+        let service = SearchService(writer: writer, index: index, models: models)
+
+        let model = try makeModel(search: service, library: library)
+        model.updateQuery("")
+        model.searchImmediately()
+        await waitUntil { model.response != nil }
+
+        XCTAssertEqual(model.response?.state, .ready)
+        XCTAssertTrue(model.response?.results.contains { $0.trackID == track.id! } ?? false,
+                      "the real SearchService must surface the imported track under its core id")
     }
 }

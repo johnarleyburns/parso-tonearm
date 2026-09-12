@@ -64,23 +64,23 @@ public struct PlaylistCrateImporter: PlaylistCrateImporting, Sendable {
         }
     }
 
+    /// C02 (IMPLEMENT_CLAP_PLAN.md §3: "core playlist track IDs are already
+    /// the IDs to use"): a crate is just the on-device subset of a core
+    /// playlist's tracks, stored under their own **core** track IDs. No
+    /// DJ-local `DJTrack`/`DJAsset` row is created — `saveCrate` writes core
+    /// ids straight into `playlist_item` (dj_v8 dropped that column's FK into
+    /// the DJ-local `track` table for exactly this reason).
     public func importCrate(playlistID: Int64, title: String) async throws -> CrateImportResult {
         let rows = try await library.playlistTrackRows(playlistId: playlistID)
-        let items = rows.compactMap { item -> DJLibraryStore.DownloadedTrackItem? in
-            guard let url = localURL(for: item.row) else { return nil }
-            return DJLibraryStore.DownloadedTrackItem(
-                localURL: url, title: item.row.track.title,
-                artist: item.row.artist?.name ?? item.row.album?.artist,
-                durationSec: item.row.track.durationSec,
-                codec: item.row.track.codec ?? url.pathExtension.uppercased())
+        let ids = rows.compactMap { item -> Int64? in
+            localURL(for: item.row) != nil ? item.row.id : nil
         }
-        guard !items.isEmpty else {
+        guard !ids.isEmpty else {
             throw CrateImporterError.noTracksOnDevice
         }
-        let ids = try await djLibrary.importDownloadedTracks(items)
         let crateID = try await djLibrary.saveCrate(title: title, trackIDs: ids)
         return CrateImportResult(source: .playlist(id: crateID, title: title),
-                                 imported: ids.count, skipped: rows.count - items.count)
+                                 imported: ids.count, skipped: rows.count - ids.count)
     }
 
     private func localURL(for row: TrackRow) -> URL? {

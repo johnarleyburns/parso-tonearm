@@ -49,6 +49,18 @@ final class StemServiceTests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// A collision-free-in-practice stand-in for a core `LibraryStore` track
+    /// id (C02: `gig_crate_track.trackID` has taken no FK to a DJ-local
+    /// `track` table since dj_v9, and this suite never reads track identity
+    /// back from the DJ database, so a synthetic id serves exactly the same
+    /// role a real core-imported one would). Randomized rather than a shared
+    /// counter so it stays a pure function under Swift 6 strict concurrency
+    /// (no mutable static state) while still being unique across the several
+    /// `seedCrate` calls some tests make in one run.
+    private static func nextSyntheticTrackID() -> Int64 {
+        Int64.random(in: 1_000_000_000..<9_000_000_000)
+    }
+
     private struct Environment {
         let pool: DatabasePool
         let dir: URL
@@ -91,6 +103,13 @@ final class StemServiceTests: XCTestCase {
     /// Seeds `count` tracks (each backed by a real 1–2 s WAV) and a gig crate
     /// over them, all `pending`. Returns the crate id and the track IDs in
     /// position order.
+    ///
+    /// C02 (dj_v12) deleted the DJ-local `DJTrack` catalog table these used
+    /// to be inserted into to mint an id — `gig_crate_track.trackID` has had
+    /// no FK to it since dj_v9 (a core `LibraryStore` id satisfies it, and
+    /// this whole test injects `assetURL`/never reads track identity from
+    /// the DJ database), so a synthetic core-shaped id works exactly the
+    /// same as a real core-imported one for everything this suite exercises.
     private func seedCrate(_ env: Environment, trackCount: Int,
                            seconds: Double = 1) async throws -> (crateID: Int64, trackIDs: [Int64], urls: [Int64: URL]) {
         let now = Date()
@@ -100,13 +119,7 @@ final class StemServiceTests: XCTestCase {
             let title = "track-\(i)"
             let url = env.dir.appendingPathComponent("\(title).wav")
             try writeWAV(SyntheticAudio.clickTrack(bpm: 120, seconds: seconds), to: url)
-            let trackID = try await env.pool.write { db in
-                var track = DJTrack(syncID: UUID().uuidString, title: title,
-                                    contentHash: "hash-\(title)", sortKey: title,
-                                    addedAt: now, updatedAt: now)
-                try track.insert(db)
-                return track.id!
-            }
+            let trackID = Self.nextSyntheticTrackID()
             trackIDs.append(trackID)
             urls[trackID] = url
         }
@@ -197,11 +210,6 @@ final class StemServiceTests: XCTestCase {
                 """, arguments: [crateID]) ?? 0
         }
         XCTAssertGreaterThan(stemsBytes, 0, "the roll-up records the on-disk bytes")
-        let trackStemState = try await env.pool.read { db in
-            try String.fetchOne(db, sql: "SELECT stemState FROM track WHERE id = ?",
-                                arguments: [trackIDs[0]]) ?? ""
-        }
-        XCTAssertEqual(trackStemState, "ready", "the track roll-up is stamped too")
         XCTAssertEqual(progress.value?.completed, 2, "the lane reports completion")
     }
 

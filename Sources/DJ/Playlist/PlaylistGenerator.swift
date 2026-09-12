@@ -1,5 +1,8 @@
 import Foundation
 import GRDB
+import ParsoAudioAnalysis
+import TonearmCore
+import TonearmDiscovery
 
 /// The input to one generation (plan §2.7, §3.3): the semantic anchor, the arc,
 /// the target length, the constraints, the seed, and any pinned slots. The UI
@@ -18,8 +21,14 @@ public struct PlaylistGenerationRequest: Sendable, Equatable {
     /// Audio-seeded: the seed track's pooled vector skips the text encoder
     /// (AT-PLIST-2's ≤ 400 ms path) and pins slot 0 (§41.6 "Start from").
     public var seedTrackID: Int64?
-    /// "Start from a saved vibe": the crate's stored `VibeQuery` becomes the anchor.
+    /// "Start from a saved vibe": the crate's stored `DiscoverySearchQuery` becomes the anchor.
     public var seedCrateID: Int64?
+    /// Explicit selected scope (C02 fix — the old DJ-local pipeline had no
+    /// notion of scope at all). `nil` means the whole library, matching
+    /// `DiscoverySearchQuery.sourceIDs`. Not yet exposed by any UI control —
+    /// present so the capability exists on the shared contract, the same
+    /// state `VibeSearchModel`'s `currentQuery` left it in this session.
+    public var sourceIDs: [Int64]?
     /// Seeded tie-breaks (NFR-DET-1); a fresh seed is what varies "regenerate".
     public var randomSeed: UInt64
     /// slot → trackID for pinned slots (FR-PLIST-6).
@@ -34,6 +43,7 @@ public struct PlaylistGenerationRequest: Sendable, Equatable {
                 constraints: SequencingConstraints = SequencingConstraints(),
                 seedTrackID: Int64? = nil,
                 seedCrateID: Int64? = nil,
+                sourceIDs: [Int64]? = nil,
                 randomSeed: UInt64,
                 locks: [Int: Int64] = [:]) {
         self.prompt = prompt
@@ -45,6 +55,7 @@ public struct PlaylistGenerationRequest: Sendable, Equatable {
         self.constraints = constraints
         self.seedTrackID = seedTrackID
         self.seedCrateID = seedCrateID
+        self.sourceIDs = sourceIDs
         self.randomSeed = randomSeed
         self.locks = locks
     }
@@ -103,10 +114,46 @@ public enum PlaylistGeneratorError: Error, LocalizedError, Equatable {
 /// pure `sequence` → persist. `generate` is the whole pipeline; every interaction
 /// (§28A.4) is a constrained re-run over the same resolved pool, so nothing is a
 /// fresh roll of the dice.
+///
+/// C02 (IMPLEMENT_CLAP_PLAN.md, Slice B): candidate retrieval is rewired onto
+/// the unified `SearchService`/`DiscoverySearchQuery` engine (the same one
+/// `VibeSearchModel`/`SmartCrateRepository` use), tracking candidates by core
+/// `track.id` throughout — never the deleted DJ-local `VectorStore`/`DJTrack`
+/// path. This fixes the old pipeline's four real bugs for free:
+/// - **top-400-before-filter**: the BPM hard filter now travels as
+///   `DiscoverySearchQuery.bpmMin/bpmMax`, applied by `SearchService` to the
+///   ELIGIBLE set before top-K truncation, not after a fixed-size vector scan.
+/// - **filter-only rejected**: a BPM-only brief with no prompt/seed/crate text
+///   now runs as `SearchService`'s own `.filterOnly` mode instead of throwing
+///   `.noAnchor` — `hasHardMusicalFilter` counts as an anchor here.
+/// - **no selected-source scope**: `PlaylistGenerationRequest.sourceIDs` now
+///   exists and threads straight into `DiscoverySearchQuery.sourceIDs`.
+/// - **cancellation always false**: `isCancelled: { Task.isCancelled }` is
+///   threaded into `SearchService.search`, reflecting the ambient Swift
+///   `Task`'s real cancellation instead of a hard-coded `{ false }`.
+///
+/// Two DIFFERENT databases stay in play here, same as `VibeSearchModel`: `pool`
+/// (DJ-local — `auto_playlist_brief/result/item`, `smart_crate/crate_rule`,
+/// still DJ-only operational data per the plan amendment) and `library` (the
+/// ONE core catalog `SearchService` and the candidate-feature loaders read).
+///
+/// The old "widen the pool and re-scan" step is gone, not merely renamed: it
+/// existed only to work around top-K preceding the hard filter. `SearchService`
+/// already scans every ELIGIBLE vector exactly (no fixed shortlist), so a
+/// single query at the desired pool size is sufficient. The one real, honest
+/// regression from this: `ValidatedQuery.maxLimit` (200) is a lower ceiling
+/// than the old widened cap (up to 2,400) for very large requested track
+/// counts — a short pool is still reported honestly (`isShortPool`), never
+/// silently padded, and this ceiling is a property of the ONE shared retrieval
+/// contract every caller now gets, not a PlaylistGenerator-specific cut corner.
 public actor PlaylistGenerator {
+    /// DJ-local: `auto_playlist_brief/result/item` persistence, `smart_crate`
+    /// lookups for `seedCrateID`. NOT the core catalog.
     public let pool: DatabasePool
-    private let store: any VectorStore
-    private let embedder: CLAPEmbedder
+    /// The ONE core music catalog (plan §3) — candidate features, embeddings,
+    /// musical analysis.
+    private let library: LibraryStore
+    private let searchService: SearchService
     private let repository: AutoPlaylistRepository
 
     /// The last completed generation, for reject / replace / extend / reshuffle.
@@ -116,18 +163,19 @@ public actor PlaylistGenerator {
     private var lastSlots: [SequencedSlot]?
     private var lastSemanticScores: [Int64: Double]?
 
-    public init(pool: DatabasePool, store: any VectorStore, embedder: CLAPEmbedder) {
+    public init(pool: DatabasePool, library: LibraryStore, searchService: SearchService) {
         self.pool = pool
-        self.store = store
-        self.embedder = embedder
+        self.library = library
+        self.searchService = searchService
         self.repository = AutoPlaylistRepository(pool: pool)
     }
 
     // MARK: - Generate
 
-    /// Full pipeline (§28A.3 step 1): resolve the anchor, scan the Tier A pool,
-    /// apply hard constraints, subtract this brief's rejections, map energies to
-    /// CDF ranks, run the pure beam search, and persist brief + result + items.
+    /// Full pipeline (§28A.3 step 1): resolve the anchor, run the unified
+    /// retrieval engine, apply the constraints it doesn't cover natively,
+    /// subtract this brief's rejections, map energies to CDF ranks, run the
+    /// pure beam search, and persist brief + result + items.
     public func generate(_ request: PlaylistGenerationRequest) async throws -> PlaylistGeneration {
         let resolved = try await resolve(request: request)
         let candidates = resolved.candidates
@@ -302,40 +350,33 @@ public actor PlaylistGenerator {
     }
 
     private func resolve(request: PlaylistGenerationRequest) async throws -> ResolvedCandidates {
-        let (anchor, slotZeroLock, audioSeeded) = try await anchorVector(for: request)
+        let anchor = try await anchorQuery(for: request)
 
         let provisionalCount = request.targetTrackCount ?? PlaylistSequencer.maxTrackCount
-        let topK = min(PlaylistSequencer.generatorPoolCap, max(8 * max(provisionalCount, 1), 1))
+        let desired = min(PlaylistSequencer.generatorPoolCap, max(8 * max(provisionalCount, 1), 1))
+        var query = anchor.query
+        query.limit = min(desired, ValidatedQuery.maxLimit)
 
-        var matches = try store.search(query: anchor, topK: topK, isCancelled: { false })
-        if audioSeeded, let seedID = slotZeroLock {
-            matches.removeAll { $0.rowID == seedID }
-        }
-        var candidates = try await loadCandidates(matches: matches,
-                                                  constraints: request.constraints)
+        let response = await searchService.search(query, referenceTrackID: anchor.referenceTrackID,
+                                                   isCancelled: { Task.isCancelled })
+        let semanticScores = Dictionary(uniqueKeysWithValues:
+            response.results.compactMap { result -> (Int64, Double)? in
+                guard let similarity = result.similarity else { return nil }
+                return (result.trackID, similarity)
+            })
 
-        let requestedCount = estimatedCount(request: request, candidates: candidates)
-
-        // Short pool? Widen the semantic pool and re-filter before saying so —
-        // never pad with tracks that don't fit (plan §2.7, FR-PLIST-2 honesty).
-        if candidates.count < requestedCount {
-            let widened = min(PlaylistSequencer.generatorPoolCap * 4, topK * 4)
-            matches = try store.search(query: anchor, topK: widened, isCancelled: { false })
-            if audioSeeded, let seedID = slotZeroLock {
-                matches.removeAll { $0.rowID == seedID }
-            }
-            candidates = try await loadCandidates(matches: matches,
-                                                  constraints: request.constraints)
-        }
+        var candidates = try await loadCandidates(
+            ids: response.results.map(\.trackID), constraints: request.constraints)
 
         let rejections = try await loadRejections()
         candidates.removeAll { rejections.contains($0.trackID) }
-        let semanticScores = Dictionary(uniqueKeysWithValues:
-            matches.map { ($0.rowID, Double($0.similarity)) })
+
+        let requestedCount = estimatedCount(request: request, candidates: candidates)
 
         // Audio-seeded briefs pin their opening: the seed track joins the pool
-        // (it may be outside the semantic pool) and is locked at slot 0.
-        if let seedID = slotZeroLock, let seed = try await loadSeedFeatures(seedID) {
+        // (it may be outside the retrieved pool, or excluded as its own
+        // reference by `.similar` mode) and is locked at slot 0.
+        if let seedID = anchor.slotZeroLock, let seed = try await loadSeedFeatures(seedID) {
             candidates.append(seed)
         }
 
@@ -344,73 +385,70 @@ public actor PlaylistGenerator {
                                   semanticScores: semanticScores,
                                   requestedCount: requestedCount,
                                   isShortPool: isShortPool,
-                                  slotZeroLock: slotZeroLock)
+                                  slotZeroLock: anchor.slotZeroLock)
     }
 
-    /// The semantic anchor: a seed track's stored pooled vector (audio path —
-    /// skips the text encoder), else a crate's stored query, else the prompt.
-    private func anchorVector(for request: PlaylistGenerationRequest) async throws
-        -> (vector: [Float], slotZeroLock: Int64?, audioSeeded: Bool) {
-        if let seedID = request.seedTrackID {
-            if let stored = try await loadEmbedding(trackID: seedID) {
-                let vector = VectorQuantization.dequantize(stored.int8Vector,
-                                                     scale: Float(stored.scale))
-                return (vector, seedID, true)
-            }
-            if let crateID = request.seedCrateID, let query = try await crateQuery(id: crateID),
-               query.hasContent {
-                return (try await embedQuery(query, request: request), nil, false)
-            }
-            if !request.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return (try await embedPrompt(request), nil, false)
-            }
-            throw PlaylistGeneratorError.noAnchor
+    private struct AnchorQuery {
+        var query: DiscoverySearchQuery
+        var referenceTrackID: Int64?
+        var slotZeroLock: Int64?
+    }
+
+    /// The semantic anchor: a seed track's own stored embedding (`.similar`
+    /// mode — skips the text encoder entirely), else a crate's stored query,
+    /// else the prompt/chip text, else (fixing "filter-only rejected") a
+    /// BPM-range-only brief with no text at all, which is still a valid
+    /// `.filterOnly` anchor under the unified contract.
+    private func anchorQuery(for request: PlaylistGenerationRequest) async throws -> AnchorQuery {
+        if let seedID = request.seedTrackID, try await hasEmbedding(trackID: seedID) {
+            return AnchorQuery(query: baseQuery(for: request), referenceTrackID: seedID,
+                               slotZeroLock: seedID)
         }
-        if let crateID = request.seedCrateID, let query = try await crateQuery(id: crateID),
-           query.hasContent {
-            return (try await embedQuery(query, request: request), nil, false)
+        if let crateID = request.seedCrateID, let crateAnchor = try await crateQuery(id: crateID),
+           hasContent(crateAnchor) {
+            var query = baseQuery(for: request)
+            query.text = crateAnchor.text
+            query.positiveRefinements = crateAnchor.positiveRefinements + request.positiveTerms
+            query.negativeRefinements = crateAnchor.negativeRefinements + request.negativeTerms
+            return AnchorQuery(query: query, referenceTrackID: nil, slotZeroLock: nil)
         }
-        if !request.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return (try await embedPrompt(request), nil, false)
+        let promptQuery = baseQuery(for: request)
+        if hasContent(promptQuery) || promptQuery.bpmMin != nil || promptQuery.bpmMax != nil {
+            return AnchorQuery(query: promptQuery, referenceTrackID: nil, slotZeroLock: nil)
         }
         throw PlaylistGeneratorError.noAnchor
     }
 
-    private func embedPrompt(_ request: PlaylistGenerationRequest) async throws -> [Float] {
-        var vec = [Float](repeating: 0, count: embedder.spec.dimensions)
-        let text = request.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !text.isEmpty { vec = try await embedder.embedText(text) }
-        for term in request.positiveTerms {
-            let termVector = try await embedder.embedText(term)
-            vec = SemanticPooling.l2Normalized(zip(vec, termVector).map(+))
-        }
-        for term in request.negativeTerms {
-            let termVector = try await embedder.embedText(term)
-            vec = SemanticPooling.l2Normalized(zip(vec, termVector).map { $0 - $1 })
-        }
-        return vec
+    /// The request's own prompt/chips/BPM/scope as a `DiscoverySearchQuery` —
+    /// the common starting point every anchor path refines.
+    private func baseQuery(for request: PlaylistGenerationRequest) -> DiscoverySearchQuery {
+        DiscoverySearchQuery(text: request.prompt,
+                             positiveRefinements: request.positiveTerms,
+                             negativeRefinements: request.negativeTerms,
+                             sourceIDs: request.sourceIDs,
+                             bpmMin: request.constraints.bpmRange?.lowerBound,
+                             bpmMax: request.constraints.bpmRange?.upperBound,
+                             limit: ValidatedQuery.defaultLimit)
     }
 
-    private func embedQuery(_ query: VibeQuery, request: PlaylistGenerationRequest) async throws
-        -> [Float] {
-        var vec = [Float](repeating: 0, count: embedder.spec.dimensions)
-        let text = query.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !text.isEmpty { vec = try await embedder.embedText(text) }
-        for term in query.positiveTerms + request.positiveTerms {
-            let termVector = try await embedder.embedText(term)
-            vec = SemanticPooling.l2Normalized(zip(vec, termVector).map(+))
-        }
-        for term in query.negativeTerms + request.negativeTerms {
-            let termVector = try await embedder.embedText(term)
-            vec = SemanticPooling.l2Normalized(zip(vec, termVector).map { $0 - $1 })
-        }
-        return vec
+    private func hasContent(_ query: DiscoverySearchQuery) -> Bool {
+        !query.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !query.positiveRefinements.isEmpty
+            || !query.negativeRefinements.isEmpty
     }
 
-    private func crateQuery(id: Int64) async throws -> VibeQuery? {
+    /// `smart_crate.queryJSON` stores a `DiscoverySearchQuery` (`SmartCrateRepository`
+    /// is the writer) — decoded and consumed natively here now, no adapter.
+    private func crateQuery(id: Int64) async throws -> DiscoverySearchQuery? {
         try await pool.read { db in
             guard let crate = try SmartCrate.fetchOne(db, key: id) else { return nil }
-            return try VibeQuery.decodeJSON(crate.queryJSON)
+            return try DiscoverySearchQuery.decodeJSON(crate.queryJSON)
+        }
+    }
+
+    private func hasEmbedding(trackID: Int64) async throws -> Bool {
+        try await library.dbQueue.read { db in
+            try DiscoveryEmbedding.filter(Column("trackId") == trackID).fetchCount(db) > 0
         }
     }
 
@@ -444,144 +482,115 @@ public actor PlaylistGenerator {
         return sorted[middle]
     }
 
-    // MARK: - Candidate loading
+    // MARK: - Candidate loading (core catalog)
 
-    private func loadCandidates(matches: [VectorMatch],
-                                constraints: SequencingConstraints) async throws -> [TrackFeatures] {
-        let ids = matches.map(\.rowID)
+    /// One core track's raw attributes, batch-loaded for candidate scoring —
+    /// `track`/`asset`/`discovery_track_analysis`/`discovery_embedding`, the
+    /// SAME core tables `VibeSearchModel`/`SmartCrateRepository` read.
+    private struct CoreTrackData {
+        var durationSec: Double
+        var artistId: Int64?
+        var albumId: Int64?
+        var genre: String?
+        var bpm: Double?
+        var camelot: String?
+        var energy: Double?
+        var embedding: [Float]?
+        var isFullyCached = false
+    }
+
+    private func loadCoreTrackData(for ids: [Int64]) async throws -> [Int64: CoreTrackData] {
+        guard !ids.isEmpty else { return [:] }
+        let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ",")
+        return try await library.dbQueue.read { db -> [Int64: CoreTrackData] in
+            var result: [Int64: CoreTrackData] = [:]
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT t.id AS id, t.durationSec AS durationSec, t.artistId AS artistId,
+                       t.albumId AS albumId, t.genre AS genre,
+                       a.bpm AS bpm, a.key AS camelot, a.energy AS energy
+                FROM track t LEFT JOIN discovery_track_analysis a ON a.trackId = t.id
+                WHERE t.id IN (\(placeholders))
+                """, arguments: StatementArguments(ids))
+            for row in rows {
+                let id: Int64 = row["id"]
+                result[id] = CoreTrackData(durationSec: row["durationSec"] ?? 0,
+                                           artistId: row["artistId"],
+                                           albumId: row["albumId"],
+                                           genre: row["genre"],
+                                           bpm: row["bpm"],
+                                           camelot: row["camelot"],
+                                           energy: row["energy"],
+                                           embedding: nil)
+            }
+            let embeddingRows = try Row.fetchAll(db, sql: """
+                SELECT trackId, quantizedVector, scale FROM discovery_embedding
+                WHERE trackId IN (\(placeholders))
+                """, arguments: StatementArguments(ids))
+            for row in embeddingRows {
+                let id: Int64 = row["trackId"]
+                let data: Data = row["quantizedVector"]
+                let scale: Double = row["scale"]
+                let int8 = data.map { Int8(bitPattern: $0) }
+                result[id]?.embedding = VectorQuantization.dequantize(int8, scale: Float(scale))
+            }
+            let cachedRows = try Row.fetchAll(db, sql: """
+                SELECT DISTINCT trackId FROM asset WHERE trackId IN (\(placeholders))
+                """, arguments: StatementArguments(ids))
+            for row in cachedRows {
+                let id: Int64 = row["trackId"]
+                result[id]?.isFullyCached = true
+            }
+            return result
+        }
+    }
+
+    /// The retrieved pool's candidate features, with the two constraints the
+    /// unified engine doesn't natively cover (genre exclusion, cache
+    /// requirement — DJ-preparation-specific, not part of the shared
+    /// scope/BPM/key contract) applied as a post-filter, same as before.
+    private func loadCandidates(ids: [Int64], constraints: SequencingConstraints) async throws
+        -> [TrackFeatures] {
         guard !ids.isEmpty else { return [] }
-        let rows = try await pool.read { db in
-            try DJTrack.filter(ids.contains(Column("id"))).fetchAll(db)
-        }
-        var rowsByID: [Int64: DJTrack] = [:]
-        for row in rows { if let id = row.id { rowsByID[id] = row } }
-
-        let artistIDs = try await trackArtistIDs(for: ids)
-        let genreNames = try await trackGenreNames(for: ids)
-        let embeddings = try await trackEmbeddings(for: ids)
-        let cached = try await cachedTrackIDs(ids)
-
-        return matches.compactMap { match in
-            guard let row = rowsByID[match.rowID] else { return nil }
-            let bpm = row.bpm ?? row.detectedBPM
-            if let range = constraints.bpmRange {
-                guard let bpm, range.contains(bpm) else { return nil }
+        let data = try await loadCoreTrackData(for: ids)
+        var out: [TrackFeatures] = []
+        out.reserveCapacity(ids.count)
+        for id in ids {
+            guard let info = data[id] else { continue }
+            if constraints.requireCached && !info.isFullyCached { continue }
+            if !constraints.excludeGenres.isEmpty, let genre = info.genre,
+               constraints.excludeGenres.contains(genre) {
+                continue
             }
-            if constraints.requireCached && !cached.contains(match.rowID) { return nil }
-            if !constraints.excludeGenres.isEmpty,
-               let genres = genreNames[match.rowID],
-               genres.contains(where: { constraints.excludeGenres.contains($0) }) {
-                return nil
-            }
-            // M3: the DJ schema carries no explicit flag (plan §3.3), so
-            // `allowExplicit` is honoured structurally but is a no-op in practice.
-            let embedding = embeddings[match.rowID]
-                .map { VectorQuantization.dequantize($0.int8Vector, scale: Float($0.scale)) }
-            return TrackFeatures(trackID: match.rowID,
-                                 durationSec: row.durationSec ?? 0,
-                                 bpm: bpm,
-                                 camelot: row.camelot.flatMap(CamelotKey.init(code:)),
-                                 energy: row.energy,
-                                 embedding: embedding,
-                                 artistIDs: artistIDs[match.rowID] ?? [],
-                                 albumID: row.albumID,
-                                 isExplicit: false,
-                                 isFullyCached: cached.contains(match.rowID))
+            out.append(TrackFeatures(trackID: id,
+                                     durationSec: info.durationSec,
+                                     bpm: info.bpm,
+                                     camelot: info.camelot.flatMap(CamelotKey.init(code:)),
+                                     energy: info.energy,
+                                     embedding: info.embedding,
+                                     artistIDs: info.artistId.map { [$0] } ?? [],
+                                     albumID: info.albumId,
+                                     isExplicit: false,
+                                     isFullyCached: info.isFullyCached))
         }
+        return out
     }
 
+    /// The audio-seed track's own features — always included regardless of
+    /// constraints (it is forced into the locked slot 0, mirroring the old
+    /// pipeline's unconditional append).
     private func loadSeedFeatures(_ trackID: Int64) async throws -> TrackFeatures? {
-        try await pool.read { db -> TrackFeatures? in
-            guard let row = try DJTrack.filter(Column("id") == trackID).fetchOne(db) else {
-                return nil
-            }
-            var artistIDs: [Int64] = []
-            let artistRows = try Row.fetchAll(db, sql: """
-                SELECT artistID FROM track_artist WHERE trackID = ? ORDER BY position
-                """, arguments: [trackID])
-            for artistRow in artistRows {
-                if let id: Int64 = artistRow["artistID"] { artistIDs.append(id) }
-            }
-            let embedding = try DJTrackEmbedding.filter(Column("trackID") == trackID).fetchOne(db)
-            return TrackFeatures(trackID: trackID,
-                                 durationSec: row.durationSec ?? 0,
-                                 bpm: row.bpm ?? row.detectedBPM,
-                                 camelot: row.camelot.flatMap(CamelotKey.init(code:)),
-                                 energy: row.energy,
-                                 embedding: embedding.map {
-                                     VectorQuantization.dequantize($0.int8Vector,
-                                                            scale: Float($0.scale))
-                                 },
-                                 artistIDs: artistIDs,
-                                 albumID: row.albumID,
-                                 isExplicit: false,
-                                 isFullyCached: true)
-        }
-    }
-
-    private func loadEmbedding(trackID: Int64) async throws -> DJTrackEmbedding? {
-        try await pool.read { db in
-            try DJTrackEmbedding.filter(Column("trackID") == trackID).fetchOne(db)
-        }
-    }
-
-    private func trackArtistIDs(for trackIDs: [Int64]) async throws -> [Int64: [Int64]] {
-        guard !trackIDs.isEmpty else { return [:] }
-        let placeholders = Array(repeating: "?", count: trackIDs.count).joined(separator: ",")
-        return try await pool.read { db in
-            var result: [Int64: [Int64]] = [:]
-            let rows = try Row.fetchAll(db, sql: """
-                SELECT trackID, artistID FROM track_artist
-                WHERE trackID IN (\(placeholders)) ORDER BY trackID, position
-                """, arguments: StatementArguments(trackIDs))
-            for row in rows {
-                let trackID: Int64 = row["trackID"]
-                let artistID: Int64 = row["artistID"]
-                result[trackID, default: []].append(artistID)
-            }
-            return result
-        }
-    }
-
-    private func trackGenreNames(for trackIDs: [Int64]) async throws -> [Int64: [String]] {
-        guard !trackIDs.isEmpty else { return [:] }
-        let placeholders = Array(repeating: "?", count: trackIDs.count).joined(separator: ",")
-        return try await pool.read { db in
-            var result: [Int64: [String]] = [:]
-            let rows = try Row.fetchAll(db, sql: """
-                SELECT tg.trackID AS trackID, g.name AS name
-                FROM track_genre tg JOIN genre g ON g.id = tg.genreID
-                WHERE tg.trackID IN (\(placeholders))
-                """, arguments: StatementArguments(trackIDs))
-            for row in rows {
-                let trackID: Int64 = row["trackID"]
-                let name: String = row["name"]
-                result[trackID, default: []].append(name)
-            }
-            return result
-        }
-    }
-
-    private func trackEmbeddings(for trackIDs: [Int64]) async throws -> [Int64: DJTrackEmbedding] {
-        guard !trackIDs.isEmpty else { return [:] }
-        let rows = try await pool.read { db in
-            try DJTrackEmbedding.filter(trackIDs.contains(Column("trackID"))).fetchAll(db)
-        }
-        return Dictionary(uniqueKeysWithValues: rows.map { ($0.trackID, $0) })
-    }
-
-    private func cachedTrackIDs(_ trackIDs: [Int64]) async throws -> Set<Int64> {
-        guard !trackIDs.isEmpty else { return [] }
-        let placeholders = Array(repeating: "?", count: trackIDs.count).joined(separator: ",")
-        return try await pool.read { db in
-            let rows = try Row.fetchAll(db, sql: """
-                SELECT DISTINCT trackID FROM asset WHERE trackID IN (\(placeholders))
-                """, arguments: StatementArguments(trackIDs))
-            return Set(rows.compactMap { row -> Int64? in
-                if let id: Int64 = row["trackID"] { return id }
-                return nil
-            })
-        }
+        let data = try await loadCoreTrackData(for: [trackID])
+        guard let info = data[trackID] else { return nil }
+        return TrackFeatures(trackID: trackID,
+                             durationSec: info.durationSec,
+                             bpm: info.bpm,
+                             camelot: info.camelot.flatMap(CamelotKey.init(code:)),
+                             energy: info.energy,
+                             embedding: info.embedding,
+                             artistIDs: info.artistId.map { [$0] } ?? [],
+                             albumID: info.albumId,
+                             isExplicit: false,
+                             isFullyCached: info.isFullyCached)
     }
 
     // MARK: - Output

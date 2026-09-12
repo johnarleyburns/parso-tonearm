@@ -161,6 +161,41 @@ also fixes the same staleness for source tiles' existing embedded/iTunes/IA art.
   anyone running the full suite until it's investigated separately.
 
 
+
+**Date:** 2026-09-09
+**Scope:** business decision — Tonearm has no gated Pro features. Decks, mixer, stems, recording,
+hardware (MIDI), preparation and gig crates (the full `ProCapability` set, Appendix T.3) are free.
+**Branch:** `main`
+
+## What changed
+
+- `EntitlementStore` (`Sources/Pro/EntitlementStore.swift`) is pinned unlocked at its single
+  production construction point: `EntitlementStore.convenience init()` (used only by `.shared`) now
+  builds on a new `StaticEntitlementSource` (an `EntitlementSource` that always reports a verified,
+  non-revoked ownership fact for the DJ product) and sets `isPro = true` / `source = .purchased`
+  immediately, so there is no cold-start window before the async `refresh()` resolves. Every existing
+  call site — `ProCapability.isEnabled`, `WorkspaceModel.isDecksEnabled`, `TrackPrepModel`,
+  `DJEntryModel`/`DJWorkspaceAssembly`, `DJHomeView`, `PaywallModel` — is satisfied without being
+  touched individually. The test-only initializer (`EntitlementStore.init(entitlementSource:cacheStore:)`)
+  is untouched, so the existing entitlement-logic unit tests keep exercising real fake sources.
+- The DJ paywall (`Sources/DJ/Features/Paywall/PaywallModel.swift` + `PaywallView.swift`) and the lock
+  chip it is presented from are now permanently unreachable — `PaywallModel.present()` no-ops once
+  `isPro` is always true, and `WorkspaceModel.isDecksEnabled` never dims the surface — so there is no
+  live "Upgrade to Pro" affordance anywhere in the shipped app. The legacy, already-unreachable
+  `ProStore`/`ProEntitlement`/`ProPaywallView` (retired since M0, never wired to any touchpoint) is
+  left in place untouched; it was already dead code before this round.
+- The only purchase left is **"Contribute to Development"** — a new StoreKit 2 **consumable**,
+  product id `guru.parso.tonearm.support.dev`, $9.99, purely optional and one-time. It never unlocks
+  anything. A new `SupportDevelopmentStore` (`Sources/Pro/SupportDevelopmentStore.swift`, the only other
+  file besides `ProPaywallView` allowed to `import StoreKit` per the CI boundary guard) handles the
+  purchase and persists a permanent `isSupporter` flag in `UserDefaults` (never reset). The purchase
+  entry point is a new `SupportDevelopmentCard` in Settings
+  (`Sources/Features/Settings/SupportDevelopmentCard.swift`); a small heart+"Supporter" badge appears
+  on the Listen tab (the app's default/home view) once the flag is set
+  (`Sources/Features/Listen/ListenView.swift`).
+- `Resources/Tonearm.storekit` now offers the `guru.parso.tonearm.support.dev` consumable instead of
+  the retired `guru.parso.tonearm.pro` non-consumable.
+
 # Current status — Watch Now Playing reliability round
 
 **Date:** 2026-09-01

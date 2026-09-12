@@ -1,6 +1,8 @@
 import Foundation
 import Combine
 import GRDB
+import TonearmCore
+import TonearmDiscovery
 
 /// The generation seam the auto-playlist view model talks to (plan §3.4, §41.6
 /// "PlaylistBriefView ▸ AutoPlaylistModel ▸ PlaylistGenerator"). `PlaylistGenerator`
@@ -90,7 +92,10 @@ public final class AutoPlaylistModel: ObservableObject {
 
     public let generator: any AutoPlaylistGenerating
     public let crateRepository: SmartCrateRepository
-    private let trackRepository: DJTrackRepository
+    /// The ONE core music catalog (plan §3, C02) — the seed-track picker and
+    /// result-row display now read core `TrackRow`/`discovery_track_analysis`
+    /// here, never the deleted DJ-local `DJTrackRepository`.
+    private let library: LibraryStore
 
     // MARK: Brief
 
@@ -157,13 +162,23 @@ public final class AutoPlaylistModel: ObservableObject {
     private var parsedBPM: (lo: Double?, hi: Double?)?
     private var locks: [Int: Int64] = [:]
     private var generationCount: UInt64 = 0
+    /// The seed-track picker's pool, pulled once per picker presentation
+    /// (`loadSeedCandidates()`) and filtered client-side — core `LibraryStore`
+    /// has no live-observation API, mirroring `LibraryModel`'s pull-based
+    /// pattern (C02). `@Published` so the picker sheet's `List(model.tracks(
+    /// matching:))` redraws once the pull completes.
+    @Published private var seedCandidates: [DJTrackRow] = []
+    /// The current result's rows, hydrated from the core catalog per
+    /// generation (`hydrateTrackRows(for:)`) — `rebuildRows()` itself stays
+    /// synchronous and reads from this cache.
+    private var trackRowsByID: [Int64: DJTrackRow] = [:]
 
     public init(generator: any AutoPlaylistGenerating,
                 crateRepository: SmartCrateRepository,
-                trackRepository: DJTrackRepository) {
+                library: LibraryStore) {
         self.generator = generator
         self.crateRepository = crateRepository
-        self.trackRepository = trackRepository
+        self.library = library
     }
 
     // MARK: - Brief → request
@@ -189,12 +204,16 @@ public final class AutoPlaylistModel: ObservableObject {
     }
 
     /// The crate-able query for the current brief + chips (§41.7 "Save as Smart
-    /// Crate" — the brief becomes a `VibeQuery` the crate keeps re-evaluating).
-    public var currentQuery: VibeQuery {
-        VibeQuery(text: prompt,
-                  positiveTerms: chips.filter { $0.kind == .positive }.map(\.label),
-                  negativeTerms: chips.filter { $0.kind == .negative }.map(\.label),
-                  bpmRange: bpmRange,
+    /// Crate" — the brief becomes a `DiscoverySearchQuery` the crate keeps
+    /// re-evaluating). C02: `SmartCrateRepository`/`smart_crate.queryJSON` and
+    /// `PlaylistGenerator`'s own candidate retrieval are both on the unified
+    /// `DiscoverySearchQuery`/`SearchService` contract now.
+    public var currentQuery: DiscoverySearchQuery {
+        DiscoverySearchQuery(text: prompt,
+                  positiveRefinements: chips.filter { $0.kind == .positive }.map(\.label),
+                  negativeRefinements: chips.filter { $0.kind == .negative }.map(\.label),
+                  bpmMin: bpmRange?.lowerBound,
+                  bpmMax: bpmRange?.upperBound,
                   limit: 100)
     }
 
@@ -280,9 +299,22 @@ public final class AutoPlaylistModel: ObservableObject {
         seedTrackLabel = nil
     }
 
-    /// The library the seed picker searches over (§41.6 "Start from").
+    /// Pulls the seed-track picker's pool from the core catalog once (call on
+    /// the picker's presentation — core `LibraryStore` has no live-observation
+    /// API, so this is pull-based like `LibraryModel.refresh()`).
+    public func loadSeedCandidates() async {
+        let coreRows = (try? await library.allTrackRows()) ?? []
+        seedCandidates = await Self.buildTrackRows(coreRows, library: library)
+    }
+
+    /// The core library the seed picker searches over (§41.6 "Start from"),
+    /// filtered client-side against the pool `loadSeedCandidates()` pulled.
     public func tracks(matching text: String) -> [DJTrackRow] {
-        (try? trackRepository.tracks(matching: LibraryQuery(searchText: text))) ?? []
+        guard !text.isEmpty else { return seedCandidates }
+        return seedCandidates.filter { row in
+            row.title.localizedCaseInsensitiveContains(text)
+                || row.artistNames.localizedCaseInsensitiveContains(text)
+        }
     }
 
     // MARK: - Generation
@@ -434,11 +466,8 @@ public final class AutoPlaylistModel: ObservableObject {
 
     private func rebuildRows() {
         guard let generation else { rows = []; return }
-        let ids = generation.items.map(\.trackID)
-        let tracks = (try? trackRepository.tracks(ids: ids)) ?? []
-        let byID = Dictionary(uniqueKeysWithValues: tracks.map { ($0.id, $0) })
         rows = generation.items.map { item in
-            let track = byID[item.trackID]
+            let track = trackRowsByID[item.trackID]
             return AutoPlaylistRow(position: item.position,
                                    trackID: item.trackID,
                                    title: track?.title ?? "Track \(item.trackID)",
@@ -457,39 +486,84 @@ public final class AutoPlaylistModel: ObservableObject {
 
     private func rebuildRows(from result: PlaylistGeneration) async {
         generation = result
+        let ids = result.items.map(\.trackID)
+        trackRowsByID = await Self.hydrateTrackRows(for: ids, library: library)
         rebuildRows()
+    }
+
+    // MARK: - Core row hydration (C02)
+
+    /// Batch-builds `DJTrackRow` display rows (title/artists/bpm/camelot) from
+    /// core `track`/`discovery_track_analysis` for the given core track ids —
+    /// the same shape `LibraryModel.refresh()` builds, kept here so
+    /// `PlaylistResultView`/the seed picker need no UI change.
+    private static func hydrateTrackRows(for ids: [Int64], library: LibraryStore) async
+        -> [Int64: DJTrackRow] {
+        guard !ids.isEmpty else { return [:] }
+        var rows: [TrackRow] = []
+        rows.reserveCapacity(ids.count)
+        for id in ids {
+            if let row = try? await library.trackRow(id: id) { rows.append(row) }
+        }
+        let built = await buildTrackRows(rows, library: library)
+        return Dictionary(uniqueKeysWithValues: built.map { ($0.id, $0) })
+    }
+
+    /// Shared core `TrackRow` → `DJTrackRow` mapping (title/artist/album from
+    /// the row itself, bpm/camelot/energy batch-read from
+    /// `discovery_track_analysis` — the core catalog carries no musical
+    /// attributes of its own, same as `VibeSearchModel.analysisByTrackID`).
+    private static func buildTrackRows(_ coreRows: [TrackRow], library: LibraryStore) async
+        -> [DJTrackRow] {
+        guard !coreRows.isEmpty else { return [] }
+        let ids = coreRows.map(\.id)
+        let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ",")
+        let analysisByID: [Int64: DiscoveryTrackAnalysis] = (try? await library.dbQueue.read { db in
+            let fetched = try DiscoveryTrackAnalysis.fetchAll(db, sql: """
+                SELECT * FROM discovery_track_analysis WHERE trackId IN (\(placeholders))
+                """, arguments: StatementArguments(ids))
+            return Dictionary(uniqueKeysWithValues: fetched.map { ($0.trackId, $0) })
+        }) ?? [:]
+        return coreRows.map { row in
+            let analysis = analysisByID[row.id]
+            return DJTrackRow(id: row.id,
+                              title: row.track.title,
+                              artistNames: row.artist?.name ?? row.album?.artist ?? "",
+                              albumTitle: row.album?.title,
+                              durationSec: row.track.durationSec,
+                              bpm: analysis?.bpm,
+                              camelot: analysis?.key,
+                              energy: analysis?.energy,
+                              analysisState: analysis?.completedAt != nil ? "analyzed" : "pending",
+                              stemState: "none")
+        }
     }
 }
 
 /// Assembles the production auto-playlist stack (§41.6 View ▸ VM ▸ data): the
-/// Tier A store + the real CLAP text encoder behind ODR delivery, exactly as
-/// `VibeSearchAssembly` does — the generator reuses the same embedder seam.
+/// unified `SearchService` (C02) + the DJ-local `SmartCrateRepository`
+/// (`smart_crate`/`crate_rule` are DJ-only operational data, intentionally
+/// still DJ-local per the plan amendment). Builds its OWN `VectorIndex`/
+/// `ModelManager`/`SearchService` per screen rather than sharing the app's one
+/// process-wide `DiscoveryAssembly` — the SAME real, flagged duplication
+/// `VibeSearchAssembly` documents (not fixed here, out of this session's
+/// scope). ODR delivery goes through the SAME `BundleResourceProvider`/
+/// `clap-text` tag every other caller uses.
 @MainActor
 public enum AutoPlaylistAssembly {
 
-    public static func makeModel(pool: DatabasePool) -> AutoPlaylistModel? {
-        let spec = EmbeddingModelSpec.musicCLAPMetadata
-        guard let store = try? VectorStoreTierA(pool: pool, dims: spec.dimensions) else {
-            return nil
-        }
-        let encoder = CoreMLSemanticModel(kind: .text,
-                                          url: modelURL(named: "CLAPTextEncoder.mlpackage"),
-                                          spec: spec)
-        let embedder = CLAPEmbedder(model: encoder)
-        let generator = PlaylistGenerator(pool: pool, store: store, embedder: embedder)
+    public static func makeModel(pool: DatabasePool, library: LibraryStore = .shared) async
+        -> AutoPlaylistModel {
+        let writer = await library.dbQueue
+        let index = VectorIndex(writer: writer)
+        let models = ModelManager(resourceProvider: {
+            let dirs = [Bundle.main.resourceURL].compactMap { $0 }
+            return ModelResourceLocator(searchDirectories: dirs).resolve()
+        })
+        let service = SearchService(writer: writer, index: index, models: models)
+        let generator = PlaylistGenerator(pool: pool, library: library, searchService: service)
         return AutoPlaylistModel(generator: generator,
                                  crateRepository: SmartCrateRepository(pool: pool),
-                                 trackRepository: DJTrackRepository(pool: pool))
-    }
-
-    /// The on-disk location the ODR tag lands at. Before the tag is fetched this
-    /// path doesn't exist, which is exactly the honest absence `isAvailable()`
-    /// reports (mirrors `BundleResourceProvider.url(for:)`).
-    private static func modelURL(named name: String) -> URL {
-        let path = (name as NSString).deletingPathExtension
-        let ext = (name as NSString).pathExtension
-        return Bundle.main.url(forResource: path, withExtension: ext)
-            ?? Bundle.main.resourceURL?.appendingPathComponent(name)
-            ?? URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(name)
+                                 library: library)
     }
 }

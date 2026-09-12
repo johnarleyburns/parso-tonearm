@@ -1,6 +1,18 @@
 # Implement unified-library CLAP indexing and search
 
-Status: implementation handoff; not implemented. Written 2026-09-09.
+Status: implementation handoff; in progress. Written 2026-09-09.
+
+**Amendment 2026-09-10 (owner):** This plan unifies the *database* only. The DJ
+tab, the DJ mixer and the whole DJ interface/navigation are **retained** — they
+are not being removed. "Retire the separate catalog" (C02) means: delete the
+separate DJ *database* (`DJLibraryStore`/`DJDatabase`/`DJSchema` and its
+`.sqlite`) and re-point every DJ feature at the one core `LibraryStore`
+database. It does **not** mean removing DJ screens, decks, the workspace/mixer,
+or DJ routes. Any earlier "authorized mixer removal" language below is
+superseded and does not apply. Existing DJ-only data (hot cues, manual
+beatgrids/grid corrections, crates/setlists, mix/recording history) is
+intentionally **not migrated** — only data that re-derives from the core
+library (BPM/key/energy/embeddings via the discovery pipeline) is preserved.
 
 ## 1. Assignment and authority
 
@@ -8,14 +20,14 @@ Implement this entire plan in the current repository. It is intended to be execu
 
 The owner's requirements are authoritative:
 
-1. ONE music database: the existing core `LibraryStore` database. No separate DJ music database, duplicate catalog, or track-ID bridge. Search uses core track IDs directly.
+1. ONE music database: the existing core `LibraryStore` database. No separate DJ music database, duplicate catalog, or track-ID bridge. Search uses core track IDs directly. The DJ tab, mixer and interface stay; DJ features read and write the one core database.
 2. Imports automatically feed durable indexing. Decode, preprocessing, inference, hashing and vector retrieval MUST NOT run on the UI thread. Work resumes after suspension, termination and relaunch, progresses conservatively, and exposes persisted status.
 3. Fix retrieval correctness, scope, cancellation and availability gaps.
 4. Human assessment of musical retrieval quality happens AFTER implementation and the TestFlight build is uploaded. Do not stop implementation waiting for a curated corpus, owner relevance judgments or device benchmark results.
 
-This document supersedes conflicting database, migration and CLAP instructions in `RECOMMENDATIONS_AGENT_PLAN.md`, `RECOMMENDATIONS.md` and historical DJ plans. In particular, delete the proposed two-catalog bridge requirement from the active preparation plan when updating documentation. The DJ database may be abandoned: do not migrate its tracks, queues, cues, recordings metadata or analysis. Preserve the CORE library and its existing user data. Do not erase the core database, media files, or source credentials. Leave abandoned DJ files inert rather than adding a destructive disk cleanup routine.
+This document supersedes conflicting database, migration and CLAP instructions in `RECOMMENDATIONS_AGENT_PLAN.md`, `RECOMMENDATIONS.md` and historical DJ plans. In particular, delete the proposed two-catalog bridge requirement from the active preparation plan when updating documentation. The separate DJ *database* is abandoned: do not migrate its tracks, queues, cues, recordings metadata or analysis. Preserve the CORE library and its existing user data. Do not erase the core database, media files, or source credentials. Leave abandoned DJ database files inert rather than adding a destructive disk cleanup routine.
 
-The previously authorized mixer removal remains applicable. Remove obsolete DJ-only routes/services that require the abandoned database; preserve and port useful search, analysis, playlist generation and preparation consumers to the core catalog. Do not implement the entire unrelated preparation/paywall redesign as part of this assignment. No Apple Foundation Models, LLM interpreter, Jamendo/TIDAL discovery integration, new macOS app, cloud embedding service, new ANN backend or model training.
+The DJ tab, DJ mixer and DJ interface are retained (see the 2026-09-10 amendment). There is no mixer removal. Re-point every DJ-only route/service that currently talks to the separate DJ database at the core `LibraryStore` database and the discovery side tables instead; keep the DJ UI, decks and workspace working. Preserve and port useful search, analysis, playlist generation and preparation consumers to the core catalog. Do not implement the entire unrelated preparation/paywall redesign as part of this assignment. No Apple Foundation Models, LLM interpreter, Jamendo/TIDAL discovery integration, new macOS app, cloud embedding service, new ANN backend or model training.
 
 Follow `CLAUDE.md`: Swift 6 strict concurrency, work on main, mandatory commit hooks, no credential commits. A failing or unavailable toolchain is a reported blocker, never a passing test. This document does not authorize a push: obey the repository's ask-before-push rule unless the owner separately authorizes it. Finish code and checks before that approval gate. Human evaluation is not a pre-push gate.
 
@@ -53,7 +65,7 @@ Suggested concrete ownership (equivalent small file splits are fine):
 - `Sources/App/DiscoveryBackgroundController.swift`: registration and lifecycle callbacks.
 - `Sources/Features/Discovery/IndexStatusModel.swift`, `IndexStatusView.swift`: observable persisted progress.
 
-No runtime access to `DJDatabase`, DJLibraryStore or a DJ `.sqlite` path at completion. Delete obsolete factories, static singletons, routes, migrations and tests that exist solely for that store. Port preparation/auto-playlist queries that remain reachable; they must join core track/asset and discovery side tables. A type name or package still containing DJ is not itself a failure; a second catalog/database is. Remove PlaylistCrateImporter's copying behavior: core playlist track IDs are already the IDs to use.
+No runtime access to `DJDatabase`, DJLibraryStore or a DJ `.sqlite` path at completion. Delete the factories, static singletons, migrations and tests that exist **solely to stand up the separate DJ database**. Do NOT delete DJ tab / mixer / deck / workspace UI, routes or view models — re-point them at the core `LibraryStore` writer and the discovery side tables. Port preparation/auto-playlist queries that remain reachable; they must join core track/asset and discovery side tables. A type name or package still containing DJ is not itself a failure; a second catalog/database is. Remove PlaylistCrateImporter's copying behavior: core playlist track IDs are already the IDs to use.
 
 ## 4. Unified schema and identity
 
@@ -166,7 +178,7 @@ Coverage derives from the selected catalog scope BEFORE musical filters: total t
 
 ## 10. UI acceptance specification
 
-Reuse existing native list/search patterns; no HTML mockup is needed for this bounded addition. Make the following available from the ordinary Library screen, independent of any DJ tab or paywall:
+Reuse existing native list/search patterns; no HTML mockup is needed for this bounded addition. Make the following reachable from the ordinary Library screen and not requiring the DJ tab or any paywall (the DJ tab still exists and may also surface search):
 
 1. Search entry with metadata/Find by sound mode, source scope picker, editable BPM/key filters and More like/Less like refinements. Result row: title, artist, source, optional musical metadata, Play, More like this; score details show actual available components.
 2. Persistent compact status banner: “Sound index: 238 / 1,042 tracks” and actual state such as “Waiting for charging.” Tap opens full status. Import status is separate: “Importing: 127 tracks · discovering more.”
@@ -185,7 +197,7 @@ Add discovery persistence to core, introduce TonearmDiscovery, preserve the exis
 
 ### C02 — Retire separate catalog and port consumers
 
-Port search/analysis repositories and reachable playlist/preparation consumers to core IDs. Remove the old database assembly, imports and obsolete mixer routes. Audit every DJLibraryStore/DJDatabase reference across app, extensions, packages and tests. Add an integration test proving import, playback selection, search and playlist items share the same track ID and writer. Assert app bootstrap does not create/open the old DB. Old DJ-only data is intentionally not migrated.
+Port search/analysis repositories and reachable playlist/preparation consumers to core IDs. Remove the separate DJ *database* assembly and its duplicate import path only. The DJ tab, mixer, decks and workspace are NOT removed — rewire them onto the core `LibraryStore` writer and discovery tables so they keep working against the unified database. Audit every DJLibraryStore/DJDatabase reference across app, extensions, packages and tests and repoint (not delete) the ones that back live DJ UI. Add an integration test proving import, playback selection, search and playlist items share the same track ID and writer. Assert app bootstrap does not create/open the old DB. Old DJ-only data (cues, beatgrids, crates, mix history) is intentionally not migrated.
 
 ### C03 — Durable import/outbox/queue
 
@@ -205,7 +217,7 @@ Implement eligible exact hybrid scans, filter-only mode, scope, cancellation and
 
 ### C07 — Native integration
 
-Wire all UI in section 10 to real services. Exercise normal import → observed queue → index → search → play → saved query, independent of removed DJ navigation. Tests cover resume state from disk, actual pause, source scope switching, model errors, filter-only operation with no models, stale response suppression and accessible controls. Do not add a new paywall.
+Wire all UI in section 10 to real services. Exercise normal import → observed queue → index → search → play → saved query from the ordinary Library screen without requiring the DJ tab (the DJ tab remains present). Tests cover resume state from disk, actual pause, source scope switching, model errors, filter-only operation with no models, stale response suppression and accessible controls. Do not add a new paywall.
 
 ### C08 — Build and developer verification
 
@@ -239,7 +251,8 @@ Suggested decision rubric (owner evaluation only): no data loss/UI freezes/hard-
 ## 13. Completion checklist
 
 - [ ] Core library.sqlite is the only runtime music catalog; no DJ ID bridge or old DB access.
-- [ ] Core user data preserved; abandoned DJ data is not migrated.
+- [ ] DJ tab, mixer, decks and workspace still present and functional, running on the core database.
+- [ ] Core user data preserved; abandoned DJ-only data (cues, beatgrids, crates, mix history) is not migrated.
 - [ ] Existing and new core tracks enter durable, version-aware indexing.
 - [ ] Imports and indexing have separate persistent status and recovery.
 - [ ] Heavy work off-main, bounded memory, one worker, policy gates and real pause.

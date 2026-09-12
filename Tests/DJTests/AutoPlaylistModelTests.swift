@@ -1,7 +1,9 @@
 import XCTest
 import GRDB
 
+@testable import TonearmCore
 @testable import TonearmDJ
+@testable import TonearmDiscovery
 
 /// AutoPlaylistModel (plan §3.4, §41.6–41.7): the fake-generator seam mirroring
 /// `VibeSearching`; the generating / result / honest-short-pool / error states;
@@ -190,11 +192,13 @@ final class AutoPlaylistModelTests: XCTestCase {
     }
 
     private func makeModel(generator: any AutoPlaylistGenerating,
-                           pool: DatabasePool? = nil) throws -> AutoPlaylistModel {
+                           pool: DatabasePool? = nil,
+                           library: LibraryStore? = nil) throws -> AutoPlaylistModel {
         let databasePool = try pool ?? makePool()
+        let core = try library ?? LibraryStore(inMemory: true)
         return AutoPlaylistModel(generator: generator,
                                  crateRepository: SmartCrateRepository(pool: databasePool),
-                                 trackRepository: DJTrackRepository(pool: databasePool))
+                                 library: core)
     }
 
     /// Poll until a main-actor condition holds, so the async test can observe
@@ -402,19 +406,22 @@ final class AutoPlaylistModelTests: XCTestCase {
         }
         let crate = try XCTUnwrap(crateRow)
         XCTAssertEqual(crate.name, "Dinner set")
-        let query = try VibeQuery.decodeJSON(crate.queryJSON)
+        let query = try DiscoverySearchQuery.decodeJSON(crate.queryJSON)
         XCTAssertEqual(query.text, "warm and conversational, no shouty vocals")
-        XCTAssertEqual(query.negativeTerms, ["shouty vocals"],
+        XCTAssertEqual(query.negativeRefinements, ["shouty vocals"],
                        "the brief's − chips become the crate's negative terms")
     }
 
     // MARK: - Rows carry track metadata
 
+    /// `AutoPlaylistModel`'s rows are hydrated from the ONE core catalog (C02)
+    /// — title/artist from core `track`/`artist`, bpm/camelot from
+    /// `discovery_track_analysis` — never the deleted DJ-local `DJTrackRepository`.
     func testRowsCarryTrackMetadata() async throws {
-        let pool = try makePool()
-        let ids = try await seedTracks(pool: pool, count: 2)
+        let core = try LibraryStore(inMemory: true)
+        let ids = try await seedCoreTracks(core: core, count: 2)
         let generator = RecordingGenerator()
-        let model = try makeModel(generator: generator, pool: pool)
+        let model = try makeModel(generator: generator, library: core)
         generator.enqueue(RecordingGenerator.sampleGeneration(count: 2, trackIDs: ids))
 
         await model.generate()
@@ -427,37 +434,34 @@ final class AutoPlaylistModelTests: XCTestCase {
         XCTAssertEqual(model.rows[1].artistNames, "Artist 1")
     }
 
-    private func seedTracks(pool: DatabasePool, count: Int) async throws -> [Int64] {
+    private func seedCoreTracks(core: LibraryStore, count: Int) async throws -> [Int64] {
+        let source = try await core.insertSource(Source(
+            id: nil, kind: .local, iaIdentifier: nil, originalURL: nil, title: "Fixture",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
         var ids: [Int64] = []
         for index in 0..<count {
-            let artistSeed = DJArtist(syncID: "A-\(UUID().uuidString)",
-                                      name: "Artist \(index)",
-                                      sortName: "artist \(index)",
-                                      createdAt: Date())
-            let trackSeed = DJTrack(syncID: "T-\(UUID().uuidString)",
-                                    title: "Track \(index)",
-                                    durationSec: 200,
-                                    contentHash: "hash-\(index)",
-                                    sortKey: "t-\(index)",
-                                    bpm: 120 + Double(index),
-                                    camelot: "8A",
-                                    energy: 5,
-                                    analysisState: "done",
-                                    addedAt: Date(),
-                                    updatedAt: Date())
-            let id = try await pool.write { db -> Int64 in
-                var artist = artistSeed
-                var track = trackSeed
-                try artist.insert(db)
-                try track.insert(db)
-                let trackID = try XCTUnwrap(track.id)
-                let artistID = try XCTUnwrap(artist.id)
-                try db.execute(sql: """
-                    INSERT INTO track_artist (trackID, artistID, position) VALUES (?, ?, 0)
-                    """, arguments: [trackID, artistID])
-                return trackID
+            let artist = try await core.insertArtist(Artist(
+                id: nil, name: "Artist \(index)", sortName: "artist \(index)"))
+            let track = try await core.insertTrack(Track(
+                id: nil, albumId: nil, sourceId: source.id!, title: "Track \(index)", trackNo: nil,
+                discNo: nil, durationSec: 200, codec: "WAV", sampleRate: 44_100,
+                bitDepthOrBitrate: nil, sortKey: "t-\(index)", artistId: artist.id))
+            let trackID = try XCTUnwrap(track.id)
+            let asset = try await core.insertAsset(Asset(
+                id: nil, trackId: trackID, kind: .localRef, bookmark: nil,
+                relPath: "t-\(index).wav", remoteURL: nil, altRemoteURL: nil, sizeBytes: nil,
+                unsupportedReason: nil))
+            let writer = await core.dbQueue
+            try await writer.write { db in
+                var analysis = DiscoveryTrackAnalysis(
+                    trackId: trackID, assetId: asset.id!, assetRevision: 1,
+                    analysisVersion: DiscoveryPipelineVersion.musicalAnalysis,
+                    bpm: 120 + Double(index), key: "8A", energy: 5,
+                    phraseSummary: nil, analysisScopeSeconds: nil, completedAt: Date())
+                try analysis.insert(db)
             }
-            ids.append(id)
+            ids.append(trackID)
         }
         return ids
     }

@@ -22,20 +22,23 @@ final class WaveformRenderTests: XCTestCase {
         return (pool, dir)
     }
 
-    private func seedTrack(pool: DatabasePool, bpm: Double = 128,
+    /// C02: `waveform_pyramid`/`beat_grid`/`phrase`/`grid_correction` are all
+    /// keyed by a **core** `LibraryStore` track id (no FK into the deleted
+    /// DJ-local `track` table, dj_v12) — `WaveformRepository` never reads a
+    /// `bpm`/`sampleRate` column off a DJ-local track row itself (those live
+    /// in `beat_grid`/the pyramid blob), so a real core track supplies
+    /// nothing but a valid, realistic id.
+    private func seedTrack(pool: DatabasePool, library: LibraryStore, bpm: Double = 128,
                            durationSec: Double = 30) async throws -> Int64 {
-        let id = try await pool.write { db -> Int64? in
-            var track = DJTrack(syncID: UUID().uuidString, title: "Render Test",
-                                durationSec: durationSec, codec: "WAV",
-                                contentHash: "hash-\(UUID().uuidString)",
-                                sortKey: "render-test",
-                                bpm: bpm,
-                                addedAt: Date(), updatedAt: Date())
-            track.sampleRate = 48_000
-            try track.insert(db)
-            return track.id
-        }
-        return try XCTUnwrap(id)
+        let source = try await library.insertSource(Source(
+            id: nil, kind: .local, iaIdentifier: nil, originalURL: nil, title: "Fixture",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
+        let track = try await library.insertTrack(Track(
+            id: nil, albumId: nil, sourceId: source.id!, title: "Render Test", trackNo: nil,
+            discNo: nil, durationSec: durationSec, codec: "WAV", sampleRate: 48_000,
+            bitDepthOrBitrate: nil, sortKey: "render-test"))
+        return track.id!
     }
 
     private func seedPyramid(pool: DatabasePool, trackID: Int64) async throws {
@@ -134,13 +137,14 @@ final class WaveformRenderTests: XCTestCase {
     func testGridComposedWithCorrectionMatchesEngineQuantise() async throws {
         let (pool, cleanupDir) = try makePool()
         defer { try? FileManager.default.removeItem(at: cleanupDir) }
-        let trackID = try await seedTrack(pool: pool, bpm: 128, durationSec: 30)
+        let library = try LibraryStore(inMemory: true)
+        let trackID = try await seedTrack(pool: pool, library: library, bpm: 128, durationSec: 30)
         try await seedBeatGrid(pool: pool, trackID: trackID, bpm: 128, firstBeat: 24_000)
         try await seedPyramid(pool: pool, trackID: trackID)
         // The prep surface's tap-to-set-downbeat: bar 1 moves to sample 48 000.
         try await seedCorrection(pool: pool, trackID: trackID, op: "setDownbeat", valueInt: 48_000)
 
-        let rendered = try await WaveformRepository(pool: pool).renderModel(trackID: trackID)
+        let rendered = try await WaveformRepository(pool: pool, library: library).renderModel(trackID: trackID)
         let model = try XCTUnwrap(rendered)
         let samplesPerBeat = 60.0 / 128.0 * 48_000
 
@@ -177,7 +181,8 @@ final class WaveformRenderTests: XCTestCase {
     func testVariableTempoGridFollowsStoredBeatPositions() async throws {
         let (pool, cleanupDir) = try makePool()
         defer { try? FileManager.default.removeItem(at: cleanupDir) }
-        let trackID = try await seedTrack(pool: pool, bpm: 128, durationSec: 30)
+        let library = try LibraryStore(inMemory: true)
+        let trackID = try await seedTrack(pool: pool, library: library, bpm: 128, durationSec: 30)
         // A variable-tempo grid: real (slightly irregular) beat positions.
         let stored: [Int64] = [24_000, 46_500, 69_100, 91_800, 114_400, 137_100]
         try await seedBeatGrid(pool: pool, trackID: trackID, bpm: 128,
@@ -187,7 +192,7 @@ final class WaveformRenderTests: XCTestCase {
         // A nudge shifts the whole grid by +2 000 samples.
         try await seedCorrection(pool: pool, trackID: trackID, op: "nudge", valueInt: 2_000)
 
-        let rendered = try await WaveformRepository(pool: pool).renderModel(trackID: trackID)
+        let rendered = try await WaveformRepository(pool: pool, library: library).renderModel(trackID: trackID)
         let model = try XCTUnwrap(rendered)
         XCTAssertFalse(model.isConstantTempo)
         XCTAssertEqual(model.beats, stored.map { $0 + 2_000 },
@@ -199,7 +204,8 @@ final class WaveformRenderTests: XCTestCase {
     func testPhraseRibbonSpansEqualPersistedRowsAndMarkLowConfidence() async throws {
         let (pool, cleanupDir) = try makePool()
         defer { try? FileManager.default.removeItem(at: cleanupDir) }
-        let trackID = try await seedTrack(pool: pool, bpm: 128, durationSec: 30)
+        let library = try LibraryStore(inMemory: true)
+        let trackID = try await seedTrack(pool: pool, library: library, bpm: 128, durationSec: 30)
         try await seedBeatGrid(pool: pool, trackID: trackID)
         try await seedPyramid(pool: pool, trackID: trackID)
         try await pool.write { db in
@@ -214,7 +220,7 @@ final class WaveformRenderTests: XCTestCase {
                                  trackID, AnalysisVersions.phrase])
         }
 
-        let rendered = try await WaveformRepository(pool: pool).renderModel(trackID: trackID)
+        let rendered = try await WaveformRepository(pool: pool, library: library).renderModel(trackID: trackID)
         let model = try XCTUnwrap(rendered)
         XCTAssertEqual(model.phrases.count, 3)
         let intro = model.phrases[0]
@@ -242,10 +248,11 @@ final class WaveformRenderTests: XCTestCase {
         let (pool, cleanupDir) = try makePool()
         defer { try? FileManager.default.removeItem(at: cleanupDir) }
         // A track with a grid but no pyramid — analysed by a pre-5.2 build.
-        let trackID = try await seedTrack(pool: pool)
+        let library = try LibraryStore(inMemory: true)
+        let trackID = try await seedTrack(pool: pool, library: library)
         try await seedBeatGrid(pool: pool, trackID: trackID)
 
-        let repository = WaveformRepository(pool: pool)
+        let repository = WaveformRepository(pool: pool, library: library)
         let model = try await repository.renderModel(trackID: trackID)
         XCTAssertNil(model, "an unanalysed track has no render model — the honest empty state")
         XCTAssertFalse(model?.hasAnalysis ?? false)
@@ -254,11 +261,12 @@ final class WaveformRenderTests: XCTestCase {
     func testAnalysedTrackYieldsANonNilModel() async throws {
         let (pool, cleanupDir) = try makePool()
         defer { try? FileManager.default.removeItem(at: cleanupDir) }
-        let trackID = try await seedTrack(pool: pool)
+        let library = try LibraryStore(inMemory: true)
+        let trackID = try await seedTrack(pool: pool, library: library)
         try await seedBeatGrid(pool: pool, trackID: trackID)
         try await seedPyramid(pool: pool, trackID: trackID)
 
-        let rendered = try await WaveformRepository(pool: pool).renderModel(trackID: trackID)
+        let rendered = try await WaveformRepository(pool: pool, library: library).renderModel(trackID: trackID)
         let model = try XCTUnwrap(rendered)
         XCTAssertTrue(model.hasAnalysis)
         XCTAssertFalse(model.beats.isEmpty)

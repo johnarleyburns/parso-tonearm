@@ -75,6 +75,9 @@ targets:
           - "CSQLiteVec/**"
           - "Data/**"
           - "DJ/**"
+          # Compiled as the TonearmDiscovery SwiftPM product, linked below —
+          # never source-compiled into the app (IMPLEMENT_CLAP_PLAN.md §3).
+          - "Discovery/**"
           - "Domain/**"
           - "IA/**"
           - "Intents/**"
@@ -101,6 +104,9 @@ targets:
         product: TonearmWatchProtocol
       - package: TonearmCore
         product: TonearmDJ
+      # Unified-library CLAP indexing/search (IMPLEMENT_CLAP_PLAN.md §3).
+      - package: TonearmCore
+        product: TonearmDiscovery
       - package: ParsoAudioEngine
         product: ParsoAudioStreaming
       - package: ParsoAudioEngine
@@ -129,6 +135,10 @@ targets:
         UIBackgroundModes:
           - audio
           - remote-notification
+          - processing
+        # Durable CLAP/discovery indexing (IMPLEMENT_CLAP_PLAN.md §7).
+        BGTaskSchedulerPermittedIdentifiers:
+          - guru.parso.tonearm.discovery-index
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown

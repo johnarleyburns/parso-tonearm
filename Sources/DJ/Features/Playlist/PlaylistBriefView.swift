@@ -63,6 +63,7 @@ public struct PlaylistBriefView: View {
             NavigationStack {
                 seedPicker
             }
+            .task { await model.loadSeedCandidates() }
         }
     }
 

@@ -1,6 +1,7 @@
 import XCTest
 import AVFoundation
 import GRDB
+import TonearmCore
 
 @testable import TonearmDJ
 
@@ -9,6 +10,10 @@ import GRDB
 /// `Stems/<contentHash>/<modelVersion>/`, recorded in `stem_cache` rows
 /// written in one transaction. Tests cover content-addressing, version
 /// invalidation and eviction — the plan 5.7 list.
+///
+/// C02: `stem_cache.trackID` is a **core** `LibraryStore` track id (dj_v12
+/// dropped its FK to the now-deleted DJ-local `track` table) — so fixtures
+/// seed real core tracks instead of the deleted `DJTrack` type.
 final class StemCacheTests: XCTestCase {
 
     private struct Environment {
@@ -18,20 +23,33 @@ final class StemCacheTests: XCTestCase {
         let trackID: Int64
     }
 
+    /// Seeds one real core `LibraryStore` track (in the given, shared store)
+    /// and returns its id. Two tracks in the same test MUST share one
+    /// `LibraryStore` instance — a fresh in-memory store restarts its
+    /// autoincrement at 1, so two separately-created stores would silently
+    /// hand back the *same* id and collide in `stem_cache`.
+    private func makeCoreTrackID(in library: LibraryStore, title: String = "Cache Me") async throws -> Int64 {
+        let source = try await library.insertSource(Source(
+            id: nil, kind: .local, iaIdentifier: nil, originalURL: nil, title: "Fixture",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
+        let track = try await library.insertTrack(Track(
+            id: nil, albumId: nil, sourceId: source.id!, title: title, trackNo: nil,
+            discNo: nil, durationSec: 180, codec: "WAV", sampleRate: 44_100,
+            bitDepthOrBitrate: nil, sortKey: title))
+        return track.id!
+    }
+
     private func makeEnvironment(trackHash: String = "hash-a",
-                                 modelVersion: Int = AnalysisVersions.stems) throws -> Environment {
+                                 modelVersion: Int = AnalysisVersions.stems) async throws -> Environment {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("StemCacheTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let pool = try DJDatabase.open(at: dir.appendingPathComponent("tonearm-dj.sqlite"))
         let root = dir.appendingPathComponent("Stems")
 
-        let now = Date()
-        var track = DJTrack(syncID: UUID().uuidString, title: "Cache Me",
-                            contentHash: trackHash, sortKey: "cache-me",
-                            addedAt: now, updatedAt: now)
-        try pool.write { db in try track.insert(db) }
-        let trackID = try XCTUnwrap(track.id)
+        let library = try LibraryStore(inMemory: true)
+        let trackID = try await makeCoreTrackID(in: library)
 
         return Environment(pool: pool,
                            cache: StemCache(pool: pool, root: root, modelVersion: modelVersion),
@@ -81,7 +99,7 @@ final class StemCacheTests: XCTestCase {
     // MARK: - Content addressing
 
     func testStoreWritesContentAddressedVersionedFiles() async throws {
-        let env = try makeEnvironment(trackHash: "hash-a")
+        let env = try await makeEnvironment(trackHash: "hash-a")
         let separation = makeSeparation()
         try await env.cache.store(separation, trackID: env.trackID, contentHash: "hash-a")
 
@@ -119,21 +137,9 @@ final class StemCacheTests: XCTestCase {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let pool = try DJDatabase.open(at: dir.appendingPathComponent("tonearm-dj.sqlite"))
         let root = dir.appendingPathComponent("Stems")
-        let now = Date()
-        let a = DJTrack(syncID: UUID().uuidString, title: "A", contentHash: "hash-a",
-                        sortKey: "a", addedAt: now, updatedAt: now)
-        let b = DJTrack(syncID: UUID().uuidString, title: "B", contentHash: "hash-b",
-                        sortKey: "b", addedAt: now, updatedAt: now)
-        let aID: Int64 = try await pool.write { db in
-            var inserted = a
-            try inserted.insert(db)
-            return inserted.id!
-        }
-        let bID: Int64 = try await pool.write { db in
-            var inserted = b
-            try inserted.insert(db)
-            return inserted.id!
-        }
+        let library = try LibraryStore(inMemory: true)
+        let aID = try await makeCoreTrackID(in: library, title: "A")
+        let bID = try await makeCoreTrackID(in: library, title: "B")
         let cache = StemCache(pool: pool, root: root)
 
         let separation = makeSeparation(frames: 2048)
@@ -149,7 +155,7 @@ final class StemCacheTests: XCTestCase {
     // MARK: - Round trip
 
     func testStoreThenLoadRoundTripsTheExactVoices() async throws {
-        let env = try makeEnvironment(trackHash: "hash-a")
+        let env = try await makeEnvironment(trackHash: "hash-a")
         let separation = makeSeparation(frames: 9600)
         try await env.cache.store(separation, trackID: env.trackID, contentHash: "hash-a")
 
@@ -187,7 +193,7 @@ final class StemCacheTests: XCTestCase {
     }
 
     func testReStoreIsIdempotentPerVersion() async throws {
-        let env = try makeEnvironment(trackHash: "hash-a")
+        let env = try await makeEnvironment(trackHash: "hash-a")
         let first = makeSeparation(frames: 2048, seed: 1)
         let second = makeSeparation(frames: 2048, seed: 2)
         try await env.cache.store(first, trackID: env.trackID, contentHash: "hash-a")
@@ -208,7 +214,7 @@ final class StemCacheTests: XCTestCase {
     // MARK: - Version invalidation
 
     func testModelUpgradeInvalidatesCleanly() async throws {
-        let env = try makeEnvironment(trackHash: "hash-a", modelVersion: 1)
+        let env = try await makeEnvironment(trackHash: "hash-a", modelVersion: 1)
         try await env.cache.store(makeSeparation(frames: 2048), trackID: env.trackID,
                                   contentHash: "hash-a")
 
@@ -239,7 +245,7 @@ final class StemCacheTests: XCTestCase {
     // MARK: - Honest absence
 
     func testLoadReturnsNilWhenFilesAreGone() async throws {
-        let env = try makeEnvironment(trackHash: "hash-a")
+        let env = try await makeEnvironment(trackHash: "hash-a")
         try await env.cache.store(makeSeparation(frames: 2048), trackID: env.trackID,
                                   contentHash: "hash-a")
         // The row survives but the files vanish (purge) → honest not-cached.
@@ -257,7 +263,7 @@ final class StemCacheTests: XCTestCase {
     // MARK: - Eviction
 
     func testEvictRemovesRowAndFiles() async throws {
-        let env = try makeEnvironment(trackHash: "hash-a")
+        let env = try await makeEnvironment(trackHash: "hash-a")
         try await env.cache.store(makeSeparation(frames: 2048), trackID: env.trackID,
                                   contentHash: "hash-a")
         let cachedBefore = try await env.cache.isCached(trackID: env.trackID,
@@ -280,7 +286,7 @@ final class StemCacheTests: XCTestCase {
     }
 
     func testEvictOfTrackWithNoCacheIsANoOp() async throws {
-        let env = try makeEnvironment(trackHash: "hash-a")
+        let env = try await makeEnvironment(trackHash: "hash-a")
         try await env.cache.evict(trackID: env.trackID, modelVersion: AnalysisVersions.stems)
         let cached = try await env.cache.isCached(trackID: env.trackID,
                                                   modelVersion: AnalysisVersions.stems)
@@ -293,21 +299,9 @@ final class StemCacheTests: XCTestCase {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let pool = try DJDatabase.open(at: dir.appendingPathComponent("tonearm-dj.sqlite"))
         let root = dir.appendingPathComponent("Stems")
-        let now = Date()
-        let a = DJTrack(syncID: UUID().uuidString, title: "A", contentHash: "shared",
-                        sortKey: "a", addedAt: now, updatedAt: now)
-        let b = DJTrack(syncID: UUID().uuidString, title: "B", contentHash: "shared",
-                        sortKey: "b", addedAt: now, updatedAt: now)
-        let aID: Int64 = try await pool.write { db in
-            var inserted = a
-            try inserted.insert(db)
-            return inserted.id!
-        }
-        let bID: Int64 = try await pool.write { db in
-            var inserted = b
-            try inserted.insert(db)
-            return inserted.id!
-        }
+        let library = try LibraryStore(inMemory: true)
+        let aID = try await makeCoreTrackID(in: library, title: "A")
+        let bID = try await makeCoreTrackID(in: library, title: "B")
         let cache = StemCache(pool: pool, root: root)
 
         let separation = makeSeparation(frames: 2048)

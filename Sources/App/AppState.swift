@@ -39,6 +39,12 @@ final class AppState: ObservableObject {
     @Published var showAddSource = false
     @Published var showAddRemoteLibrary = false
     @Published var showCreatePlaylist = false
+    /// Presents the sound / semantic search screen (plan §10.1, C07). Reachable
+    /// from the ordinary Library screen and from Now Playing ("More like this").
+    @Published var showSoundSearch = false
+    /// When set alongside `showSoundSearch`, the search screen opens in
+    /// "More like this" mode for this core track id (plan §9 similar mode).
+    @Published var soundSearchReference: Int64?
     @Published private(set) var downloadRevision = 0
     @Published private(set) var activePhoneDownloads: Set<Int64> = []
     /// The row (not just id) whose "Change Artwork" picker is open — a remote

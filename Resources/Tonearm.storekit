@@ -5,19 +5,19 @@
   ],
   "products" : [
     {
-      "displayPrice" : "39.99",
-      "familyShareable" : true,
-      "internalID" : "A0000001",
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "A0000002",
       "localizations" : [
         {
-          "description" : "Platterhead DJ — decks, mixing, stems, recording, preparation and gig crates. One-time purchase, yours forever, Family Sharing enabled.",
-          "displayName" : "Platterhead DJ",
+          "description" : "A purely optional, one-time contribution to Tonearm's development. It does not unlock any feature — everything in the app is free. It only marks your account as a supporter.",
+          "displayName" : "Contribute to Development",
           "locale" : "en_US"
         }
       ],
-      "productID" : "guru.parso.tonearm.pro",
-      "referenceName" : "Platterhead DJ",
-      "type" : "NonConsumable"
+      "productID" : "guru.parso.tonearm.support.dev",
+      "referenceName" : "Contribute to Development",
+      "type" : "Consumable"
     }
   ],
   "settings" : {

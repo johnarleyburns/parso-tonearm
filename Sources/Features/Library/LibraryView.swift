@@ -6,6 +6,8 @@ struct LibraryView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @State private var mode: LibraryBrowseMode = .artists
+    @StateObject private var indexStatus = IndexStatusModel()
+    @State private var showIndexStatus = false
     /// The DJ entry route already owns a NavigationStack. Embedding another
     /// stack there makes the first push unstable on iPhone (and can crash when
     /// SwiftUI reconciles the two navigation paths). Keep the standalone Music
@@ -60,6 +62,29 @@ struct LibraryView: View {
                             .pickerStyle(.segmented)
                             .padding(.bottom, 16)
 
+                            Button {
+                                appState.soundSearchReference = nil
+                                appState.showSoundSearch = true
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "waveform.badge.magnifyingglass")
+                                    Text("Find by sound, BPM or key")
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold))
+                                }
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Palette.brass)
+                                .padding(.vertical, 9)
+                                .padding(.horizontal, 12)
+                                .glassSurface(cornerRadius: 14)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Find music by sound, BPM or key")
+                            .padding(.bottom, 12)
+
+                            IndexStatusBanner(model: indexStatus) { showIndexStatus = true }
+                                .padding(.bottom, indexStatus.showsBanner ? 12 : 0)
+
                             if rows.isEmpty {
                                 VStack(spacing: 14) {
                                     EmptyStateView(icon: "music.note",
@@ -98,6 +123,10 @@ struct LibraryView: View {
             }
         .foregroundStyle(Palette.ink)
         .task { await appState.reload() }
+        .task { await indexStatus.refresh() }
+        .sheet(isPresented: $showIndexStatus) {
+            IndexStatusView(model: indexStatus)
+        }
     }
 
     @ViewBuilder

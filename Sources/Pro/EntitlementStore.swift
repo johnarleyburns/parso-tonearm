@@ -136,6 +136,31 @@ struct StoreKitEntitlementSource: EntitlementSource {
     }
 }
 
+/// Business decision (2026-09): Tonearm has no gated Pro features — see
+/// `current_status.md`. Every existing `ProCapability.isEnabled`/
+/// `EntitlementStore.isPro` call site stays exactly as written (T.3's "gate at
+/// the intent boundary" is still the right shape), but the single production
+/// construction point below (`EntitlementStore.convenience init()`, used only
+/// by `.shared`) is pointed at this always-owned source instead of the real
+/// StoreKit one. That satisfies every gate without touching each call site —
+/// the same minimal-collateral fix as pinning a `LicenseProvider` to a static
+/// "always unlocked" implementation. The test-only initializer below
+/// (`init(entitlementSource:cacheStore:)`) is untouched, so every existing
+/// unit test that injects its own fake source keeps exercising the real
+/// decision logic in `FoundersGrant`/`apply(_:)`.
+struct StaticEntitlementSource: EntitlementSource {
+    func currentTransactions() async throws -> [TransactionFact] {
+        [TransactionFact(productID: FoundersGrant.productID,
+                         isVerified: true,
+                         isRevoked: false,
+                         isFamilyShared: false)]
+    }
+
+    func transactionUpdates() -> AsyncStream<TransactionFact> {
+        AsyncStream { continuation in continuation.finish() }
+    }
+}
+
 private extension TransactionFact {
     init(_ result: VerificationResult<Transaction>) {
         switch result {
@@ -256,8 +281,14 @@ public final class EntitlementStore: ObservableObject {
     private var updatesTask: Task<Void, Never>?
 
     public convenience init() {
-        self.init(entitlementSource: StoreKitEntitlementSource(),
+        self.init(entitlementSource: StaticEntitlementSource(),
                   cacheStore: EntitlementCacheStore())
+        // Business decision: no gated Pro features. Set immediately, not just
+        // once `start()`'s async `refresh()` resolves — a cold launch with no
+        // pre-existing cache file must never read `isPro == false` for even
+        // one frame at an intent boundary.
+        isPro = true
+        source = .purchased
     }
 
     /// Test seam: inject a source and a cache file. Reads the cached value

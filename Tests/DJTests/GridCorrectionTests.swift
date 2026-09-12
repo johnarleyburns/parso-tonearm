@@ -88,7 +88,7 @@ final class GridCorrectionTests: XCTestCase {
     // MARK: - DB: override without mutating analysis, persists, feeds the grid (§23.3, AT-GRID-*)
 
     func testCorrectionOverridesWithoutMutatingAnalysisAndPersists() async throws {
-        let env = try makeEnvironment()
+        let env = try await makeEnvironment()
         let repository = env.repository
         let pool = env.pool
         let trackID = env.trackID
@@ -116,7 +116,8 @@ final class GridCorrectionTests: XCTestCase {
         XCTAssertEqual(raw?["source"] as? String, "detected")
 
         // Persists: a fresh repository over the same DB replays the same grid.
-        let fresh = GridCorrectionRepository(pool: pool, store: DJLibraryStore(pool: pool))
+        let fresh = GridCorrectionRepository(pool: pool, store: DJLibraryStore(pool: pool),
+                                             library: repository.library)
         let reloaded = try await fresh.snapshot(trackID: trackID)
         XCTAssertEqual(reloaded.grid?.referenceSample ?? -1, 24_000, accuracy: 1e-9)
         XCTAssertEqual(reloaded.grid?.bpm ?? -1, 256, accuracy: 1e-9)
@@ -124,7 +125,7 @@ final class GridCorrectionTests: XCTestCase {
     }
 
     func testUndoPopsTheNewestCorrectionOnly() async throws {
-        let env = try makeEnvironment()
+        let env = try await makeEnvironment()
         let repository = env.repository
         let trackID = env.trackID
 
@@ -157,7 +158,7 @@ final class GridCorrectionTests: XCTestCase {
     }
 
     func testSnapshotWithoutAnalysisReportsTheHonestState() async throws {
-        let env = try makeEnvironment(seedGrid: false)
+        let env = try await makeEnvironment(seedGrid: false)
         let repository = env.repository
         let trackID = env.trackID
 
@@ -169,7 +170,7 @@ final class GridCorrectionTests: XCTestCase {
     }
 
     func testSnapshotReadsTheFreeReadoutRows() async throws {
-        let env = try makeEnvironment()
+        let env = try await makeEnvironment()
         let pool = env.pool
         let trackID = env.trackID
 
@@ -330,36 +331,45 @@ final class GridCorrectionTests: XCTestCase {
         let trackID: Int64
     }
 
-    private func makeEnvironment(seedGrid: Bool = true) throws -> Environment {
+    /// Seeds a REAL core `LibraryStore` track (not a DJ-local `DJTrack`
+    /// fixture, deleted in C02/dj_v12) — `GridCorrectionRepository.snapshot`
+    /// reads track identity from core `LibraryStore` now, keyed by the same
+    /// core track id the DJ-local `beat_grid`/`loudness`/`phrase`/
+    /// `grid_correction` rows below are written against.
+    private func makeEnvironment(seedGrid: Bool = true) async throws -> Environment {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("GridCorrectionTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let pool = try DJDatabase.open(at: dir.appendingPathComponent("tonearm-dj.sqlite"))
         let store = DJLibraryStore(pool: pool)
 
-        var track = DJTrack(syncID: UUID().uuidString,
-                            title: "Undertow Static",
-                            codec: "FLAC",
-                            contentHash: "seed-hash-1",
-                            sortKey: "undertow-static",
-                            bpm: 128,
-                            addedAt: fixedDate,
-                            updatedAt: fixedDate)
-        try pool.write { db in try track.insert(db) }
-        guard let trackID = track.id else { throw PrepError.trackNotFound }
+        let library = try LibraryStore(inMemory: true)
+        let source = try await library.insertSource(Source(
+            id: nil, kind: .local, iaIdentifier: nil, originalURL: nil, title: "Fixture",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
+        let track = try await library.insertTrack(Track(
+            id: nil, albumId: nil, sourceId: source.id!, title: "Undertow Static",
+            trackNo: nil, discNo: nil, durationSec: 300, codec: "FLAC",
+            sampleRate: 48_000, bitDepthOrBitrate: nil, sortKey: "undertow-static"))
+        let trackID = track.id!
 
         if seedGrid {
-            try pool.write { db in
+            // `fixedDate` is captured by value here (not `self`) so this
+            // closure stays free of the non-Sendable `GridCorrectionTests`
+            // instance — `pool.write`'s closure is `@Sendable`.
+            let appliedAt = fixedDate
+            try await pool.write { db in
                 try db.execute(sql: """
                     INSERT INTO beat_grid
                         (trackID, syncID, bpm, firstBeatSample, beatCount,
                          isConstantTempo, source, confidence, version, updatedAt)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, arguments: [trackID, UUID().uuidString, 128.0, 0, 1024,
-                                     true, "detected", 0.97, 1, fixedDate])
+                                     true, "detected", 0.97, 1, appliedAt])
             }
         }
-        return Environment(repository: GridCorrectionRepository(pool: pool, store: store),
+        return Environment(repository: GridCorrectionRepository(pool: pool, store: store, library: library),
                            pool: pool,
                            trackID: trackID)
     }

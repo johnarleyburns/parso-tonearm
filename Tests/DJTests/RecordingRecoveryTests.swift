@@ -1,5 +1,7 @@
 import XCTest
 import AVFoundation
+import GRDB
+@testable import TonearmCore
 @testable import TonearmDJ
 
 /// Commit 5.11 — the §37.3 journal + crash/interruption recovery + finalize
@@ -140,12 +142,13 @@ final class RecordingRecoveryTests: XCTestCase {
 
     func testFinalizeWritesTheTimelineRowsWithSnapshots() async throws {
         let (store, root) = try makeStoreAndRoot()
-        let trackA = try insertTrack(title: "Neon Circuit", artist: "Kora Mechanism",
-                                     bpm: 124, camelot: "8A", store: store)
-        let trackB = try insertTrack(title: "Warehouse Line", artist: "Nils Anberg",
-                                     bpm: 128, camelot: "9A", store: store)
+        let library = try makeLibrary()
+        let trackA = try await insertTrack(title: "Neon Circuit", artist: "Kora Mechanism",
+                                           bpm: 124, camelot: "8A", library: library)
+        let trackB = try await insertTrack(title: "Warehouse Line", artist: "Nils Anberg",
+                                           bpm: 128, camelot: "9A", library: library)
 
-        let service = RecordingService(store: store, mixesRoot: root)
+        let service = RecordingService(store: store, library: library, mixesRoot: root)
         let sessionDir = root.appendingPathComponent("tl-1", isDirectory: true)
         try await service.begin(outputDirectory: sessionDir)
         let output = try await makeRecording(segmentFrames: 24_000, outputDirectory: sessionDir)
@@ -161,7 +164,8 @@ final class RecordingRecoveryTests: XCTestCase {
         let mixID = try XCTUnwrap(mix.id)
         let events = try await store.mixTrackEvents(mixID: mixID)
         XCTAssertEqual(events.map(\.title), ["Neon Circuit", "Warehouse Line"],
-                       "snapshots are resolved from the DJ library at finalize (§37.4)")
+                       "snapshots are resolved from the CORE catalog at finalize (§37.4) — " +
+                       "trackID here is a core LibraryStore id, not a DJ-local one")
         XCTAssertEqual(events.map(\.artist), ["Kora Mechanism", "Nils Anberg"])
         XCTAssertEqual(events.map(\.deck), ["A", "B"])
         XCTAssertEqual(events.map(\.startOffsetSec), [0, 5])
@@ -172,8 +176,10 @@ final class RecordingRecoveryTests: XCTestCase {
 
     func testFinalizeReplacesPriorTimelineRows() async throws {
         let (store, root) = try makeStoreAndRoot()
-        let track = try insertTrack(title: "Only One", artist: nil, bpm: nil, camelot: nil, store: store)
-        let service = RecordingService(store: store, mixesRoot: root)
+        let library = try makeLibrary()
+        let track = try await insertTrack(title: "Only One", artist: nil, bpm: nil,
+                                          camelot: nil, library: library)
+        let service = RecordingService(store: store, library: library, mixesRoot: root)
         let sessionDir = root.appendingPathComponent("tl-2", isDirectory: true)
         try await service.begin(outputDirectory: sessionDir)
         let output = try await makeRecording(segmentFrames: 24_000, outputDirectory: sessionDir)
@@ -355,33 +361,53 @@ final class RecordingRecoveryTests: XCTestCase {
         return (store, tmp.appendingPathComponent("Mixes", isDirectory: true))
     }
 
-    /// Insert a DJ-library track (plus a primary artist when given) directly
-    /// through the pool — the snapshot the §37.4 timeline resolves at finalize.
+    /// An in-memory CORE `LibraryStore` — `MixTimeline.entries.trackID` is a
+    /// core track id everywhere in the app now (C02, `DeckLoaderCoreIdentityTests`),
+    /// so the §37.4 snapshot resolution this test exercises must be seeded
+    /// against the core catalog, NOT the separate DJ-local `track` table (the
+    /// exact fixture mistake that hid this bug in earlier sessions).
+    private func makeLibrary() throws -> LibraryStore {
+        try LibraryStore(inMemory: true)
+    }
+
+    /// Insert a CORE `track`/`artist`/`asset` row (plus `discovery_track_analysis`
+    /// for bpm/key) — the real path `RecordingService.trackTimelineSnapshots`
+    /// resolves the §37.4 timeline snapshot from at finalize.
     private func insertTrack(title: String, artist: String?,
                              bpm: Double?, camelot: String?,
-                             store: DJLibraryStore) throws -> Int64 {
-        let pool = store.pool
-        var track = DJTrack(syncID: UUID().uuidString,
-                            title: title,
-                            contentHash: UUID().uuidString,
-                            sortKey: title,
-                            bpm: bpm,
-                            camelot: camelot,
-                            addedAt: Date(),
-                            updatedAt: Date())
-        try pool.write { db in
-            try track.insert(db)
-            if let artist, let trackID = track.id {
-                var row = DJArtist(syncID: UUID().uuidString, name: artist,
-                                   sortName: artist.lowercased(), createdAt: Date())
-                try row.insert(db)
-                try db.execute(sql: """
-                    INSERT INTO track_artist (trackID, artistID, role, position)
-                    VALUES (?, ?, 'primary', 0)
-                    """, arguments: [trackID, row.id ?? 0])
+                             library: LibraryStore) async throws -> Int64 {
+        let source = try await library.insertSource(Source(
+            id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
+            title: "Local Files", addedAt: Date(), lastResolvedAt: nil,
+            followUpdates: false, licenseText: nil, memberCapHit: false))
+        let sourceID = try XCTUnwrap(source.id)
+        var artistID: Int64?
+        if let artist {
+            let inserted = try await library.insertArtist(Artist(
+                id: nil, name: artist, sortName: artist.lowercased()))
+            artistID = inserted.id
+        }
+        let track = try await library.insertTrack(Track(
+            id: nil, albumId: nil, sourceId: sourceID, title: title, trackNo: nil,
+            discNo: nil, durationSec: 180, codec: "WAV", sampleRate: 44_100,
+            bitDepthOrBitrate: nil, sortKey: title, artistId: artistID))
+        let trackID = try XCTUnwrap(track.id)
+        let asset = try await library.insertAsset(Asset(
+            id: nil, trackId: trackID, kind: .localRef, bookmark: nil,
+            relPath: "\(title).wav", remoteURL: nil, altRemoteURL: nil,
+            sizeBytes: nil, unsupportedReason: nil))
+        let assetID = try XCTUnwrap(asset.id)
+        if bpm != nil || camelot != nil {
+            let writer = await library.dbQueue
+            try await writer.write { db in
+                var analysis = DiscoveryTrackAnalysis(
+                    trackId: trackID, assetId: assetID, assetRevision: 1,
+                    analysisVersion: 1, bpm: bpm, key: camelot, energy: nil,
+                    phraseSummary: nil, analysisScopeSeconds: nil, completedAt: Date())
+                try analysis.insert(db)
             }
         }
-        return track.id!
+        return trackID
     }
 
     /// A ~1 s recording through the real encoder: 1 s of 440 Hz tone into the

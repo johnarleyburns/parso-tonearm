@@ -46,8 +46,17 @@ struct TonearmApp: App {
             ProStore.shared.start()
             EntitlementStore.shared.start()
         }
+        // The one remaining purchase — "Contribute to Development" — is
+        // unrelated to the (now always-unlocked) Pro entitlement, so it
+        // starts unconditionally.
+        SupportDevelopmentStore.shared.start()
         AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
         AudioPlayer.shared.persistor.cloudBackend = CloudPlaybackBackend()
+
+        // Discovery/CLAP indexing (IMPLEMENT_CLAP_PLAN.md §7): the BGTask
+        // handler must be registered before the app finishes launching, from a
+        // controller reachable in a headless launch.
+        DiscoveryRuntimeController.shared.registerBackgroundTask()
     }
 
     /// The `-resetLibrary` harness hook (dj-regression-suite §8.1): wipe the
@@ -84,7 +93,7 @@ struct TonearmApp: App {
         profile.learn(.crossfader,
                       at: MidiAddress(type: .cc, channel: 1, number: 7),
                       transform: .bipolar, takeover: .jump)
-        try? ControllerProfileStore(pool: DJLibraryStore.shared.pool)
+        try? ControllerProfileStore(pool: ControllerProfileDatabase.shared)
             .save(profile, syncID: "regression")
     }
 
@@ -97,6 +106,7 @@ struct TonearmApp: App {
                 .task {
                     await appState.bootstrap()
                     didCompleteBootstrap = true
+                    await DiscoveryRuntimeController.shared.startAfterBootstrap()
                 }
                 .onOpenURL { url in
                     Task { await appState.handleIncomingURL(url) }
@@ -105,12 +115,16 @@ struct TonearmApp: App {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
+                DiscoveryRuntimeController.shared.scenePhaseChanged(toBackground: false)
                 guard didCompleteBootstrap else { return }
                 Task {
                     let added = await FolderWatchService.shared.rescanWatchedFolders(store: appState.store)
                     if added > 0 { await appState.reload() }
                 }
             case .background, .inactive:
+                if phase == .background {
+                    DiscoveryRuntimeController.shared.scenePhaseChanged(toBackground: true)
+                }
                 AudioPlayer.shared.persistNow()
             default:
                 break

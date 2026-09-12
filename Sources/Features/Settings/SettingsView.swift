@@ -44,6 +44,7 @@ struct SettingsView: View {
                 clearCard
                 customArtworkCard
                 privacyCard
+                SupportDevelopmentCard()
                 aboutCard
             }
             .padding(.horizontal, 18)

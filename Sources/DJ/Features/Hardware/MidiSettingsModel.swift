@@ -45,7 +45,7 @@ public final class MidiSettingsModel: ObservableObject {
     /// clear / import writes through to the DJ database — a mapping learned
     /// here is still there next week, and after a force-quit.
     public static func live(hardware: HardwareService = HardwareService(),
-                            store: ControllerProfileStore = ControllerProfileStore(pool: DJLibraryStore.shared.pool),
+                            store: ControllerProfileStore = ControllerProfileStore(pool: ControllerProfileDatabase.shared),
                             syncID: String = "default") -> MidiSettingsModel {
         let profile = (try? store.activeProfile()) ?? ControllerProfile(name: "My controller")
         return MidiSettingsModel(hardware: hardware, store: store, syncID: syncID, profile: profile)

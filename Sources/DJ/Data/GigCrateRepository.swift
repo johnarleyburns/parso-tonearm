@@ -236,9 +236,16 @@ public enum GigCrateError: Error, LocalizedError {
 /// transaction so a crash leaves either the whole crate or none (NFR-REL-1).
 public struct GigCrateRepository: Sendable {
     public let pool: DatabasePool
+    /// The one core music catalog (plan §3). Crate member rows
+    /// (`gig_crate_track.trackID`, copied from `playlist_item`) are core
+    /// `LibraryStore` track ids since dj_v8 — the FR-LIB-8 `audioCached` gate
+    /// resolves them here, not against the DJ-local `DJAsset` table (C02
+    /// follow-up; see session 13/14 notes in IMPLEMENTATION_STATUS.md).
+    public let library: LibraryStore
 
-    public init(pool: DatabasePool) {
+    public init(pool: DatabasePool, library: LibraryStore = .shared) {
         self.pool = pool
+        self.library = library
     }
 
     // MARK: - Promotion (FR-PLIST-9)
@@ -247,11 +254,27 @@ public struct GigCrateRepository: Sendable {
     /// copy the playlist's ordered items into `gig_crate_track` in ONE
     /// transaction, stamping each track's FR-LIB-8 `audioCached` flag at
     /// promotion time. Returns the new crate id.
+    ///
+    /// C02: each item's `trackID` is a core `LibraryStore` id, so the
+    /// FR-LIB-8 cache probe is resolved against the core library (an actor,
+    /// so it runs BEFORE the synchronous DJ-pool transaction that writes the
+    /// crate rows) instead of a DJ-local `DJAsset` lookup.
     @discardableResult
     public func promote(playlistID: Int64,
                         name: String,
-                        storageBudgetBytes: Int64) throws -> Int64 {
-        try pool.write { db in
+                        storageBudgetBytes: Int64) async throws -> Int64 {
+        let items = try await pool.read { db in
+            try DJPlaylistItem
+                .filter(Column("playlistID") == playlistID)
+                .order(Column("position"))
+                .fetchAll(db)
+        }
+        var cachedByTrackIDBuilder: [Int64: Bool] = [:]
+        for item in items {
+            cachedByTrackIDBuilder[item.trackID] = await isAudioCached(trackID: item.trackID)
+        }
+        let cachedByTrackID = cachedByTrackIDBuilder
+        return try await pool.write { db in
             var crate = GigCrate(syncID: UUID().uuidString,
                                  name: name,
                                  playlistID: playlistID,
@@ -260,16 +283,11 @@ public struct GigCrateRepository: Sendable {
             try crate.insert(db)
             guard let crateID = crate.id else { throw GigCrateError.persistFailed }
 
-            let items = try DJPlaylistItem
-                .filter(Column("playlistID") == playlistID)
-                .order(Column("position"))
-                .fetchAll(db)
             for item in items {
                 var row = GigCrateTrack(gigCrateID: crateID,
                                         trackID: item.trackID,
                                         position: item.position,
-                                        audioCached: Self.isAudioCached(trackID: item.trackID,
-                                                                        in: db))
+                                        audioCached: cachedByTrackID[item.trackID] ?? false)
                 try row.insert(db)
             }
             return crateID
@@ -280,31 +298,27 @@ public struct GigCrateRepository: Sendable {
 
     /// Every crate with its roll-up, most-recently-performed first — the list
     /// surface and the "Making room" panel both read this (§41.17).
-    public func crates() throws -> [GigCrateRow] {
-        try pool.read { db in
-            try Self.fetchCrateRows(db)
-        }
+    public func crates() async throws -> [GigCrateRow] {
+        try await fetchCrateRows()
     }
 
     /// One crate's detail: the row + its ordered track rows.
-    public func detail(crateID: Int64) throws -> GigCrateDetail? {
-        try pool.read { db in
-            guard let crate = try GigCrate.fetchOne(db, key: crateID) else {
-                return nil
-            }
-            let playlistTitle = try String.fetchOne(db, sql: """
+    public func detail(crateID: Int64) async throws -> GigCrateDetail? {
+        guard let crate = try await pool.read({ db in try GigCrate.fetchOne(db, key: crateID) }) else {
+            return nil
+        }
+        let playlistTitle = try await pool.read { db in
+            try String.fetchOne(db, sql: """
                 SELECT COALESCE(p.title, '') FROM playlist p WHERE p.id = ?
                 """, arguments: [crate.playlistID ?? 0]) ?? ""
-            let tracks = try Self.fetchTrackRows(db, crateID: crateID)
-            return GigCrateDetail(crate: crate, playlistTitle: playlistTitle, tracks: tracks)
         }
+        let tracks = try await fetchTrackRows(crateID: crateID)
+        return GigCrateDetail(crate: crate, playlistTitle: playlistTitle, tracks: tracks)
     }
 
     /// A crate's track rows in stored order.
-    public func trackRows(crateID: Int64) throws -> [GigCrateTrackRow] {
-        try pool.read { db in
-            try Self.fetchTrackRows(db, crateID: crateID)
-        }
+    public func trackRows(crateID: Int64) async throws -> [GigCrateTrackRow] {
+        try await fetchTrackRows(crateID: crateID)
     }
 
     /// The crate's tracks whose stems are not ready (`pending|failed|evicted`),
@@ -326,23 +340,21 @@ public struct GigCrateRepository: Sendable {
 
     /// All crates' stem usage, oldest-performed first — the LRU eviction
     /// ordering (§43.6, FR-ANL-9). `excluding` are never candidates.
-    public func cratesByLRU(excluding protectedIDs: Set<Int64> = []) throws -> [GigCrateRow] {
-        try pool.read { db in
-            let rows = try Self.fetchCrateRows(db)
-            return rows
-                .filter { !protectedIDs.contains($0.id) }
-                .sorted { l, r in
-                    let lDate = l.lastPerformedAt ?? .distantPast
-                    let rDate = r.lastPerformedAt ?? .distantPast
-                    return lDate < rDate
-                }
-        }
+    public func cratesByLRU(excluding protectedIDs: Set<Int64> = []) async throws -> [GigCrateRow] {
+        let rows = try await fetchCrateRows()
+        return rows
+            .filter { !protectedIDs.contains($0.id) }
+            .sorted { l, r in
+                let lDate = l.lastPerformedAt ?? .distantPast
+                let rDate = r.lastPerformedAt ?? .distantPast
+                return lDate < rDate
+            }
     }
 
     /// The crates whose stems are on disk (`stemsBytes > 0`), oldest first —
      /// the only set the budget can reclaim.
-    public func evictableCrates(excluding protectedIDs: Set<Int64> = []) throws -> [GigCrateRow] {
-        try cratesByLRU(excluding: protectedIDs).filter { $0.stemsBytes > 0 }
+    public func evictableCrates(excluding protectedIDs: Set<Int64> = []) async throws -> [GigCrateRow] {
+        try await cratesByLRU(excluding: protectedIDs).filter { $0.stemsBytes > 0 }
     }
 
     // MARK: - Mutations
@@ -382,104 +394,166 @@ public struct GigCrateRepository: Sendable {
 
     /// Re-stamp every crate track's FR-LIB-8 flag from the current disk state —
      /// the honest refresh after a cache purge or a completed download.
-    public func refreshAudioCached(crateID: Int64) throws {
-        try pool.write { db in
-            let rows = try GigCrateTrack
+    public func refreshAudioCached(crateID: Int64) async throws {
+        let rows = try await pool.read { db in
+            try GigCrateTrack
                 .filter(Column("gigCrateID") == crateID)
                 .fetchAll(db)
+        }
+        var cachedByTrackIDBuilder: [Int64: Bool] = [:]
+        for row in rows {
+            cachedByTrackIDBuilder[row.trackID] = await isAudioCached(trackID: row.trackID)
+        }
+        let cachedByTrackID = cachedByTrackIDBuilder
+        try await pool.write { db in
             for var row in rows {
-                row.audioCached = Self.isAudioCached(trackID: row.trackID, in: db)
+                row.audioCached = cachedByTrackID[row.trackID] ?? false
                 try row.update(db)
             }
         }
     }
 
-    // MARK: - SQL
+    // MARK: - Read helpers (C02: crate members are core track ids)
 
-    private static func fetchCrateRows(_ db: Database) throws -> [GigCrateRow] {
-        try Row.fetchAll(db, sql: """
-            SELECT gc.id, gc.name, gc.storageBudgetBytes, gc.lastPerformedAt,
-                   gc.createdAt, COALESCE(p.title, '') AS playlistTitle,
-                   COUNT(gct.id) AS trackCount,
-                   COALESCE(SUM(CASE WHEN gct.audioCached THEN 1 ELSE 0 END), 0) AS cachedCount,
-                   COALESCE(SUM(CASE WHEN t.analysisState = 'analyzed' THEN 1 ELSE 0 END), 0) AS analyzedCount,
-                   COALESCE(SUM(CASE WHEN gct.stemsState = 'ready' THEN 1 ELSE 0 END), 0) AS stemsReadyCount,
-                   COALESCE(SUM(gct.stemsBytes), 0) AS stemsBytes
-            FROM gig_crate gc
-            LEFT JOIN playlist p ON p.id = gc.playlistID
-            LEFT JOIN gig_crate_track gct ON gct.gigCrateID = gc.id
-            LEFT JOIN track t ON t.id = gct.trackID
-            GROUP BY gc.id
-            ORDER BY gc.lastPerformedAt DESC NULLS FIRST, gc.createdAt DESC
-            """).map { row in
-            GigCrateRow(id: row["id"],
-                        name: row["name"],
-                        playlistTitle: row["playlistTitle"],
-                        trackCount: Int(row["trackCount"] as? Int64 ?? 0),
-                        cachedCount: Int(row["cachedCount"] as? Int64 ?? 0),
-                        analyzedCount: Int(row["analyzedCount"] as? Int64 ?? 0),
-                        stemsReadyCount: Int(row["stemsReadyCount"] as? Int64 ?? 0),
-                        stemsBytes: row["stemsBytes"] as? Int64 ?? 0,
-                        storageBudgetBytes: row["storageBudgetBytes"],
-                        lastPerformedAt: row["lastPerformedAt"],
-                        createdAt: row["createdAt"])
+    /// The crate roll-up, most-recently-performed first. `trackCount`,
+    /// `cachedCount`, `stemsReadyCount` and `stemsBytes` come straight off
+    /// `gig_crate_track`'s own columns (no join needed — `audioCached` and
+    /// `stemsState` are stamped by this repository, not derived). Only
+    /// `analyzedCount` needs a second, core-side lookup, since it is the one
+    /// figure the DJ pool never held for a core track id.
+    private func fetchCrateRows() async throws -> [GigCrateRow] {
+        let bases = try await pool.read { db in
+            try Row.fetchAll(db, sql: """
+                SELECT gc.id, gc.name, gc.storageBudgetBytes, gc.lastPerformedAt,
+                       gc.createdAt, COALESCE(p.title, '') AS playlistTitle,
+                       COUNT(gct.id) AS trackCount,
+                       COALESCE(SUM(CASE WHEN gct.audioCached THEN 1 ELSE 0 END), 0) AS cachedCount,
+                       COALESCE(SUM(CASE WHEN gct.stemsState = 'ready' THEN 1 ELSE 0 END), 0) AS stemsReadyCount,
+                       COALESCE(SUM(gct.stemsBytes), 0) AS stemsBytes
+                FROM gig_crate gc
+                LEFT JOIN playlist p ON p.id = gc.playlistID
+                LEFT JOIN gig_crate_track gct ON gct.gigCrateID = gc.id
+                GROUP BY gc.id
+                ORDER BY gc.lastPerformedAt DESC NULLS FIRST, gc.createdAt DESC
+                """)
+        }
+        var rows: [GigCrateRow] = []
+        rows.reserveCapacity(bases.count)
+        for row in bases {
+            let crateID: Int64 = row["id"]
+            let analyzedCount = try await analyzedCount(crateID: crateID)
+            rows.append(GigCrateRow(id: crateID,
+                                    name: row["name"],
+                                    playlistTitle: row["playlistTitle"],
+                                    trackCount: Int(row["trackCount"] as? Int64 ?? 0),
+                                    cachedCount: Int(row["cachedCount"] as? Int64 ?? 0),
+                                    analyzedCount: analyzedCount,
+                                    stemsReadyCount: Int(row["stemsReadyCount"] as? Int64 ?? 0),
+                                    stemsBytes: row["stemsBytes"] as? Int64 ?? 0,
+                                    storageBudgetBytes: row["storageBudgetBytes"],
+                                    lastPerformedAt: row["lastPerformedAt"],
+                                    createdAt: row["createdAt"]))
+        }
+        return rows
+    }
+
+    /// How many of a crate's (core) track ids have a completed core analysis
+    /// row — the core-side replacement for the old `t.analysisState =
+    /// 'analyzed'` DJ-local join.
+    private func analyzedCount(crateID: Int64) async throws -> Int {
+        let trackIDs = try await pool.read { db in
+            try GigCrateTrack.filter(Column("gigCrateID") == crateID).fetchAll(db).map(\.trackID)
+        }
+        guard !trackIDs.isEmpty else { return 0 }
+        return try await library.dbQueue.read { db in
+            try DiscoveryTrackAnalysis
+                .filter(trackIDs.contains(Column("trackId")))
+                .filter(Column("completedAt") != nil)
+                .fetchCount(db)
         }
     }
 
-    private static func fetchTrackRows(_ db: Database, crateID: Int64) throws -> [GigCrateTrackRow] {
-        try Row.fetchAll(db, sql: """
-            SELECT gct.position, gct.trackID, t.title, t.durationSec, t.bpm,
-                   t.camelot, gct.audioCached, gct.stemsState, gct.stemsBytes,
-                   t.analysisState,
-                   COALESCE((
-                       SELECT GROUP_CONCAT(sub.name, ', ')
-                       FROM (
-                           SELECT a.name AS name
-                           FROM track_artist ta
-                           JOIN artist a ON a.id = ta.artistID
-                           WHERE ta.trackID = gct.trackID
-                           ORDER BY ta.position, a.name
-                       ) AS sub
-                   ), '') AS artistNames
-            FROM gig_crate_track gct
-            JOIN track t ON t.id = gct.trackID
-            WHERE gct.gigCrateID = ?
-            ORDER BY gct.position
-            """, arguments: [crateID]).map { row in
-            GigCrateTrackRow(position: Int(row["position"] as? Int64 ?? 0),
-                             trackID: row["trackID"],
-                             title: row["title"],
-                             artistNames: row["artistNames"] as? String ?? "",
-                             durationSec: row["durationSec"] as? Double,
-                             bpm: row["bpm"] as? Double,
-                             camelot: row["camelot"] as? String,
-                             audioCached: (row["audioCached"] as? Int64 ?? 0) != 0,
-                             stemsState: row["stemsState"] as? String ?? "pending",
-                             stemsBytes: row["stemsBytes"] as? Int64 ?? 0,
-                             analysisState: row["analysisState"] as? String ?? "pending")
+    /// A crate's ordered track rows, resolved against the core `LibraryStore`
+    /// (title/artist/duration) and the core `discovery_track_analysis` table
+    /// (bpm/camelot/analysis state) — `gig_crate_track.trackID` is a core id
+    /// since dj_v8, so the old `JOIN track t ON t.id = gct.trackID` against
+    /// the DJ-local `track` table silently dropped every row (an INNER JOIN
+    /// with no match). A core lookup miss (a track since deleted from the
+    /// library) is skipped, mirroring `DeckLoader.rows(in: .playlist)`.
+    private func fetchTrackRows(crateID: Int64) async throws -> [GigCrateTrackRow] {
+        let crateTracks = try await pool.read { db in
+            try GigCrateTrack
+                .filter(Column("gigCrateID") == crateID)
+                .order(Column("position"))
+                .fetchAll(db)
         }
+        var rows: [GigCrateTrackRow] = []
+        rows.reserveCapacity(crateTracks.count)
+        for track in crateTracks {
+            guard let core = try? await library.trackRow(id: track.trackID) else { continue }
+            let analysis: DiscoveryTrackAnalysis? = (try? await library.dbQueue.read { db in
+                try DiscoveryTrackAnalysis.fetchOne(db, key: track.trackID)
+            }) ?? nil
+            rows.append(GigCrateTrackRow(
+                position: track.position,
+                trackID: track.trackID,
+                title: core.track.title,
+                artistNames: core.artist?.name ?? core.album?.artist ?? "",
+                durationSec: core.track.durationSec,
+                bpm: analysis?.bpm,
+                camelot: analysis?.key,
+                audioCached: track.audioCached,
+                stemsState: track.stemsState,
+                stemsBytes: track.stemsBytes,
+                analysisState: (analysis?.completedAt != nil) ? "analyzed" : "pending"))
+        }
+        return rows
     }
 
-    /// The FR-LIB-8 gate at promotion time: audio is fully local and reachable
-    /// — the per-file bookmark, else the folder bookmark + relative path, then
-    /// a real file-exists probe. Mirrors `DeckLoader`'s gate so a crate never
-    /// calls a partially-cached remote track ready (FR-LIB-8, §4.1).
-    private static func isAudioCached(trackID: Int64, in db: Database) -> Bool {
-        guard let asset = try? DJAsset.filter(Column("trackID") == trackID).fetchOne(db) else {
+    /// The FR-LIB-8 gate at promotion/refresh time: audio is fully local and
+    /// reachable — resolved against the core `LibraryStore` `Asset` for this
+    /// (core) `trackID`, then a real file-exists probe. Mirrors `DeckLoader`'s
+    /// `readiness(forCore:)`/`resolveAudioURL(for:)` so a crate never calls a
+    /// partially-cached remote track ready (FR-LIB-8, §4.1).
+    ///
+    /// C02 fix (session 14): this used to look up a DJ-local `DJAsset` row by
+    /// `trackID`, which was correct only while crate member ids were
+    /// DJ-local. Since dj_v8 (session 13), `gig_crate_track.trackID` is a
+    /// core `LibraryStore` id, so this must resolve through the core library
+    /// instead — a DJ-local lookup now silently misses every track.
+    private func isAudioCached(trackID: Int64) async -> Bool {
+        guard let row = try? await library.trackRow(id: trackID),
+              let asset = row.asset,
+              let url = Self.resolveAudioURL(for: asset) else {
             return false
         }
-        let url: URL?
-        if let bookmark = asset.bookmark {
-            url = BookmarkVault.resolve(bookmark)?.url
-        } else if let folderID = asset.folderID, let relPath = asset.relPath,
-                  let folder = try? DJFolder.filter(key: folderID).fetchOne(db) {
-            url = BookmarkVault.resolve(folder.bookmark).map { $0.url.appendingPathComponent(relPath) }
-        } else {
-            url = nil
-        }
-        guard let url else { return false }
         var isDirectory: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
             && !isDirectory.boolValue
+    }
+
+    /// Resolves a core `Asset` to its local audio URL: a per-file bookmark, a
+    /// direct file:// remote URL, or an app-relative path. Mirrors
+    /// `DeckLoader.resolveAudioURL(for:)` / `PlaylistCrateImporter.localURL(for:)`
+    /// — the other core-`Asset` resolvers in this codebase.
+    private static func resolveAudioURL(for asset: Asset) -> URL? {
+        if let bookmark = asset.bookmark, let (url, _) = BookmarkVault.resolve(bookmark) {
+            return url
+        }
+        if let remote = asset.remoteURL.flatMap(URL.init(string:)), remote.isFileURL {
+            return remote
+        }
+        if let relPath = asset.relPath,
+           let base = try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                    in: .userDomainMask, appropriateFor: nil,
+                                                    create: false) {
+            let url = base.appendingPathComponent(relPath)
+            if FileManager.default.fileExists(atPath: url.path) { return url }
+        }
+        if let remote = asset.remoteURL.flatMap(URL.init(string:)),
+           AudioCache.completeCacheExists(for: remote) {
+            return AudioCache.fileURL(for: AudioCache.key(for: remote))
+        }
+        return nil
     }
 }

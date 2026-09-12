@@ -134,7 +134,7 @@ struct DJPerformanceSurface: View {
         }
         .task {
             if let model = await DJWorkspaceAssembly.makeModel(
-                midiProfileStore: ControllerProfileStore(pool: DJLibraryStore.shared.pool)) {
+                midiProfileStore: ControllerProfileStore(pool: ControllerProfileDatabase.shared)) {
                 load = .ready(model)
             } else {
                 load = .unavailable
