@@ -74,9 +74,9 @@ public final class WorkspaceModel: ObservableObject {
     /// crossing into/out of `.serious` rebuilds them (one level coarser,
     /// §26A.7).
     var lastWaveformThermal: WaveformThermal?
-    private let pump: TelemetryPump?
-    private var telemetryTask: Task<Void, Never>?
-    private var anyDeckPlaying = false
+    let pump: TelemetryPump?
+    var telemetryTask: Task<Void, Never>?
+    var anyDeckPlaying = false
     /// The §34A.4 session-response consumer (plan 5.11): flushes the recording
     /// segment on `.began`, opens a new one on `.ended` — never auto-plays.
     var interruptionTask: Task<Void, Never>?
@@ -112,20 +112,20 @@ public final class WorkspaceModel: ObservableObject {
     /// the specification here — an app that displays `Stop · 5:07` over a dead
     /// engine for fourteen minutes has told the user a lie that costs them
     /// their set.
-    @Published public private(set) var engineStopped: EngineLiveness.StopReason?
+    @Published public internal(set) var engineStopped: EngineLiveness.StopReason?
     /// What became of an in-flight recording when the engine stopped — surfaced
     /// beside the reason, because "the engine stopped" and "your recording is
     /// safe" are two different pieces of news and the user needs both.
-    @Published public private(set) var engineStopRecordingOutcome: String?
+    @Published public internal(set) var engineStopRecordingOutcome: String?
     /// True while a recovery attempt is in flight, so the button cannot be
     /// pressed twice into two concurrent restarts.
-    @Published public private(set) var isRecoveringEngine = false
+    @Published public internal(set) var isRecoveringEngine = false
 
     /// The stall window is injectable for the same reason `pinnedDrawerIdle`
     /// is: a test that has to sleep two seconds to watch a watchdog fire is a
     /// test nobody runs.
-    private var liveness: EngineLivenessMonitor
-    private var configurationChangeTask: Task<Void, Never>?
+    var liveness: EngineLivenessMonitor
+    var configurationChangeTask: Task<Void, Never>?
     /// §44.4: the active controller map, and the task delivering its messages.
     var midiProfile: ControllerProfile?
     var midiTask: Task<Void, Never>?
@@ -385,257 +385,8 @@ public final class WorkspaceModel: ObservableObject {
         ProCapability.isEnabled(.decks, store)
     }
 
-    /// Start the engine, the display-rate pump, and the telemetry subscription.
-    /// The view calls this on appear and `end()` on disappear. Also consumes the
-    /// §34A.4 session responses (the recording flush/new-segment path) and
-    /// reconciles any crashed recordings (plan 5.11).
-    public func begin() throws {
-        try engine.start()
-        telemetryTask?.cancel()
-        telemetryTask = Task { [weak self] in
-            guard let self else { return }
-            for await value in engine.telemetry {
-                self.apply(value)
-            }
-        }
-        pump?.start()
-        startConsumingSessionResponses()
-        startObservingConfigurationChanges()
-        Task { [weak self] in
-            await self?.reconcileRecordings()
-        }
-    }
-
-    /// `AVAudioEngineConfigurationChange` (§34A.5) — the fast path to the same
-    /// honest state the stall detector reaches on its own, arriving with a
-    /// reason attached instead of two seconds later without one.
-    private func startObservingConfigurationChanges() {
-        configurationChangeTask?.cancel()
-        configurationChangeTask = Task { [weak self] in
-            guard let self else { return }
-            for await _ in self.engine.configurationChanges() {
-                // AVAudioEngine posts this *after* stopping itself. If it is
-                // somehow still running, the graph absorbed the change and
-                // there is nothing to report — saying otherwise would train the
-                // user to ignore the banner.
-                guard !self.engine.isGraphRunning else { continue }
-                self.liveness.report(.configurationChange)
-                if self.engineStopped == nil {
-                    self.handleEngineStopped(.configurationChange)
-                }
-            }
-        }
-    }
-
-    public func end() {
-        telemetryTask?.cancel()
-        telemetryTask = nil
-        interruptionTask?.cancel()
-        interruptionTask = nil
-        configurationChangeTask?.cancel()
-        configurationChangeTask = nil
-        midiTask?.cancel()
-        midiTask = nil
-        drawerIdleTask?.cancel()
-        drawerIdleTask = nil
-        pump?.stop()
-        engine.stop()
-        IdleTimerScope.update(anyDeckPlaying: false)
-    }
-
-    /// Drive one telemetry sample now (the pump does this at display cadence;
-    /// the offline harness calls it directly). §40.3.
-    public func pumpTelemetryNow() {
-        engine.pushTelemetry()
-    }
-
-    public func setPumpPaused(_ paused: Bool) {
-        pump?.setPaused(paused)
-    }
-
-    /// Fold the telemetry sample into the liveness watchdog (NFR-REL-2).
-    ///
-    /// Runs on every sample, before anything else reads the telemetry, because
-    /// the state it produces changes what the rest of `apply` is allowed to
-    /// claim — most of all the recording timer.
-    private func observeLiveness(_ value: EngineTelemetry, now: Date = Date()) {
-        let playing = value.deckA.playing || value.deckB.playing
-        let state = liveness.observe(masterSample: value.masterSample,
-                                     anyDeckPlaying: playing,
-                                     isRunning: engine.isGraphRunning,
-                                     now: now)
-        switch state {
-        case .live:
-            return
-        case .stopped(let reason):
-            guard engineStopped == nil else { return }
-            handleEngineStopped(reason)
-        }
-    }
-
-    /// The graph stopped. Tell the truth, then save what can be saved.
-    ///
-    /// Order matters: the flags that make the UI stop lying are set *first* and
-    /// synchronously, so there is no window in which the timer keeps running
-    /// while an async finalize is in flight. Only then does the recording get
-    /// closed out — and it is closed out rather than abandoned, because the
-    /// encoder's flushed segments are a real recording (NFR-REL-2) and the user
-    /// should get the twenty minutes that did happen instead of nothing.
-    private func handleEngineStopped(_ reason: EngineLiveness.StopReason) {
-        engineStopped = reason
-        let wasRecording = isRecording
-        if wasRecording {
-            engineStopRecordingOutcome = "Saving what was recorded up to that point…"
-            Task { [weak self] in
-                guard let self else { return }
-                await self.finalizeRecordingAfterEngineStop()
-            }
-        }
-        IdleTimerScope.update(anyDeckPlaying: false)
-    }
-
-    /// Close out a recording whose engine died under it. The audio already on
-    /// disk is the guarantee §37.3 was built around, so this is the ordinary
-    /// stop path — not a special case — and its failure is reported rather than
-    /// swallowed.
-    private func finalizeRecordingAfterEngineStop() async {
-        await stopRecording()
-        // `stopRecording` publishes the finished mix when the join and the
-        // journal both succeeded. When it did not, the flushed segments are
-        // still on disk and §37.3's `reconcile()` salvages them on next
-        // appear — so the honest message is "recovered later", never "lost".
-        engineStopRecordingOutcome = finishedMix == nil
-            ? "The recording could not be finalised now — Recorded Mixes will recover it."
-            : "The recording was saved up to the moment the engine stopped."
-    }
-
-    /// Try to bring the graph back (§34A.5). Never automatic: a set that
-    /// restarts itself mid-transition is worse than one that waits to be told,
-    /// and the human is standing right there.
-    public func recoverEngine() async {
-        guard !isRecoveringEngine else { return }
-        isRecoveringEngine = true
-        defer { isRecoveringEngine = false }
-        do {
-            try engine.recoverGraph()
-            liveness.recovered()
-            engineStopped = nil
-            engineStopRecordingOutcome = nil
-        } catch {
-            engineStopRecordingOutcome =
-                "The engine could not be restarted (\(error.localizedDescription)). "
-                + "Leave the decks and come back to rebuild the audio graph."
-        }
-    }
-
-    private func apply(_ value: EngineTelemetry) {
-        telemetry = value
-        observeLiveness(value)
-        // A stopped graph renders nothing, so nothing below this line is true
-        // of it: the elapsed timer would run on a stale clock and the timeline
-        // would log track starts that never sounded.
-        if engineStopped != nil { return }
-        if isRecording {
-            // Decision 14's elapsed chip: the recorded frames are exactly the
-            // master-clock frames captured by the tap (§37.2), so elapsed is
-            // `(masterSample − start) / sampleRate`.
-            recordingElapsed = Double(value.masterSample - recordingStartSample) / engine.sampleRate
-            // §37.4 (plan 5.12): a deck's not-playing → playing edge is a
-            // track start — log it for the mix's timeline.
-            if value.deckA.playing && !wasDeckAPlaying {
-                recordTimelineEvent(for: .a)
-            }
-            if value.deckB.playing && !wasDeckBPlaying {
-                recordTimelineEvent(for: .b)
-            }
-        }
-        wasDeckAPlaying = value.deckA.playing
-        wasDeckBPlaying = value.deckB.playing
-        let playing = value.deckA.playing || value.deckB.playing
-        if playing != anyDeckPlaying {
-            anyDeckPlaying = playing
-            IdleTimerScope.update(anyDeckPlaying: playing)
-        }
-        // §26A.7: the waveform detail is one pyramid level coarser at
-        // `.serious`. Rebuild a deck's render model when the thermal state
-        // crosses the shed line (rare; the build runs off the main actor).
-        let thermal = WaveformThermal.current
-        if thermal != lastWaveformThermal {
-            lastWaveformThermal = thermal
-            rebuildAllWaveforms()
-        }
-    }
-
-    /// Log "the deck started playing its loaded track" into the §37.4 timeline
-    /// (plan 5.12). The offset is the recording's own frames (§37.2).
-    private func recordTimelineEvent(for deck: Deck) {
-        guard let trackID = loadedTrackIDs[deck] else { return }
-        recordingTimeline.record(trackID: trackID,
-                                 deck: deck == .a ? "A" : "B",
-                                 startOffsetSec: recordingElapsed)
-    }
-
-    // MARK: - Transport / loading
-
-    /// The deck's current playback rate — the jog reads it as the base for a
-    /// temporary pitch bend (§40.7.3).
-    public func deckRate(_ deck: Deck) -> Double {
-        engine.deckRate(deck)
-    }
-
-    public func load(_ deck: Deck, source: DeckSource) {
-        engine.load(deck, source: source)
-    }
-
-    public func play(_ deck: Deck) {
-        engine.play(deck)
-    }
-
-    public func pause(_ deck: Deck) {
-        engine.pause(deck)
-    }
-
-    public func cue(_ deck: Deck) {
-        engine.cue(deck)
-    }
-
-    public func releaseCue(_ deck: Deck) {
-        engine.releaseCue(deck)
-    }
-
-    public func seek(_ deck: Deck, toSample: Int64, quantized: Bool) {
-        engine.seek(deck, toSample: toSample, quantized: quantized)
-    }
-
-    public func setCue(_ deck: Deck, atSample: Int64) {
-        engine.setCue(deck, atSample: atSample)
-    }
-
-    public func triggerHotCue(_ deck: Deck, atSample: Int64) {
-        engine.triggerHotCue(deck, atSample: atSample)
-    }
-
-    public func setLoop(_ deck: Deck, beats: Double) {
-        engine.setLoop(deck, beats: beats)
-    }
-
-    public func exitLoop(_ deck: Deck) {
-        engine.exitLoop(deck)
-    }
-
-    public func setQuantize(_ on: Bool, resolution: QuantizeResolution) {
-        engine.setQuantize(on, resolution: resolution)
-    }
-
-    public func setRate(_ deck: Deck, rate: Float) {
-        engine.setRate(deck, rate: rate)
-    }
-
-    public func setKeyLock(_ deck: Deck, locked: Bool) {
-        engine.setKeyLock(deck, locked: locked)
-    }
-
-    public func setKeyShift(_ deck: Deck, semitones: Float) {
-        engine.setKeyShift(deck, semitones: semitones)
-    }
+    // Engine start/stop, the telemetry loop, and the liveness/recovery methods
+    // live in WorkspaceModel+EngineLifecycle.swift. Transport/loading
+    // forwarding calls (play/pause/seek/etc.) live in
+    // WorkspaceModel+Transport.swift.
 }
