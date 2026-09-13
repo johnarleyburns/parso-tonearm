@@ -45,6 +45,7 @@ final class PlaybackPositionLossTests: XCTestCase {
         createdSuites.removeAll()
         MainActor.assumeIsolated {
             PlaybackStateStore.defaultsProvider = { PlaybackStateStore.sharedDefaults() }
+            PlaybackStateFileStore.fileURLOverride = nil
             for name in suites {
                 UserDefaults().removePersistentDomain(forName: name)
             }
@@ -279,6 +280,27 @@ final class PlaybackPositionLossTests: XCTestCase {
     // MARK: - Test 7: Snapshot survives reinstall (Loss #4) — F8 proof
 
     func testSnapshotSurvivesReinstall() async throws {
+        // This test is the only one in the file that reads/writes the file +
+        // defaults tiers directly (via PlaybackStateStore.clear() and
+        // PlaybackStateFileStore.fileURL()) rather than going through
+        // AudioPlayer — it must isolate both exactly like every other test
+        // here, or it races the real shared UserDefaults/file location
+        // against whatever else is running concurrently. Without this, a
+        // parallel test that legitimately owns the shared location at that
+        // moment can write its own snapshot in between this test's wipe and
+        // its read-back, producing a result that belongs to a different
+        // test entirely (observed in CI: two trailing nil syncIDs from
+        // another test's two-track snapshot, not this test's one track).
+        let suite = try ephemeralSuite()
+        PlaybackStateStore.defaultsProvider = { suite }
+        let tmpFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tonearm-reinstall-\(UUID().uuidString)")
+            .appendingPathComponent("playback-state.v2.json")
+        try FileManager.default.createDirectory(
+            at: tmpFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        PlaybackStateFileStore.fileURLOverride = tmpFile
+        defer { PlaybackStateFileStore.fileURLOverride = nil }
+
         let fakeCloud = FakePlaybackCloudBackend()
         let persistor = PlaybackPositionPersistor(cloudBackend: fakeCloud)
 
