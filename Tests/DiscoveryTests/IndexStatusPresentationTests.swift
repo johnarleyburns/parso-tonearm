@@ -73,6 +73,22 @@ final class IndexStatusPresentationTests: XCTestCase {
         XCTAssertTrue(p.detail.lowercased().contains("model"))
     }
 
+    /// Reproduces a real production report: bootstrap enqueues every track as
+    /// `queuedOrRunning` (only a handful land in the separate `waiting`
+    /// bucket), so `queuedOrRunning > 0` was true well before the model ever
+    /// resolved — and the generic "Indexing…" branch, checked first, silently
+    /// swallowed the model-missing state. Every claimed job re-parks waiting
+    /// for the model, so this is permanent, not transient — it must never
+    /// read as ordinary progress.
+    func testWaitingForModelTakesPrecedenceOverQueuedOrRunning() {
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 2694, complete: 0, queuedOrRunning: 2693, waiting: 1),
+                modelAvailable: false))
+        XCTAssertEqual(p.phase, .waitingForModel)
+        XCTAssertTrue(p.detail.lowercased().contains("model"))
+    }
+
     func testWaitingForPowerIsDistinctFromWaitingForModel() {
         let p = IndexStatusPresentation.make(
             from: snapshot(

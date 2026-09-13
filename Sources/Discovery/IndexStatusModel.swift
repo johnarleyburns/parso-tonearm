@@ -101,6 +101,16 @@ public struct IndexStatusPresentation: Equatable, Sendable {
         } else if done == total && c.waiting == 0 && c.queuedOrRunning == 0 && c.failed == 0 {
             phase = .upToDate
             detail = "All music is indexed."
+        } else if (c.queuedOrRunning > 0 || c.waiting > 0) && !snapshot.modelResourceAvailable {
+            // The model resource (ODR download) hasn't resolved yet. Every
+            // claimed job immediately re-parks waiting for it, so
+            // queuedOrRunning stays permanently nonzero and would otherwise
+            // read as "Indexing…" forever — indistinguishable from real
+            // progress. This must be checked before the queuedOrRunning
+            // branch below, the same reason schedulerBlockReason is:
+            // "jobs exist" does not mean "jobs are progressing."
+            phase = .waitingForModel
+            detail = "Waiting for the sound-search model to download."
         } else if c.queuedOrRunning > 0, let reason = snapshot.schedulerBlockReason,
             reason != .userPaused
         {
@@ -113,9 +123,6 @@ public struct IndexStatusPresentation: Equatable, Sendable {
         } else if c.queuedOrRunning > 0 {
             phase = .indexing
             detail = "Indexing \(number(c.queuedOrRunning)) track\(c.queuedOrRunning == 1 ? "" : "s")…"
-        } else if c.waiting > 0 && !snapshot.modelResourceAvailable {
-            phase = .waitingForModel
-            detail = "Waiting for the sound-search model to download."
         } else if c.waiting > 0 {
             phase = .waiting
             detail = snapshot.isChargingOnly

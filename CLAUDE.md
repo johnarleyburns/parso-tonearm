@@ -18,3 +18,12 @@ Read [`docs/plans/tonearm-mvp-ios/HANDOFF.md`](docs/plans/tonearm-mvp-ios/HANDOF
 
 - Set the command timeout to at least **5 minutes (300 seconds)** for `git commit`; the pre-commit hook runs the full local suite, including simulator tests.
 - `git push` needs no extra timeout; the pre-push hook runs no tests by repository policy. The pre-commit hook is the gate, so nothing is skipped by pushing.
+
+## No silent/magic background work — always visible, always in the user's control
+
+Any background or automatic behavior (indexing, downloading a model, syncing, migrating data, retrying) must tell the user what is happening in the moment it's happening, not just eventually succeed or fail silently. Concretely:
+
+- If the UI shows a count or progress number, it must reflect real, current work — never a number that looks like progress while nothing is actually advancing (e.g. "Indexing 2,693 tracks…" while the real blocker is an unmet precondition upstream of any indexing actually starting). When work can't proceed, say the specific reason (downloading a model, waiting for power/charging, thermal, paused, an error) — never collapse a real blocked/waiting state into a generic in-progress label.
+- Every such state must be inspectable from Settings (or the relevant status screen): what's running, why, and since when — not just a spinner.
+- The user must be able to stop, pause, retry, or undo the action from the same surface that reports it — a "magic" action nothing can interrupt or reverse is not acceptable, even if it usually finishes fine.
+- When adding a new automatic/background feature, design its status surface and its stop/retry control in the same change that adds the feature — not as a follow-up.
