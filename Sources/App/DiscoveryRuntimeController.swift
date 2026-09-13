@@ -61,7 +61,8 @@ final class DiscoveryRuntimeController {
             // actually on disk; never a fabricated embedding.
             modelResourceProvider: { DiscoveryModelResources.shared.currentResources() },
             executionContext: { sampler.isBackground ? .background : .foreground },
-            modelDownloadProgressProvider: { DiscoveryModelResources.shared.currentDownloadProgress() })
+            modelDownloadProgressProvider: { DiscoveryModelResources.shared.currentDownloadProgress() },
+            modelDownloadErrorProvider: { DiscoveryModelResources.shared.currentDownloadError() })
         assembly = built
         return built
     }

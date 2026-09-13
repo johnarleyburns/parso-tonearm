@@ -37,26 +37,73 @@ final class DiscoveryModelResources: @unchecked Sendable {
     private let textRequest = NSBundleResourceRequest(tags: [DiscoveryModelResources.textTag])
     private let lock = NSLock()
     private var didBeginAccessing = false
+    private var lastError: String?
+    private var retryWorkItem: DispatchWorkItem?
+    private var retryDelay: TimeInterval = 5
 
-    /// Ask iOS to make the `clap-audio` ODR pack available. Best-effort and
-    /// idempotent; a failure (no such tag, no network on first fetch) simply
-    /// leaves `currentResources()` returning `.unavailable`, which is the
-    /// honest `waitingForModel` path, never an error dialog (FR-SEM-6 / §8).
+    /// The most recent `beginAccessingResources` failure, if any — surfaced
+    /// through diagnostics and the status UI so a stalled/failed ODR fetch
+    /// (e.g. `NSBundleResourceRequestLowDiskSpaceKey`,
+    /// `NSBundleResourceRequestUnknownResourceIdentifierError`, or a plain
+    /// network error) is never invisible (CLAUDE.md "no silent/magic
+    /// background work"). `nil` once a retry begins or resources resolve.
+    func currentDownloadError() -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return lastError
+    }
+
+    /// Ask iOS to make the `clap-audio` ODR pack available. Best-effort;
+    /// a failure (no such tag, no network on first fetch, low disk space)
+    /// is captured in `currentDownloadError()` — never just an `NSLog` line
+    /// invisible to both the user and support — and retried with backoff
+    /// rather than left to park at `waitingForModel` forever (FR-SEM-6 /
+    /// §8: honest, but not silently stuck).
     func beginAccessing() {
         lock.lock()
         let already = didBeginAccessing
         didBeginAccessing = true
         lock.unlock()
         guard !already else { return }
+        startRequests()
+    }
 
+    private func startRequests() {
         for (tag, request) in [(Self.audioTag, audioRequest), (Self.textTag, textRequest)] {
             request.loadingPriority = NSBundleResourceRequestLoadingPriorityUrgent
-            request.beginAccessingResources { error in
+            request.beginAccessingResources { [weak self] error in
+                guard let self else { return }
                 if let error {
-                    NSLog("[Discovery] \(tag) ODR not available: \(error.localizedDescription)")
+                    let message = "\(tag): \((error as NSError).localizedDescription) (code \((error as NSError).code))"
+                    NSLog("[Discovery] ODR not available: \(message)")
+                    self.lock.lock()
+                    self.lastError = message
+                    let delay = self.retryDelay
+                    self.retryDelay = min(self.retryDelay * 2, 300)
+                    self.lock.unlock()
+                    self.scheduleRetry(after: delay)
+                } else {
+                    self.lock.lock()
+                    self.lastError = nil
+                    self.retryDelay = 5
+                    self.lock.unlock()
                 }
             }
         }
+    }
+
+    /// A failed `beginAccessingResources` call does not retry on its own —
+    /// without this, a transient failure (e.g. no network at launch) would
+    /// leave the app parked at `waitingForModel` indefinitely even once
+    /// connectivity returns, with no user action able to fix it (the "0%
+    /// downloaded... then it disappeared" report this guards against).
+    private func scheduleRetry(after delay: TimeInterval) {
+        lock.lock()
+        retryWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in self?.startRequests() }
+        retryWorkItem = item
+        lock.unlock()
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
 
     /// Synchronously resolve whatever is on disk right now — safe to hand to

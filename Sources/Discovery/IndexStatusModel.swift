@@ -40,6 +40,14 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
     /// Real ODR download bytes while the model is fetching; `nil` when
     /// nothing is currently downloading.
     public var modelDownloadProgress: ModelDownloadProgress?
+    /// The most recent `beginAccessingResources` failure, if any — a stalled
+    /// download is not always "still fetching" (no network, low disk space,
+    /// an unknown-resource error); this is what tells the difference instead
+    /// of leaving the user staring at "Downloading…" forever with no real
+    /// information (CLAUDE.md "no silent/magic background work"). The
+    /// request retries itself with backoff, so this clears once a retry
+    /// succeeds.
+    public var modelDownloadError: String?
     public var runtime: DiscoveryRuntime
     public var capturedAt: Date
     /// The real `IndexPolicy` gate that most recently kept the scheduler from
@@ -57,6 +65,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         isChargingOnly: Bool,
         modelResourceAvailable: Bool,
         modelDownloadProgress: ModelDownloadProgress? = nil,
+        modelDownloadError: String? = nil,
         runtime: DiscoveryRuntime,
         capturedAt: Date = Date(),
         schedulerBlockReason: IndexBlockReason? = nil
@@ -66,6 +75,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         self.isChargingOnly = isChargingOnly
         self.modelResourceAvailable = modelResourceAvailable
         self.modelDownloadProgress = modelDownloadProgress
+        self.modelDownloadError = modelDownloadError
         self.runtime = runtime
         self.capturedAt = capturedAt
         self.schedulerBlockReason = schedulerBlockReason
@@ -145,7 +155,8 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             // branch below, the same reason schedulerBlockReason is:
             // "jobs exist" does not mean "jobs are progressing."
             phase = .waitingForModel
-            detail = Self.detail(forModelDownload: snapshot.modelDownloadProgress)
+            detail = Self.detail(
+                forModelDownload: snapshot.modelDownloadProgress, error: snapshot.modelDownloadError)
         } else if c.queuedOrRunning > 0, let reason = snapshot.schedulerBlockReason,
             reason != .userPaused
         {
@@ -216,7 +227,17 @@ public struct IndexStatusPresentation: Equatable, Sendable {
     /// (queued, not started, or the system hasn't delivered a length) —
     /// still distinct from "indexing" and still honest, never a fabricated
     /// percentage (CLAUDE.md "no silent/magic background work").
-    private static func detail(forModelDownload progress: ModelDownloadProgress?) -> String {
+    private static func detail(
+        forModelDownload progress: ModelDownloadProgress?, error: String?
+    ) -> String {
+        // A real failure (no network, low disk space, an unknown-resource
+        // error) is a distinct, actionable message — not the same
+        // indefinite "Downloading…" as a fetch that just hasn't reported
+        // bytes yet. The request retries itself, so this is informational,
+        // never a dead end.
+        if let error {
+            return "Couldn't download the sound-search model yet (\(error)). Retrying automatically…"
+        }
         guard let progress, progress.totalBytes > 0 else {
             return "Downloading the sound-search model…"
         }
@@ -272,6 +293,10 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
     public var modelResourceAvailable: Bool
     public var modelDownloadCompletedBytes: Int64?
     public var modelDownloadTotalBytes: Int64?
+    /// The most recent ODR fetch failure, if any (never just an invisible
+    /// `NSLog`) — the definitive answer to "why does it say downloading and
+    /// never progress."
+    public var modelDownloadError: String?
 
     public var lastRunAt: Date?
     public var lastStartAt: Date?
@@ -311,6 +336,7 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
             modelResourceAvailable: snapshot.modelResourceAvailable,
             modelDownloadCompletedBytes: snapshot.modelDownloadProgress?.completedBytes,
             modelDownloadTotalBytes: snapshot.modelDownloadProgress?.totalBytes,
+            modelDownloadError: snapshot.modelDownloadError,
             lastRunAt: r.lastRunAt,
             lastStartAt: r.lastStartAt,
             lastStopAt: r.lastStopAt,
@@ -339,6 +365,11 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
         return "  Model download: \(doneMB)/\(totalMB) MB"
     }
 
+    private var modelDownloadErrorLine: String {
+        guard let modelDownloadError else { return "" }
+        return "\nModel download error: \(modelDownloadError)"
+    }
+
     public func plainText() -> String {
         let df = ISO8601DateFormatter()
         func d(_ date: Date?) -> String { date.map { df.string(from: $0) } ?? "—" }
@@ -358,7 +389,7 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
               failed:           \(tracksFailed)
 
             Paused: \(isPaused)   Charging-only: \(isChargingOnly)   \
-            Model available: \(modelResourceAvailable)\(modelDownloadProgressLine)
+            Model available: \(modelResourceAvailable)\(modelDownloadProgressLine)\(modelDownloadErrorLine)
 
             Last run:            \(d(lastRunAt))
             Last start:          \(d(lastStartAt))
