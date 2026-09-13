@@ -345,3 +345,239 @@ authoritative full list, it shifts every session.)
    (see "A note on a shared, non-isolated working tree" above).
 5. Once Tonearm is done, the same initiative applies to Voxglass (a separate,
    later phase per the owner).
+
+## Session 3 (2026-09-12)
+
+### Start-of-session checks
+
+`git remote -v`/`git status` confirmed a clean tree at `d5d9b72` (session 2's
+commit plus two unrelated, already-committed discovery-progress fixes).
+`swift build` (PASS), `swift build --build-tests` (PASS), and
+`swift test --filter TonearmDiscoveryTests` (199/199, up from session 2's 196
+— accounted for by the same two unrelated commits already on `main`, not by
+anything this session touched) all passed before any edits. No concurrent
+session's changes appeared in `git status` during this session's work (its
+final `git status --short` showed exactly this session's own new/modified
+files).
+
+Re-ran the survey command; it confirmed session 2's recommended next batch
+was still current. Worked: `Sources/DJ/Playlist/PlaylistGenerator.swift` (705),
+`Sources/DJ/Data/DJRecords.swift` (641), and
+`Sources/Features/Sources/SourceDetailView.swift` (721) — three of the five
+originally named, prioritizing breadth of directory coverage (one `TonearmDJ`
+model actor, one `TonearmDJ`/`TonearmCore`-adjacent flat record file, one
+genuinely Xcode-only `Sources/Features/` view) over raw count. Confirmed via
+`Package.swift` that `TonearmDJ` (covering both DJ files) is its own SwiftPM
+target — `swift build` is a real compile check for it, same as session 2
+found — and that `Sources/Features/` remains excluded from `TonearmCore` with
+no dedicated target of its own, i.e. genuinely Xcode-only.
+
+### Splits made this session
+
+**`Sources/DJ/Playlist/PlaylistGenerator.swift`** 705 → **230** lines. The
+actor was one flat method list; split by concern into:
+- `PlaylistGenerator+Interactions.swift` (125) — `reject`/`replaceSlot`/
+  `extend`/`reshuffle`/`saveAsPlaylist`, the §28A.4 interactions.
+- `PlaylistGenerator+Resolution.swift` (153) — `resolve(request:)` and the
+  anchor-query resolution chain (`anchorQuery`/`baseQuery`/`crateQuery`/
+  `hasEmbedding`/`loadRejections`/`estimatedCount`/`medianDuration`).
+- `PlaylistGenerator+CandidateLoading.swift` (119) — the core-catalog batch
+  loaders (`CoreTrackData`/`loadCoreTrackData`/`loadCandidates`/
+  `loadSeedFeatures`).
+- `PlaylistGenerator+Output.swift` (117) — `makeResult`/`makeItems`/
+  `makeSlots`/`persist`.
+
+Five actor-private stored properties (`lastRequest`, `lastBriefID`,
+`lastCandidates`, `lastSlots`, `lastSemanticScores`) are read/written from
+methods now spread across all four new files — widened from `private` to the
+actor's implicit internal access (no other visibility change), same bug class
+sessions 1/2 hit repeatedly. Several `private func`s that moved to a new file
+but are called from `generate(_:)` (kept in the core file) or from another new
+file were similarly widened: `resolve`, `loadCandidates`, `loadSeedFeatures`,
+`makeResult`, `makeItems`, `makeSlots`, `persist`. Helpers used only within
+their own new file (`anchorQuery`, `baseQuery`, `hasContent`, `crateQuery`,
+`hasEmbedding`, `loadRejections`, `estimatedCount`, `medianDuration`,
+`loadCoreTrackData`) stayed `private`. `swift build` caught every one
+immediately, one compiler error at a time — the actor's own module
+(`TonearmDJ`) compiles under plain `swift build`, so no `xcodebuild` was
+needed for this file mid-session.
+
+**`Sources/DJ/Data/DJRecords.swift`** 641 → **97** lines. A flat file of ~15
+unrelated `GRDB` record types with zero shared private state (no cross-file
+access-level changes needed at all) — split by the file's own existing
+`// MARK:` sections into:
+- `DJRecords+Embedding.swift` (60) — `DJEmbeddingVersion`, `DJVectorMatrixMeta`
+  (dj_v3 embedding rows).
+- `DJRecords+SmartCrate.swift` (68) — `SmartCrate`, `CrateRule`.
+- `DJRecords+AutoPlaylist.swift` (226) — `AutoPlaylistBrief`,
+  `AutoPlaylistResult`, `AutoPlaylistItem`, `AutoPlaylistRejection`,
+  `DJPlaylist`, `DJPlaylistItem`.
+- `DJRecords+Recording.swift` (210) — `MixLocalState`, `DJMix`, `DJMixAsset`,
+  `TrackTimelineSnapshot`, `DJMixTrackEvent`, `DJPerformanceSession`.
+
+The core file kept the `grid_correction`/persisted-analysis-artifacts section
+(`GridCorrection`, `GridCorrectionOp`, `DownbeatRecord`, `EnergyCurve`).
+`swift build` passed on the first attempt — no bugs found, since every type
+here is self-contained (no `private` members referenced across the split).
+
+**`Sources/Features/Sources/SourceDetailView.swift`** 721 → **313** lines
+(confirmed Xcode-only this session, per `Package.swift`: excluded from
+`TonearmCore`, no dedicated target). Split into:
+- `SourceDetailView+Remote.swift` (171) — the remote-browsing logic and
+  derived state: `load`/`loadRemote`/`selectRemoteNode`/`goBackRemote`/
+  `playVisibleRemote`/`playRemote`/`icon(for:)`/`subtitle(for:)`/
+  `durationString`/`loadStats`, and the computed properties
+  `isRemoteLibrary`/`audioNodesInScope`/`scopeTitle`/`isBrowseableServer`/
+  `isArchiveSource`/`isCloudSource`/`remoteProviderName`.
+- `SourceDetailView+ManagementSection.swift` (185) — the "Library Settings"
+  section: `remoteManagementSection`/`makeOfflineRow`/`managementRow`.
+- `RemoteNodeRow.swift` (37) — the remote-browser row subview, extracted as
+  its own file (was a private struct at file scope).
+- `RemoteArtworkImageView.swift` (58) — the artwork-loading subview plus its
+  backing `RemoteArtworkCache` actor, extracted together since the cache is
+  private, single-purpose infrastructure for that one view.
+
+Real bugs found and fixed, same bug class as every prior session: 13 `@State`
+stored properties used from the new extension files (`tracks`,
+`heroArtworkId`, `remoteNodes`, `remotePath`, `remoteBackStack`,
+`remoteError`, `isLoadingRemote`, `showRename`, `renameText`,
+`showCredentialEdit`, `stats`, `isLoadingStats`, `statsError`) were widened
+from `private` to the implicit internal access — four of them
+(`showRename`/`renameText`/`showCredentialEdit`, plus `stats`/`isLoadingStats`/
+`statsError` shared between the Remote and ManagementSection files) are used
+**only** by extension files, never by the core file itself, so the need to
+widen them was not obvious from reading the core file in isolation — a real
+trap this bug class sets. Several computed properties/methods declared in
+`SourceDetailView+Remote.swift` but called from the core file's `body`/
+`content`/`remoteBrowser`/`navRow`/`hero`/`badgeText`/`cta` were similarly
+widened from `private` to internal: `load`, `loadStats`, `isRemoteLibrary`,
+`isBrowseableServer`, `isArchiveSource`, `remoteProviderName`, `scopeTitle`,
+`audioNodesInScope`, `icon(for:)`, `subtitle(for:)`, `selectRemoteNode`,
+`goBackRemote`, `playVisibleRemote` (13 more). `remoteManagementSection`
+(called from the core file's `body`) was similarly widened. `RemoteNodeRow`
+and `RemoteArtworkImageView` (constructed from the core file, and from each
+other) were widened from `private struct` to internal `struct`; helpers used
+only within their own new file (`loadRemote`, `playRemote`, `isCloudSource`,
+`durationString`, `RemoteArtworkCache`'s own internals, `makeOfflineRow`,
+`managementRow`) stayed `private`.
+
+Two build-tooling issues, both caught immediately and fixed:
+1. The two new subview files initially omitted `import TonearmCore` (only
+   `SwiftUI`/`UIKit`) — `RemoteArtwork` (defined under `Sources/Remote/`,
+   part of `TonearmCore`'s `sources:` list) was "cannot find type in scope"
+   until the import was added.
+2. `Sources/Features/` files are **individually listed** in
+   `Tonearm.xcodeproj/project.pbxproj` (confirming session 2's prediction) —
+   the first `xcodebuild build` after this split failed with "cannot find ...
+   in scope" for every symbol now living in the four new files, because
+   Xcode's file list didn't know about them yet. `make project` regenerated
+   the pbxproj (16 insertions — one `PBXBuildFile`/`PBXFileReference` pair
+   per new file); the rebuild then succeeded. The `Sources/DJ/`-directory
+   splits earlier in this session needed no pbxproj change, matching session
+   2's finding for that directory.
+
+### Verification
+
+- `swift build` — PASS, run after `PlaylistGenerator` and after `DJRecords`
+  (both succeeded on the first attempt after fixing the access-level breaks
+  `swift build` itself caught for `PlaylistGenerator`; `DJRecords` needed no
+  fixes at all).
+- `swift build --build-tests` — PASS.
+- `swift test --filter PlaylistGeneratorTests` — PASS, 17/17, run right after
+  the `PlaylistGenerator` split as an extra, file-specific regression check.
+- `xcodebuild build -scheme Tonearm -destination 'generic/platform=iOS
+  Simulator'` — run twice for the `SourceDetailView` split (per the standing
+  rule for `Sources/Features/`): the first attempt failed (missing pbxproj
+  entries, see above); after `make project` + the missing imports, the second
+  attempt — **BUILD SUCCEEDED**. `pgrep -fl xcodebuild` was checked
+  immediately before each invocation; nothing else was building either time.
+- `swift test --filter TonearmDiscoveryTests` — PASS, 199/199 (matches the
+  session-start baseline exactly).
+- `swift test --skip PlaylistCrateImporterTests` (full repo) — PASS: **1794**
+  tests, 8 skipped, 0 failures. The +2 over session 2's 1792 is fully
+  accounted for by `e916214`/`7083354` (the two discovery-progress commits
+  already on `main` before this session started, confirmed via `git log`) —
+  this session's own changes add/remove zero tests.
+- `scripts/check-ci-guards.sh` — PASS (all 5 guards).
+- `make project` — RUN once (after the `SourceDetailView` split, which needed
+  it); **16-line diff** to `project.pbxproj` (4 new `PBXBuildFile` +
+  4 new `PBXFileReference` entries, one pair per new `Sources/Features/`
+  file) — confirms session 2's prediction that `Sources/Features/` files
+  (unlike `Sources/DJ/`/`Sources/Data/`) are individually pbxproj-listed and
+  need a regen. The two `Sources/DJ/` splits earlier in the session needed no
+  pbxproj change (confirmed by `git status` showing no pbxproj diff until the
+  `SourceDetailView` split's `make project` run).
+
+No behavior change was intended or, as far as the full test suite can prove,
+introduced by this session's edits.
+
+### Remaining oversized files (fresh survey after this session)
+
+First-party `Sources/` files still over 400 lines, largest first (excluding
+`Tests/`/`UIRegressionTests/`/`WatchApp/`, which are out of this initiative's
+first-party-app scope... actually `WatchApp/WatchPlayer.swift` at 737 lines
+IS first-party watch-app code and belongs on a future list — flagged here,
+not yet investigated for which target/scheme covers it):
+
+| File | Lines |
+|---|---|
+| `WatchApp/WatchPlayer.swift` | 737 (not yet triaged — which scheme covers it) |
+| `Sources/DJ/Features/Playlist/PlaylistBriefView.swift` | 660 |
+| `Sources/DJ/Features/Playlist/PlaylistResultView.swift` | 641 |
+| `Sources/DJ/Playlist/PlaylistSequencer.swift` | 612 |
+| `Sources/Domain/SmartPlaylist.swift` | 595 |
+| `Sources/Data/Schema.swift` | 581 |
+| `Sources/DJ/Features/Playlist/AutoPlaylistModel.swift` | 569 |
+| `Sources/Features/Settings/SettingsView.swift` | 565 |
+| `Sources/DJ/Data/GigCrateRepository.swift` | 559 |
+| `Sources/DJ/Features/Workspace/BankDrawer.swift` | 540 |
+| `Sources/WatchCore/Sync/WatchConnectivityCoordinator.swift` | 536 |
+| `Sources/Features/Ingest/AddServerSheet.swift` | 532 |
+| `Sources/WatchSync/PhoneWatchDownloadManager.swift` | 526 |
+| `Sources/DJ/Features/Prep/TrackPrepView.swift` | 514 |
+| `Sources/Discovery/SearchService.swift` | 493 |
+| `Sources/Data/DiscoveryRecords.swift` | 485 |
+
+(plus dozens more between 400–480 lines — re-run the survey command for the
+authoritative full list, it shifts every session.)
+
+### Recommended next slice
+
+1. `Sources/DJ/Features/Playlist/PlaylistBriefView.swift` (660) and
+   `Sources/DJ/Features/Playlist/PlaylistResultView.swift` (641) are SwiftUI
+   views under `Sources/DJ/Features/` — part of the `TonearmDJ` SwiftPM
+   target (confirmed this session for `PlaylistGenerator.swift`'s directory;
+   verify the `Features/` subdirectory is included too, don't assume), so
+   `swift build` should be sufficient per-file, same as this session's DJ
+   splits — but double-check, since these are SwiftUI view files (extracted
+   subviews are the natural seam, same convention as sessions 1/2's
+   `WorkspaceView`/`SoloDeckView`/`TwinDeckView` splits) rather than a model
+   actor/flat record file.
+2. `Sources/DJ/Playlist/PlaylistSequencer.swift` (612) and
+   `Sources/DJ/Data/GigCrateRepository.swift` (559) are also `TonearmDJ` —
+   same treatment.
+3. `Sources/Domain/SmartPlaylist.swift` (595) and `Sources/Data/Schema.swift`
+   (581) are under `TonearmCore`'s `sources:` list (per session 2) — same
+   `swift build`-is-sufficient treatment.
+4. `Sources/Features/Settings/SettingsView.swift` (565) and
+   `Sources/Features/Ingest/AddServerSheet.swift` (532) are `Sources/Features/`
+   — genuinely Xcode-only, confirmed again this session — every split
+   touching them needs the full `xcodebuild build -scheme Tonearm`
+   mid-session check, and (per this session's finding) will very likely also
+   need a `make project` run since `Sources/Features/` files are individually
+   pbxproj-listed.
+5. `WatchApp/WatchPlayer.swift` (737) has not been triaged yet — determine
+   which scheme/target covers it (it's outside `Sources/`, in the separate
+   `WatchApp/` tree) before assuming either `swift build` or `xcodebuild
+   -scheme Tonearm` actually compiles it; it may need its own
+   `xcodebuild -scheme <WatchApp scheme>` check.
+6. Watch for the recurring bug class one more time: any `@State`/stored
+   property or method used ONLY by an extension file (never by the core file
+   itself) is easy to miss when skimming the core file for what needs
+   widening — this session's `SourceDetailView` split hit exactly that trap
+   for `showRename`/`renameText`/`showCredentialEdit`/`stats`/
+   `isLoadingStats`/`statsError`. Trust the compiler error, not a visual scan.
+7. If two sessions might work on `parso-tonearm` concurrently, prefer
+   `isolation: worktree` (per session 2's recommendation, still unapplied).
+8. Once Tonearm is done, the same initiative applies to Voxglass (a separate,
+   later phase per the owner).

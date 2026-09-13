@@ -14,6 +14,7 @@
 		09BA5404F865447289CD7A3D /* WatchPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37E434F82159D7C687895D77 /* WatchPlayer.swift */; };
 		0BAE4D620A0105E3C4FC19BA /* AddMenuSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA48CEED5AEAFB50D5AB50F /* AddMenuSheet.swift */; };
 		119AD3D18F0B08781AC9D8BF /* WatchSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D8C93371A2722B5AF136A2 /* WatchSearchView.swift */; };
+		146E33BC89812886E6BA29EF /* SourceDetailView+ManagementSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89AA0A45EA728BFDB5858390 /* SourceDetailView+ManagementSection.swift */; };
 		1478A167A7B83B1158DA49A8 /* CLAPTextEncoder.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 337A303240BEF94DD0F0C34B /* CLAPTextEncoder.mlpackage */; settings = {ASSET_TAGS = ("clap-text", ); }; };
 		152F9F90A86DAD934384AA5E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FFBC2DE0A6436C4A1A80014C /* Assets.xcassets */; };
 		15D68A714F1A586F779133FE /* AVPlayerOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9270E7191F0C56C47CA68AEF /* AVPlayerOutput.swift */; };
@@ -47,9 +48,11 @@
 		454FB64833CD47C43EB2FF38 /* PlaylistRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738E22304AC5FEF3B6449D27 /* PlaylistRegressionUITests.swift */; };
 		464C5B08FAAF1036A497892B /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0974BD26C3A62104181966A /* WatchRootView.swift */; };
 		471860B6E4026ABBD21B2A33 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BD8625177C1F1696B158A63 /* Components.swift */; };
+		4A74E01C056E4544258DDB9A /* RemoteNodeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807F6AF04290951989A6C983 /* RemoteNodeRow.swift */; };
 		4F556962AF663ABF80303696 /* AdaptiveGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4497CDA730FA46494E531667 /* AdaptiveGlass.swift */; };
 		4FAC5A9709F7937D3BFBA535 /* WatchDefaultsSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAC8912A647F968F6B1973EE /* WatchDefaultsSyncStateStore.swift */; };
 		51D544641455737BB88B7B8F /* AppState+Watch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 642414839821D38BCEA39933 /* AppState+Watch.swift */; };
+		53622ED77DF628B5D0B06B29 /* SourceDetailView+Remote.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC7A21C58025194C07411493 /* SourceDetailView+Remote.swift */; };
 		5441C555034D686043CFEE90 /* WatchProtocolSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C1C58F472E8351D8A722A1B /* WatchProtocolSessionAdapter.swift */; };
 		549A1230D744E47360C31C8A /* WatchConnectionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FA71918C2C0556DD804C456 /* WatchConnectionBanner.swift */; };
 		55344DAAB8AAC8239D613381 /* AirPlayButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C72A4A2127018D6E48638F2 /* AirPlayButton.swift */; };
@@ -103,6 +106,7 @@
 		A874CDAAE6139A6C31115E30 /* WatchFixtureSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */; };
 		ACADB9883B99AE686E0CD3AE /* DJMixRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F53F18142069FEFFAA2E2EF /* DJMixRegressionUITests.swift */; };
 		AD8AF503F7EE66FABFD99B86 /* TonearmShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AD9B06C812D8117166D0FB4F /* RemoteArtworkImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACD90D09A8CB12D233707F2 /* RemoteArtworkImageView.swift */; };
 		AEF4981A074AAE935043A8D0 /* WatchPlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30488D91649319F8F2EFA5EF /* WatchPlaybackCoordinator.swift */; };
 		AF7E4C4D3F359E4A5E3D3CE1 /* WatchRemotePlaybackObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BBEF9271A1D0067EAC63C90 /* WatchRemotePlaybackObserver.swift */; };
 		B05161851F3AEADE6DD18515 /* RemoteConnectorGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22000483380D73EC6205A4B9 /* RemoteConnectorGuideView.swift */; };
@@ -301,9 +305,11 @@
 		799F8E8C5C1DBA3A543B600B /* vocab.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = vocab.json; sourceTree = "<group>"; };
 		7B211FE6148A113FA2A0BDB7 /* WatchConnectivityObservers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityObservers.swift; sourceTree = "<group>"; };
 		7C72A4A2127018D6E48638F2 /* AirPlayButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPlayButton.swift; sourceTree = "<group>"; };
+		807F6AF04290951989A6C983 /* RemoteNodeRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteNodeRow.swift; sourceTree = "<group>"; };
 		80B6D0A4B5EC7E9F6FD662D7 /* AppState+Downloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+Downloads.swift"; sourceTree = "<group>"; };
 		8386CD93C2E826E9FE11D810 /* NowPlayingRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingRegressionUITests.swift; sourceTree = "<group>"; };
 		841673E58AB857F3F5C1B063 /* ProToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProToolsView.swift; sourceTree = "<group>"; };
+		89AA0A45EA728BFDB5858390 /* SourceDetailView+ManagementSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SourceDetailView+ManagementSection.swift"; sourceTree = "<group>"; };
 		8B48E8BCEBBB60820A867070 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		8BBEF9271A1D0067EAC63C90 /* WatchRemotePlaybackObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRemotePlaybackObserver.swift; sourceTree = "<group>"; };
 		8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TonearmWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -320,6 +326,7 @@
 		A89542BA6FB2BE8E1579D735 /* TonearmUIRegressionTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TonearmUIRegressionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A96CA438842FCA6E4E863EB7 /* AppState+SourceArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+SourceArtwork.swift"; sourceTree = "<group>"; };
 		AAC8912A647F968F6B1973EE /* WatchDefaultsSyncStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchDefaultsSyncStateStore.swift; sourceTree = "<group>"; };
+		AACD90D09A8CB12D233707F2 /* RemoteArtworkImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteArtworkImageView.swift; sourceTree = "<group>"; };
 		AE86C3C1F56FA212DBB6D8F0 /* ArtworkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkStore.swift; sourceTree = "<group>"; };
 		AE88E0E38F38D3267A0EBF38 /* Tonearm.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.entitlements; sourceTree = "<group>"; };
 		AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WidgetArtworkStore+Save.swift"; sourceTree = "<group>"; };
@@ -346,6 +353,7 @@
 		D198A526169E0BB94CA5DC01 /* RemoteLibraryRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteLibraryRegressionUITests.swift; sourceTree = "<group>"; };
 		D80C464F1FF08824183F765F /* PlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsView.swift; sourceTree = "<group>"; };
 		D8EF07C6B5FA9C069F8ADDEC /* AppState+Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+Onboarding.swift"; sourceTree = "<group>"; };
+		DC7A21C58025194C07411493 /* SourceDetailView+Remote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SourceDetailView+Remote.swift"; sourceTree = "<group>"; };
 		E08FD7930B1AABFA3C2825E0 /* SourcesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcesView.swift; sourceTree = "<group>"; };
 		E23D54D7D96BBFF33E8A3158 /* DJLiveMixRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJLiveMixRegressionUITests.swift; sourceTree = "<group>"; };
 		E38162EF6D932D8762B6D123 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -612,7 +620,11 @@
 			children = (
 				C1A2D9AEA288319B031257A7 /* AddRemoteTracksSheet.swift */,
 				F050FDF819A0D40258D11F51 /* JamendoBrowseView.swift */,
+				AACD90D09A8CB12D233707F2 /* RemoteArtworkImageView.swift */,
+				807F6AF04290951989A6C983 /* RemoteNodeRow.swift */,
 				9894FCBA2B17EE64A57067E8 /* SourceDetailView.swift */,
+				89AA0A45EA728BFDB5858390 /* SourceDetailView+ManagementSection.swift */,
+				DC7A21C58025194C07411493 /* SourceDetailView+Remote.swift */,
 				E08FD7930B1AABFA3C2825E0 /* SourcesView.swift */,
 			);
 			path = Sources;
@@ -1167,9 +1179,13 @@
 				7155FE7BF0A91F242A4A2F25 /* PlaylistsView.swift in Sources */,
 				E15A8628673977ECC56099DB /* ProPaywallView.swift in Sources */,
 				1B9340D6FCB8EAFED2391F06 /* ProToolsView.swift in Sources */,
+				AD9B06C812D8117166D0FB4F /* RemoteArtworkImageView.swift in Sources */,
 				B05161851F3AEADE6DD18515 /* RemoteConnectorGuideView.swift in Sources */,
+				4A74E01C056E4544258DDB9A /* RemoteNodeRow.swift in Sources */,
 				9E573BB60815F1EB9B85148D /* RootView.swift in Sources */,
 				EA61DA978312F3700904DED7 /* SettingsView.swift in Sources */,
+				146E33BC89812886E6BA29EF /* SourceDetailView+ManagementSection.swift in Sources */,
+				53622ED77DF628B5D0B06B29 /* SourceDetailView+Remote.swift in Sources */,
 				B72DE992BD62735CB370A71F /* SourceDetailView.swift in Sources */,
 				C5E4A0FDE163504E89491B31 /* SourcesView.swift in Sources */,
 				203E3F04A4D7C7663CDB3FC0 /* SupportDevelopmentCard.swift in Sources */,
