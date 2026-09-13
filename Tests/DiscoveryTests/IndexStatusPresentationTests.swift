@@ -226,4 +226,71 @@ final class IndexStatusPresentationTests: XCTestCase {
         XCTAssertTrue(text.contains("1.2.3 (456)"))
     }
 }
+
+/// `ModelDownloadProgress.aggregate(_:)` turns the live
+/// `NSBundleResourceRequest.progress` objects (Xcode-only,
+/// `Sources/App/DiscoveryModelResources.swift`, not reachable from
+/// `swift test`) into `RequestSample` values first specifically so this
+/// byte-math has a real regression test — the previous version of this
+/// logic lived entirely in that untestable file and shipped a bug that
+/// only a real device could surface.
+final class ModelDownloadProgressAggregateTests: XCTestCase {
+    private typealias Sample = ModelDownloadProgress.RequestSample
+
+    /// The exact real-world report this regression test is for: "0%, then
+    /// 50%, then 'Downloading the sound-search model...' with no progress
+    /// update ever again." The `clap-audio` tag (~137 MB) finishes while
+    /// `clap-text` (a few KB) hasn't reported a byte count yet — the old
+    /// `aggregate` required at least one sample to still be `!isFinished`
+    /// before returning anything, so this combination (one finished, one
+    /// not-yet-started) satisfied neither branch and silently produced
+    /// `nil`, regressing the status surface from a real percentage back to
+    /// a bare "Downloading…" for as long as the second tag took to start.
+    func testFinishedTagStillCountsWhileTheOtherHasNotStartedYet() {
+        let audioFinished = Sample(
+            completedBytes: 137 * 1_048_576, totalBytes: 137 * 1_048_576, isFinished: true)
+        let textNotStarted = Sample(completedBytes: 0, totalBytes: 0, isFinished: false)
+
+        let result = ModelDownloadProgress.aggregate([audioFinished, textNotStarted])
+
+        XCTAssertNotNil(result, "a finished tag's bytes must not disappear from the total")
+        XCTAssertEqual(result?.completedBytes, 137 * 1_048_576)
+        XCTAssertEqual(result?.totalBytes, 137 * 1_048_576)
+    }
+
+    /// Once the second tag starts reporting its own (small) total, it joins
+    /// the running total rather than replacing it.
+    func testBothTagsSumOnceTheSecondOneStarts() {
+        let audioFinished = Sample(
+            completedBytes: 137 * 1_048_576, totalBytes: 137 * 1_048_576, isFinished: true)
+        let textInProgress = Sample(
+            completedBytes: 1 * 1_048_576, totalBytes: 4 * 1_048_576, isFinished: false)
+
+        let result = ModelDownloadProgress.aggregate([audioFinished, textInProgress])
+
+        XCTAssertEqual(result?.completedBytes, 138 * 1_048_576)
+        XCTAssertEqual(result?.totalBytes, 141 * 1_048_576)
+    }
+
+    /// Before either tag has reported a byte count at all (both still
+    /// `totalBytes == 0`), there is nothing real to show — `nil`, never a
+    /// fabricated 0%.
+    func testNilBeforeEitherTagReportsAnyBytes() {
+        let neitherStarted = [Sample(completedBytes: 0, totalBytes: 0, isFinished: false),
+            Sample(completedBytes: 0, totalBytes: 0, isFinished: false)]
+        XCTAssertNil(ModelDownloadProgress.aggregate(neitherStarted))
+    }
+
+    /// Once every tag is finished, both are still summed (100%) — the
+    /// caller (`DiscoveryAssembly.statusSnapshot()`) is what stops asking
+    /// for this once `modelResourceAvailable` is true, not this function.
+    func testBothTagsFinishedStillReportsAFullFraction() {
+        let bothDone = [
+            Sample(completedBytes: 137 * 1_048_576, totalBytes: 137 * 1_048_576, isFinished: true),
+            Sample(completedBytes: 4 * 1_048_576, totalBytes: 4 * 1_048_576, isFinished: true),
+        ]
+        let result = ModelDownloadProgress.aggregate(bothDone)
+        XCTAssertEqual(result?.fractionComplete, 1.0)
+    }
+}
 #endif

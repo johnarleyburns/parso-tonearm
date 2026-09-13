@@ -25,6 +25,54 @@ public struct ModelDownloadProgress: Equatable, Sendable {
         guard totalBytes > 0 else { return nil }
         return min(1, max(0, Double(completedBytes) / Double(totalBytes)))
     }
+
+    /// One `NSBundleResourceRequest`'s reported bytes, as a plain value —
+    /// the seam that makes `aggregate(_:)` testable under `swift test`
+    /// without a real ODR fetch (the request objects themselves live in
+    /// `Sources/App/`, Xcode-only, and can't be constructed in a SwiftPM
+    /// test target).
+    public struct RequestSample: Equatable, Sendable {
+        public var completedBytes: Int64
+        public var totalBytes: Int64
+        public var isFinished: Bool
+
+        public init(completedBytes: Int64, totalBytes: Int64, isFinished: Bool) {
+            self.completedBytes = completedBytes
+            self.totalBytes = totalBytes
+            self.isFinished = isFinished
+        }
+    }
+
+    /// Sums whatever byte counts the ODR system has reported across every
+    /// tag's request, whether or not each individual one has already
+    /// finished. A sample with `totalBytes <= 0` is skipped (that tag hasn't
+    /// started downloading, or the system hasn't reported a length yet) —
+    /// but a *finished* sample is still counted in the sum.
+    ///
+    /// This used to require at least one sample to still be
+    /// `!isFinished` ("in flight") before reporting anything, which was
+    /// wrong: two tags (`clap-audio` ~137 MB, `clap-text` a few KB) resolve
+    /// independently, so it's normal for the audio pack to finish while the
+    /// text pack hasn't even started yet (`totalBytes == 0`). That combination
+    /// made every sample fail the old gate — the finished one because it was
+    /// no longer "in flight", the not-yet-started one because its total was
+    /// zero — so this returned `nil` and the status surface silently
+    /// regressed from a real percentage back to a bare "Downloading…" with
+    /// no numbers, for as long as the second tag took to start (real user
+    /// report: "0%, then 50%, then 'Downloading the sound-search model...'
+    /// with no progress update ever again"). Requiring only `total > 0` (not
+    /// "and still in flight") fixes it: the finished tag's bytes still count
+    /// toward the running total until the *other* tag also reports one.
+    public static func aggregate(_ samples: [RequestSample]) -> ModelDownloadProgress? {
+        var completed: Int64 = 0
+        var total: Int64 = 0
+        for sample in samples where sample.totalBytes > 0 {
+            completed += sample.completedBytes
+            total += sample.totalBytes
+        }
+        guard total > 0 else { return nil }
+        return ModelDownloadProgress(completedBytes: completed, totalBytes: total)
+    }
 }
 
 /// A consistent snapshot of the indexing subsystem's persisted state, gathered

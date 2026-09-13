@@ -116,27 +116,23 @@ final class DiscoveryModelResources: @unchecked Sendable {
         return ModelResourceLocator(searchDirectories: directories).resolve()
     }
 
-    /// Real bytes off `NSBundleResourceRequest.progress` for whichever tag(s)
-    /// are actually still fetching — never a fabricated fraction (CLAUDE.md
-    /// "no silent/magic background work": a `waitingForModel` state with no
-    /// size is indistinguishable from stuck). `nil` before a real download
-    /// has started (the system hasn't reported a byte count yet) or once
-    /// every in-flight request has finished — safe to hand to
-    /// `DiscoveryAssembly`'s `@Sendable () -> ModelDownloadProgress?`
-    /// provider.
+    /// Real bytes off `NSBundleResourceRequest.progress` for both tags —
+    /// never a fabricated fraction (CLAUDE.md "no silent/magic background
+    /// work": a `waitingForModel` state with no size is indistinguishable
+    /// from stuck). `nil` only before either tag has reported any byte
+    /// count at all. The actual summing happens in
+    /// `ModelDownloadProgress.aggregate(_:)` (`Sources/Discovery/`) — kept
+    /// out of this Xcode-only file specifically so it's covered by
+    /// `swift test`; this method's only job is turning the two live
+    /// `NSBundleResourceRequest.progress` objects into plain samples.
     func currentDownloadProgress() -> ModelDownloadProgress? {
-        var completed: Int64 = 0
-        var total: Int64 = 0
-        var anyInFlight = false
-        for request in [audioRequest, textRequest] {
-            let progress = request.progress
-            guard progress.totalUnitCount > 0 else { continue }
-            completed += progress.completedUnitCount
-            total += progress.totalUnitCount
-            if !progress.isFinished { anyInFlight = true }
-        }
-        guard total > 0, anyInFlight else { return nil }
-        return ModelDownloadProgress(completedBytes: completed, totalBytes: total)
+        ModelDownloadProgress.aggregate(
+            [audioRequest, textRequest].map {
+                ModelDownloadProgress.RequestSample(
+                    completedBytes: $0.progress.completedUnitCount,
+                    totalBytes: $0.progress.totalUnitCount,
+                    isFinished: $0.progress.isFinished)
+            })
     }
 }
 #endif
