@@ -581,3 +581,311 @@ authoritative full list, it shifts every session.)
    `isolation: worktree` (per session 2's recommendation, still unapplied).
 8. Once Tonearm is done, the same initiative applies to Voxglass (a separate,
    later phase per the owner).
+
+## Session 4 (2026-09-12/13)
+
+### Start-of-session checks
+
+`git remote -v`/`git status` confirmed a clean tree at `f526ba7` (session 3's
+commit). Read `STATUS.md` in full, especially sessions 2/3's directory-target
+findings (`Sources/DJ/`, `Sources/Domain/`, `Sources/Data/` are all
+SwiftPM-covered targets/`TonearmCore` sources — `swift build` is a real
+compile check; `Sources/Features/`/`Sources/App/`/`Sources/DesignSystem/`/
+`Sources/Media/` remain genuinely Xcode-only). `swift build` (PASS), `swift
+build --build-tests` (PASS), and `swift test --filter TonearmDiscoveryTests`
+(199/199, matching session 3's ending count exactly) all passed before any
+edits.
+
+Re-ran the survey command; it confirmed session 3's recommended next batch
+was still current: `PlaylistBriefView.swift` (660), `PlaylistResultView.swift`
+(641), `PlaylistSequencer.swift` (612), `GigCrateRepository.swift` (559, all
+`TonearmDJ`), plus `SmartPlaylist.swift` (595) and `Schema.swift` (581, both
+`TonearmCore` `sources:`-listed). Worked all six — the full list session 3
+handed off, none dropped for time.
+
+### Splits made this session
+
+**`Sources/DJ/Features/Playlist/PlaylistBriefView.swift`** 660 → **196**
+lines. A SwiftUI form view; extracted by section, matching the
+`WorkspaceView`/`SoloDeckView` subview-per-file convention from sessions 1-2:
+- `PlaylistBriefView+ArcPicker.swift` (152) — the energy-arc picker section
+  (`arcPicker`/`ArcPreset`/`arcCard`/`arcParameterControls`/`controlSlider`
+  and the arc-binding computed properties).
+- `PlaylistBriefView+LengthAndConstraints.swift` (110) — the length and
+  constraints cards.
+- `PlaylistBriefView+Seed.swift` (72) — the "start from" seed-track card and
+  picker sheet.
+- `ArcShape.swift` (28), `DrawArcView.swift` (73), `FlowLayout.swift` (47) —
+  three free-standing types that were previously defined below
+  `PlaylistBriefView` in the same file, each given its own file (the
+  `ArcPreset` nested type moved into the ArcPicker extension file instead,
+  since it is only used there).
+
+Same recurring bug class as every prior session: `@StateObject private var
+model`, `@State private var showSeedPicker`, and `@State private var
+seedSearch` are read from the three new extension files — widened to the
+implicit internal access level (dropped `private`). `swift build` caught
+nothing here because the widening was done up front by inspecting every
+section's body before splitting (per the task's standing warning to read
+carefully rather than eyeball it) — the build succeeded on the first attempt.
+
+**`Sources/DJ/Features/Playlist/PlaylistResultView.swift`** 641 → **117**
+lines, split the same way:
+- `PlaylistResultView+ArcCard.swift` (92) — the requested-vs-delivered arc
+  card and the compact chips row.
+- `PlaylistResultView+TrackList.swift` (249) — the track list and both row
+  renderers, the transition-badge scoring (`transitionText`/`wheelSteps`,
+  kept `static` and used from `PlaylistBriefView`'s sibling too... actually
+  only used within this file and `AutoPlaylistModelTests`), and the
+  `TransitionSeverity` enum.
+- `PlaylistResultView+Footer.swift` (108) — the footer, the FR-PLIST-10 blend
+  card, and `savePlaylist()`.
+- `ArcPlotView.swift` (89) — the plotting `Shape`-adjacent view, previously
+  defined below `PlaylistResultView` in the same file.
+
+`sizeClass`, `showSavePlaylistPrompt`, `playlistTitle`, and `showBlendAlert`
+(all `@State`/`@Environment private var` in the original) are read from the
+three new extension files — widened to internal. `showSaveCratePrompt` and
+`crateName` are used only by the header (kept in the core file), so they
+stayed `private`. `swift build` succeeded on the first attempt.
+
+**`Sources/DJ/Playlist/PlaylistSequencer.swift`** 612 → **311** lines. A
+`public enum` extension full of `private static func`s (the type itself is
+declared in `TransitionCost.swift`, not this file) — split by the beam
+search's own step structure (§28A.3):
+- `PlaylistSequencer+BeamSearch.swift` (132) — step 3/4, `seedEntries` and
+  `extend` (kept `headScore` `private` — used only by `seedEntries` in the
+  same file).
+- `PlaylistSequencer+CloseOut.swift` (92) — step 5, `closeOut` (kept
+  `closeOutJDelta` `private` — used only within this file).
+- `PlaylistSequencer+Scoring.swift` (100) — the scoring terms
+  (`arcTerm`/`semanticTerm`/`durationTerm`) and the spacing hard-constraints
+  (`spacingOK`/`validateSpacing` (public)/`spacingAfterSwap`).
+
+The core file kept `sequence(candidates:brief:seed:)` itself,
+the domain types (`PlaylistBrief`/`SequencedSlot`/`SplitMix64`), the
+constants, `nearestEnergies`/`resolvedCount`/`medianDuration`/`buildSlots`
+(each used only within `sequence()`, so kept `private`), `tieBreak`, and the
+`BeamEntry` struct. `tieBreak` and `BeamEntry` are used from all three new
+files (`seedEntries`/`extend`/`closeOut` and their `BeamEntry` return/
+parameter types) — widened from `private` to internal (`BeamEntry` from
+`private struct` to plain `struct`). Every scoring/spacing function called
+from `PlaylistSequencer+BeamSearch.swift` or `+CloseOut.swift` but defined in
+`+Scoring.swift` was similarly widened: `arcError(_:slot:count:arc:)`,
+`arcTerm`, `semanticTerm`, `durationTerm`, `spacingOK`, `spacingAfterSwap`.
+`swift build` succeeded on the first attempt — all the widening was done up
+front from reading the whole file's call graph before splitting.
+`swift test --filter SequencerTests` (12/12, including the deterministic
+30k-candidate beam benchmark) confirmed no behavior change.
+
+**`Sources/DJ/Data/GigCrateRepository.swift`** 559 → **151** lines. A
+`public struct` (not an actor) with GRDB records, read models, and a flat
+repository method list — split by the file's own existing `// MARK:`
+sections:
+- `GigCrateRecords.swift` (87) — the `GigCrate`/`GigCrateStemsState`/
+  `GigCrateTrack` GRDB records.
+- `GigCrateReadModels.swift` (130) — `GigCrateRow`/`GigCrateTrackRow`/
+  `GigCrateDetail`.
+- `GigCrateRepository+Mutations.swift` (60) — `markPerformed`/
+  `setStemsState`/`setAudioCached`/`refreshAudioCached`.
+- `GigCrateRepository+ReadHelpers.swift` (156) — `fetchCrateRows`/
+  `fetchTrackRows`/`isAudioCached`/the private `analyzedCount`/
+  `resolveAudioURL` helpers.
+
+The core file kept `GigCrateError`, the struct's `pool`/`library` properties
+and `init`, and the public `promote`/`crates`/`detail`/`trackRows`/
+`tracksNeedingStems(Count)`/`cratesByLRU`/`evictableCrates` methods. Real
+widening needed: `fetchCrateRows`, `fetchTrackRows`, and `isAudioCached` were
+`private func` in the original but are called from `promote`/`crates`/
+`detail`/`cratesByLRU` (core file) and `refreshAudioCached`
+(`+Mutations.swift`) — all different files now, so all three widened from
+`private` to internal. `analyzedCount` and `resolveAudioURL` are used only
+within `+ReadHelpers.swift` itself, so they stayed `private`. `swift build`
+succeeded on the first attempt (the widening was done up front, same
+approach as the other files this session). `swift test --filter
+"GigCrateTests|GigCrateModelTests"` (13/13) confirmed no behavior change.
+
+**`Sources/Domain/SmartPlaylist.swift`** 595 → **124** lines (confirmed this
+session: `Sources/Domain/` is in `TonearmCore`'s `sources:` list, so `swift
+build` is a real compile check, same treatment as `Sources/Audio/`/
+`Sources/Data/` in prior sessions). A flat file of several independent,
+self-contained types with **no shared private state across the split** (each
+type's own `private` helpers are used only within that type's own
+declaration) — split by type:
+- `SmartPlaylistRuleGroup.swift` (54) — `SmartPlaylistRuleGroup`/
+  `SmartPlaylistConjunction`/`SmartPlaylistPredicate`.
+- `SmartPlaylistRule.swift` (183) — `SmartPlaylistRule`/
+  `SmartPlaylistOperator`.
+- `SmartPlaylistField.swift` (162) — `SmartPlaylistValue`/
+  `SmartPlaylistField`/`SmartPlaylistFieldKind`, plus the private
+  `String.nilIfBlank` extension (moved here since `SmartPlaylistField.value
+  (in:)`, its only caller, moved here too).
+- `SmartPlaylistQuery.swift` (86) — `SmartPlaylistQuery`/
+  `SmartPlaylistFieldSQL`/`SmartPlaylistFieldValue`/`SmartPlaylistSQLBuilder`.
+
+The core file kept the `SmartPlaylist` struct itself and its nested `Sort`
+type. No access-level changes were needed anywhere in this split — the
+first file this initiative has split with zero widening required. `swift
+build` succeeded on the first attempt. `swift test --filter
+SmartPlaylistTests` (7/7) confirmed no behavior change.
+
+**`Sources/Data/Schema.swift`** 581 → **36** lines (confirmed this session:
+`Sources/Data/` is in `TonearmCore`'s `sources:` list). One `public enum`
+whose `migrator(upTo:)` function inlined all 21 `registerMigration` calls in
+a single body — split by migration-version range into three new files, each
+holding a `static func register<range>(_ migrator: inout DatabaseMigrator,
+upTo target: String?)` that the core file's `migrator(upTo:)` now calls in
+sequence:
+- `Schema+MigrationsV1toV7.swift` (193) — v1-v7.
+- `Schema+MigrationsV8toV14.swift` (263) — v8-v14, plus the `fileprivate
+  quotedIdentifier(_:)` helper (used only by v9, which lives in this file).
+- `Schema+MigrationsV15toV21.swift` (123) — v15-v21.
+
+`shouldRegister(_:upTo:)` (originally `private static func`) is called from
+all three new files — widened to the implicit internal access level (the
+`migrationOrder` array it reads was already non-private-adjacent since it is
+declared `static let`, not `private static let`, in the original — actually
+it *was* `private static let migrationOrder`; also widened to internal since
+`shouldRegister` in the split files needs to read it and Swift's `private`
+would otherwise scope it to the old single file). `DatabaseMigrator` is a
+value type, so each `register<range>` takes it `inout`. `swift build`
+succeeded on the first attempt (all three widenings identified up front by
+reading `migrator(upTo:)`'s full body before splitting). `swift test
+--filter "MigrationV14Tests|MigrationV21Tests|MigrationV3Tests|
+DiscoverySchemaMigrationTests|FolderPlaylistMigrationTests"` (20/20) and the
+full-suite run below confirmed no behavior change.
+
+### A note on access-level bugs this session
+
+Unlike sessions 1-3, **no split this session required a follow-up fix** — every
+`private` → internal widening was identified by reading the full file's call
+graph (which private member is referenced from which section being moved to
+which new file) before writing any new file, rather than splitting first and
+letting the compiler find the breaks one at a time. `swift build` passed on
+the first attempt after every one of the six splits. This is not evidence the
+bug class is gone (`SmartPlaylist.swift` had zero cross-file private state to
+begin with, and every other file did need widening, just correctly guessed up
+front) — future sessions should keep verifying incrementally rather than
+trusting a clean first build as proof no widening was missed elsewhere.
+
+### Verification
+
+- `swift build` — PASS, run after every one of the six files (PlaylistBriefView,
+  PlaylistResultView, PlaylistSequencer, GigCrateRepository, SmartPlaylist,
+  Schema), each succeeding on the first attempt.
+- `swift build --build-tests` — PASS, run at session start and again after
+  the Schema split.
+- `swift test --filter SequencerTests` — PASS, 12/12 (includes the
+  deterministic 30k-candidate beam benchmark), run right after the
+  `PlaylistSequencer` split as a file-specific regression check.
+- `swift test --filter "GigCrateTests|GigCrateModelTests"` — PASS, 13/13, run
+  right after the `GigCrateRepository` split.
+- `swift test --filter SmartPlaylistTests` — PASS, 7/7, run right after the
+  `SmartPlaylist` split.
+- `swift test --filter "MigrationV14Tests|MigrationV21Tests|MigrationV3Tests|
+  DiscoverySchemaMigrationTests|FolderPlaylistMigrationTests"` — PASS, 20/20,
+  run right after the `Schema` split.
+- `swift test --filter TonearmDiscoveryTests` — PASS, 199/199, matching the
+  session-start baseline exactly.
+- `swift test --skip PlaylistCrateImporterTests` (full repo) — PASS: **1794**
+  tests, 8 skipped, 0 failures — exactly matching session 3's ending count.
+  This session's own changes add/remove zero tests. `git status` stayed
+  limited to this session's own files throughout (no concurrent session
+  touched this checkout this time, unlike session 2).
+- `scripts/check-ci-guards.sh` — PASS (all 5 guards).
+- `pgrep -fl xcodebuild` — checked immediately before the final invocation;
+  only an unrelated `Cadence` repo's `xcodebuild` was running (a different
+  project entirely, not `parso-tonearm`), so proceeded per the machine rule
+  (only one agent building *this* repo at a time, and never concurrently with
+  `parso-audio-engine`/`parso-voxglass` — an unrelated third repo's build is
+  not a conflict).
+- `xcodebuild build -scheme Tonearm -destination 'generic/platform=iOS
+  Simulator'` — run once at the end (all six of this session's files live
+  under `Sources/DJ/`/`Sources/Domain/`/`Sources/Data/`, all SwiftPM-covered,
+  so no per-file xcodebuild was needed mid-session) — **BUILD SUCCEEDED**.
+- `make project` — NOT RUN: `git status`/`git diff --stat` on
+  `Tonearm.xcodeproj/` showed zero changes after the final `xcodebuild build`,
+  confirming none of this session's new files needed pbxproj registration
+  (they all live under `Sources/DJ/`/`Sources/Domain/`/`Sources/Data/`,
+  consumed as whole SwiftPM package products, unlike session 3's
+  `Sources/Features/` split which did need a regen).
+
+No behavior change was intended or, as far as the full test suite can prove,
+introduced by this session's edits.
+
+### `WatchApp/WatchPlayer.swift` triage (still not investigated)
+
+Not investigated this session either — it remains the one file on the
+survey this initiative has not yet triaged for build coverage. Still
+recommended for whichever future session has budget after the `Sources/`
+list is exhausted.
+
+### Remaining oversized files (fresh survey after this session)
+
+First-party files still over 400 lines (excluding `Tests/`/
+`UIRegressionTests/`, out of this initiative's scope), largest first:
+
+| File | Lines |
+|---|---|
+| `WatchApp/WatchPlayer.swift` | 737 (still not triaged — which scheme covers it) |
+| `Sources/DJ/Features/Playlist/AutoPlaylistModel.swift` | 569 |
+| `Sources/Features/Settings/SettingsView.swift` | 565 |
+| `Sources/DJ/Features/Workspace/BankDrawer.swift` | 540 |
+| `Sources/WatchCore/Sync/WatchConnectivityCoordinator.swift` | 536 |
+| `Sources/Features/Ingest/AddServerSheet.swift` | 532 |
+| `Sources/WatchSync/PhoneWatchDownloadManager.swift` | 526 |
+| `Sources/DJ/Features/Prep/TrackPrepView.swift` | 514 |
+| `Sources/Discovery/SearchService.swift` | 493 |
+| `Sources/Data/DiscoveryRecords.swift` | 485 |
+| `Sources/Features/NowPlaying/NowPlayingView.swift` | 461 |
+| `Sources/DJ/Features/Workspace/DeckLoader.swift` | 461 |
+| `Sources/Remote/Providers/SubsonicAPI.swift` | 457 |
+| `Sources/Features/Discovery/DiscoverySearchView.swift` | 455 |
+| `Sources/DJ/Hardware/MidiMapping.swift` | 453 |
+
+(plus dozens more between 400-450 lines — re-run the survey command for the
+authoritative full list, it shifts every session.)
+
+### Recommended next slice
+
+1. `Sources/DJ/Features/Playlist/AutoPlaylistModel.swift` (569),
+   `Sources/DJ/Features/Workspace/BankDrawer.swift` (540),
+   `Sources/DJ/Features/Prep/TrackPrepView.swift` (514), and
+   `Sources/DJ/Features/Workspace/DeckLoader.swift` (461) are all
+   `TonearmDJ` — `swift build` should be sufficient per-file, same as this
+   session's `TonearmDJ` splits; verify each is genuinely covered rather than
+   assuming (a repeated theme across sessions).
+2. `Sources/Features/Settings/SettingsView.swift` (565) and
+   `Sources/Features/Ingest/AddServerSheet.swift` (532) are `Sources/Features/`
+   — genuinely Xcode-only (confirmed by sessions 2/3) — every split touching
+   them needs the full `xcodebuild build -scheme Tonearm` mid-session check
+   and will very likely need `make project` too (per session 3's finding for
+   that directory).
+3. `Sources/WatchCore/Sync/WatchConnectivityCoordinator.swift` (536) and
+   `Sources/WatchCore/Library/WatchLibraryRepository.swift` (446) are under
+   `TonearmWatchCore`, its own SwiftPM target per `Package.swift` — `swift
+   build` should cover them, but this session did not touch `Sources/
+   WatchCore/` and did not independently verify the target actually compiles
+   cleanly standalone; check before assuming.
+4. `Sources/WatchSync/PhoneWatchDownloadManager.swift` (526) is in
+   `TonearmCore`'s `sources:` list (`Sources/WatchSync`) — same `swift
+   build`-is-sufficient treatment as this session's `Sources/Domain/`/
+   `Sources/Data/` splits.
+5. `Sources/Discovery/SearchService.swift` (493) and `Sources/Discovery/
+   BoundedIndexWorker.swift` (443) are `TonearmDiscovery`, its own SwiftPM
+   target — same treatment.
+6. `WatchApp/WatchPlayer.swift` (737) still needs its build-coverage triage
+   (which scheme/target compiles it) before a future session can plan its
+   split and verification strategy — flagged every session since session 3,
+   still unclaimed.
+7. This session found the access-level bug class avoidable by reading each
+   file's full call graph (which `private` member crosses which new file
+   boundary) before writing any split file, rather than splitting first and
+   fixing compiler errors one at a time — worth continuing, but don't skip
+   the `swift build` check per file on the assumption the upfront read caught
+   everything.
+8. If two sessions might work on `parso-tonearm` concurrently, prefer
+   `isolation: worktree` (recommended since session 2, still unapplied — this
+   session's checkout happened to be uncontended throughout).
+9. Once Tonearm is done, the same initiative applies to Voxglass (a separate,
+   later phase per the owner).

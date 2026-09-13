@@ -88,6 +88,15 @@ extension SplitMix64: RandomNumberGenerator {
 }
 
 // MARK: - Beam search (§28A.3)
+//
+// This file holds the entry point (`sequence(candidates:brief:seed:)`), the
+// domain types above, and the count/duration/tie-break/output helpers. The
+// beam-seed/extend steps live in `PlaylistSequencer+BeamSearch.swift`, the
+// duration close-out in `PlaylistSequencer+CloseOut.swift`, and the scoring
+// terms + spacing constraints in `PlaylistSequencer+Scoring.swift`. Several
+// helpers below (`tieBreak`, the `BeamEntry` type) are used from those other
+// files too, so they are kept at the implicit internal access level rather
+// than `private`.
 
 extension PlaylistSequencer {
 
@@ -227,316 +236,6 @@ extension PlaylistSequencer {
         return result
     }
 
-    // MARK: Step 3 — seed the beam
-
-    private static func seedEntries(candidates: [TrackFeatures], count: Int, brief: PlaylistBrief,
-                                    weights: SequenceWeights, target: Double?,
-                                    median: Double, seed: UInt64) -> [BeamEntry] {
-        let lockedTracks = Set(brief.locks.values)
-        let pool: [TrackFeatures]
-        if let locked = brief.locks[0] {
-            pool = candidates.filter { $0.trackID == locked }
-        } else {
-            pool = candidates.filter { !lockedTracks.contains($0.trackID) }
-        }
-        let seeded = pool.sorted { a, b in
-            let sa = headScore(a, slot: 0, count: count, brief: brief, weights: weights,
-                               target: target, median: median)
-            let sb = headScore(b, slot: 0, count: count, brief: brief, weights: weights,
-                               target: target, median: median)
-            if sa != sb { return sa < sb }
-            return tieBreak(a.trackID, seed: seed) < tieBreak(b.trackID, seed: seed)
-        }
-        return seeded.prefix(beamWidth).map { track in
-            BeamEntry(tracks: [track],
-                      score: headScore(track, slot: 0, count: count, brief: brief,
-                                       weights: weights, target: target, median: median),
-                      totalDuration: track.durationSec)
-        }
-    }
-
-    /// The head-slot score: arc + semantic alone (§28A.3 step 3), plus the
-    /// duration term (it only engages for n = 1, where the head is the whole
-    /// playlist).
-    private static func headScore(_ track: TrackFeatures, slot: Int, count: Int,
-                                  brief: PlaylistBrief, weights: SequenceWeights,
-                                  target: Double?, median: Double) -> Double {
-        arcTerm(track, slot: slot, count: count, brief: brief, weights: weights)
-            + semanticTerm(track, brief: brief, weights: weights)
-            + durationTerm(partialTotal: 0, candidateDuration: track.durationSec,
-                           slot: slot, count: count, target: target, median: median,
-                           weights: weights)
-    }
-
-    // MARK: Step 4 — extend the beam
-
-    private static func extend(beam: [BeamEntry], slot: Int, count: Int,
-                               candidates: [TrackFeatures], brief: PlaylistBrief,
-                               weights: SequenceWeights, arcPool: [TrackFeatures],
-                               byID: [Int64: TrackFeatures], target: Double?,
-                               median: Double, seed: UInt64) -> [BeamEntry] {
-        let lockedTracks = Set(brief.locks.values)
-        let locked = brief.locks[slot]
-        var entries: [BeamEntry] = []
-        var keys: [(score: Double, lastTie: UInt64, secondLastTie: UInt64, index: Int)] = []
-
-        for entry in beam {
-            let used = Set(entry.tracks.map(\.trackID))
-            let tail = entry.tracks[entry.tracks.count - 1]
-
-            // The M best next candidates (§28A.3 step 4), from the arc pool or
-            // (for a locked slot) the locked track alone. Tiny tuple keys keep
-            // the per-partial sort cheap even in unoptimized test builds.
-            let pool = locked.map { lockedTrack in
-                candidates.filter { candidate in
-                    candidate.trackID == lockedTrack
-                        && !used.contains(candidate.trackID)
-                        && spacingOK(candidate, at: slot, in: entry.tracks,
-                                     constraints: brief.constraints)
-                }
-            } ?? arcPool.filter { candidate in
-                !used.contains(candidate.trackID)
-                    && !lockedTracks.contains(candidate.trackID)
-                    && spacingOK(candidate, at: slot, in: entry.tracks,
-                                 constraints: brief.constraints)
-            }
-
-            var best: [(score: Double, tie: UInt64, trackID: Int64)] = []
-            best.reserveCapacity(pool.count)
-            for candidate in pool {
-                let preScore = PlaylistSequencer.transitionCost(tail, candidate, brief.constraints)
-                    + arcError(candidate, slot: slot, count: count, arc: brief.arc)
-                best.append((preScore, tieBreak(candidate.trackID, seed: seed), candidate.trackID))
-            }
-            best.sort { l, r in
-                if l.0 != r.0 { return l.0 < r.0 }
-                return l.1 < r.1
-            }
-
-            for scored in best.prefix(branchingFactor) {
-                guard let candidate = byID[scored.2] else { continue }
-                let arc = arcTerm(candidate, slot: slot, count: count, brief: brief, weights: weights)
-                let semantic = semanticTerm(candidate, brief: brief, weights: weights)
-                let transition = weights.transition
-                    * PlaylistSequencer.transitionCost(tail, candidate, brief.constraints)
-                let duration = durationTerm(partialTotal: entry.totalDuration,
-                                            candidateDuration: candidate.durationSec,
-                                            slot: slot, count: count, target: target,
-                                            median: median, weights: weights)
-                let score = entry.score + arc + semantic + transition + duration
-                var tracks = entry.tracks
-                tracks.append(candidate)
-                entries.append(BeamEntry(tracks: tracks, score: score,
-                                         totalDuration: entry.totalDuration + candidate.durationSec))
-                keys.append((score, tieBreak(candidate.trackID, seed: seed),
-                             tieBreak(tail.trackID, seed: seed), entries.count - 1))
-            }
-        }
-
-        // Keep the best K by score (ties by the seeded PRNG), then the
-        // last-two-tracks diversity guard.
-        keys.sort { l, r in
-            if l.score != r.score { return l.score < r.score }
-            if l.lastTie != r.lastTie { return l.lastTie < r.lastTie }
-            return l.secondLastTie < r.secondLastTie
-        }
-
-        var seenTails: Set<[Int64]> = []
-        var result: [BeamEntry] = []
-        for key in keys {
-            let tracks = entries[key.index].tracks
-            let pair = [tracks[tracks.count - 2].trackID, tracks[tracks.count - 1].trackID]
-            guard seenTails.insert(pair).inserted else { continue }
-            result.append(entries[key.index])
-            if result.count == beamWidth { break }
-        }
-        return result
-    }
-
-    // MARK: Step 5 — duration close-out
-
-    /// If |duration − T| > 5%: repeatedly swap the single track whose
-    /// replacement best closes the gap without raising J by more than ε
-    /// (§28A.3 step 5, iterated to a fixpoint so FR-PLIST-2's ±5% is met).
-    /// Swaps draw from each slot's arc-faithful pool so the ε gate is what
-    /// decides, at a bounded cost even for a 30k-pool benchmark.
-    private static func closeOut(tracks: [TrackFeatures], count: Int, brief: PlaylistBrief,
-                                 arcPools: [[TrackFeatures]], seed: UInt64) -> [TrackFeatures] {
-        guard let target = brief.targetSeconds, target > 0, count > 0 else { return tracks }
-        let lockedTracks = Set(brief.locks.values)
-        var result = tracks
-        var total = tracks.reduce(0) { $0 + $1.durationSec }
-        var iterations = 0
-
-        while abs(total - target) / target > closeOutTolerance && iterations < 24 {
-            iterations += 1
-            let usedIDs = Set(result.map(\.trackID))
-            var best: (slot: Int, track: TrackFeatures, reduction: Double,
-                       jDelta: Double, tie: UInt64)?
-            for slot in 0..<count where brief.locks[slot] == nil {
-                let current = result[slot]
-                for candidate in arcPools[slot] {
-                    guard candidate.trackID != current.trackID,
-                          !lockedTracks.contains(candidate.trackID),
-                          !usedIDs.contains(candidate.trackID) else { continue }
-                    let newTotal = total - current.durationSec + candidate.durationSec
-                    let gapNow = abs(total - target)
-                    let gapNew = abs(newTotal - target)
-                    guard gapNew < gapNow else { continue }
-                    // Only the window around the swap can newly violate spacing,
-                    // so validate locally instead of copying and re-checking the
-                    // whole sequence (§28A.3 step 5 keeps the swap local).
-                    guard spacingAfterSwap(result, replacing: slot, with: candidate,
-                                           constraints: brief.constraints) else { continue }
-                    let jDelta = closeOutJDelta(replacing: slot, with: candidate, in: result,
-                                                count: count, brief: brief)
-                    guard jDelta <= closeOutSlack else { continue }
-                    let candidateEntry = (slot, candidate, gapNow - gapNew, jDelta,
-                                          tieBreak(candidate.trackID, seed: seed))
-                    if let existing = best {
-                        if candidateEntry.2 > existing.2
-                            || (candidateEntry.2 == existing.2 && candidateEntry.3 < existing.3)
-                            || (candidateEntry.2 == existing.2 && candidateEntry.3 == existing.3
-                                && candidateEntry.4 < existing.4) {
-                            best = candidateEntry
-                        }
-                    } else {
-                        best = candidateEntry
-                    }
-                }
-            }
-            guard let chosen = best else { break }
-            let replaced = result[chosen.0]
-            result[chosen.0] = chosen.1
-            total = total - replaced.durationSec + chosen.1.durationSec
-            if abs(total - target) / target <= closeOutTolerance { break }
-        }
-        return result
-    }
-
-    /// The change in the musical part of J (arc + semantic + transition) from
-    /// swapping `candidate` into `slot`. The duration term is deliberately
-    /// excluded: closing the duration gap *is* the objective being optimised.
-    private static func closeOutJDelta(replacing slot: Int, with candidate: TrackFeatures,
-                                       in tracks: [TrackFeatures], count: Int,
-                                       brief: PlaylistBrief) -> Double {
-        let weights = SequenceWeights.default
-        let current = tracks[slot]
-        var delta = arcTerm(candidate, slot: slot, count: count, brief: brief, weights: weights)
-            - arcTerm(current, slot: slot, count: count, brief: brief, weights: weights)
-            + semanticTerm(candidate, brief: brief, weights: weights)
-            - semanticTerm(current, brief: brief, weights: weights)
-        if slot > 0 {
-            let previous = tracks[slot - 1]
-            delta += weights.transition
-                * (PlaylistSequencer.transitionCost(previous, candidate, brief.constraints)
-                   - PlaylistSequencer.transitionCost(previous, current, brief.constraints))
-        }
-        if slot < count - 1 {
-            let next = tracks[slot + 1]
-            delta += weights.transition
-                * (PlaylistSequencer.transitionCost(candidate, next, brief.constraints)
-                   - PlaylistSequencer.transitionCost(current, next, brief.constraints))
-        }
-        return delta
-    }
-
-    // MARK: Scoring terms
-
-    /// arcError over a candidate: missing energy contributes the neutral 0.5.
-    private static func arcError(_ track: TrackFeatures, slot: Int, count: Int,
-                                 arc: EnergyArc) -> Double {
-        guard let energy = track.energy else { return neutral }
-        return arcError(energy: energy, position: slot, count: count, arc: arc)
-    }
-
-    /// The arc term of J. A missing energy contributes the neutral 0.5 (the
-    /// missing-attribute convention): an unanalysed track cannot win on arc
-    /// adherence, but is not catastrophically penalised.
-    private static func arcTerm(_ track: TrackFeatures, slot: Int, count: Int,
-                                brief: PlaylistBrief, weights: SequenceWeights) -> Double {
-        guard let energy = track.energy else { return weights.arc * neutral }
-        return weights.arc * arcError(energy: energy, position: slot, count: count, arc: brief.arc)
-    }
-
-    /// The `w_s · (1 − semanticScore(sᵢ, q))` term of J; missing score → neutral.
-    private static func semanticTerm(_ track: TrackFeatures, brief: PlaylistBrief,
-                                     weights: SequenceWeights) -> Double {
-        let score = brief.semanticScores[track.trackID] ?? neutral
-        return weights.semantic * (1 - score)
-    }
-
-    /// The duration-aware term of step 4: zero until the running total is within
-    /// one track (the median duration) of T, then `w_d · |projected − T| / T`
-    /// where `projected` fills the remaining slots at the median — so pressure
-    /// only appears as the sequence approaches its target, and equals the J
-    /// duration term exactly at the final slot.
-    private static func durationTerm(partialTotal: Double, candidateDuration: Double,
-                                     slot: Int, count: Int, target: Double?, median: Double,
-                                     weights: SequenceWeights) -> Double {
-        guard let target, target > 0, median > 0 else { return 0 }
-        let running = partialTotal + candidateDuration
-        guard abs(running - target) <= median else { return 0 }
-        let remaining = count - (slot + 1)
-        let projected = running + Double(remaining) * median
-        return weights.duration * (abs(projected - target) / target)
-    }
-
-    // MARK: Spacing (hard constraints)
-
-    /// `minArtistGap` / `minAlbumGap` slots between same-artist / same-album
-    /// tracks. Checked over the window before `slot`; mutual (sharing an artist
-    /// with any earlier track in the window is a breach in either direction).
-    private static func spacingOK(_ track: TrackFeatures, at slot: Int,
-                                  in sequence: [TrackFeatures],
-                                  constraints: SequencingConstraints) -> Bool {
-        if constraints.minArtistGap > 0, !track.artistIDs.isEmpty {
-            let start = max(0, slot - constraints.minArtistGap)
-            for i in start..<slot where !sequence[i].artistIDs.isEmpty {
-                let previousArtists = sequence[i].artistIDs
-                if track.artistIDs.contains(where: { previousArtists.contains($0) }) { return false }
-            }
-        }
-        if constraints.minAlbumGap > 0, let album = track.albumID {
-            let start = max(0, slot - constraints.minAlbumGap)
-            for i in start..<slot where sequence[i].albumID == album { return false }
-        }
-        return true
-    }
-
-    /// Public validity check over a whole sequence — the generator's replace and
-    /// reshuffle re-validate after a local change (§28A.4).
-    public static func validateSpacing(_ tracks: [TrackFeatures],
-                                       constraints: SequencingConstraints) -> Bool {
-        for slot in 1..<tracks.count where !spacingOK(tracks[slot], at: slot, in: tracks,
-                                                      constraints: constraints) {
-            return false
-        }
-        return true
-    }
-
-    /// Validate spacing after swapping `replacement` into `slot`. Only the
-    /// candidate and the tracks within one gap window after it can newly
-    /// violate the constraints — everything before `slot` is untouched, and
-    /// `spacingOK` at any `j > slot` looks back through a window that includes
-    /// the changed slot. O(gap), no sequence copy.
-    private static func spacingAfterSwap(_ tracks: [TrackFeatures], replacing slot: Int,
-                                         with replacement: TrackFeatures,
-                                         constraints: SequencingConstraints) -> Bool {
-        var trial = tracks
-        trial[slot] = replacement
-        if !spacingOK(trial[slot], at: slot, in: trial, constraints: constraints) { return false }
-        let maxGap = max(constraints.minArtistGap, constraints.minAlbumGap)
-        let limit = min(trial.count - 1, slot + maxGap)
-        if slot + 1 <= limit {
-            for j in (slot + 1)...limit
-            where !spacingOK(trial[j], at: j, in: trial, constraints: constraints) {
-                return false
-            }
-        }
-        return true
-    }
-
     // MARK: Count and duration helpers
 
     /// Estimate n (§28A.3 step 2): the brief's track count, else `round(T /
@@ -576,7 +275,7 @@ extension PlaylistSequencer {
     /// seeded SplitMix64 PRNG. Order-independent (a function of trackID, not of
     /// array position), so the sequence is byte-identical regardless of how the
     /// candidate set was ordered (NFR-DET-3).
-    private static func tieBreak(_ trackID: Int64, seed: UInt64) -> UInt64 {
+    static func tieBreak(_ trackID: Int64, seed: UInt64) -> UInt64 {
         var rng = SplitMix64(seed: seed &+ UInt64(bitPattern: trackID) &* 0x9E37_79B9_7F4A_7C15)
         return rng.next()
     }
@@ -604,7 +303,7 @@ extension PlaylistSequencer {
 
     // MARK: Internal state
 
-    private struct BeamEntry {
+    struct BeamEntry {
         var tracks: [TrackFeatures]
         var score: Double
         var totalDuration: Double
