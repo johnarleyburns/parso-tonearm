@@ -117,6 +117,12 @@ final class DiscoveryRuntimeController {
         observePlayback()
         await refreshPauseFromStore()
         sampler.setAppState(currentApplicationStateIsBackground() ? .background : .foreground)
+        // Keep Playing (main-library queue continuation) reuses this same
+        // CLAP retrieval engine — wire the real adapter in now that Discovery
+        // is up. Before this runs (and always under `swift test`), the seam
+        // stays `nil` and `AudioPlayer` takes its honest shuffle-continue
+        // fallback instead.
+        AudioPlayer.shared.keepPlayingProvider = KeepPlayingDiscoveryProvider()
 
         let assembly = await makeAssembly()
         do {
@@ -274,6 +280,45 @@ final class DiscoveryRuntimeController {
         startForegroundTickLoop()
     }
 
+    // MARK: - Keep Playing (main-library queue continuation)
+
+    /// The real CLAP nearest-neighbor lookup behind `AudioPlayer`'s
+    /// `KeepPlayingSimilarityProviding` seam: runs the same `SearchService`
+    /// "more like this track" mode (`DiscoverySearchMode.similar`) search
+    /// already used for "More Like This" in Now Playing, against the
+    /// most-recently-played track. Reports `.waitingForModel` /
+    /// `.unavailable` rather than ever silently returning nothing, so
+    /// `AudioPlayer` can fall back honestly and say why (CLAUDE.md
+    /// "no silent/magic background work").
+    func keepPlayingLookup(
+        after recentlyPlayed: [Int64], excluding: Set<Int64>, limit: Int
+    ) async -> KeepPlayingLookup {
+        guard let referenceTrackID = recentlyPlayed.first else { return .unavailable }
+        let assembly = await makeAssembly()
+        let modelAvailable = await assembly.models.isModelResourceAvailable()
+
+        // Over-fetch so filtering out already-queued/history tracks still
+        // leaves up to `limit` real picks.
+        let requestLimit = min(ValidatedQuery.maxLimit, limit + excluding.count + 5)
+        let query = DiscoverySearchQuery(limit: requestLimit)
+        let response = await assembly.search.search(query, referenceTrackID: referenceTrackID)
+
+        switch response.state {
+        case .ready:
+            let ids = response.results.map(\.trackID).filter { !excluding.contains($0) }
+            guard !ids.isEmpty else { return modelAvailable ? .unavailable : .waitingForModel }
+            return .ready(Array(ids.prefix(limit)))
+        case .modelMissing, .modelDownloadFailed:
+            return .waitingForModel
+        default:
+            // .unindexedReference, .zeroIndexed, .noMatches, .emptyLibrary,
+            // .emptyScope, .sourceUnavailable, .searchFailed,
+            // .validationFailed, .cancelled — the model itself is fine, this
+            // reference/scope just has nothing usable right now.
+            return .unavailable
+        }
+    }
+
     // MARK: - Status surface (plan §10, C07)
 
     /// A consistent snapshot of the persisted indexing state for the status
@@ -309,6 +354,21 @@ final class DiscoveryRuntimeController {
 
     private func currentApplicationStateIsBackground() -> Bool {
         UIApplication.shared.applicationState == .background
+    }
+}
+
+/// Adapts `DiscoveryRuntimeController` to `AudioPlayer`'s
+/// `KeepPlayingSimilarityProviding` seam. This indirection exists because
+/// `TonearmCore` (where `AudioPlayer` lives) cannot import `TonearmDiscovery`
+/// directly — that package already depends on `TonearmCore`, so the reverse
+/// import would cycle — while this file, part of the app target, already
+/// depends on both.
+struct KeepPlayingDiscoveryProvider: KeepPlayingSimilarityProviding {
+    func continuationTrackIDs(
+        after recentlyPlayed: [Int64], excluding: Set<Int64>, limit: Int
+    ) async -> KeepPlayingLookup {
+        await DiscoveryRuntimeController.shared.keepPlayingLookup(
+            after: recentlyPlayed, excluding: excluding, limit: limit)
     }
 }
 #endif

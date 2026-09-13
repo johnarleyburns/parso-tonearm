@@ -10,6 +10,7 @@ extension AudioPlayer {
 
     func loadCurrent(autoplay: Bool) {
         guard let row = currentTrack, let asset = row.asset else { return }
+        if let trackId = row.track.id { recordKeepPlayingHistory(trackId) }
 
         if let reason = asset.unsupportedReason {
             _ = reason
@@ -70,6 +71,7 @@ extension AudioPlayer {
         if autoplay, let trackId = row.track.id {
             Task { try? await LibraryStore.shared.recordPlay(trackId: trackId) }
         }
+        maybeExtendKeepPlayingQueue()
     }
 
     /// Builds an `AVPlayerItem` (and its cache loader, if remote) for an asset,

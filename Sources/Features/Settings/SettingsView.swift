@@ -37,6 +37,7 @@ struct SettingsView: View {
 
                 cacheCard
                 behaviorCard
+                keepPlayingCard
                 watchCard
                 toolsCard
                 jamendoCard
@@ -343,6 +344,41 @@ struct SettingsView: View {
             Toggle("", isOn: binding).labelsHidden().tint(Palette.brassDeep)
         }
         .padding(.vertical, 8)
+    }
+
+    /// The Settings-level detail for Keep Playing (CLAUDE.md "let them drill
+    /// down for more info in settings") — the primary discoverable toggle is
+    /// in Now Playing's queue header (`UpNextView.keepPlayingToggle`), not
+    /// here; this just explains how picking works and exposes the batch size.
+    private var keepPlayingCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            settingToggle("Keep Playing",
+                          "When your queue is about to end, keep music playing with similar-sounding tracks",
+                          $appState.keepPlayingEnabled)
+            Divider().overlay(Palette.hairline)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tracks added per extension").font(.system(size: 13.5))
+                    Text("Picked by sound similarity to what you just played, "
+                        + "when the sound index is ready — otherwise shuffled from the same library/playlist")
+                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                }
+                Spacer()
+                Stepper(value: $appState.keepPlayingBatchSize, in: 5...30, step: 5) {
+                    Text("\(appState.keepPlayingBatchSize)").font(.system(size: 13, weight: .semibold))
+                        .monospacedDigit()
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
+            .padding(.vertical, 6)
+            .opacity(appState.keepPlayingEnabled ? 1 : 0.4)
+            .disabled(!appState.keepPlayingEnabled)
+        }
+        .padding(15)
+        .glassSurface(cornerRadius: 18)
+        .onChange(of: appState.keepPlayingEnabled) { _, _ in appState.applySettingsToPlayer() }
+        .onChange(of: appState.keepPlayingBatchSize) { _, _ in appState.applySettingsToPlayer() }
     }
 
     private var clearCard: some View {

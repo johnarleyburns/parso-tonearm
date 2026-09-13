@@ -26,6 +26,51 @@ public final class AudioPlayer: ObservableObject {
         }
     }
     @Published public var repeatMode: RepeatMode = .off
+    /// "Keep Playing" (main-library path only — DJ decks stay fully manual):
+    /// when the manually-built queue is about to run out, extend it with more
+    /// tracks instead of stopping. On by default. Turning it off removes any
+    /// not-yet-played auto-added tail (`removeUnplayedKeepPlayingTracks`).
+    @Published public var keepPlayingEnabled = true {
+        didSet {
+            guard keepPlayingEnabled != oldValue else { return }
+            if !keepPlayingEnabled { removeUnplayedKeepPlayingTracks() }
+        }
+    }
+    /// How many tracks a single Keep Playing extension appends. Exposed so
+    /// Settings can let the user tune it (CLAUDE.md "let them drill down for
+    /// more info in settings").
+    public var keepPlayingBatchSize = 15
+    /// The core track ids of every track Keep Playing has appended to the
+    /// current queue (played or not) — what lets the queue UI mark them as
+    /// "Extended by Keep Playing" instead of a track the user chose.
+    @Published public internal(set) var keepPlayingAutoAddedTrackIDs: Set<Int64> = []
+    /// True when the most recent Keep Playing extension had to fall back to a
+    /// shuffle-continue (the CLAP similarity index wasn't available) rather
+    /// than a real similarity pick — surfaced in the UI per CLAUDE.md
+    /// "no silent/magic background work": a substituted behavior is never
+    /// silent.
+    @Published public internal(set) var keepPlayingLastExtensionWasFallback = false
+    /// Why the last fallback happened, `nil` when the last extension was a
+    /// real similarity pick (or nothing has extended yet this session).
+    @Published public internal(set) var keepPlayingFallbackReason: KeepPlayingFallbackReason?
+    /// The CLAP similarity seam (plan: `SearchService`/`VectorIndex`, C01–C09).
+    /// `TonearmCore` cannot import `TonearmDiscovery` directly — that package
+    /// already depends on `TonearmCore`, so the app wires the real adapter in
+    /// after launch via this seam instead. `nil` (the default, and always the
+    /// case under `swift test`) means Keep Playing always uses the honest
+    /// shuffle-continue fallback.
+    public var keepPlayingProvider: (any KeepPlayingSimilarityProviding)?
+    /// Every track that has actually started playing during the current
+    /// continuous-play session (most recent last), oldest-first. Reset by a
+    /// fresh `play(tracks:startAt:)`. Keep Playing never re-suggests a track
+    /// already in here, and the immediately-preceding entry is the
+    /// "just-played track" it must never repeat.
+    var keepPlayingHistory: [Int64] = []
+    var keepPlayingExtensionInFlight = false
+    /// The queue `index` Keep Playing last attempted an extension from, so a
+    /// second `loadCurrent` for the same index (no queue-shape change) never
+    /// double-fires the lookup.
+    var keepPlayingLastExtensionAttemptIndex: Int?
     @Published public internal(set) var cacheState: CacheGlyphState = .none
     @Published public internal(set) var cachePercent: Int = 0
     @Published public internal(set) var cachedFraction: Double = 0
@@ -160,6 +205,13 @@ public final class AudioPlayer: ObservableObject {
         queueSource = source
         queue = tracks
         index = max(0, min(start, tracks.count - 1))
+        // A manually-started queue begins a fresh Keep Playing session: no
+        // history to avoid repeating, nothing auto-added yet.
+        keepPlayingHistory = []
+        keepPlayingAutoAddedTrackIDs = []
+        keepPlayingLastExtensionAttemptIndex = nil
+        keepPlayingLastExtensionWasFallback = false
+        keepPlayingFallbackReason = nil
         if shuffle { applyShuffle() }
         loadCurrent(autoplay: true)
     }

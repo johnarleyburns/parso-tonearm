@@ -83,6 +83,12 @@ final class AppState: ObservableObject {
     @AppStorage("prefetchDepth") var prefetchDepth = 2
     @AppStorage("artworkLookup") var artworkLookup = true
     @AppStorage("didOnboard") var didOnboard = false
+    /// "Keep Playing" (main-library queue continuation, C01–C09 CLAP reuse):
+    /// on by default. Settings-level detail lives alongside `keepPlayingBatchSize`;
+    /// the primary discoverable toggle is in Now Playing (CLAUDE.md "no silent/
+    /// magic background work" — a settings-only toggle isn't sufficient).
+    @AppStorage("keepPlayingEnabled") var keepPlayingEnabled = true
+    @AppStorage("keepPlayingBatchSize") var keepPlayingBatchSize = 15
 
     // The following are declared here (rather than in AppState+Watch.swift,
     // where they are used) because Swift extensions cannot hold stored
@@ -165,6 +171,8 @@ final class AppState: ObservableObject {
         AudioPlayer.shared.streamOnCellular = streamOnCellular
         AudioPlayer.shared.prefetchDepth = PrefetchDepthPolicy.clamp(prefetchDepth)
         AudioPlayer.shared.preferFLAC = preferFLAC
+        AudioPlayer.shared.keepPlayingEnabled = keepPlayingEnabled
+        AudioPlayer.shared.keepPlayingBatchSize = min(30, max(5, keepPlayingBatchSize))
         let lookup = artworkLookup
         Task { await ArtworkService.shared.setArtworkLookupEnabled(lookup) }
     }

@@ -3,7 +3,16 @@ import TonearmCore
 
 struct UpNextView: View {
     @EnvironmentObject var player: AudioPlayer
+    @EnvironmentObject var appState: AppState
     @State private var editMode: EditMode = .inactive
+
+    /// The first queue offset Keep Playing appended, if any — where the
+    /// "Extended by Keep Playing" marker renders. `nil` when nothing in the
+    /// live queue is auto-added (feature off, nothing extended yet, or the
+    /// auto-added tail was cleared).
+    private var firstAutoAddedOffset: Int? {
+        player.queue.firstIndex { player.keepPlayingAutoAddedTrackIDs.contains($0.id) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -18,6 +27,22 @@ struct UpNextView: View {
                     Text(player.queueSource.label)
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.5))
+                }
+
+                keepPlayingToggle
+
+                if !player.keepPlayingAutoAddedTrackIDs.isEmpty {
+                    Button {
+                        player.removeUnplayedKeepPlayingTracks()
+                    } label: {
+                        Image(systemName: "xmark.circle")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear auto-added tracks")
+                    .accessibilityIdentifier("np.keepPlaying.clearAutoAdded")
                 }
 
                 if !player.isAmbient, player.queue.count > 1 {
@@ -42,10 +67,15 @@ struct UpNextView: View {
             } else {
                 List {
                     ForEach(Array(player.queue.enumerated()), id: \.offset) { offset, row in
-                        QueueRow(row: row,
-                                 position: offset + 1,
-                                 isCurrent: offset == player.index,
-                                 queueIndex: offset)
+                        VStack(alignment: .leading, spacing: 4) {
+                            if offset == firstAutoAddedOffset {
+                                keepPlayingSeparator
+                            }
+                            QueueRow(row: row,
+                                     position: offset + 1,
+                                     isCurrent: offset == player.index,
+                                     queueIndex: offset)
+                        }
                             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                             .listRowBackground(Color.clear)
                             .listRowSeparatorTint(.white.opacity(0.08))
@@ -79,6 +109,67 @@ struct UpNextView: View {
     private var queueListHeight: CGFloat {
         let visibleRows = min(max(player.queue.count, 1), 6)
         return CGFloat(visibleRows) * 52
+    }
+
+    /// The obvious, discoverable Keep Playing control (CLAUDE.md "no silent/
+    /// magic background work" — a settings-only toggle isn't enough): lives
+    /// right in the queue header, next to shuffle/repeat above it. Toggling
+    /// it off also removes any not-yet-played auto-added tail
+    /// (`AudioPlayer.keepPlayingEnabled`'s `didSet`).
+    private var keepPlayingToggle: some View {
+        Button {
+            appState.keepPlayingEnabled.toggle()
+            appState.applySettingsToPlayer()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "infinity").font(.system(size: 11, weight: .semibold))
+                Text("Keep Playing").font(.system(size: 10, weight: .semibold))
+            }
+            .foregroundStyle(player.keepPlayingEnabled ? Palette.brass : .white.opacity(0.5))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(player.keepPlayingEnabled ? Palette.brass.opacity(0.16) : .white.opacity(0.06),
+                        in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(player.isAmbient)
+        .accessibilityLabel("Keep Playing")
+        .accessibilityValue(player.keepPlayingEnabled ? "on" : "off")
+        .accessibilityIdentifier("np.keepPlaying")
+    }
+
+    /// Marks where Keep Playing's auto-added tail begins, distinguishing it
+    /// from tracks the user explicitly queued (CLAUDE.md "no silent/magic
+    /// background work": when it extends the queue, that must be visible).
+    /// When the last extension had to fall back to a shuffle-continue, this
+    /// also says so and why — never a silent substitution.
+    private var keepPlayingSeparator: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Image(systemName: player.keepPlayingLastExtensionWasFallback ? "shuffle" : "waveform")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Extended by Keep Playing")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .textCase(.uppercase)
+                    .kerning(0.3)
+            }
+            if player.keepPlayingLastExtensionWasFallback {
+                Text(keepPlayingFallbackDetail)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+        }
+        .foregroundStyle(Palette.brass.opacity(0.85))
+        .padding(.top, 2)
+    }
+
+    private var keepPlayingFallbackDetail: String {
+        switch player.keepPlayingFallbackReason {
+        case .waitingForModel:
+            return "Shuffled — the sound-search model is still downloading"
+        case .unavailable, nil:
+            return "Shuffled — no sound-search match available for this track"
+        }
     }
 }
 
