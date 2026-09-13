@@ -14,8 +14,12 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
         // Audio-engine unification (parso-audio-engine/docs/UNIFICATION_PLAN.md).
-        // Migration complete; pinned to the tagged 1.0.0 release.
-        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.0.0")
+        // 1.1.0 ships the streaming cache-key fix for Internet Archive
+        // playback (a URL with unencoded punctuation, e.g. a space or
+        // parenthesis, previously hashed to a different cache key than the
+        // one callers computed from the same raw URL, causing eviction/
+        // offline-lookup mismatches — "shows cached, play does nothing").
+        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.1.0")
     ],
     targets: [
         .target(

@@ -37,10 +37,10 @@ packages:
   TonearmCore:
     path: .
   # Audio-engine unification (parso-audio-engine/docs/UNIFICATION_PLAN.md).
-  # Migration complete; pinned to the tagged 1.0.0 release.
+  # 1.1.0 ships the Internet Archive streaming cache-key fix (see Package.swift).
   ParsoAudioEngine:
     url: https://github.com/johnarleyburns/parso-audio-engine.git
-    exactVersion: 1.0.0
+    exactVersion: 1.1.0
 
 settings:
   base:
