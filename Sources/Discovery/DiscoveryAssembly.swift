@@ -30,6 +30,21 @@ public actor DiscoveryAssembly {
     private let snapshotProvider: @Sendable () -> DiscoverySchedulingSnapshot
     private var isDraining = false
 
+    /// The reason the scheduler was last unable to make progress — a real
+    /// `IndexPolicy` gate that tripped either before any job was claimed
+    /// (`.blocked`) or mid-run (`.jobPreempted`), as reported by the most
+    /// recent `drainQueue()` tick. `nil` once a job actually completes or the
+    /// queue is genuinely idle (nothing eligible, not a policy block), so a
+    /// stale reason never lingers once real progress resumes.
+    ///
+    /// This exists so the status surface can tell "stuck on thermal/battery/
+    /// playback/background-grant" apart from "stuck on nothing in
+    /// particular" — a job blocked before being claimed stays `.queued`
+    /// forever (plan §6: most policy gates are scheduler-level, not a
+    /// persisted per-job state), so `IndexJobRepository.coverage` alone
+    /// cannot distinguish real progress from a queue that is silently wedged.
+    public private(set) var lastBlockReason: IndexBlockReason?
+
     public struct LaunchRecovery: Equatable, Sendable {
         public let resetIndexLeases: Int
         public let resetImportJobs: Int
@@ -94,7 +109,8 @@ public actor DiscoveryAssembly {
             isPaused: paused,
             isChargingOnly: chargingOnly,
             modelResourceAvailable: modelAvailable,
-            runtime: runtime)
+            runtime: runtime,
+            schedulerBlockReason: lastBlockReason)
     }
 
     /// "Retry failed" status action (plan §10 action 4). Returns the count of
@@ -142,15 +158,32 @@ public actor DiscoveryAssembly {
         for _ in 0..<maxTicks {
             let outcome = try await scheduler.tick(snapshotProvider: snapshotProvider)
             switch outcome {
-            case .idle, .blocked:
+            case .idle:
+                // Genuinely nothing eligible right now (not a policy block) —
+                // clear any stale reason so the status surface does not keep
+                // blaming a condition that no longer applies.
+                lastBlockReason = nil
+                return completed
+            case .blocked(let reason):
+                lastBlockReason = reason
                 return completed
             case .jobCompleted:
+                lastBlockReason = nil
                 completed += 1
-            case .jobWaiting, .jobFailed, .jobPreempted:
-                // The repository moved the job to a future nextAttemptAt (or
-                // back to queued for a preempt with a policy gate that will
-                // also block the next initial decision); either way the next
-                // tick resolves to .idle/.blocked and we exit.
+            case .jobWaiting, .jobFailed:
+                // A job was actually claimed and run this tick, so whatever
+                // previously blocked the scheduler no longer applies — clear
+                // it rather than leaving a stale reason from an earlier tick.
+                lastBlockReason = nil
+                // The repository moved the job to a future nextAttemptAt;
+                // the next tick resolves to .idle/.blocked and we exit.
+                continue
+            case .jobPreempted(_, let reason):
+                // A policy gate tripped mid-run; the job was released back to
+                // `.queued` untouched. Record the reason — the next tick's
+                // initial decision will very likely re-block on it too — but
+                // keep draining in case a higher-priority job is unaffected.
+                lastBlockReason = reason
                 continue
             }
         }

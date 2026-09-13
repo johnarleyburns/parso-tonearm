@@ -14,6 +14,14 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
     public var modelResourceAvailable: Bool
     public var runtime: DiscoveryRuntime
     public var capturedAt: Date
+    /// The real `IndexPolicy` gate that most recently kept the scheduler from
+    /// claiming/continuing work, or `nil` when nothing is currently blocking
+    /// it. A job blocked before it is ever claimed stays `.queued` (plan §6:
+    /// most policy gates are scheduler-level, not a per-job state), so
+    /// `coverage` alone cannot tell "actively indexing" apart from "wedged
+    /// behind thermal/battery/playback/background-grant, zero progress" —
+    /// this field is what lets the status surface say which one it is.
+    public var schedulerBlockReason: IndexBlockReason?
 
     public init(
         coverage: IndexJobRepository.Coverage,
@@ -21,7 +29,8 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         isChargingOnly: Bool,
         modelResourceAvailable: Bool,
         runtime: DiscoveryRuntime,
-        capturedAt: Date = Date()
+        capturedAt: Date = Date(),
+        schedulerBlockReason: IndexBlockReason? = nil
     ) {
         self.coverage = coverage
         self.isPaused = isPaused
@@ -29,6 +38,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         self.modelResourceAvailable = modelResourceAvailable
         self.runtime = runtime
         self.capturedAt = capturedAt
+        self.schedulerBlockReason = schedulerBlockReason
     }
 }
 
@@ -43,6 +53,11 @@ public enum IndexStatusPhase: String, Equatable, Sendable {
     case paused
     case waitingForModel
     case waiting
+    /// Jobs are queued but the scheduler itself is gated — thermal, battery,
+    /// playback, memory pressure or a missing background-processing grant —
+    /// so, unlike `.indexing`, there is currently zero real progress and a
+    /// specific, real reason to show (never a generic "Indexing…").
+    case blockedByPolicy
     case needsAttention
     case idle
 }
@@ -86,6 +101,15 @@ public struct IndexStatusPresentation: Equatable, Sendable {
         } else if done == total && c.waiting == 0 && c.queuedOrRunning == 0 && c.failed == 0 {
             phase = .upToDate
             detail = "All music is indexed."
+        } else if c.queuedOrRunning > 0, let reason = snapshot.schedulerBlockReason,
+            reason != .userPaused
+        {
+            // Jobs exist and are counted as "queued/running", but the
+            // scheduler itself is gated and has made zero progress against
+            // them — never collapse this into the generic "Indexing…" label
+            // (that label implies real progress is happening).
+            phase = .blockedByPolicy
+            detail = Self.detail(forBlockedBy: reason, chargingOnly: snapshot.isChargingOnly)
         } else if c.queuedOrRunning > 0 {
             phase = .indexing
             detail = "Indexing \(number(c.queuedOrRunning)) track\(c.queuedOrRunning == 1 ? "" : "s")…"
@@ -115,6 +139,32 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             canResume: snapshot.isPaused,
             canRetryFailed: canRetry,
             failedCount: c.failed)
+    }
+
+    /// The user-facing reason text for each real `IndexPolicy` gate (plan
+    /// §10: the status screen must say the actual blocking condition —
+    /// "downloading", "waiting", a specific reason — never a bare "indexing"
+    /// with nothing behind it).
+    private static func detail(forBlockedBy reason: IndexBlockReason, chargingOnly: Bool) -> String {
+        switch reason {
+        case .userPaused:
+            return "Paused. Resume to continue indexing."
+        case .playbackActive:
+            return "Waiting for playback to stop before indexing continues."
+        case .thermalFair, .thermalSerious, .thermalCritical:
+            return "Waiting for the device to cool down before indexing continues."
+        case .memoryWarning:
+            return "Waiting for memory pressure to ease before indexing continues."
+        case .lowBatteryOrLowPowerMode:
+            return "Waiting for more battery, or for Low Power Mode to turn off, "
+                + "before indexing continues."
+        case .chargingOnlyRequired:
+            return chargingOnly
+                ? "Waiting for power. Indexing resumes while charging."
+                : "Waiting for power before background indexing continues."
+        case .backgroundGrantMissing:
+            return "Waiting for background processing time from iOS."
+        }
     }
 
     private static func number(_ value: Int) -> String {

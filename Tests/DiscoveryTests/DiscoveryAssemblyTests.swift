@@ -153,5 +153,79 @@ final class DiscoveryAssemblyTests: XCTestCase {
         let job = try await assembly.jobs.job(trackId: 1, pipelineVersion: 1)
         XCTAssertEqual(job?.state, .queued, "paused leaves the job untouched")
     }
+
+    /// Reproduces the real TestFlight report: a pre-existing library (tracks
+    /// already in `LibraryStore` before Discovery ever ran — exactly an
+    /// app-update scenario, not a fresh import) goes through the real launch
+    /// sequence (`recoverAndReconcileAtLaunch`, then repeated `drainQueue`
+    /// ticks, exactly like `DiscoveryRuntimeController`'s foreground loop),
+    /// but the scheduler is persistently gated by a real `IndexPolicy`
+    /// condition (thermal, here — any of thermalSerious/critical/fair,
+    /// low battery, playback, missing background grant reproduce the same
+    /// thing). Before the fix, `coverage.queuedOrRunning == total` with
+    /// `complete == 0` forever and `lastBlockReason` did not exist, so
+    /// `IndexStatusPresentation` had no way to distinguish this from real
+    /// progress — see `IndexStatusPresentationTests
+    /// .testBlockedSchedulerNeverShownAsGenericIndexing` for the UI half of
+    /// this regression.
+    func testPersistentPolicyBlockLeavesJobsQueuedAndRecordsTheRealReason() async throws {
+        let queue = try makeQueue()
+        let trackCount = 25
+        for _ in 0..<trackCount { _ = try await seedTrack(queue, fileURL: nil, durationSec: nil) }
+
+        // Real-world gate: device thermal state has not been continuously
+        // nominal for the 60s `IndexPolicy.thermalFairRecoverySeconds`
+        // requirement — exactly the state a phone can sit in for minutes if
+        // thermal is flapping right after a big TestFlight install.
+        final class SnapshotBox: @unchecked Sendable {
+            var value: DiscoverySchedulingSnapshot
+            init(_ v: DiscoverySchedulingSnapshot) { value = v }
+        }
+        let box = SnapshotBox(
+            DiscoverySchedulingSnapshot(
+                appState: .foreground, thermalState: .nominal, batteryLevel: 0.9, isCharging: true,
+                isLowPowerModeEnabled: false, isPlaybackActive: false, isUserPaused: false,
+                chargingOnlySetting: false, hasBackgroundProcessingGrant: false,
+                hasMemoryWarning: false, continuousNominalSeconds: 5))
+        let assembly = DiscoveryAssembly(writer: queue, snapshotProvider: { box.value })
+        await assembly.models.injectModelForTesting(DeterministicFakeSemanticModel(spec: spec()))
+
+        let recovery = try await assembly.recoverAndReconcileAtLaunch()
+        XCTAssertEqual(recovery.bootstrappedTracks, trackCount, "every pre-existing track got a job")
+
+        // Simulate several foreground tick-loop passes (the real loop calls
+        // drainQueue every 20s) — none of them should make progress while
+        // the gate holds, and the loop must not lose the reason.
+        for _ in 0..<5 {
+            let completed = try await assembly.drainQueue()
+            XCTAssertEqual(completed, 0)
+        }
+
+        let coverage = try await assembly.jobs.coverage(pipelineVersion: 1)
+        XCTAssertEqual(coverage.total, trackCount)
+        XCTAssertEqual(coverage.complete, 0)
+        XCTAssertEqual(
+            coverage.queuedOrRunning, trackCount,
+            "jobs blocked before being claimed stay .queued — this is what made the old "
+                + "status UI show a generic, unexplained 'Indexing' forever")
+        let reasonAfterBlock = await assembly.lastBlockReason
+        XCTAssertEqual(reasonAfterBlock, .thermalFair)
+
+        let snapshot = try await assembly.statusSnapshot()
+        XCTAssertEqual(snapshot.schedulerBlockReason, .thermalFair)
+
+        // Once the real condition clears, the scheduler is unblocked and the
+        // stale reason must not survive — even though these particular jobs
+        // (no local audio asset seeded) will simply move on to a different
+        // wait state rather than completing.
+        box.value = DiscoverySchedulingSnapshot(
+            appState: .foreground, thermalState: .nominal, batteryLevel: 0.9, isCharging: true,
+            isLowPowerModeEnabled: false, isPlaybackActive: false, isUserPaused: false,
+            chargingOnlySetting: false, hasBackgroundProcessingGrant: false,
+            hasMemoryWarning: false, continuousNominalSeconds: 120)
+        _ = try await assembly.drainQueue()
+        let reasonAfterRecovery = await assembly.lastBlockReason
+        XCTAssertNil(reasonAfterRecovery, "a resolved gate must not leave a stale reason behind")
+    }
 }
 #endif

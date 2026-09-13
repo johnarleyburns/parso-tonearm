@@ -19,12 +19,14 @@ final class IndexStatusPresentationTests: XCTestCase {
     private func snapshot(
         _ coverage: IndexJobRepository.Coverage,
         paused: Bool = false, chargingOnly: Bool = false, modelAvailable: Bool = true,
-        runtime: DiscoveryRuntime = DiscoveryRuntime(id: 1)
+        runtime: DiscoveryRuntime = DiscoveryRuntime(id: 1),
+        blockReason: IndexBlockReason? = nil
     ) -> IndexStatusSnapshot {
         IndexStatusSnapshot(
             coverage: coverage, isPaused: paused, isChargingOnly: chargingOnly,
             modelResourceAvailable: modelAvailable, runtime: runtime,
-            capturedAt: Date(timeIntervalSince1970: 1_700_000_000))
+            capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            schedulerBlockReason: blockReason)
     }
 
     func testEmptyLibrary() {
@@ -93,6 +95,62 @@ final class IndexStatusPresentationTests: XCTestCase {
             from: snapshot(coverage(total: 100, complete: 50, queuedOrRunning: 45, failed: 5)))
         XCTAssertEqual(p.phase, .indexing)
         XCTAssertTrue(p.canRetryFailed)
+    }
+
+    /// The regression this fix is for: real user report was "Sound Index
+    /// says 0/2364 tracks... after 5+ minutes, not a single track has been
+    /// indexed... [status screen] just says indexing, nothing about
+    /// downloading, waiting, no progress ever evident." Before the fix,
+    /// `schedulerBlockReason` did not exist and this exact
+    /// coverage (all jobs queued, zero complete) produced `.indexing` with a
+    /// generic "Indexing N tracks…" detail no matter what was actually
+    /// blocking the scheduler underneath.
+    func testBlockedSchedulerNeverShownAsGenericIndexing() {
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 2364, complete: 0, queuedOrRunning: 2364),
+                blockReason: .thermalFair))
+        XCTAssertEqual(p.phase, .blockedByPolicy)
+        XCTAssertNotEqual(p.phase, .indexing)
+        XCTAssertFalse(
+            p.detail.lowercased().hasPrefix("indexing"),
+            "must surface the real reason, not the generic indexing label")
+        XCTAssertTrue(p.detail.lowercased().contains("cool down"))
+        // The headline (raw counts) is unaffected — only `detail`/`phase`
+        // change; "0 / 2,364" must still read exactly as reported.
+        XCTAssertEqual(p.headline, "Sound index: 0 / 2,364 tracks")
+    }
+
+    func testEachPolicyBlockReasonHasADistinctNonGenericDetail() {
+        let reasons: [IndexBlockReason] = [
+            .playbackActive, .thermalFair, .thermalSerious, .thermalCritical,
+            .memoryWarning, .lowBatteryOrLowPowerMode, .chargingOnlyRequired,
+            .backgroundGrantMissing,
+        ]
+        var seenDetails = Set<String>()
+        for reason in reasons {
+            let p = IndexStatusPresentation.make(
+                from: snapshot(
+                    coverage(total: 10, complete: 0, queuedOrRunning: 10), blockReason: reason))
+            XCTAssertEqual(p.phase, .blockedByPolicy, "\(reason)")
+            XCTAssertFalse(p.detail.isEmpty, "\(reason)")
+            seenDetails.insert(p.detail)
+        }
+        // Thermal variants intentionally share one user-facing message;
+        // otherwise every reason should read distinctly.
+        XCTAssertGreaterThanOrEqual(seenDetails.count, reasons.count - 2)
+    }
+
+    /// `userPaused` already has its own dedicated, higher-priority phase
+    /// (`.paused`, checked via `snapshot.isPaused`) — a leftover
+    /// `schedulerBlockReason == .userPaused` from a stale tick must not
+    /// create a second, redundant "blocked" phase.
+    func testStaleUserPausedBlockReasonDoesNotOverrideNormalIndexing() {
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 10, complete: 2, queuedOrRunning: 8),
+                blockReason: .userPaused))
+        XCTAssertEqual(p.phase, .indexing)
     }
 
     func testDiagnosticsAreRedactedAggregatesOnly() {
