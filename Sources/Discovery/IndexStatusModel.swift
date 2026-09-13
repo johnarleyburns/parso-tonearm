@@ -2,6 +2,31 @@
 import Foundation
 import TonearmCore
 
+/// Real, in-progress On-Demand-Resource download bytes for the CLAP model
+/// package(s) (plan CLAUDE.md "no silent/magic background work" — a
+/// `waitingForModel` state with no size/percentage is indistinguishable from
+/// stuck, so this is what lets the status surface say how far along it is
+/// and how much is left, not just "downloading"). `nil` when nothing is
+/// currently downloading (not yet started, already resolved, or genuinely
+/// failed) — never a fabricated fraction.
+public struct ModelDownloadProgress: Equatable, Sendable {
+    public var completedBytes: Int64
+    public var totalBytes: Int64
+
+    public init(completedBytes: Int64, totalBytes: Int64) {
+        self.completedBytes = completedBytes
+        self.totalBytes = totalBytes
+    }
+
+    /// `nil` when `totalBytes` isn't known yet (the system hasn't reported a
+    /// real byte count) — never defaulted to 0 or 1, which would render as a
+    /// false 0% or 100%.
+    public var fractionComplete: Double? {
+        guard totalBytes > 0 else { return nil }
+        return min(1, max(0, Double(completedBytes) / Double(totalBytes)))
+    }
+}
+
 /// A consistent snapshot of the indexing subsystem's persisted state, gathered
 /// off the main actor by `DiscoveryAssembly.statusSnapshot()` and mapped to
 /// display by `IndexStatusPresentation` (plan §10: the status surface reads
@@ -12,6 +37,9 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
     public var isPaused: Bool
     public var isChargingOnly: Bool
     public var modelResourceAvailable: Bool
+    /// Real ODR download bytes while the model is fetching; `nil` when
+    /// nothing is currently downloading.
+    public var modelDownloadProgress: ModelDownloadProgress?
     public var runtime: DiscoveryRuntime
     public var capturedAt: Date
     /// The real `IndexPolicy` gate that most recently kept the scheduler from
@@ -28,6 +56,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         isPaused: Bool,
         isChargingOnly: Bool,
         modelResourceAvailable: Bool,
+        modelDownloadProgress: ModelDownloadProgress? = nil,
         runtime: DiscoveryRuntime,
         capturedAt: Date = Date(),
         schedulerBlockReason: IndexBlockReason? = nil
@@ -36,6 +65,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         self.isPaused = isPaused
         self.isChargingOnly = isChargingOnly
         self.modelResourceAvailable = modelResourceAvailable
+        self.modelDownloadProgress = modelDownloadProgress
         self.runtime = runtime
         self.capturedAt = capturedAt
         self.schedulerBlockReason = schedulerBlockReason
@@ -69,6 +99,11 @@ public struct IndexStatusPresentation: Equatable, Sendable {
     public var headline: String
     public var detail: String
     public var fractionComplete: Double
+    /// Real ODR download fraction while `.waitingForModel`'s bytes are
+    /// known; `nil` otherwise (including "downloading but no byte count
+    /// yet") so the view can fall back to an indeterminate spinner instead
+    /// of drawing a fabricated 0%.
+    public var modelDownloadFraction: Double?
     public var showsBanner: Bool
     public var canPause: Bool
     public var canResume: Bool
@@ -110,7 +145,7 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             // branch below, the same reason schedulerBlockReason is:
             // "jobs exist" does not mean "jobs are progressing."
             phase = .waitingForModel
-            detail = "Waiting for the sound-search model to download."
+            detail = Self.detail(forModelDownload: snapshot.modelDownloadProgress)
         } else if c.queuedOrRunning > 0, let reason = snapshot.schedulerBlockReason,
             reason != .userPaused
         {
@@ -141,6 +176,8 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             headline: headline,
             detail: detail,
             fractionComplete: fraction,
+            modelDownloadFraction: phase == .waitingForModel
+                ? snapshot.modelDownloadProgress?.fractionComplete : nil,
             showsBanner: total > 0,
             canPause: !snapshot.isPaused && (c.queuedOrRunning > 0 || c.waiting > 0),
             canResume: snapshot.isPaused,
@@ -172,6 +209,28 @@ public struct IndexStatusPresentation: Equatable, Sendable {
         case .backgroundGrantMissing:
             return "Waiting for background processing time from iOS."
         }
+    }
+
+    /// Real byte progress when the ODR download is actually in flight; a
+    /// plain "downloading" state when it hasn't reported any bytes yet
+    /// (queued, not started, or the system hasn't delivered a length) —
+    /// still distinct from "indexing" and still honest, never a fabricated
+    /// percentage (CLAUDE.md "no silent/magic background work").
+    private static func detail(forModelDownload progress: ModelDownloadProgress?) -> String {
+        guard let progress, progress.totalBytes > 0 else {
+            return "Downloading the sound-search model…"
+        }
+        let doneMB = bytesToMB(progress.completedBytes)
+        let totalMB = bytesToMB(progress.totalBytes)
+        if let fraction = progress.fractionComplete {
+            let percent = Int((fraction * 100).rounded())
+            return "Downloading the sound-search model — \(doneMB) of \(totalMB) MB (\(percent)%)."
+        }
+        return "Downloading the sound-search model — \(doneMB) of \(totalMB) MB."
+    }
+
+    private static func bytesToMB(_ bytes: Int64) -> Int {
+        Int((Double(bytes) / 1_048_576).rounded())
     }
 
     private static func number(_ value: Int) -> String {
@@ -211,6 +270,8 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
     public var isPaused: Bool
     public var isChargingOnly: Bool
     public var modelResourceAvailable: Bool
+    public var modelDownloadCompletedBytes: Int64?
+    public var modelDownloadTotalBytes: Int64?
 
     public var lastRunAt: Date?
     public var lastStartAt: Date?
@@ -248,6 +309,8 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
             isPaused: snapshot.isPaused,
             isChargingOnly: snapshot.isChargingOnly,
             modelResourceAvailable: snapshot.modelResourceAvailable,
+            modelDownloadCompletedBytes: snapshot.modelDownloadProgress?.completedBytes,
+            modelDownloadTotalBytes: snapshot.modelDownloadProgress?.totalBytes,
             lastRunAt: r.lastRunAt,
             lastStartAt: r.lastStartAt,
             lastStopAt: r.lastStopAt,
@@ -265,6 +328,15 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
             let string = String(data: data, encoding: .utf8)
         else { return "{}" }
         return string
+    }
+
+    private var modelDownloadProgressLine: String {
+        guard let completed = modelDownloadCompletedBytes,
+            let total = modelDownloadTotalBytes, total > 0
+        else { return "" }
+        let doneMB = Int((Double(completed) / 1_048_576).rounded())
+        let totalMB = Int((Double(total) / 1_048_576).rounded())
+        return "  Model download: \(doneMB)/\(totalMB) MB"
     }
 
     public func plainText() -> String {
@@ -286,7 +358,7 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
               failed:           \(tracksFailed)
 
             Paused: \(isPaused)   Charging-only: \(isChargingOnly)   \
-            Model available: \(modelResourceAvailable)
+            Model available: \(modelResourceAvailable)\(modelDownloadProgressLine)
 
             Last run:            \(d(lastRunAt))
             Last start:          \(d(lastStartAt))

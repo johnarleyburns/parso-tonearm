@@ -28,6 +28,7 @@ public actor DiscoveryAssembly {
     public let search: SearchService
 
     private let snapshotProvider: @Sendable () -> DiscoverySchedulingSnapshot
+    private let modelDownloadProgressProvider: @Sendable () -> ModelDownloadProgress?
     private var isDraining = false
 
     /// The reason the scheduler was last unable to make progress — a real
@@ -67,8 +68,10 @@ public actor DiscoveryAssembly {
         writer: any DatabaseWriter,
         snapshotProvider: @escaping @Sendable () -> DiscoverySchedulingSnapshot,
         modelResourceProvider: @escaping @Sendable () -> ModelManager.Resources = { .unavailable },
-        executionContext: @escaping @Sendable () -> ModelManager.ExecutionContext = { .foreground }
+        executionContext: @escaping @Sendable () -> ModelManager.ExecutionContext = { .foreground },
+        modelDownloadProgressProvider: @escaping @Sendable () -> ModelDownloadProgress? = { nil }
     ) {
+        self.modelDownloadProgressProvider = modelDownloadProgressProvider
         let jobs = IndexJobRepository(writer: writer)
         self.jobs = jobs
         self.importJobs = ImportJobRepository(writer: writer)
@@ -109,6 +112,7 @@ public actor DiscoveryAssembly {
             isPaused: paused,
             isChargingOnly: chargingOnly,
             modelResourceAvailable: modelAvailable,
+            modelDownloadProgress: modelAvailable ? nil : modelDownloadProgressProvider(),
             runtime: runtime,
             schedulerBlockReason: lastBlockReason)
     }

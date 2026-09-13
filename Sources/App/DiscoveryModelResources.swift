@@ -68,5 +68,28 @@ final class DiscoveryModelResources: @unchecked Sendable {
         }
         return ModelResourceLocator(searchDirectories: directories).resolve()
     }
+
+    /// Real bytes off `NSBundleResourceRequest.progress` for whichever tag(s)
+    /// are actually still fetching — never a fabricated fraction (CLAUDE.md
+    /// "no silent/magic background work": a `waitingForModel` state with no
+    /// size is indistinguishable from stuck). `nil` before a real download
+    /// has started (the system hasn't reported a byte count yet) or once
+    /// every in-flight request has finished — safe to hand to
+    /// `DiscoveryAssembly`'s `@Sendable () -> ModelDownloadProgress?`
+    /// provider.
+    func currentDownloadProgress() -> ModelDownloadProgress? {
+        var completed: Int64 = 0
+        var total: Int64 = 0
+        var anyInFlight = false
+        for request in [audioRequest, textRequest] {
+            let progress = request.progress
+            guard progress.totalUnitCount > 0 else { continue }
+            completed += progress.completedUnitCount
+            total += progress.totalUnitCount
+            if !progress.isFinished { anyInFlight = true }
+        }
+        guard total > 0, anyInFlight else { return nil }
+        return ModelDownloadProgress(completedBytes: completed, totalBytes: total)
+    }
 }
 #endif

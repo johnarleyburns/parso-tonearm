@@ -60,7 +60,8 @@ final class DiscoveryRuntimeController {
             // park at `waitingForModel` — until the `clap-audio` ODR pack is
             // actually on disk; never a fabricated embedding.
             modelResourceProvider: { DiscoveryModelResources.shared.currentResources() },
-            executionContext: { sampler.isBackground ? .background : .foreground })
+            executionContext: { sampler.isBackground ? .background : .foreground },
+            modelDownloadProgressProvider: { DiscoveryModelResources.shared.currentDownloadProgress() })
         assembly = built
         return built
     }

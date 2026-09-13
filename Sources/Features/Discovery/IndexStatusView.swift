@@ -19,7 +19,7 @@ struct IndexStatusBanner: View {
         if let p = model.presentation, p.showsBanner {
             Button(action: onTap) {
                 HStack(spacing: 10) {
-                    ProgressView(value: p.fractionComplete)
+                    ProgressView(value: p.modelDownloadFraction ?? p.fractionComplete)
                         .progressViewStyle(.circular)
                         .scaleEffect(0.7)
                         .frame(width: 22, height: 22)
@@ -99,7 +99,7 @@ struct IndexStatusView: View {
     private func summaryCard(_ p: IndexStatusPresentation) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(p.headline).font(.system(size: 17, weight: .heavy))
-            ProgressView(value: p.fractionComplete)
+            ProgressView(value: p.modelDownloadFraction ?? p.fractionComplete)
                 .tint(Palette.brass)
             Text(p.detail).font(.system(size: 13)).foregroundStyle(Palette.ink2)
         }

@@ -19,14 +19,46 @@ final class IndexStatusPresentationTests: XCTestCase {
     private func snapshot(
         _ coverage: IndexJobRepository.Coverage,
         paused: Bool = false, chargingOnly: Bool = false, modelAvailable: Bool = true,
+        downloadProgress: ModelDownloadProgress? = nil,
         runtime: DiscoveryRuntime = DiscoveryRuntime(id: 1),
         blockReason: IndexBlockReason? = nil
     ) -> IndexStatusSnapshot {
         IndexStatusSnapshot(
             coverage: coverage, isPaused: paused, isChargingOnly: chargingOnly,
-            modelResourceAvailable: modelAvailable, runtime: runtime,
+            modelResourceAvailable: modelAvailable, modelDownloadProgress: downloadProgress,
+            runtime: runtime,
             capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
             schedulerBlockReason: blockReason)
+    }
+
+    /// Reproduces the user's actual follow-up request: "downloading" with no
+    /// size/percentage gives no way to know when it will finish. Real ODR
+    /// bytes must flow through to both the detail text and a real progress
+    /// fraction — never a fabricated one.
+    func testWaitingForModelShowsRealByteProgress() {
+        let progress = ModelDownloadProgress(completedBytes: 42 * 1_048_576, totalBytes: 137 * 1_048_576)
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 2694, complete: 0, queuedOrRunning: 2693, waiting: 1),
+                modelAvailable: false, downloadProgress: progress))
+        XCTAssertEqual(p.phase, .waitingForModel)
+        XCTAssertEqual(p.modelDownloadFraction ?? -1, 42.0 / 137.0, accuracy: 0.001)
+        XCTAssertTrue(p.detail.contains("42"))
+        XCTAssertTrue(p.detail.contains("137"))
+        XCTAssertTrue(p.detail.contains("%"))
+    }
+
+    /// Before the system has reported any real byte count, the detail stays
+    /// honest ("Downloading…", no fabricated 0/0 or 0%) and the fraction is
+    /// nil so the view falls back to an indeterminate spinner.
+    func testWaitingForModelWithNoByteCountYetShowsNoFabricatedPercentage() {
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 100, complete: 0, waiting: 100),
+                modelAvailable: false, downloadProgress: nil))
+        XCTAssertEqual(p.phase, .waitingForModel)
+        XCTAssertNil(p.modelDownloadFraction)
+        XCTAssertFalse(p.detail.contains("%"))
     }
 
     func testEmptyLibrary() {
