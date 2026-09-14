@@ -138,6 +138,76 @@ final class ModelResourceLocatorTests: XCTestCase {
 
     /// Encoder present but filterbank absent: the resolver reports the partial
     /// truth, and `ModelManager` treats it as unavailable (both are required).
+    // MARK: - Bundle-based resolution (real device diagnostics, build 369)
+
+    /// The actual root cause: a real device diagnostics export showed BOTH
+    /// ODR tags reporting `beginAccessingResources` success ("finished")
+    /// while `modelResourceAvailable` stayed false — the downloads
+    /// completed, but a plain `FileManager.fileExists` check against a
+    /// guessed path under `Bundle.main.resourceURL` could never find them,
+    /// because Xcode mounts each ODR tag's content into a *hashed*,
+    /// unpredictable asset-pack directory (a real CI archive log showed
+    /// `guru.parso.tonearm.clap-text-956b7b876cac28a5d0622945cf9adb21.assetpack`).
+    /// `Bundle.url(forResource:withExtension:)` is the only API that
+    /// actually knows where that content lives — this proves the locator
+    /// now uses it, and that it works, for a folder-type compiled resource
+    /// name (`CLAPAudioEncoder.mlmodelc`).
+    func testResolvesFolderResourceViaBundleAPI() throws {
+        let dir = try makeTempDir()
+        try makeDir(dir.appendingPathComponent("CLAPAudioEncoder.mlmodelc"))
+        try touch(dir.appendingPathComponent("mel_filterbank_slaney_64.bin"))
+        let bundle = try XCTUnwrap(Bundle(url: dir))
+
+        // No searchDirectories at all — if this resolves, it can only be
+        // because the bundle-API path found it, not the FileManager fallback.
+        let resolved = ModelResourceLocator(searchDirectories: [], bundle: bundle).resolve()
+
+        XCTAssertEqual(resolved.audioEncoderURL?.lastPathComponent, "CLAPAudioEncoder.mlmodelc")
+        XCTAssertEqual(resolved.melFilterBankURL?.lastPathComponent, "mel_filterbank_slaney_64.bin")
+    }
+
+    /// A tokenizer sidecar (no meaningful "extension" beyond its real file
+    /// extension, e.g. `vocab.json`) must also resolve through the bundle
+    /// API, not just folder-type `.mlmodelc` resources.
+    func testResolvesFileResourceWithExtensionViaBundleAPI() throws {
+        let dir = try makeTempDir()
+        try touch(dir.appendingPathComponent("vocab.json"))
+        let bundle = try XCTUnwrap(Bundle(url: dir))
+
+        let resolved = ModelResourceLocator(searchDirectories: [], bundle: bundle).resolve()
+
+        XCTAssertEqual(resolved.tokenizerVocabURL?.lastPathComponent, "vocab.json")
+    }
+
+    /// Content nested under a subdirectory (mirrors `Resources/CLAP/` in
+    /// some bundle layouts) must resolve via `Bundle.url(forResource:
+    /// withExtension:subdirectory:)`, not just at the bundle root.
+    func testResolvesNestedSubdirectoryResourceViaBundleAPI() throws {
+        let dir = try makeTempDir()
+        let clap = dir.appendingPathComponent("CLAP", isDirectory: true)
+        try makeDir(clap)
+        try touch(clap.appendingPathComponent("merges.txt"))
+        let bundle = try XCTUnwrap(Bundle(url: dir))
+
+        let resolved = ModelResourceLocator(searchDirectories: [], bundle: bundle).resolve()
+
+        XCTAssertEqual(resolved.tokenizerMergesURL?.lastPathComponent, "merges.txt")
+    }
+
+    /// The bundle-API path is tried FIRST, but a plain filesystem
+    /// `searchDirectories` fallback must still work when no bundle is
+    /// supplied at all — the dev-checkout/test scenario every other test
+    /// in this file already covers, now re-confirmed unchanged by this
+    /// fix's `if let bundle` guard.
+    func testFallsBackToFileManagerWhenNoBundleSupplied() throws {
+        let dir = try makeTempDir()
+        try makeDir(dir.appendingPathComponent("CLAPAudioEncoder.mlpackage"))
+
+        let resolved = ModelResourceLocator(searchDirectories: [dir], bundle: nil).resolve()
+
+        XCTAssertEqual(resolved.audioEncoderURL?.lastPathComponent, "CLAPAudioEncoder.mlpackage")
+    }
+
     func testMissingFilterbankIsUnavailableToModelManager() async throws {
         let dir = try makeTempDir()
         try makeDir(dir.appendingPathComponent("CLAPAudioEncoder.mlpackage"))

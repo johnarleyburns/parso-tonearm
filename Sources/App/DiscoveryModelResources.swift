@@ -114,13 +114,19 @@ final class DiscoveryModelResources: @unchecked Sendable {
     }
 
     /// Synchronously resolve whatever is on disk right now — safe to hand to
-    /// `ModelManager`'s `@Sendable () -> Resources` provider.
+    /// `ModelManager`'s `@Sendable () -> Resources` provider. Passes
+    /// `Bundle.main` so ODR-mounted content actually resolves — its
+    /// on-disk location is a hashed, unpredictable asset-pack directory
+    /// (see `ModelResourceLocator.bundle`'s doc), not a guessable child of
+    /// `resourceURL`; `searchDirectories` alone was never sufficient for
+    /// real On-Demand Resource content, only for the dev-checkout/test
+    /// case where resources sit in a plain folder.
     func currentResources() -> ModelManager.Resources {
         var directories: [URL] = []
         if let resourceURL = Bundle.main.resourceURL {
             directories.append(resourceURL)
         }
-        return ModelResourceLocator(searchDirectories: directories).resolve()
+        return ModelResourceLocator(searchDirectories: directories, bundle: Bundle.main).resolve()
     }
 
     /// Real bytes off `NSBundleResourceRequest.progress` for both tags —

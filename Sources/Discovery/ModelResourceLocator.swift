@@ -22,10 +22,32 @@ import Foundation
 /// embedding (plan §8: "Do not substitute fake embeddings when resources are
 /// missing").
 public struct ModelResourceLocator: Sendable {
-    /// Directories to search, in priority order. The app passes the main
-    /// bundle's resource URL (ODR content is mounted there); tests pass a
-    /// temp directory or the repo's `Resources/` subdirectories.
+    /// Directories to search, in priority order — the fallback path when
+    /// `bundle` is `nil` (tests / dev checkouts pointed at a plain
+    /// filesystem folder, not a real app bundle). See `bundle` below for
+    /// why this alone is NOT sufficient for real On-Demand Resource
+    /// content.
     public var searchDirectories: [URL]
+
+    /// The bundle to resolve On-Demand Resource content through, via
+    /// `Bundle.url(forResource:withExtension:subdirectory:)` — the only
+    /// Apple-documented way to find ODR-mounted files. This is not
+    /// optional polish: a real device diagnostics export showed BOTH ODR
+    /// tags reporting `beginAccessingResources` success ("finished") while
+    /// `modelResourceAvailable` stayed `false` — the downloads completed,
+    /// but nothing could find the files, because they were never where a
+    /// guessed path expects them to be. Xcode mounts each ODR tag's
+    /// content into a *hashed*, unpredictable asset-pack directory (a real
+    /// CI archive showed
+    /// `guru.parso.tonearm.clap-text-956b7b876cac28a5d0622945cf9adb21.assetpack`,
+    /// not `Resources/CLAPTextEncoder.mlmodelc`) — `searchDirectories` +
+    /// plain `FileManager.fileExists` can never construct that path, no
+    /// matter how many subdirectories it's told to check. `Bundle`'s own
+    /// resource APIs are what actually know where ODR content lives; they
+    /// abstract over exactly this. `nil` in tests/dev checkouts, where
+    /// `searchDirectories` point at a plain filesystem folder instead of a
+    /// real app bundle.
+    public var bundle: Bundle?
 
     /// Audio-encoder file names, in preference order (compiled first).
     public var audioEncoderNames: [String]
@@ -52,6 +74,7 @@ public struct ModelResourceLocator: Sendable {
 
     public init(
         searchDirectories: [URL],
+        bundle: Bundle? = nil,
         audioEncoderNames: [String] = ["CLAPAudioEncoder.mlmodelc", "CLAPAudioEncoder.mlpackage"],
         textEncoderNames: [String] = ["CLAPTextEncoder.mlmodelc", "CLAPTextEncoder.mlpackage"],
         tokenizerVocabName: String = "vocab.json",
@@ -60,6 +83,7 @@ public struct ModelResourceLocator: Sendable {
         nestedSubdirectories: [String] = ["CLAP", "Models"]
     ) {
         self.searchDirectories = searchDirectories
+        self.bundle = bundle
         self.audioEncoderNames = audioEncoderNames
         self.textEncoderNames = textEncoderNames
         self.tokenizerVocabName = tokenizerVocabName
@@ -92,18 +116,48 @@ public struct ModelResourceLocator: Sendable {
         return dirs
     }
 
-    /// First `name` (in the given preference order) that exists in any
-    /// candidate directory (directories checked outermost, names innermost so
-    /// a compiled `.mlmodelc` in a later directory still beats an `.mlpackage`
-    /// only if it is also in an earlier or equal directory — names win within
-    /// a directory, directories win across).
+    /// First `name` (in the given preference order) that exists — checked
+    /// through `bundle`'s own resource-resolution APIs first (the only way
+    /// that correctly finds ODR-mounted content, see `bundle`'s doc), then
+    /// falling back to a plain filesystem check across `candidateDirectories`
+    /// (directories checked outermost, names innermost so a compiled
+    /// `.mlmodelc` in a later directory still beats an `.mlpackage` only if
+    /// it is also in an earlier or equal directory — names win within a
+    /// directory, directories win across).
     private func firstExisting(names: [String]) -> URL? {
+        if let bundle, let found = firstExistingInBundle(bundle, names: names) {
+            return found
+        }
         let fm = FileManager.default
         for dir in candidateDirectories {
             for name in names {
                 let candidate = dir.appendingPathComponent(name)
                 if fm.fileExists(atPath: candidate.path) {
                     return candidate
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Resolves `name` through `Bundle.url(forResource:withExtension:
+    /// subdirectory:)` — first at the bundle's root, then inside each of
+    /// `nestedSubdirectories` — trying both the bare filename form and the
+    /// split base-name/extension form (folder resources like `.mlmodelc`
+    /// are typically looked up as `("CLAPAudioEncoder", "mlmodelc")`, but a
+    /// name with no extension, like a tokenizer sidecar, needs the bare
+    /// form since `withExtension: nil` behaves differently than `""`).
+    private func firstExistingInBundle(_ bundle: Bundle, names: [String]) -> URL? {
+        for name in names {
+            let ext = (name as NSString).pathExtension
+            let base = ext.isEmpty ? name : (name as NSString).deletingPathExtension
+            let subdirectories: [String?] = [nil] + nestedSubdirectories
+            for subdirectory in subdirectories {
+                if let url = bundle.url(
+                    forResource: base, withExtension: ext.isEmpty ? nil : ext,
+                    subdirectory: subdirectory)
+                {
+                    return url
                 }
             }
         }
