@@ -61,6 +61,24 @@ final class IndexStatusPresentationTests: XCTestCase {
         XCTAssertFalse(p.detail.contains("%"))
     }
 
+    /// Real-world regression: "it says 'Downloading the sound-search model
+    /// - 0 of 0 MB (100%)' and never changes." A negligible total (one tiny
+    /// tag finished, the ~137 MB tag never started) must fall back to the
+    /// plain "Downloading…" text and a nil progress fraction — never a
+    /// nonsensical, actively misleading "0 of 0 MB (100%)."
+    func testNegligibleTotalNeverRendersAsFalseCompletion() {
+        let negligible = ModelDownloadProgress(completedBytes: 400_000, totalBytes: 400_000)
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 2694, complete: 0, queuedOrRunning: 2693, waiting: 1),
+                modelAvailable: false, downloadProgress: negligible))
+        XCTAssertEqual(p.phase, .waitingForModel)
+        XCTAssertNil(p.modelDownloadFraction, "a negligible total must never render as a real percentage")
+        XCTAssertFalse(p.detail.contains("100%"))
+        XCTAssertFalse(p.detail.contains("0 of 0"))
+        XCTAssertEqual(p.detail, "Downloading the sound-search model…")
+    }
+
     func testEmptyLibrary() {
         let p = IndexStatusPresentation.make(from: snapshot(coverage(total: 0)))
         XCTAssertEqual(p.phase, .emptyLibrary)
@@ -291,6 +309,31 @@ final class ModelDownloadProgressAggregateTests: XCTestCase {
         ]
         let result = ModelDownloadProgress.aggregate(bothDone)
         XCTAssertEqual(result?.fractionComplete, 1.0)
+    }
+
+    /// The very next real-world report after the fix above shipped: "it
+    /// says 'Downloading the sound-search model - 0 of 0 MB (100%)' and
+    /// never changes." The small `clap-text` tag finished (or reported a
+    /// trivial total under 1 MB) while the ~137 MB `clap-audio` tag never
+    /// reported any bytes at all (`totalBytes == 0`) — `aggregate` correctly
+    /// summed only the finished sliver, so `completed == total` and
+    /// `fractionComplete` legitimately computed to 1.0, but both numbers
+    /// round to 0 MB. Displaying that combination ("0 of 0 MB (100%)") is
+    /// actively misleading, not just uninformative — it implies the
+    /// download is done when the large component hasn't even started.
+    /// `isNegligibleTotal` is the guard the presentation layer must check
+    /// before trusting this progress for display.
+    func testTotalUnderOneMBIsNegligible() {
+        let textFinishedAudioNeverStarted = ModelDownloadProgress(
+            completedBytes: 400_000, totalBytes: 400_000)
+        XCTAssertTrue(textFinishedAudioNeverStarted.isNegligibleTotal)
+        XCTAssertEqual(textFinishedAudioNeverStarted.fractionComplete, 1.0,
+            "the math itself is correct — isNegligibleTotal is what must gate display, not fractionComplete")
+    }
+
+    func testTotalOfSeveralMBIsNotNegligible() {
+        let real = ModelDownloadProgress(completedBytes: 42 * 1_048_576, totalBytes: 137 * 1_048_576)
+        XCTAssertFalse(real.isNegligibleTotal)
     }
 }
 #endif

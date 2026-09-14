@@ -126,13 +126,33 @@ final class DiscoveryModelResources: @unchecked Sendable {
     /// `swift test`; this method's only job is turning the two live
     /// `NSBundleResourceRequest.progress` objects into plain samples.
     func currentDownloadProgress() -> ModelDownloadProgress? {
-        ModelDownloadProgress.aggregate(
-            [audioRequest, textRequest].map {
-                ModelDownloadProgress.RequestSample(
-                    completedBytes: $0.progress.completedUnitCount,
-                    totalBytes: $0.progress.totalUnitCount,
-                    isFinished: $0.progress.isFinished)
-            })
+        ModelDownloadProgress.aggregate(perTagSamples().map(\.1))
+    }
+
+    /// Per-tag byte counts for the diagnostics export — the combined
+    /// `currentDownloadProgress()` number can't tell "one tag finished
+    /// while the other is genuinely stuck at zero" apart from "both
+    /// progressing normally" (real report: a small `clap-text` finished
+    /// while the ~137 MB `clap-audio` never reported any bytes at all,
+    /// which the combined number alone rendered as a nonsensical "0 of 0
+    /// MB (100%)"). This is what lets a diagnostics export say exactly
+    /// which tag is the one not moving, instead of one ambiguous blend.
+    func currentPerTagDebugSummary() -> String {
+        perTagSamples()
+            .map { tag, sample in
+                let state = sample.isFinished ? "finished" : (sample.totalBytes > 0 ? "in progress" : "not started")
+                return "\(tag): \(sample.completedBytes)/\(sample.totalBytes) bytes (\(state))"
+            }
+            .joined(separator: "; ")
+    }
+
+    private func perTagSamples() -> [(String, ModelDownloadProgress.RequestSample)] {
+        [(Self.audioTag, audioRequest), (Self.textTag, textRequest)].map { tag, request in
+            (tag, ModelDownloadProgress.RequestSample(
+                completedBytes: request.progress.completedUnitCount,
+                totalBytes: request.progress.totalUnitCount,
+                isFinished: request.progress.isFinished))
+        }
     }
 }
 #endif

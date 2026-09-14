@@ -30,6 +30,7 @@ public actor DiscoveryAssembly {
     private let snapshotProvider: @Sendable () -> DiscoverySchedulingSnapshot
     private let modelDownloadProgressProvider: @Sendable () -> ModelDownloadProgress?
     private let modelDownloadErrorProvider: @Sendable () -> String?
+    private let modelDownloadTagDebugProvider: @Sendable () -> String?
     private var isDraining = false
 
     /// The reason the scheduler was last unable to make progress — a real
@@ -71,10 +72,12 @@ public actor DiscoveryAssembly {
         modelResourceProvider: @escaping @Sendable () -> ModelManager.Resources = { .unavailable },
         executionContext: @escaping @Sendable () -> ModelManager.ExecutionContext = { .foreground },
         modelDownloadProgressProvider: @escaping @Sendable () -> ModelDownloadProgress? = { nil },
-        modelDownloadErrorProvider: @escaping @Sendable () -> String? = { nil }
+        modelDownloadErrorProvider: @escaping @Sendable () -> String? = { nil },
+        modelDownloadTagDebugProvider: @escaping @Sendable () -> String? = { nil }
     ) {
         self.modelDownloadProgressProvider = modelDownloadProgressProvider
         self.modelDownloadErrorProvider = modelDownloadErrorProvider
+        self.modelDownloadTagDebugProvider = modelDownloadTagDebugProvider
         let jobs = IndexJobRepository(writer: writer)
         self.jobs = jobs
         self.importJobs = ImportJobRepository(writer: writer)
@@ -117,6 +120,7 @@ public actor DiscoveryAssembly {
             modelResourceAvailable: modelAvailable,
             modelDownloadProgress: modelAvailable ? nil : modelDownloadProgressProvider(),
             modelDownloadError: modelAvailable ? nil : modelDownloadErrorProvider(),
+            modelDownloadTagDebug: modelAvailable ? nil : modelDownloadTagDebugProvider(),
             runtime: runtime,
             schedulerBlockReason: lastBlockReason)
     }

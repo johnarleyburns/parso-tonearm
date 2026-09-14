@@ -73,6 +73,24 @@ public struct ModelDownloadProgress: Equatable, Sendable {
         guard total > 0 else { return nil }
         return ModelDownloadProgress(completedBytes: completed, totalBytes: total)
     }
+
+    /// True when `totalBytes`, rounded to the nearest MB, is 0 — the tag(s)
+    /// that HAVE reported a length so far only add up to a sliver (a few
+    /// hundred KB at most), while the ~137 MB `clap-audio` pack presumably
+    /// hasn't reported one yet. Real report: once `clap-text` finished
+    /// while `clap-audio` was still stuck at `totalBytes == 0`, the fraction
+    /// legitimately computed to 1.0 (completed == total) and the MB numbers
+    /// both rounded to 0, together rendering as the nonsensical, actively
+    /// misleading "Downloading the sound-search model — 0 of 0 MB (100%)."
+    /// forever. This is the guard that keeps that combination from ever
+    /// reaching display — a percentage this small a fraction of the real
+    /// expected size is not information, and "100%" implies done when the
+    /// large component hasn't even started.
+    public var isNegligibleTotal: Bool {
+        // Same MB rounding as the detail text uses, so "negligible" and
+        // "what actually gets displayed" never disagree at the boundary.
+        Int((Double(totalBytes) / 1_048_576).rounded()) == 0
+    }
 }
 
 /// A consistent snapshot of the indexing subsystem's persisted state, gathered
@@ -96,6 +114,13 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
     /// request retries itself with backoff, so this clears once a retry
     /// succeeds.
     public var modelDownloadError: String?
+    /// A per-tag byte breakdown (e.g. "clap-audio: 0/0 bytes (not
+    /// started); clap-text: 51200/51200 bytes (finished)"), diagnostics-only
+    /// — the combined `modelDownloadProgress` can't tell "one tag finished
+    /// while the other is genuinely stuck at zero" apart from "both
+    /// progressing normally," which a diagnostics export needs in order to
+    /// say which tag isn't moving instead of one ambiguous blended number.
+    public var modelDownloadTagDebug: String?
     public var runtime: DiscoveryRuntime
     public var capturedAt: Date
     /// The real `IndexPolicy` gate that most recently kept the scheduler from
@@ -114,6 +139,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         modelResourceAvailable: Bool,
         modelDownloadProgress: ModelDownloadProgress? = nil,
         modelDownloadError: String? = nil,
+        modelDownloadTagDebug: String? = nil,
         runtime: DiscoveryRuntime,
         capturedAt: Date = Date(),
         schedulerBlockReason: IndexBlockReason? = nil
@@ -124,6 +150,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         self.modelResourceAvailable = modelResourceAvailable
         self.modelDownloadProgress = modelDownloadProgress
         self.modelDownloadError = modelDownloadError
+        self.modelDownloadTagDebug = modelDownloadTagDebug
         self.runtime = runtime
         self.capturedAt = capturedAt
         self.schedulerBlockReason = schedulerBlockReason
@@ -236,6 +263,7 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             detail: detail,
             fractionComplete: fraction,
             modelDownloadFraction: phase == .waitingForModel
+                && snapshot.modelDownloadProgress?.isNegligibleTotal != true
                 ? snapshot.modelDownloadProgress?.fractionComplete : nil,
             showsBanner: total > 0,
             canPause: !snapshot.isPaused && (c.queuedOrRunning > 0 || c.waiting > 0),
@@ -286,7 +314,7 @@ public struct IndexStatusPresentation: Equatable, Sendable {
         if let error {
             return "Couldn't download the sound-search model yet (\(error)). Retrying automatically…"
         }
-        guard let progress, progress.totalBytes > 0 else {
+        guard let progress, progress.totalBytes > 0, !progress.isNegligibleTotal else {
             return "Downloading the sound-search model…"
         }
         let doneMB = bytesToMB(progress.completedBytes)
@@ -345,6 +373,8 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
     /// `NSLog`) — the definitive answer to "why does it say downloading and
     /// never progress."
     public var modelDownloadError: String?
+    /// Per-tag byte breakdown (see `IndexStatusSnapshot.modelDownloadTagDebug`).
+    public var modelDownloadTagDebug: String?
 
     public var lastRunAt: Date?
     public var lastStartAt: Date?
@@ -385,6 +415,7 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
             modelDownloadCompletedBytes: snapshot.modelDownloadProgress?.completedBytes,
             modelDownloadTotalBytes: snapshot.modelDownloadProgress?.totalBytes,
             modelDownloadError: snapshot.modelDownloadError,
+            modelDownloadTagDebug: snapshot.modelDownloadTagDebug,
             lastRunAt: r.lastRunAt,
             lastStartAt: r.lastStartAt,
             lastStopAt: r.lastStopAt,
@@ -418,6 +449,11 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
         return "\nModel download error: \(modelDownloadError)"
     }
 
+    private var modelDownloadTagDebugLine: String {
+        guard let modelDownloadTagDebug else { return "" }
+        return "\nModel download detail: \(modelDownloadTagDebug)"
+    }
+
     public func plainText() -> String {
         let df = ISO8601DateFormatter()
         func d(_ date: Date?) -> String { date.map { df.string(from: $0) } ?? "—" }
@@ -437,7 +473,7 @@ public struct DiscoveryDiagnostics: Codable, Equatable, Sendable {
               failed:           \(tracksFailed)
 
             Paused: \(isPaused)   Charging-only: \(isChargingOnly)   \
-            Model available: \(modelResourceAvailable)\(modelDownloadProgressLine)\(modelDownloadErrorLine)
+            Model available: \(modelResourceAvailable)\(modelDownloadProgressLine)\(modelDownloadErrorLine)\(modelDownloadTagDebugLine)
 
             Last run:            \(d(lastRunAt))
             Last start:          \(d(lastStartAt))

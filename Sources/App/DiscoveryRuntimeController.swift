@@ -62,7 +62,8 @@ final class DiscoveryRuntimeController {
             modelResourceProvider: { DiscoveryModelResources.shared.currentResources() },
             executionContext: { sampler.isBackground ? .background : .foreground },
             modelDownloadProgressProvider: { DiscoveryModelResources.shared.currentDownloadProgress() },
-            modelDownloadErrorProvider: { DiscoveryModelResources.shared.currentDownloadError() })
+            modelDownloadErrorProvider: { DiscoveryModelResources.shared.currentDownloadError() },
+            modelDownloadTagDebugProvider: { DiscoveryModelResources.shared.currentPerTagDebugSummary() })
         assembly = built
         return built
     }
