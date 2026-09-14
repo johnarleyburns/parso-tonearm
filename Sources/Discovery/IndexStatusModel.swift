@@ -12,10 +12,29 @@ import TonearmCore
 public struct ModelDownloadProgress: Equatable, Sendable {
     public var completedBytes: Int64
     public var totalBytes: Int64
+    /// How many of the ODR tags (`clap-audio`, `clap-text`) have finished,
+    /// out of how many are being tracked. `NSBundleResourceRequest.progress`
+    /// does NOT guarantee `completedUnitCount`/`totalUnitCount` are real
+    /// bytes — Apple documents the unit as implementation-defined, "often
+    /// simply 1" (confirmed on a real device: a diagnostics export showed
+    /// literally `clap-audio: 1/1 bytes (finished); clap-text: 0/1 bytes (in
+    /// progress)` for a real 123 MB and 221 MB package). `completedBytes`/
+    /// `totalBytes` above are real when the system happens to report real
+    /// byte counts, but `componentsFinished`/`componentsTotal` is the signal
+    /// that's ALWAYS meaningful regardless of what unit scheme is active —
+    /// it's what lets the status surface say "1 of 2 ready" honestly even
+    /// when the byte total is too small to trust (see `isNegligibleTotal`).
+    public var componentsFinished: Int
+    public var componentsTotal: Int
 
-    public init(completedBytes: Int64, totalBytes: Int64) {
+    public init(
+        completedBytes: Int64, totalBytes: Int64,
+        componentsFinished: Int = 0, componentsTotal: Int = 0
+    ) {
         self.completedBytes = completedBytes
         self.totalBytes = totalBytes
+        self.componentsFinished = componentsFinished
+        self.componentsTotal = componentsTotal
     }
 
     /// `nil` when `totalBytes` isn't known yet (the system hasn't reported a
@@ -47,22 +66,26 @@ public struct ModelDownloadProgress: Equatable, Sendable {
     /// tag's request, whether or not each individual one has already
     /// finished. A sample with `totalBytes <= 0` is skipped (that tag hasn't
     /// started downloading, or the system hasn't reported a length yet) —
-    /// but a *finished* sample is still counted in the sum.
+    /// but a *finished* sample is still counted in the sum. Also tallies
+    /// `componentsFinished`/`componentsTotal` (see that field's doc) since
+    /// the byte counts here are frequently NOT real bytes at all.
     ///
     /// This used to require at least one sample to still be
     /// `!isFinished` ("in flight") before reporting anything, which was
-    /// wrong: two tags (`clap-audio` ~137 MB, `clap-text` a few KB) resolve
-    /// independently, so it's normal for the audio pack to finish while the
-    /// text pack hasn't even started yet (`totalBytes == 0`). That combination
-    /// made every sample fail the old gate — the finished one because it was
-    /// no longer "in flight", the not-yet-started one because its total was
-    /// zero — so this returned `nil` and the status surface silently
-    /// regressed from a real percentage back to a bare "Downloading…" with
-    /// no numbers, for as long as the second tag took to start (real user
-    /// report: "0%, then 50%, then 'Downloading the sound-search model...'
-    /// with no progress update ever again"). Requiring only `total > 0` (not
-    /// "and still in flight") fixes it: the finished tag's bytes still count
-    /// toward the running total until the *other* tag also reports one.
+    /// wrong: the two tags (`clap-audio` ~123 MB, `clap-text` ~221 MB —
+    /// both real CoreML packages, not "a few KB" as an earlier version of
+    /// this comment assumed) resolve independently, so it's normal for one
+    /// to finish while the other hasn't even started yet (`totalBytes ==
+    /// 0`). That combination made every sample fail the old gate — the
+    /// finished one because it was no longer "in flight", the not-yet-started
+    /// one because its total was zero — so this returned `nil` and the
+    /// status surface silently regressed from a real percentage back to a
+    /// bare "Downloading…" with no numbers, for as long as the second tag
+    /// took to start (real user report: "0%, then 50%, then 'Downloading
+    /// the sound-search model...' with no progress update ever again").
+    /// Requiring only `total > 0` (not "and still in flight") fixes it: the
+    /// finished tag's bytes still count toward the running total until the
+    /// *other* tag also reports one.
     public static func aggregate(_ samples: [RequestSample]) -> ModelDownloadProgress? {
         var completed: Int64 = 0
         var total: Int64 = 0
@@ -71,21 +94,28 @@ public struct ModelDownloadProgress: Equatable, Sendable {
             total += sample.totalBytes
         }
         guard total > 0 else { return nil }
-        return ModelDownloadProgress(completedBytes: completed, totalBytes: total)
+        let finished = samples.filter(\.isFinished).count
+        return ModelDownloadProgress(
+            completedBytes: completed, totalBytes: total,
+            componentsFinished: finished, componentsTotal: samples.count)
     }
 
-    /// True when `totalBytes`, rounded to the nearest MB, is 0 — the tag(s)
-    /// that HAVE reported a length so far only add up to a sliver (a few
-    /// hundred KB at most), while the ~137 MB `clap-audio` pack presumably
-    /// hasn't reported one yet. Real report: once `clap-text` finished
-    /// while `clap-audio` was still stuck at `totalBytes == 0`, the fraction
-    /// legitimately computed to 1.0 (completed == total) and the MB numbers
-    /// both rounded to 0, together rendering as the nonsensical, actively
+    /// True when `totalBytes`, rounded to the nearest MB, is 0. Two real
+    /// reports established why this guard exists and what it actually
+    /// means: first, one tag finished while the other hadn't reported any
+    /// bytes yet, making the summed total a tiny sliver of the true ~344 MB
+    /// combined size; then, a device diagnostics export showed the real
+    /// mechanism — `NSBundleResourceRequest.progress` doesn't guarantee its
+    /// unit is bytes at all (Apple documents it as implementation-defined,
+    /// "often simply 1"), and on that device BOTH tags were reporting
+    /// literal `totalUnitCount == 1`. That combination made
+    /// `completedBytes == totalBytes` legitimately true (`fractionComplete
+    /// == 1.0`) while both rounded to 0 MB, rendering as the actively
     /// misleading "Downloading the sound-search model — 0 of 0 MB (100%)."
-    /// forever. This is the guard that keeps that combination from ever
-    /// reaching display — a percentage this small a fraction of the real
-    /// expected size is not information, and "100%" implies done when the
-    /// large component hasn't even started.
+    /// This is the guard that keeps a total this small from ever being
+    /// trusted as real bytes — the presentation layer falls back to
+    /// `componentsFinished`/`componentsTotal` instead, which stays honest
+    /// no matter which unit scheme the system is actually using.
     public var isNegligibleTotal: Bool {
         // Same MB rounding as the detail text uses, so "negligible" and
         // "what actually gets displayed" never disagree at the boundary.
@@ -314,8 +344,23 @@ public struct IndexStatusPresentation: Equatable, Sendable {
         if let error {
             return "Couldn't download the sound-search model yet (\(error)). Retrying automatically…"
         }
-        guard let progress, progress.totalBytes > 0, !progress.isNegligibleTotal else {
+        guard let progress, progress.totalBytes > 0 else {
             return "Downloading the sound-search model…"
+        }
+        // `NSBundleResourceRequest.progress` doesn't guarantee real bytes —
+        // a real device showed both tags reporting literal totalUnitCount
+        // == 1 (Apple documents the unit as implementation-defined, "often
+        // simply 1"). When the byte total is too small to trust
+        // (`isNegligibleTotal`), fall back to the one signal that stays
+        // honest regardless of unit scheme: how many of the tags have
+        // actually finished. Real, verifiable partial information — never
+        // silence, never a fabricated percentage.
+        guard !progress.isNegligibleTotal else {
+            guard progress.componentsTotal > 0 else {
+                return "Downloading the sound-search model…"
+            }
+            return "Downloading the sound-search model — "
+                + "\(progress.componentsFinished) of \(progress.componentsTotal) components ready."
         }
         let doneMB = bytesToMB(progress.completedBytes)
         let totalMB = bytesToMB(progress.totalBytes)

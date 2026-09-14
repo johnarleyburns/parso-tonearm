@@ -79,6 +79,27 @@ final class IndexStatusPresentationTests: XCTestCase {
         XCTAssertEqual(p.detail, "Downloading the sound-search model…")
     }
 
+    /// Real device diagnostics export (build 368): "no progress on the
+    /// download, same thing" — `clap-audio: 1/1 bytes (finished);
+    /// clap-text: 0/1 bytes (in progress)`. `NSBundleResourceRequest`
+    /// doesn't guarantee real bytes here (Apple: implementation-defined,
+    /// "often simply 1"), so `isNegligibleTotal` is true and the previous
+    /// "0 of 0 MB (100%)" fix already stops it from lying — but a flat
+    /// "Downloading…" with no numbers throws away the one thing that IS
+    /// real here: one of the two components has genuinely finished. The
+    /// detail must say so.
+    func testNegligibleTotalFallsBackToComponentCountNotSilence() {
+        let coarseUnits = ModelDownloadProgress(
+            completedBytes: 1, totalBytes: 2, componentsFinished: 1, componentsTotal: 2)
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 2694, complete: 0, queuedOrRunning: 2693, waiting: 1),
+                modelAvailable: false, downloadProgress: coarseUnits))
+        XCTAssertEqual(p.phase, .waitingForModel)
+        XCTAssertNil(p.modelDownloadFraction, "coarse unit counts must never render as a real percentage bar")
+        XCTAssertEqual(p.detail, "Downloading the sound-search model — 1 of 2 components ready.")
+    }
+
     func testEmptyLibrary() {
         let p = IndexStatusPresentation.make(from: snapshot(coverage(total: 0)))
         XCTAssertEqual(p.phase, .emptyLibrary)
