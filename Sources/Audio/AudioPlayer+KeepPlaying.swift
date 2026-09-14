@@ -84,7 +84,8 @@ extension AudioPlayer {
 
         keepPlayingLastExtensionAttemptIndex = index
         keepPlayingExtensionInFlight = true
-        Task { [weak self] in
+        keepPlayingExtensionTask?.cancel()
+        keepPlayingExtensionTask = Task { [weak self] in
             await self?.performKeepPlayingExtension()
         }
     }
@@ -95,6 +96,13 @@ extension AudioPlayer {
 
     private func performKeepPlayingExtension() async {
         defer { keepPlayingExtensionInFlight = false }
+        // A fresh `play(tracks:)` or a test's `resetRestoreForTesting()`
+        // cancels the previous extension task outright rather than letting
+        // it resolve against state it was never computed for — check right
+        // away and after every suspension point below, since `AudioPlayer`
+        // is a process-wide singleton and this task can otherwise keep
+        // running well past the session (or test) that started it.
+        guard !Task.isCancelled else { return }
         let excluded = currentKeepPlayingExclusions()
 
         guard let provider = keepPlayingProvider else {
@@ -106,6 +114,7 @@ extension AudioPlayer {
         // most-recently-played first so it can search against `.first`.
         let lookup = await provider.continuationTrackIDs(
             after: Array(keepPlayingHistory.reversed()), excluding: excluded, limit: keepPlayingBatchSize)
+        guard !Task.isCancelled else { return }
         switch lookup {
         case .ready(let ids) where !ids.isEmpty:
             // Defensive de-dup/no-repeat: the provider contract already says
@@ -140,6 +149,7 @@ extension AudioPlayer {
                 rows.append(row)
             }
         }
+        guard !Task.isCancelled else { return }
         guard !rows.isEmpty else {
             await extendWithFallback(reason: .unavailable, excluding: currentKeepPlayingExclusions())
             return
@@ -153,6 +163,7 @@ extension AudioPlayer {
     /// `keepPlayingFallbackReason` always record that this happened and why.
     private func extendWithFallback(reason: KeepPlayingFallbackReason, excluding excluded: Set<Int64>) async {
         let pool = await keepPlayingFallbackPool()
+        guard !Task.isCancelled else { return }
         let candidates = pool.filter { row in
             guard let id = row.track.id else { return false }
             return !excluded.contains(id)

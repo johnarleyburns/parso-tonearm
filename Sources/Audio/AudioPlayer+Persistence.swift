@@ -136,8 +136,16 @@ extension AudioPlayer {
     /// Resets the once-per-process restore guard so tests can re-run
     /// `restorePersistedQueue()` without restarting the process.
     /// Also clears the restore task so the next call can retry (F5 retry).
+    /// Also cancels any in-flight Keep Playing extension: `AudioPlayer` is a
+    /// process-wide singleton shared across every test in a run, so a
+    /// leaked, un-cancelled extension `Task` from one test could otherwise
+    /// resolve during a completely unrelated later test and mutate its
+    /// state (queue, `keepPlayingAutoAddedTrackIDs`, the fallback reason).
     internal func resetRestoreForTesting() {
         restoreTask = nil
+        keepPlayingExtensionTask?.cancel()
+        keepPlayingExtensionTask = nil
+        keepPlayingExtensionInFlight = false
     }
 
     internal func performQueueRestore() async {

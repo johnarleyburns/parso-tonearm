@@ -71,6 +71,15 @@ public final class AudioPlayer: ObservableObject {
     /// second `loadCurrent` for the same index (no queue-shape change) never
     /// double-fires the lookup.
     var keepPlayingLastExtensionAttemptIndex: Int?
+    /// Handle to the in-flight extension lookup, so a fresh `play(tracks:)`
+    /// or a test teardown can cancel it outright instead of leaving a
+    /// detached `Task` free to mutate `queue`/`keepPlayingAutoAddedTrackIDs`
+    /// well after the state it was computed for is gone — `AudioPlayer` is
+    /// a process-wide singleton, so an uncancelled extension from one
+    /// session (or one test) can otherwise resolve during a later,
+    /// unrelated one. `performKeepPlayingExtension` checks
+    /// `Task.isCancelled` before doing anything observable.
+    var keepPlayingExtensionTask: Task<Void, Never>?
     @Published public internal(set) var cacheState: CacheGlyphState = .none
     @Published public internal(set) var cachePercent: Int = 0
     @Published public internal(set) var cachedFraction: Double = 0
@@ -206,7 +215,14 @@ public final class AudioPlayer: ObservableObject {
         queue = tracks
         index = max(0, min(start, tracks.count - 1))
         // A manually-started queue begins a fresh Keep Playing session: no
-        // history to avoid repeating, nothing auto-added yet.
+        // history to avoid repeating, nothing auto-added yet. Cancel any
+        // extension still in flight from the PREVIOUS session/queue — it was
+        // computed against state that no longer exists, and letting it
+        // resolve later would append tracks (or record a fallback reason)
+        // against this new, unrelated queue.
+        keepPlayingExtensionTask?.cancel()
+        keepPlayingExtensionTask = nil
+        keepPlayingExtensionInFlight = false
         keepPlayingHistory = []
         keepPlayingAutoAddedTrackIDs = []
         keepPlayingLastExtensionAttemptIndex = nil
