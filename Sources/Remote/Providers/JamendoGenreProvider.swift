@@ -281,13 +281,28 @@ public struct JamendoAPI: Sendable {
         guard !clientID.isEmpty else { throw JamendoGenreError.notConfigured }
         guard !trimmed.isEmpty else { throw JamendoGenreError.catalogue("missing genre tag") }
 
+        let page = try await fetchTracksPage(tag: trimmed, offset: offset, limit: limit)
+        // Verified against the live endpoint: an identical `tracks?tags=…`
+        // request intermittently answers a well-formed `status: success`
+        // envelope with zero rows for a tag that, re-requested moments later
+        // unchanged, returns thousands — a transient upstream flake (backend
+        // replica or edge cache), not a genuinely empty genre. That is exactly
+        // what makes a genre look broken to a user who only ever sees the
+        // first page: the default genre and any single tap can land on the
+        // empty answer. One retry, first page only (`offset == 0`) so a real
+        // end-of-list page beyond it is never mistaken for this.
+        guard page.tracks.isEmpty, offset == 0 else { return page }
+        return try await fetchTracksPage(tag: trimmed, offset: offset, limit: limit)
+    }
+
+    private func fetchTracksPage(tag: String, offset: Int, limit: Int) async throws -> Page {
         var components = URLComponents(
             url: baseURL.appendingPathComponent("tracks"),
             resolvingAgainstBaseURL: false)
         components?.queryItems = [
             URLQueryItem(name: "client_id", value: clientID),
             URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "tags", value: trimmed),
+            URLQueryItem(name: "tags", value: tag),
             URLQueryItem(name: "order", value: "popularity_total"),
             URLQueryItem(name: "limit", value: String(limit)),
             URLQueryItem(name: "offset", value: String(offset)),

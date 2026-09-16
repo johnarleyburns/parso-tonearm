@@ -26,12 +26,14 @@ final class GenreLibraryTests: XCTestCase {
         ]
         JamendoTagStub.requestedTags = []
         JamendoTagStub.failNextWith = nil
+        JamendoTagStub.emptyFirstForTags = []
     }
 
     override func tearDown() {
         JamendoTagStub.fixtures = [:]
         JamendoTagStub.requestedTags = []
         JamendoTagStub.failNextWith = nil
+        JamendoTagStub.emptyFirstForTags = []
         super.tearDown()
     }
 
@@ -200,6 +202,39 @@ final class GenreLibraryTests: XCTestCase {
         XCTAssertEqual(rows[1].track.sourceId, 7)
     }
 
+    // MARK: - Live-verified: a first-page empty envelope is a retryable flake
+
+    func testEmptyFirstPageEnvelopeIsRetriedOnceBeforeReportingEmpty() async throws {
+        // Verified against the live endpoint (not a guess): the same
+        // `tracks?tags=…` request intermittently answers a well-formed
+        // `status: success` envelope with zero rows, then returns thousands
+        // of rows moments later for the identical query — an upstream
+        // backend/edge-cache flake. `JamendoTagStub` is set to serve exactly
+        // that shape once before falling back to the real fixture.
+        JamendoTagStub.emptyFirstForTags = ["techno"]
+        let provider = makeProvider()
+        let nodes = try await provider.browse(path: "electronic/techno")
+        XCTAssertFalse(nodes.isEmpty,
+                       "a first-page empty envelope is retried once, not trusted immediately")
+        XCTAssertEqual(JamendoTagStub.requestedTags.filter { $0 == "techno" }.count, 2,
+                       "exactly one retry for the flake — not a retry storm")
+    }
+
+    func testGenuinelyEmptyLaterPageIsNotRetried() async throws {
+        // An empty page *past* the first (pagination running out) is a
+        // legitimate end-of-list, not the live flake above — it must not
+        // trigger the offset==0-only retry.
+        let emptyEnvelope = Data("""
+            {"headers":{"status":"success","code":0,"error_message":"","results_count":0},"results":[]}
+            """.utf8)
+        JamendoTagStub.fixtures["techno"] = emptyEnvelope
+        let provider = makeProvider()
+        let page = try await provider.api.tracks(tag: "techno", offset: 50, limit: 50)
+        XCTAssertTrue(page.tracks.isEmpty)
+        XCTAssertEqual(JamendoTagStub.requestedTags.filter { $0 == "techno" }.count, 1,
+                       "a later empty page is trusted on the first try")
+    }
+
     // MARK: - AT-GENRE-6: failure and honesty
 
     func testApiFailureEnvelopeSurfacesHonestly() async {
@@ -329,6 +364,13 @@ private final class JamendoTagStub: URLProtocol {
     nonisolated(unsafe) static var lastOrderParameter: String?
     nonisolated(unsafe) static var lastRequestQuery: [URLQueryItem]?
     nonisolated(unsafe) static var failNextWith: Error?
+    /// Tags that should answer one live-verified empty `success` envelope
+    /// (headers.code == 0, zero rows) before falling back to `fixtures` —
+    /// standing in for the upstream flake found on the live endpoint.
+    nonisolated(unsafe) static var emptyFirstForTags: Set<String> = [] {
+        didSet { emptyServedForTags = [] }
+    }
+    nonisolated(unsafe) private static var emptyServedForTags: Set<String> = []
 
     override class func canInit(with request: URLRequest) -> Bool {
         request.url?.path.hasSuffix("/tracks") == true
@@ -347,6 +389,20 @@ private final class JamendoTagStub: URLProtocol {
         if let error = Self.failNextWith {
             Self.failNextWith = nil
             client.urlProtocol(self, didFailWithError: error)
+            return
+        }
+        if Self.emptyFirstForTags.contains(tag), !Self.emptyServedForTags.contains(tag) {
+            Self.emptyServedForTags.insert(tag)
+            let emptyEnvelope = Data("""
+                {"headers":{"status":"success","code":0,"error_message":"","results_count":0},"results":[]}
+                """.utf8)
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: "1.1",
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            client.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client.urlProtocol(self, didLoad: emptyEnvelope)
+            client.urlProtocolDidFinishLoading(self)
             return
         }
         guard let data = Self.fixtures[tag] else {
