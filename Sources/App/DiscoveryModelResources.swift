@@ -40,91 +40,113 @@ final class DiscoveryModelResources: @unchecked Sendable {
     private static let audioTag = "clap-audio"
     private static let textTag = "clap-text"
 
-    /// `var`, not `let`: a real device crashed with `NSInvalidArgumentException
-    /// "beginAccessingResources was called more than once or at the wrong
-    /// time"` — Apple does not support calling `beginAccessingResources`
-    /// again on the SAME `NSBundleResourceRequest` instance, which the
-    /// original retry logic did (reusing these two `let` properties across
-    /// every retry attempt). `startRequests()` now creates a brand-new
-    /// instance for every attempt, including the first, so this invariant
-    /// holds unconditionally — always read the CURRENT instance via
-    /// `currentRequests()` (lock-protected; a retry can replace these from
-    /// a background queue while a diagnostics read is in flight).
-    private var audioRequest = NSBundleResourceRequest(tags: [DiscoveryModelResources.audioTag])
-    private var textRequest = NSBundleResourceRequest(tags: [DiscoveryModelResources.textTag])
+    /// Per-tag retry/error bookkeeping, including the live
+    /// `NSBundleResourceRequest` (`var`, not `let`: a real device crashed
+    /// with `NSInvalidArgumentException` "beginAccessingResources was
+    /// called more than once or at the wrong time" — Apple does not
+    /// support calling `beginAccessingResources` again on the same
+    /// instance, which the original retry logic did; `startRequest(tag:
+    /// state:)` now creates a brand-new instance for every attempt,
+    /// including the first, so this invariant holds unconditionally).
+    /// This used to be ONE shared
+    /// `lastError`/`retryDelay`/`retryWorkItem` for both tags — a real
+    /// device showed why that's wrong: `clap-audio` failed every ~5s
+    /// forever (a genuinely broken local-install case) while `clap-text`
+    /// happened to succeed on every attempt, and text's success handler
+    /// unconditionally reset the SHARED `retryDelay` to 5 and `lastError`
+    /// to `nil` — permanently defeating audio's exponential backoff
+    /// (observed hammering the same failure every ~5.5s for 7+ minutes
+    /// instead of 5→10→20→...→300) and letting a real, persistent error be
+    /// silently wiped by an unrelated tag's success. Each tag now owns its
+    /// own state, so one tag's outcome can never affect the other's.
+    private final class TagState {
+        var request: NSBundleResourceRequest
+        var lastError: String?
+        var retryDelay: TimeInterval = 5
+        var retryWorkItem: DispatchWorkItem?
+        init(tag: String) { request = NSBundleResourceRequest(tags: [tag]) }
+    }
+
     private let lock = NSLock()
     private var didBeginAccessing = false
-    private var lastError: String?
-    private var retryWorkItem: DispatchWorkItem?
-    private var retryDelay: TimeInterval = 5
+    private lazy var audioState = TagState(tag: Self.audioTag)
+    private lazy var textState = TagState(tag: Self.textTag)
 
-    /// The most recent `beginAccessingResources` failure, if any — surfaced
-    /// through diagnostics and the status UI so a stalled/failed ODR fetch
-    /// (e.g. `NSBundleResourceRequestLowDiskSpaceKey`,
+    private func states() -> [(String, TagState)] {
+        [(Self.audioTag, audioState), (Self.textTag, textState)]
+    }
+
+    /// The most recent `beginAccessingResources` failure(s), if any —
+    /// surfaced through diagnostics and the status UI so a stalled/failed
+    /// ODR fetch (e.g. `NSBundleResourceRequestLowDiskSpaceKey`,
     /// `NSBundleResourceRequestUnknownResourceIdentifierError`, or a plain
     /// network error) is never invisible (CLAUDE.md "no silent/magic
-    /// background work"). `nil` once a retry begins or resources resolve.
+    /// background work"). Joins both tags' errors when both have one, so
+    /// neither is silently hidden behind the other; `nil` once every tag
+    /// with an error has retried successfully.
     func currentDownloadError() -> String? {
         lock.lock()
         defer { lock.unlock() }
-        return lastError
+        let errors = states().compactMap(\.1.lastError)
+        return errors.isEmpty ? nil : errors.joined(separator: "; ")
     }
 
-    /// Ask iOS to make the `clap-audio` ODR pack available. Best-effort;
-    /// a failure (no such tag, no network on first fetch, low disk space)
-    /// is captured in `currentDownloadError()` — never just an `NSLog` line
-    /// invisible to both the user and support — and retried with backoff
-    /// rather than left to park at `waitingForModel` forever (FR-SEM-6 /
-    /// §8: honest, but not silently stuck).
+    /// Ask iOS to make the `clap-audio`/`clap-text` ODR packs available.
+    /// Best-effort; a failure (no such tag, no network on first fetch, low
+    /// disk space) is captured in `currentDownloadError()` — never just an
+    /// `NSLog` line invisible to both the user and support — and retried
+    /// with backoff, independently per tag, rather than left to park at
+    /// `waitingForModel` forever (FR-SEM-6 / §8: honest, but not silently
+    /// stuck).
     func beginAccessing() {
         lock.lock()
         let already = didBeginAccessing
         didBeginAccessing = true
         lock.unlock()
         guard !already else { return }
-        startRequests()
+        for (tag, state) in states() {
+            startRequest(tag: tag, state: state)
+        }
     }
 
-    private func startRequests() {
-        // Fresh instances every time — see `audioRequest`/`textRequest`'s
-        // doc for why reusing one across a retry crashes the app.
-        let freshAudio = NSBundleResourceRequest(tags: [Self.audioTag])
-        let freshText = NSBundleResourceRequest(tags: [Self.textTag])
+    private func startRequest(tag: String, state: TagState) {
+        // A fresh instance every attempt, including the first — see
+        // `TagState`'s doc: reusing one across a retry crashed the app
+        // (`NSInvalidArgumentException`, "beginAccessingResources was
+        // called more than once or at the wrong time").
+        let fresh = NSBundleResourceRequest(tags: [tag])
         lock.lock()
-        audioRequest = freshAudio
-        textRequest = freshText
+        state.request = fresh
         lock.unlock()
 
-        for (tag, request) in [(Self.audioTag, freshAudio), (Self.textTag, freshText)] {
-            request.loadingPriority = NSBundleResourceRequestLoadingPriorityUrgent
-            request.beginAccessingResources { [weak self] error in
-                guard let self else { return }
-                if let error {
-                    let message = "\(tag): \((error as NSError).localizedDescription) (code \((error as NSError).code))"
-                    NSLog("[Discovery] ODR not available: \(message)")
-                    self.lock.lock()
-                    self.lastError = message
-                    let delay = self.retryDelay
-                    self.retryDelay = min(self.retryDelay * 2, 300)
-                    self.lock.unlock()
-                    self.scheduleRetry(after: delay)
-                } else {
-                    self.lock.lock()
-                    self.lastError = nil
-                    self.retryDelay = 5
-                    self.lock.unlock()
-                }
+        fresh.loadingPriority = NSBundleResourceRequestLoadingPriorityUrgent
+        fresh.beginAccessingResources { [weak self] error in
+            guard let self else { return }
+            if let error {
+                let message = "\(tag): \((error as NSError).localizedDescription) (code \((error as NSError).code))"
+                NSLog("[Discovery] ODR not available: \(message)")
+                self.lock.lock()
+                state.lastError = message
+                let delay = state.retryDelay
+                state.retryDelay = min(state.retryDelay * 2, 300)
+                self.lock.unlock()
+                self.scheduleRetry(tag: tag, state: state, after: delay)
+            } else {
+                self.lock.lock()
+                state.lastError = nil
+                state.retryDelay = 5
+                self.lock.unlock()
             }
         }
     }
 
-    /// Snapshot of the two live requests, lock-protected since `startRequests()`
-    /// can replace them from a retry's background-queue callback while a
+    /// Snapshot of the two live requests, lock-protected since `startRequest`
+    /// can replace one from a retry's background-queue callback while a
     /// diagnostics read is in flight on another thread.
     private func currentRequests() -> [(String, NSBundleResourceRequest)] {
         lock.lock()
         defer { lock.unlock() }
-        return [(Self.audioTag, audioRequest), (Self.textTag, textRequest)]
+        return states().map { tag, state in (tag, state.request) }
     }
 
     /// A failed `beginAccessingResources` call does not retry on its own —
@@ -132,11 +154,14 @@ final class DiscoveryModelResources: @unchecked Sendable {
     /// leave the app parked at `waitingForModel` indefinitely even once
     /// connectivity returns, with no user action able to fix it (the "0%
     /// downloaded... then it disappeared" report this guards against).
-    private func scheduleRetry(after delay: TimeInterval) {
+    /// Scoped per tag (`state.retryWorkItem`, not a shared one) so
+    /// `clap-audio` retrying does not cancel `clap-text`'s independent
+    /// retry schedule or vice versa.
+    private func scheduleRetry(tag: String, state: TagState, after delay: TimeInterval) {
         lock.lock()
-        retryWorkItem?.cancel()
-        let item = DispatchWorkItem { [weak self] in self?.startRequests() }
-        retryWorkItem = item
+        state.retryWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in self?.startRequest(tag: tag, state: state) }
+        state.retryWorkItem = item
         lock.unlock()
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
