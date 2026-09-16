@@ -68,6 +68,9 @@ struct IndexStatusView: View {
                     } else {
                         ProgressView().padding(.top, 40)
                     }
+                    if let detail = model.snapshot?.modelDiagnostics {
+                        modelsCard(detail)
+                    }
                     activityCard
                 }
                 .padding(.horizontal, 18)
@@ -121,6 +124,110 @@ struct IndexStatusView: View {
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
+    }
+
+    /// The "Models" section — added directly at the user's request for an
+    /// interactive debug session ("show each model, the percentage
+    /// downloaded, MB downloaded, if it's complete or not, any errors, also
+    /// show active downloading, we need this level of detail to know what's
+    /// going on"). Two distinct facts per model, shown separately on
+    /// purpose: the raw ODR download state, and whether the resulting file
+    /// actually resolves on disk — a real device once showed both downloads
+    /// "finished" while every artifact still failed to resolve, and only
+    /// showing one of those two facts would have hidden that gap again.
+    private func modelsCard(_ detail: ModelDiagnosticsDetail) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Models").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.ink3)
+
+            if let error = detail.downloadError {
+                Text("Download error: \(error)")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red)
+            }
+
+            ForEach(detail.downloadTags) { tag in
+                downloadTagRow(tag)
+                Divider().overlay(Palette.hairline)
+            }
+            ForEach(detail.artifacts) { artifact in
+                artifactRow(artifact)
+            }
+        }
+        .padding(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassSurface(cornerRadius: 18)
+    }
+
+    private func downloadTagRow(_ tag: ModelDiagnosticsDetail.DownloadTag) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Image(systemName: downloadStateIcon(tag.state))
+                    .foregroundStyle(downloadStateColor(tag.state))
+                    .font(.system(size: 13, weight: .semibold))
+                Text(tag.tag).font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Text(downloadStateLabel(tag.state))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.ink3)
+            }
+            if tag.state == .inProgress {
+                if tag.bytesAreTrustworthy {
+                    let doneMB = Int((Double(tag.completedBytes) / 1_048_576).rounded())
+                    let totalMB = Int((Double(tag.totalBytes) / 1_048_576).rounded())
+                    ProgressView(value: tag.fractionComplete)
+                        .tint(Palette.brass)
+                    Text("\(doneMB) of \(totalMB) MB"
+                        + (tag.fractionComplete.map { " (\(Int(($0 * 100).rounded()))%)" } ?? ""))
+                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                } else {
+                    // NSBundleResourceRequest's unit isn't guaranteed to be
+                    // real bytes (confirmed on a real device: a literal
+                    // totalUnitCount of 1) — never show a fabricated MB
+                    // count or percentage here.
+                    Text("Downloading — no byte count reported yet")
+                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func downloadStateIcon(_ state: ModelDiagnosticsDetail.DownloadTag.State) -> String {
+        switch state {
+        case .finished: return "checkmark.circle.fill"
+        case .inProgress: return "arrow.down.circle"
+        case .notStarted: return "circle.dashed"
+        }
+    }
+
+    private func downloadStateColor(_ state: ModelDiagnosticsDetail.DownloadTag.State) -> Color {
+        switch state {
+        case .finished: return .green
+        case .inProgress: return Palette.brass
+        case .notStarted: return Palette.ink3
+        }
+    }
+
+    private func downloadStateLabel(_ state: ModelDiagnosticsDetail.DownloadTag.State) -> String {
+        switch state {
+        case .finished: return "Finished"
+        case .inProgress: return "Downloading…"
+        case .notStarted: return "Not started"
+        }
+    }
+
+    private func artifactRow(_ artifact: ModelDiagnosticsDetail.Artifact) -> some View {
+        HStack {
+            Image(systemName: artifact.isResolved ? "doc.fill" : "questionmark.folder")
+                .foregroundStyle(artifact.isResolved ? .green : .orange)
+                .font(.system(size: 13, weight: .semibold))
+            Text(artifact.name).font(.system(size: 13))
+            Spacer()
+            Text(artifact.isResolved ? (artifact.resolvedName ?? "Found") : "Not found")
+                .font(.system(size: 12))
+                .foregroundStyle(artifact.isResolved ? Palette.ink3 : .orange)
+        }
+        .padding(.vertical, 4)
     }
 
     private func row(_ label: String, _ value: Int) -> some View {

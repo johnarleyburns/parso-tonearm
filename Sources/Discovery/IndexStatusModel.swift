@@ -151,6 +151,11 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
     /// progressing normally," which a diagnostics export needs in order to
     /// say which tag isn't moving instead of one ambiguous blended number.
     public var modelDownloadTagDebug: String?
+    /// The full structured per-artefact breakdown for the Sound Index
+    /// screen's "Models" section (see `ModelDiagnosticsDetail`'s doc) — the
+    /// detailed view a real debugging session needs, distinct from the
+    /// aggregate `modelDownloadProgress` most users see.
+    public var modelDiagnostics: ModelDiagnosticsDetail?
     public var runtime: DiscoveryRuntime
     public var capturedAt: Date
     /// The real `IndexPolicy` gate that most recently kept the scheduler from
@@ -170,6 +175,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         modelDownloadProgress: ModelDownloadProgress? = nil,
         modelDownloadError: String? = nil,
         modelDownloadTagDebug: String? = nil,
+        modelDiagnostics: ModelDiagnosticsDetail? = nil,
         runtime: DiscoveryRuntime,
         capturedAt: Date = Date(),
         schedulerBlockReason: IndexBlockReason? = nil
@@ -181,6 +187,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         self.modelDownloadProgress = modelDownloadProgress
         self.modelDownloadError = modelDownloadError
         self.modelDownloadTagDebug = modelDownloadTagDebug
+        self.modelDiagnostics = modelDiagnostics
         self.runtime = runtime
         self.capturedAt = capturedAt
         self.schedulerBlockReason = schedulerBlockReason

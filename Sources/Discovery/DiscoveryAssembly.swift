@@ -31,6 +31,13 @@ public actor DiscoveryAssembly {
     private let modelDownloadProgressProvider: @Sendable () -> ModelDownloadProgress?
     private let modelDownloadErrorProvider: @Sendable () -> String?
     private let modelDownloadTagDebugProvider: @Sendable () -> String?
+    /// Unlike the other model-download providers above, this one is NOT
+    /// gated on `!modelAvailable` — the Sound Index screen's "Models"
+    /// section is meant to stay useful even once everything resolves (so a
+    /// debugging session can confirm "yes, both artifacts are now found"),
+    /// not disappear the moment the problem it was added to diagnose goes
+    /// away.
+    private let modelDiagnosticsProvider: @Sendable () -> ModelDiagnosticsDetail?
     private var isDraining = false
 
     /// The reason the scheduler was last unable to make progress — a real
@@ -73,11 +80,13 @@ public actor DiscoveryAssembly {
         executionContext: @escaping @Sendable () -> ModelManager.ExecutionContext = { .foreground },
         modelDownloadProgressProvider: @escaping @Sendable () -> ModelDownloadProgress? = { nil },
         modelDownloadErrorProvider: @escaping @Sendable () -> String? = { nil },
-        modelDownloadTagDebugProvider: @escaping @Sendable () -> String? = { nil }
+        modelDownloadTagDebugProvider: @escaping @Sendable () -> String? = { nil },
+        modelDiagnosticsProvider: @escaping @Sendable () -> ModelDiagnosticsDetail? = { nil }
     ) {
         self.modelDownloadProgressProvider = modelDownloadProgressProvider
         self.modelDownloadErrorProvider = modelDownloadErrorProvider
         self.modelDownloadTagDebugProvider = modelDownloadTagDebugProvider
+        self.modelDiagnosticsProvider = modelDiagnosticsProvider
         let jobs = IndexJobRepository(writer: writer)
         self.jobs = jobs
         self.importJobs = ImportJobRepository(writer: writer)
@@ -121,6 +130,7 @@ public actor DiscoveryAssembly {
             modelDownloadProgress: modelAvailable ? nil : modelDownloadProgressProvider(),
             modelDownloadError: modelAvailable ? nil : modelDownloadErrorProvider(),
             modelDownloadTagDebug: modelAvailable ? nil : modelDownloadTagDebugProvider(),
+            modelDiagnostics: modelDiagnosticsProvider(),
             runtime: runtime,
             schedulerBlockReason: lastBlockReason)
     }

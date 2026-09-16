@@ -167,5 +167,42 @@ final class DiscoveryModelResources: @unchecked Sendable {
                 isFinished: request.progress.isFinished))
         }
     }
+
+    /// The full structured breakdown for the Sound Index screen's "Models"
+    /// section — both the raw ODR download state (`DownloadTag`, from the
+    /// live `NSBundleResourceRequest`s) AND, separately, whether each
+    /// required on-disk artefact actually resolves right now via
+    /// `ModelResourceLocator`. These are two different facts that a real
+    /// device diagnostics export once showed disagreeing (both tags
+    /// "finished" downloading while `modelResourceAvailable` stayed false)
+    /// — this view is what makes that gap directly visible instead of
+    /// requiring a diagnostics-export round-trip to discover it again.
+    func currentDiagnosticsDetail() -> ModelDiagnosticsDetail {
+        let tags = perTagSamples().map { tag, sample in
+            ModelDiagnosticsDetail.DownloadTag(
+                tag: tag, completedBytes: sample.completedBytes,
+                totalBytes: sample.totalBytes, isFinished: sample.isFinished)
+        }
+        let resources = currentResources()
+        let artifacts = [
+            ModelDiagnosticsDetail.Artifact(
+                name: "Audio encoder", isResolved: resources.audioEncoderURL != nil,
+                resolvedName: resources.audioEncoderURL?.lastPathComponent),
+            ModelDiagnosticsDetail.Artifact(
+                name: "Text encoder", isResolved: resources.textEncoderURL != nil,
+                resolvedName: resources.textEncoderURL?.lastPathComponent),
+            ModelDiagnosticsDetail.Artifact(
+                name: "Mel filterbank", isResolved: resources.melFilterBankURL != nil,
+                resolvedName: resources.melFilterBankURL?.lastPathComponent),
+            ModelDiagnosticsDetail.Artifact(
+                name: "Tokenizer vocab", isResolved: resources.tokenizerVocabURL != nil,
+                resolvedName: resources.tokenizerVocabURL?.lastPathComponent),
+            ModelDiagnosticsDetail.Artifact(
+                name: "Tokenizer merges", isResolved: resources.tokenizerMergesURL != nil,
+                resolvedName: resources.tokenizerMergesURL?.lastPathComponent),
+        ]
+        return ModelDiagnosticsDetail(
+            downloadTags: tags, artifacts: artifacts, downloadError: currentDownloadError())
+    }
 }
 #endif
