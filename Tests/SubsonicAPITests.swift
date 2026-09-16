@@ -99,6 +99,40 @@ final class SubsonicAPITests: XCTestCase {
         ])
     }
 
+    func testDecodesArtistCoverArtJSONAndXML() throws {
+        let jsonArtists = try SubsonicAPI.decodeArtists(data("""
+        {
+          "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "artists": {
+              "index": [
+                { "name": "A", "artist": [
+                  { "id": "artist-1", "name": "A Winged Victory", "albumCount": 2, "coverArt": "ar-artist-1_0" }
+                ] }
+              ]
+            }
+          }
+        }
+        """), format: .json)
+        XCTAssertEqual(jsonArtists, [
+            SubsonicArtist(id: "artist-1", name: "A Winged Victory", albumCount: 2, coverArt: "ar-artist-1_0")
+        ])
+
+        let xmlArtists = try SubsonicAPI.decodeArtists(data("""
+        <subsonic-response status="ok" version="1.16.1">
+          <indexes ignoredArticles="The">
+            <index name="B">
+              <artist id="artist-2" name="Biosphere" albumCount="4" coverArt="ar-artist-2_0" />
+            </index>
+          </indexes>
+        </subsonic-response>
+        """), format: .xml)
+        XCTAssertEqual(xmlArtists, [
+            SubsonicArtist(id: "artist-2", name: "Biosphere", albumCount: 4, coverArt: "ar-artist-2_0")
+        ])
+    }
+
     func testDecodesJSONArtistDetailAlbums() throws {
         let artist = try SubsonicAPI.decodeArtist(data("""
         {

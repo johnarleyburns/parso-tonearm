@@ -202,7 +202,8 @@ public enum SubsonicAPI {
         return SubsonicArtist(
             id: id,
             name: string(dict["name"]) ?? id,
-            albumCount: int(dict["albumCount"])
+            albumCount: int(dict["albumCount"]),
+            coverArt: string(dict["coverArt"])
         )
     }
 
@@ -303,6 +304,7 @@ public struct SubsonicArtist: Equatable {
     public var id: String
     public var name: String
     public var albumCount: Int?
+    public var coverArt: String? = nil
 }
 
 public struct SubsonicArtistDetail: Equatable {
@@ -381,7 +383,8 @@ private final class XMLCollector: NSObject, XMLParserDelegate {
             let artist = SubsonicArtist(
                 id: id,
                 name: attributeDict["name"] ?? id,
-                albumCount: Int(attributeDict["albumCount"] ?? "")
+                albumCount: Int(attributeDict["albumCount"] ?? ""),
+                coverArt: attributeDict["coverArt"]
             )
             if stack.last == "subsonic-response" {
                 artistDetail = SubsonicArtistDetail(id: artist.id, name: artist.name, albums: [])
