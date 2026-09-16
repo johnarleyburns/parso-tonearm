@@ -40,8 +40,18 @@ final class DiscoveryModelResources: @unchecked Sendable {
     private static let audioTag = "clap-audio"
     private static let textTag = "clap-text"
 
-    private let audioRequest = NSBundleResourceRequest(tags: [DiscoveryModelResources.audioTag])
-    private let textRequest = NSBundleResourceRequest(tags: [DiscoveryModelResources.textTag])
+    /// `var`, not `let`: a real device crashed with `NSInvalidArgumentException
+    /// "beginAccessingResources was called more than once or at the wrong
+    /// time"` — Apple does not support calling `beginAccessingResources`
+    /// again on the SAME `NSBundleResourceRequest` instance, which the
+    /// original retry logic did (reusing these two `let` properties across
+    /// every retry attempt). `startRequests()` now creates a brand-new
+    /// instance for every attempt, including the first, so this invariant
+    /// holds unconditionally — always read the CURRENT instance via
+    /// `currentRequests()` (lock-protected; a retry can replace these from
+    /// a background queue while a diagnostics read is in flight).
+    private var audioRequest = NSBundleResourceRequest(tags: [DiscoveryModelResources.audioTag])
+    private var textRequest = NSBundleResourceRequest(tags: [DiscoveryModelResources.textTag])
     private let lock = NSLock()
     private var didBeginAccessing = false
     private var lastError: String?
@@ -76,7 +86,16 @@ final class DiscoveryModelResources: @unchecked Sendable {
     }
 
     private func startRequests() {
-        for (tag, request) in [(Self.audioTag, audioRequest), (Self.textTag, textRequest)] {
+        // Fresh instances every time — see `audioRequest`/`textRequest`'s
+        // doc for why reusing one across a retry crashes the app.
+        let freshAudio = NSBundleResourceRequest(tags: [Self.audioTag])
+        let freshText = NSBundleResourceRequest(tags: [Self.textTag])
+        lock.lock()
+        audioRequest = freshAudio
+        textRequest = freshText
+        lock.unlock()
+
+        for (tag, request) in [(Self.audioTag, freshAudio), (Self.textTag, freshText)] {
             request.loadingPriority = NSBundleResourceRequestLoadingPriorityUrgent
             request.beginAccessingResources { [weak self] error in
                 guard let self else { return }
@@ -97,6 +116,15 @@ final class DiscoveryModelResources: @unchecked Sendable {
                 }
             }
         }
+    }
+
+    /// Snapshot of the two live requests, lock-protected since `startRequests()`
+    /// can replace them from a retry's background-queue callback while a
+    /// diagnostics read is in flight on another thread.
+    private func currentRequests() -> [(String, NSBundleResourceRequest)] {
+        lock.lock()
+        defer { lock.unlock() }
+        return [(Self.audioTag, audioRequest), (Self.textTag, textRequest)]
     }
 
     /// A failed `beginAccessingResources` call does not retry on its own —
@@ -160,7 +188,7 @@ final class DiscoveryModelResources: @unchecked Sendable {
     }
 
     private func perTagSamples() -> [(String, ModelDownloadProgress.RequestSample)] {
-        [(Self.audioTag, audioRequest), (Self.textTag, textRequest)].map { tag, request in
+        currentRequests().map { tag, request in
             (tag, ModelDownloadProgress.RequestSample(
                 completedBytes: request.progress.completedUnitCount,
                 totalBytes: request.progress.totalUnitCount,

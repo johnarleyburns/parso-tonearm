@@ -305,11 +305,24 @@ targets:
         CURRENT_PROJECT_VERSION: $(CURRENT_PROJECT_VERSION)
         TARGETED_DEVICE_FAMILY: 4
         SKIP_INSTALL: "YES"
-        CODE_SIGN_STYLE: Manual
-        CODE_SIGN_IDENTITY: "Apple Distribution"
-        PROVISIONING_PROFILE_SPECIFIER: "Platterhead Watch App Store"
         INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: true
         INFOPLIST_KEY_UIBackgroundModes: ["audio"]
+      # Unlike every other target in this project, TonearmWatch had ONE
+      # signing config shared across Debug and Release (Manual + the
+      # Distribution profile) instead of splitting by config the way
+      # `Tonearm`'s own target does above (Debug: Automatic, Release:
+      # Manual). That made a plain local Debug build to a real device fail
+      # outright — the Distribution certificate isn't valid for local
+      # development signing, and Xcode has no reason to have that
+      # certificate's private key locally anyway. Split the same way the
+      # main app target already does.
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "Platterhead Watch App Store"
 
   WatchUITests:
     type: bundle.ui-testing
