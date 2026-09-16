@@ -66,6 +66,11 @@ public actor ModelManager {
         /// The tokenizer sidecars are present but could not be parsed — a
         /// distinct retryable "download/load failed" state, not "missing".
         case tokenizerLoadFailed(String)
+        /// The resolved `.mlpackage` exists but `CompiledModelCache` could not
+        /// compile it into a form `MLModel(contentsOf:)` will load — a
+        /// distinct retryable "download/load failed" state, not "missing"
+        /// (the file is there; it just isn't a usable model yet).
+        case modelCompileFailed(String)
 
         public var errorDescription: String? {
             switch self {
@@ -75,6 +80,8 @@ public actor ModelManager {
                 return "Could not load the model's mel filterbank: \(detail)"
             case .tokenizerLoadFailed(let detail):
                 return "Could not load the text model's tokenizer: \(detail)"
+            case .modelCompileFailed(let detail):
+                return "Could not prepare the sound-search model: \(detail)"
             }
         }
     }
@@ -113,13 +120,18 @@ public actor ModelManager {
             throw ModelManagerError.melFilterBankLoadFailed(error.localizedDescription)
         }
         let spec = EmbeddingModelSpec.musicCLAP(melFilterBank: melFilterBank)
-        // `.mlmodelc` (build-compiled) and `.mlpackage` (runtime-compiled)
-        // are both just a URL to `MLModel(contentsOf:)` — no distinct
-        // handling needed here (plan §8: "Recognize compiled `.mlmodelc`
-        // when supplied by the build as well as `.mlpackage`").
+        // A resolved `.mlpackage` is a raw, uncompiled package on a real device (see
+        // `CompiledModelCache`'s doc) — `MLModel(contentsOf:)` cannot load it directly. A resolved
+        // `.mlmodelc` (a bare SwiftPM/dev checkout) passes through unchanged.
+        let loadableURL: URL
+        do {
+            loadableURL = try CompiledModelCache.loadableURL(for: encoderURL)
+        } catch {
+            throw ModelManagerError.modelCompileFailed(error.localizedDescription)
+        }
         let computeUnits: MLComputeUnits = context == .background ? .cpuOnly : .cpuAndGPU
         let model = CoreMLSemanticModel(
-            kind: .audio, url: encoderURL, spec: spec, computeUnits: computeUnits)
+            kind: .audio, url: loadableURL, spec: spec, computeUnits: computeUnits)
         cachedModel = model
         cachedContext = context
         return model
@@ -170,9 +182,15 @@ public actor ModelManager {
         // truncation (`RoBERTaTokenizer.encode`). No mel filterbank is needed
         // for the text path.
         let spec = EmbeddingModelSpec.musicCLAPMetadata
+        let loadableURL: URL
+        do {
+            loadableURL = try CompiledModelCache.loadableURL(for: encoderURL)
+        } catch {
+            throw ModelManagerError.modelCompileFailed(error.localizedDescription)
+        }
         let computeUnits: MLComputeUnits = context == .background ? .cpuOnly : .all
         let model = CoreMLSemanticModel(
-            kind: .text, url: encoderURL, spec: spec, tokenizer: tokenizer,
+            kind: .text, url: loadableURL, spec: spec, tokenizer: tokenizer,
             computeUnits: computeUnits)
         cachedTextModel = model
         cachedTextContext = context

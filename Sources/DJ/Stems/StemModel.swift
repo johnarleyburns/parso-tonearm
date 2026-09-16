@@ -2,6 +2,7 @@ import CoreML
 import Accelerate
 import Foundation
 import ParsoAudioNeural
+import TonearmDiscovery
 
 // `SeparationVoice`, `StemChunk`, `StemSeparation`, `StemModelError`, and the
 // `StemModelProviding` seam itself moved to `ParsoAudioNeural` in Phase 7c
@@ -166,7 +167,13 @@ public actor DemucsStemModel: StemModelProviding {
         // measure on-device (S7) before choosing anything narrower.
         configuration.computeUnits = .all
         do {
-            let model = try MLModel(contentsOf: url, configuration: configuration)
+            // `DemucsStems.mlpackage` is a raw, uncompiled package on a real device — it is added
+            // to the Xcode project as a plain folder reference (`Config/models-odr.yml`), which
+            // never gets Xcode's Core ML build rule. `MLModel(contentsOf:)` cannot load that
+            // directly; `CompiledModelCache` compiles it once and caches the result (same fix as
+            // the CLAP encoders — see that type's doc for the confirmed on-device error).
+            let loadableURL = try CompiledModelCache.loadableURL(for: url)
+            let model = try MLModel(contentsOf: loadableURL, configuration: configuration)
             let engine = CoreMLModelBox(model)
             self.engine = engine
             return engine

@@ -1,5 +1,4 @@
 #if !os(watchOS) && canImport(CoreML)
-import CoreML
 import ParsoAudioNeural
 import XCTest
 
@@ -63,15 +62,13 @@ final class ModelManagerRealLoadSmokeTests: XCTestCase {
             r.textEncoderURL != nil && r.tokenizerVocabURL != nil && r.tokenizerMergesURL != nil,
             "converted CLAP text package / tokenizer sidecars not on this host — run `make models`")
 
-        var encoderURL = r.textEncoderURL!
-        if encoderURL.pathExtension == "mlpackage" {
-            let compiled = try await MLModel.compileModel(at: encoderURL)
-            addTeardownBlock { try? FileManager.default.removeItem(at: compiled) }
-            encoderURL = compiled
-        }
+        // `ModelManager` now compiles a raw `.mlpackage` itself (`CompiledModelCache`) — on a real
+        // device the ODR asset pack never contains a build-compiled `.mlmodelc` (it is a plain
+        // Xcode "folder" resource; see that type's doc), so this passes the resolved package
+        // straight through, exactly as production does, rather than pre-compiling by hand.
         let resolved = ModelManager.Resources(
             audioEncoderURL: nil, melFilterBankURL: nil,
-            textEncoderURL: encoderURL,
+            textEncoderURL: r.textEncoderURL,
             tokenizerVocabURL: r.tokenizerVocabURL, tokenizerMergesURL: r.tokenizerMergesURL)
 
         // `.background` → `.cpuOnly`: real weights, real tokenizer, real
@@ -102,17 +99,10 @@ final class ModelManagerRealLoadSmokeTests: XCTestCase {
             resources.audioEncoderURL != nil && resources.melFilterBankURL != nil,
             "converted CLAP audio package / mel filterbank not on this host — run `make models`")
 
-        // On a bare SwiftPM host the ODR delivers `.mlpackage`; Xcode would
-        // compile it to `.mlmodelc` in the app build. Do that compile step
-        // here so the smoke test exercises the real weights end to end.
-        var encoderURL = resources.audioEncoderURL!
-        if encoderURL.pathExtension == "mlpackage" {
-            let compiled = try await MLModel.compileModel(at: encoderURL)
-            addTeardownBlock { try? FileManager.default.removeItem(at: compiled) }
-            encoderURL = compiled
-        }
+        // `ModelManager` now compiles a raw `.mlpackage` itself (`CompiledModelCache`) — pass the
+        // resolved package straight through, exactly as production does.
         let resolved = ModelManager.Resources(
-            audioEncoderURL: encoderURL, melFilterBankURL: resources.melFilterBankURL)
+            audioEncoderURL: resources.audioEncoderURL, melFilterBankURL: resources.melFilterBankURL)
 
         let manager = ModelManager(resourceProvider: { resolved })
         let encoder = try await manager.audioEncoder(context: .foreground)
