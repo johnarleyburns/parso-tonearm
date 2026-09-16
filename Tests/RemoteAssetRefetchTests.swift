@@ -8,6 +8,16 @@ import XCTest
 /// string itself goes stale (see `RemoteAssetRefetch`'s doc and
 /// docs/plans/remote-sparse-indexing.md's "Phase 0" investigation for the
 /// full per-provider breakdown this was traced from).
+/// A plain mutable box, `@unchecked Sendable` — `resolveNode` is declared
+/// `@Sendable` (it can genuinely cross an actor boundary in production, e.g.
+/// called from `AppState`), so a test closure capturing a local `var`
+/// directly cannot satisfy Swift 6's checker even though these tests only
+/// ever call it once, synchronously awaited, with no real concurrency.
+private final class Box<T>: @unchecked Sendable {
+    var value: T
+    init(_ value: T) { self.value = value }
+}
+
 final class RemoteAssetRefetchTests: XCTestCase {
     private func asset(
         remoteURL: String? = "https://example.test/stale.mp3",
@@ -32,16 +42,16 @@ final class RemoteAssetRefetchTests: XCTestCase {
             remoteNodeID: "42", remoteNodePath: "artist/album/42",
             transientHeaders: [:]) // empty, as any DB-hydrated row's would be
 
-        var seenNode: RemoteNode?
+        let seenNode = Box<RemoteNode?>(nil)
         let request = await RemoteAssetRefetch.request(for: a) { node in
-            seenNode = node
+            seenNode.value = node
             return ResolvedAsset(
                 url: URL(string: "https://example.test/fresh-signed-link?token=abc")!,
                 headers: ["Authorization": "Bearer fresh-token"])
         }
 
-        XCTAssertEqual(seenNode?.id, "42")
-        XCTAssertEqual(seenNode?.path, "artist/album/42")
+        XCTAssertEqual(seenNode.value?.id, "42")
+        XCTAssertEqual(seenNode.value?.path, "artist/album/42")
         XCTAssertEqual(request?.url?.absoluteString, "https://example.test/fresh-signed-link?token=abc")
         XCTAssertEqual(request?.value(forHTTPHeaderField: "Authorization"), "Bearer fresh-token")
     }
@@ -69,13 +79,13 @@ final class RemoteAssetRefetchTests: XCTestCase {
     func testFallsBackDirectlyWhenNoNodeReferenceIsPersisted() async {
         let a = asset(remoteURL: "https://example.test/legacy.mp3", remoteNodeID: nil, remoteNodePath: nil)
 
-        var resolveNodeCalled = false
+        let resolveNodeCalled = Box(false)
         let request = await RemoteAssetRefetch.request(for: a) { _ in
-            resolveNodeCalled = true
+            resolveNodeCalled.value = true
             return ResolvedAsset(url: URL(string: "https://example.test/should-not-be-used")!)
         }
 
-        XCTAssertFalse(resolveNodeCalled)
+        XCTAssertFalse(resolveNodeCalled.value)
         XCTAssertEqual(request?.url?.absoluteString, "https://example.test/legacy.mp3")
     }
 

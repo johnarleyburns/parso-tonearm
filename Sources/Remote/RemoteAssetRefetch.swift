@@ -22,7 +22,7 @@ public enum RemoteAssetRefetch {
     /// without a real network or credentials.
     public static func request(
         for asset: Asset,
-        resolveNode: (RemoteNode) async throws -> ResolvedAsset
+        resolveNode: @Sendable (RemoteNode) async throws -> ResolvedAsset
     ) async -> URLRequest? {
         if let nodePath = asset.remoteNodePath {
             let node = RemoteNode(
