@@ -306,6 +306,54 @@ final class IndexJobRepositoryTests: XCTestCase {
         XCTAssertEqual(coverage.queuedOrRunning, 2)
     }
 
+    /// Real user report: the status screen only ever said "Waiting to
+    /// continue. Indexing resumes when conditions allow." — a "non-
+    /// statement" with no way to tell "no reachable audio file" apart from
+    /// "backed off after a real error that keeps recurring." `coverage()`
+    /// must expose the actual per-state breakdown of the `waiting` bucket,
+    /// plus the real error text from the most recent retry/failure, so the
+    /// presentation layer has something honest to say.
+    func testCoverageBreaksDownWaitingReasonsAndSurfacesTheLastRealError() async throws {
+        let queue = try makeQueue()
+        let clock = MutableTestClock(Date())
+        let repo = IndexJobRepository(writer: queue, clock: clock.now)
+        var trackIDs: [Int64] = []
+        for _ in 0..<3 { trackIDs.append(try await seedTrack(queue)) }
+
+        for trackId in trackIDs {
+            _ = try await repo.enqueueOrRestart(
+                trackId: trackId, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
+        }
+
+        // trackIDs[0]: parked waiting on its asset (no selected asset / a
+        // resolve failure) — a clean, non-erroring wait.
+        let claim0 = try await repo.claimNextJob()!
+        try await repo.markWaiting(
+            jobId: claim0.job.id, leaseToken: claim0.leaseToken, reason: .waitingForAsset,
+            retryAfter: nil)
+
+        // trackIDs[1] and trackIDs[2]: hit a real transient failure and were
+        // backed off into `.retryScheduled` — the case the generic message
+        // couldn't distinguish from the clean wait above.
+        for trackId in [trackIDs[1], trackIDs[2]] {
+            let claim = try await repo.claimNextJob()!
+            XCTAssertEqual(claim.job.trackId, trackId)
+            try await repo.recordTransientFailure(
+                jobId: claim.job.id, leaseToken: claim.leaseToken, errorCode: "windowReadFailed",
+                errorMessage: "Could not read audio window from the source file.")
+        }
+
+        let coverage = try await repo.coverage(pipelineVersion: 1)
+        XCTAssertEqual(coverage.waiting, 3)
+        XCTAssertEqual(coverage.waitingBreakdown[.waitingForAsset], 1)
+        XCTAssertEqual(coverage.waitingBreakdown[.retryScheduled], 2)
+        XCTAssertNil(coverage.waitingBreakdown[.waitingForNetwork])
+        XCTAssertEqual(coverage.mostRecentFailureError?.code, "windowReadFailed")
+        XCTAssertEqual(
+            coverage.mostRecentFailureError?.message,
+            "Could not read audio window from the source file.")
+    }
+
     /// C07 "Retry failed" action (plan §10): every `.failed` job for the
     /// pipeline is re-queued; queued/running jobs are untouched.
     func testRetryAllFailedRequeuesOnlyFailedJobs() async throws {

@@ -283,12 +283,13 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             detail = "Indexing \(number(c.queuedOrRunning)) track\(c.queuedOrRunning == 1 ? "" : "s")…"
         } else if c.waiting > 0 {
             phase = .waiting
-            detail = snapshot.isChargingOnly
-                ? "Waiting for power. Indexing resumes while charging."
-                : "Waiting to continue. Indexing resumes when conditions allow."
+            detail = Self.detail(
+                forWaiting: c.waitingBreakdown, chargingOnly: snapshot.isChargingOnly,
+                failureError: c.mostRecentFailureError)
         } else if c.failed > 0 {
             phase = .needsAttention
             detail = "\(number(c.failed)) track\(c.failed == 1 ? "" : "s") could not be indexed."
+                + Self.errorSuffix(c.mostRecentFailureError)
         } else {
             phase = .idle
             detail = "Indexing is idle."
@@ -307,6 +308,64 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             canResume: snapshot.isPaused,
             canRetryFailed: canRetry,
             failedCount: c.failed)
+    }
+
+    /// Real report this answers: "Waiting to continue. Indexing resumes
+    /// when conditions allow." was shown for every `waiting` job regardless
+    /// of WHY, because `DiscoveryAssembly.drainQueue` discarded the actual
+    /// per-job `DiscoveryJobState` reason on every tick. `waitingBreakdown`
+    /// is the real, persisted state distribution instead — pick the largest
+    /// bucket (the reason affecting the most tracks) and say what it
+    /// actually is; a `.retryScheduled` majority also surfaces the real
+    /// error from the most recent attempt, since "will retry" alone doesn't
+    /// explain "retrying also fails."
+    private static func detail(
+        forWaiting breakdown: [DiscoveryJobState: Int], chargingOnly: Bool,
+        failureError: IndexJobRepository.JobErrorSample?
+    ) -> String {
+        guard let (reason, count) = breakdown.max(by: { $0.value < $1.value }) else {
+            // No breakdown available (e.g. an older/synthetic snapshot) —
+            // fall back to the previous charging-only-aware generic text
+            // rather than claiming a reason we don't actually have.
+            return chargingOnly
+                ? "Waiting for power. Indexing resumes while charging."
+                : "Waiting to continue. Indexing resumes when conditions allow."
+        }
+        let n = number(count)
+        let plural = count == 1 ? "track" : "tracks"
+        switch reason {
+        case .waitingForAsset:
+            return "\(n) \(plural) waiting on their audio file — moved, deleted, "
+                + "or not fully downloaded from cloud storage."
+        case .waitingForNetwork:
+            return "Waiting for a network connection to reach \(n) \(plural)."
+        case .waitingForModel:
+            return "Waiting for the sound-search model to finish downloading."
+        case .waitingForPower:
+            return chargingOnly
+                ? "Waiting for power. Indexing resumes while charging."
+                : "Waiting for more battery before indexing continues."
+        case .waitingForCooling:
+            return "Waiting for the device to cool down before indexing continues."
+        case .retryScheduled:
+            let base = "\(n) \(plural) hit a temporary error and will retry automatically."
+            guard let failureError else { return base }
+            return base + " Last error: " + (failureError.message ?? failureError.code) + "."
+        case .queued, .running, .failed, .complete, .unsupported:
+            // Not real waiting states — coverage() never buckets these into
+            // waitingBreakdown, but the switch must stay exhaustive.
+            return "Waiting to continue. Indexing resumes when conditions allow."
+        }
+    }
+
+    /// A real, actionable failure detail (never a bare "N tracks could not
+    /// be indexed" when we actually know why) — same
+    /// `mostRecentFailureError` the `.retryScheduled` waiting text above
+    /// uses, since a `.failed` job's error is exactly the one that ran out
+    /// of retry attempts.
+    private static func errorSuffix(_ error: IndexJobRepository.JobErrorSample?) -> String {
+        guard let error else { return "" }
+        return " Most recent error: " + (error.message ?? error.code) + "."
     }
 
     /// The user-facing reason text for each real `IndexPolicy` gate (plan

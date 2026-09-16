@@ -9,11 +9,14 @@ import XCTest
 /// export must stay redacted (aggregate counts only, no track identity).
 final class IndexStatusPresentationTests: XCTestCase {
     private func coverage(
-        total: Int, complete: Int = 0, queuedOrRunning: Int = 0, waiting: Int = 0, failed: Int = 0
+        total: Int, complete: Int = 0, queuedOrRunning: Int = 0, waiting: Int = 0, failed: Int = 0,
+        waitingBreakdown: [DiscoveryJobState: Int] = [:],
+        mostRecentFailureError: IndexJobRepository.JobErrorSample? = nil
     ) -> IndexJobRepository.Coverage {
         IndexJobRepository.Coverage(
             total: total, complete: complete, queuedOrRunning: queuedOrRunning,
-            waiting: waiting, failed: failed)
+            waiting: waiting, failed: failed,
+            waitingBreakdown: waitingBreakdown, mostRecentFailureError: mostRecentFailureError)
     }
 
     private func snapshot(
@@ -167,6 +170,66 @@ final class IndexStatusPresentationTests: XCTestCase {
                 chargingOnly: true, modelAvailable: true))
         XCTAssertEqual(p.phase, .waiting)
         XCTAssertTrue(p.detail.lowercased().contains("power"))
+    }
+
+    /// Real user report: "Waiting to continue. Indexing resumes when
+    /// conditions allow. That is as much of a non-statement as I've ever
+    /// heard." Root cause was `waitingBreakdown` never reaching the
+    /// presentation layer at all (`DiscoveryAssembly.drainQueue` discarded
+    /// the real per-job reason on every tick). With a real breakdown, the
+    /// dominant reason must be named, not the generic text.
+    func testWaitingDetailNamesTheDominantRealReason() {
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(
+                    total: 100, complete: 90, waiting: 10,
+                    waitingBreakdown: [.waitingForAsset: 10])))
+        XCTAssertEqual(p.phase, .waiting)
+        XCTAssertTrue(p.detail.contains("audio file"), p.detail)
+        XCTAssertFalse(p.detail.contains("conditions allow"), p.detail)
+    }
+
+    /// The user's other real complaint: "sometimes I see failures but
+    /// retrying also fails" — a `.retryScheduled` majority must surface the
+    /// actual last error, not just "will retry automatically" with no
+    /// explanation of what keeps going wrong.
+    func testWaitingDetailForRetrySchedulesSurfacesTheLastError() {
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(
+                    total: 100, complete: 90, waiting: 10,
+                    waitingBreakdown: [.retryScheduled: 10],
+                    mostRecentFailureError: IndexJobRepository.JobErrorSample(
+                        code: "windowReadFailed",
+                        message: "Could not read audio window from the source file."))))
+        XCTAssertEqual(p.phase, .waiting)
+        XCTAssertTrue(p.detail.contains("retry automatically"), p.detail)
+        XCTAssertTrue(
+            p.detail.contains("Could not read audio window from the source file."), p.detail)
+    }
+
+    /// A `.waiting` snapshot with no breakdown at all (an older/synthetic
+    /// caller) must still fall back to the previous, still-honest generic
+    /// text rather than crash or show nothing.
+    func testWaitingDetailFallsBackWithoutABreakdown() {
+        let p = IndexStatusPresentation.make(
+            from: snapshot(coverage(total: 100, complete: 90, waiting: 10)))
+        XCTAssertEqual(p.phase, .waiting)
+        XCTAssertTrue(p.detail.contains("conditions allow"), p.detail)
+    }
+
+    /// The `.needsAttention` (all-failed) detail must also surface the real
+    /// last error when one is known — the same non-statement problem
+    /// applied to `.failed` jobs, not just `.waiting` ones.
+    func testNeedsAttentionSurfacesTheLastRealErrorWhenKnown() {
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(
+                    total: 100, complete: 95, failed: 5,
+                    mostRecentFailureError: IndexJobRepository.JobErrorSample(
+                        code: "embedFailed", message: "Model inference failed."))))
+        XCTAssertEqual(p.phase, .needsAttention)
+        XCTAssertTrue(p.detail.contains("Model inference failed."), p.detail)
     }
 
     func testNeedsAttentionWhenOnlyFailures() {

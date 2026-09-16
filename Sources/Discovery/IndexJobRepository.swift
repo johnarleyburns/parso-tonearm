@@ -352,6 +352,13 @@ public actor IndexJobRepository {
         }
     }
 
+    /// One representative (job's own) transient-failure error, for the status
+    /// surface's "why" text — never a fabricated or generic string.
+    public struct JobErrorSample: Equatable, Sendable {
+        public let code: String
+        public let message: String?
+    }
+
     /// Coverage counts for the whole catalog scope, derived before musical
     /// filters (plan §9): total/complete/waiting/failed by job state.
     public struct Coverage: Equatable, Sendable {
@@ -360,6 +367,20 @@ public actor IndexJobRepository {
         public let queuedOrRunning: Int
         public let waiting: Int
         public let failed: Int
+        /// Per-`DiscoveryJobState` counts within the `waiting` bucket above —
+        /// "waiting" alone collapses genuinely distinct reasons (no reachable
+        /// asset, offline, backed off after a transient failure, model not
+        /// ready, thermal/power) into one indistinguishable number, which is
+        /// exactly what produced the reported "non-statement" status text
+        /// ("Waiting to continue. Indexing resumes when conditions allow.")
+        /// that never says which of those it actually is.
+        public let waitingBreakdown: [DiscoveryJobState: Int]
+        /// The most recently recorded transient-failure error among jobs
+        /// currently `.retryScheduled` or `.failed`, if any — real error text
+        /// from the actual attempt, not a synthesized explanation. `nil` when
+        /// no job has ever recorded one (e.g. every wait is a clean
+        /// asset/network/model/power/cooling gate with no failure attempt).
+        public let mostRecentFailureError: JobErrorSample?
     }
 
     public func coverage(pipelineVersion: Int) throws -> Coverage {
@@ -375,18 +396,39 @@ public actor IndexJobRepository {
             for row in rows {
                 byState[row["state"] as String] = row["c"] as Int
             }
-            let waitingStates = [
-                "waitingForModel", "waitingForAsset", "waitingForNetwork", "waitingForPower",
-                "waitingForCooling", "retryScheduled",
+            let waitingStates: [DiscoveryJobState] = [
+                .waitingForModel, .waitingForAsset, .waitingForNetwork, .waitingForPower,
+                .waitingForCooling, .retryScheduled,
             ]
             let total = byState.values.reduce(0, +)
             let complete = byState["complete"] ?? 0
             let failed = byState["failed"] ?? 0
             let queuedOrRunning = (byState["queued"] ?? 0) + (byState["running"] ?? 0)
-            let waiting = waitingStates.reduce(0) { $0 + (byState[$1] ?? 0) }
+            var waitingBreakdown: [DiscoveryJobState: Int] = [:]
+            for state in waitingStates {
+                if let count = byState[state.rawValue], count > 0 { waitingBreakdown[state] = count }
+            }
+            let waiting = waitingBreakdown.values.reduce(0, +)
+
+            let errorRow = try Row.fetchOne(
+                db,
+                sql: """
+                    SELECT errorCode, errorMessage FROM discovery_index_job
+                    WHERE pipelineVersion = ? AND state IN ('retryScheduled', 'failed')
+                        AND errorCode IS NOT NULL
+                    ORDER BY updatedAt DESC LIMIT 1
+                    """,
+                arguments: [pipelineVersion])
+            let mostRecentFailureError: JobErrorSample? = errorRow.flatMap { row in
+                (row["errorCode"] as String?).map { code in
+                    JobErrorSample(code: code, message: row["errorMessage"] as String?)
+                }
+            }
+
             return Coverage(
                 total: total, complete: complete, queuedOrRunning: queuedOrRunning,
-                waiting: waiting, failed: failed)
+                waiting: waiting, failed: failed,
+                waitingBreakdown: waitingBreakdown, mostRecentFailureError: mostRecentFailureError)
         }
     }
 }
