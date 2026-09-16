@@ -37,11 +37,18 @@ enum KeywordArtworkLibrary {
 
     /// Finds the first (leftmost) title word that matches a bundled keyword,
     /// after stripping stopwords/short words and normalizing common
-    /// suffixes. No ML/embeddings — deliberately the simplest thing that
-    /// works, validated against real and representative titles during this
-    /// feature's design (including a real "no match, falls back honestly"
-    /// case: an artist-name-only title with no evocative English word in
-    /// it, which is expected to be the common case for most libraries).
+    /// suffixes, falling back to a deterministic (title-hash) pick from the
+    /// same bundled library when nothing matches. No ML/embeddings —
+    /// deliberately the simplest thing that works. Real report after the
+    /// keyword set shipped: "I have 'night' matching but not 'morning', I
+    /// end up having very little artwork especially when my track names are
+    /// things like 'looperman' — just randomly assign generic artwork based
+    /// on a hash of the title if you don't match any words." A small, fully
+    /// curated keyword library will never cover most real titles by direct
+    /// match alone, so the hash fallback is what makes every track land on
+    /// a real bundled photo instead of the plain gradient, while a genuine
+    /// word match still wins whenever one exists (a title that says "Rainy
+    /// Night" should show rain/night art, not an arbitrary pick).
     static func match(title: String) -> String? {
         let words = title
             .split(whereSeparator: { !$0.isLetter && $0 != "'" })
@@ -52,7 +59,29 @@ enum KeywordArtworkLibrary {
                 return candidate
             }
         }
-        return nil
+        guard !sortedKeywords.isEmpty else { return nil }
+        let index = Int(stableHash(title) % UInt64(sortedKeywords.count))
+        return sortedKeywords[index]
+    }
+
+    /// A fixed iteration order for the hash fallback above — `Set` iteration
+    /// order is not guaranteed stable (Swift's `Hasher` is randomized per
+    /// process launch), which would have made the fallback pick shift
+    /// between app launches for the exact same track, defeating the point
+    /// of a stable per-track identity.
+    private static let sortedKeywords: [String] = keywords.sorted()
+
+    /// FNV-1a over UTF-8 bytes — deterministic across launches/devices,
+    /// unlike Swift's `Hasher` (same reasoning as `ArtworkView.stableHash`,
+    /// duplicated here rather than shared: it's six lines and these two
+    /// types are in different files with no other coupling).
+    private static func stableHash(_ string: String) -> UInt64 {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in string.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 1_099_511_628_211
+        }
+        return hash
     }
 
     private static func normalizedForms(of word: String) -> [String] {
