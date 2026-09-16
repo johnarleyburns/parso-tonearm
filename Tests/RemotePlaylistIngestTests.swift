@@ -25,6 +25,14 @@ final class RemotePlaylistIngestTests: XCTestCase {
         let rows = try await store.tracks(forSource: source.id!)
         XCTAssertEqual(rows.count, 3)
         XCTAssertTrue(rows.allSatisfy { $0.asset?.transientRemoteHeaders.isEmpty == true })
+        // Real bug fix: the provider-native node id/path MUST survive a save
+        // (unlike the transient credentials above) — without it, nothing can
+        // ever re-authenticate this asset again in the background. See
+        // `Asset.remoteNodeID`'s doc / docs/plans/remote-sparse-indexing.md.
+        for (index, row) in rows.enumerated() {
+            XCTAssertEqual(row.asset?.remoteNodeID, "\(index + 1)")
+            XCTAssertEqual(row.asset?.remoteNodePath, "/\(index + 1).mp3")
+        }
     }
 
     func testResolveFailureSkipsOnlyThatNode() async throws {

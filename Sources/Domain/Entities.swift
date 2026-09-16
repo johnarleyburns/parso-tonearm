@@ -227,6 +227,19 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
     /// track shows greyed / "not on this device" until re-imported (C4).
     public var needsReimport: Bool = false
     public var syncID: String? = nil
+    /// The provider-native `RemoteNode.id`/`.path` this `.remote` asset was
+    /// browsed from — genuinely persisted (unlike the transient fields below),
+    /// so a background caller (e.g. "Make Offline", or a future sparse-index
+    /// pass) can reconstruct a `RemoteNode` and call
+    /// `RemoteLibraryProvider.resolve(node:)` again to get a fresh, working
+    /// URL/headers. Without this, only the once-resolved `remoteURL` survived
+    /// a save — dead on reload for every provider whose auth lives in a
+    /// header or whose resolved URL itself expires (see
+    /// docs/plans/remote-sparse-indexing.md, "Phase 0" investigation).
+    /// `nil` for every non-remote asset kind and for any `.remote` asset
+    /// persisted before this field existed.
+    public var remoteNodeID: String? = nil
+    public var remoteNodePath: String? = nil
     /// Runtime-only headers for browsed remote-library queue rows. Not persisted:
     /// credentials remain in the Keychain/provider layer.
     public var transientRemoteHeaders: [String: String] = [:]
@@ -248,6 +261,8 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
                 unsupportedReason: String?,
                 needsReimport: Bool = false,
                 syncID: String? = nil,
+                remoteNodeID: String? = nil,
+                remoteNodePath: String? = nil,
                 transientRemoteHeaders: [String: String] = [:],
                 transientRemoteSupportsByteRanges: Bool = true,
                 transientArtwork: RemoteArtwork? = nil) {
@@ -263,6 +278,8 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
         self.unsupportedReason = unsupportedReason
         self.needsReimport = needsReimport
         self.syncID = syncID
+        self.remoteNodeID = remoteNodeID
+        self.remoteNodePath = remoteNodePath
         self.transientRemoteHeaders = transientRemoteHeaders
         self.transientRemoteSupportsByteRanges = transientRemoteSupportsByteRanges
         self.transientArtwork = transientArtwork
@@ -281,6 +298,8 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
         case unsupportedReason
         case needsReimport
         case syncID
+        case remoteNodeID
+        case remoteNodePath
     }
 }
 

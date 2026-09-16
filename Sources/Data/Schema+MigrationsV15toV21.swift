@@ -119,5 +119,25 @@ extension Schema {
                 try db.create(indexOn: "custom_artwork_source", columns: ["syncID"], options: .unique)
             }
         }
+
+        if shouldRegister("v22", upTo: target) {
+            migrator.registerMigration("v22") { db in
+                // Real, persisted re-resolution reference for a `.remote` asset —
+                // previously only the once-resolved `remoteURL` (and possibly
+                // stale/expired) survived a save; the provider-native node
+                // id/path a `RemoteLibraryProvider.resolve(node:)` call needs was
+                // discarded entirely (docs/plans/remote-sparse-indexing.md,
+                // "Prerequisite"/Phase 0 investigation). Without this, "Make
+                // Offline"/"Download" silently used dead credentials/links for
+                // every provider except Subsonic once reached outside a live
+                // browse session — a real, separate bug this column fixes
+                // alongside the field's other future use (sparse remote
+                // indexing).
+                try db.alter(table: "asset") { t in
+                    t.add(column: "remoteNodeID", .text)
+                    t.add(column: "remoteNodePath", .text)
+                }
+            }
+        }
     }
 }

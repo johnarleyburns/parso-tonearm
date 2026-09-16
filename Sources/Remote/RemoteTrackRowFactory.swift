@@ -39,6 +39,15 @@ public enum RemoteTrackRowFactory {
             sizeBytes: resolved.sizeBytes ?? node.sizeBytes,
             unsupportedReason: nil
         )
+        // The real provider-native node reference, carried forward so a later
+        // persist (`RemotePlaylistIngest.persist`/`AppState.persistRemoteTrack`)
+        // can save it — without this, only the resolved `remoteURL` survives,
+        // which is dead-on-reload for most providers (see `Asset.remoteNodeID`'s
+        // doc).
+        if resolved.url.isFileURL == false {
+            asset.remoteNodeID = node.id
+            asset.remoteNodePath = node.path
+        }
         asset.transientRemoteHeaders = resolved.headers
         asset.transientRemoteSupportsByteRanges = resolved.supportsByteRanges
         asset.transientArtwork = metadata?.artwork

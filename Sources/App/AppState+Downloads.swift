@@ -21,20 +21,20 @@ extension AppState {
         var completed = 0
         for track in (try? await store.tracks(forSource: sourceID)) ?? [] {
             guard offlineSourceID == sourceID else { break }
-            guard let remoteStr = track.asset?.remoteURL,
+            guard let asset = track.asset, let remoteStr = asset.remoteURL,
                   let remoteURL = URL(string: remoteStr) else { continue }
 
+            // Cache identity stays keyed on the STABLE persisted URL even
+            // though the actual fetch below may use a different, freshly
+            // re-resolved URL (Dropbox/pCloud issue a new signed link every
+            // resolve) — keying on the fresh URL would fragment the cache
+            // and defeat the "already downloaded" check on every call.
             let cacheKey = AudioCache.key(for: remoteURL)
             let destURL = AudioCache.fileURL(for: cacheKey)
 
             if !FileManager.default.fileExists(atPath: destURL.path) {
-                var request = URLRequest(url: remoteURL)
-                if let headers = track.asset?.transientRemoteHeaders {
-                    for (key, value) in headers {
-                        request.setValue(value, forHTTPHeaderField: key)
-                    }
-                }
-                if let (data, _) = try? await URLSession.shared.data(for: request) {
+                if let request = await fetchRequest(for: asset, source: source),
+                   let (data, _) = try? await URLSession.shared.data(for: request) {
                     try? FileManager.default.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
                     try? data.write(to: destURL, options: .atomic)
                     await AudioCache.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey, durable: true)
@@ -59,21 +59,19 @@ extension AppState {
     func download(rows: [TrackRow]) async -> Int {
         var downloaded = 0
         for row in rows {
-            guard let remoteStr = row.asset?.remoteURL,
+            guard let asset = row.asset, let remoteStr = asset.remoteURL,
                   let remoteURL = URL(string: remoteStr) else { continue }
+            // See makeOffline(source:) above — cache identity is always keyed
+            // on the stable persisted URL, never the possibly-fresh re-resolved
+            // one.
             let cacheKey = AudioCache.key(for: remoteURL)
             let destURL = AudioCache.fileURL(for: cacheKey)
             activePhoneDownloads.insert(row.id)
             do {
                 defer { activePhoneDownloads.remove(row.id) }
                 if !FileManager.default.fileExists(atPath: destURL.path) {
-                    var request = URLRequest(url: remoteURL)
-                    if let headers = row.asset?.transientRemoteHeaders {
-                        for (key, value) in headers {
-                            request.setValue(value, forHTTPHeaderField: key)
-                        }
-                    }
-                    if let (data, _) = try? await URLSession.shared.data(for: request) {
+                    if let request = await fetchRequest(for: asset, source: row.source),
+                       let (data, _) = try? await URLSession.shared.data(for: request) {
                         try? FileManager.default.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
                     try? data.write(to: destURL, options: .atomic)
                         await AudioCache.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey, durable: true)
@@ -86,6 +84,22 @@ extension AppState {
         }
         downloadRevision += 1
         return downloaded
+    }
+
+    /// Real bug fix: builds the request to actually fetch `asset`'s bytes,
+    /// re-authenticating via the owning provider first when a persisted node
+    /// reference exists — see `RemoteAssetRefetch`'s doc for why the plain
+    /// persisted `remoteURL`/transient headers alone are not reliable once a
+    /// row has been through a DB round trip. `source` may be `nil` (a
+    /// `TrackRow` that lost its source join); falls back to the legacy
+    /// remoteURL-only behavior in that case, same as when re-resolution fails.
+    private func fetchRequest(for asset: Asset, source: Source?) async -> URLRequest? {
+        guard let source, let provider = try? remoteProvider(for: source) else {
+            return await RemoteAssetRefetch.request(for: asset) { _ in throw URLError(.unknown) }
+        }
+        return await RemoteAssetRefetch.request(for: asset) { node in
+            try await provider.resolve(node: node)
+        }
     }
 
     func phoneDownloadState(for row: TrackRow) -> PhoneDownloadState {
@@ -142,8 +156,17 @@ extension AppState {
     func persistRemoteTrack(_ row: TrackRow) async -> TrackRow? {
         guard row.id < 0, let source = row.source, let asset = row.asset,
               let rawURL = asset.remoteURL, let url = URL(string: rawURL) else { return row }
-        let node = RemoteNode(id: "now-playing-\(abs(row.id))", title: row.track.title,
-                              path: rawURL, kind: .audio, sizeBytes: asset.sizeBytes,
+        // Prefer the REAL provider node reference `RemoteTrackRowFactory.row`
+        // already attached to this in-memory asset — falling back to the old
+        // resolved-URL-as-path placeholder only when it's genuinely absent
+        // (this closure ignores `node` for resolution either way, since
+        // `resolved` below is already known; what matters is what gets
+        // PERSISTED, so a later re-resolve is possible — see
+        // `Asset.remoteNodeID`'s doc).
+        let node = RemoteNode(id: asset.remoteNodeID ?? "now-playing-\(abs(row.id))",
+                              title: row.track.title,
+                              path: asset.remoteNodePath ?? rawURL, kind: .audio,
+                              sizeBytes: asset.sizeBytes,
                               durationSec: row.track.durationSec)
         let resolved = ResolvedAsset(url: url, headers: asset.transientRemoteHeaders,
                                      supportsByteRanges: asset.transientRemoteSupportsByteRanges,

@@ -50,10 +50,17 @@ public struct RemotePlaylistIngest: Sendable {
                     bitDepthOrBitrate: metadata?.bitRateKbps.map { "\($0) kbps" },
                     sortKey: String(format: "%06d", number), genre: metadata?.genre))
                 guard let trackID = track.id else { skipped += 1; continue }
+                // Persist the real provider node reference, not just the
+                // resolved URL — this is what later lets "Make Offline"/
+                // "Download" (and any future background re-index) get a fresh
+                // URL/headers via `RemoteLibraryProvider.resolve(node:)`
+                // instead of trusting a possibly-stale/expired `remoteURL`
+                // (see `Asset.remoteNodeID`'s doc).
                 _ = try await store.insertAsset(Asset(
                     id: nil, trackId: trackID, kind: .remote, bookmark: nil, relPath: nil,
                     remoteURL: url, altRemoteURL: nil,
-                    sizeBytes: resolved.sizeBytes ?? node.sizeBytes, unsupportedReason: nil))
+                    sizeBytes: resolved.sizeBytes ?? node.sizeBytes, unsupportedReason: nil,
+                    remoteNodeID: node.id, remoteNodePath: node.path))
                 existing[url] = trackID
                 ids.append(trackID)
             } catch {
