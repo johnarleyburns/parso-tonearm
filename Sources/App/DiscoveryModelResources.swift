@@ -123,7 +123,25 @@ final class DiscoveryModelResources: @unchecked Sendable {
         fresh.beginAccessingResources { [weak self] error in
             guard let self else { return }
             if let error {
-                let message = "\(tag): \((error as NSError).localizedDescription) (code \((error as NSError).code))"
+                let nsError = error as NSError
+                let message = "\(tag): \(nsError.localizedDescription) (code \(nsError.code))"
+                guard Self.isRetryable(nsError) else {
+                    // NSBundleOnDemandResourceInvalidParameterError (4994):
+                    // there is no real ODR host to fetch this tag from at
+                    // all — true of every local development-signed install,
+                    // since On-Demand Resources only actually download
+                    // through TestFlight/App Store distribution. This is
+                    // not a real, actionable error for the user (it can
+                    // never happen on a distributed build, and retrying it
+                    // locally can never succeed either) — never surface it
+                    // as lastError/diagnostics, never retry it, log it once
+                    // for a developer reading the console and stop. This is
+                    // the one specific, narrow case CLAUDE.md's "no silent
+                    // magic" doesn't apply to: it is guaranteed environment
+                    // noise, not a real condition to explain to the user.
+                    NSLog("[Discovery] ODR unavailable in this build (not TestFlight/App Store), not retrying: \(message)")
+                    return
+                }
                 NSLog("[Discovery] ODR not available: \(message)")
                 self.lock.lock()
                 state.lastError = message
@@ -138,6 +156,17 @@ final class DiscoveryModelResources: @unchecked Sendable {
                 self.lock.unlock()
             }
         }
+    }
+
+    /// `NSBundleOnDemandResourceInvalidParameterError` (4994) means the ODR
+    /// system has no real host to fetch this tag from at all — true of
+    /// every local development-signed install, since On-Demand Resources
+    /// only actually download through TestFlight/App Store distribution.
+    /// Every other documented ODR error (out-of-space, exceeded-max-size,
+    /// unknown-resource, a plain network failure) is at least plausibly
+    /// transient and worth retrying.
+    private static func isRetryable(_ error: NSError) -> Bool {
+        error.code != 4994
     }
 
     /// Snapshot of the two live requests, lock-protected since `startRequest`
