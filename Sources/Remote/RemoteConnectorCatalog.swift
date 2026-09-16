@@ -205,23 +205,18 @@ public enum RemoteConnectorCatalog {
             icon: "externaldrive.connected.to.line.below",
             guide: cloudGuide("pCloud", permission: "pCloud file listing and download access")
         ),
-        RemoteConnector(
-            sourceKinds: [.jamendoGenre],
-            connectorID: "jamendoGenre",
-            title: "Jamendo genres",
-            proDisplayName: "Jamendo genre libraries",
-            subtitle: "Free Creative-Commons music by genre",
-            tier: .guided,
-            authKind: .urlOnly,
-            icon: "music.note.list",
-            guide: guide(
-                "Add a Genre Library",
-                prerequisites: "Nothing — genre libraries are free and need no account (§18A.2).",
-                steps: "Pick one or more genres. Each becomes its own library, ordered by what's most interesting right now. Platterhead fetches the track list; audio downloads only when you play or prepare a track.",
-                troubleshooting: "If a genre reports it can't reach the catalogue, check the network connection and try again — the app never renders an unreachable catalogue as an empty library.",
-                privacy: "No account or credentials are needed. Platterhead reads the public Creative-Commons catalogue; attribution travels with each track."
-            )
-        ),
+        // "Jamendo genres" connector removed from Add Library/onboarding
+        // per the user's request — Jamendo's real API has no personal/
+        // private-collection concept to build an "add your own login" path
+        // on top of (researched this session: OAuth exists but only
+        // personalizes favorites/likes within the same public catalog this
+        // connector already browsed anonymously), and a dedicated
+        // genre-browse connector for one specific public CC catalog was
+        // judged not worth the onboarding real estate. `JamendoGenreProvider`,
+        // `JamendoBrowseView`, and the onboarding genre-picker
+        // (`GenrePickerModel`/`GenrePickerView`) are left in place but
+        // unreachable from the UI, not deleted outright, to keep this
+        // change small and reversible.
         RemoteConnector(
             sourceKinds: [.iaItem, .iaList, .iaCollection, .iaFavorites],
             connectorID: "iaPublicList",

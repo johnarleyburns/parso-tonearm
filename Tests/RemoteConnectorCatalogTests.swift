@@ -15,7 +15,6 @@ final class RemoteConnectorCatalogTests: XCTestCase {
             .googleDrive,
             .oneDrive,
             .pCloud,
-            .jamendoGenre,
             .iaItem,
             .iaList,
             .iaCollection,
@@ -31,7 +30,14 @@ final class RemoteConnectorCatalogTests: XCTestCase {
     }
 
     func testEveryRemoteSourceKindResolvesToAConnector() {
-        for kind in SourceKind.allCases where kind != .local {
+        // `.jamendoGenre` deliberately has no connector: the "Jamendo
+        // genres" onboarding/Add-Library entry was removed (Jamendo's real
+        // API has no personal/private-collection concept to build an
+        // "add your own login" path on top of, and a dedicated genre-browse
+        // connector for one public CC catalog wasn't judged worth the
+        // onboarding real estate). The underlying provider/source kind is
+        // left in place, unreachable, for any library that already has one.
+        for kind in SourceKind.allCases where kind != .local && kind != .jamendoGenre {
             XCTAssertFalse(
                 RemoteConnectorCatalog.connectors(for: kind).isEmpty,
                 "Missing connector for \(kind.rawValue)"
@@ -50,7 +56,7 @@ final class RemoteConnectorCatalogTests: XCTestCase {
         let guided = Set(RemoteConnectorCatalog.all.filter { $0.tier == .guided }.flatMap(\.sourceKinds))
         let advanced = Set(RemoteConnectorCatalog.all.filter { $0.tier == .advanced }.flatMap(\.sourceKinds))
 
-        XCTAssertEqual(guided, Set([.dropbox, .googleDrive, .oneDrive, .pCloud, .subsonic, .webDAV, .jellyfin, .jamendoGenre, .iaItem, .iaList, .iaCollection, .iaFavorites]))
+        XCTAssertEqual(guided, Set([.dropbox, .googleDrive, .oneDrive, .pCloud, .subsonic, .webDAV, .jellyfin, .iaItem, .iaList, .iaCollection, .iaFavorites]))
         XCTAssertEqual(advanced, Set([.plex, .smb]))
     }
 

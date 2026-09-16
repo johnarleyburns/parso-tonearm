@@ -9,7 +9,10 @@ import XCTest
 final class RemoteLibraryFreeTierTests: XCTestCase {
 
     func testEveryNonLocalSourceKindIsClassifiedAsRemoteLibrary() {
-        for kind in SourceKind.allCases {
+        // `.jamendoGenre` deliberately opted out of the catalog (see
+        // RemoteConnectorCatalogTests.testEveryRemoteSourceKindResolvesToAConnector
+        // for why) — it's no longer a reachable remote-library connector.
+        for kind in SourceKind.allCases where kind != .jamendoGenre {
             XCTAssertEqual(
                 RemoteLibraryAccessPolicy.isRemoteLibrary(kind),
                 kind != .local,
@@ -20,7 +23,7 @@ final class RemoteLibraryFreeTierTests: XCTestCase {
 
     func testAllTenProvidersAreReachableRemoteLibraryKinds() {
         let catalogKinds = Set(RemoteLibraryAccessPolicy.productSourceKinds)
-        for kind in SourceKind.allCases where kind != .local {
+        for kind in SourceKind.allCases where kind != .local && kind != .jamendoGenre {
             XCTAssertTrue(catalogKinds.contains(kind),
                           "\(kind) must resolve to a remote-library connector")
         }

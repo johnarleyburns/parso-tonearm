@@ -278,16 +278,26 @@ final class GenreLibraryTests: XCTestCase {
     // MARK: - AT-GENRE-7: free tier
 
     func testGenreLibraryIsFreeAndCatalogued() {
-        // Free tier (FR-LIB-7): `.jamendoGenre` is a remote library, resolves
-        // to a connector, and the provider factory constructs it.
-        XCTAssertTrue(RemoteLibraryAccessPolicy.isRemoteLibrary(.jamendoGenre))
-        XCTAssertTrue(RemoteLibraryAccessPolicy.productSourceKinds.contains(.jamendoGenre))
-        XCTAssertNotNil(RemoteConnectorCatalog.connector(for: .jamendoGenre))
+        // "Jamendo genres" is no longer a reachable Add-Library/onboarding
+        // entry (removed: Jamendo's real API has no personal/private-
+        // collection concept to build an "add your own login" path on top
+        // of, and a dedicated genre-browse connector for one public CC
+        // catalog wasn't judged worth the onboarding real estate) — so it's
+        // deliberately absent from the connector catalog now. The provider
+        // itself (`JamendoGenreProvider`) is left in place, unreachable, for
+        // any library that already has a `.jamendoGenre` source; this still
+        // constructs successfully.
+        XCTAssertFalse(RemoteLibraryAccessPolicy.isRemoteLibrary(.jamendoGenre))
+        XCTAssertFalse(RemoteLibraryAccessPolicy.productSourceKinds.contains(.jamendoGenre))
+        XCTAssertNil(RemoteConnectorCatalog.connector(for: .jamendoGenre))
         let source = Source(
             id: nil, kind: .jamendoGenre, iaIdentifier: "electronic/techno",
             originalURL: nil, title: "Techno", addedAt: Date(),
             lastResolvedAt: Date(), followUpdates: false, licenseText: nil, memberCapHit: false)
-        XCTAssertTrue(RemoteLibraryProviderFactory.supports(source.kind))
+        // `supports()` is just `RemoteLibraryAccessPolicy.isRemoteLibrary(_:)`
+        // under the hood, so it's consistently false now too — not a partial
+        // removal.
+        XCTAssertFalse(RemoteLibraryProviderFactory.supports(source.kind))
     }
 
     // MARK: - The picker model (FR-LIB-10, §41.1a)
