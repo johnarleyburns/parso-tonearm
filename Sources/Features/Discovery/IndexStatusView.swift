@@ -63,6 +63,18 @@ struct IndexStatusView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     if let p = model.presentation {
                         summaryCard(p)
+                        // Real report: "I don't necessarily want to download
+                        // ALL the files in my library, it's too many, I want
+                        // to only index downloaded/on-device tracks" —
+                        // remote/cloud tracks that were never downloaded are
+                        // deliberately skipped rather than parked forever
+                        // waiting for audio that will never arrive, so this
+                        // says why the totals above never include them.
+                        Text("Only downloaded, on-device tracks are indexed. "
+                            + "A track streamed from a remote library is included once you download it.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Palette.ink3)
+                            .padding(.horizontal, 4)
                         countsCard(p)
                         actionsCard(p)
                     } else {

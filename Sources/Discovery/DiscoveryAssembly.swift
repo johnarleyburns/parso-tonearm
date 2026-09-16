@@ -60,6 +60,10 @@ public actor DiscoveryAssembly {
         public let resetImportJobs: Int
         public let bootstrappedTracks: Int
         public let drainedOutbox: Int
+        /// Pre-existing `waitingForAsset` jobs removed because every asset
+        /// on that track is remote/cloud and was never downloaded — see
+        /// `DiscoveryReconciler.pruneJobsForUndownloadedTracks()`.
+        public let prunedUndownloadedTracks: Int
     }
 
     /// - Parameters:
@@ -152,13 +156,20 @@ public actor DiscoveryAssembly {
     public func recoverAndReconcileAtLaunch() async throws -> LaunchRecovery {
         let staleLeases = try await jobs.recoverStaleLeasesAtLaunch()
         let interruptedImports = try await importJobs.recoverInterruptedAtLaunch()
+        // Before creating any new jobs, drop existing ones for tracks that
+        // are not (and were never) eligible under the "downloaded/on-device
+        // only" rule below — otherwise an install from before this change
+        // keeps every one of those jobs sitting in `waitingForAsset` forever
+        // (real report: "2631 tracks waiting on their audio file").
+        let pruned = try await reconciler.pruneJobsForUndownloadedTracks()
         let bootstrapped = try await reconciler.bootstrapAllTracks()
         let outbox = try await reconciler.processOutbox()
         return LaunchRecovery(
             resetIndexLeases: staleLeases.resetJobCount,
             resetImportJobs: interruptedImports,
             bootstrappedTracks: bootstrapped,
-            drainedOutbox: outbox)
+            drainedOutbox: outbox,
+            prunedUndownloadedTracks: pruned)
     }
 
     /// Drain the outbox, then run scheduler ticks until the queue is idle or

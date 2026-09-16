@@ -147,6 +147,137 @@ final class DiscoveryReconcilerTests: XCTestCase {
         XCTAssertGreaterThan(restarted.assetRevision ?? 0, completed.assetRevision ?? 0)
     }
 
+    // MARK: - Downloaded/on-device only (real report: "2631 tracks waiting
+    // on their audio file... I want to only index downloaded / on-device
+    // tracks")
+
+    @discardableResult
+    private func insertAsset(
+        _ queue: DatabaseQueue, trackId: Int64, kind: String, relPath: String? = nil,
+        remoteURL: String? = nil
+    ) async throws -> Int64 {
+        try await queue.write { db in
+            try db.execute(
+                sql: "INSERT INTO asset (trackId, kind, relPath, remoteURL) VALUES (?, ?, ?, ?)",
+                arguments: [trackId, kind, relPath, remoteURL])
+            return db.lastInsertedRowID
+        }
+    }
+
+    /// A track whose only asset is a bare remote/cloud original (never
+    /// downloaded) must not get an index job at all — the old behavior
+    /// created one anyway and it sat in `waitingForAsset` permanently,
+    /// since nothing was ever going to make a network-only asset locally
+    /// resolvable on its own.
+    func testBootstrapSkipsATrackWhoseOnlyAssetIsRemote() async throws {
+        let queue = try makeQueue()
+        let trackID = try await insertTrack(queue)
+        try await insertAsset(
+            queue, trackId: trackID, kind: "remote", remoteURL: "https://example.com/song.mp3")
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+
+        let enqueued = try await reconciler.bootstrapAllTracks()
+        XCTAssertEqual(enqueued, 0, "a remote-only track must not be enqueued for indexing")
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNil(job)
+    }
+
+    /// A track with a real local asset (relPath) is unaffected — it is
+    /// still eligible and gets that asset selected, exactly as before.
+    func testBootstrapStillEnqueuesATrackWithARealLocalAsset() async throws {
+        let queue = try makeQueue()
+        let trackID = try await insertTrack(queue)
+        let assetID = try await insertAsset(
+            queue, trackId: trackID, kind: "localRef", relPath: "song.m4a")
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+
+        let enqueued = try await reconciler.bootstrapAllTracks()
+        XCTAssertEqual(enqueued, 1)
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertEqual(job?.selectedAssetId, assetID)
+    }
+
+    /// A track with NO asset rows yet (a local import still writing its
+    /// asset) stays eligible with a `nil` selected asset, same as before —
+    /// only a track whose assets ALL resolve to remote/cloud is skipped.
+    func testBootstrapStillEnqueuesATrackWithNoAssetRowsYet() async throws {
+        let queue = try makeQueue()
+        let trackID = try await insertTrack(queue)
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+
+        let enqueued = try await reconciler.bootstrapAllTracks()
+        XCTAssertEqual(enqueued, 1)
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNotNil(job)
+        XCTAssertNil(job?.selectedAssetId)
+    }
+
+    /// A `trackInserted` outbox event for a remote-only track is drained
+    /// (no infinite outbox loop) without ever creating a job.
+    func testTrackInsertedOutboxEventSkipsARemoteOnlyTrack() async throws {
+        let queue = try makeQueue()
+        let trackID = try await insertTrack(queue)
+        try await insertAsset(
+            queue, trackId: trackID, kind: "remote", remoteURL: "https://example.com/song.mp3")
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+
+        try await reconciler.processOutbox()
+        let remainingChanges = try await queue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_change")!
+        }
+        XCTAssertEqual(remainingChanges, 0, "the outbox rows must still be drained")
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNil(job)
+    }
+
+    /// Real-installs cleanup: `pruneJobsForUndownloadedTracks()` removes an
+    /// existing `waitingForAsset` job for a track that is (and always was)
+    /// remote-only, but leaves alone a `waitingForAsset` job for a track
+    /// that genuinely has a local asset (some other, real wait reason).
+    func testPruneRemovesOnlyJobsForTracksWithNoLocalAsset() async throws {
+        let queue = try makeQueue()
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+
+        let remoteTrackID = try await insertTrack(queue, title: "Remote Song")
+        try await insertAsset(
+            queue, trackId: remoteTrackID, kind: "remote",
+            remoteURL: "https://example.com/song.mp3")
+        let remoteJob = try await repo.enqueueOrRestart(
+            trackId: remoteTrackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
+
+        let localTrackID = try await insertTrack(queue, title: "Local Song")
+        let localAssetID = try await insertAsset(
+            queue, trackId: localTrackID, kind: "localRef", relPath: "song.m4a")
+        let localJob = try await repo.enqueueOrRestart(
+            trackId: localTrackID, selectedAssetId: localAssetID, assetRevision: 1,
+            pipelineVersion: 1)
+
+        // Drive both jobs to `.waitingForAsset` directly (a full claim/lease
+        // round trip isn't what this test is about, and `claimNextJob`'s
+        // immediate-reclaim-on-null-nextAttemptAt behavior makes claiming
+        // both jobs in a fixed order unreliable here).
+        for jobId in [remoteJob.id, localJob.id] {
+            try await queue.write { db in
+                try db.execute(
+                    sql: "UPDATE discovery_index_job SET state = 'waitingForAsset' WHERE id = ?",
+                    arguments: [jobId])
+            }
+        }
+
+        let pruned = try await reconciler.pruneJobsForUndownloadedTracks()
+        XCTAssertEqual(pruned, 1)
+        let remainingRemoteJob = try await repo.job(id: remoteJob.id)
+        XCTAssertNil(remainingRemoteJob, "the remote-only track's job must be gone")
+        let remainingLocalJob = try await repo.job(id: localJob.id)
+        XCTAssertNotNil(remainingLocalJob, "a track with a real local asset must be untouched")
+        XCTAssertEqual(remainingLocalJob?.state, .waitingForAsset)
+    }
+
     /// trackDeleted/sourceDeleted changes: the FK cascade already removed
     /// the job; the reconciler must still drain (delete) the outbox row
     /// rather than looping on it forever.

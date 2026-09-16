@@ -333,6 +333,16 @@ public actor IndexJobRepository {
         try writer.read { db in try DiscoveryIndexJob.fetchOne(db, key: id) }
     }
 
+    /// Removes one job row outright — used when a track stops being
+    /// eligible for indexing at all (its only assets became remote/cloud
+    /// and un-downloaded), rather than leaving it parked in a state it can
+    /// never resolve out of on its own.
+    public func deleteJob(id: String) throws {
+        _ = try writer.write { db in
+            try DiscoveryIndexJob.deleteOne(db, key: id)
+        }
+    }
+
     public func job(trackId: Int64, pipelineVersion: Int) throws -> DiscoveryIndexJob? {
         try writer.read { db in
             try DiscoveryIndexJob

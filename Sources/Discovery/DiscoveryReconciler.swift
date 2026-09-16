@@ -34,7 +34,11 @@ public actor DiscoveryReconciler {
     /// Bootstrap every existing core track that has no job yet for the
     /// current pipeline version, in ascending-id keyset pages of 200. Safe
     /// to call repeatedly (idempotent: `enqueueOrRestart` is a no-op for a
-    /// track that already has a job).
+    /// track that already has a job). A track whose assets are all
+    /// remote/cloud (never downloaded) is skipped entirely — see
+    /// `assetSelection` — so it never occupies a permanent `waitingForAsset`
+    /// slot; it becomes eligible on its own the next time this runs, the
+    /// moment it has a real local asset.
     @discardableResult
     public func bootstrapAllTracks() async throws -> Int {
         var lastID: Int64 = 0
@@ -43,11 +47,12 @@ public actor DiscoveryReconciler {
             let page = try await pageOfTracksNeedingJobs(afterId: lastID)
             if page.isEmpty { break }
             for trackId in page {
-                let assetId = try await preferredAssetId(trackId: trackId)
+                let selection = try await assetSelection(trackId: trackId)
+                guard selection.eligible else { continue }
                 try await jobs.enqueueOrRestart(
                     trackId: trackId,
-                    selectedAssetId: assetId,
-                    assetRevision: assetId == nil ? nil : 1,
+                    selectedAssetId: selection.assetId,
+                    assetRevision: selection.assetId == nil ? nil : 1,
                     pipelineVersion: pipelineVersion)
                 enqueued += 1
             }
@@ -55,6 +60,74 @@ public actor DiscoveryReconciler {
             if page.count < Self.bootstrapPageSize { break }
         }
         return enqueued
+    }
+
+    /// One-time-per-track cleanup for installs that already accumulated
+    /// `waitingForAsset` jobs before this change: a job whose track's only
+    /// assets are remote/cloud (never downloaded) sat there permanently,
+    /// since nothing was ever going to make it locally resolvable on its
+    /// own (real report: "2631 tracks waiting on their audio file... I want
+    /// to only index downloaded/on-device tracks"). Deletes those job rows
+    /// outright rather than marking them `.unsupported` — a track skipped
+    /// this way is not "known but unsupported", it's simply outside the
+    /// index's scope right now — so `coverage.total` reads as an honest
+    /// count of tracks actually candidate for indexing, not inflated by
+    /// permanently-waiting cloud tracks. The very next `bootstrapAllTracks()`
+    /// pass (always run immediately after this, at launch) then naturally
+    /// re-creates a real job for any of these the moment it has a local
+    /// asset — no separate "asset became available" event is needed.
+    @discardableResult
+    public func pruneJobsForUndownloadedTracks() async throws -> Int {
+        var pruned = 0
+        while true {
+            let batch = try await writer.read { db in
+                try Row.fetchAll(
+                    db,
+                    sql: """
+                        SELECT j.id AS jobId, j.trackId AS trackId
+                        FROM discovery_index_job j
+                        WHERE j.pipelineVersion = ? AND j.state = ?
+                        LIMIT ?
+                        """,
+                    arguments: [pipelineVersion, DiscoveryJobState.waitingForAsset.rawValue,
+                        Self.bootstrapPageSize])
+            }
+            if batch.isEmpty { break }
+
+            let trackIds = batch.map { $0["trackId"] as Int64 }
+            let assetsByTrack = try await writer.read { db in
+                try Asset.filter(trackIds.contains(Column("trackId"))).fetchAll(db)
+            }.reduce(into: [Int64: [Asset]]()) { result, asset in
+                result[asset.trackId, default: []].append(asset)
+            }
+
+            let idsToDelete: [String] = batch.compactMap { row in
+                let trackId: Int64 = row["trackId"]
+                let assets = assetsByTrack[trackId] ?? []
+                // No asset rows at all is a different, still-eligible case
+                // (a local import still writing its asset) — only prune
+                // when every asset that DOES exist is remote/undownloaded.
+                guard !assets.isEmpty, DiscoveryReconciler.preferredAsset(from: assets) == nil
+                else { return nil }
+                return row["jobId"] as String
+            }
+            guard !idsToDelete.isEmpty else {
+                // Nothing in this batch qualified; a batch this size never
+                // recurs identically, so stop rather than loop forever.
+                break
+            }
+            try await writer.write { db in
+                try db.execute(
+                    sql: """
+                        DELETE FROM discovery_index_job
+                        WHERE id IN (\(idsToDelete.map { _ in "?" }.joined(separator: ",")))
+                        """,
+                    arguments: StatementArguments(idsToDelete))
+            }
+            pruned += idsToDelete.count
+            if batch.count < Self.bootstrapPageSize { break }
+        }
+        return pruned
     }
 
     /// One page of trackIds with `id > afterId` that do not yet have a job
@@ -95,31 +168,44 @@ public actor DiscoveryReconciler {
             switch change.kind {
             case .trackInserted:
                 if let trackId = change.trackId {
-                    let assetId = try await preferredAssetId(trackId: trackId)
-                    try await jobs.enqueueOrRestart(
-                        trackId: trackId,
-                        selectedAssetId: assetId,
-                        assetRevision: assetId == nil ? nil : 1,
-                        pipelineVersion: pipelineVersion)
+                    let selection = try await assetSelection(trackId: trackId)
+                    if selection.eligible {
+                        try await jobs.enqueueOrRestart(
+                            trackId: trackId,
+                            selectedAssetId: selection.assetId,
+                            assetRevision: selection.assetId == nil ? nil : 1,
+                            pipelineVersion: pipelineVersion)
+                    }
+                    // Ineligible (remote-only) tracks are skipped, not
+                    // enqueued — see `bootstrapAllTracks`'s doc.
                 }
             case .assetContentReplaced:
                 if let trackId = change.trackId {
-                    let assetId = try await preferredAssetId(trackId: trackId)
-                    if let existing = try await jobs.job(
+                    let selection = try await assetSelection(trackId: trackId)
+                    let existing = try await jobs.job(
                         trackId: trackId, pipelineVersion: pipelineVersion)
-                    {
+                    if !selection.eligible {
+                        // The replacement made this track remote-only (e.g.
+                        // its local file was removed/swapped for a
+                        // cloud-only original) — drop any stale job rather
+                        // than leave it parked on an asset that no longer
+                        // qualifies.
+                        if let existing {
+                            try await jobs.deleteJob(id: existing.id)
+                        }
+                    } else if let existing {
                         let nextRevision = (existing.assetRevision ?? 0) + 1
                         try await jobs.enqueueOrRestart(
                             trackId: trackId,
-                            selectedAssetId: assetId,
+                            selectedAssetId: selection.assetId,
                             assetRevision: nextRevision,
                             pipelineVersion: pipelineVersion,
                             restart: true)
                     } else {
                         try await jobs.enqueueOrRestart(
                             trackId: trackId,
-                            selectedAssetId: assetId,
-                            assetRevision: assetId == nil ? nil : 1,
+                            selectedAssetId: selection.assetId,
+                            assetRevision: selection.assetId == nil ? nil : 1,
                             pipelineVersion: pipelineVersion)
                     }
                 }
@@ -141,45 +227,59 @@ public actor DiscoveryReconciler {
         return changes.count
     }
 
-    private func preferredAssetId(trackId: Int64) async throws -> Int64? {
-        try await writer.read { db in
-            let assets = try Asset
+    /// A track's index-job eligibility plus (when eligible) its preferred
+    /// asset id. Field report: "I don't necessarily want to download ALL
+    /// the files in my library, it's too many, I want to only index
+    /// downloaded / on-device tracks" — a track whose assets are all
+    /// remote/cloud (never downloaded locally) is NOT eligible; a track
+    /// with no asset rows at all yet (e.g. a local import still writing
+    /// its asset) IS still eligible with a `nil` asset id, exactly as
+    /// before this change, so the normal `.assetContentReplaced` outbox
+    /// event can still fill it in.
+    struct AssetSelection {
+        let assetId: Int64?
+        let eligible: Bool
+    }
+
+    private func assetSelection(trackId: Int64) async throws -> AssetSelection {
+        let assets = try await writer.read { db in
+            try Asset
                 .filter(Column("trackId") == trackId)
                 .order(Column("id"))
                 .fetchAll(db)
-            return DiscoveryReconciler.preferredAsset(from: assets)?.id
         }
+        if assets.isEmpty { return AssetSelection(assetId: nil, eligible: true) }
+        guard let preferred = DiscoveryReconciler.preferredAsset(from: assets) else {
+            return AssetSelection(assetId: nil, eligible: false)
+        }
+        return AssetSelection(assetId: preferred.id, eligible: true)
     }
 
-    /// Deterministic preferred analyzable asset (plan §5): "valid local
-    /// original, then complete cache, then explicitly authorized downloadable
-    /// original; tie by asset ID". The "complete cache" tier (tier 1) is not
-    /// evaluated here — `AudioCache` completeness needs `ParsoAudioStreaming`,
-    /// which this target does not depend on; a cached-but-not-local remote
-    /// asset therefore ranks with the downloadable original (tier 2) and the
-    /// bounded worker's `AnalysisAssetResolver` still resolves a complete
-    /// cache at read time if one exists.
+    /// Deterministic preferred analyzable asset: the valid local original
+    /// (resolvable without a network fetch) with the lowest asset id.
+    /// `nil` when every asset is remote/cloud-only (or flagged
+    /// `needsReimport`/unsupported) — such a track is left for indexing
+    /// only once it actually has downloaded, on-device audio (see
+    /// `AssetSelection`'s doc); this method previously also ranked a bare
+    /// remote/downloadable original as a fallback "tier 2" pick, which is
+    /// exactly what caused tracks to sit in `waitingForAsset` forever,
+    /// since `AnalysisAssetResolver` can never resolve one locally on its
+    /// own.
     static func preferredAsset(from assets: [Asset]) -> Asset? {
         assets
-            .filter { $0.id != nil && $0.unsupportedReason == nil }
-            .min { lhs, rhs in
-                (assetTier(lhs), lhs.id ?? .max) < (assetTier(rhs), rhs.id ?? .max)
-            }
+            .filter { $0.id != nil && $0.unsupportedReason == nil && isLocallyResolvable($0) }
+            .min { ($0.id ?? .max) < ($1.id ?? .max) }
     }
 
-    /// 0 = valid local original (resolvable without network), 2 = downloadable
-    /// / remote original, 3 = present but flagged not-on-this-device.
-    private static func assetTier(_ asset: Asset) -> Int {
-        if asset.needsReimport { return 3 }
+    private static func isLocallyResolvable(_ asset: Asset) -> Bool {
+        guard !asset.needsReimport else { return false }
         switch asset.kind {
         case .localRef, .managedCopy, .builtIn:
-            let hasLocalPath =
-                asset.bookmark != nil
+            return asset.bookmark != nil
                 || asset.relPath != nil
                 || (asset.remoteURL.flatMap(URL.init(string:))?.isFileURL ?? false)
-            return hasLocalPath ? 0 : 2
         case .remote:
-            return 2
+            return false
         }
     }
 }

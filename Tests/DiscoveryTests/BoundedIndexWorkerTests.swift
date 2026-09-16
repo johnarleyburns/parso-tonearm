@@ -370,9 +370,16 @@ final class BoundedIndexWorkerTests: XCTestCase {
         let unsupported = Asset(
             id: 1, trackId: 1, kind: .localRef, bookmark: Data([9]), relPath: nil, remoteURL: nil,
             altRemoteURL: nil, sizeBytes: nil, unsupportedReason: "drm")
-        XCTAssertEqual(
-            DiscoveryReconciler.preferredAsset(from: [unsupported, remote])?.id, 2,
-            "an unsupported asset is skipped")
+        // Real report: "I want to only index downloaded / on-device tracks"
+        // — a bare remote/undownloaded asset is no longer a valid fallback
+        // pick at all (it previously ranked as a lower-priority "tier 2"
+        // choice, which is exactly what left tracks permanently parked in
+        // `waitingForAsset`: nothing was ever going to make that asset
+        // locally resolvable on its own). With only an unsupported asset and
+        // a remote-only one to choose from, neither qualifies.
+        XCTAssertNil(
+            DiscoveryReconciler.preferredAsset(from: [unsupported, remote]),
+            "neither an unsupported nor a remote-only asset is a valid pick")
     }
 
     // MARK: - small async helpers
