@@ -137,7 +137,7 @@ struct LibraryView: View {
                     player.play(tracks: playbackRows, startAt: idx, source: .library)
                 }
             } label: {
-                TrackRowView(row: row)
+                TrackRowView(row: row, showArtwork: true)
             }
             .buttonStyle(.plain)
             .trackContextMenu(row)
@@ -177,11 +177,18 @@ private struct LibraryBrowseEntryRow: View {
 
     var body: some View {
         HStack(spacing: 11) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Palette.brass)
+            // Albums/Artists/Genres previously always showed a generic SF
+            // Symbol here — real artwork only ever appeared in the Songs
+            // browse mode (TrackRowView), which read as a real bug once
+            // Songs got its own artwork icon ("I see a lot of artwork [in
+            // Songs], but if I browse by Albums or Artists I see zero
+            // artwork"). A representative track's art (the group's first
+            // row) is a real, meaningful thumbnail for an album or artist;
+            // falls back to the same icon as before when there's no art to
+            // find.
+            ArtworkView(trackRow: entry.rows.first, seed: entry.title,
+                        cornerRadius: 8, fallbackIcon: icon, thumbnailMaxDimension: 28)
                 .frame(width: 28, height: 28)
-                .glassSurface(cornerRadius: 14)
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.title)
                     .font(.system(size: 14, weight: .medium))
@@ -246,7 +253,7 @@ private struct LibraryGroupDetailView: View {
                     Button {
                         player.play(tracks: entry.rows, startAt: idx, source: .library)
                     } label: {
-                        TrackRowView(row: row)
+                        TrackRowView(row: row, showArtwork: true)
                     }
                     .buttonStyle(.plain)
                     .trackContextMenu(row)

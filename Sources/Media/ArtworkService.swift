@@ -26,6 +26,28 @@ actor ArtworkService {
         return dir
     }()
 
+    /// A SEPARATE, small in-memory cache for downscaled list-row thumbnails
+    /// — never the same cache as `memCache` above, which holds full-resolution
+    /// covers. A SwiftUI `List` rendering thousands of track rows must never
+    /// decode/hold a full-size cover just to paint a 36pt icon (user's
+    /// explicit ask: "cache a SMALL version... so we don't slow down the
+    /// scroll... be smart about SwiftUI list implementation with images").
+    /// Small entries, so this can comfortably hold far more of them than
+    /// `memCache` without the memory cost of full covers.
+    private let thumbnailMemCache: NSCache<NSString, UIImage> = {
+        let c = NSCache<NSString, UIImage>()
+        c.countLimit = 1000
+        c.totalCostLimit = 24 * 1024 * 1024
+        return c
+    }()
+
+    private let thumbnailDiskCacheDir: URL = {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let dir = docs.appendingPathComponent("Tonearm/artwork_thumb_cache")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
     private let session: URLSession = {
         let cfg = URLSessionConfiguration.default
         cfg.timeoutIntervalForRequest = 15
@@ -55,7 +77,14 @@ actor ArtworkService {
                 try? FileManager.default.removeItem(at: url)
             }
         }
+        if let contents = try? FileManager.default.contentsOfDirectory(at: thumbnailDiskCacheDir,
+                                                                       includingPropertiesForKeys: nil) {
+            for url in contents {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
         memCache.removeAllObjects()
+        thumbnailMemCache.removeAllObjects()
         UserDefaults.standard.set(Self.cacheGeneration, forKey: key)
     }
 
@@ -139,6 +168,85 @@ actor ArtworkService {
             }
         }
         return nil
+    }
+
+    /// A small, persistently-cached thumbnail for list-row icons — derived
+    /// from whatever `artwork(forTrackRow:)` already resolves (custom art,
+    /// embedded tags, IA/Jamendo remote artwork, iTunes fallback — every
+    /// source that method already handles), never a second network fetch.
+    /// Cached separately from the full-resolution image, keyed by track id
+    /// AND `maxDimension` (a Now Playing-sized request and a 36pt row icon
+    /// must never collide on one cache entry). `maxDimension` is in points;
+    /// the actual pixel size scales for the device's screen scale so the
+    /// thumbnail still looks sharp, never blurry, at its real render size.
+    func thumbnail(forTrackRow row: TrackRow, maxDimension: CGFloat) async -> UIImage? {
+        let trackId = row.track.id ?? -1
+        // UIScreen.main is MainActor-isolated; hop over rather than making
+        // this whole actor method require a caller-supplied pixel size.
+        let screenScale = await MainActor.run { UIScreen.main.scale }
+        let pixelDimension = maxDimension * screenScale
+        let cacheKey = "track-\(trackId)-\(Int(pixelDimension))" as NSString
+
+        if let cached = thumbnailMemCache.object(forKey: cacheKey) {
+            return cached === Self.notFoundSentinel ? nil : cached
+        }
+        if let onDisk = readThumbnailDiskCache(key: cacheKey as String) {
+            thumbnailMemCache.setObject(onDisk, forKey: cacheKey, cost: thumbnailCost(onDisk))
+            return onDisk
+        }
+        guard let full = await artwork(forTrackRow: row) else {
+            thumbnailMemCache.setObject(Self.notFoundSentinel, forKey: cacheKey)
+            return nil
+        }
+        let thumb = Self.downsampled(full, maxPixelDimension: pixelDimension)
+        thumbnailMemCache.setObject(thumb, forKey: cacheKey, cost: thumbnailCost(thumb))
+        writeThumbnailDiskCache(thumb, key: cacheKey as String)
+        return thumb
+    }
+
+    private func thumbnailCost(_ image: UIImage) -> Int {
+        Int(image.size.width * image.size.height * image.scale * image.scale * 4)
+    }
+
+    /// Fast, correct-orientation downscale via `UIGraphicsImageRenderer` —
+    /// cheap relative to the list-scroll cost this exists to avoid, since
+    /// it runs once per track and is cached forever after (both in memory
+    /// and on disk), never per frame.
+    private static func downsampled(_ image: UIImage, maxPixelDimension: CGFloat) -> UIImage {
+        let pixelSize = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+        guard pixelSize.width > 0, pixelSize.height > 0 else { return image }
+        let scale = min(1, maxPixelDimension / max(pixelSize.width, pixelSize.height))
+        guard scale < 1 else { return image }
+        let targetPointSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: targetPointSize, format: format)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetPointSize))
+        }
+    }
+
+    private func thumbnailDiskCacheURL(key: String) -> URL {
+        let hash = key.utf8.reduce(UInt64(14695981039346656037)) {
+            ($0 ^ UInt64($1)) &* 1099511628211
+        }
+        return thumbnailDiskCacheDir.appendingPathComponent(String(format: "%016llx.jpg", hash))
+    }
+
+    private func readThumbnailDiskCache(key: String) -> UIImage? {
+        let url = thumbnailDiskCacheURL(key: key)
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let modified = attrs[.modificationDate] as? Date,
+              Date().timeIntervalSince(modified) < 30 * 86400,
+              let data = try? Data(contentsOf: url) else { return nil }
+        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
+        return UIImage(data: data)
+    }
+
+    private func writeThumbnailDiskCache(_ image: UIImage, key: String) {
+        guard let data = image.jpegData(compressionQuality: 0.8) else { return }
+        try? data.write(to: thumbnailDiskCacheURL(key: key))
     }
 
     func artwork(forTrackRow row: TrackRow) async -> UIImage? {
@@ -400,7 +508,14 @@ actor ArtworkService {
                 try? FileManager.default.removeItem(at: url)
             }
         }
+        if let contents = try? FileManager.default.contentsOfDirectory(at: thumbnailDiskCacheDir,
+                                                                       includingPropertiesForKeys: nil) {
+            for url in contents {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
         memCache.removeAllObjects()
+        thumbnailMemCache.removeAllObjects()
     }
 
     private func writeDiskCache(_ image: UIImage, key: String) {

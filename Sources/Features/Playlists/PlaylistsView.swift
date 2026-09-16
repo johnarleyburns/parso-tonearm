@@ -31,42 +31,62 @@ struct PlaylistsView: View {
                     .padding(.bottom, 6)
 
                 List {
-                    NavigationLink(value: "ambient") {
+                    // NavigationRow already draws its own trailing chevron
+                    // for this app's custom row styling — wrapping it
+                    // directly in `NavigationLink(value:) { ... }` also gets
+                    // SwiftUI's OWN built-in disclosure chevron in a `List`,
+                    // producing two ">" glyphs (real regression report: "I'm
+                    // seeing the 'double >' again"). Fix: an invisible
+                    // NavigationLink drives navigation while `NavigationRow`
+                    // stays plain content — same tap target, only one
+                    // visible chevron. A `.background(...)`-attached
+                    // NavigationLink plus `.accessibilityHidden(true)` was
+                    // tried first but still left TWO accessibility elements
+                    // (the NavigationLink's own Button trait survives
+                    // `accessibilityHidden` inside a `List` row in practice).
+                    // Putting both views in a `ZStack` and combining at THAT
+                    // level merges everything, NavigationLink's Button trait
+                    // included, into one accessibility element with one
+                    // identifier — which is what XCUITest's single-match
+                    // identifier lookup needs.
+                    ZStack(alignment: .leading) {
+                        NavigationLink(value: "ambient") { EmptyView() }.opacity(0)
                         NavigationRow(icon: "leaf.fill",
                                       title: "Ambient",
                                       subtitle: "Built-in nature sounds for focus, relaxation, or sleep")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("playlist.ambient")
-                    .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18))
-                    .listRowBackground(Color.clear)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("playlist.ambient")
+                        .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18))
+                        .listRowBackground(Color.clear)
 
                     ForEach(appState.playlists) { playlist in
-                        NavigationLink(value: playlist) {
+                        ZStack(alignment: .leading) {
+                            NavigationLink(value: playlist) { EmptyView() }.opacity(0)
                             NavigationRow(icon: playlist.kind == .folder ? "folder.fill" : "music.note.list",
                                           title: playlist.title,
                                           subtitle: playlist.kind == .folder ? "Folder playlist" : "Manual playlist")
                         }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button {
-                                beginRename(playlist)
-                            } label: {
-                                Label("Rename", systemImage: "pencil")
+                            .accessibilityElement(children: .combine)
+                            .contextMenu {
+                                Button {
+                                    beginRename(playlist)
+                                } label: {
+                                    Label("Rename", systemImage: "pencil")
+                                }
+                                Button(role: .destructive) {
+                                    Task { await appState.deletePlaylist(playlist) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
-                            Button(role: .destructive) {
-                                Task { await appState.deletePlaylist(playlist) }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    Task { await appState.deletePlaylist(playlist) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
-                        }
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                Task { await appState.deletePlaylist(playlist) }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
                     }
                     .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18))
                     .listRowBackground(Color.clear)
@@ -196,7 +216,7 @@ struct PlaylistDetailView: View {
                     Button {
                         play(item)
                     } label: {
-                        TrackRowView(row: item.row)
+                        TrackRowView(row: item.row, showArtwork: true)
                     }
                     .buttonStyle(.plain)
                     .trackContextMenu(item.row)
@@ -310,6 +330,14 @@ struct NavigationRow: View {
             Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Palette.ink3)
         }
         .padding(.vertical, 8)
+        // Now that this is plain content (not wrapped directly in
+        // NavigationLink — see the chevron fix above), it must explicitly
+        // collapse into ONE accessibility element itself; without this each
+        // child (icon/title/subtitle/chevron) exposes its own element, all
+        // carrying whatever `.accessibilityIdentifier` the caller applies to
+        // the row as a whole — which broke the UI smoke test ("Multiple
+        // matching elements found for identifier 'playlist.ambient'").
+        .accessibilityElement(children: .combine)
     }
 }
 

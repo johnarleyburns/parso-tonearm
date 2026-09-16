@@ -144,11 +144,22 @@ struct ProvenanceChip: View {
 struct TrackRowView: View {
     let row: TrackRow
     var showCacheGlyph = true
+    /// A small artwork thumbnail to the left of the title — off by default
+    /// (this is also used for Library and Source rows, which don't need
+    /// it), opted into specifically by `PlaylistsView` per the user's
+    /// request ("in playlists, I'd like to show a small artwork icon to the
+    /// left of the track name").
+    var showArtwork = false
     @EnvironmentObject var player: AudioPlayer
     @EnvironmentObject var appState: AppState
 
     var body: some View {
         HStack(spacing: 11) {
+            if showArtwork {
+                ArtworkView(trackRow: row, seed: row.album?.title ?? row.track.title,
+                            cornerRadius: 6, thumbnailMaxDimension: 36)
+                    .frame(width: 36, height: 36)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(titleLine)
                     .font(.system(size: 14, weight: .medium))

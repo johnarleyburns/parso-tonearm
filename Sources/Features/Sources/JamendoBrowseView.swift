@@ -227,6 +227,18 @@ private struct JamendoTrackRow: View {
 
     var body: some View {
         HStack(spacing: 11) {
+            // Jamendo results are remote `RemoteNode`s, not yet-imported
+            // `TrackRow`s — this never routed through `ArtworkView`/
+            // `TrackRowView` at all, so it never showed artwork even though
+            // Jamendo provides real per-track album art (real report:
+            // "I'm seeing the artwork EXCEPT for Jamendo top search"). Reuse
+            // the same `RemoteArtworkImageView` `SourceDetailView`'s remote
+            // browser already uses for exactly this "artwork for a node
+            // that isn't imported yet" case.
+            if let artwork = node.metadata?.artwork {
+                RemoteArtworkImageView(artwork: artwork, seed: node.title, cornerRadius: 6)
+                    .frame(width: 36, height: 36)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(node.title)
                     .font(.system(size: 14, weight: .medium))
