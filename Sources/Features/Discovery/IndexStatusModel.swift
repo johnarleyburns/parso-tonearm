@@ -96,6 +96,18 @@ final class IndexStatusModel: ObservableObject {
         isBusy = false
     }
 
+    /// Manual re-reconcile — real report: reconciliation only runs
+    /// automatically at launch, so a setting change or a missed track
+    /// mid-session never gets picked up until the next relaunch otherwise.
+    @discardableResult
+    func enqueueUnindexedTracks() async -> Int {
+        isBusy = true
+        let count = await controller.enqueueUnindexedTracks()
+        await refresh()
+        isBusy = false
+        return count
+    }
+
     /// Backs the tappable detail sheet on each `countsCard` row — real track titles for the
     /// bucket the user tapped, on-device only.
     func trackSummaries(for bucket: IndexJobRepository.TrackListBucket) async

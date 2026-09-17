@@ -48,8 +48,11 @@ public actor DiscoverySettingsStore {
         try setBool(on, forKey: DiscoverySetting.Key.chargingOnly)
     }
 
+    /// Defaults to `true` at the owner's explicit request — Wi-Fi-only
+    /// (above) is the actual data-cost guard for this single-owner app, so
+    /// there's no separate value in also defaulting this master switch off.
     public func isRemoteIndexingEnabled() throws -> Bool {
-        try bool(forKey: DiscoverySetting.Key.remoteIndexingEnabled)
+        try bool(forKey: DiscoverySetting.Key.remoteIndexingEnabled, default: true)
     }
 
     public func setRemoteIndexingEnabled(_ on: Bool) throws {

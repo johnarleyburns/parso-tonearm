@@ -331,6 +331,15 @@ struct IndexStatusView: View {
 
             remoteIndexingToggles
 
+            actionButton("Enqueue unindexed tracks", "arrow.triangle.2.circlepath") {
+                let count = await model.enqueueUnindexedTracks()
+                if count > 0 {
+                    ToastCenter.shared.success("Queued \(count) track\(count == 1 ? "" : "s")")
+                } else {
+                    ToastCenter.shared.info("Everything eligible is already queued or indexed")
+                }
+            }
+
             actionButton("Export diagnostics", "square.and.arrow.up") {
                 diagnosticsText = await model.diagnosticsText()
                 showShare = true
@@ -352,7 +361,7 @@ struct IndexStatusView: View {
             Toggle(
                 "Index tracks I haven't downloaded",
                 isOn: Binding(
-                    get: { model.snapshot?.isRemoteIndexingEnabled ?? false },
+                    get: { model.snapshot?.isRemoteIndexingEnabled ?? true },
                     set: { on in Task { await model.setRemoteIndexingEnabled(on) } })
             )
             .font(.system(size: 14))

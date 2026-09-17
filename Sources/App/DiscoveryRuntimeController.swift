@@ -267,9 +267,20 @@ final class DiscoveryRuntimeController {
         sampler.setChargingOnlySetting(on)
     }
 
+    /// Real report: "I tried the toggle and nothing happened, nothing is
+    /// indexing." Cause: `DiscoveryReconciler.bootstrapAllTracks()` only
+    /// creates a job for a track that has NONE yet — and a remote-only
+    /// track that was ineligible before this setting existed never got one,
+    /// so it stays job-less until something re-runs the reconciler. That
+    /// only happened at the next app launch (`recoverAndReconcileAtLaunch`)
+    /// — turning the setting on mid-session did nothing visible until then.
+    /// Re-running bootstrap (idempotent — a no-op for every track that
+    /// already has a job) and kicking a drain immediately after the
+    /// flip fixes that: newly-eligible tracks get queued right away.
     func setRemoteIndexingEnabled(_ on: Bool) async {
         let assembly = await makeAssembly()
         try? await assembly.settings.setRemoteIndexingEnabled(on)
+        if on { _ = await enqueueUnindexedTracks() }
     }
 
     func setRemoteIndexingWiFiOnly(_ on: Bool) async {
@@ -404,6 +415,25 @@ final class DiscoveryRuntimeController {
         let assembly = await makeAssembly()
         let count = (try? await assembly.retryFailedJobs()) ?? 0
         if count > 0 { startForegroundTickLoop() }
+        return count
+    }
+
+    /// Manual "Enqueue unindexed tracks" action — real report: reconciliation
+    /// (what decides whether a track qualifies for a job) only ever runs
+    /// automatically at app launch or on a live catalog-change event; it
+    /// never re-runs just because eligibility criteria changed (e.g. the
+    /// remote-indexing setting) or a track got missed for any other reason
+    /// mid-session. `bootstrapAllTracks()` is already idempotent — a no-op
+    /// for every track that already has a job — so this is always safe to
+    /// press, not just after flipping a setting.
+    @discardableResult
+    func enqueueUnindexedTracks() async -> Int {
+        let assembly = await makeAssembly()
+        let count = (try? await assembly.reconciler.bootstrapAllTracks()) ?? 0
+        if count > 0 {
+            _ = try? await assembly.drainQueue()
+            startForegroundTickLoop()
+        }
         return count
     }
 

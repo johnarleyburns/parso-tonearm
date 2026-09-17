@@ -103,7 +103,7 @@ public actor DiscoveryAssembly {
         self.settings = settings
         self.reconciler = DiscoveryReconciler(
             writer: writer, jobs: jobs,
-            remoteIndexingEnabled: { (try? await settings.isRemoteIndexingEnabled()) ?? false })
+            remoteIndexingEnabled: { (try? await settings.isRemoteIndexingEnabled()) ?? true })
         let models = ModelManager(resourceProvider: modelResourceProvider)
         self.models = models
         let worker = BoundedIndexWorker(
@@ -132,7 +132,7 @@ public actor DiscoveryAssembly {
         let coverage = try await jobs.coverage(pipelineVersion: DiscoveryPipelineVersion.pipeline)
         let paused = (try? await settings.isPaused()) ?? false
         let chargingOnly = (try? await settings.isChargingOnly()) ?? false
-        let remoteIndexingEnabled = (try? await settings.isRemoteIndexingEnabled()) ?? false
+        let remoteIndexingEnabled = (try? await settings.isRemoteIndexingEnabled()) ?? true
         let remoteIndexingWiFiOnly = (try? await settings.isRemoteIndexingWiFiOnly()) ?? true
         let modelAvailable = await models.isModelResourceAvailable()
         let runtime = (try? await settings.runtime()) ?? DiscoveryRuntime(id: 1)

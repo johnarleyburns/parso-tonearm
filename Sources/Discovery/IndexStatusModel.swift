@@ -133,7 +133,9 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
     public var isPaused: Bool
     public var isChargingOnly: Bool
     /// Master switch for indexing tracks that only exist on a remote
-    /// library (off by default — see `DiscoverySettingsStore`).
+    /// library (on by default, at the owner's explicit request — the
+    /// Wi-Fi-only setting below is the actual data-cost guard; see
+    /// `DiscoverySettingsStore`).
     public var isRemoteIndexingEnabled: Bool
     /// Whether remote sampling is currently restricted to Wi-Fi (on by
     /// default; irrelevant while `isRemoteIndexingEnabled` is false).
@@ -180,7 +182,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         coverage: IndexJobRepository.Coverage,
         isPaused: Bool,
         isChargingOnly: Bool,
-        isRemoteIndexingEnabled: Bool = false,
+        isRemoteIndexingEnabled: Bool = true,
         isRemoteIndexingWiFiOnly: Bool = true,
         modelResourceAvailable: Bool,
         modelDownloadProgress: ModelDownloadProgress? = nil,
