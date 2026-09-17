@@ -193,7 +193,12 @@ let package = Package(
                 "TonearmCore",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
-                .product(name: "ParsoAudioNeural", package: "parso-audio-engine")
+                .product(name: "ParsoAudioNeural", package: "parso-audio-engine"),
+                // Remote sparse indexing (docs/plans/remote-sparse-indexing.md)
+                // reuses the app's own streaming-cache infrastructure
+                // (CachingResourceLoader/SparseCacheStore) pointed at a
+                // throwaway, temp-rooted store instead of the real one.
+                .product(name: "ParsoAudioStreaming", package: "parso-audio-engine")
             ],
             path: "Sources/Discovery",
             swiftSettings: [.swiftLanguageMode(.v6)]
@@ -238,7 +243,8 @@ let package = Package(
             dependencies: [
                 "TonearmDiscovery",
                 "TonearmCore",
-                .product(name: "GRDB", package: "GRDB.swift")
+                .product(name: "GRDB", package: "GRDB.swift"),
+                .product(name: "ParsoAudioStreaming", package: "parso-audio-engine")
             ],
             path: "Tests/DiscoveryTests",
             swiftSettings: [.swiftLanguageMode(.v6)]

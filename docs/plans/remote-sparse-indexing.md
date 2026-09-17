@@ -212,12 +212,34 @@ This approach handles elementary-stream and MP4-container formats uniformly (thr
   the independently-real `makeOffline()`/`download()` bug Phase 0 item 1 found. Not yet confirmed:
   whether this was verified against a live server per provider, or only by code inspection/unit
   test — check before relying on it for the sparse-indexing fetch path below.
-- **Everything else in this plan: still not started**, most importantly **the validation step**
-  ("Specific risks and the validation step" above) — measuring real `AVAssetReader` over-fetch
-  for ~13 scattered time-window seeks against a live remote M4A file. That is a real go/no-go
-  gate on the rest of this plan's design (the ephemeral `SparseCacheStore`/`CachingResourceLoader`
-  wiring, the new `AVAssetReader`-based windowed reader, the `DiscoveryReconciler`/
-  `IndexStatusPresentation` extensions, and the Settings toggle), not a formality, and it needs a
-  live device + a real remote server to run — it was not attempted this session. Do not write the
-  rest of this feature before it runs; if the measured over-fetch is large, this plan's design
-  needs to change first (see that section for what to try).
+- **Core feature landed without the live validation step — an explicit, owner-approved deviation
+  from this plan's original instructions.** The owner was told the validation step (measuring
+  real `AVAssetReader` over-fetch against a live remote M4A file) could not be run from this
+  session (no device/network access), and chose to ship the feature with instrumentation instead
+  of waiting: `BoundedIndexWorker.releaseRemoteSession` logs real
+  `fetchedBytes`/`estimatedBytes` per track via `os.Logger` (subsystem `guru.parso.tonearm`,
+  category `RemoteSparseIndexing`) every time a remote-sparse job's session closes. **Before
+  trusting this feature's real-world data cost, check that log against actual device usage** —
+  if the measured over-fetch is large relative to `RemoteIndexingByteEstimate.perTrackBytes`,
+  the design (widening window reuse, or a manual byte-range fallback for elementary-stream
+  formats) needs revisiting, per "Specific risks and the validation step" above, which otherwise
+  still applies unchanged.
+- **What landed**: the Wi-Fi-only gate + Settings toggle (`4031e6c`) and, in a second commit, the
+  rest — `RemoteSparseAssetResolver` (ephemeral `SparseCacheStore`/`CachingResourceLoader`
+  wiring, re-authenticating via `RemoteAssetRefetch.resolve` + the prerequisite's persisted node
+  reference; SMB explicitly excluded, matching Phase 0 item 3's "concrete no"),
+  `AssetBackedWindowedAudioReader` (`AVAssetReader`-based, matching `WindowedAudioReader`'s
+  output contract exactly), `BoundedIndexWorker` wired to use both for `.remote` assets (one
+  session reused across a job's embedding + musical-analysis windows, released — and its bytes
+  logged — when the job's work on that asset is done), `DiscoveryReconciler.assetSelection`
+  extended with a third outcome (remote-sparse-eligible, gated on the Settings toggle and on the
+  asset actually having a persisted node reference), and a startup sweep
+  (`RemoteSparseAssetResolver.sweepStaleEphemeralDirectories()`) for any ephemeral directory a
+  crash left behind. `IndexStatusView`'s explanatory text now reflects whichever mode is active.
+- **Not done in this pass**: the dedicated stubbed-`URLSession` integration test the plan's
+  "Tests" section calls for (asserting a decoded PCM window matches a reference, and that the
+  ephemeral store's directory is genuinely empty after a job) — coverage so far is at the
+  `DiscoveryReconciler`/`IndexPolicy`/`IndexScheduler` level (asset-selection eligibility, the
+  Wi-Fi gate, session-reuse-across-windows bookkeeping), not an end-to-end fetch-through-decode
+  test against a fixture. A real-device manual test per provider (the plan's last "Tests" bullet)
+  also still hasn't happened. Both remain open before calling this feature fully verified.

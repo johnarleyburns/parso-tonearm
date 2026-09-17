@@ -70,14 +70,21 @@ struct IndexStatusView: View {
                         // ALL the files in my library, it's too many, I want
                         // to only index downloaded/on-device tracks" —
                         // remote/cloud tracks that were never downloaded are
-                        // deliberately skipped rather than parked forever
+                        // skipped by default rather than parked forever
                         // waiting for audio that will never arrive, so this
-                        // says why the totals above never include them.
-                        Text("Only downloaded, on-device tracks are indexed. "
-                            + "A track streamed from a remote library is included once you download it.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Palette.ink3)
-                            .padding(.horizontal, 4)
+                        // says why the totals above don't include them
+                        // unless the owner has since turned on remote
+                        // sparse sampling below.
+                        Text(
+                            model.snapshot?.isRemoteIndexingEnabled == true
+                                ? "Downloaded tracks are indexed fully; remote tracks are sampled "
+                                    + "just enough to index without downloading them."
+                                : "Only downloaded, on-device tracks are indexed. A track streamed "
+                                    + "from a remote library is included once you download it."
+                        )
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.ink3)
+                        .padding(.horizontal, 4)
                         countsCard(p)
                         actionsCard(p)
                     } else {

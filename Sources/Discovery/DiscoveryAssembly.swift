@@ -99,13 +99,16 @@ public actor DiscoveryAssembly {
         let jobs = IndexJobRepository(writer: writer)
         self.jobs = jobs
         self.importJobs = ImportJobRepository(writer: writer)
-        self.reconciler = DiscoveryReconciler(writer: writer, jobs: jobs)
+        let settings = DiscoverySettingsStore(writer: writer)
+        self.settings = settings
+        self.reconciler = DiscoveryReconciler(
+            writer: writer, jobs: jobs,
+            remoteIndexingEnabled: { (try? await settings.isRemoteIndexingEnabled()) ?? false })
         let models = ModelManager(resourceProvider: modelResourceProvider)
         self.models = models
         let worker = BoundedIndexWorker(
             writer: writer, jobs: jobs, models: models, executionContext: executionContext)
         self.scheduler = IndexScheduler(jobs: jobs, worker: worker)
-        self.settings = DiscoverySettingsStore(writer: writer)
         let vectorIndex = VectorIndex(writer: writer)
         self.vectorIndex = vectorIndex
         self.search = SearchService(
@@ -164,6 +167,12 @@ public actor DiscoveryAssembly {
     /// bootstraps every pre-existing core track and drains the outbox.
     @discardableResult
     public func recoverAndReconcileAtLaunch() async throws -> LaunchRecovery {
+        // A crash/force-quit mid-job can leave a remote-sparse session's
+        // ephemeral temp directory behind (its own `shutdown()` never ran)
+        // — swept here so nothing from that path survives across launches
+        // (plan acceptance criteria: verified via a startup sweep, not just
+        // the happy-path cleanup).
+        RemoteSparseAssetResolver.sweepStaleEphemeralDirectories()
         let staleLeases = try await jobs.recoverStaleLeasesAtLaunch()
         let interruptedImports = try await importJobs.recoverInterruptedAtLaunch()
         // Before creating any new jobs, drop existing ones for tracks that

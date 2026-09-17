@@ -24,16 +24,31 @@ public enum RemoteAssetRefetch {
         for asset: Asset,
         resolveNode: @Sendable (RemoteNode) async throws -> ResolvedAsset
     ) async -> URLRequest? {
+        guard let resolved = await resolve(for: asset, resolveNode: resolveNode) else {
+            return nil
+        }
+        var request = URLRequest(url: resolved.url)
+        for (field, value) in resolved.headers {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
+        return request
+    }
+
+    /// Same re-authentication as `request(for:resolveNode:)`, but returns the
+    /// full `ResolvedAsset` (headers, `supportsByteRanges`, size) rather than
+    /// a flattened `URLRequest` — what a streaming/sparse-fetch caller
+    /// (`CachingResourceLoaderConfig`) needs and a plain `URLRequest` can't
+    /// carry.
+    public static func resolve(
+        for asset: Asset,
+        resolveNode: @Sendable (RemoteNode) async throws -> ResolvedAsset
+    ) async -> ResolvedAsset? {
         if let nodePath = asset.remoteNodePath {
             let node = RemoteNode(
                 id: asset.remoteNodeID ?? "", title: "", path: nodePath, kind: .audio,
                 sizeBytes: asset.sizeBytes)
             if let resolved = try? await resolveNode(node) {
-                var request = URLRequest(url: resolved.url)
-                for (field, value) in resolved.headers {
-                    request.setValue(value, forHTTPHeaderField: field)
-                }
-                return request
+                return resolved
             }
             // Re-resolution failed (offline, revoked credential, provider
             // temporarily unreachable) — fall through to the legacy
@@ -43,10 +58,8 @@ public enum RemoteAssetRefetch {
             // Subsonic whose persisted URL is normally self-authenticating.
         }
         guard let rawURL = asset.remoteURL, let url = URL(string: rawURL) else { return nil }
-        var request = URLRequest(url: url)
-        for (field, value) in asset.transientRemoteHeaders {
-            request.setValue(value, forHTTPHeaderField: field)
-        }
-        return request
+        return ResolvedAsset(
+            url: url, headers: asset.transientRemoteHeaders,
+            supportsByteRanges: asset.transientRemoteSupportsByteRanges, sizeBytes: asset.sizeBytes)
     }
 }

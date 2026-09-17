@@ -18,17 +18,25 @@ public actor DiscoveryReconciler {
     private let jobs: IndexJobRepository
     private let pipelineVersion: Int
     private let clock: () -> Date
+    /// Whether a track whose only assets are remote/cloud should get a job
+    /// anyway (sparse sampling — docs/plans/remote-sparse-indexing.md), read
+    /// fresh on every `assetSelection` call rather than cached at init, so a
+    /// user flipping the Settings toggle takes effect on the very next
+    /// reconcile pass without needing this actor recreated.
+    private let remoteIndexingEnabled: @Sendable () async -> Bool
 
     public init(
         writer: any DatabaseWriter,
         jobs: IndexJobRepository,
         pipelineVersion: Int = DiscoveryPipelineVersion.pipeline,
-        clock: @escaping () -> Date = Date.init
+        clock: @escaping () -> Date = Date.init,
+        remoteIndexingEnabled: @escaping @Sendable () async -> Bool = { false }
     ) {
         self.writer = writer
         self.jobs = jobs
         self.pipelineVersion = pipelineVersion
         self.clock = clock
+        self.remoteIndexingEnabled = remoteIndexingEnabled
     }
 
     /// Bootstrap every existing core track that has no job yet for the
@@ -101,13 +109,21 @@ public actor DiscoveryReconciler {
                 result[asset.trackId, default: []].append(asset)
             }
 
+            // Read once per batch, not per track — a track that's genuinely
+            // eligible via remote sparse sampling (the setting is on AND it
+            // has a real node reference) must never be pruned here, or every
+            // launch would delete and immediately recreate the same jobs.
+            let remoteEnabled = await remoteIndexingEnabled()
             let idsToDelete: [String] = batch.compactMap { row in
                 let trackId: Int64 = row["trackId"]
                 let assets = assetsByTrack[trackId] ?? []
                 // No asset rows at all is a different, still-eligible case
                 // (a local import still writing its asset) — only prune
-                // when every asset that DOES exist is remote/undownloaded.
-                guard !assets.isEmpty, DiscoveryReconciler.preferredAsset(from: assets) == nil
+                // when every asset that DOES exist is remote/undownloaded
+                // AND (when remote indexing is on) not sparse-eligible.
+                guard !assets.isEmpty, DiscoveryReconciler.preferredAsset(from: assets) == nil,
+                    !(remoteEnabled
+                        && DiscoveryReconciler.remoteSparseEligibleAsset(from: assets) != nil)
                 else { return nil }
                 return row["jobId"] as String
             }
@@ -273,10 +289,34 @@ public actor DiscoveryReconciler {
                 .fetchAll(db)
         }
         if assets.isEmpty { return AssetSelection(assetId: nil, eligible: true) }
-        guard let preferred = DiscoveryReconciler.preferredAsset(from: assets) else {
-            return AssetSelection(assetId: nil, eligible: false)
+        if let preferred = DiscoveryReconciler.preferredAsset(from: assets) {
+            return AssetSelection(assetId: preferred.id, eligible: true)
         }
-        return AssetSelection(assetId: preferred.id, eligible: true)
+        // No local/downloaded asset — eligible only via remote sparse
+        // sampling, and only when the user has explicitly turned that on
+        // (off by default — real, ongoing network-data cost).
+        if await remoteIndexingEnabled(),
+            let sparse = DiscoveryReconciler.remoteSparseEligibleAsset(from: assets)
+        {
+            return AssetSelection(assetId: sparse.id, eligible: true)
+        }
+        return AssetSelection(assetId: nil, eligible: false)
+    }
+
+    /// The lowest-id remote asset that CAN be sparsely sampled — has the
+    /// persisted node reference (`remoteNodeID`/`remoteNodePath`) the
+    /// prerequisite work added, without which `RemoteSparseAssetResolver`
+    /// can never re-authenticate it (commit `0a80ff8`). An asset persisted
+    /// before that field existed, or otherwise missing it, does not get a
+    /// job at all — it would only ever land in `.unsupported` on first
+    /// attempt, so there's no point creating one.
+    static func remoteSparseEligibleAsset(from assets: [Asset]) -> Asset? {
+        assets
+            .filter {
+                $0.id != nil && $0.kind == .remote && $0.unsupportedReason == nil
+                    && !$0.needsReimport && $0.remoteNodePath != nil
+            }
+            .min { ($0.id ?? .max) < ($1.id ?? .max) }
     }
 
     /// Deterministic preferred analyzable asset: the valid local original
