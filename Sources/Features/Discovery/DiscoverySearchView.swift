@@ -57,6 +57,7 @@ struct DiscoverySearchView: View {
 private struct DiscoverySearchContent: View {
     @ObservedObject var model: DiscoverySearchViewModel
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var player: AudioPlayer
     @State private var refinementDraft: String = ""
 
     var body: some View {
@@ -221,7 +222,18 @@ private struct DiscoverySearchContent: View {
     private var resultsSection: some View {
         switch model.screen {
         case .idle:
-            hint("Search your music by title and artist, or switch to Find by sound.")
+            // Real report: "I only see indexed FIND MUSIC but I also want to be able to BROWSE
+            // the music I have in the find screen, don't just show it blank... it should show
+            // all my music browsing by default, just like the Music tab, but I should then be
+            // able to search to filter/find." No query typed yet — show the whole library,
+            // reusing the exact same data (`appState.allTracks`) and row (`TrackRowView`) the
+            // Library tab uses, so this isn't a second, divergent browse implementation. Typing
+            // anything hands off to the existing search/filter machinery below, unchanged.
+            if appState.allTracks.isEmpty {
+                hint("Your library is empty. Add music to see it here.")
+            } else {
+                libraryBrowseList
+            }
         case .loading:
             HStack { ProgressView(); Text("Searching…").foregroundStyle(Palette.ink3) }
                 .font(.callout)
@@ -293,6 +305,32 @@ private struct DiscoverySearchContent: View {
             }
         case .staleSuppressed:
             EmptyView()
+        }
+    }
+
+    /// Browse-everything view for the idle (no query typed) state. `LazyVStack`, not the
+    /// eager `ForEach` the (naturally bounded) search-results case below uses — a library can
+    /// have thousands of tracks, and this must not instantiate every row up front.
+    private var libraryBrowseList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Your Music").font(.caption).foregroundStyle(Palette.ink3)
+                Spacer()
+                Text("\(appState.allTracks.count) track\(appState.allTracks.count == 1 ? "" : "s")")
+                    .font(.caption).foregroundStyle(Palette.ink3)
+            }
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(appState.allTracks.enumerated()), id: \.element.id) { idx, row in
+                    Button {
+                        player.play(tracks: appState.allTracks, startAt: idx, source: .library)
+                    } label: {
+                        TrackRowView(row: row, showArtwork: true)
+                    }
+                    .buttonStyle(.plain)
+                    .trackContextMenu(row)
+                    Divider().overlay(Palette.hairline)
+                }
+            }
         }
     }
 

@@ -56,6 +56,7 @@ struct IndexStatusView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var diagnosticsText: String?
     @State private var showShare = false
+    @State private var trackListBucket: IndexJobRepository.TrackListBucket?
 
     var body: some View {
         NavigationStack {
@@ -126,16 +127,45 @@ struct IndexStatusView: View {
     private func countsCard(_ p: IndexStatusPresentation) -> some View {
         let c = model.snapshot?.coverage
         return VStack(spacing: 0) {
-            row("Indexed", c?.complete ?? 0)
+            tappableRow("Indexed", c?.complete ?? 0, bucket: .complete)
             Divider().overlay(Palette.hairline)
-            row("Queued", c?.queuedOrRunning ?? 0)
+            tappableRow("Queued", c?.queuedOrRunning ?? 0, bucket: .queuedOrRunning)
             Divider().overlay(Palette.hairline)
-            row("Waiting", c?.waiting ?? 0)
+            tappableRow("Waiting", c?.waiting ?? 0, bucket: .waiting)
             Divider().overlay(Palette.hairline)
-            row("Failed", p.failedCount)
+            tappableRow("Failed", p.failedCount, bucket: .failed)
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
+        .sheet(item: $trackListBucket) { bucket in
+            IndexTrackListSheet(model: model, bucket: bucket)
+        }
+    }
+
+    /// A `countsCard` row that opens the real track list for that bucket — real report: "I want
+    /// to actually see what's happening and what's indexed," not just a count.
+    private func tappableRow(_ label: String, _ value: Int, bucket: IndexJobRepository.TrackListBucket)
+        -> some View
+    {
+        Button {
+            guard value > 0 else { return }
+            trackListBucket = bucket
+        } label: {
+            HStack {
+                Text(label).font(.system(size: 14)).foregroundStyle(Palette.ink)
+                Spacer()
+                Text("\(value)").font(.system(size: 14, weight: .semibold)).foregroundStyle(Palette.ink2)
+                if value > 0 {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Palette.ink3)
+                }
+            }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(value == 0)
     }
 
     /// The "Models" section — added directly at the user's request for an
@@ -242,15 +272,6 @@ struct IndexStatusView: View {
         .padding(.vertical, 4)
     }
 
-    private func row(_ label: String, _ value: Int) -> some View {
-        HStack {
-            Text(label).font(.system(size: 14))
-            Spacer()
-            Text("\(value)").font(.system(size: 14, weight: .semibold)).foregroundStyle(Palette.ink2)
-        }
-        .padding(.vertical, 10)
-    }
-
     private func actionsCard(_ p: IndexStatusPresentation) -> some View {
         VStack(spacing: 10) {
             if p.canResume {
@@ -324,6 +345,67 @@ struct IndexStatusView: View {
             Spacer()
             Text(date.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "—")
                 .font(.system(size: 12)).foregroundStyle(Palette.ink2)
+        }
+    }
+}
+
+/// The scrollable drill-down for one `countsCard` bucket — real report: "I want to actually see
+/// what's happening and what's indexed." On-device only: shows real track titles/artists, unlike
+/// the redacted `DiscoveryDiagnostics` export below (plan §10.6).
+private struct IndexTrackListSheet: View {
+    let model: IndexStatusModel
+    let bucket: IndexJobRepository.TrackListBucket
+    @Environment(\.dismiss) private var dismiss
+    @State private var tracks: [IndexJobRepository.TrackSummary]?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let tracks {
+                    if tracks.isEmpty {
+                        Text("Nothing here right now.")
+                            .font(.system(size: 14)).foregroundStyle(Palette.ink3)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        List(tracks) { track in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(track.title).font(.system(size: 14)).lineLimit(1)
+                                if let artist = track.artistName {
+                                    Text(artist).font(.system(size: 12)).foregroundStyle(Palette.ink3)
+                                        .lineLimit(1)
+                                }
+                                if let detail = track.detail {
+                                    Text(detail).font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                                        .lineLimit(2)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        .listStyle(.plain)
+                    }
+                } else {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .task {
+            tracks = await model.trackSummaries(for: bucket)
+        }
+    }
+
+    private var title: String {
+        switch bucket {
+        case .complete: return "Indexed"
+        case .queuedOrRunning: return "Queued"
+        case .waiting: return "Waiting"
+        case .failed: return "Failed"
         }
     }
 }

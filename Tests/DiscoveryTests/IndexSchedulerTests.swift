@@ -244,14 +244,33 @@ final class IndexSchedulerTests: XCTestCase {
         XCTAssertEqual(job?.attemptCount, 0, "preemption must not consume a retry attempt")
     }
 
-    func testPlaybackActiveMidRunReleasesJobToQueuedForImmediateReclaim() async throws {
+    /// Superseded by `testPlaybackActiveDoesNotPreemptARunningJob` below.
+    /// `IndexScheduler` used to preempt a running job the instant playback
+    /// started (mirroring `IndexPolicy`'s old playback-blocks-indexing
+    /// gate — see `IndexPolicy.decide`'s `.foreground` case doc). Real user
+    /// feedback ("I want to index while I'm playing") removed that gate;
+    /// `IndexBlockReason.playbackActive` can no longer be produced by
+    /// `IndexPolicy.decide`, so a job can never actually reach
+    /// `.jobPreempted(_, reason: .playbackActive)` in production anymore.
+    /// The old version of this test asserted exactly that unreachable
+    /// outcome — with the gate gone, `IndexScheduler.tick`'s inner loop
+    /// never breaks on playback becoming active, the scripted worker's
+    /// "script exhausted" fallback (`.embeddingStageFinished(.complete)`,
+    /// which alone never satisfies `isComplete` — see
+    /// `testOnlyOneJobClaimedPerTick`'s doc comment) then repeats forever,
+    /// and the test hung indefinitely instead of failing. Caught by an
+    /// actual hang during a pre-commit test run, not by review.
+    func testPlaybackActiveDoesNotPreemptARunningJob() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let jobs = IndexJobRepository(writer: queue)
         try await jobs.enqueueOrRestart(
             trackId: trackId, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
-        let worker = ScriptedWorker([.windowCompleted, .windowCompleted])
+        let worker = ScriptedWorker([
+            .windowCompleted, .embeddingStageFinished(.complete),
+            .musicalAnalysisStageFinished(.complete),
+        ])
         let checkCount = SendableBox<Int>(0)
         let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
 
@@ -262,13 +281,11 @@ final class IndexSchedulerTests: XCTestCase {
             return s
         }
 
-        guard case .jobPreempted(_, let reason) = outcome else {
-            return XCTFail("expected jobPreempted, got \(outcome)")
+        guard case .jobCompleted = outcome else {
+            return XCTFail("expected jobCompleted — playback becoming active mid-run must not preempt, got \(outcome)")
         }
-        XCTAssertEqual(reason, .playbackActive)
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .queued, "no dedicated job state for playback priority")
-        XCTAssertNil(job?.leaseToken)
+        XCTAssertEqual(job?.state, .complete)
     }
 
     func testOnlyOneJobClaimedPerTick() async throws {

@@ -79,13 +79,12 @@ final class IndexPolicyTests: XCTestCase {
         XCTAssertEqual(decision, .blocked(reason: .memoryWarning))
     }
 
-    func testPlaybackActiveBlocksAutomaticButSelectedTrackOverrides() {
-        let blocked = IndexPolicy.decide(snapshot(isPlaybackActive: true))
-        XCTAssertEqual(blocked, .blocked(reason: .playbackActive))
-
-        let overridden = IndexPolicy.decide(
-            snapshot(isPlaybackActive: true, isUserSelectedTrackRequest: true))
-        XCTAssertEqual(overridden, .proceed(interWindowDelaySeconds: 2))
+    /// Real user feedback: listening while the library builds its sound index is a main use
+    /// case — automatic indexing must keep running during playback, not pause for it (see
+    /// `IndexPolicy.decide`'s `.foreground` case doc for the full reasoning/history).
+    func testPlaybackActiveDoesNotBlockAutomaticIndexing() {
+        let decision = IndexPolicy.decide(snapshot(isPlaybackActive: true))
+        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
     }
 
     func testLowPowerModeUnpluggedBlocksAutomaticButSelectedTrackOverrides() {
@@ -150,5 +149,24 @@ final class IndexPolicyTests: XCTestCase {
                 appState: .background, isCharging: true,
                 hasBackgroundProcessingGrant: true))
         XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 0))
+    }
+
+    // MARK: - ThermalDiagnostic
+
+    func testThermalDiagnosticCountsDownWhileNominal() {
+        let d = ThermalDiagnostic(state: .nominal, continuousNominalSeconds: 37)
+        XCTAssertEqual(d.secondsUntilRecovered, 23, accuracy: 0.001)
+    }
+
+    func testThermalDiagnosticClampsAtZeroOnceRecovered() {
+        let d = ThermalDiagnostic(state: .nominal, continuousNominalSeconds: 90)
+        XCTAssertEqual(d.secondsUntilRecovered, 0)
+    }
+
+    /// A currently non-nominal state has nothing to "count down" — the full window is still
+    /// required from the moment it returns to `.nominal`.
+    func testThermalDiagnosticReportsFullWindowWhileNotNominal() {
+        let d = ThermalDiagnostic(state: .fair, continuousNominalSeconds: 0)
+        XCTAssertEqual(d.secondsUntilRecovered, IndexPolicy.thermalFairRecoverySeconds)
     }
 }

@@ -63,9 +63,7 @@ struct PlaylistsView: View {
                     ForEach(appState.playlists) { playlist in
                         ZStack(alignment: .leading) {
                             NavigationLink(value: playlist) { EmptyView() }.opacity(0)
-                            NavigationRow(icon: playlist.kind == .folder ? "folder.fill" : "music.note.list",
-                                          title: playlist.title,
-                                          subtitle: playlist.kind == .folder ? "Folder playlist" : "Manual playlist")
+                            PlaylistNavigationRow(playlist: playlist)
                         }
                             .accessibilityElement(children: .combine)
                             .contextMenu {
@@ -310,18 +308,51 @@ private extension View {
     }
 }
 
+/// A playlist row that shows real artwork from its first track (real request: "I want each
+/// playlist to have artwork from its underlying tracks") instead of one generic icon shared by
+/// every playlist. Its own tiny view so it can hold the fetched track in `@State` without
+/// touching `NavigationRow`'s existing (icon-only) callers — the same lazy-per-row `.task` pattern
+/// `ArtworkView`/`TrackRowView` already use for lists that can hold many rows.
+private struct PlaylistNavigationRow: View {
+    let playlist: Playlist
+    @EnvironmentObject var appState: AppState
+    @State private var firstTrack: TrackRow?
+
+    var body: some View {
+        NavigationRow(
+            icon: playlist.kind == .folder ? "folder.fill" : "music.note.list",
+            title: playlist.title,
+            subtitle: playlist.kind == .folder ? "Folder playlist" : "Manual playlist",
+            leadingArtwork: firstTrack)
+            .task(id: playlist.id) {
+                guard let id = playlist.id else { return }
+                firstTrack = (try? await appState.store.playlistItems(playlistId: id))?.first
+            }
+    }
+}
+
 struct NavigationRow: View {
     let icon: String
     let title: String
     let subtitle: String
+    /// When set, a real track's artwork (or its deterministic color-identity gradient, from
+    /// `ArtworkView`) replaces the plain SF Symbol tile — used for playlist rows so each playlist
+    /// reads by its own music, not one generic icon shared by every playlist in the list.
+    var leadingArtwork: TrackRow? = nil
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(Palette.brass)
-                .frame(width: 42, height: 42)
-                .glassSurface(cornerRadius: 10)
+            if let leadingArtwork {
+                ArtworkView(trackRow: leadingArtwork, seed: title, cornerRadius: 10,
+                            fallbackIcon: icon, thumbnailMaxDimension: 84)
+                    .frame(width: 42, height: 42)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundStyle(Palette.brass)
+                    .frame(width: 42, height: 42)
+                    .glassSurface(cornerRadius: 10)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 14, weight: .medium))
                 Text(subtitle).font(.system(size: 11.5)).foregroundStyle(Palette.ink3)

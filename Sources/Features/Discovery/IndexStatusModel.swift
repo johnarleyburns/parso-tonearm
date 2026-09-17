@@ -76,6 +76,14 @@ final class IndexStatusModel: ObservableObject {
         isBusy = false
     }
 
+    /// Backs the tappable detail sheet on each `countsCard` row — real track titles for the
+    /// bucket the user tapped, on-device only.
+    func trackSummaries(for bucket: IndexJobRepository.TrackListBucket) async
+        -> [IndexJobRepository.TrackSummary]
+    {
+        await controller.trackSummaries(for: bucket)
+    }
+
     func diagnosticsText() async -> String {
         guard let diag = await controller.diagnostics() else {
             return "Diagnostics unavailable."

@@ -60,7 +60,24 @@ final class DiscoveryRuntimeController {
             // park at `waitingForModel` — until the `clap-audio` ODR pack is
             // actually on disk; never a fabricated embedding.
             modelResourceProvider: { DiscoveryModelResources.shared.currentResources() },
-            executionContext: { sampler.isBackground ? .background : .foreground },
+            // Always `.cpuOnly` (`.background`) for automatic indexing, never GPU/ANE
+            // (`.foreground`), regardless of scene state. Real report: indexing almost never
+            // progressed — the status surface constantly read "waiting for the device to cool
+            // down" on a device that did not feel hot. Root cause: this closure gave every
+            // automatic embed CPU+GPU/ANE compute whenever the app scene happened to be
+            // foregrounded (the common case — nothing here is actually latency-sensitive
+            // "foreground" work, just automatic indexing that runs while the app is open).
+            // Running the CLAP encoder on GPU/ANE nudges `ProcessInfo.thermalState` from
+            // `.nominal` to `.fair` well before a device feels warm; IndexPolicy's `.fair`
+            // recovery requires 60 *continuous* nominal seconds (IMPLEMENT_CLAP_PLAN.md §6),
+            // so each blip reset that clock — the scheduler spent nearly all its time waiting
+            // out a debounce window it kept re-triggering. There is no shipped "analyze this
+            // one track now" interactive path today (`isUserSelectedTrackRequest` is always
+            // `false` — see `SchedulingSampler.snapshot()`), so nothing currently needs the
+            // GPU/ANE path; CPU-only is slower per track but produces real, sustained progress
+            // instead of a self-defeating thermal loop. Revisit if/when a genuine interactive
+            // single-track request ships.
+            executionContext: { .background },
             modelDownloadProgressProvider: { DiscoveryModelResources.shared.currentDownloadProgress() },
             modelDownloadErrorProvider: { DiscoveryModelResources.shared.currentDownloadError() },
             modelDownloadTagDebugProvider: { DiscoveryModelResources.shared.currentPerTagDebugSummary() },
@@ -117,6 +134,7 @@ final class DiscoveryRuntimeController {
         sampler.beginObserving()
         DiscoveryModelResources.shared.beginAccessing()
         observePlayback()
+        observeMemoryWarnings()
         await refreshPauseFromStore()
         sampler.setAppState(currentApplicationStateIsBackground() ? .background : .foreground)
         // Keep Playing (main-library queue continuation) reuses this same
@@ -176,6 +194,29 @@ final class DiscoveryRuntimeController {
                 }
                 try? await Task.sleep(for: .seconds(20))
             }
+        }
+    }
+
+    /// Actually wires up `ModelManager.releaseCachedModel()` (plan §6: "release models/buffers on
+    /// thermal serious/critical or memory warning when safe") — it existed but nothing ever called
+    /// it. Real risk this closes: each CLAP encoder is 130–240 MB; once loaded it stayed resident
+    /// for the rest of the process even under a real memory warning. Indexing now deliberately
+    /// keeps running during playback (a main use case, not paused for it — see `IndexPolicy`), so
+    /// a long locked-screen listening session can hold decoded audio buffers AND a resident CLAP
+    /// model in memory at the same time; not releasing the model on a memory warning is exactly
+    /// the kind of pressure that escalates into a jetsam kill, which matches the real report of
+    /// the app disappearing during locked-screen playback. `SchedulingSampler` already observes
+    /// `UIApplication.didReceiveMemoryWarningNotification` for the scheduling gate (which still
+    /// blocks the NEXT index job) — this adds the actual model release the plan called for
+    /// alongside it. Safe at any time: the model reloads lazily on the next `audioEncoder`/
+    /// `textEncoder` call.
+    private func observeMemoryWarnings() {
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { await self.assembly?.models.releaseCachedModel() }
         }
     }
 
@@ -337,6 +378,18 @@ final class DiscoveryRuntimeController {
         let count = (try? await assembly.retryFailedJobs()) ?? 0
         if count > 0 { startForegroundTickLoop() }
         return count
+    }
+
+    /// Up to `limit` real tracks in `bucket`, for the status screen's tappable detail list (real
+    /// report: "let me actually see what's happening and what's indexed" — the counts alone
+    /// couldn't answer that). On-device only, never exported (unlike `diagnostics()` above, which
+    /// stays redacted for the plan §10.6 share sheet).
+    func trackSummaries(for bucket: IndexJobRepository.TrackListBucket, limit: Int = 500) async
+        -> [IndexJobRepository.TrackSummary]
+    {
+        let assembly = await makeAssembly()
+        return (try? await assembly.jobs.trackSummaries(
+            for: bucket, pipelineVersion: DiscoveryPipelineVersion.pipeline, limit: limit)) ?? []
     }
 
     /// Redacted diagnostics for the plan §10.6 share-sheet export.

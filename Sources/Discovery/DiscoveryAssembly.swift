@@ -54,6 +54,11 @@ public actor DiscoveryAssembly {
     /// persisted per-job state), so `IndexJobRepository.coverage` alone
     /// cannot distinguish real progress from a queue that is silently wedged.
     public private(set) var lastBlockReason: IndexBlockReason?
+    /// Real thermal numbers behind `lastBlockReason` when it is a thermal reason — `nil`
+    /// otherwise. Re-sampled from `snapshotProvider` at the moment the reason was recorded (a
+    /// cheap, side-effect-free read), so the status surface can say the actual current thermal
+    /// state and, for `.fair`, real seconds remaining — never collapse it to one generic label.
+    public private(set) var lastThermalDiagnostic: ThermalDiagnostic?
 
     public struct LaunchRecovery: Equatable, Sendable {
         public let resetIndexLeases: Int
@@ -136,7 +141,8 @@ public actor DiscoveryAssembly {
             modelDownloadTagDebug: modelAvailable ? nil : modelDownloadTagDebugProvider(),
             modelDiagnostics: modelDiagnosticsProvider(),
             runtime: runtime,
-            schedulerBlockReason: lastBlockReason)
+            schedulerBlockReason: lastBlockReason,
+            thermalDiagnostic: lastThermalDiagnostic)
     }
 
     /// "Retry failed" status action (plan §10 action 4). Returns the count of
@@ -196,18 +202,22 @@ public actor DiscoveryAssembly {
                 // clear any stale reason so the status surface does not keep
                 // blaming a condition that no longer applies.
                 lastBlockReason = nil
+                lastThermalDiagnostic = nil
                 return completed
             case .blocked(let reason):
                 lastBlockReason = reason
+                lastThermalDiagnostic = Self.thermalDiagnostic(for: reason, snapshotProvider: snapshotProvider)
                 return completed
             case .jobCompleted:
                 lastBlockReason = nil
+                lastThermalDiagnostic = nil
                 completed += 1
             case .jobWaiting, .jobFailed:
                 // A job was actually claimed and run this tick, so whatever
                 // previously blocked the scheduler no longer applies — clear
                 // it rather than leaving a stale reason from an earlier tick.
                 lastBlockReason = nil
+                lastThermalDiagnostic = nil
                 // The repository moved the job to a future nextAttemptAt;
                 // the next tick resolves to .idle/.blocked and we exit.
                 continue
@@ -217,10 +227,20 @@ public actor DiscoveryAssembly {
                 // initial decision will very likely re-block on it too — but
                 // keep draining in case a higher-priority job is unaffected.
                 lastBlockReason = reason
+                lastThermalDiagnostic = Self.thermalDiagnostic(for: reason, snapshotProvider: snapshotProvider)
                 continue
             }
         }
         return completed
+    }
+
+    private static func thermalDiagnostic(
+        for reason: IndexBlockReason, snapshotProvider: @Sendable () -> DiscoverySchedulingSnapshot
+    ) -> ThermalDiagnostic? {
+        guard reason == .thermalFair || reason == .thermalSerious || reason == .thermalCritical
+        else { return nil }
+        let s = snapshotProvider()
+        return ThermalDiagnostic(state: s.thermalState, continuousNominalSeconds: s.continuousNominalSeconds)
     }
 }
 #endif

@@ -24,14 +24,16 @@ final class IndexStatusPresentationTests: XCTestCase {
         paused: Bool = false, chargingOnly: Bool = false, modelAvailable: Bool = true,
         downloadProgress: ModelDownloadProgress? = nil,
         runtime: DiscoveryRuntime = DiscoveryRuntime(id: 1),
-        blockReason: IndexBlockReason? = nil
+        blockReason: IndexBlockReason? = nil,
+        thermal: ThermalDiagnostic? = nil
     ) -> IndexStatusSnapshot {
         IndexStatusSnapshot(
             coverage: coverage, isPaused: paused, isChargingOnly: chargingOnly,
             modelResourceAvailable: modelAvailable, modelDownloadProgress: downloadProgress,
             runtime: runtime,
             capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            schedulerBlockReason: blockReason)
+            schedulerBlockReason: blockReason,
+            thermalDiagnostic: thermal)
     }
 
     /// Reproduces the user's actual follow-up request: "downloading" with no
@@ -269,6 +271,32 @@ final class IndexStatusPresentationTests: XCTestCase {
         // The headline (raw counts) is unaffected — only `detail`/`phase`
         // change; "0 / 2,364" must still read exactly as reported.
         XCTAssertEqual(p.headline, "Sound index: 0 / 2,364 tracks")
+    }
+
+    /// The actual bug report this answers: "it always says waiting for the device to cool down,
+    /// but the device is NOT hot." Root cause was `IndexPolicy`'s `.fair` recovery rule blocking
+    /// on `continuousNominalSeconds < 60` even while the device had already returned to
+    /// `.nominal` — collapsed into the same "cool down" text as an actually-hot device. With a
+    /// real `ThermalDiagnostic`, a currently-`.nominal` block must read as genuinely different
+    /// from a currently-`.serious`/`.critical` one, and must say real numbers, not just a label.
+    func testThermalDetailDistinguishesRecoveringFromActuallyHot() {
+        let recovering = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 10, complete: 0, queuedOrRunning: 10), blockReason: .thermalFair,
+                thermal: ThermalDiagnostic(state: .nominal, continuousNominalSeconds: 37)))
+        XCTAssertTrue(recovering.detail.lowercased().contains("normal"),
+                      "a currently-nominal device must not read as hot: \(recovering.detail)")
+        XCTAssertTrue(recovering.detail.contains("23"),
+                      "must show the real seconds remaining (60 - 37 = 23): \(recovering.detail)")
+
+        let actuallyHot = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 10, complete: 0, queuedOrRunning: 10), blockReason: .thermalSerious,
+                thermal: ThermalDiagnostic(state: .serious, continuousNominalSeconds: 0)))
+        XCTAssertTrue(actuallyHot.detail.lowercased().contains("hot"),
+                      "a genuinely serious/critical state must say so: \(actuallyHot.detail)")
+
+        XCTAssertNotEqual(recovering.detail, actuallyHot.detail)
     }
 
     func testEachPolicyBlockReasonHasADistinctNonGenericDetail() {

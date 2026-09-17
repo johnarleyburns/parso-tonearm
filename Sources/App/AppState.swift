@@ -22,7 +22,20 @@ enum PendingImport: Equatable {
 final class AppState: ObservableObject {
     let store: LibraryStore
 
-    @Published var tab: AppTab = .listen
+    /// Restored from the last launch (real report: "when I enter Platterhead it doesn't return to
+    /// where I was, it starts from scratch" — the tab always reset to `.listen`, nothing persisted
+    /// it). The playback queue/position already survive relaunch
+    /// (`AudioPlayer.restorePersistedQueue()`); this is the matching fix for which *screen* comes
+    /// back. Not `@AppStorage` directly on the property (that requires a property-wrapper-only
+    /// declaration) — a plain `UserDefaults` round-trip in `didSet`/`init` instead, so `tab` stays
+    /// an ordinary `@Published` property everything else already binds to.
+    @Published var tab: AppTab = .listen {
+        didSet {
+            guard tab != oldValue else { return }
+            UserDefaults.standard.set(tab.rawValue, forKey: Self.lastTabKey)
+        }
+    }
+    private static let lastTabKey = "lastActiveTab.v1"
     @Published var sources: [Source] = []
     @Published var playlists: [Playlist] = []
     @Published var allTracks: [TrackRow] = []
@@ -99,6 +112,11 @@ final class AppState: ObservableObject {
 
     init(store: LibraryStore = .shared) {
         self.store = store
+        if let saved = UserDefaults.standard.object(forKey: Self.lastTabKey) as? Int,
+            let restored = AppTab(rawValue: saved)
+        {
+            tab = restored
+        }
     }
 
     func bootstrap() async {

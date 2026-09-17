@@ -405,4 +405,107 @@ final class IndexJobRepositoryTests: XCTestCase {
             XCTAssertNil(job.errorCode)
         }
     }
+
+    // MARK: - trackSummaries (real report: "let me see what's actually indexed")
+
+    /// Insert a second track titled differently than `seedTrack`'s "Song", so bucket queries can
+    /// be told apart by title.
+    private func seedTrack(_ queue: DatabaseQueue, title: String) async throws -> Int64 {
+        try await queue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO source (kind, title, addedAt, followUpdates, memberCapHit,
+                                        localIsFolder)
+                    VALUES ('local', 'Music', ?, 0, 0, 1)
+                    """, arguments: [Date()])
+            let sourceID = db.lastInsertedRowID
+            try db.execute(
+                sql: "INSERT INTO track (sourceId, title, sortKey) VALUES (?, ?, ?)",
+                arguments: [sourceID, title, title.lowercased()])
+            return db.lastInsertedRowID
+        }
+    }
+
+    /// Each bucket gets its own fresh queue/track/job — no shared state, so there is no risk of
+    /// `claimNextJob()` picking a different test's job by accident.
+
+    func testTrackSummariesReadsCompleteBucket() async throws {
+        let queue = try makeQueue()
+        let repo = IndexJobRepository(writer: queue)
+        let trackID = try await seedTrack(queue, title: "Zebra Done")
+        _ = try await repo.enqueueOrRestart(
+            trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
+        let claim = try await repo.claimNextJob()!
+        try await repo.completeStage(
+            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .embedding, state: .complete)
+        try await repo.completeStage(
+            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis, state: .complete)
+
+        let coverage = try await repo.coverage(pipelineVersion: 1)
+        let list = try await repo.trackSummaries(for: .complete, pipelineVersion: 1)
+        XCTAssertEqual(list.count, coverage.complete)
+        XCTAssertEqual(list.map(\.title), ["Zebra Done"])
+        let waitingWhileComplete = try await repo.trackSummaries(for: .waiting, pipelineVersion: 1)
+        XCTAssertTrue(waitingWhileComplete.isEmpty)
+    }
+
+    func testTrackSummariesReadsQueuedBucket() async throws {
+        let queue = try makeQueue()
+        let repo = IndexJobRepository(writer: queue)
+        let trackID = try await seedTrack(queue, title: "Alpha Queued")
+        _ = try await repo.enqueueOrRestart(
+            trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
+
+        let coverage = try await repo.coverage(pipelineVersion: 1)
+        let list = try await repo.trackSummaries(for: .queuedOrRunning, pipelineVersion: 1)
+        XCTAssertEqual(list.count, coverage.queuedOrRunning)
+        XCTAssertEqual(list.map(\.title), ["Alpha Queued"])
+    }
+
+    func testTrackSummariesReadsWaitingBucket() async throws {
+        let queue = try makeQueue()
+        let repo = IndexJobRepository(writer: queue)
+        let trackID = try await seedTrack(queue, title: "Beta Waiting")
+        let job = try await repo.enqueueOrRestart(
+            trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
+        let claim = try await repo.claimNextJob()!
+        XCTAssertEqual(claim.job.id, job.id)
+        try await repo.markWaiting(
+            jobId: job.id, leaseToken: claim.leaseToken, reason: .waitingForCooling, retryAfter: nil)
+
+        let coverage = try await repo.coverage(pipelineVersion: 1)
+        let list = try await repo.trackSummaries(for: .waiting, pipelineVersion: 1)
+        XCTAssertEqual(list.count, coverage.waiting)
+        XCTAssertEqual(list.map(\.title), ["Beta Waiting"])
+    }
+
+    /// Also proves the real recorded error surfaces on the row (`detail`), not a generic label.
+    func testTrackSummariesReadsFailedBucketWithRealError() async throws {
+        let queue = try makeQueue()
+        // A real clock: `recordTransientFailure` clears the lease and schedules a real backoff
+        // delay each time, so reaching the failure ceiling means re-claiming between attempts
+        // (exactly what the real scheduler does) rather than reusing one lease token.
+        let testClock = MutableTestClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let repo = IndexJobRepository(writer: queue, clock: testClock.now)
+        let trackID = try await seedTrack(queue, title: "Gamma Failed")
+        let job = try await repo.enqueueOrRestart(
+            trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
+        for _ in 0..<IndexJobRepository.maxTransientFailures {
+            let claim = try await repo.claimNextJob()!
+            XCTAssertEqual(claim.job.id, job.id)
+            try await repo.recordTransientFailure(
+                jobId: job.id, leaseToken: claim.leaseToken,
+                errorCode: "decodeFailed", errorMessage: "could not decode audio")
+            testClock.advance(by: IndexJobRepository.retryBackoffSeconds.max()! + 1)
+        }
+        let settled = try await repo.job(id: job.id)
+        XCTAssertEqual(settled?.state, .failed, "test setup must actually reach .failed")
+
+        let coverage = try await repo.coverage(pipelineVersion: 1)
+        let list = try await repo.trackSummaries(for: .failed, pipelineVersion: 1)
+        XCTAssertEqual(list.count, coverage.failed)
+        XCTAssertEqual(list.map(\.title), ["Gamma Failed"])
+        XCTAssertEqual(list.first?.detail, "could not decode audio",
+                       "must surface the real recorded error, not a generic label")
+    }
 }

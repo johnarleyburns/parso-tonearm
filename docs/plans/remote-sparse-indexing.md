@@ -204,4 +204,20 @@ This approach handles elementary-stream and MP4-container formats uniformly (thr
 
 ## Implementation Audit
 
-Not started. This plan has not been implemented — see "Agent Handoff Instructions", "Phase 0", and "Prerequisite" above before beginning.
+- **Prerequisite: landed (`0a80ff8`, "fix(remote): persist a re-resolvable node reference; fix
+  stale Make Offline/Download auth").** `Asset.remoteNodeID`/`remoteNodePath` are now genuinely
+  persisted (migration v22) from the real `RemoteNode` at ingest time, and `makeOffline()`/
+  `download()` re-resolve through the provider before fetching instead of trusting a possibly
+  stale `remoteURL`/`transientRemoteHeaders`. This closes the "blocks this plan entirely" gap and
+  the independently-real `makeOffline()`/`download()` bug Phase 0 item 1 found. Not yet confirmed:
+  whether this was verified against a live server per provider, or only by code inspection/unit
+  test — check before relying on it for the sparse-indexing fetch path below.
+- **Everything else in this plan: still not started**, most importantly **the validation step**
+  ("Specific risks and the validation step" above) — measuring real `AVAssetReader` over-fetch
+  for ~13 scattered time-window seeks against a live remote M4A file. That is a real go/no-go
+  gate on the rest of this plan's design (the ephemeral `SparseCacheStore`/`CachingResourceLoader`
+  wiring, the new `AVAssetReader`-based windowed reader, the `DiscoveryReconciler`/
+  `IndexStatusPresentation` extensions, and the Settings toggle), not a formality, and it needs a
+  live device + a real remote server to run — it was not attempted this session. Do not write the
+  rest of this feature before it runs; if the measured over-fetch is large, this plan's design
+  needs to change first (see that section for what to try).

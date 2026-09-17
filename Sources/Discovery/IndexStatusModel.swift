@@ -166,6 +166,9 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
     /// behind thermal/battery/playback/background-grant, zero progress" —
     /// this field is what lets the status surface say which one it is.
     public var schedulerBlockReason: IndexBlockReason?
+    /// Real numbers behind `schedulerBlockReason` when it is a thermal reason — see
+    /// `ThermalDiagnostic`'s doc for why this must not be collapsed into the reason alone.
+    public var thermalDiagnostic: ThermalDiagnostic?
 
     public init(
         coverage: IndexJobRepository.Coverage,
@@ -178,7 +181,8 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         modelDiagnostics: ModelDiagnosticsDetail? = nil,
         runtime: DiscoveryRuntime,
         capturedAt: Date = Date(),
-        schedulerBlockReason: IndexBlockReason? = nil
+        schedulerBlockReason: IndexBlockReason? = nil,
+        thermalDiagnostic: ThermalDiagnostic? = nil
     ) {
         self.coverage = coverage
         self.isPaused = isPaused
@@ -191,6 +195,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         self.runtime = runtime
         self.capturedAt = capturedAt
         self.schedulerBlockReason = schedulerBlockReason
+        self.thermalDiagnostic = thermalDiagnostic
     }
 }
 
@@ -277,7 +282,8 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             // them — never collapse this into the generic "Indexing…" label
             // (that label implies real progress is happening).
             phase = .blockedByPolicy
-            detail = Self.detail(forBlockedBy: reason, chargingOnly: snapshot.isChargingOnly)
+            detail = Self.detail(forBlockedBy: reason, chargingOnly: snapshot.isChargingOnly,
+                                 thermal: snapshot.thermalDiagnostic)
         } else if c.queuedOrRunning > 0 {
             phase = .indexing
             detail = "Indexing \(number(c.queuedOrRunning)) track\(c.queuedOrRunning == 1 ? "" : "s")…"
@@ -285,7 +291,7 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             phase = .waiting
             detail = Self.detail(
                 forWaiting: c.waitingBreakdown, chargingOnly: snapshot.isChargingOnly,
-                failureError: c.mostRecentFailureError)
+                failureError: c.mostRecentFailureError, thermal: snapshot.thermalDiagnostic)
         } else if c.failed > 0 {
             phase = .needsAttention
             detail = "\(number(c.failed)) track\(c.failed == 1 ? "" : "s") could not be indexed."
@@ -321,7 +327,7 @@ public struct IndexStatusPresentation: Equatable, Sendable {
     /// explain "retrying also fails."
     private static func detail(
         forWaiting breakdown: [DiscoveryJobState: Int], chargingOnly: Bool,
-        failureError: IndexJobRepository.JobErrorSample?
+        failureError: IndexJobRepository.JobErrorSample?, thermal: ThermalDiagnostic? = nil
     ) -> String {
         guard let (reason, count) = breakdown.max(by: { $0.value < $1.value }) else {
             // No breakdown available (e.g. an older/synthetic snapshot) —
@@ -346,7 +352,7 @@ public struct IndexStatusPresentation: Equatable, Sendable {
                 ? "Waiting for power. Indexing resumes while charging."
                 : "Waiting for more battery before indexing continues."
         case .waitingForCooling:
-            return "Waiting for the device to cool down before indexing continues."
+            return Self.thermalDetail(thermal)
         case .retryScheduled:
             let base = "\(n) \(plural) hit a temporary error and will retry automatically."
             guard let failureError else { return base }
@@ -372,14 +378,15 @@ public struct IndexStatusPresentation: Equatable, Sendable {
     /// §10: the status screen must say the actual blocking condition —
     /// "downloading", "waiting", a specific reason — never a bare "indexing"
     /// with nothing behind it).
-    private static func detail(forBlockedBy reason: IndexBlockReason, chargingOnly: Bool) -> String {
+    private static func detail(forBlockedBy reason: IndexBlockReason, chargingOnly: Bool,
+                               thermal: ThermalDiagnostic? = nil) -> String {
         switch reason {
         case .userPaused:
             return "Paused. Resume to continue indexing."
         case .playbackActive:
             return "Waiting for playback to stop before indexing continues."
         case .thermalFair, .thermalSerious, .thermalCritical:
-            return "Waiting for the device to cool down before indexing continues."
+            return Self.thermalDetail(thermal)
         case .memoryWarning:
             return "Waiting for memory pressure to ease before indexing continues."
         case .lowBatteryOrLowPowerMode:
@@ -391,6 +398,39 @@ public struct IndexStatusPresentation: Equatable, Sendable {
                 : "Waiting for power before background indexing continues."
         case .backgroundGrantMissing:
             return "Waiting for background processing time from iOS."
+        }
+    }
+
+    /// The real thermal reason, distinguishing a device that is *currently* elevated from one
+    /// that has already returned to normal and is only waiting out the recovery debounce (plan
+    /// §6: "wait until nominal continuously for 60 seconds") — collapsing both into one "cool
+    /// down" message is exactly the confusing, generic label CLAUDE.md's "no silent/magic
+    /// background work" rule forbids ("never collapse a real blocked/waiting state into a
+    /// generic in-progress label"). `nil` only for an older/synthetic snapshot with no captured
+    /// diagnostic — falls back to the previous generic text rather than claiming numbers we
+    /// don't have.
+    private static func thermalDetail(_ thermal: ThermalDiagnostic?) -> String {
+        guard let thermal else {
+            return "Waiting for the device to cool down before indexing continues."
+        }
+        switch thermal.state {
+        case .critical:
+            return "The device is very hot (thermal state: Critical). Indexing is paused until it cools."
+        case .serious:
+            return "The device is running hot (thermal state: Serious). Indexing is paused until it cools."
+        case .fair:
+            return "The device's thermal state is elevated (Fair). Indexing pauses until it's back "
+                + "to normal for a full minute."
+        case .nominal:
+            // The confusing real-world case this exists for: the device is NOT hot right now —
+            // it already returned to normal — but indexing hasn't resumed yet because the
+            // recovery rule requires it to stay normal for a full continuous minute first.
+            let remaining = Int(thermal.secondsUntilRecovered.rounded(.up))
+            if remaining <= 0 {
+                return "Device temperature is back to normal. Resuming indexing…"
+            }
+            return "Device temperature is back to normal. Resuming in \(remaining)s "
+                + "(confirming it stays cool)."
         }
     }
 

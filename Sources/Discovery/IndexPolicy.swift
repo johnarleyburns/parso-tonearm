@@ -79,6 +79,30 @@ public struct DiscoverySchedulingSnapshot: Equatable, Sendable {
     }
 }
 
+/// Real numbers behind a `.thermalFair`/`.thermalSerious`/`.thermalCritical` block, captured at
+/// the moment the scheduler recorded it — never fabricated (CLAUDE.md "no silent/magic background
+/// work"). `.fair`'s recovery rule requires `continuousNominalSeconds` to reach
+/// `IndexPolicy.thermalFairRecoverySeconds` while `state` has already returned to `.nominal`; that
+/// distinction matters because a device reporting `.nominal` right now, mid-countdown, reads very
+/// differently to a user than one currently reporting `.fair`/`.serious`/`.critical` — collapsing
+/// both into one "cool down" message is exactly the illegible state CLAUDE.md forbids.
+public struct ThermalDiagnostic: Equatable, Sendable {
+    public var state: DiscoveryThermalState
+    public var continuousNominalSeconds: TimeInterval
+
+    public init(state: DiscoveryThermalState, continuousNominalSeconds: TimeInterval) {
+        self.state = state
+        self.continuousNominalSeconds = continuousNominalSeconds
+    }
+
+    /// Seconds still needed of continuous `.nominal` before the `.fair` recovery rule clears;
+    /// `0` once satisfied or when `state` is not `.nominal` (nothing to count down from).
+    public var secondsUntilRecovered: TimeInterval {
+        guard state == .nominal else { return IndexPolicy.thermalFairRecoverySeconds }
+        return max(0, IndexPolicy.thermalFairRecoverySeconds - continuousNominalSeconds)
+    }
+}
+
 public enum IndexBlockReason: Equatable, Sendable {
     case userPaused
     case playbackActive
@@ -128,9 +152,17 @@ public enum IndexPolicy {
             return .proceed(interWindowDelaySeconds: 0)
 
         case .foreground:
-            if s.isPlaybackActive && !s.isUserSelectedTrackRequest {
-                return .blocked(reason: .playbackActive)
-            }
+            // Deliberately does NOT block on `s.isPlaybackActive`. The original plan paused
+            // automatic indexing during playback (IMPLEMENT_CLAP_PLAN.md §6: "Pause automatic
+            // audio analysis to prioritize listening"), reasoning that decode+CLAP inference
+            // competing with the real-time audio render thread risked glitches. Real user
+            // feedback: listening while the library builds its sound index is a main use case,
+            // not an edge case — indexing must keep running while a track plays. `.background`
+            // execution context (CPU-only, no GPU/ANE — see `DiscoveryRuntimeController`) is
+            // lighter-weight than the old GPU/ANE path this rule was originally written against,
+            // which reduces (does not guarantee zero) contention risk with the playback thread.
+            // `IndexBlockReason.playbackActive` and `isUserSelectedTrackRequest`'s bypass of it
+            // are kept (tests, exhaustive switches) in case this needs to be revisited.
 
             let batteryLow = s.isLowPowerModeEnabled || (s.batteryLevel ?? 0) < lowBatteryThreshold
             if batteryLow && !s.isCharging {

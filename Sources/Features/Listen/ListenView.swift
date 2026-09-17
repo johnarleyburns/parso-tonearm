@@ -21,9 +21,9 @@ struct ListenView: View {
                 if !appState.recentlyPlayed.isEmpty {
                     cardRow(title: "Jump Back In", rows: appState.recentlyPlayed)
                 }
-                if !appState.recentlyAdded.isEmpty {
-                    cardRow(title: "Recently Added", rows: appState.recentlyAdded)
-                }
+                // "Recently Added" removed at the user's request — it duplicated "Jump Back In"
+                // in practice and wasn't used. `appState.recentlyAdded` is left in place (still
+                // populated by `reload()`) in case another surface wants it later.
                 statsCard(appState.listeningStats)
                 favorites
             }
@@ -122,6 +122,10 @@ struct ListenView: View {
                 statTile(title: "Streak", value: "\(stats.currentStreakDays)d")
             }
 
+            if stats.totalPlayCount > 0 {
+                weeklyChart(stats.dailyRollups)
+            }
+
             if let artist = stats.topArtists.first {
                 topLine("Top Artist", artist.name, detail: "\(artist.playCount) plays")
             }
@@ -141,6 +145,50 @@ struct ListenView: View {
                 .foregroundStyle(Palette.ink3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .glassSurface(cornerRadius: 8)
+    }
+
+    /// A 7-day listening-time bar chart, in the style of the parso-voxglass sibling app's
+    /// "Listening Stats" weekly chart — plain SwiftUI shapes (no Charts-framework dependency),
+    /// scaled to the tallest day, brass gradient bars, day-letter labels underneath. Uses
+    /// `stats.dailyRollups` (already computed by `ListeningStats.summarize`) — no new data model.
+    private func weeklyChart(_ dailyRollups: [ListeningStats.PeriodRollup]) -> some View {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let byDay = Dictionary(uniqueKeysWithValues: dailyRollups.map {
+            (calendar.startOfDay(for: $0.start), $0.listeningTime)
+        })
+        let formatter: DateFormatter = {
+            let f = DateFormatter()
+            f.dateFormat = "EEEEE"
+            return f
+        }()
+        let bars: [(label: String, seconds: TimeInterval)] = (0..<7).reversed().map { offset in
+            let day = calendar.date(byAdding: .day, value: -offset, to: today) ?? today
+            return (formatter.string(from: day), byDay[day] ?? 0)
+        }
+        let maxSeconds = max(bars.map(\.seconds).max() ?? 1, 1)
+
+        return HStack(alignment: .bottom, spacing: 8) {
+            ForEach(Array(bars.enumerated()), id: \.offset) { _, bar in
+                VStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(LinearGradient(
+                            colors: [Palette.brass, Palette.brass.opacity(0.7)],
+                            startPoint: .top, endPoint: .bottom))
+                        .frame(height: max(3, CGFloat(bar.seconds / maxSeconds) * 44))
+                        .accessibilityHidden(true)
+                    Text(bar.label)
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundStyle(Palette.ink3)
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(bar.label): \(ListeningStats.durationText(bar.seconds))")
+            }
+        }
+        .frame(height: 58, alignment: .bottom)
         .padding(12)
         .glassSurface(cornerRadius: 8)
     }

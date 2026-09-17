@@ -441,4 +441,71 @@ public actor IndexJobRepository {
                 waitingBreakdown: waitingBreakdown, mostRecentFailureError: mostRecentFailureError)
         }
     }
+
+    // MARK: - Per-track detail (real report: "let me actually see what's happening and what's
+    // indexed" — the status screen only ever showed aggregate counts).
+
+    /// Which `countsCard` row a caller tapped — mirrors `Coverage`'s own bucketing exactly so the
+    /// list a user opens always matches the count they tapped.
+    public enum TrackListBucket: String, Equatable, Hashable, Identifiable, CaseIterable, Sendable {
+        case complete, queuedOrRunning, waiting, failed
+        public var id: String { rawValue }
+    }
+
+    /// One row for the detail list: enough to be useful to the *user themselves* looking at their
+    /// own library on their own device — unlike `IndexStatusPresentation`/`DiscoveryDiagnostics`
+    /// (plan §10.6: aggregate counts only, redacted, because those are meant to be shareable),
+    /// this is an on-device-only surface where showing the actual track title is the whole point.
+    public struct TrackSummary: Identifiable, Equatable, Sendable {
+        public let id: Int64
+        public let title: String
+        public let artistName: String?
+        /// The specific waiting/failure reason, when the bucket has one — real text, e.g. an
+        /// actual `errorMessage`, never a generic label.
+        public let detail: String?
+    }
+
+    /// Up to `limit` tracks in `bucket`, alphabetical by title. `limit` bounds the query for a
+    /// library with thousands of tracks in one bucket — the view paginates by asking again with a
+    /// larger limit if the user scrolls to the end, rather than this method ever returning an
+    /// unbounded result set.
+    public func trackSummaries(
+        for bucket: TrackListBucket, pipelineVersion: Int, limit: Int = 500
+    ) throws -> [TrackSummary] {
+        let states: [String]
+        switch bucket {
+        case .complete: states = ["complete"]
+        case .queuedOrRunning: states = ["queued", "running"]
+        case .waiting:
+            states = [
+                DiscoveryJobState.waitingForModel, .waitingForAsset, .waitingForNetwork,
+                .waitingForPower, .waitingForCooling, .retryScheduled,
+            ].map(\.rawValue)
+        case .failed: states = ["failed"]
+        }
+        var args: [DatabaseValueConvertible?] = [pipelineVersion]
+        args.append(contentsOf: states.map { $0 as DatabaseValueConvertible? })
+        args.append(limit)
+        return try writer.read { db in
+            try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT t.id AS trackId, t.title AS title, a.name AS artistName,
+                           j.errorMessage AS errorMessage
+                    FROM discovery_index_job j
+                    JOIN track t ON t.id = j.trackId
+                    LEFT JOIN artist a ON a.id = t.artistId
+                    WHERE j.pipelineVersion = ? AND j.state IN (\(states.map { _ in "?" }.joined(separator: ",")))
+                    ORDER BY t.title COLLATE NOCASE
+                    LIMIT ?
+                    """,
+                arguments: StatementArguments(args))
+                .map { row in
+                    TrackSummary(
+                        id: row["trackId"] as Int64, title: row["title"] as String,
+                        artistName: row["artistName"] as String?,
+                        detail: row["errorMessage"] as String?)
+                }
+        }
+    }
 }
