@@ -227,6 +227,30 @@ public actor DiscoveryReconciler {
         return changes.count
     }
 
+    /// Count of tracks whose only assets are remote/cloud (never downloaded
+    /// locally) — i.e. currently excluded from indexing by `assetSelection`
+    /// below. Used to give the Settings remote-indexing confirmation dialog
+    /// a real, current number to base its data-cost estimate on, not a
+    /// stale or made-up one.
+    public func remoteOnlyTrackCount() async throws -> Int {
+        try await writer.read { db in
+            try Int.fetchOne(
+                db,
+                sql: """
+                    SELECT COUNT(*) FROM track t
+                    WHERE EXISTS (SELECT 1 FROM asset a WHERE a.trackId = t.id)
+                      AND NOT EXISTS (
+                          SELECT 1 FROM asset a
+                          WHERE a.trackId = t.id AND a.kind != ? AND a.needsReimport = 0
+                            AND a.unsupportedReason IS NULL
+                            AND (a.bookmark IS NOT NULL OR a.relPath IS NOT NULL)
+                      )
+                    """,
+                arguments: [AssetKind.remote.rawValue])
+                ?? 0
+        }
+    }
+
     /// A track's index-job eligibility plus (when eligible) its preferred
     /// asset id. Field report: "I don't necessarily want to download ALL
     /// the files in my library, it's too many, I want to only index

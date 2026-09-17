@@ -465,6 +465,16 @@ public actor IndexJobRepository {
         public let detail: String?
     }
 
+    /// Whether `assetId` is a `.remote` asset (needs network bytes to index) — what
+    /// `IndexScheduler` checks once per claim to populate
+    /// `DiscoverySchedulingSnapshot.isCurrentJobRemoteSparse`. `nil` when the asset row is gone
+    /// (treated as "not remote" by the caller; the job will fail its own asset lookup separately).
+    public func isRemoteAsset(assetId: Int64) throws -> Bool {
+        try writer.read { db in
+            try Asset.fetchOne(db, key: assetId)?.kind == .remote
+        }
+    }
+
     /// Up to `limit` tracks in `bucket`, alphabetical by title. `limit` bounds the query for a
     /// library with thousands of tracks in one bucket — the view paginates by asking again with a
     /// larger limit if the user scrolls to the end, rather than this method ever returning an

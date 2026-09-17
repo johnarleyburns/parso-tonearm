@@ -69,6 +69,26 @@ final class IndexStatusModel: ObservableObject {
         isBusy = false
     }
 
+    func setRemoteIndexingEnabled(_ on: Bool) async {
+        isBusy = true
+        await controller.setRemoteIndexingEnabled(on)
+        await refresh()
+        isBusy = false
+    }
+
+    func setRemoteIndexingWiFiOnly(_ on: Bool) async {
+        isBusy = true
+        await controller.setRemoteIndexingWiFiOnly(on)
+        await refresh()
+        isBusy = false
+    }
+
+    /// Real, current estimate for the "are you sure?" confirmation shown
+    /// before letting the user turn off Wi-Fi-only remote sampling.
+    func remoteIndexingEstimate() async -> (trackCount: Int, estimatedBytes: Int64) {
+        await controller.remoteIndexingEstimate()
+    }
+
     func retryFailed() async {
         isBusy = true
         _ = await controller.retryFailed()

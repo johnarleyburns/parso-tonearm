@@ -288,6 +288,64 @@ final class IndexSchedulerTests: XCTestCase {
         XCTAssertEqual(job?.state, .complete)
     }
 
+    /// `IndexScheduler` must compute `isCurrentJobRemoteSparse` itself, once
+    /// per claim, from the claimed job's actual selected asset — the
+    /// `snapshotProvider` closure has no notion of which job is running.
+    func testRemoteAssetJobIsPreemptedOffWiFiWhenWiFiOnlySettingIsOn() async throws {
+        let queue = try makeQueue()
+        let trackId = try await seedTrack(queue)
+        let assetId = try await queue.write { db -> Int64 in
+            try db.execute(
+                sql: "INSERT INTO asset (trackId, kind) VALUES (?, 'remote')",
+                arguments: [trackId])
+            return db.lastInsertedRowID
+        }
+        let jobs = IndexJobRepository(writer: queue)
+        try await jobs.enqueueOrRestart(
+            trackId: trackId, selectedAssetId: assetId, assetRevision: 1, pipelineVersion: 1)
+
+        var offWiFiValue = nominalForegroundSnapshot()
+        offWiFiValue.remoteIndexingWiFiOnlySetting = true
+        offWiFiValue.isOnWiFi = false
+        let offWiFi = offWiFiValue
+        let worker = ScriptedWorker([.windowCompleted])
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+
+        let outcome = try await scheduler.tick { offWiFi }
+        guard case .jobPreempted(_, let reason) = outcome else {
+            return XCTFail("expected jobPreempted, got \(outcome)")
+        }
+        XCTAssertEqual(reason, .remoteSamplingRequiresWiFi)
+        let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
+        XCTAssertEqual(job?.state, .waitingForNetwork)
+        let calls = await worker.callCount
+        XCTAssertEqual(calls, 0, "must preempt before ever invoking the worker")
+    }
+
+    /// The same off-Wi-Fi snapshot must NOT preempt a job over a local
+    /// asset — `isCurrentJobRemoteSparse` only becomes true for a job whose
+    /// selected asset is genuinely `.remote`.
+    func testLocalAssetJobIsUnaffectedByWiFiGate() async throws {
+        let queue = try makeQueue()
+        let trackId = try await seedTrack(queue)
+        let jobs = IndexJobRepository(writer: queue)
+        try await jobs.enqueueOrRestart(
+            trackId: trackId, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
+
+        var offWiFiValue = nominalForegroundSnapshot()
+        offWiFiValue.remoteIndexingWiFiOnlySetting = true
+        offWiFiValue.isOnWiFi = false
+        let offWiFi = offWiFiValue
+        let worker = ScriptedWorker([
+            .embeddingStageFinished(.complete), .musicalAnalysisStageFinished(.complete),
+        ])
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+
+        let outcome = try await scheduler.tick { offWiFi }
+        let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
+        XCTAssertEqual(outcome, .jobCompleted(jobId: job!.id))
+    }
+
     func testOnlyOneJobClaimedPerTick() async throws {
         // plan §6: "Only ONE analysis job executes at a time" — a second
         // enqueued track is untouched by a single tick.

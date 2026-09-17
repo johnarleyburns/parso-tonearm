@@ -346,6 +346,17 @@ public struct DiscoverySetting: Codable, Equatable, Sendable, FetchableRecord,
         public static let paused = "discovery.paused"
         public static let modelDownloadConsent = "discovery.modelDownloadConsent"
         public static let chargingOnly = "discovery.chargingOnly"
+        /// Master switch for indexing tracks that only exist on a remote
+        /// library (sparse sampling — see docs/plans/remote-sparse-indexing.md).
+        /// Off by default: this has a real, ongoing network-data cost, so it
+        /// must never turn on silently just because downloaded-track indexing
+        /// already is.
+        public static let remoteIndexingEnabled = "discovery.remoteIndexingEnabled"
+        /// On by default (when remote indexing itself is enabled): remote
+        /// sampling only runs on Wi-Fi unless the user explicitly turns this
+        /// off, which the Settings UI gates behind a confirmation that states
+        /// the real estimated data cost.
+        public static let remoteIndexingWiFiOnly = "discovery.remoteIndexingWiFiOnly"
     }
 }
 

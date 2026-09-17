@@ -18,7 +18,10 @@ final class IndexPolicyTests: XCTestCase {
         hasBackgroundProcessingGrant: Bool = false,
         hasMemoryWarning: Bool = false,
         isUserSelectedTrackRequest: Bool = false,
-        continuousNominalSeconds: TimeInterval = 120
+        continuousNominalSeconds: TimeInterval = 120,
+        isCurrentJobRemoteSparse: Bool = false,
+        remoteIndexingWiFiOnlySetting: Bool = true,
+        isOnWiFi: Bool = true
     ) -> DiscoverySchedulingSnapshot {
         DiscoverySchedulingSnapshot(
             appState: appState,
@@ -32,7 +35,10 @@ final class IndexPolicyTests: XCTestCase {
             hasBackgroundProcessingGrant: hasBackgroundProcessingGrant,
             hasMemoryWarning: hasMemoryWarning,
             isUserSelectedTrackRequest: isUserSelectedTrackRequest,
-            continuousNominalSeconds: continuousNominalSeconds)
+            continuousNominalSeconds: continuousNominalSeconds,
+            isCurrentJobRemoteSparse: isCurrentJobRemoteSparse,
+            remoteIndexingWiFiOnlySetting: remoteIndexingWiFiOnlySetting,
+            isOnWiFi: isOnWiFi)
     }
 
     func testNominalForegroundProceedsWithTwoSecondDelay() {
@@ -124,6 +130,38 @@ final class IndexPolicyTests: XCTestCase {
     func testChargingOnlySettingProceedsWhenCharging() {
         let decision = IndexPolicy.decide(
             snapshot(isCharging: true, chargingOnlySetting: true))
+        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
+    }
+
+    func testRemoteSparseJobBlocksOffWiFiWhenWiFiOnlySettingIsOn() {
+        let decision = IndexPolicy.decide(
+            snapshot(
+                isCurrentJobRemoteSparse: true, remoteIndexingWiFiOnlySetting: true,
+                isOnWiFi: false))
+        XCTAssertEqual(decision, .blocked(reason: .remoteSamplingRequiresWiFi))
+    }
+
+    func testRemoteSparseJobProceedsOnWiFi() {
+        let decision = IndexPolicy.decide(
+            snapshot(
+                isCurrentJobRemoteSparse: true, remoteIndexingWiFiOnlySetting: true,
+                isOnWiFi: true))
+        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
+    }
+
+    func testRemoteSparseJobProceedsOffWiFiWhenWiFiOnlySettingIsOff() {
+        let decision = IndexPolicy.decide(
+            snapshot(
+                isCurrentJobRemoteSparse: true, remoteIndexingWiFiOnlySetting: false,
+                isOnWiFi: false))
+        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
+    }
+
+    func testLocalJobNeverBlockedByWiFiGateRegardlessOfNetwork() {
+        let decision = IndexPolicy.decide(
+            snapshot(
+                isCurrentJobRemoteSparse: false, remoteIndexingWiFiOnlySetting: true,
+                isOnWiFi: false))
         XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
     }
 

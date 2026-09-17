@@ -68,9 +68,18 @@ public actor IndexScheduler {
         guard let claim = try await jobs.claimNextJob() else { return .idle }
         var job = claim.job
         let token = claim.leaseToken
+        // Computed once per claim, not per window — the selected asset
+        // doesn't change mid-job (a content replacement restarts the job
+        // with a fresh claim instead).
+        var isRemoteSparse = false
+        if let assetId = job.selectedAssetId {
+            isRemoteSparse = (try? await jobs.isRemoteAsset(assetId: assetId)) ?? false
+        }
 
         while true {
-            let gate = IndexPolicy.decide(snapshotProvider())
+            var snapshot = snapshotProvider()
+            snapshot.isCurrentJobRemoteSparse = isRemoteSparse
+            let gate = IndexPolicy.decide(snapshot)
             guard case let .proceed(interWindowDelay) = gate else {
                 guard case let .blocked(reason) = gate else { return .idle }
                 try await releaseOrMarkWaiting(jobId: job.id, leaseToken: token, reason: reason)
@@ -128,6 +137,9 @@ public actor IndexScheduler {
         case .thermalFair, .thermalSerious, .thermalCritical, .memoryWarning:
             try await jobs.markWaiting(
                 jobId: jobId, leaseToken: leaseToken, reason: .waitingForCooling, retryAfter: nil)
+        case .remoteSamplingRequiresWiFi:
+            try await jobs.markWaiting(
+                jobId: jobId, leaseToken: leaseToken, reason: .waitingForNetwork, retryAfter: nil)
         case .userPaused, .playbackActive, .backgroundGrantMissing:
             try await jobs.releaseToQueued(jobId: jobId, leaseToken: leaseToken)
         }

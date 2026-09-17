@@ -215,6 +215,28 @@ final class DiscoveryReconcilerTests: XCTestCase {
         XCTAssertNil(job?.selectedAssetId)
     }
 
+    /// `remoteOnlyTrackCount()` feeds the Settings confirmation dialog's
+    /// data-cost estimate — it must count exactly the tracks
+    /// `assetSelection` treats as ineligible (remote-only), never a track
+    /// that already has a real local asset or one with no asset rows yet
+    /// (still eligible/pending, not "remote-only").
+    func testRemoteOnlyTrackCountMatchesIneligibleTracks() async throws {
+        let queue = try makeQueue()
+        let remoteOnly = try await insertTrack(queue, title: "Remote")
+        try await insertAsset(
+            queue, trackId: remoteOnly, kind: "remote", remoteURL: "https://example.com/a.mp3")
+        let local = try await insertTrack(queue, title: "Local")
+        try await insertAsset(queue, trackId: local, kind: "localRef", relPath: "b.m4a")
+        let noAssetYet = try await insertTrack(queue, title: "Pending")
+        _ = noAssetYet
+
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+
+        let count = try await reconciler.remoteOnlyTrackCount()
+        XCTAssertEqual(count, 1)
+    }
+
     /// A `trackInserted` outbox event for a remote-only track is drained
     /// (no infinite outbox loop) without ever creating a job.
     func testTrackInsertedOutboxEventSkipsARemoteOnlyTrack() async throws {

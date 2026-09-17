@@ -129,12 +129,16 @@ public actor DiscoveryAssembly {
         let coverage = try await jobs.coverage(pipelineVersion: DiscoveryPipelineVersion.pipeline)
         let paused = (try? await settings.isPaused()) ?? false
         let chargingOnly = (try? await settings.isChargingOnly()) ?? false
+        let remoteIndexingEnabled = (try? await settings.isRemoteIndexingEnabled()) ?? false
+        let remoteIndexingWiFiOnly = (try? await settings.isRemoteIndexingWiFiOnly()) ?? true
         let modelAvailable = await models.isModelResourceAvailable()
         let runtime = (try? await settings.runtime()) ?? DiscoveryRuntime(id: 1)
         return IndexStatusSnapshot(
             coverage: coverage,
             isPaused: paused,
             isChargingOnly: chargingOnly,
+            isRemoteIndexingEnabled: remoteIndexingEnabled,
+            isRemoteIndexingWiFiOnly: remoteIndexingWiFiOnly,
             modelResourceAvailable: modelAvailable,
             modelDownloadProgress: modelAvailable ? nil : modelDownloadProgressProvider(),
             modelDownloadError: modelAvailable ? nil : modelDownloadErrorProvider(),

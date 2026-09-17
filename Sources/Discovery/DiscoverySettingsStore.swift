@@ -48,6 +48,24 @@ public actor DiscoverySettingsStore {
         try setBool(on, forKey: DiscoverySetting.Key.chargingOnly)
     }
 
+    public func isRemoteIndexingEnabled() throws -> Bool {
+        try bool(forKey: DiscoverySetting.Key.remoteIndexingEnabled)
+    }
+
+    public func setRemoteIndexingEnabled(_ on: Bool) throws {
+        try setBool(on, forKey: DiscoverySetting.Key.remoteIndexingEnabled)
+    }
+
+    /// Defaults to `true` — remote sampling only runs on Wi-Fi unless the
+    /// user explicitly opts into cellular, never the other way around.
+    public func isRemoteIndexingWiFiOnly() throws -> Bool {
+        try bool(forKey: DiscoverySetting.Key.remoteIndexingWiFiOnly, default: true)
+    }
+
+    public func setRemoteIndexingWiFiOnly(_ on: Bool) throws {
+        try setBool(on, forKey: DiscoverySetting.Key.remoteIndexingWiFiOnly)
+    }
+
     // MARK: - discovery_runtime (singleton telemetry)
 
     public func runtime() throws -> DiscoveryRuntime {

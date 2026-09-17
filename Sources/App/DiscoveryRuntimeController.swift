@@ -247,8 +247,10 @@ final class DiscoveryRuntimeController {
         let assembly = await makeAssembly()
         let paused = (try? await assembly.settings.isPaused()) ?? false
         let chargingOnly = (try? await assembly.settings.isChargingOnly()) ?? false
+        let wifiOnly = (try? await assembly.settings.isRemoteIndexingWiFiOnly()) ?? true
         sampler.setUserPaused(paused)
         sampler.setChargingOnlySetting(chargingOnly)
+        sampler.setRemoteIndexingWiFiOnlySetting(wifiOnly)
     }
 
     /// Real scheduler control for the status UI (plan §10 action 4).
@@ -263,6 +265,31 @@ final class DiscoveryRuntimeController {
         let assembly = await makeAssembly()
         try? await assembly.settings.setChargingOnly(on)
         sampler.setChargingOnlySetting(on)
+    }
+
+    func setRemoteIndexingEnabled(_ on: Bool) async {
+        let assembly = await makeAssembly()
+        try? await assembly.settings.setRemoteIndexingEnabled(on)
+    }
+
+    func setRemoteIndexingWiFiOnly(_ on: Bool) async {
+        let assembly = await makeAssembly()
+        try? await assembly.settings.setRemoteIndexingWiFiOnly(on)
+        sampler.setRemoteIndexingWiFiOnlySetting(on)
+    }
+
+    /// A rough, honest estimate of the one-time data cost to sparsely sample
+    /// every currently remote-only track in the library — what the Settings
+    /// confirmation dialog shows before letting the user turn off Wi-Fi-only.
+    /// Uses the same per-track worst-case figure the plan's own byte budget
+    /// is built on (~180s of audio at a conservative 192kbps): real usage is
+    /// typically lower (many tracks are shorter, or already local), never
+    /// meaningfully higher (the fetch is capped to what a track's windows
+    /// need, never the whole file).
+    func remoteIndexingEstimate() async -> (trackCount: Int, estimatedBytes: Int64) {
+        let assembly = await makeAssembly()
+        let count = (try? await assembly.reconciler.remoteOnlyTrackCount()) ?? 0
+        return (count, Int64(count) * RemoteIndexingByteEstimate.perTrackBytes)
     }
 
     // MARK: - Search surface (plan §10.1, C07)

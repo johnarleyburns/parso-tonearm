@@ -21,6 +21,13 @@ public struct DiscoveryRawSchedulingInputs: Equatable, Sendable {
     public var hasBackgroundProcessingGrant: Bool
     public var hasMemoryWarning: Bool
     public var isUserSelectedTrackRequest: Bool
+    /// Persisted "remote sampling requires Wi-Fi" preference — see
+    /// `DiscoverySettingsStore.isRemoteIndexingWiFiOnly()`. Defaults `true`.
+    public var remoteIndexingWiFiOnlySetting: Bool
+    /// Real current network-path type (`NWPathMonitor`), sampled the same
+    /// way battery/thermal are — never fabricated. Defaults `true` so a
+    /// caller that hasn't observed the network yet never wrongly blocks.
+    public var isOnWiFi: Bool
     /// The instant thermal state last became `.nominal` (`nil` while it is not
     /// nominal). The mapping derives `continuousNominalSeconds` from this and
     /// `now`, so the caller only has to remember one timestamp.
@@ -39,6 +46,8 @@ public struct DiscoveryRawSchedulingInputs: Equatable, Sendable {
         hasBackgroundProcessingGrant: Bool,
         hasMemoryWarning: Bool,
         isUserSelectedTrackRequest: Bool = false,
+        remoteIndexingWiFiOnlySetting: Bool = true,
+        isOnWiFi: Bool = true,
         nominalSince: Date? = nil,
         now: Date = Date()
     ) {
@@ -53,6 +62,8 @@ public struct DiscoveryRawSchedulingInputs: Equatable, Sendable {
         self.hasBackgroundProcessingGrant = hasBackgroundProcessingGrant
         self.hasMemoryWarning = hasMemoryWarning
         self.isUserSelectedTrackRequest = isUserSelectedTrackRequest
+        self.remoteIndexingWiFiOnlySetting = remoteIndexingWiFiOnlySetting
+        self.isOnWiFi = isOnWiFi
         self.nominalSince = nominalSince
         self.now = now
     }
@@ -90,6 +101,8 @@ extension DiscoverySchedulingSnapshot {
             hasBackgroundProcessingGrant: i.hasBackgroundProcessingGrant,
             hasMemoryWarning: i.hasMemoryWarning,
             isUserSelectedTrackRequest: i.isUserSelectedTrackRequest,
-            continuousNominalSeconds: nominalSeconds)
+            continuousNominalSeconds: nominalSeconds,
+            remoteIndexingWiFiOnlySetting: i.remoteIndexingWiFiOnlySetting,
+            isOnWiFi: i.isOnWiFi)
     }
 }

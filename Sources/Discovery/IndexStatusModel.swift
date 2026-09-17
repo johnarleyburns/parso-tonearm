@@ -132,6 +132,12 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
     public var coverage: IndexJobRepository.Coverage
     public var isPaused: Bool
     public var isChargingOnly: Bool
+    /// Master switch for indexing tracks that only exist on a remote
+    /// library (off by default — see `DiscoverySettingsStore`).
+    public var isRemoteIndexingEnabled: Bool
+    /// Whether remote sampling is currently restricted to Wi-Fi (on by
+    /// default; irrelevant while `isRemoteIndexingEnabled` is false).
+    public var isRemoteIndexingWiFiOnly: Bool
     public var modelResourceAvailable: Bool
     /// Real ODR download bytes while the model is fetching; `nil` when
     /// nothing is currently downloading.
@@ -174,6 +180,8 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         coverage: IndexJobRepository.Coverage,
         isPaused: Bool,
         isChargingOnly: Bool,
+        isRemoteIndexingEnabled: Bool = false,
+        isRemoteIndexingWiFiOnly: Bool = true,
         modelResourceAvailable: Bool,
         modelDownloadProgress: ModelDownloadProgress? = nil,
         modelDownloadError: String? = nil,
@@ -187,6 +195,8 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         self.coverage = coverage
         self.isPaused = isPaused
         self.isChargingOnly = isChargingOnly
+        self.isRemoteIndexingEnabled = isRemoteIndexingEnabled
+        self.isRemoteIndexingWiFiOnly = isRemoteIndexingWiFiOnly
         self.modelResourceAvailable = modelResourceAvailable
         self.modelDownloadProgress = modelDownloadProgress
         self.modelDownloadError = modelDownloadError
@@ -398,6 +408,8 @@ public struct IndexStatusPresentation: Equatable, Sendable {
                 : "Waiting for power before background indexing continues."
         case .backgroundGrantMissing:
             return "Waiting for background processing time from iOS."
+        case .remoteSamplingRequiresWiFi:
+            return "Waiting for Wi-Fi before indexing this remote track."
         }
     }
 

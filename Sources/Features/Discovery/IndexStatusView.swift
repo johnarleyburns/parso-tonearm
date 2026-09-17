@@ -57,6 +57,8 @@ struct IndexStatusView: View {
     @State private var diagnosticsText: String?
     @State private var showShare = false
     @State private var trackListBucket: IndexJobRepository.TrackListBucket?
+    @State private var showWiFiOnlyOffConfirmation = false
+    @State private var wifiOnlyOffEstimate: (trackCount: Int, estimatedBytes: Int64)?
 
     var body: some View {
         NavigationStack {
@@ -107,7 +109,32 @@ struct IndexStatusView: View {
                     ActivityView(items: [text])
                 }
             }
+            .alert(
+                "Allow cellular data for remote indexing?",
+                isPresented: $showWiFiOnlyOffConfirmation
+            ) {
+                Button("Cancel", role: .cancel) { wifiOnlyOffEstimate = nil }
+                Button("Turn Off Wi-Fi Only", role: .destructive) {
+                    wifiOnlyOffEstimate = nil
+                    Task { await model.setRemoteIndexingWiFiOnly(false) }
+                }
+            } message: {
+                Text(wifiOnlyOffConfirmationMessage)
+            }
         }
+    }
+
+    private var wifiOnlyOffConfirmationMessage: String {
+        guard let estimate = wifiOnlyOffEstimate else {
+            return "This could use a significant amount of cellular data."
+        }
+        guard estimate.trackCount > 0 else {
+            return "You have no remote tracks waiting to be indexed right now."
+        }
+        let mb = ByteCountFormatter.string(fromByteCount: estimate.estimatedBytes, countStyle: .file)
+        let plural = estimate.trackCount == 1 ? "track" : "tracks"
+        return "You have about \(estimate.trackCount) remote \(plural) not yet indexed. "
+            + "Indexing them over cellular could use approximately \(mb). Are you sure?"
     }
 
     // MARK: - Cards
@@ -293,6 +320,10 @@ struct IndexStatusView: View {
             .font(.system(size: 14))
             .padding(.vertical, 4)
 
+            Divider().overlay(Palette.hairline)
+
+            remoteIndexingToggles
+
             actionButton("Export diagnostics", "square.and.arrow.up") {
                 diagnosticsText = await model.diagnosticsText()
                 showShare = true
@@ -301,6 +332,50 @@ struct IndexStatusView: View {
         .disabled(model.isBusy)
         .padding(15)
         .glassSurface(cornerRadius: 18)
+    }
+
+    /// Real, ongoing network-data cost — off by default (plan:
+    /// "must ship gated behind an explicit, off-by-default setting, never
+    /// silently enabled"). Turning Wi-Fi-only OFF is the one action here
+    /// that needs a confirmation, since it's the one that can spend
+    /// cellular data unattended; every other change here takes effect
+    /// immediately, same as "Only index while charging" above.
+    private var remoteIndexingToggles: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle(
+                "Index tracks I haven't downloaded",
+                isOn: Binding(
+                    get: { model.snapshot?.isRemoteIndexingEnabled ?? false },
+                    set: { on in Task { await model.setRemoteIndexingEnabled(on) } })
+            )
+            .font(.system(size: 14))
+            .padding(.vertical, 4)
+            Text("Samples just enough of each track from your remote libraries to index it — "
+                + "the audio is never downloaded or kept.")
+                .font(.system(size: 11))
+                .foregroundStyle(Palette.ink3)
+
+            if model.snapshot?.isRemoteIndexingEnabled == true {
+                Toggle(
+                    "Wi-Fi only",
+                    isOn: Binding(
+                        get: { model.snapshot?.isRemoteIndexingWiFiOnly ?? true },
+                        set: { on in
+                            if on {
+                                Task { await model.setRemoteIndexingWiFiOnly(true) }
+                            } else {
+                                Task {
+                                    wifiOnlyOffEstimate = await model.remoteIndexingEstimate()
+                                    showWiFiOnlyOffConfirmation = true
+                                }
+                            }
+                        })
+                )
+                .font(.system(size: 14))
+                .padding(.vertical, 4)
+                .padding(.leading, 14)
+            }
+        }
     }
 
     private func actionButton(

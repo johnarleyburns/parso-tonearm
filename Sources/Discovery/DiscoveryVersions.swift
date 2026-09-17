@@ -61,3 +61,20 @@ public enum DiscoverySamplingPolicy {
         return starts
     }
 }
+
+/// A single, honest, shared source for "how much data does sparsely
+/// indexing one remote track cost" — used both by `IndexPolicy`-adjacent
+/// documentation and by the Settings confirmation dialog that must state
+/// this real cost before letting the user turn off Wi-Fi-only sampling
+/// (docs/plans/remote-sparse-indexing.md).
+public enum RemoteIndexingByteEstimate {
+    /// Up to 12 × 10s embedding windows + one 60s musical-analysis window =
+    /// up to 180s of decoded audio per track (`BoundedIndexWorker`,
+    /// `DiscoverySamplingPolicy.windowStarts`), at a conservative 192kbps —
+    /// real remote libraries vary, but this deliberately does not assume a
+    /// smaller number (the plan's own byte-budget section: "Any byte-budget
+    /// estimate for this feature must start from that number"). Padded up
+    /// from the raw ~4.3 MB/track figure to account for per-window request
+    /// overhead (see the plan's "pad generously" note).
+    public static let perTrackBytes: Int64 = 5 * 1024 * 1024
+}

@@ -5,6 +5,7 @@
 
 #if canImport(UIKit) && !os(watchOS)
 import Foundation
+import Network
 import TonearmCore
 import TonearmDiscovery
 import UIKit
@@ -32,8 +33,14 @@ final class SchedulingSampler: @unchecked Sendable {
     private var _hasBackgroundProcessingGrant = false
     private var _hasMemoryWarning = false
     private var _nominalSince: Date? = Date()
+    private var _remoteIndexingWiFiOnlySetting = true
+    /// Real current network path. Starts `true` (see the matching doc on
+    /// `DiscoverySchedulingSnapshot.isOnWiFi`) until the first
+    /// `NWPathMonitor` update replaces it with a genuine observation.
+    private var _isOnWiFi = true
 
     private var didBeginObserving = false
+    private var pathMonitor: NWPathMonitor?
 
     var isBackground: Bool {
         lock.lock(); defer { lock.unlock() }
@@ -55,6 +62,8 @@ final class SchedulingSampler: @unchecked Sendable {
             hasBackgroundProcessingGrant: _hasBackgroundProcessingGrant,
             hasMemoryWarning: _hasMemoryWarning,
             isUserSelectedTrackRequest: false,
+            remoteIndexingWiFiOnlySetting: _remoteIndexingWiFiOnlySetting,
+            isOnWiFi: _isOnWiFi,
             nominalSince: _nominalSince,
             now: Date())
         lock.unlock()
@@ -102,6 +111,13 @@ final class SchedulingSampler: @unchecked Sendable {
             }
         }
 
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            self?.setOnWiFi(path.usesInterfaceType(.wifi))
+        }
+        monitor.start(queue: DispatchQueue(label: "guru.parso.tonearm.discovery.pathMonitor"))
+        pathMonitor = monitor
+
         refreshAllFromSystem()
     }
 
@@ -136,6 +152,10 @@ final class SchedulingSampler: @unchecked Sendable {
     func setAppState(_ state: DiscoveryAppRunState) { withLock { _appState = state } }
     func setUserPaused(_ paused: Bool) { withLock { _isUserPaused = paused } }
     func setChargingOnlySetting(_ on: Bool) { withLock { _chargingOnlySetting = on } }
+    func setRemoteIndexingWiFiOnlySetting(_ on: Bool) {
+        withLock { _remoteIndexingWiFiOnlySetting = on }
+    }
+    func setOnWiFi(_ on: Bool) { withLock { _isOnWiFi = on } }
     func setHasBackgroundProcessingGrant(_ granted: Bool) {
         withLock { _hasBackgroundProcessingGrant = granted }
     }

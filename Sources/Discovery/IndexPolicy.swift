@@ -49,6 +49,23 @@ public struct DiscoverySchedulingSnapshot: Equatable, Sendable {
     /// (plan §6: "Thermal fair: ... wait until nominal continuously for 60
     /// seconds").
     public var continuousNominalSeconds: TimeInterval
+    /// True only while the job the scheduler currently has claimed needs to
+    /// fetch bytes from a remote library (sparse sampling — see
+    /// docs/plans/remote-sparse-indexing.md), never for a local/downloaded
+    /// asset. Set per-claim by `IndexScheduler`, not sourced from raw
+    /// platform inputs — this snapshot type otherwise has no notion of which
+    /// job is running. Defaults `false` so every existing local-only call
+    /// site is unaffected.
+    public var isCurrentJobRemoteSparse: Bool
+    /// The persisted "remote sampling requires Wi-Fi" preference (default
+    /// `true` — see `DiscoverySettingsStore.isRemoteIndexingWiFiOnly()`).
+    /// Irrelevant unless `isCurrentJobRemoteSparse` is also true.
+    public var remoteIndexingWiFiOnlySetting: Bool
+    /// Real current network-path type. Defaults `true` so a caller that
+    /// never observed the network (tests, or before the sampler's first
+    /// `NWPathMonitor` update) never wrongly blocks local indexing — this
+    /// only ever gates a remote-sparse job.
+    public var isOnWiFi: Bool
 
     public init(
         appState: DiscoveryAppRunState,
@@ -62,7 +79,10 @@ public struct DiscoverySchedulingSnapshot: Equatable, Sendable {
         hasBackgroundProcessingGrant: Bool,
         hasMemoryWarning: Bool,
         isUserSelectedTrackRequest: Bool = false,
-        continuousNominalSeconds: TimeInterval = 0
+        continuousNominalSeconds: TimeInterval = 0,
+        isCurrentJobRemoteSparse: Bool = false,
+        remoteIndexingWiFiOnlySetting: Bool = true,
+        isOnWiFi: Bool = true
     ) {
         self.appState = appState
         self.thermalState = thermalState
@@ -76,6 +96,9 @@ public struct DiscoverySchedulingSnapshot: Equatable, Sendable {
         self.hasMemoryWarning = hasMemoryWarning
         self.isUserSelectedTrackRequest = isUserSelectedTrackRequest
         self.continuousNominalSeconds = continuousNominalSeconds
+        self.isCurrentJobRemoteSparse = isCurrentJobRemoteSparse
+        self.remoteIndexingWiFiOnlySetting = remoteIndexingWiFiOnlySetting
+        self.isOnWiFi = isOnWiFi
     }
 }
 
@@ -113,6 +136,10 @@ public enum IndexBlockReason: Equatable, Sendable {
     case lowBatteryOrLowPowerMode
     case chargingOnlyRequired
     case backgroundGrantMissing
+    /// The claimed job needs to fetch bytes from a remote library, the
+    /// "Wi-Fi only" remote-indexing setting is on, and the device is
+    /// currently not on Wi-Fi. Never blocks a local/downloaded job.
+    case remoteSamplingRequiresWiFi
 }
 
 public enum IndexPolicyDecision: Equatable, Sendable {
@@ -138,6 +165,14 @@ public enum IndexPolicy {
         if s.hasMemoryWarning { return .blocked(reason: .memoryWarning) }
         if s.thermalState == .fair || s.continuousNominalSeconds < thermalFairRecoverySeconds {
             return .blocked(reason: .thermalFair)
+        }
+
+        // Only ever gates the job the scheduler has actually claimed when
+        // that job needs remote bytes — a local/downloaded job is never
+        // affected, regardless of network type (plan: "off by default...
+        // gated the same way existing conditions are").
+        if s.isCurrentJobRemoteSparse && s.remoteIndexingWiFiOnlySetting && !s.isOnWiFi {
+            return .blocked(reason: .remoteSamplingRequiresWiFi)
         }
 
         switch s.appState {
