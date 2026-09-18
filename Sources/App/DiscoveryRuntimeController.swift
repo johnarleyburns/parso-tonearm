@@ -429,6 +429,10 @@ final class DiscoveryRuntimeController {
     @discardableResult
     func enqueueUnindexedTracks() async -> Int {
         let assembly = await makeAssembly()
+        // Legacy remote tracks (added before commit 0a80ff8) never got a
+        // persisted node reference, so they fail sparse-indexing eligibility
+        // no matter how many times bootstrap runs — backfill it first.
+        _ = await assembly.reconciler.backfillRemoteNodeReferences()
         let count = (try? await assembly.reconciler.bootstrapAllTracks()) ?? 0
         if count > 0 {
             _ = try? await assembly.drainQueue()

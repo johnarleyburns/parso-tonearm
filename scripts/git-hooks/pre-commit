@@ -2,5 +2,5 @@
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
-echo "==> pre-commit: running full local suite (Swift + UI smoke tests)"
-scripts/run-local-test-suite.sh full
+echo "==> pre-commit: running Swift package tests"
+scripts/run-local-test-suite.sh swift

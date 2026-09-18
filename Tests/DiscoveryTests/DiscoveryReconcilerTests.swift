@@ -323,4 +323,139 @@ final class DiscoveryReconcilerTests: XCTestCase {
         }
         XCTAssertEqual(remaining, 0)
     }
+
+    // MARK: - Legacy remote node backfill (real report: "the button doesn't
+    // do anything, no tracks are queued from my 2,600+ remote tracks" —
+    // those assets predate remoteNodeID/remoteNodePath persistence, commit
+    // 0a80ff8, so they fail sparse-indexing eligibility no matter how many
+    // times bootstrap runs).
+
+    private struct FakeRemoteProvider: RemoteLibraryProvider {
+        let sourceKind: SourceKind = .webDAV
+        let tree: [String: [RemoteNode]]
+        func browse(path: String) async throws -> [RemoteNode] { tree[path] ?? [] }
+        func resolve(node: RemoteNode) async throws -> ResolvedAsset {
+            ResolvedAsset(url: URL(string: "https://example.com/resolved")!)
+        }
+        func refresh() async throws {}
+    }
+
+    @discardableResult
+    private func insertRemoteSource(_ queue: DatabaseQueue) async throws -> Int64 {
+        try await queue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO source (kind, title, addedAt, followUpdates, memberCapHit,
+                                        localIsFolder)
+                    VALUES ('webDAV', 'My Server', ?, 0, 0, 0)
+                    """, arguments: [Date()])
+            return db.lastInsertedRowID
+        }
+    }
+
+    @discardableResult
+    private func insertTrack(_ queue: DatabaseQueue, sourceId: Int64, title: String) async throws -> Int64 {
+        try await queue.write { db in
+            try db.execute(
+                sql: "INSERT INTO track (sourceId, title, sortKey) VALUES (?, ?, ?)",
+                arguments: [sourceId, title, title.lowercased()])
+            return db.lastInsertedRowID
+        }
+    }
+
+    func testBackfillMatchesLegacyRemoteAssetBySizeAndPersistsNodeReference() async throws {
+        let queue = try makeQueue()
+        let sourceID = try await insertRemoteSource(queue)
+        let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Song One")
+        let assetID = try await insertAsset(
+            queue, trackId: trackID, kind: "remote", remoteURL: "https://old.example.com/song1.mp3")
+        try await queue.write { db in
+            try db.execute(sql: "UPDATE asset SET sizeBytes = ? WHERE id = ?", arguments: [12345, assetID])
+        }
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(
+            writer: queue, jobs: repo, pipelineVersion: 1, remoteIndexingEnabled: { true })
+        let node = RemoteNode(
+            id: "node-1", title: "Song One", path: "/music/song1.mp3", kind: .audio, sizeBytes: 12345)
+        let provider = FakeRemoteProvider(tree: ["": [node]])
+
+        let backfilled = await reconciler.backfillRemoteNodeReferences { _ in provider }
+        XCTAssertEqual(backfilled, 1)
+
+        let row = try await queue.read { db in
+            try Row.fetchOne(db, sql: "SELECT remoteNodeID, remoteNodePath FROM asset WHERE id = ?",
+                arguments: [assetID])!
+        }
+        XCTAssertEqual(row["remoteNodeID"] as String?, "node-1")
+        XCTAssertEqual(row["remoteNodePath"] as String?, "/music/song1.mp3")
+    }
+
+    func testBackfillDoesNothingWhenRemoteIndexingIsDisabled() async throws {
+        let queue = try makeQueue()
+        let sourceID = try await insertRemoteSource(queue)
+        let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Song One")
+        _ = try await insertAsset(
+            queue, trackId: trackID, kind: "remote", remoteURL: "https://old.example.com/song1.mp3")
+        let repo = IndexJobRepository(writer: queue)
+        // Default remoteIndexingEnabled closure returns false.
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+        let node = RemoteNode(id: "node-1", title: "Song One", path: "/music/song1.mp3", kind: .audio)
+        let provider = FakeRemoteProvider(tree: ["": [node]])
+
+        let backfilled = await reconciler.backfillRemoteNodeReferences { _ in provider }
+        XCTAssertEqual(backfilled, 0, "must not make network calls when the setting is off")
+    }
+
+    /// When size is unknown (or ambiguous), falls back to matching by
+    /// normalized title.
+    func testBackfillFallsBackToTitleMatchWhenSizeIsUnavailable() async throws {
+        let queue = try makeQueue()
+        let sourceID = try await insertRemoteSource(queue)
+        let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Unique Title")
+        let assetID = try await insertAsset(
+            queue, trackId: trackID, kind: "remote", remoteURL: "https://old.example.com/x.mp3")
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(
+            writer: queue, jobs: repo, pipelineVersion: 1, remoteIndexingEnabled: { true })
+        let node = RemoteNode(id: "node-2", title: "Unique Title", path: "/music/x.mp3", kind: .audio)
+        let provider = FakeRemoteProvider(tree: ["": [node]])
+
+        let backfilled = await reconciler.backfillRemoteNodeReferences { _ in provider }
+        XCTAssertEqual(backfilled, 1)
+
+        let nodePath = try await queue.read { db in
+            try Row.fetchOne(db, sql: "SELECT remoteNodePath FROM asset WHERE id = ?",
+                arguments: [assetID])!["remoteNodePath"] as String?
+        }
+        XCTAssertEqual(nodePath, "/music/x.mp3")
+    }
+
+    /// Recurses into `.directory`/`.collection` container nodes to find
+    /// leaf tracks nested below the root.
+    func testBackfillRecursesIntoDirectories() async throws {
+        let queue = try makeQueue()
+        let sourceID = try await insertRemoteSource(queue)
+        let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Nested Song")
+        let assetID = try await insertAsset(
+            queue, trackId: trackID, kind: "remote", remoteURL: "https://old.example.com/nested.mp3")
+        try await queue.write { db in
+            try db.execute(sql: "UPDATE asset SET sizeBytes = ? WHERE id = ?", arguments: [999, assetID])
+        }
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(
+            writer: queue, jobs: repo, pipelineVersion: 1, remoteIndexingEnabled: { true })
+        let folder = RemoteNode(id: "folder-1", title: "Album", path: "/Album", kind: .directory)
+        let node = RemoteNode(
+            id: "node-3", title: "Nested Song", path: "/Album/nested.mp3", kind: .audio, sizeBytes: 999)
+        let provider = FakeRemoteProvider(tree: ["": [folder], "/Album": [node]])
+
+        let backfilled = await reconciler.backfillRemoteNodeReferences { _ in provider }
+        XCTAssertEqual(backfilled, 1)
+
+        let nodePath = try await queue.read { db in
+            try Row.fetchOne(db, sql: "SELECT remoteNodePath FROM asset WHERE id = ?",
+                arguments: [assetID])!["remoteNodePath"] as String?
+        }
+        XCTAssertEqual(nodePath, "/Album/nested.mp3")
+    }
 }

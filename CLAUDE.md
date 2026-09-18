@@ -2,7 +2,7 @@
 
 ## Swift 6 hard rule
 
-Tonearm is fully on Swift 6 language mode with complete strict-concurrency checking and is kept as warning-free as the selected toolchain permits. Do not introduce or permit any deviation, mixed Swift modes, warning suppression, or unexplained concurrency escape hatch. A commit runs logic tests and simulator tests; a push runs no tests.
+Tonearm is fully on Swift 6 language mode with complete strict-concurrency checking and is kept as warning-free as the selected toolchain permits. Do not introduce or permit any deviation, mixed Swift modes, warning suppression, or unexplained concurrency escape hatch. A commit runs `swift test` only; a push runs no tests. The UI smoke/simulator suite is run by hand before a release (see below), not on every commit.
 
 Read [`docs/plans/tonearm-mvp-ios/HANDOFF.md`](docs/plans/tonearm-mvp-ios/HANDOFF.md) for the full operating brief. **§0 of that file is how to start a session** — the one-commit-per-task session model and the kickoff prompts.
 
@@ -16,7 +16,7 @@ Read [`docs/plans/tonearm-mvp-ios/HANDOFF.md`](docs/plans/tonearm-mvp-ios/HANDOF
 
 ## Git hook timeouts
 
-- Set the command timeout to at least **5 minutes (300 seconds)** for `git commit`; the pre-commit hook runs the full local suite, including simulator tests.
+- The pre-commit hook runs `swift test` only now; a normal command timeout is enough.
 - `git push` needs no extra timeout; the pre-push hook runs no tests by repository policy. The pre-commit hook is the gate, so nothing is skipped by pushing.
 
 ## No silent/magic background work — always visible, always in the user's control

@@ -303,6 +303,128 @@ public actor DiscoveryReconciler {
         return AssetSelection(assetId: nil, eligible: false)
     }
 
+    /// Best-effort backfill for `.remote` assets that predate
+    /// `remoteNodeID`/`remoteNodePath` persistence (commit `0a80ff8`, 2026-
+    /// 09-16). Real report: "the button doesn't do anything, no tracks are
+    /// queued from my 2,600+ remote tracks" — every remote asset added
+    /// before that commit has `remoteNodePath == nil`, so
+    /// `remoteSparseEligibleAsset` (below) rejects all of them regardless of
+    /// the remote-indexing setting, no matter how many times bootstrap runs.
+    ///
+    /// This crawls each affected source's provider tree ONCE (not once per
+    /// track — that would be thousands of network round-trips) and matches
+    /// existing tracks to freshly-browsed nodes by size (primary) or
+    /// normalized title (fallback), persisting the node reference on a
+    /// match. Only runs when remote indexing is enabled (real, ongoing
+    /// network cost); a source whose provider can't be constructed
+    /// (revoked credential, unsupported kind) is skipped, not treated as an
+    /// error — the next run naturally retries it.
+    @discardableResult
+    public func backfillRemoteNodeReferences(
+        providerFactory: @Sendable (Source) throws -> any RemoteLibraryProvider = {
+            try RemoteLibraryProviderFactory.provider(for: $0)
+        }
+    ) async -> Int {
+        guard await remoteIndexingEnabled() else { return 0 }
+
+        struct Candidate { let assetId: Int64; let sourceId: Int64; let title: String; let sizeBytes: Int64? }
+        let candidates: [Candidate] = ((try? await writer.read { db in
+            try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT a.id AS assetId, t.sourceId AS sourceId, t.title AS title, a.sizeBytes AS sizeBytes
+                    FROM asset a
+                    JOIN track t ON t.id = a.trackId
+                    WHERE a.kind = ? AND a.remoteNodePath IS NULL
+                      AND a.unsupportedReason IS NULL AND a.needsReimport = 0
+                    """,
+                arguments: [AssetKind.remote.rawValue])
+        }) ?? []).map { row in
+            Candidate(assetId: row["assetId"], sourceId: row["sourceId"],
+                title: row["title"], sizeBytes: row["sizeBytes"])
+        }
+        guard !candidates.isEmpty else { return 0 }
+
+        var backfilled = 0
+        for (sourceId, group) in Dictionary(grouping: candidates, by: { $0.sourceId }) {
+            guard let source = try? await writer.read({ db in try Source.fetchOne(db, key: sourceId) }),
+                RemoteLibraryProviderFactory.supports(source.kind),
+                let provider = try? providerFactory(source)
+            else { continue }
+
+            let nodes = await Self.crawlRemoteNodes(provider: provider)
+            guard !nodes.isEmpty else { continue }
+
+            var bySize: [Int64: [RemoteNode]] = [:]
+            var byTitle: [String: [RemoteNode]] = [:]
+            for node in nodes {
+                if let size = node.sizeBytes { bySize[size, default: []].append(node) }
+                byTitle[Self.normalizedTitle(node.title), default: []].append(node)
+            }
+
+            var usedNodeIDs = Set<String>()
+            for candidate in group {
+                var match: RemoteNode?
+                if let size = candidate.sizeBytes {
+                    let sizeMatches = (bySize[size] ?? []).filter { !usedNodeIDs.contains($0.id) }
+                    if sizeMatches.count == 1 { match = sizeMatches[0] }
+                }
+                if match == nil {
+                    let titleMatches = (byTitle[Self.normalizedTitle(candidate.title)] ?? [])
+                        .filter { !usedNodeIDs.contains($0.id) }
+                    if titleMatches.count == 1 { match = titleMatches[0] }
+                }
+                guard let node = match else { continue }
+                usedNodeIDs.insert(node.id)
+                let didUpdate = (try? await writer.write { db -> Bool in
+                    guard var asset = try Asset.fetchOne(db, key: candidate.assetId) else { return false }
+                    asset.remoteNodeID = node.id
+                    asset.remoteNodePath = node.path
+                    try asset.update(db)
+                    return true
+                }) ?? false
+                if didUpdate { backfilled += 1 }
+            }
+        }
+        return backfilled
+    }
+
+    private static func normalizedTitle(_ title: String) -> String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    /// Breadth-first crawl of a provider's whole tree starting at the root
+    /// path (`""`, matching `SourceDetailView`'s browse convention),
+    /// recursing into container nodes (`.directory`/`.collection`) and
+    /// collecting every leaf (`.audio`/`.item`) node. Bounded on both depth
+    /// and total visited nodes so a pathological/huge remote tree can't run
+    /// away — a partial crawl still lets any track under the visited
+    /// portion backfill; the rest is retried on the next run.
+    private static func crawlRemoteNodes(
+        provider: any RemoteLibraryProvider,
+        maxDepth: Int = 12,
+        maxVisited: Int = 20_000
+    ) async -> [RemoteNode] {
+        var result: [RemoteNode] = []
+        var queue: [(path: String, depth: Int)] = [("", 0)]
+        var visitedPaths = Set<String>()
+        while !queue.isEmpty {
+            let (path, depth) = queue.removeFirst()
+            guard visitedPaths.insert(path).inserted else { continue }
+            guard let nodes = try? await provider.browse(path: path) else { continue }
+            for node in nodes {
+                switch node.kind {
+                case .directory, .collection:
+                    if depth < maxDepth { queue.append((node.path, depth + 1)) }
+                default:
+                    result.append(node)
+                }
+            }
+            if result.count + visitedPaths.count > maxVisited { break }
+        }
+        return result
+    }
+
     /// The lowest-id remote asset that CAN be sparsely sampled — has the
     /// persisted node reference (`remoteNodeID`/`remoteNodePath`) the
     /// prerequisite work added, without which `RemoteSparseAssetResolver`

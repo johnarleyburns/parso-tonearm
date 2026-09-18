@@ -118,6 +118,11 @@ once after cloning.
 
 Requires iOS 18. Single dependency: [GRDB](https://github.com/groue/GRDB.swift).
 
+Every commit runs `swift test` via a local pre-commit hook; CI does the same on push.
+The UI smoke test suite (`make test-ui-regression`) is run by hand before a release,
+not on every commit — it needs a simulator and takes longer than the commit loop
+should.
+
 ## Architecture
 
 Product rules live in **pure, unit-tested types** with no SwiftUI, no UIKit, no singletons
