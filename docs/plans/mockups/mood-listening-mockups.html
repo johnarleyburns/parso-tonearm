@@ -31,7 +31,7 @@
     padding:56px 20px 90px;
   }
 
-  .wrap{max-width:1180px;margin:0 auto}
+  .wrap{max-width:1360px;margin:0 auto}
 
   /* ---------- Header ---------- */
   .eyebrow{
@@ -96,10 +96,11 @@
 
   .board{
     display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:34px;
+    grid-template-columns:repeat(4,1fr);
+    gap:28px;
   }
-  @media (max-width:920px){ .board{grid-template-columns:1fr; max-width:380px; margin-inline:auto} }
+  @media (max-width:1050px){ .board{grid-template-columns:repeat(2,1fr); max-width:640px; margin-inline:auto} }
+  @media (max-width:520px){ .board{grid-template-columns:1fr; max-width:320px} }
 
   .frame-col{display:flex; flex-direction:column; gap:0}
 
@@ -210,6 +211,25 @@
   .stat b{display:block; font-size:14px; font-weight:800}
   .stat span{font-size:8.5px; color:var(--ink3); font-weight:600; text-transform:uppercase; letter-spacing:.03em}
 
+  /* tappable Top 10 lists (screen 03) */
+  .ranklist{
+    background:var(--card); border:1px solid var(--card-line); border-radius:10px;
+    overflow:hidden; margin-bottom:10px;
+  }
+  .rankrow{
+    display:flex; align-items:center; gap:9px;
+    padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.055);
+  }
+  .rankrow:last-child{border-bottom:none}
+  .rankrow.dim{opacity:.5}
+  .rk{
+    font-family:var(--mono); font-size:9px; color:var(--brass); font-weight:600;
+    width:13px; text-align:center;
+  }
+  .rn{flex:1; font-size:11px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .rc{font-family:var(--mono); font-size:9.5px; color:var(--ink3)}
+  .rchev{font-size:12px; color:var(--ink3)}
+
   /* now-playing state (screen 2) */
   .np-art{
     width:100%; aspect-ratio:1/1; border-radius:16px; margin:4px 0 14px;
@@ -254,6 +274,31 @@
   .tabitem{display:flex; flex-direction:column; align-items:center; gap:3px; font-size:8px; color:var(--ink3); font-weight:600}
   .tabitem.on{color:var(--brass)}
 
+  /* track detail sheet (screen 04) */
+  .sheet{
+    position:absolute; left:0; right:0; bottom:0;
+    background:linear-gradient(180deg,#17181c,#0f1013);
+    border-top:1px solid rgba(255,255,255,.09);
+    border-radius:20px 20px 0 0;
+    padding:10px 16px 18px;
+    box-shadow:0 -18px 40px -14px rgba(0,0,0,.6);
+  }
+  .sheet-grip{width:34px; height:4px; border-radius:3px; background:rgba(255,255,255,.18); margin:2px auto 12px}
+  .sheet-row{display:flex; align-items:center; gap:10px; margin-bottom:14px}
+  .sheet-action{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    font-size:12px; font-weight:600; color:var(--ink);
+    border:1px solid var(--card-line); border-radius:12px;
+    padding:11px 0; margin-bottom:8px;
+  }
+  .sheet-action.primary{
+    background:linear-gradient(180deg,var(--brass),var(--brass-deep));
+    color:#241505; font-weight:700; border:none;
+    box-shadow:0 8px 18px -8px rgba(227,164,75,.5);
+  }
+  .sheet-action.mood{color:var(--brass); border-color:rgba(227,164,75,.3); background:rgba(227,164,75,.07)}
+  .sheet-action.dismiss{color:var(--ink3); border:none; margin-bottom:0; padding-bottom:2px}
+
   /* ---------- Annotations ---------- */
   .annos{
     margin-top:20px;
@@ -296,17 +341,18 @@
   <div class="eyebrow">Platterhead / Tonearm — Design Note</div>
   <h1>Mood‑Based Listening</h1>
   <p class="dek">
-    Three states for a redesigned <b>Listen</b> tab: a prompt‑bar‑and‑pills entry
+    Four states for a redesigned <b>Listen</b> tab: a prompt‑bar‑and‑pills entry
     point replacing the current stats‑first landing screen, adapted from
     <b>parso‑acalum‑ios‑app</b>'s proven pattern and built entirely on this
-    app's existing on‑device CLAP semantic search — no new model, no new
-    network dependency.
+    app's existing on‑device CLAP semantic search — plus tappable Top 10
+    lists and a detail card that replaces instant‑play‑on‑tap everywhere.
+    No new model, no new network dependency.
   </p>
   <div class="metarow">
     <span><b>Doc</b> docs/plans/mood-based-listening-plan.md</span>
     <span><b>Surface</b> Sources/Features/Listen/ListenView.swift</span>
     <span><b>Status</b> planned — not implemented</span>
-    <span><b>Screens</b> 3</span>
+    <span><b>Screens</b> 4</span>
   </div>
 
   <div class="board-head">
@@ -451,26 +497,21 @@
               <div class="stat"><b>6h 40m</b><span>Time</span></div>
               <div class="stat"><b>5d</b><span>Streak</span></div>
             </div>
-            <div style="background:var(--card);border:1px solid var(--card-line);border-radius:9px;padding:10px;margin:9px 0 4px;display:flex;align-items:end;gap:5px;height:56px">
-              <div style="flex:1;background:linear-gradient(var(--brass),var(--brass-deep));height:30%;border-radius:2px"></div>
-              <div style="flex:1;background:linear-gradient(var(--brass),var(--brass-deep));height:55%;border-radius:2px"></div>
-              <div style="flex:1;background:linear-gradient(var(--brass),var(--brass-deep));height:40%;border-radius:2px"></div>
-              <div style="flex:1;background:linear-gradient(var(--brass),var(--brass-deep));height:80%;border-radius:2px"></div>
-              <div style="flex:1;background:linear-gradient(var(--brass),var(--brass-deep));height:35%;border-radius:2px"></div>
-              <div style="flex:1;background:linear-gradient(var(--brass),var(--brass-deep));height:60%;border-radius:2px"></div>
-              <div style="flex:1;background:linear-gradient(var(--brass),var(--brass-deep));height:22%;border-radius:2px"></div>
+
+            <div class="sec-label">Top 10 Songs</div>
+            <div class="ranklist">
+              <div class="rankrow"><span class="rk">1</span><span class="rn">Keys of Low Light</span><span class="rc">27</span><span class="rchev">›</span></div>
+              <div class="rankrow"><span class="rk">2</span><span class="rn">Warm Static</span><span class="rc">21</span><span class="rchev">›</span></div>
+              <div class="rankrow"><span class="rk">3</span><span class="rn">Glacial Drift</span><span class="rc">19</span><span class="rchev">›</span></div>
+              <div class="rankrow"><span class="rk">4</span><span class="rn">Tape Loop 4</span><span class="rc">14</span><span class="rchev">›</span></div>
+              <div class="rankrow dim"><span class="rk">5</span><span class="rn">Low Tide</span><span class="rc">11</span><span class="rchev">›</span></div>
             </div>
 
-            <div class="sec-label">Favorites <span style="float:right;color:var(--ink3)">38</span></div>
-            <div class="cardrow">
-              <div class="mini-card"><div class="mini-art b"></div><div class="mini-t">Warm Static</div></div>
-              <div class="mini-card"><div class="mini-art c"></div><div class="mini-t">Glacial Drift</div></div>
-              <div class="mini-card"><div class="mini-art a"></div><div class="mini-t">Tape Loop 4</div></div>
-            </div>
-
-            <div class="sec-label">Top Artist</div>
-            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);padding:2px 0 12px">
-              <span>Marguerite Volant</span><span style="color:var(--ink3)">27 plays</span>
+            <div class="sec-label">Top 10 Artists</div>
+            <div class="ranklist">
+              <div class="rankrow"><span class="rk">1</span><span class="rn">Marguerite Volant</span><span class="rc">54</span><span class="rchev">›</span></div>
+              <div class="rankrow"><span class="rk">2</span><span class="rn">Low Orbit Choir</span><span class="rc">33</span><span class="rchev">›</span></div>
+              <div class="rankrow dim"><span class="rk">3</span><span class="rn">Nocturne Radio</span><span class="rc">28</span><span class="rchev">›</span></div>
             </div>
           </div>
           <div class="tabbar">
@@ -483,27 +524,80 @@
       </div>
     </div>
 
+    <!-- SCREEN 4 — tap opens a detail card, not instant play -->
+    <div class="frame-col">
+      <span class="tag state-2">04 — tap opens a detail card</span>
+      <div class="phone">
+        <div class="screen">
+          <div class="notch"></div>
+          <div class="statusbar">
+            <span>9:44</span>
+            <span class="icons">
+              <svg width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 7.5C3.5 3 9.5 3 12 7.5" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
+              <svg width="16" height="10" viewBox="0 0 16 10" fill="none"><rect x=".5" y=".5" width="13" height="9" rx="2" stroke="white"/><rect x="2" y="2" width="8" height="6" fill="white"/><rect x="14.3" y="3" width="1.3" height="4" rx=".6" fill="white"/></svg>
+            </span>
+          </div>
+
+          <!-- dimmed background: whatever list was tapped from -->
+          <div class="scr-body" style="filter:blur(1.5px) brightness(.5)">
+            <div class="sec-label" style="margin-top:2px">Top 10 Songs</div>
+            <div class="ranklist">
+              <div class="rankrow"><span class="rk">1</span><span class="rn">Keys of Low Light</span><span class="rc">27</span><span class="rchev">›</span></div>
+              <div class="rankrow"><span class="rk">2</span><span class="rn">Warm Static</span><span class="rc">21</span><span class="rchev">›</span></div>
+              <div class="rankrow"><span class="rk">3</span><span class="rn">Glacial Drift</span><span class="rc">19</span><span class="rchev">›</span></div>
+            </div>
+          </div>
+
+          <!-- sheet -->
+          <div class="sheet">
+            <div class="sheet-grip"></div>
+            <div class="sheet-row">
+              <div class="mini-art a" style="width:52px;height:52px;border-radius:10px"></div>
+              <div>
+                <div class="np-title" style="font-size:14.5px">Keys of Low Light</div>
+                <div class="np-artist">Marguerite Volant · 4:12 · Sonic Gallery Sessions</div>
+              </div>
+            </div>
+            <div class="sheet-action primary">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="#241505"><path d="M6 4l14 8-14 8V4z"/></svg>
+              Play Now
+            </div>
+            <div class="sheet-action">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#F2F4F6" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h7"/><path d="M18 14v6M15 17h6"/></svg>
+              Add to Queue
+            </div>
+            <div class="sheet-action mood">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#E3A44B" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+              Include in current mood
+            </div>
+            <div class="sheet-action dismiss">Dismiss</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <div class="annos">
     <div class="anno"><span class="n">1</span><div><b>Prompt bar + pills are additive, not either/or</b> — free text ("sunday morning coffee") and toggled pills (Calm, Focus) both feed one query. Matches parso‑acalum's <code style="font-family:var(--mono);color:var(--brass)">DiscoveryContext</code> pattern, mapped onto this app's existing <code style="font-family:var(--mono);color:var(--brass)">DiscoverySearchQuery(text:positiveRefinements:…)</code>.</div></div>
     <div class="anno"><span class="n">2</span><div><b>"Play a mood" starts a continuous queue</b>, not a static result list — no manual playlist‑building step. Reuses <code style="font-family:var(--mono);color:var(--brass)">AudioPlayer.play(tracks:startAt:source:)</code>, the exact call every other row‑tap in the app already uses.</div></div>
     <div class="anno"><span class="n">3</span><div><b>Screen 02's "matched" chips</b> show which selected pills the current track actually scored on — plain‑language accountability for why a track was picked, not a black box.</div></div>
-    <div class="anno"><span class="n">4</span><div><b>Jump Back In / Stats / Favorites move down, not away</b> (screen 03) — same progressive‑disclosure precedent as this session's Settings redesign. Nothing becomes unreachable.</div></div>
+    <div class="anno"><span class="n">4</span><div><b>Jump Back In / Stats / Favorites move down, not away</b> (screen 03) — same progressive‑disclosure precedent as this session's Settings redesign. Nothing becomes unreachable. Stats now list <b>Top 10 Songs</b> and <b>Top 10 Artists</b>, not one name each — every row is tappable.</div></div>
+    <div class="anno"><span class="n">5</span><div><b>Tapping any track opens this card instead of playing instantly</b> (screen 04) — owner feedback: instant‑play‑on‑tap felt jarring with no information shown first. Every action reuses an existing <code style="font-family:var(--mono);color:var(--brass)">AudioPlayer</code> call (<code style="font-family:var(--mono);color:var(--brass)">playSingle</code>/<code style="font-family:var(--mono);color:var(--brass)">appendToQueue</code>) already wired to today's long‑press context menu — this promotes them to the primary tap, it doesn't invent new playback logic. Cross‑cutting: applies to My Music and search results too, not just Listen (see plan §3.6).</div></div>
   </div>
 
   <div class="notes">
     <div>
       <h3>What's new</h3>
-      <p>Prompt bar, pill row, "Play a mood" CTA, the Now‑Playing‑a‑mood view, "Shake it up." A <code>MoodPill</code> data type (id, label, query term) drives the pill row from one editable list.</p>
+      <p>Prompt bar, pill row, "Play a mood" CTA, the Now‑Playing‑a‑mood view, "Shake it up," tappable Top 10 Songs/Artists lists, and a <code>TrackDetailCard</code> sheet (Play Now / Add to Queue / Include in current mood / Dismiss) that replaces instant‑play‑on‑tap everywhere. A <code>MoodPill</code> data type (id, label, query term) drives the pill row from one editable list.</p>
     </div>
     <div>
       <h3>What's reused, untouched</h3>
-      <p>CLAP text embedding, <code>DiscoverySearchViewModel</code>'s query pipeline, <code>FlowChips</code>' styling precedent, Keep Playing's queue‑extension logic. "Find by sound" keeps working exactly as it does today as the precise‑filter path.</p>
+      <p>CLAP text embedding, <code>DiscoverySearchViewModel</code>'s query pipeline, <code>FlowChips</code>' styling precedent, Keep Playing's queue‑extension logic, and <code>AudioPlayer.playSingle</code>/<code>appendToQueue</code> — already wired to today's long‑press context menu, just promoted to the primary tap. "Find by sound" keeps working exactly as it does today as the precise‑filter path.</p>
     </div>
     <div>
       <h3>Open before building</h3>
-      <p>Real pill taxonomy needs a content pass against an actual library. Continuous‑queue extension source and the exact CLAP/tag scoring blend both need reading the real implementation first — see the plan doc's §5.</p>
+      <p>Real pill taxonomy needs a content pass against an actual library. Continuous‑queue extension source and the exact CLAP/tag scoring blend both need reading the real implementation first. Rolling <code>TrackDetailCard</code> out to My Music/search results is a deliberate follow‑up, not bundled with the Listen tab work — see the plan doc's §5.</p>
     </div>
   </div>
 

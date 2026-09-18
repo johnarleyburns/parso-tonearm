@@ -149,6 +149,91 @@ simplification-plan.md): "Jump Back In," "Listening Stats," and
 "Favorites" stay fully reachable, just below the new mood entry point
 instead of being the first thing shown. No feature removal.
 
+### 3.5 Listening Stats — Top 10 Songs / Top 10 Artists, both tappable
+
+Real gap in the current `statsCard` (`ListenView.swift`): it only ever
+shows a single `topLine("Top Artist", …)` / `topLine("Top Track", …)` —
+one name each, not a list, and neither is tappable. Owner feedback:
+expand to a **Top 10 Songs** list and a **Top 10 Artists** list, each row
+tappable to jump to that song (play it / open its detail card — see
+§3.6) or that artist (open a filtered track list for that artist, the
+same list `LibraryBrowse`'s existing artist drill-down and the CarPlay
+implementation's `LibraryStore.tracks(forArtist:)` already produce — do
+not build a second artist-track query).
+
+**Already mostly there**: `ListeningStats.Summary.topTracks: [TrackRank]`
+/ `topArtists: [NameRank]` (`Sources/Domain/ListeningStats.swift`) are
+already ranked arrays, not single values — the UI just only ever reads
+`.first`. `TrackRank.row: TrackRow` carries everything needed to open a
+track's detail card directly; `NameRank.name: String` is enough to open
+an artist's filtered track list. `ListeningStats.summarize(events:
+tracks:rankLimit:)` defaults `rankLimit` to 5 — `AppState.reload()`'s
+call site (`Sources/App/AppState.swift`) needs to pass `rankLimit: 10`
+to actually get ten of each; everything downstream (`TrackRank`/
+`NameRank` arrays) already scales with that parameter without further
+changes.
+
+**UI**: replace the two single `topLine` rows with two short vertical
+lists (rank number, title/name, play count), each row a button — tapping
+a song row opens its detail card (§3.6); tapping an artist row navigates
+to that artist's track list (reuse whatever `LibraryView`'s own artist
+drill-down UI already is, rather than building a new screen).
+
+### 3.6 Tapping a track opens a detail card — not an instant play
+
+Owner feedback, and it applies beyond just this plan's new mood surface:
+tapping a track today (`ListenView`'s cards, `LibraryView`'s rows,
+`DiscoverySearchView`'s results — all confirmed via `grep` to call
+`player.play(tracks:startAt:source:)` directly on tap) starts playback
+immediately with no confirmation and no information shown first. Real
+report: "it seems jarring to just start playing it — I expect to see
+details about the song first."
+
+**This is a cross-cutting interaction change, not Listen-tab-only** —
+scoped into this plan because that's where it was raised, but implement
+it once as a shared component and apply it everywhere a track row is
+tapped (My Music/`LibraryView`, search results/`DiscoverySearchView`,
+Listen's mood results and Top 10 Songs, Jump Back In, Favorites), not as
+a one-off special case inside `ListenView`.
+
+**Design**: a `TrackDetailCard` sheet (artwork, title, artist/album,
+duration, source) presented on tap instead of calling `play(...)`
+directly, offering:
+- **Play Now** — `player.playSingle(row)` (already exists, currently a
+  context-menu-only action — see `TrackContextMenu`,
+  `Sources/Features/Components.swift`).
+- **Add to Queue** — `player.appendToQueue(row)` (already exists,
+  same file). Consider also surfacing the existing `insertNext(row)`
+  ("Play Next") here rather than dropping it — the context menu already
+  has both and users may rely on the distinction.
+- **Include in current mood** — new; only relevant/shown when a mood
+  query is active (§3.1–3.3). Adds the track as a positive signal to the
+  live `DiscoverySearchViewModel` (mirrors the existing
+  `addMoreLike(_:)` refinement mechanism — likely keyed off the track's
+  title/metadata the same way a typed refinement term is, or, if the
+  underlying search supports it, a direct "more like this track" seed
+  the same way `moreLikeThis(trackID:)` already works for the "Find by
+  sound" screen's "More like this" entry point) — reuse that existing
+  mechanism rather than inventing a second one.
+- **Dismiss** — closes the sheet, no action, no playback change.
+
+**Reuses, doesn't replace**: `TrackContextMenu`'s long-press menu can
+stay as-is for users who prefer it (secondary-action muscle memory) —
+this changes what a plain *tap* does, not what's reachable at all. Every
+action the card offers already exists on `AudioPlayer`/
+`DiscoverySearchViewModel` today; this is a presentation change (show a
+card first) wired to existing calls, not new playback logic.
+
+**Scope/effort note for the implementing session**: touching every
+track-row tap site across `LibraryView`/`DiscoverySearchView`/
+`ListenView` is a wider-reaching change than the rest of this plan and
+should be its own reviewed step — get the mood-specific Listen tab work
+(§3.1–3.5) solid first, then apply `TrackDetailCard` there, then extend
+to My Music and search results as a deliberate follow-up pass so each
+surface's row-tap change can be verified independently (same "verify
+nothing becomes unreachable" discipline as the Settings/My Music
+simplification pass earlier this session).
+
 ## 4. Non-goals
 
 - No new ML model, no new embedding infrastructure — this is a UI/UX
@@ -193,9 +278,27 @@ instead of being the first thing shown. No feature removal.
    pill, Play button, Shake it up) so a future UI test can exercise this
    flow — following this session's `mymusic.scope.*`-style naming
    convention.
-10. `swift test` + `xcodebuild build` + a real device/simulator pass
-    playing a mood query end-to-end (this cannot be verified by compiling
-    alone — actual result relevance needs a real library and real ears).
+10. Bump `AppState.reload()`'s `ListeningStats.summarize(…)` call to
+    `rankLimit: 10`; replace `statsCard`'s single top-artist/top-track
+    lines with two tappable top-10 lists per §3.5. Song rows open
+    `TrackDetailCard` (step 12); artist rows navigate to that artist's
+    existing track list.
+11. Build `TrackDetailCard` (§3.6) as a shared, reusable sheet — artwork/
+    title/artist/duration/source plus Play Now / Add to Queue / Include
+    in current mood (mood-context only) / Dismiss, wired to the existing
+    `playSingle(_:)`/`appendToQueue(_:)`/`insertNext(_:)` on `AudioPlayer`
+    and the existing refinement mechanism on `DiscoverySearchViewModel` —
+    no new playback logic.
+12. Wire `TrackDetailCard` into the Listen tab's own tap sites first
+    (mood results, Top 10 Songs, Jump Back In, Favorites) and verify end-
+    to-end before touching `LibraryView`/`DiscoverySearchView` — per
+    §3.6's scope note, extending to My Music and search results is a
+    deliberate follow-up step, not bundled into the same change.
+13. `swift test` + `xcodebuild build` + a real device/simulator pass
+    playing a mood query end-to-end, opening a track's detail card from
+    every wired entry point, and confirming Top 10 lists jump correctly
+    (this cannot be verified by compiling alone — actual result relevance
+    needs a real library and real ears).
 
 ## 6. Mockups
 
@@ -226,3 +329,22 @@ offline reference.
   disabled Keep Playing globally should not have it silently reappear
   via the mood queue's continuation, unless that's a deliberate,
   disclosed exception worth calling out in the Settings copy.
+- Top 10 Songs/Artists actually show ten (not five) on a library large
+  enough to have that many distinct plays, and each row's tap target
+  goes to the right place — a song opens `TrackDetailCard` for that
+  exact track, an artist row opens that exact artist's tracks, not a
+  stale/wrong reference from a reused row view.
+- `TrackDetailCard`'s Play Now / Add to Queue / Include in current mood
+  each produce the exact outcome the label promises (Play Now doesn't
+  silently queue instead of playing, Add to Queue doesn't interrupt
+  what's already playing) — verify against `AudioPlayer.playSingle`/
+  `appendToQueue`/`insertNext`'s actual documented behavior, not assumed
+  behavior.
+- "Include in current mood" is hidden (not shown disabled) when no mood
+  query is active, per §3.6 — confirm this rather than assume it, since
+  showing a mood action with no mood context would be confusing.
+- Every tap site `TrackDetailCard` was wired into (Listen tab first, then
+  My Music/search results if that follow-up pass happened) shows the
+  card and no longer calls `play(tracks:startAt:source:)` directly on
+  tap — grep for remaining direct-play-on-tap call sites the same way
+  this plan's own research did, to confirm none were missed.
