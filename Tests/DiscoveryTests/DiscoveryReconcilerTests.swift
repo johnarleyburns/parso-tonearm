@@ -354,6 +354,19 @@ final class DiscoveryReconcilerTests: XCTestCase {
     }
 
     @discardableResult
+    private func insertIASource(_ queue: DatabaseQueue) async throws -> Int64 {
+        try await queue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO source (kind, title, addedAt, followUpdates, memberCapHit,
+                                        localIsFolder)
+                    VALUES ('iaItem', 'An Archive.org Item', ?, 0, 0, 0)
+                    """, arguments: [Date()])
+            return db.lastInsertedRowID
+        }
+    }
+
+    @discardableResult
     private func insertTrack(_ queue: DatabaseQueue, sourceId: Int64, title: String) async throws -> Int64 {
         try await queue.write { db in
             try db.execute(
@@ -457,5 +470,41 @@ final class DiscoveryReconcilerTests: XCTestCase {
                 arguments: [assetID])!["remoteNodePath"] as String?
         }
         XCTAssertEqual(nodePath, "/Album/nested.mp3")
+    }
+
+    /// Real root cause found auditing the first backfill fix:
+    /// `RemoteLibraryProviderFactory.provider(for:)` never supported
+    /// Internet Archive source kinds (it threw `.unsupportedURL` for them),
+    /// so the crawl-and-match path could never have worked for IA-origin
+    /// remote tracks — very likely the largest remote-library source type
+    /// in this app — no matter how good the matching heuristic was. IA
+    /// assets get a direct, network-free path instead: the node reference
+    /// is just the already-persisted `remoteURL` reflected back, matching
+    /// what `IARemoteLibraryProvider.browse` itself would construct. This
+    /// must not call `providerFactory` at all (that closure is set up to
+    /// fail in this test, to prove the network path isn't used).
+    func testBackfillUsesRemoteURLDirectlyForArchiveOrgSourcesNoNetworkCall() async throws {
+        let queue = try makeQueue()
+        let sourceID = try await insertIASource(queue)
+        let trackID = try await insertTrack(queue, sourceId: sourceID, title: "IA Track")
+        let assetID = try await insertAsset(
+            queue, trackId: trackID, kind: "remote",
+            remoteURL: "https://archive.org/download/some-item/track01.mp3")
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(
+            writer: queue, jobs: repo, pipelineVersion: 1, remoteIndexingEnabled: { true })
+
+        let backfilled = await reconciler.backfillRemoteNodeReferences { _ in
+            XCTFail("must not construct/crawl a provider for an Internet Archive source")
+            throw URLError(.unsupportedURL)
+        }
+        XCTAssertEqual(backfilled, 1)
+
+        let row = try await queue.read { db in
+            try Row.fetchOne(db, sql: "SELECT remoteNodeID, remoteNodePath FROM asset WHERE id = ?",
+                arguments: [assetID])!
+        }
+        XCTAssertEqual(row["remoteNodeID"] as String?, "https://archive.org/download/some-item/track01.mp3")
+        XCTAssertEqual(row["remoteNodePath"] as String?, "https://archive.org/download/some-item/track01.mp3")
     }
 }

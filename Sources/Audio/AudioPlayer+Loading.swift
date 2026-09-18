@@ -4,16 +4,26 @@ import AVFoundation
 import ParsoAudioStreaming
 import Combine
 import Network
+import OSLog
+
+private let loadingLog = Logger(subsystem: "guru.parso.tonearm", category: "Playback")
 
 extension AudioPlayer {
     // MARK: - Loading
 
     func loadCurrent(autoplay: Bool) {
-        guard let row = currentTrack, let asset = row.asset else { return }
+        guard let row = currentTrack else {
+            loadingLog.error("loadCurrent: no current track at index \(self.index, privacy: .public) of \(self.queue.count, privacy: .public)")
+            return
+        }
+        guard let asset = row.asset else {
+            loadingLog.error("loadCurrent: track \(row.track.id ?? -1, privacy: .public) \"\(row.track.title, privacy: .public)\" has no asset row — nothing to play")
+            return
+        }
         if let trackId = row.track.id { recordKeepPlayingHistory(trackId) }
 
         if let reason = asset.unsupportedReason {
-            _ = reason
+            loadingLog.error("loadCurrent: track \(row.track.id ?? -1, privacy: .public) \"\(row.track.title, privacy: .public)\" is unsupported (\(reason, privacy: .public)) — skipping to next")
             next()
             return
         }
@@ -48,6 +58,7 @@ extension AudioPlayer {
         preloadedNextLoader = nil
 
         guard let built else {
+            loadingLog.error("loadCurrent: buildItem(for:) returned nil for track \(row.track.id ?? -1, privacy: .public) \"\(row.track.title, privacy: .public)\" (asset kind \(asset.kind.rawValue, privacy: .public), remoteURL=\(asset.remoteURL ?? "nil", privacy: .public)) — skipping to next")
             next()
             return
         }

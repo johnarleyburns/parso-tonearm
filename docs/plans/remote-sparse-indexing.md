@@ -243,3 +243,28 @@ This approach handles elementary-stream and MP4-container formats uniformly (thr
   Wi-Fi gate, session-reuse-across-windows bookkeeping), not an end-to-end fetch-through-decode
   test against a fixture. A real-device manual test per provider (the plan's last "Tests" bullet)
   also still hasn't happened. Both remain open before calling this feature fully verified.
+- **Real bug found in the field, root-caused and fixed after this plan shipped**: "Enqueue
+  unindexed tracks" did nothing for a library of 2,600+ Internet Archive tracks. Two compounding
+  causes, both now fixed:
+  1. `Asset.remoteNodeID`/`remoteNodePath` are only persisted going forward from `0a80ff8` — any
+     remote asset added before that commit has them `nil` forever, so it never became sparse-
+     eligible no matter how many times bootstrap ran. Fixed by
+     `DiscoveryReconciler.backfillRemoteNodeReferences()`, run automatically as part of "Enqueue
+     unindexed tracks."
+  2. Deeper root cause: `RemoteLibraryProviderFactory.provider(for:)` — used by BOTH the backfill
+     above and `RemoteSparseAssetResolver.makeSession`'s analysis-time re-authentication — never
+     had a case for `.iaItem`/`.iaList`/`.iaCollection`/`.iaFavorites` at all; it fell through to
+     `throw URLError(.unsupportedURL)` for every Internet Archive source, despite
+     `RemoteLibraryAccessPolicy.isRemoteLibrary` (what `RemoteLibraryProviderFactory.supports`
+     reports) already counting them as remote libraries. This plan named Internet Archive as one
+     of the providers to support (see "Goal" above) but the implementation never actually wired
+     it into the shared factory both the backfill and the analysis-time resolver depend on — so
+     this class of source could never have worked regardless of the node-reference backfill.
+     Fixed by adding the missing case (`IARemoteLibraryProvider(preferFLAC: false)`) to the
+     factory. Archive.org download links are permanent and unauthenticated (no token/signed-URL
+     refresh needed, unlike Dropbox/Drive/OneDrive), so the backfill for IA assets is a direct,
+     network-free shortcut: the node reference is just the already-persisted `remoteURL`
+     reflected back, exactly what `IARemoteLibraryProvider.browse` itself would construct.
+  Not yet confirmed against the field report that originally surfaced this — the report's exact
+  provider type was inferred (Internet Archive is overwhelmingly the most likely source of a
+  single 2,600+-track remote library in this app) rather than confirmed directly.

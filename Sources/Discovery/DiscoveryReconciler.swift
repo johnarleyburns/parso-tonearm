@@ -311,14 +311,30 @@ public actor DiscoveryReconciler {
     /// `remoteSparseEligibleAsset` (below) rejects all of them regardless of
     /// the remote-indexing setting, no matter how many times bootstrap runs.
     ///
-    /// This crawls each affected source's provider tree ONCE (not once per
-    /// track — that would be thousands of network round-trips) and matches
-    /// existing tracks to freshly-browsed nodes by size (primary) or
-    /// normalized title (fallback), persisting the node reference on a
-    /// match. Only runs when remote indexing is enabled (real, ongoing
-    /// network cost); a source whose provider can't be constructed
-    /// (revoked credential, unsupported kind) is skipped, not treated as an
-    /// error — the next run naturally retries it.
+    /// Internet Archive sources (by far the most likely source of a
+    /// multi-thousand-track remote library in this app — a second, deeper
+    /// root cause found auditing the first fix) get a direct, network-free
+    /// path: `RemoteLibraryProviderFactory.provider(for:)` never supported
+    /// `.iaItem`/`.iaList`/`.iaCollection`/`.iaFavorites` at all (it throws
+    /// `.unsupportedURL` for them — see the fix alongside this one), so the
+    /// generic crawl-and-match path below could never have worked for them
+    /// regardless of matching quality, and neither could analysis-time
+    /// re-authentication (`RemoteSparseAssetResolver.makeSession`, which
+    /// calls the same factory). IA's persisted `remoteURL` is already a
+    /// permanent, unauthenticated archive.org download link — exactly what
+    /// `IARemoteLibraryProvider.browse` would itself produce as a node's
+    /// `path` — so the node reference for these is just `remoteURL` back
+    /// out, self-referentially, with no round trip needed.
+    ///
+    /// Every other supported provider (WebDAV/SMB/Jellyfin/Plex/Subsonic/
+    /// CloudDrive/Jamendo) crawls its tree ONCE per source (not once per
+    /// track — that would be thousands of round trips) and matches existing
+    /// tracks to freshly-browsed nodes by size (primary) or normalized
+    /// title (fallback), persisting the node reference on a match. Only
+    /// runs when remote indexing is enabled (real, ongoing network cost);
+    /// a source whose provider can't be constructed (revoked credential,
+    /// unsupported kind) is skipped, not treated as an error — the next
+    /// run naturally retries it.
     @discardableResult
     public func backfillRemoteNodeReferences(
         providerFactory: @Sendable (Source) throws -> any RemoteLibraryProvider = {
@@ -327,12 +343,19 @@ public actor DiscoveryReconciler {
     ) async -> Int {
         guard await remoteIndexingEnabled() else { return 0 }
 
-        struct Candidate { let assetId: Int64; let sourceId: Int64; let title: String; let sizeBytes: Int64? }
+        struct Candidate {
+            let assetId: Int64
+            let sourceId: Int64
+            let title: String
+            let sizeBytes: Int64?
+            let remoteURL: String?
+        }
         let candidates: [Candidate] = ((try? await writer.read { db in
             try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT a.id AS assetId, t.sourceId AS sourceId, t.title AS title, a.sizeBytes AS sizeBytes
+                    SELECT a.id AS assetId, t.sourceId AS sourceId, t.title AS title,
+                           a.sizeBytes AS sizeBytes, a.remoteURL AS remoteURL
                     FROM asset a
                     JOIN track t ON t.id = a.trackId
                     WHERE a.kind = ? AND a.remoteNodePath IS NULL
@@ -341,14 +364,31 @@ public actor DiscoveryReconciler {
                 arguments: [AssetKind.remote.rawValue])
         }) ?? []).map { row in
             Candidate(assetId: row["assetId"], sourceId: row["sourceId"],
-                title: row["title"], sizeBytes: row["sizeBytes"])
+                title: row["title"], sizeBytes: row["sizeBytes"], remoteURL: row["remoteURL"])
         }
         guard !candidates.isEmpty else { return 0 }
 
         var backfilled = 0
         for (sourceId, group) in Dictionary(grouping: candidates, by: { $0.sourceId }) {
-            guard let source = try? await writer.read({ db in try Source.fetchOne(db, key: sourceId) }),
-                RemoteLibraryProviderFactory.supports(source.kind),
+            guard let source = try? await writer.read({ db in try Source.fetchOne(db, key: sourceId) })
+            else { continue }
+
+            if Self.isArchiveOrgKind(source.kind) {
+                for candidate in group {
+                    guard let url = candidate.remoteURL else { continue }
+                    let didUpdate = (try? await writer.write { db -> Bool in
+                        guard var asset = try Asset.fetchOne(db, key: candidate.assetId) else { return false }
+                        asset.remoteNodeID = url
+                        asset.remoteNodePath = url
+                        try asset.update(db)
+                        return true
+                    }) ?? false
+                    if didUpdate { backfilled += 1 }
+                }
+                continue
+            }
+
+            guard RemoteLibraryProviderFactory.supports(source.kind),
                 let provider = try? providerFactory(source)
             else { continue }
 
@@ -391,6 +431,17 @@ public actor DiscoveryReconciler {
 
     private static func normalizedTitle(_ title: String) -> String {
         title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    /// Internet Archive source kinds — `RemoteLibraryProviderFactory`
+    /// doesn't construct a provider for these via its normal `Source`-based
+    /// path (see `backfillRemoteNodeReferences`'s doc); their remote assets
+    /// need the direct `remoteURL`-as-node-reference shortcut instead.
+    private static func isArchiveOrgKind(_ kind: SourceKind) -> Bool {
+        switch kind {
+        case .iaItem, .iaList, .iaCollection, .iaFavorites: return true
+        default: return false
+        }
     }
 
     /// Breadth-first crawl of a provider's whole tree starting at the root
