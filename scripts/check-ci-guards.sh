@@ -28,21 +28,21 @@ fi
 
 # ── StoreKit import boundary (Ground rule #2) ───────────────────────────────
 #
-# `import StoreKit` is permitted ONLY under Sources/Pro/ and the paywall view.
-# Any other occurrence leaks the StoreKit dependency past the Pro boundary.
+# `import StoreKit` is permitted ONLY under Sources/Support/ — the sole
+# remaining purchase (the optional "Contribute to Development" consumable)
+# lives there. Any other occurrence leaks the StoreKit dependency past that
+# boundary. (There is no Pro entitlement/paywall left to carve an exception
+# for — see docs/plans/unified-my-music-transition-lab-status.md §11.)
 #
-# **Match the import statement, not the phrase.** The bare-substring form failed
-# on Sources/DJ/Features/Paywall/PaywallModel.swift, whose doc comment says the
-# model "cannot import StoreKit" — the rule being enforced, written down. A
-# guard that fails on a file explaining that it obeys the guard teaches people
-# to route around it.
+# **Match the import statement, not the phrase**, not a bare substring — a
+# doc comment that merely mentions "import StoreKit" in prose must not trip
+# this guard.
 echo "==> StoreKit import boundary"
 LEAKS=$(grep -rlnE "^[[:space:]]*import StoreKit([[:space:]]|$)" Sources WatchApp \
-  | grep -v "^Sources/Pro/" \
-  | grep -v "^Sources/Features/Settings/ProPaywallView.swift" \
+  | grep -v "^Sources/Support/" \
   || true)
 if [ -n "$LEAKS" ]; then
-  echo "    StoreKit import leaked outside Sources/Pro/ and the paywall:"
+  echo "    StoreKit import leaked outside Sources/Support/:"
   echo "$LEAKS" | sed 's/^/      /'
   status=1
 else

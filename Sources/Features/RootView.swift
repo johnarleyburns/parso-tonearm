@@ -29,11 +29,10 @@ struct RootView: View {
                     case .myMusic: MyMusicView()
                     case .settings: SettingsView()
                     // The DJ tab IS Transition Lab now (plan §7) — no home/
-                    // menu screen. DJHomeView and the full mixer/MIDI/
-                    // recording/stems stack it routed to are unreachable
-                    // from here as of this commit but not yet deleted (plan
-                    // §10 is a separate, larger removal pass; see this
-                    // commit's message for why it's deferred).
+                    // menu screen. The old DJHomeView and its mixer/MIDI/
+                    // recording/stems stack are deleted (plan §10); see
+                    // docs/plans/unified-my-music-transition-lab-status.md
+                    // for exactly what was removed vs. deliberately kept.
                     case .dj: TransitionLabTabView()
                     }
                 }

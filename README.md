@@ -15,27 +15,16 @@ there when you're offline. There is no download button, because you don't need o
 
 ---
 
-## The free/Pro line
+## Tonearm is free
 
-Tonearm's Pro tier originally gated *conveniences* — cache size, prefetch depth, folder
-watch, iCloud sync, audio tools, smart playlists, and tag editing. Those are taxes on your
-own disk and your own phone, and we've removed them. They are free, permanently, and a CI
-test (`Tests/FreeTierRegistryTests.swift`) fails the build if anyone ever tries to re-gate
-them.
+Everything about listening, organizing, analyzing, searching, playlist building, and
+Transition Lab is included. There is no account, no subscription, no feature paywall, and
+no telemetry.
 
-In the same spirit, remote libraries used to be the one paid feature — a tax on the music
-that lives on *other people's servers you already pay for*. They are free now too, along
-with semantic search and auto-generated playlists.
+If Tonearm is useful to you, Settings includes an optional one-time contribution to
+development. It unlocks nothing; it simply adds a Supporter badge as a thank-you.
 
-The line is simple:
-
-> **Free — everything about *listening*.** A complete player for music you own, wherever it
-> lives, including finding it by feel and having the app build playlists for you.
->
-> **Pro — everything about *performing*.** Platterhead DJ is coming: decks, mixing, stems,
-> recording and hardware. One price, once, forever.
-
-### Free, forever
+### Everything, free
 
 All formats (FLAC, Opus, ALAC, MP3, AAC, WAV/AIFF) · gapless · 10-band EQ · ReplayGain ·
 crossfade · unlimited cache, any size · any prefetch depth · folder watch · full Music
@@ -45,20 +34,17 @@ playlists, favorites, artwork, presets) · parametric EQ · crossfeed · convolu
 bit-perfect output · smart playlists · tag editor · bulk edits · duplicate detection ·
 **all 11 remote-library providers (archive.org, Dropbox, Google Drive, OneDrive, pCloud,
 Subsonic/Navidrome, WebDAV, Jellyfin, Plex, SMB and Jamendo genre libraries)** · semantic vibe search ·
-auto-generated playlists · analysis stages 1–2 (BPM, key, energy) · zero telemetry, no
-account.
-
-### Pro — Platterhead DJ (coming)
-
-Two decks, mixing, beat sync, hot cues, stems, recording and MIDI hardware — one time, no
-subscription, no account. Anyone who bought the retired remote-libraries product before the
-transition receives Platterhead DJ at no charge.
+auto-generated playlists · analysis stages 1–2 (BPM, key, energy) ·
+**Transition Lab** — choose two tracks from your music, get phrase-aware transition
+suggestions from on-device analysis, and audition them before you play a transition for
+anyone else · zero telemetry, no account.
 
 ## Roadmap
 
-- **Platterhead DJ (Pro)** — two decks, stems, recording, hardware.
-- **CarPlay** — *planned, pending Apple's entitlement approval.* It will ship **free** once
-  approved. It is deliberately absent from the paid feature list until it is real.
+- **A live Transition Lab practice loop** — audition a suggested transition today; a
+  real-time practice session (arm it, mix along, feel it) is next.
+- **CarPlay** — *planned, pending Apple's entitlement approval.* It is deliberately absent
+  from this list until it is real.
 - **iPad and Mac** apps.
 
 The remote connector OAuth handoff plan lives in
@@ -147,7 +133,7 @@ Sources/
   Data/         LibraryStore (GRDB + FTS5), ArtworkStore, BookmarkVault
   Audio/        AudioPlayer, CacheStore, CachingResourceLoader, EQ/, Opus/
   IA/           archive.org: URLGrammar, ItemResolver, List/CollectionResolver
-  Pro/          StoreKit 2 entitlement (import StoreKit is CI-fenced to this dir)
+  Support/      The optional Supporter contribution (import StoreKit is CI-fenced to this dir)
   Sync/         CloudSyncEngine (CKSyncEngine) + pure mapping/merge/gating
   Features/     SwiftUI views — thin
   WatchPlayback/ WatchPlayerEngine, position store, audio output protocol

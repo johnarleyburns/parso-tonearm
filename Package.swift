@@ -83,7 +83,7 @@ let package = Package(
                 "Sources/Domain",
                 "Sources/IA",
                 "Sources/Intents",
-                "Sources/Pro",
+                "Sources/Support",
                 "Sources/Remote",
                 "Sources/Share",
                 "Sources/Snapshot",

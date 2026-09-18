@@ -20,30 +20,17 @@ struct TonearmApp: App {
     init() {
         let launchArguments = ProcessInfo.processInfo.arguments
         let isUITesting = launchArguments.contains("UI_TESTING")
-        let shouldSeedProForUITesting = isUITesting && launchArguments.contains("UI_TESTING_ENABLE_PRO")
 
         if launchArguments.contains("-resetLibrary") {
             Self.resetLibraryForRegression()
         }
-        if launchArguments.contains("-midiSeedProfile") {
-            Self.seedMidiProfileForRegression()
-        }
         if isUITesting {
             UserDefaults.standard.set(true, forKey: "didOnboard")
         }
-        if shouldSeedProForUITesting {
-            // Everything is free now (no Pro entitlement) — `EntitlementStore`
-            // already always reports `isPro == true` in production. This seed
-            // only matters for a UI-regression build that still asserts the
-            // old always-unlocked DJ surfaces via `EntitlementStore.isPro`.
-            EntitlementStore.shared.grantForUITesting()
-        }
-        if !shouldSeedProForUITesting {
-            EntitlementStore.shared.start()
-        }
-        // The one remaining purchase — "Contribute to Development" — is
-        // unrelated to the (now always-unlocked) Pro entitlement, so it
-        // starts unconditionally.
+        // Everything is free — no Pro entitlement, no paywall (see
+        // docs/plans/unified-my-music-transition-lab-status.md §11). The one
+        // remaining purchase — "Contribute to Development" — unlocks nothing;
+        // it only sets the permanent Supporter badge flag.
         SupportDevelopmentStore.shared.start()
         AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
         AudioPlayer.shared.persistor.cloudBackend = CloudPlaybackBackend()
@@ -73,23 +60,6 @@ struct TonearmApp: App {
         let documents = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
         try? fm.removeItem(at: documents.appendingPathComponent("GenreCrates", isDirectory: true))
         try? fm.removeItem(at: DJDatabase.cachesDirectory)
-    }
-
-    /// The AT-HW-06 harness hook (plan dj-midi-alpha M1): write an **active**
-    /// profile binding CC 7 to the crossfader, so the workspace attaches MIDI
-    /// when the decks open and the injection hook's CC has somewhere to land.
-    /// Runs after `-resetLibrary`, so the wipe never clears it.
-    private static func seedMidiProfileForRegression() {
-        var profile = ControllerProfile(name: "Regression controller",
-                                        endpointName: "Regression")
-        // `.jump`: the lane injects one CC and expects the crossfader to move
-        // immediately — pickup would correctly refuse until a "physical"
-        // crossing, which an injected message can never produce.
-        profile.learn(.crossfader,
-                      at: MidiAddress(type: .cc, channel: 1, number: 7),
-                      transform: .bipolar, takeover: .jump)
-        try? ControllerProfileStore(pool: ControllerProfileDatabase.shared)
-            .save(profile, syncID: "regression")
     }
 
     var body: some Scene {

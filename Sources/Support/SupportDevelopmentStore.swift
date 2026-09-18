@@ -7,17 +7,17 @@ import StoreKit
 /// successful purchase does not unlock anything; it only flips the permanent
 /// `isSupporter` flag that the home view's badge reads.
 ///
-/// This file lives in `Sources/Pro/` because it is one of the two places the
+/// This file lives in `Sources/Support/` because it is the one place the
 /// StoreKit import boundary (`scripts/check-ci-guards.sh`'s "StoreKit import
-/// boundary" guard) permits `import StoreKit` — the other being
-/// `Sources/Features/Settings/ProPaywallView.swift`.
+/// boundary" guard) permits `import StoreKit` — there is no longer a Pro
+/// entitlement/paywall to carve a second exception for.
 @MainActor
 public final class SupportDevelopmentStore: ObservableObject {
     public static let shared = SupportDevelopmentStore()
 
     /// The one-time consumable. Consumables never appear in
     /// `Transaction.currentEntitlements` — StoreKit forgets them once the
-    /// transaction is finished — so unlike `EntitlementStore` there
+    /// transaction is finished — so unlike a non-consumable entitlement there
     /// is nothing to re-derive from at launch. The persisted flag below is the
     /// only record that the purchase happened, and it is never reset: a
     /// refund does not "revoke" it, because it never unlocked anything to
@@ -27,13 +27,13 @@ public final class SupportDevelopmentStore: ObservableObject {
     private static let supporterDefaultsKey = "supporter.isSupporter"
 
     /// Whether this Apple Account has ever completed the contribution. Read
-    /// once at init from `UserDefaults` — the same offline-forever shape as
-    /// `ProEntitlement.isActive` — and only ever set, never cleared.
+    /// once at init from `UserDefaults`, offline-forever — and only ever set,
+    /// never cleared.
     @Published public private(set) var isSupporter: Bool
 
     /// What the App Store says this product is and costs, once asked, or nil
     /// while unanswered/unavailable. Never a hardcoded price — see
-    /// `EntitlementStore.product`'s doc comment for why.
+    /// the reasoning above: never a hardcoded price.
     @Published public private(set) var product: Product?
     @Published public private(set) var purchasing = false
     @Published public private(set) var didAttemptProductLoad = false
@@ -66,7 +66,7 @@ public final class SupportDevelopmentStore: ObservableObject {
 
     /// StoreKit's own localised price, or an honest placeholder until it
     /// answers — never a hardcoded "$9.99" (the same reasoning as
-    /// `EntitlementStore.product`).
+    /// above).
     public var displayPrice: String { product?.displayPrice ?? "—" }
 
     /// Whether the App Store is actually offering the product right now.

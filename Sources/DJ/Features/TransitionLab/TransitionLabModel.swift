@@ -60,6 +60,33 @@ public final class TransitionLabModel: ObservableObject {
         self.repository = TransitionAnalysisRepository(writer: writer)
     }
 
+    // MARK: - Set Practice (playlist edge persistence)
+
+    /// The saved prepared/needs-work status for this exact adjacent pair
+    /// within `playlistId`, if the user has ever previewed a candidate (or
+    /// exhausted the candidates) for it before.
+    public func edgeStatus(playlistId: Int64, outgoing: TrackRow, incoming: TrackRow)
+        -> TransitionPlaylistEdgeRow?
+    {
+        guard let outID = outgoing.track.id, let inID = incoming.track.id else { return nil }
+        return try? repository.edge(
+            playlistId: playlistId, outgoingTrackId: outID, incomingTrackId: inID)
+    }
+
+    /// Records the user's choice (or non-choice) of proposal for this edge —
+    /// call after a preview, or when the candidate list came back empty, so
+    /// Set Practice can show prepared/needs-work without re-running
+    /// `TransitionPlanner` every time the screen reopens.
+    public func saveEdge(
+        playlistId: Int64, outgoing: TrackRow, incoming: TrackRow,
+        proposal: AudioTransitionProposal?
+    ) {
+        guard let outID = outgoing.track.id, let inID = incoming.track.id else { return }
+        try? repository.saveEdge(
+            playlistId: playlistId, outgoingTrackId: outID, incomingTrackId: inID,
+            outgoingRevision: 1, incomingRevision: 1, proposal: proposal)
+    }
+
     /// Starts (or restarts) planning for a new outgoing/incoming pair.
     /// Cancels any in-flight analysis for a previous pair.
     public func plan(
