@@ -22,7 +22,17 @@
 	<string>Production</string>
 	<key>aps-environment</key>
 	<string>production</string>
-	<key>com.apple.developer.carplay-audio</key>
-	<true/>
+	<!-- com.apple.developer.carplay-audio: NOT enabled here yet — CI's
+	     Release archive failed signing with "Entitlement
+	     com.apple.developer.carplay-audio not found and could not be
+	     included in profile." The named provisioning profile
+	     ("Platterhead Profile", project.yml) must be regenerated on
+	     Apple's Developer portal to include the CarPlay capability before
+	     this key can be re-added — enabling the capability on the App ID
+	     does not retroactively update an already-issued profile. All the
+	     CarPlay code (Sources/App/CarPlay/, the Info.plist scene
+	     configuration) is already in place and ready; re-add this key
+	     (and the matching one in Tonearm.Debug.entitlements) once the
+	     profile is regenerated. -->
 </dict>
 </plist>

@@ -22,7 +22,8 @@
 	<string>Development</string>
 	<key>aps-environment</key>
 	<string>development</string>
-	<key>com.apple.developer.carplay-audio</key>
-	<true/>
+	<!-- See Tonearm.entitlements — com.apple.developer.carplay-audio is
+	     pulled here too until the provisioning profile is regenerated,
+	     so Debug and Release stay in sync. -->
 </dict>
 </plist>
