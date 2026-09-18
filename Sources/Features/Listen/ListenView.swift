@@ -381,6 +381,8 @@ private struct MoodEntryPointSection: View {
     let placeholderIndex: Int
     @Binding var selectedTrackForDetail: TrackRow?
     @EnvironmentObject var player: AudioPlayer
+    @StateObject private var indexStatusModel = IndexStatusModel()
+    @State private var showIndexStatus = false
 
     private var allMoodPills: [MoodPill] {
         MoodPillTaxonomy.fixedCategories + eraVibePills
@@ -466,8 +468,74 @@ private struct MoodEntryPointSection: View {
 
             if !moodModel.results.isEmpty {
                 moodResultsRow
+            } else {
+                moodStatusHint
             }
         }
+        .sheet(isPresented: $showIndexStatus) {
+            IndexStatusView(model: indexStatusModel)
+        }
+    }
+
+    /// Real report: "the Play button is greyed out... I can't play anything
+    /// from there" — the mood section never surfaced WHY there were no
+    /// results (model still downloading, nothing indexed yet, a genuine "no
+    /// matches"...), just silently showed nothing, leaving Play/"Shake it
+    /// up" permanently disabled with zero explanation. Violates CLAUDE.md's
+    /// "no silent/magic background work" rule and is missing exactly the
+    /// state handling `DiscoverySearchView.resultsSection` already has for
+    /// the same `DiscoverySearchScreenState` — mirrored here.
+    @ViewBuilder
+    private var moodStatusHint: some View {
+        switch moodModel.screen {
+        case .idle:
+            EmptyView()
+        case .loading:
+            HStack(spacing: 8) {
+                ProgressView()
+                Text("Searching…").foregroundStyle(Palette.ink3)
+            }
+            .font(.callout)
+        case .modelMissing:
+            VStack(alignment: .leading, spacing: 8) {
+                hint("Mood search needs the sound-search model.")
+                HStack {
+                    Button("Download models") { moodModel.downloadModels() }
+                        .buttonStyle(.borderedProminent)
+                    Button("Sound-index status") { showIndexStatus = true }
+                        .buttonStyle(.bordered)
+                }
+            }
+        case .modelDownloadFailed:
+            VStack(alignment: .leading, spacing: 8) {
+                hint("The sound-search model could not be loaded.")
+                Button("Try again") { moodModel.retry() }.buttonStyle(.bordered)
+            }
+        case .zeroIndexed:
+            VStack(alignment: .leading, spacing: 8) {
+                hint("Nothing in your library is indexed for sound yet.")
+                Button("Open sound-index status") { showIndexStatus = true }
+                    .buttonStyle(.bordered)
+            }
+        case .noMatches:
+            hint("No tracks matched that mood yet. Try different pills or fewer of them.")
+        case .emptyLibrary:
+            hint("Your library is empty. Add music to try a mood.")
+        case .emptyScope, .sourceUnavailable:
+            hint("That source isn't available right now.")
+        case .searchFailed:
+            VStack(alignment: .leading, spacing: 8) {
+                hint("Something went wrong running that search.")
+                Button("Retry") { moodModel.retry() }.buttonStyle(.bordered)
+            }
+        case .validationError, .analyzeReference, .staleSuppressed, .results:
+            EmptyView()
+        }
+    }
+
+    private func hint(_ text: String) -> some View {
+        Text(text).font(.callout).foregroundStyle(Palette.ink3)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Starts (or updates) playback from the mood query's current results,
