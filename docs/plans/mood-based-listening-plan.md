@@ -60,6 +60,26 @@ already-built CLAP semantic-search infrastructure.
   `TonearmDiscovery`'s scoring code before assuming it matches Acalum's
   0.62/0.38 CLAP/tag split** — it may differ, and the pill design below
   should not hard-code an assumption about it.
+- **Real gap found auditing this plan, second pass**:
+  `DiscoveryRuntimeController.searchViewModel(appState:player:)` — the
+  function `DiscoverySearchView.task` calls to get its view model — is a
+  **memoized whole-app singleton** (`private var searchVM:
+  DiscoverySearchViewModel?`; `if let searchVM { return searchVM }`). If
+  the Listen tab's mood entry point called this same function, it would
+  get the exact same instance "Find by sound" uses and mutate the exact
+  same `searchText`/`positiveRefinements`/`scope` — selecting mood pills
+  here would corrupt (or be corrupted by) whatever filters the user has
+  set on the Find by Sound screen, and vice versa. The underlying
+  `DiscoveryAssembly` (CLAP model resources) is *also* memoized
+  separately (`private var assembly: DiscoveryAssembly?`), so the fix is
+  cheap: the Listen tab's view model must construct its **own**
+  `DiscoverySearchCoordinator`/`DiscoverySearchViewModel`, reusing the
+  same shared `assembly.search` service (no duplicate model load —
+  `makeAssembly()` already memoizes that independently of `searchVM`),
+  rather than calling `DiscoveryRuntimeController.shared.
+  searchViewModel(...)` and getting the Find-by-sound screen's own
+  instance back. This corrects an error in this plan's own earlier
+  audit-checklist wording (§7 used to say the opposite).
 - **Real find, auditing this plan before implementation started**:
   `Sources/DJ/Features/VibeSearch/VibeSearchModel.swift` and
   `VibeSearchView.swift` (872 lines total) already implement almost
@@ -232,9 +252,9 @@ changes.
 
 **UI**: replace the two single `topLine` rows with two short vertical
 lists (rank number, title/name, play count), each row a button — tapping
-a song row opens its detail card (§3.6); tapping an artist row navigates
-to that artist's track list (reuse whatever `LibraryView`'s own artist
-drill-down UI already is, rather than building a new screen).
+a song row opens its detail card (§3.6); tapping an artist row sets
+`appState.pendingArtistFilter` and switches `appState.tab = .myMusic`,
+per the cross-tab handoff above — not a same-screen push.
 
 ### 3.6 Tapping a track opens a detail card — not an instant play
 
@@ -264,7 +284,28 @@ directly, offering:
   ("Play Next") here rather than dropping it — the context menu already
   has both and users may rely on the distinction.
 - **Include in current mood** — new; only relevant/shown when a mood
-  query is active (§3.1–3.3). Adds the track as a positive signal to the
+  query is active (§3.1–3.3). **Real gap found auditing this plan, third
+  pass: where does "a mood query is active" actually live such that a
+  shared `TrackDetailCard` can check it from an unrelated screen?**
+  `TrackDetailCard` is designed to be used from My Music, search results,
+  Jump Back In, and Favorites too (§3.6) — none of those have a reference
+  to the Listen tab's own local mood view-model instance (step 5's "thin
+  wrapper," scoped to `ListenView`). Confirmed via `Sources/Audio/
+  AudioPlayer+QueueSource.swift` that `AudioPlayer`'s existing
+  `@Published var queueSource: QueueSource` — already globally
+  observable app-wide, exactly what this needs — has no case for "this
+  queue came from a mood query" (`.source`/`.playlist`/`.library`/
+  `.ambient`/`.none` only). This is also exactly what §3.3's
+  already-flagged "extension source" design question needs to know
+  (whether to extend the queue by re-running the mood query or fall back
+  to generic Keep Playing similarity) — **one mechanism should resolve
+  both**: add a `.mood(...)` case to `QueueSource` carrying whatever the
+  extension logic and "Include in current mood" both need (at minimum
+  the query itself, or a reference back to the mood view-model instance
+  that owns it), set when "Play" starts a mood queue. Any screen can then
+  check `AudioPlayer.shared.queueSource` to decide whether to show
+  "Include in current mood," and the extension logic can branch on it
+  the same way. Adds the track as a positive signal to the
   live view-model via the existing **additive** mechanism —
   `addMoreLike(_:)`, the same call the "More like/Less like" refinement
   chips already use. **Real design flaw caught auditing this plan: do
@@ -336,11 +377,31 @@ simplification pass earlier this session).
    `DiscoverySearchView`-specific state, like `bpmMinText`, is; a
    thin wrapper that composes a `DiscoverySearchViewModel` instance
    configured for text+refinements-only use is likely cleaner than adding
-   Listen-tab-specific state to the existing view model).
-6. Wire "Play" to `AudioPlayer.play(tracks:startAt:source:)` using
-   `results.map(\.track)` from the view model.
+   Listen-tab-specific state to the existing view model). **Do not** call
+   `DiscoveryRuntimeController.shared.searchViewModel(...)` for this — it
+   returns a memoized whole-app singleton shared with the "Find by sound"
+   screen (§2's audit note) — construct a separate
+   `DiscoverySearchCoordinator`/`DiscoverySearchViewModel`, reusing the
+   same underlying `assembly.search` service so the CLAP model itself
+   isn't loaded twice. Concretely: `assembly`/`makeAssembly()` are
+   `private` to `DiscoveryRuntimeController` and `searchViewModel(...)`
+   is its only exposed accessor today — there is no existing way to reach
+   the shared service without the memoized view model attached. Add a
+   second, non-memoizing method there (e.g. `makeSearchViewModel
+   (appState:player:) async -> DiscoverySearchViewModel`, calling the
+   same `makeAssembly()` but constructing a fresh
+   `DiscoverySearchCoordinator`/`DiscoverySearchViewModel` every call
+   instead of caching one) for the Listen tab to use instead.
+6. Add a `.mood(...)` case to `QueueSource`
+   (`Sources/Audio/AudioPlayer+QueueSource.swift`) per §3.6's audit note
+   — carrying whatever step 7's extension logic and "Include in current
+   mood" (step 13) both need. Wire "Play" to `AudioPlayer.play(tracks:
+   startAt:source:)` using `results.map(\.track)` from the view model,
+   passing `source: .mood(...)`.
 7. Implement continuous extension per §3.3's flagged design decision —
-   read `AudioPlayer`'s Keep Playing implementation fully first.
+   read `AudioPlayer`'s Keep Playing implementation fully first; branch
+   on `queueSource` being `.mood` to re-query instead of falling back to
+   generic similarity.
 8. Implement "Shake it up."
 9. Reorder `ListenView`'s existing sections below the new entry point;
    verify nothing becomes unreachable (same verification standard as the
@@ -361,10 +422,11 @@ simplification pass earlier this session).
     `TransitionLabTabView.consumePendingSeed()` does.
 13. Build `TrackDetailCard` (§3.6) as a shared, reusable sheet — artwork/
     title/artist/duration/source plus Play Now / Add to Queue / Include
-    in current mood (mood-context only, via `addMoreLike(_:)` — NOT
-    `moreLikeThis(trackID:)`, see §3.6's audit note) / Dismiss, wired to
-    the existing `playSingle(_:)`/`appendToQueue(_:)`/`insertNext(_:)` on
-    `AudioPlayer` — no new playback logic.
+    in current mood (shown only when `AudioPlayer.shared.queueSource` is
+    `.mood` — see step 6 — via `addMoreLike(_:)` on the active mood view-
+    model — NOT `moreLikeThis(trackID:)`, see §3.6's audit note) /
+    Dismiss, wired to the existing `playSingle(_:)`/`appendToQueue(_:)`/
+    `insertNext(_:)` on `AudioPlayer` — no new playback logic.
 14. Wire `TrackDetailCard` into the Listen tab's own tap sites first
     (mood results, Top 10 Songs, Jump Back In, Favorites) and verify end-
     to-end before touching `LibraryView`/`DiscoverySearchView` — per
@@ -397,11 +459,15 @@ offline reference.
   expect actually moved. If anything looks off, run
   `swift test --filter DiscoverySearch` — the existing scoring tests
   should catch a broken blend before this new UI ships on top of it.
-- No duplicate CLAP model download/load triggered by having two entry
-  points (Listen tab's new picker + the existing "Find by sound" screen)
-  into the same underlying search — confirm they share the same
-  `DiscoveryRuntimeController.shared.searchViewModel(...)`-style
-  singleton path rather than each spinning up independent state.
+- The Listen tab's mood picker and the existing "Find by sound" screen
+  have **independent** `DiscoverySearchViewModel` state (selecting mood
+  pills here must not appear as filters there, or vice versa) while
+  **sharing** the underlying `DiscoveryAssembly`/CLAP model resources (no
+  second model load). Confirmed by reading the code that
+  `DiscoveryRuntimeController.shared.searchViewModel(...)` returns a
+  memoized whole-app singleton — the Listen tab must NOT call that
+  function directly (§2's audit note); it needs its own coordinator/view-
+  model instance built from the same shared `assembly.search`.
 - Continuous-queue extension doesn't fight with the existing Keep
   Playing toggle/settings (`Settings → Keep Playing`) — a user who
   disabled Keep Playing globally should not have it silently reappear
@@ -440,3 +506,13 @@ offline reference.
   other (deleted, or reduced to just the extracted `SuggestionChips`
   utility) — not left sitting as a second, still-dead, still-orphaned
   implementation of the same idea now that a third (this plan's) exists.
+- The Listen tab's mood view model was built via a new, non-memoizing
+  `DiscoveryRuntimeController` accessor (§5 step 5) — not via
+  `searchViewModel(...)` — and selecting mood pills on the Listen tab
+  provably does not change anything visible on the "Find by sound" screen
+  (and vice versa) when both are open in the same session.
+- `QueueSource` gained a `.mood(...)` case (or equivalent), set when
+  "Play" starts a mood queue; `TrackDetailCard`'s "Include in current
+  mood" option correctly shows/hides based on `AudioPlayer.shared.
+  queueSource` from **every** wired call site, not just from within the
+  Listen tab's own view.
