@@ -10,7 +10,7 @@ private enum ProToolsTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-struct ProToolsView: View {
+struct ToolsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @Environment(\.dismiss) private var dismiss

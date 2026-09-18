@@ -5,22 +5,49 @@ import TonearmCore
 /// Playlists and Music (Library) root tabs (see
 /// docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md §4).
 ///
-/// This is a pragmatic first cut: it composes the two existing, already-
-/// working screens (`LibraryView`, `PlaylistsView`) behind one scope picker
-/// rather than rebuilding their internals — `LibraryView` already owns its
-/// own Artists/Albums/Songs/Genres browse picker, search field, and
-/// "Find by sound" entry point, so nesting a second picker on top of it
-/// would just duplicate UI. The plan's full five-way scope bar (All/
-/// Playlists/Artists/Albums/Songs) is a follow-up once that duplication is
-/// worth resolving.
+/// One unified scope bar (Playlists/Artists/Albums/Songs/Genres) drives both
+/// `PlaylistsView` and `LibraryView` — `LibraryView`'s own internal
+/// Artists/Albums/Songs/Genres picker is driven externally via
+/// `externalMode` rather than duplicated (docs/plans/ui-simplification-plan.md
+/// item 4; this used to stack a second Music/Playlists picker on top of
+/// LibraryView's own one, which read as two nested pickers).
 struct MyMusicView: View {
     @EnvironmentObject var appState: AppState
-    @State private var scope: Scope = .music
+    @State private var scope: Scope = .artists
 
     enum Scope: String, CaseIterable, Identifiable {
-        case music = "Music"
         case playlists = "Playlists"
+        case artists = "Artists"
+        case albums = "Albums"
+        case songs = "Songs"
+        case genres = "Genres"
         var id: String { rawValue }
+
+        var libraryMode: LibraryBrowseMode? {
+            switch self {
+            case .playlists: return nil
+            case .artists: return .artists
+            case .albums: return .albums
+            case .songs: return .songs
+            case .genres: return .genres
+            }
+        }
+
+        init(libraryMode: LibraryBrowseMode) {
+            switch libraryMode {
+            case .artists: self = .artists
+            case .albums: self = .albums
+            case .songs: self = .songs
+            case .genres: self = .genres
+            }
+        }
+    }
+
+    private var libraryModeBinding: Binding<LibraryBrowseMode> {
+        Binding(
+            get: { scope.libraryMode ?? .artists },
+            set: { scope = Scope(libraryMode: $0) }
+        )
     }
 
     var body: some View {
@@ -38,12 +65,12 @@ struct MyMusicView: View {
                 .accessibilityIdentifier("mymusic.scope")
 
                 switch scope {
-                case .music:
-                    LibraryView(ownsNavigationStack: false)
-                        .accessibilityIdentifier("mymusic.scope.music")
                 case .playlists:
                     PlaylistsView(ownsNavigationStack: false)
                         .accessibilityIdentifier("mymusic.scope.playlists")
+                case .artists, .albums, .songs, .genres:
+                    LibraryView(ownsNavigationStack: false, externalMode: libraryModeBinding)
+                        .accessibilityIdentifier("mymusic.scope.music")
                 }
             }
             .background(Palette.libraryBackground.ignoresSafeArea())

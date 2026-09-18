@@ -18,6 +18,7 @@ import TonearmDJ
 /// whole playlist's adjacent pairs one at a time).
 struct TransitionLabTabView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var player: AudioPlayer
     @StateObject private var model: TransitionLabModel
     @State private var outgoing: TrackRow?
     @State private var incoming: TrackRow?
@@ -85,9 +86,18 @@ struct TransitionLabTabView: View {
     /// A playlist's "Practice transitions" action seeds the full track list
     /// and switches to this tab (plan §14) — one-shot, cleared immediately
     /// so returning to DJ later doesn't silently reset the user's own
-    /// in-progress pick.
+    /// in-progress pick. With no seed, default the outgoing slot to Now
+    /// Playing (or the most recently played track) so the common
+    /// single-pair case needs only one picker interaction instead of two
+    /// (docs/plans/ui-simplification-plan.md item 3) — manual override via
+    /// the picker button is unaffected.
     private func consumePendingSeed() {
-        guard let seed = appState.pendingTransitionLabSet, seed.tracks.count >= 2 else { return }
+        guard let seed = appState.pendingTransitionLabSet, seed.tracks.count >= 2 else {
+            if outgoing == nil {
+                outgoing = player.currentTrack ?? appState.recentlyPlayed.first
+            }
+            return
+        }
         appState.pendingTransitionLabSet = nil
         setPractice = seed
         edgeIndex = 0

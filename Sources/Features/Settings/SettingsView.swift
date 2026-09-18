@@ -22,6 +22,8 @@ struct SettingsView: View {
     @State private var showJamendoKey = false
     @State private var showThirdPartyNotices = false
     @State private var showMusicLibraries = false
+    @State private var showCacheManagement = false
+    @State private var advancedExpanded = false
 
     private let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
@@ -36,19 +38,22 @@ struct SettingsView: View {
                 Text("Settings").font(.system(size: 31, weight: .heavy)).kerning(-0.5)
                     .padding(.top, 8)
 
-                musicLibrariesCard
-                cacheCard
+                sectionHeader("Playback")
                 behaviorCard
                 keepPlayingCard
+
+                sectionHeader("Library & Storage")
+                musicLibrariesCard
+                cacheSummaryCard
                 watchCard
-                toolsCard
-                jamendoCard
                 syncCard
-                clearCard
-                customArtworkCard
+
+                sectionHeader("Account & About")
                 privacyCard
                 SupportDevelopmentCard()
                 aboutCard
+
+                advancedSection
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 160)
@@ -59,8 +64,9 @@ struct SettingsView: View {
         .sheet(isPresented: $showThirdPartyNotices) { ThirdPartyNoticesView() }
         .sheet(isPresented: $showMusicLibraries) { SourcesView() }
         .sheet(isPresented: $showEQ) { EQView() }
-        .sheet(isPresented: $showTools) { ProToolsView() }
+        .sheet(isPresented: $showTools) { ToolsView() }
         .sheet(isPresented: $showJamendoKey) { JamendoCredentialView() }
+        .sheet(isPresented: $showCacheManagement) { cacheManagementSheet }
         .confirmationDialog("Clear \(TimeFmt.megabytes(cacheUsed)) of cached audio?",
                             isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button("Clear Cache", role: .destructive) {
@@ -91,6 +97,70 @@ struct SettingsView: View {
         } message: {
             Text("Custom artwork you've uploaded — for tracks, albums, and libraries — will be permanently lost. This cannot be undone.")
         }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(Palette.ink3)
+            .kerning(0.5)
+            .padding(.top, 4)
+    }
+
+    /// Low-frequency actions moved out of the main scroll (docs/plans/
+    /// ui-simplification-plan.md item 1) — everything here is still
+    /// reachable, just behind one extra tap instead of always visible.
+    private var advancedSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { advancedExpanded.toggle() } label: {
+                HStack {
+                    Text("Advanced").font(.system(size: 13.5, weight: .semibold))
+                    Spacer()
+                    Image(systemName: advancedExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Palette.ink3)
+                }
+                .padding(15)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.advanced")
+
+            if advancedExpanded {
+                VStack(spacing: 14) {
+                    toolsCard
+                    jamendoCard
+                    clearCard
+                    customArtworkCard
+                }
+                .padding(.horizontal, 15)
+                .padding(.bottom, 15)
+            }
+        }
+        .glassSurface(cornerRadius: 18)
+    }
+
+    private var appVersionString: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1"
+    }
+
+    private var cacheManagementSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    cacheCard
+                }
+                .padding(18)
+            }
+            .background(Palette.libraryBackground.ignoresSafeArea())
+            .foregroundStyle(Palette.ink)
+            .navigationTitle("Streaming Cache")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showCacheManagement = false }.tint(Palette.brass)
+                }
+            }
+        }
         .alert("Custom Cache Limit", isPresented: $showCustomCacheLimit) {
             TextField("MB", text: $customCacheLimitMB)
                 .keyboardType(.numberPad)
@@ -99,6 +169,29 @@ struct SettingsView: View {
         } message: {
             Text("Enter a limit in MB. Minimum 100 MB; maximum 80% of free disk.")
         }
+    }
+
+    /// Collapsed summary row (docs/plans/ui-simplification-plan.md item 2)
+    /// — the full preset/custom-limit controls (`cacheCard`) move into a
+    /// sheet opened from here; nothing about setting the limit changes.
+    private var cacheSummaryCard: some View {
+        Button { showCacheManagement = true } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Streaming Cache").font(.system(size: 13.5))
+                    Text("\(TimeFmt.megabytes(cacheUsed)) of \(TimeFmt.megabytes(cacheLimit)) used")
+                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.ink3)
+            }
+            .padding(15)
+            .glassSurface(cornerRadius: 18)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.cache")
     }
 
     private var cacheCard: some View {
@@ -490,7 +583,7 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             Divider().overlay(Palette.hairline)
-            aboutRow("About", "Platterhead 0.1 — you bring the records")
+            aboutRow("About", "Platterhead \(appVersionString) — you bring the records")
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)

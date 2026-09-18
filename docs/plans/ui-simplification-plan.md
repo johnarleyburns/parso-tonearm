@@ -1,8 +1,8 @@
 # UI Simplification Plan
 
-Status: **planned, not yet implemented**. To be implemented as a single commit
-after the current in-flight commit (pre-commit hook change, README update,
-remote-node backfill fix) is done and pushed.
+Status: **implemented** (items 1, 2, 3, 4, 5, 6 below), in the commit
+following the pre-commit hook change / README update / remote-node backfill
+fix.
 
 ## Goal
 

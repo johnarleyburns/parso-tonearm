@@ -5,7 +5,7 @@ import TonearmCore
 struct LibraryView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
-    @State private var mode: LibraryBrowseMode = .artists
+    @State private var internalMode: LibraryBrowseMode = .artists
     @StateObject private var indexStatus = IndexStatusModel()
     @State private var showIndexStatus = false
     /// The DJ entry route already owns a NavigationStack. Embedding another
@@ -13,9 +13,22 @@ struct LibraryView: View {
     /// SwiftUI reconciles the two navigation paths). Keep the standalone Music
     /// tab's stack, but let feature-owned routes reuse their parent stack.
     private let ownsNavigationStack: Bool
+    /// When supplied, `MyMusicView` drives the browse mode from its own
+    /// unified scope bar (docs/plans/ui-simplification-plan.md item 4) —
+    /// this view's own segmented picker is hidden and `mode` reads/writes
+    /// through this binding instead of `internalMode`.
+    private let externalMode: Binding<LibraryBrowseMode>?
 
-    init(ownsNavigationStack: Bool = true) {
+    init(ownsNavigationStack: Bool = true, externalMode: Binding<LibraryBrowseMode>? = nil) {
         self.ownsNavigationStack = ownsNavigationStack
+        self.externalMode = externalMode
+    }
+
+    private var mode: LibraryBrowseMode {
+        get { externalMode?.wrappedValue ?? internalMode }
+        nonmutating set {
+            if let externalMode { externalMode.wrappedValue = newValue } else { internalMode = newValue }
+        }
     }
 
     private var rows: [TrackRow] {
@@ -54,13 +67,15 @@ struct LibraryView: View {
                                     Task { await appState.runSearch() }
                                 }
 
-                            Picker("Music View", selection: $mode) {
-                                ForEach(LibraryBrowseMode.allCases) { mode in
-                                    Text(mode.rawValue).tag(mode)
+                            if externalMode == nil {
+                                Picker("Music View", selection: Binding(get: { mode }, set: { mode = $0 })) {
+                                    ForEach(LibraryBrowseMode.allCases) { mode in
+                                        Text(mode.rawValue).tag(mode)
+                                    }
                                 }
+                                .pickerStyle(.segmented)
+                                .padding(.bottom, 16)
                             }
-                            .pickerStyle(.segmented)
-                            .padding(.bottom, 16)
 
                             Button {
                                 appState.soundSearchReference = nil

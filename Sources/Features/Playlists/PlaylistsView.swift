@@ -202,15 +202,19 @@ struct PlaylistDetailView: View {
                     } label: {
                         Label("Download All", systemImage: "arrow.down.circle")
                     }
-                    Button {
-                        Task { await appState.downloadAllToWatch(playlistId: currentPlaylist.id ?? -1) }
+                    Menu {
+                        Button {
+                            Task { await appState.downloadAllToWatch(playlistId: currentPlaylist.id ?? -1) }
+                        } label: {
+                            Label("Download All to Apple Watch", systemImage: "applewatch")
+                        }
+                        Button {
+                            Task { await appState.removeAllFromWatch() }
+                        } label: {
+                            Label("Remove All from Apple Watch", systemImage: "applewatch.slash")
+                        }
                     } label: {
-                        Label("Download All to Apple Watch", systemImage: "applewatch")
-                    }
-                    Button {
-                        Task { await appState.removeAllFromWatch() }
-                    } label: {
-                        Label("Remove All from Apple Watch", systemImage: "applewatch.slash")
+                        Label("Apple Watch", systemImage: "applewatch")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")

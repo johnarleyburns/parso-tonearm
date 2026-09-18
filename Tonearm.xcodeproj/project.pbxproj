@@ -20,7 +20,6 @@
 		15D68A714F1A586F779133FE /* AVPlayerOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9270E7191F0C56C47CA68AEF /* AVPlayerOutput.swift */; };
 		19D3B7BFDB92E43C1DF0BB38 /* ambient-flowing-water.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 68C41942DAE2689F40567DDD /* ambient-flowing-water.mp4 */; };
 		1A0ED14038DAB24DEC322BEC /* UpNextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42E2045814F52BC75F1609F /* UpNextView.swift */; };
-		1B9340D6FCB8EAFED2391F06 /* ProToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 841673E58AB857F3F5C1B063 /* ProToolsView.swift */; };
 		1C9FB19F6571B100C8C147EF /* AppState+LibraryExtras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC6ECC4D448840D7EC71C72 /* AppState+LibraryExtras.swift */; };
 		2011F46F371763CE2AFCB2D8 /* DiscoverySearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3CB0F1AAE5D512A11B85645 /* DiscoverySearchView.swift */; };
 		203E3F04A4D7C7663CDB3FC0 /* SupportDevelopmentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */; };
@@ -155,6 +154,7 @@
 		FC5103EF9A7C5CB98520D838 /* PhoneWatchRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14EEEDA2B8FDE22EF9533817 /* PhoneWatchRuntime.swift */; };
 		FCAB348675295B0F4304AAF4 /* AppState+FavoritesPlaylists.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E0B2058320CCB395106630 /* AppState+FavoritesPlaylists.swift */; };
 		FDF068EFDA72F93C5CC09111 /* PhoneWatchDownloadAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12BE4175EE11F1CFC76A3575 /* PhoneWatchDownloadAdapter.swift */; };
+		FF4140A4A21260571388F632 /* ToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E666B8D84233392E2587377A /* ToolsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -314,7 +314,6 @@
 		807F6AF04290951989A6C983 /* RemoteNodeRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteNodeRow.swift; sourceTree = "<group>"; };
 		80B6D0A4B5EC7E9F6FD662D7 /* AppState+Downloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+Downloads.swift"; sourceTree = "<group>"; };
 		8386CD93C2E826E9FE11D810 /* NowPlayingRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingRegressionUITests.swift; sourceTree = "<group>"; };
-		841673E58AB857F3F5C1B063 /* ProToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProToolsView.swift; sourceTree = "<group>"; };
 		88A33FCC489E05C9B60F3ACC /* night.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = night.jpg; sourceTree = "<group>"; };
 		89AA0A45EA728BFDB5858390 /* SourceDetailView+ManagementSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SourceDetailView+ManagementSection.swift"; sourceTree = "<group>"; };
 		8B48E8BCEBBB60820A867070 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
@@ -366,6 +365,7 @@
 		E38162EF6D932D8762B6D123 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E38CB1BF7D38667CEFEBA735 /* ambient-rain.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-rain.wav"; sourceTree = "<group>"; };
 		E51C6DE97A7D128E05BB1604 /* GlassDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassDock.swift; sourceTree = "<group>"; };
+		E666B8D84233392E2587377A /* ToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsView.swift; sourceTree = "<group>"; };
 		E8C8B4A708B46F295FFFBBCD /* WatchStorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStorageView.swift; sourceTree = "<group>"; };
 		E9E0B2058320CCB395106630 /* AppState+FavoritesPlaylists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+FavoritesPlaylists.swift"; sourceTree = "<group>"; };
 		F050FDF819A0D40258D11F51 /* JamendoBrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JamendoBrowseView.swift; sourceTree = "<group>"; };
@@ -848,9 +848,9 @@
 			children = (
 				6AB44399EDF479626BC62A6F /* EQView.swift */,
 				B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */,
-				841673E58AB857F3F5C1B063 /* ProToolsView.swift */,
 				C114ED8EAE6B45F219A551DA /* SettingsView.swift */,
 				3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */,
+				E666B8D84233392E2587377A /* ToolsView.swift */,
 				4DA9DA16335431A3B294A331 /* WatchDownloadDetailViews.swift */,
 				174BBA2ECE78CF32CFAC192C /* WatchSettingsView.swift */,
 			);
@@ -1216,7 +1216,6 @@
 				FBB00104D3B4C0B2D326F5D0 /* PhoneWatchProtocolAdapter.swift in Sources */,
 				FC5103EF9A7C5CB98520D838 /* PhoneWatchRuntime.swift in Sources */,
 				7155FE7BF0A91F242A4A2F25 /* PlaylistsView.swift in Sources */,
-				1B9340D6FCB8EAFED2391F06 /* ProToolsView.swift in Sources */,
 				AD9B06C812D8117166D0FB4F /* RemoteArtworkImageView.swift in Sources */,
 				B05161851F3AEADE6DD18515 /* RemoteConnectorGuideView.swift in Sources */,
 				4A74E01C056E4544258DDB9A /* RemoteNodeRow.swift in Sources */,
@@ -1232,6 +1231,7 @@
 				7BCD9C0D5042BD0C8228401E /* ToastBanner.swift in Sources */,
 				70FA6AC49B5601AA50FB421C /* ToastCenter.swift in Sources */,
 				01EBEFA7CCFCA3A96D612CDC /* TonearmApp.swift in Sources */,
+				FF4140A4A21260571388F632 /* ToolsView.swift in Sources */,
 				3ECB9E7608AA7862BA85CA8A /* TransitionLabTabView.swift in Sources */,
 				1A0ED14038DAB24DEC322BEC /* UpNextView.swift in Sources */,
 				70B335C9F25257F926ADD07A /* WatchDownloadDetailViews.swift in Sources */,
