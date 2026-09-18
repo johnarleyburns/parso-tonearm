@@ -11,10 +11,26 @@ struct PlaylistsView: View {
     @State private var showLocalCreate = false
     @State private var playlistToRename: Playlist?
     @State private var renameTitle = ""
+    @State private var pinnedIds: Set<Int64> = PinnedPlaylistsStore.pinnedIds()
 
     init(presentsCreateSheetLocally: Bool = false, ownsNavigationStack: Bool = true) {
         self.presentsCreateSheetLocally = presentsCreateSheetLocally
         self.ownsNavigationStack = ownsNavigationStack
+    }
+
+    /// Pinned playlists first (stable otherwise — Swift's `sorted` has been
+    /// guaranteed stable since Swift 5), so pinning surfaces what you
+    /// actually use without otherwise reordering the list.
+    private var sortedPlaylists: [Playlist] {
+        appState.playlists.sorted { a, b in
+            let aPinned = pinnedIds.contains(a.id ?? -1)
+            let bPinned = pinnedIds.contains(b.id ?? -1)
+            return aPinned && !bPinned
+        }
+    }
+
+    private func togglePin(_ playlist: Playlist) {
+        pinnedIds = PinnedPlaylistsStore.togglePin(playlist.id)
     }
 
     var body: some View {
@@ -75,13 +91,22 @@ struct PlaylistsView: View {
                         .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18))
                         .listRowBackground(Color.clear)
 
-                    ForEach(appState.playlists) { playlist in
+                    ForEach(sortedPlaylists) { playlist in
                         ZStack(alignment: .leading) {
                             NavigationLink(value: playlist) { EmptyView() }.opacity(0)
-                            PlaylistNavigationRow(playlist: playlist)
+                            PlaylistNavigationRow(playlist: playlist, isPinned: pinnedIds.contains(playlist.id ?? -1))
                         }
                             .accessibilityElement(children: .combine)
                             .contextMenu {
+                                Button {
+                                    togglePin(playlist)
+                                } label: {
+                                    if pinnedIds.contains(playlist.id ?? -1) {
+                                        Label("Unpin", systemImage: "pin.slash")
+                                    } else {
+                                        Label("Pin", systemImage: "pin")
+                                    }
+                                }
                                 Button {
                                     beginRename(playlist)
                                 } label: {
@@ -151,6 +176,7 @@ struct PlaylistDetailView: View {
     @State private var playlistToRename: Playlist?
     @State private var renameTitle = ""
     @State private var showAddTracks = false
+    @State private var pinnedIds: Set<Int64> = PinnedPlaylistsStore.pinnedIds()
 
     private var currentPlaylist: Playlist {
         guard let id = playlist.id else { return playlist }
@@ -191,6 +217,15 @@ struct PlaylistDetailView: View {
                             Label("Practice transitions", systemImage: "waveform.path.ecg")
                         }
                         .accessibilityIdentifier("mymusic.playlist.practiceTransitions")
+                    }
+                    Button {
+                        pinnedIds = PinnedPlaylistsStore.togglePin(currentPlaylist.id)
+                    } label: {
+                        if pinnedIds.contains(currentPlaylist.id ?? -1) {
+                            Label("Unpin", systemImage: "pin.slash")
+                        } else {
+                            Label("Pin", systemImage: "pin")
+                        }
                     }
                     Button {
                         beginRename(currentPlaylist)
@@ -342,6 +377,7 @@ private extension View {
 /// `ArtworkView`/`TrackRowView` already use for lists that can hold many rows.
 private struct PlaylistNavigationRow: View {
     let playlist: Playlist
+    var isPinned: Bool = false
     @EnvironmentObject var appState: AppState
     @State private var firstTrack: TrackRow?
 
@@ -350,7 +386,8 @@ private struct PlaylistNavigationRow: View {
             icon: playlist.kind == .folder ? "folder.fill" : "music.note.list",
             title: playlist.title,
             subtitle: playlist.kind == .folder ? "Folder playlist" : "Manual playlist",
-            leadingArtwork: firstTrack)
+            leadingArtwork: firstTrack,
+            isPinned: isPinned)
             .task(id: playlist.id) {
                 guard let id = playlist.id else { return }
                 firstTrack = (try? await appState.store.playlistItems(playlistId: id))?.first
@@ -366,6 +403,10 @@ struct NavigationRow: View {
     /// `ArtworkView`) replaces the plain SF Symbol tile — used for playlist rows so each playlist
     /// reads by its own music, not one generic icon shared by every playlist in the list.
     var leadingArtwork: TrackRow? = nil
+    /// A pinned playlist (docs/plans/carplay-and-competitor-gaps-plan.md
+    /// item 2) shows a small pin glyph so pinning is visibly discoverable,
+    /// not just a silent sort-order change.
+    var isPinned: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -385,6 +426,11 @@ struct NavigationRow: View {
                 Text(subtitle).font(.system(size: 11.5)).foregroundStyle(Palette.ink3)
             }
             Spacer()
+            if isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.brass)
+            }
             Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Palette.ink3)
         }
         .padding(.vertical, 8)

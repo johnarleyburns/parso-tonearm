@@ -22,5 +22,7 @@
 	<string>Development</string>
 	<key>aps-environment</key>
 	<string>development</string>
+	<key>com.apple.developer.carplay-audio</key>
+	<true/>
 </dict>
 </plist>

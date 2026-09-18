@@ -132,6 +132,10 @@ targets:
           UIImageResizingMode: aspectFill
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            CPTemplateApplicationSceneSessionRoleApplication:
+              - UISceneConfigurationName: CarPlay Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlaySceneDelegate
         UIBackgroundModes:
           - audio
           - remote-notification
