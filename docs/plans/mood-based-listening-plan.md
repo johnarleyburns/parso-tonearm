@@ -1,7 +1,8 @@
 # Mood-Based Listening — Listen Tab Redesign Plan
 
-Status: **planned, not implemented**. Written for an agentic coding session
-to pick up and execute in full; every referenced type/file below was
+Status: **implemented** (commits `69f09c7`/`b2921a9` on `main`; see §8 for
+the post-implementation audit). Originally written for an agentic coding
+session to pick up and execute in full; every referenced type/file below was
 confirmed to exist by reading the actual current source, not guessed.
 
 ## 1. Why
@@ -586,3 +587,65 @@ offline reference.
   mood" option correctly shows/hides based on `AudioPlayer.shared.
   queueSource` from **every** wired call site, not just from within the
   Listen tab's own view.
+
+## 8. Post-implementation audit (5th pass overall)
+
+Implemented in full (commit `69f09c7`) and re-verified against every item in
+§7's checklist and every one of §5's 15 steps directly against the merged
+code, not just against this plan's description of it. Two real gaps found
+and fixed in a follow-up commit (`b2921a9`) before this pass closed out:
+
+- **§3.1 point 5 ("Update upcoming" vs. "Play now") was not implemented at
+  all in the first pass** — `startMoodPlayback()` always called
+  `player.play(tracks:startAt:0,...)`, which restarts from track 0 even if
+  a mood queue from the same view model is already playing. Fixed by adding
+  `AudioPlayer.updateUpcoming(with:source:)` (truncates the queue after the
+  current index and appends the fresh results, via the existing
+  `QueueEditor`/`applyQueueEdit` machinery — no new playback engine code),
+  used by both "Play" and "Shake it up" whenever `player.queueSource` is
+  already `.mood(thisModel)` and playback is active.
+- **§3.6's "Consider also surfacing `insertNext(row)` ('Play Next')...
+  users may rely on the distinction" was dropped in the first pass** —
+  `TrackDetailCard` only had Play Now/Add to Queue. Restored as a third
+  action between them, wired to the existing `insertNext(_:)`.
+
+Every other checklist item verified by direct code read, not assumption:
+independent `DiscoverySearchViewModel` instances (`makeSearchViewModel`
+non-memoizing, confirmed no call site uses the memoized `searchViewModel`
+for the Listen tab); Keep Playing's `.mood` extension branch sits behind the
+same `keepPlayingEnabled` gate as every other source (`maybeExtendKeepPlayingQueue`'s
+`KeepPlayingPicker.shouldAttemptExtension` check runs before the branch is
+ever reached, so disabling Keep Playing globally silently disables the mood
+continuation too, not a disclosed exception); Top 10 Songs/Artists read
+`rankLimit: 10` end to end; every Listen-tab track-tap site (Jump Back In,
+Favorites, mood results, Top 10 Songs) sets `selectedTrackForDetail` instead
+of calling `player.play(...)` directly (grepped for remaining direct-tap-
+play call sites — the only one left is the Play/Shake-it-up CTA itself,
+which is supposed to call play); "Include in current mood" calls
+`moodSource.addPositiveTerm(_:)` → `addMoreLike(_:)`, never
+`moreLikeThis(trackID:)`; it renders only when `player.queueSource` is
+`.mood`, hidden not disabled; `pendingArtistFilter` is a one-shot `@Published
+String?` cleared immediately on consumption in `MyMusicView`, matching
+`pendingTransitionLabSet`/`soundSearchReference`; `MyMusicView`'s
+`NavigationStack` takes a bound `NavigationPath` and ordinary
+Playlists/Artists/Albums/Songs/Genres taps were unaffected (full
+`xcodebuild build` + `swift test` — 1568/1568 — passed after the
+conversion); `VibeSearch` and the DJ-module `LibraryView`/`LibraryModel`
+were deleted outright (not left half-orphaned), with the one reusable piece
+(`SuggestionChips`/`LibraryDescriptorSummary`) extracted to
+`Sources/Domain/SuggestionChips.swift` and re-covered by
+`Tests/SuggestionChipsTests.swift`.
+
+**Not verifiable by static audit** (§7's own item 2 flags this — "a real
+qualitative check, not just 'it compiles'"): whether mood query results
+actually differ meaningfully pill-to-pill on a real library, and the full
+on-device/simulator pass §5 step 15 calls for (playing a mood query end-to-
+end, opening a detail card from every wired entry point, confirming Top 10
+lists jump correctly). Both remain open until exercised on a real device or
+simulator with a real library — do that before relying on this feature
+being *good*, as opposed to merely correct by inspection.
+
+Extending `TrackDetailCard` to My Music (`LibraryView`) and search results
+(`DiscoverySearchView`) remains correctly deferred per §3.6's own scope
+note — confirmed not silently done, not silently forgotten: neither file
+was touched by this implementation.
