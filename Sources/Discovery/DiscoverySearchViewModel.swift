@@ -326,4 +326,24 @@ public final class DiscoverySearchViewModel: ObservableObject {
         RankBreakdownDisplay.components(for: result)
     }
 }
+
+/// Lets a `QueueSource.mood(...)` queue (`Sources/Audio/AudioPlayer+
+/// QueueSource.swift`, TonearmCore — see that file's doc comment for why
+/// this conformance lives here instead of a direct type reference) reach
+/// back into whichever `DiscoverySearchViewModel` instance is actually
+/// running the Listen tab's mood query, from anywhere in the app.
+extension DiscoverySearchViewModel: MoodQuerySource {
+    public func addPositiveTerm(_ term: String) {
+        addMoreLike(term)
+    }
+
+    /// Re-runs the current query and returns a fresh batch of tracks —
+    /// reuses the exact same `SearchService` this view model already talks
+    /// to, never a second search implementation (docs/plans/mood-based-
+    /// listening-plan.md §3.3).
+    public func refreshedTracks() async -> [TrackRow] {
+        let response = await service.search(currentQuery(), referenceTrackID: referenceTrackID)
+        return response.results.map(\.track)
+    }
+}
 #endif

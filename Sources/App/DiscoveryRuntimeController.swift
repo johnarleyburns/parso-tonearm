@@ -311,12 +311,32 @@ final class DiscoveryRuntimeController {
     /// `AppState` playback path an ordinary library row uses.
     func searchViewModel(appState: AppState, player: AudioPlayer) async -> DiscoverySearchViewModel {
         if let searchVM { return searchVM }
+        let vm = await buildSearchViewModel(appState: appState, player: player)
+        searchVM = vm
+        return vm
+    }
+
+    /// A fresh, independent `DiscoverySearchViewModel` — deliberately NOT
+    /// memoized, unlike `searchViewModel(appState:player:)` above. Built for
+    /// the Listen tab's mood entry point (docs/plans/mood-based-listening-
+    /// plan.md §2's audit note / §5 step 5): that screen's own
+    /// `searchText`/`positiveRefinements` must be independent of "Find by
+    /// sound"'s, or selecting mood pills here would corrupt (or be
+    /// corrupted by) whatever the user has set on that other screen. Still
+    /// reuses the one shared `assembly.search` (`makeAssembly()` memoizes
+    /// that separately from `searchVM`), so the CLAP model itself is never
+    /// loaded twice.
+    func makeSearchViewModel(appState: AppState, player: AudioPlayer) async -> DiscoverySearchViewModel {
+        await buildSearchViewModel(appState: appState, player: player)
+    }
+
+    private func buildSearchViewModel(appState: AppState, player: AudioPlayer) async -> DiscoverySearchViewModel {
         let assembly = await makeAssembly()
         let service = await assembly.search
         let coordinator = DiscoverySearchCoordinator(service: service)
         let store = self.store
 
-        let vm = DiscoverySearchViewModel(
+        return DiscoverySearchViewModel(
             coordinator: coordinator,
             service: service,
             metadataSearch: { query in
@@ -348,8 +368,6 @@ final class DiscoveryRuntimeController {
                 DiscoveryModelResources.shared.beginAccessing()
             },
             onOpenIndexStatus: {})
-        searchVM = vm
-        return vm
     }
 
     /// "Analyze this track" for a stale/missing reference embedding (plan §9)

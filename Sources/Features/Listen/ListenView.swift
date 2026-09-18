@@ -1,10 +1,26 @@
 import SwiftUI
 import TonearmCore
+import TonearmDiscovery
 
 struct ListenView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @ObservedObject private var support = SupportDevelopmentStore.shared
+
+    /// Deliberately NOT the same instance "Find by sound" uses — see
+    /// `DiscoveryRuntimeController.makeSearchViewModel`'s doc comment
+    /// (docs/plans/mood-based-listening-plan.md §2's audit note). Built once
+    /// on first appear.
+    @State private var moodModel: DiscoverySearchViewModel?
+    @State private var selectedPillIDs: Set<MoodPill.ID> = []
+    /// The Era/Vibe pill category — generated from this library's own
+    /// BPM/key/energy/duration distribution (`SuggestionChips`), not a fixed
+    /// list (plan §3.2).
+    @State private var eraVibePills: [MoodPill] = []
+    @State private var promptDraft: String = ""
+    /// Backs the shared `trackDetailSheet` (plan §3.6) — every track tap on
+    /// this screen sets this instead of calling `player.play(...)` directly.
+    @State private var selectedTrackForDetail: TrackRow?
 
     var body: some View {
         ScrollView {
@@ -17,6 +33,9 @@ struct ListenView: View {
                 } else {
                     Spacer().frame(height: 16)
                 }
+
+                moodEntryPoint
+                    .padding(.bottom, 26)
 
                 if !appState.recentlyPlayed.isEmpty {
                     cardRow(title: "Jump Back In", rows: appState.recentlyPlayed)
@@ -31,7 +50,11 @@ struct ListenView: View {
             .padding(.bottom, 160)
         }
         .foregroundStyle(Palette.ink)
-        .task { await appState.reload() }
+        .task {
+            await appState.reload()
+            await prepareMoodModel()
+        }
+        .trackDetailSheet(for: $selectedTrackForDetail)
     }
 
     /// Shown only when `SupportDevelopmentStore.isSupporter` is true — the
@@ -48,6 +71,144 @@ struct ListenView: View {
             .accessibilityIdentifier("listen.supporterBadge")
     }
 
+    // MARK: - Mood entry point (plan §3.1/§3.2/§3.3/§5 steps 5/8/9)
+
+    private func prepareMoodModel() async {
+        guard moodModel == nil else { return }
+        let vm = await DiscoveryRuntimeController.shared.makeSearchViewModel(
+            appState: appState, player: player)
+        moodModel = vm
+        let summary = await SuggestionChips.summary(library: appState.store)
+        eraVibePills = SuggestionChips.seed(from: summary).map { chip in
+            MoodPill(id: chip, label: chip, queryTerm: chip)
+        }
+    }
+
+    private var allMoodPills: [MoodPill] {
+        MoodPillTaxonomy.fixedCategories + eraVibePills
+    }
+
+    private var promptBinding: Binding<String> {
+        Binding(
+            get: { moodModel?.searchText ?? promptDraft },
+            set: { newValue in
+                promptDraft = newValue
+                moodModel?.searchText = newValue
+            })
+    }
+
+    /// Toggling a pill adds/removes its `queryTerm` from the mood model's
+    /// `positiveRefinements` — additive combination (plan §3.3), never a
+    /// replace.
+    private var pillSelectionBinding: Binding<Set<MoodPill.ID>> {
+        Binding(
+            get: { selectedPillIDs },
+            set: { newSelection in
+                guard let moodModel else {
+                    selectedPillIDs = newSelection
+                    return
+                }
+                let pills = allMoodPills
+                for id in newSelection.subtracting(selectedPillIDs) {
+                    if let pill = pills.first(where: { $0.id == id }) {
+                        moodModel.addMoreLike(pill.queryTerm)
+                    }
+                }
+                for id in selectedPillIDs.subtracting(newSelection) {
+                    if let pill = pills.first(where: { $0.id == id }) {
+                        moodModel.removeMoreLike(pill.queryTerm)
+                    }
+                }
+                selectedPillIDs = newSelection
+            })
+    }
+
+    private var moodEntryPoint: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: "What's the mood?")
+
+            TextField("Describe what you want to hear…", text: promptBinding)
+                .textFieldStyle(.plain)
+                .font(.system(size: 14))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .glassSurface(cornerRadius: 12)
+                .accessibilityIdentifier("listen.mood.prompt")
+
+            MoodPillPicker(pills: allMoodPills, selection: pillSelectionBinding)
+
+            HStack(spacing: 10) {
+                Button {
+                    startMoodPlayback()
+                } label: {
+                    Label("Play", systemImage: "play.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 11)
+                        .background(
+                            LinearGradient(colors: [Palette.brass, Palette.brassDeep],
+                                          startPoint: .top, endPoint: .bottom),
+                            in: Capsule())
+                        .foregroundStyle(Color.black)
+                }
+                .buttonStyle(.plain)
+                .disabled(moodModel?.results.isEmpty ?? true)
+                .accessibilityIdentifier("listen.mood.play")
+
+                Button {
+                    startMoodPlayback(shuffle: true)
+                } label: {
+                    Label("Shake it up", systemImage: "shuffle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 11)
+                        .background(Color.white.opacity(0.07), in: Capsule())
+                        .foregroundStyle(Palette.ink2)
+                }
+                .buttonStyle(.plain)
+                .disabled(moodModel?.results.isEmpty ?? true)
+                .accessibilityIdentifier("listen.mood.shakeItUp")
+            }
+
+            if let moodModel, !moodModel.results.isEmpty {
+                moodResultsRow(moodModel)
+            }
+        }
+    }
+
+    /// Starts (or restarts) playback from the mood query's current results,
+    /// tagging the queue `.mood(moodModel)` so Keep Playing re-queries this
+    /// same mood instead of falling back to generic similarity (plan §3.3,
+    /// `AudioPlayer+KeepPlaying.swift`). "Shake it up" reshuffles the same
+    /// result set rather than issuing a new query — the pills/prompt are the
+    /// mood the person asked for; shaking gives a different order through it,
+    /// not a different mood.
+    private func startMoodPlayback(shuffle: Bool = false) {
+        guard let moodModel, !moodModel.results.isEmpty else { return }
+        var tracks = moodModel.results.map(\.track)
+        if shuffle { tracks.shuffle() }
+        player.play(tracks: tracks, startAt: 0, source: .mood(moodModel))
+    }
+
+    private func moodResultsRow(_ moodModel: DiscoverySearchViewModel) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(moodModel.results, id: \.track.id) { result in
+                    Button {
+                        selectedTrackForDetail = result.track
+                    } label: {
+                        RecentCard(row: result.track)
+                    }
+                    .buttonStyle(.plain)
+                    .trackContextMenu(result.track)
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
+    // MARK: - Jump Back In / Favorites
+
     private func cardRow(title: String, rows: [TrackRow]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: title)
@@ -55,9 +216,7 @@ struct ListenView: View {
                 HStack(spacing: 12) {
                     ForEach(rows) { row in
                         Button {
-                            if let idx = rows.firstIndex(where: { $0.id == row.id }) {
-                                player.play(tracks: rows, startAt: idx, source: .library)
-                            }
+                            selectedTrackForDetail = row
                         } label: {
                             RecentCard(row: row)
                         }
@@ -85,9 +244,7 @@ struct ListenView: View {
                     HStack(spacing: 12) {
                         ForEach(appState.favoriteRows) { row in
                             Button {
-                                if let idx = appState.favoriteRows.firstIndex(where: { $0.id == row.id }) {
-                                    player.play(tracks: appState.favoriteRows, startAt: idx, source: .library)
-                                }
+                                selectedTrackForDetail = row
                             } label: {
                                 RecentCard(row: row)
                             }
@@ -100,6 +257,8 @@ struct ListenView: View {
             }
         }
     }
+
+    // MARK: - Listening Stats
 
     private func statsCard(_ stats: ListeningStats.Summary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -126,11 +285,11 @@ struct ListenView: View {
                 weeklyChart(stats.dailyRollups)
             }
 
-            if let artist = stats.topArtists.first {
-                topLine("Top Artist", artist.name, detail: "\(artist.playCount) plays")
+            if !stats.topTracks.isEmpty {
+                topTracksList(stats.topTracks)
             }
-            if let track = stats.topTracks.first {
-                topLine("Top Track", track.row.track.title, detail: "\(track.playCount) plays")
+            if !stats.topArtists.isEmpty {
+                topArtistsList(stats.topArtists)
             }
         }
         .padding(.bottom, 22)
@@ -193,21 +352,86 @@ struct ListenView: View {
         .glassSurface(cornerRadius: 8)
     }
 
-    private func topLine(_ title: String, _ value: String, detail: String) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(Palette.ink3)
-                Text(value)
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
+    /// Tappable Top 10 Songs list (replaces the old single "Top Track" line —
+    /// owner feedback, plan §3.4). Each row opens `TrackDetailCard` like
+    /// every other track tap on this screen.
+    private func topTracksList(_ ranks: [ListeningStats.TrackRank]) -> some View {
+        let top = Array(ranks.prefix(10))
+        return VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(title: "Top 10 Songs")
+            VStack(spacing: 0) {
+                ForEach(Array(top.enumerated()), id: \.element.id) { index, rank in
+                    Button {
+                        selectedTrackForDetail = rank.row
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text("\(index + 1)")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Palette.ink3)
+                                .frame(width: 18, alignment: .leading)
+                            Text(rank.row.track.title)
+                                .font(.system(size: 13, weight: .medium))
+                                .lineLimit(1)
+                            Spacer()
+                            Text("\(rank.playCount) plays")
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(Palette.ink3)
+                        }
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("listen.topSongs.row.\(index)")
+                    if index < top.count - 1 {
+                        Divider().opacity(0.15)
+                    }
+                }
             }
-            Spacer()
-            Text(detail)
-                .font(.system(size: 11.5))
-                .foregroundStyle(Palette.ink3)
+            .padding(.top, 4)
         }
+        .padding(.top, 6)
+    }
+
+    /// Tappable Top 10 Artists list (replaces the old single "Top Artist"
+    /// line — owner feedback, plan §3.4). Tapping lands on that artist in
+    /// My Music via `appState.pendingArtistFilter` (one-shot launch intent,
+    /// consumed by `MyMusicView`).
+    private func topArtistsList(_ ranks: [ListeningStats.NameRank]) -> some View {
+        let top = Array(ranks.prefix(10))
+        return VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(title: "Top 10 Artists")
+            VStack(spacing: 0) {
+                ForEach(Array(top.enumerated()), id: \.element.id) { index, rank in
+                    Button {
+                        appState.pendingArtistFilter = rank.name
+                        appState.tab = .myMusic
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text("\(index + 1)")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Palette.ink3)
+                                .frame(width: 18, alignment: .leading)
+                            Text(rank.name)
+                                .font(.system(size: 13, weight: .medium))
+                                .lineLimit(1)
+                            Spacer()
+                            Text("\(rank.playCount) plays")
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(Palette.ink3)
+                        }
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("listen.topArtists.row.\(index)")
+                    if index < top.count - 1 {
+                        Divider().opacity(0.15)
+                    }
+                }
+            }
+            .padding(.top, 4)
+        }
+        .padding(.top, 6)
     }
 }
 

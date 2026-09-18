@@ -77,6 +77,13 @@ final class AppState: ObservableObject {
     /// state. `TransitionLabTabView` walks the list's adjacent pairs as Set
     /// Practice.
     @Published var pendingTransitionLabSet: (playlistId: Int64, tracks: [TrackRow])?
+    /// Set by a Top Artist row's tap on the Listen tab (docs/plans/mood-
+    /// based-listening-plan.md §3.5): the artist name to land on. Consumed
+    /// once by `MyMusicView` on appear (switches to the Artists scope,
+    /// resolves the name to a `LibraryBrowse.Entry`, pushes it onto the
+    /// bound navigation path), then cleared — same one-shot launch-intent
+    /// pattern as `pendingTransitionLabSet`/`soundSearchReference`.
+    @Published var pendingArtistFilter: String?
     @Published internal(set) var downloadRevision = 0
     @Published internal(set) var activePhoneDownloads: Set<Int64> = []
     /// The row (not just id) whose "Change Artwork" picker is open — a remote
@@ -226,7 +233,7 @@ final class AppState: ObservableObject {
             recentlyAdded = loadedRecentlyAdded
             favoriteRows = loadedFavoriteRows
             favoriteIds = loadedFavoriteIds
-            listeningStats = ListeningStats.summarize(events: playEvents, tracks: loadedTracks)
+            listeningStats = ListeningStats.summarize(events: playEvents, tracks: loadedTracks, rankLimit: 10)
             WidgetSnapshotPublisher.publish(appState: self, player: AudioPlayer.shared)
         } catch {
             print("reload error: \(error)")

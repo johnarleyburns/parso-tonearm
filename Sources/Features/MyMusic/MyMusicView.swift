@@ -14,6 +14,18 @@ import TonearmCore
 struct MyMusicView: View {
     @EnvironmentObject var appState: AppState
     @State private var scope: Scope = .artists
+    /// Real gap found auditing the mood-based-listening plan (docs/plans/
+    /// mood-based-listening-plan.md §3.5's second audit note): landing on a
+    /// specific artist from another tab is a genuinely PUSHED navigation
+    /// destination, and there was no way to push into this stack
+    /// programmatically before this — a plain `NavigationStack { … }` only
+    /// responds to a user's own `NavigationLink` tap. `NavigationPath` (not
+    /// a typed array/enum) because this one stack already carries two
+    /// different `navigationDestination` types (`Playlist.self` from the
+    /// embedded `PlaylistsView`, `String.self` for the "ambient" row) plus
+    /// `LibraryBrowse.Entry.self` from `LibraryView` — `NavigationPath`
+    /// accepts any `Hashable` without unifying them under one shared type.
+    @State private var navigationPath = NavigationPath()
 
     enum Scope: String, CaseIterable, Identifiable {
         case playlists = "Playlists"
@@ -51,7 +63,7 @@ struct MyMusicView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             VStack(spacing: 0) {
                 scopePicker
 
@@ -67,6 +79,23 @@ struct MyMusicView: View {
             .background(Palette.libraryBackground.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
         }
+        .task { consumePendingArtistFilter() }
+    }
+
+    /// One-shot launch-intent consumption for a Top Artist row's tap on the
+    /// Listen tab (docs/plans/mood-based-listening-plan.md §3.5). Resolves
+    /// the artist NAME into a real `LibraryBrowse.Entry` — the only existing
+    /// way to produce one is rebuilding sections from the current library —
+    /// and pushes it. A name with no exact match degrades safely: the
+    /// Artists scope still opens, just without drilling further, rather
+    /// than crashing on a lookup failure.
+    private func consumePendingArtistFilter() {
+        guard let artistName = appState.pendingArtistFilter else { return }
+        appState.pendingArtistFilter = nil
+        scope = .artists
+        let entries = LibraryBrowse.sections(for: .artists, rows: appState.allTracks).flatMap(\.entries)
+        guard let match = entries.first(where: { $0.title == artistName }) else { return }
+        navigationPath.append(match)
     }
 
     /// A scrollable chip row rather than a native 5-item `.segmented`
