@@ -268,3 +268,18 @@ This approach handles elementary-stream and MP4-container formats uniformly (thr
   Not yet confirmed against the field report that originally surfaced this — the report's exact
   provider type was inferred (Internet Archive is overwhelmingly the most likely source of a
   single 2,600+-track remote library in this app) rather than confirmed directly.
+- **Adjacent bug found auditing the fix above**:
+  `RemoteLibraryProviderFactory.credentialAccounts(for:kind:)` had the same
+  gap — no case for IA source kinds, so `AppState.deleteSource()` never
+  cleaned up a private IA list's saved password (account
+  `"ia-private:<sourceID>"`, set by `addIASource`) from the Keychain when
+  the source was deleted. Fixed alongside the provider-factory fix.
+- **Verified safe, no behavior change**: confirmed the live "browse a
+  remote source" UI (`SourceDetailView`) deliberately excludes archive
+  sources from the generic browse path already (`isBrowseableServer =
+  isRemoteLibrary && !isArchiveSource`) — the provider-factory fix only
+  reaches the two intended call sites (analysis re-auth, the backfill),
+  not that UI. Also confirmed `AppState.download()`/`makeOffline()`'s
+  fetch-request path produces an identical `ResolvedAsset` for a
+  backfilled IA asset whether it goes through the new provider path or
+  the pre-existing legacy-URL fallback — no regression there either.
