@@ -23,7 +23,5 @@ final class RemoteLibraryCopyTests: XCTestCase {
 
     func testTerminologyUsesMusicAndLibrariesForVisibleCoreLabels() {
         XCTAssertEqual(QueueSource.library.label, "From Music")
-        XCTAssertTrue(ProPaywallModel().features.isEmpty,
-                      "Commit 0.4: nothing is paid yet, so the paywall advertises no features")
     }
 }

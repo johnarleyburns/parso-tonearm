@@ -29,8 +29,6 @@ final class FolderWatchTests: XCTestCase {
     }
 
     func testRescanWithoutWatchedFoldersAddsNothing() async throws {
-        ProEntitlement.clear()
-        defer { ProEntitlement.clear() }
         let store = try LibraryStore(inMemory: true)
         let added = await FolderWatchService.shared.rescanWatchedFolders(store: store)
         XCTAssertEqual(added, 0)
@@ -39,7 +37,6 @@ final class FolderWatchTests: XCTestCase {
     // Simulated rescan: a new file dropped into a watched folder is ingested into
     // the folder's source without a relaunch. Folder watch is free.
     func testRescanIngestsNewFileWithoutRelaunch() async throws {
-        defer { ProEntitlement.clear() }
 
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("watch-\(UUID().uuidString)", isDirectory: true)

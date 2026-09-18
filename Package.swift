@@ -19,7 +19,7 @@ let package = Package(
         // parenthesis, previously hashed to a different cache key than the
         // one callers computed from the same raw URL, causing eviction/
         // offline-lookup mismatches — "shows cached, play does nothing").
-        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.1.0")
+        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.2.0")
     ],
     targets: [
         .target(

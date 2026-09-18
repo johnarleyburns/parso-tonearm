@@ -28,11 +28,13 @@ struct RootView: View {
                     case .listen: ListenView()
                     case .myMusic: MyMusicView()
                     case .settings: SettingsView()
-                    // Transition Lab isn't built yet (see
-                    // docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md
-                    // §7) — the DJ tab still opens the existing DJ mixer
-                    // rather than a nonexistent destination.
-                    case .dj: DJHomeView()
+                    // The DJ tab IS Transition Lab now (plan §7) — no home/
+                    // menu screen. DJHomeView and the full mixer/MIDI/
+                    // recording/stems stack it routed to are unreachable
+                    // from here as of this commit but not yet deleted (plan
+                    // §10 is a separate, larger removal pass; see this
+                    // commit's message for why it's deferred).
+                    case .dj: TransitionLabTabView()
                     }
                 }
 

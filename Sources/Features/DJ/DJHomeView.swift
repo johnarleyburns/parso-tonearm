@@ -5,52 +5,27 @@ import TonearmDJ
 /// The DJ tab's home (plan 5.1, spec §49.3a): the app root's navigable route
 /// into the DJ feature set. Every destination is on `DJEntryModel`
 /// .reachableDestinations — the §49.3a route table — so a surface that is not
-/// reachable from here is dead code in the shipped binary. The performance
-/// surface is Pro-gated by the workspace's own model gate: free users see the
-/// real dimmed surface with a lock chip (§40.4), and the paywall is presented
-/// from the chip (FR-STORE-5).
+/// reachable from here is dead code in the shipped binary.
+///
+/// Business decision (see
+/// docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md §11):
+/// everything here is free — no Pro entitlement, no paywall, no purchase
+/// gate. The "Purchase"/unlocked-vs-free-tier section that used to sit above
+/// "Library" is gone; `EntitlementStore` still exists and still always
+/// reports `isPro == true` (a prior, already-shipped business decision —
+/// nothing here was ever actually gated), but nothing in this view surfaces
+/// it anymore. Removing the underlying `EntitlementStore`/`ProCapability`
+/// plumbing from `WorkspaceModel`/`TrackPrepModel` is a separate, deeper
+/// follow-up — deferred because it reaches into the live DJ performance
+/// surface (`WorkspaceView`/`SoloDeckView`/`TwinDeckView`), which is
+/// untouched and untested this session.
 struct DJHomeView: View {
     @StateObject private var entry = DJEntryModel()
-    @ObservedObject private var entitlements = EntitlementStore.shared
-    @State private var isRestoring = false
     @State private var showPlaylists = false
 
     var body: some View {
         NavigationStack(path: $entry.path) {
             List {
-                // What the app believes about this purchase, and the one action
-                // that fixes it being wrong (FR-STORE-3). No analytics — the
-                // app sends nothing anywhere (NFR-PRIV-2) — so the way a tester
-                // reports a purchase problem is by reading this row, which
-                // means it has to state the *source* of the grant and not just
-                // a checkmark.
-                Section("Purchase") {
-                    HStack {
-                        Label(entitlements.isPro ? "Platterhead DJ · unlocked" : "Free tier",
-                              systemImage: entitlements.isPro ? "checkmark.seal.fill" : "lock")
-                        Spacer()
-                        Text(entitlements.source.displayName)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .accessibilityIdentifier("dj.purchase.status")
-                    .accessibilityLabel(entitlements.isPro
-                                        ? "Unlocked, \(entitlements.source.displayName)"
-                                        : "Free tier")
-                    if !entitlements.isPro {
-                        Button {
-                            isRestoring = true
-                            Task {
-                                await entitlements.restore()
-                                isRestoring = false
-                            }
-                        } label: {
-                            Text(isRestoring ? "Restoring…" : "Restore purchase")
-                        }
-                        .disabled(isRestoring)
-                        .accessibilityIdentifier("dj.purchase.restore")
-                    }
-                }
                 Section("Library") {
                     Button { showPlaylists = true } label: {
                         Label("Playlists", systemImage: "music.note.list")

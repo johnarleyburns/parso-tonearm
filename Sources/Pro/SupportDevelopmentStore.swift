@@ -17,7 +17,7 @@ public final class SupportDevelopmentStore: ObservableObject {
 
     /// The one-time consumable. Consumables never appear in
     /// `Transaction.currentEntitlements` — StoreKit forgets them once the
-    /// transaction is finished — so unlike `EntitlementStore`/`ProStore` there
+    /// transaction is finished — so unlike `EntitlementStore` there
     /// is nothing to re-derive from at launch. The persisted flag below is the
     /// only record that the purchase happened, and it is never reset: a
     /// refund does not "revoke" it, because it never unlocked anything to
@@ -66,7 +66,7 @@ public final class SupportDevelopmentStore: ObservableObject {
 
     /// StoreKit's own localised price, or an honest placeholder until it
     /// answers — never a hardcoded "$9.99" (the same reasoning as
-    /// `EntitlementStore.product`/`ProStore.displayPrice`).
+    /// `EntitlementStore.product`).
     public var displayPrice: String { product?.displayPrice ?? "—" }
 
     /// Whether the App Store is actually offering the product right now.

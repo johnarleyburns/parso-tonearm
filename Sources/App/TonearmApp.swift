@@ -32,18 +32,13 @@ struct TonearmApp: App {
             UserDefaults.standard.set(true, forKey: "didOnboard")
         }
         if shouldSeedProForUITesting {
-            ProEntitlement.persist(.verified(transactionID: 1, purchaseDate: Date(timeIntervalSince1970: 0)))
-            // The defaults flag above is the older entitlement record; every
-            // Pro capability (App. T.3) gates on `EntitlementStore.isPro`,
-            // which reads its own cache. Seed both, or the DJ surfaces stay
-            // dimmed and inert for the whole run.
+            // Everything is free now (no Pro entitlement) — `EntitlementStore`
+            // already always reports `isPro == true` in production. This seed
+            // only matters for a UI-regression build that still asserts the
+            // old always-unlocked DJ surfaces via `EntitlementStore.isPro`.
             EntitlementStore.shared.grantForUITesting()
         }
-        if launchArguments.contains("UI_TESTING_RESET_PRO") {
-            ProEntitlement.clear()
-        }
         if !shouldSeedProForUITesting {
-            ProStore.shared.start()
             EntitlementStore.shared.start()
         }
         // The one remaining purchase — "Contribute to Development" — is

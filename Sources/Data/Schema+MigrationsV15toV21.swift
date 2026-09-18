@@ -139,5 +139,63 @@ extension Schema {
                 }
             }
         }
+
+        if shouldRegister("v23", upTo: target) {
+            migrator.registerMigration("v23") { db in
+                // Transition Lab persistence
+                // (docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md
+                // §15) — deliberately separate from `discovery_track_analysis`
+                // (bounded, up-to-60s-midpoint Discovery analysis) since this is
+                // a full-song `PortableAnalysisV1` payload from
+                // `ParsoAudioAnalysis.FullAnalysis`, a different schema/
+                // algorithm entirely.
+                try db.create(table: "transition_full_analysis") { t in
+                    t.autoIncrementedPrimaryKey("id")
+                    t.column("trackId", .integer).notNull()
+                        .references("track", onDelete: .cascade)
+                    t.column("assetId", .integer).notNull()
+                        .references("asset", onDelete: .cascade)
+                    t.column("assetRevision", .integer).notNull()
+                    t.column("schemaVersion", .integer).notNull()
+                    t.column("algorithmID", .text).notNull()
+                    // The Codable `PortableAnalysisV1` JSON payload, as-is —
+                    // its own `init(from:)` already rejects a schema/
+                    // algorithm-ID mismatch or an out-of-range value, so a
+                    // decode failure on read is the "stale, re-analyze"
+                    // signal for free (no separate validity column needed).
+                    t.column("payload", .blob).notNull()
+                    t.column("completedAt", .datetime).notNull()
+                }
+                try db.create(
+                    indexOn: "transition_full_analysis", columns: ["trackId"], options: .unique)
+
+                // One row per prepared (or attempted) transition between two
+                // adjacent tracks in a specific playlist — "status" lets Set
+                // Practice show prepared/needs-work per edge without
+                // re-running TransitionPlanner every time the screen opens.
+                try db.create(table: "transition_playlist_edge") { t in
+                    t.autoIncrementedPrimaryKey("id")
+                    t.column("playlistId", .integer).notNull()
+                        .references("playlist", onDelete: .cascade)
+                    t.column("outgoingTrackId", .integer).notNull()
+                        .references("track", onDelete: .cascade)
+                    t.column("incomingTrackId", .integer).notNull()
+                        .references("track", onDelete: .cascade)
+                    t.column("outgoingRevision", .integer).notNull()
+                    t.column("incomingRevision", .integer).notNull()
+                    // The Codable `AudioTransitionProposal` the user picked/
+                    // last previewed for this edge — nil-able because an
+                    // edge can exist in "needsWork" status with no proposal
+                    // yet chosen (e.g. TransitionPlanner returned no
+                    // candidates for this pair).
+                    t.column("proposalPayload", .blob)
+                    t.column("status", .text).notNull()
+                    t.column("updatedAt", .datetime).notNull()
+                }
+                try db.create(
+                    indexOn: "transition_playlist_edge",
+                    columns: ["playlistId", "outgoingTrackId", "incomingTrackId"], options: .unique)
+            }
+        }
     }
 }

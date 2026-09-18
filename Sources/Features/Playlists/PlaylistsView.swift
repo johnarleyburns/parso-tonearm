@@ -183,6 +183,15 @@ struct PlaylistDetailView: View {
                 }
                 .accessibilityIdentifier("playlist.add")
                 Menu {
+                    if trackRows.count >= 2 {
+                        Button {
+                            appState.pendingTransitionLabPair = (trackRows[0], trackRows[1])
+                            appState.tab = .dj
+                        } label: {
+                            Label("Practice transitions", systemImage: "waveform.path.ecg")
+                        }
+                        .accessibilityIdentifier("mymusic.playlist.practiceTransitions")
+                    }
                     Button {
                         beginRename(currentPlaylist)
                     } label: {

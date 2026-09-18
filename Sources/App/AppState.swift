@@ -70,6 +70,10 @@ final class AppState: ObservableObject {
     /// When set alongside `showSoundSearch`, the search screen opens in
     /// "More like this" mode for this core track id (plan §9 similar mode).
     @Published var soundSearchReference: Int64?
+    /// Set by a playlist's "Practice transitions" action (plan §14), consumed
+    /// once by `TransitionLabTabView` on appear then cleared — a simple,
+    /// one-shot launch intent rather than a persisted navigation state.
+    @Published var pendingTransitionLabPair: (outgoing: TrackRow, incoming: TrackRow)?
     @Published internal(set) var downloadRevision = 0
     @Published internal(set) var activePhoneDownloads: Set<Int64> = []
     /// The row (not just id) whose "Change Artwork" picker is open — a remote
