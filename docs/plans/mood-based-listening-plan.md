@@ -261,6 +261,32 @@ consumePendingSeed()` does, then cleared. Do not assume a simpler
 same-screen push will work — the artist list and the Listen tab are
 different tabs today.
 
+**Real gap found auditing this section a second time (4th pass overall)**:
+even the corrected design above understates the work by one more layer.
+`TransitionLabTabView.consumePendingSeed()` is a bad direct comparison —
+it just sets local `@State` on the DJ tab's own top-level view; no
+navigation push is involved. Landing on a specific artist's tracks is a
+**pushed** `navigationDestination(for: LibraryBrowse.Entry.self)`
+destination two levels deep (My Music tab → Artists scope → that one
+artist), and confirmed via `grep` that `MyMusicView`'s `NavigationStack {
+… }` (`Sources/Features/MyMusic/MyMusicView.swift`) takes no `path:`
+argument — there is currently no way to programmatically push anything
+onto it from outside a user's own `NavigationLink` tap. Two real changes
+needed, not one: (1) convert that `NavigationStack` to
+`NavigationStack(path: $someNavigationPath)` with a bound path the view
+owns — use SwiftUI's type-erased `NavigationPath`, not a typed array/enum:
+this one stack already carries two different `navigationDestination`
+types today (`Playlist.self` from the embedded `PlaylistsView`, `String.
+self` for the "ambient" row) plus `LibraryBrowse.Entry.self` once this
+change lands, and `NavigationPath.append(_:)` accepts any `Hashable`
+without needing them unified under one shared type; (2) on consuming
+`pendingArtistFilter`, rebuild artist entries via
+`LibraryBrowse.sections(for: .artists, rows:)` (the only existing way to
+produce an `Entry` — there's no "look up by artist name" helper), find
+the matching entry by title, and `append` it to the bound path. Budget
+this as real navigation-architecture work, not a one-line consume-and-set
+like the DJ tab's pattern.
+
 **Already mostly there**: `ListeningStats.Summary.topTracks: [TrackRank]`
 / `topArtists: [NameRank]` (`Sources/Domain/ListeningStats.swift`) are
 already ranked arrays, not single values — the UI just only ever reads
@@ -450,9 +476,14 @@ simplification pass earlier this session).
 12. Add `appState.pendingArtistFilter: String?` (or similar), matching
     the `pendingTransitionLabSet`/`soundSearchReference` one-shot
     launch-intent pattern (§3.5's audit note), for artist-row taps to
-    cross into the My Music tab landed on that specific artist. Consume
-    it once in `MyMusicView`/`LibraryView` the same way
-    `TransitionLabTabView.consumePendingSeed()` does.
+    cross into the My Music tab landed on that specific artist. Convert
+    `MyMusicView`'s plain `NavigationStack { … }` to `NavigationStack
+    (path: $navigationPath)` with an owned, bound path (§3.5's second
+    audit note — there is no way to programmatically push into it today).
+    On appear with a pending filter set: switch to the Artists scope,
+    rebuild entries via `LibraryBrowse.sections(for: .artists, rows:)`,
+    find the matching entry by title, `append` it to the path, then clear
+    `pendingArtistFilter`.
 13. Build `TrackDetailCard` (§3.6) as a shared, reusable sheet — artwork/
     title/artist/duration/source plus Play Now / Add to Queue / Include
     in current mood (shown only when `AudioPlayer.shared.queueSource` is
@@ -535,6 +566,12 @@ offline reference.
   over from a previous tap (same one-shot-clear discipline
   `pendingTransitionLabSet`/`soundSearchReference` already follow: cleared
   immediately after being consumed, per §3.5's audit note).
+- `MyMusicView`'s `NavigationStack` actually uses a bound `path:` now
+  (§3.5's second audit note) — and normal user-driven taps into
+  Playlists/artists/albums/songs still work exactly as before; converting
+  to a bound path is a real behavior change to `NavigationStack` itself,
+  not a no-op, so regression-check ordinary navigation there too, not
+  just the new pending-filter path.
 - `Sources/DJ/Features/VibeSearch/` was actually resolved one way or the
   other (deleted, or reduced to just the extracted `SuggestionChips`
   utility) — not left sitting as a second, still-dead, still-orphaned
