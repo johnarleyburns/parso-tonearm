@@ -18,7 +18,15 @@ final class TonearmSmokeUITests: XCTestCase {
                       "App should reach the foreground without crashing")
 
         openTab("Listen", anchor: "Listen")
-        openTab("Playlists", anchor: "Playlists")
+
+        // Playlists is a scope within My Music now, not its own root tab
+        // (docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md §4).
+        app.buttons["My Music"].tap()
+        XCTAssertTrue(element("mymusic.scope").waitForExistence(timeout: 10),
+                      "My Music tab should show the unified scope bar")
+        app.buttons["mymusic.scope.playlists"].tap()
+        XCTAssertTrue(app.staticTexts["Playlists"].waitForExistence(timeout: 10),
+                      "Selecting the Playlists scope chip should render Playlists")
 
         let ambientPlaylist = element("playlist.ambient")
         XCTAssertTrue(ambientPlaylist.waitForExistence(timeout: 10),

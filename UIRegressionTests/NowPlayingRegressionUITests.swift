@@ -97,7 +97,8 @@ final class NowPlayingRegressionUITests: XCTestCase {
     }
 
     private func openNowPlaying() {
-        app.buttons["Playlists"].tap()
+        app.buttons["My Music"].tap()
+        app.waitFor("mymusic.scope.playlists").tap()
         app.waitFor("playlist.ambient").tap()
         app.waitFor("ambient.track.ambient-rain").tap()
         app.waitFor("mini.title").tap()

@@ -69,7 +69,8 @@ final class PlaylistRegressionUITests: XCTestCase {
     }
 
     private func openPlaylistDetail() {
-        app.buttons["Playlists"].tap()
+        app.buttons["My Music"].tap()
+        app.waitFor("mymusic.scope.playlists").tap()
         let existing = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Regression Playlist")).firstMatch
         if existing.waitForExistence(timeout: 2) {
             existing.tap()

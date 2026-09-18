@@ -53,28 +53,48 @@ struct MyMusicView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("My Music Scope", selection: $scope) {
-                    ForEach(Scope.allCases) { scope in
-                        Text(scope.rawValue).tag(scope)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 18)
-                .padding(.top, 8)
-                .padding(.bottom, 4)
-                .accessibilityIdentifier("mymusic.scope")
+                scopePicker
 
                 switch scope {
                 case .playlists:
                     PlaylistsView(ownsNavigationStack: false)
-                        .accessibilityIdentifier("mymusic.scope.playlists")
+                        .accessibilityIdentifier("mymusic.content.playlists")
                 case .artists, .albums, .songs, .genres:
                     LibraryView(ownsNavigationStack: false, externalMode: libraryModeBinding)
-                        .accessibilityIdentifier("mymusic.scope.music")
+                        .accessibilityIdentifier("mymusic.content.music")
                 }
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
         }
+    }
+
+    /// A scrollable chip row rather than a native 5-item `.segmented`
+    /// picker — five real labels (Playlists/Artists/Albums/Songs/Genres) is
+    /// past where `UISegmentedControl` still fits comfortably at phone
+    /// width without shrinking or truncating text.
+    private var scopePicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Scope.allCases) { candidate in
+                    let selected = candidate == scope
+                    Button { scope = candidate } label: {
+                        Text(candidate.rawValue)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(selected ? .white : Palette.ink2)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(selected ? Palette.brassDeep : Color.white.opacity(0.07),
+                                        in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("mymusic.scope.\(candidate.rawValue.lowercased())")
+                }
+            }
+            .padding(.horizontal, 18)
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .accessibilityIdentifier("mymusic.scope")
     }
 }

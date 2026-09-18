@@ -247,7 +247,8 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         if app.buttons["Close Add Remote Library"].waitForExistence(timeout: 5) {
             app.buttons["Close Add Remote Library"].tap()
         }
-        app.buttons["Sources"].tap()
+        app.buttons["Settings"].tap()
+        app.waitFor("settings.musicLibraries").tap()
         let source = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "Source ")).firstMatch
         XCTAssertTrue(source.waitForExistence(timeout: 30)); source.tap()
         for _ in 0..<3 {
