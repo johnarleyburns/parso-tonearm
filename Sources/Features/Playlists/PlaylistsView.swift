@@ -143,6 +143,13 @@ struct PlaylistsView: View {
             }
             .foregroundStyle(Palette.ink)
             .background(Palette.libraryBackground.ignoresSafeArea())
+            // Real gap found auditing: PlaylistDetailView holds its own
+            // separate `pinnedIds` @State — pinning/unpinning there never
+            // reached this list's copy, so returning from the detail view
+            // showed a stale pin order/glyph until the whole view was torn
+            // down and rebuilt. Resync on every reappearance (NavigationStack
+            // pop triggers this) rather than only reading once at init.
+            .onAppear { pinnedIds = PinnedPlaylistsStore.pinnedIds() }
             .navigationDestination(for: Playlist.self) { playlist in
                 PlaylistDetailView(playlist: playlist)
             }
