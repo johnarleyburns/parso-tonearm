@@ -21,6 +21,14 @@ struct ListenView: View {
     /// Backs the shared `trackDetailSheet` (plan §3.6) — every track tap on
     /// this screen sets this instead of calling `player.play(...)` directly.
     @State private var selectedTrackForDetail: TrackRow?
+    /// Cycles the prompt field's placeholder (plan §3.1 point 2: "rotating
+    /// through a few evocative examples"). A real, missed requirement caught
+    /// re-auditing against the plan — the first pass shipped one static
+    /// placeholder instead.
+    @State private var placeholderIndex = 0
+    private static let promptPlaceholders = [
+        "sunday morning coffee", "focus, no vocals", "storm outside"
+    ]
 
     var body: some View {
         ScrollView {
@@ -53,6 +61,15 @@ struct ListenView: View {
         .task {
             await appState.reload()
             await prepareMoodModel()
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    placeholderIndex = (placeholderIndex + 1) % Self.promptPlaceholders.count
+                }
+            }
         }
         .trackDetailSheet(for: $selectedTrackForDetail)
     }
@@ -127,7 +144,7 @@ struct ListenView: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: "What's the mood?")
 
-            TextField("Describe what you want to hear…", text: promptBinding)
+            TextField(Self.promptPlaceholders[placeholderIndex], text: promptBinding)
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
                 .padding(.horizontal, 14)

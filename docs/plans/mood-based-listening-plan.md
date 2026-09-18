@@ -649,3 +649,45 @@ Extending `TrackDetailCard` to My Music (`LibraryView`) and search results
 (`DiscoverySearchView`) remains correctly deferred per §3.6's own scope
 note — confirmed not silently done, not silently forgotten: neither file
 was touched by this implementation.
+
+### 8.1 Sixth audit pass — three more real gaps, all fixed but one deferred
+
+A second re-read against the merged code (not just against the §7 checklist,
+which the 5th pass had already exhausted) found three more places the
+implementation didn't match this plan's own explicit wording:
+
+- **§3.6's field list ("artwork, title, artist/album, duration, source")
+  was incomplete** — `TrackDetailCard` never showed duration at all, and
+  `source` (remote provider name / "On device") only appeared as a
+  fallback when a track had no artist tag, so it was invisible for the
+  common case. Fixed: added a second subtitle line (`durationAndSource`)
+  using `TimeFmt.mmss` — the same formatter `TrackContextMenu`'s row
+  subtitle already uses (`Sources/Features/Components.swift`) — joined
+  with the source, always shown regardless of whether an artist tag
+  exists. Bumped the sheet's presentation detent 390 → 410 to fit it.
+- **§3.1 point 2's "placeholder text rotating through a few evocative
+  examples" was not implemented** — the prompt `TextField` shipped with
+  one static placeholder. Fixed: a 3-second rotation through the plan's
+  own three examples ("sunday morning coffee" / "focus, no vocals" /
+  "storm outside"), driven by a second `.task` loop on `ListenView`
+  (`withAnimation` on a `@State private var placeholderIndex`) rather
+  than reusing the private `FilterFieldStyle` from `DiscoverySearchView.swift`
+  verbatim, since that type is file-private there — the existing prompt
+  field's `.glassSurface(cornerRadius: 12)` styling is already visually
+  equivalent (same base modifier `FilterFieldStyle` itself wraps).
+- **§3.3's "vibing with: Calm, Focus" context-chip recommendation (option
+  (a) of the third audit pass's two honest choices) was never built, and
+  option (b) — "drop the chips... from this pass" — was never explicitly
+  chosen either; it was just silently absent from both `NowPlayingView`
+  and this plan's own audit trail.** Deliberately choosing **(b)** now,
+  rather than rushing an untested change into `NowPlayingView` (a screen
+  this implementation never otherwise touched) immediately before a push:
+  no context chips ship in this pass. Revisit as its own small follow-up —
+  `player.queueSource`'s `.mood(let source)` case already carries
+  everything a "vibing with" indicator would need (the active
+  `MoodQuerySource`, from which `positiveRefinements`/`searchText` are
+  readable via the concrete `DiscoverySearchViewModel` type), so no new
+  plumbing is required when that follow-up happens.
+
+All three fixes rebuilt clean (`xcodebuild build`) and re-passed the full
+`swift test` suite before this pass closed out.

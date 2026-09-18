@@ -46,6 +46,16 @@ struct TrackDetailCard: View {
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.ink3)
                         .lineLimit(1)
+                    // Plan §3.6 lists artwork/title/artist-album/duration/
+                    // source as the card's fields — `subtitle` above already
+                    // covers artist/album (falling back to source only when
+                    // there's no artist tag), but that means duration was
+                    // never shown, and source was invisible whenever a track
+                    // had an artist. This line always carries both.
+                    Text(durationAndSource)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.ink3)
+                        .lineLimit(1)
                 }
                 Spacer()
             }
@@ -102,6 +112,16 @@ struct TrackDetailCard: View {
             ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : "On device")
     }
 
+    /// Duration (`TimeFmt.mmss`, the same formatter `TrackContextMenu`'s row
+    /// subtitle already uses — `Sources/Features/Components.swift`) plus the
+    /// source, always shown regardless of whether an artist tag exists.
+    private var durationAndSource: String {
+        var parts: [String] = []
+        if let duration = row.track.durationSec { parts.append(TimeFmt.mmss(duration)) }
+        parts.append(row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : "On device")
+        return parts.joined(separator: " · ")
+    }
+
     private enum ActionStyle { case primary, secondary, mood }
 
     private func backgroundStyle(for style: ActionStyle) -> AnyShapeStyle {
@@ -142,7 +162,7 @@ extension View {
     func trackDetailSheet(for row: Binding<TrackRow?>) -> some View {
         sheet(item: row) { trackRow in
             TrackDetailCard(row: trackRow)
-                .presentationDetents([.height(390)])
+                .presentationDetents([.height(410)])
                 .presentationBackground(.clear)
         }
     }
