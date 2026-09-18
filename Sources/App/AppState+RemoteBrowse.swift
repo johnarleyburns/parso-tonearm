@@ -35,7 +35,7 @@ extension AppState {
         )
         source = try await store.insertSource(source)
         await reload()
-        tab = .sources
+        tab = .settings
     }
 
     func renameSource(_ source: Source, title: String) async {

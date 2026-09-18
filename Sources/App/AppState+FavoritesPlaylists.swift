@@ -25,7 +25,7 @@ extension AppState {
         guard !name.isEmpty else { return }
         _ = try? await store.createManualPlaylist(title: name, trackIds: trackIds)
         await reload()
-        if switchesTab { tab = .playlists }
+        if switchesTab { tab = .myMusic }
     }
 
     @discardableResult

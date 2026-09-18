@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var showWatchSettings = false
     @State private var showJamendoKey = false
     @State private var showThirdPartyNotices = false
+    @State private var showMusicLibraries = false
 
     private let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
@@ -35,6 +36,7 @@ struct SettingsView: View {
                 Text("Settings").font(.system(size: 31, weight: .heavy)).kerning(-0.5)
                     .padding(.top, 8)
 
+                musicLibrariesCard
                 cacheCard
                 behaviorCard
                 keepPlayingCard
@@ -55,6 +57,7 @@ struct SettingsView: View {
         .task { await refresh() }
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
         .sheet(isPresented: $showThirdPartyNotices) { ThirdPartyNoticesView() }
+        .sheet(isPresented: $showMusicLibraries) { SourcesView() }
         .sheet(isPresented: $showEQ) { EQView() }
         .sheet(isPresented: $showTools) { ProToolsView() }
         .sheet(isPresented: $showJamendoKey) { JamendoCredentialView() }
@@ -177,6 +180,35 @@ struct SettingsView: View {
                 .background(selected ? Palette.brassDeep : Color.white.opacity(0.07),
                             in: RoundedRectangle(cornerRadius: 11))
         }
+    }
+
+    /// "Where does my music come from?" — moved here from its own root tab
+    /// (docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md §6):
+    /// source configuration is a low-frequency task, not a permanent
+    /// bottom-tab destination.
+    private var musicLibrariesCard: some View {
+        Button { showMusicLibraries = true } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Music Libraries").font(.system(size: 13.5))
+                    Text(
+                        appState.sources.isEmpty
+                            ? "Local folders, servers & cloud"
+                            : "\(appState.sources.count) connected"
+                    )
+                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.ink3)
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.musicLibraries")
+        .padding(15)
+        .glassSurface(cornerRadius: 18)
     }
 
     private var behaviorCard: some View {

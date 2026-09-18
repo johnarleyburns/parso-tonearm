@@ -12,9 +12,27 @@ enum LibraryService: String, Hashable, Identifiable {
 
 struct SourcesView: View {
     @EnvironmentObject var appState: AppState
+    /// Settings already owns a `NavigationStack` when pushing this as
+    /// "Music Libraries" — a second nested stack there makes the push
+    /// unstable (same reasoning as `LibraryView.ownsNavigationStack`).
+    private let ownsNavigationStack: Bool
+
+    init(ownsNavigationStack: Bool = true) {
+        self.ownsNavigationStack = ownsNavigationStack
+    }
 
     var body: some View {
-        NavigationStack {
+        Group {
+            if ownsNavigationStack {
+                NavigationStack { content }
+            } else {
+                content
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     ScreenHeader(title: "Libraries")
@@ -67,7 +85,6 @@ struct SourcesView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-        }
     }
 }
 

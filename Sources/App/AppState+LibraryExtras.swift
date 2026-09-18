@@ -15,7 +15,7 @@ extension AppState {
             trackIds: trackIDs
         )
         await reload()
-        tab = .playlists
+        tab = .myMusic
         return created
     }
 
@@ -120,7 +120,7 @@ extension AppState {
             let service = SourceService(preferFLAC: preferFLAC)
             let preview = try await service.preview(from: rawURL)
             addSourceInBackground(preview: preview, followUpdates: true)
-            tab = .sources
+            tab = .settings
         } catch {
             backgroundTitle = "Shared source"
             backgroundDone = false

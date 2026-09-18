@@ -6,7 +6,7 @@ import UIKit
 
 extension AppState {
     func requestAddRemoteLibrary() {
-        tab = .sources
+        tab = .settings
         showAddRemoteLibrary = true
     }
 
@@ -38,7 +38,7 @@ extension AppState {
             throw error
         }
         await reload()
-        tab = .sources
+        tab = .settings
     }
 
     func addWebDAVServer(url rawURL: String, username rawUsername: String, password: String) async throws {
@@ -165,7 +165,7 @@ extension AppState {
         }
 
         await reload()
-        tab = .sources
+        tab = .settings
     }
 
 }

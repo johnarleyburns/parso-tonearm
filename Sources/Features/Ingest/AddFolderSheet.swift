@@ -139,7 +139,7 @@ struct AddFolderSheet: View {
                                                  keepOrder: keepOrder, watch: watch, into: appState.store)
             await appState.reload()
             dismiss()
-            appState.tab = .playlists
+            appState.tab = .myMusic
         } catch {
             importError = error.localizedDescription
             print("[AddFolderSheet] import error: \(error)")

@@ -4,16 +4,31 @@ import TonearmCore
 struct PlaylistsView: View {
     @EnvironmentObject var appState: AppState
     private let presentsCreateSheetLocally: Bool
+    /// My Music already owns a `NavigationStack` when embedding this view as
+    /// a scope — a second nested stack there makes the first push unstable
+    /// (same reasoning as `LibraryView.ownsNavigationStack`).
+    private let ownsNavigationStack: Bool
     @State private var showLocalCreate = false
     @State private var playlistToRename: Playlist?
     @State private var renameTitle = ""
 
-    init(presentsCreateSheetLocally: Bool = false) {
+    init(presentsCreateSheetLocally: Bool = false, ownsNavigationStack: Bool = true) {
         self.presentsCreateSheetLocally = presentsCreateSheetLocally
+        self.ownsNavigationStack = ownsNavigationStack
     }
 
     var body: some View {
-        NavigationStack {
+        Group {
+            if ownsNavigationStack {
+                NavigationStack { content }
+            } else {
+                content
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
             VStack(alignment: .leading, spacing: 0) {
                 ScreenHeader(title: "Playlists") {
                     if presentsCreateSheetLocally { showLocalCreate = true }
@@ -119,7 +134,6 @@ struct PlaylistsView: View {
                 submit: { playlist, title in
                     Task { await appState.renamePlaylist(playlist, title: title) }
                 })
-        }
     }
 
     private func beginRename(_ playlist: Playlist) {

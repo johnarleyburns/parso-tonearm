@@ -26,10 +26,12 @@ struct RootView: View {
                 Group {
                     switch appState.tab {
                     case .listen: ListenView()
-                    case .playlists: PlaylistsView()
-                    case .library: LibraryView()
-                    case .sources: SourcesView()
+                    case .myMusic: MyMusicView()
                     case .settings: SettingsView()
+                    // Transition Lab isn't built yet (see
+                    // docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md
+                    // §7) — the DJ tab still opens the existing DJ mixer
+                    // rather than a nonexistent destination.
                     case .dj: DJHomeView()
                     }
                 }
@@ -127,7 +129,7 @@ struct RootView: View {
                 Task {
                     await IngestService().addFiles(urls, into: appState.store)
                     await appState.reload()
-                    appState.tab = .library
+                    appState.tab = .myMusic
                 }
             case .none:
                 break
@@ -174,12 +176,7 @@ struct RootView: View {
     }
 
     private var backgroundLayer: some View {
-        Group {
-            switch appState.tab {
-            case .sources: Palette.sourcesBackground
-            default: Palette.libraryBackground
-            }
-        }
+        Palette.libraryBackground
     }
 
     private func backgroundBanner(_ title: String) -> some View {
