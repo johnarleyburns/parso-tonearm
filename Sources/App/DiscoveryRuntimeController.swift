@@ -100,9 +100,30 @@ final class DiscoveryRuntimeController {
             settings: settings,
             scheduler: BGTaskSchedulerAdapter(),
             identifier: Self.backgroundTaskIdentifier,
+            // Real report: "Sound Index often says 'waiting for background
+            // processing time from iOS' even when I have the app
+            // foregrounded." Root cause: this used to force
+            // `sampler.setAppState(.background)` unconditionally whenever a
+            // BGProcessingTask was granted, then only clear
+            // `hasBackgroundProcessingGrant` (never restore `appState`) when
+            // it ended — trusting scene-phase transitions alone to correct
+            // it afterward. iOS can genuinely invoke an already-scheduled
+            // BGProcessingTask shortly AFTER the user has reopened the app
+            // (a documented timing quirk, not a bug in the scheduling
+            // request itself); when that happens here, `appState` got stuck
+            // on `.background` with no further scene-phase event to fix it,
+            // so `IndexPolicy.decide()` kept taking the `.background` branch
+            // — which requires a grant — even though the app was genuinely
+            // foreground and didn't need one (the `.foreground` branch below
+            // never checks it). Read the real, current `UIApplication.
+            // applicationState` every time the grant changes instead of
+            // assuming — self-corrects regardless of ordering.
             onBackgroundGrantChanged: { granted in
-                if granted { sampler.setAppState(.background) }
                 sampler.setHasBackgroundProcessingGrant(granted)
+                Task { @MainActor in
+                    sampler.setAppState(
+                        UIApplication.shared.applicationState == .background ? .background : .foreground)
+                }
             })
         background = controller
         return controller
