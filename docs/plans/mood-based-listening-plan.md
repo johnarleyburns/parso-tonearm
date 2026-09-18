@@ -198,6 +198,29 @@ manual "build a playlist" step. Adapting this:
   land; needs no new backend, just re-submitting the same query and
   taking a different slice/order of results if the coordinator supports
   that, or a light client-side shuffle of the returned set otherwise.
+- **Real gap found auditing this plan, third pass**: the published
+  mockup's "Now Playing a mood" screen shows "matched: calm"/"matched:
+  focus" chips under the current track, and its own annotation describes
+  them as showing "which selected pills the current track actually
+  scored on." This plan never specified that feature or how to build it
+  — checked `RankBreakdownDisplay.Component`
+  (`Sources/Discovery/DiscoverySearchPresentation.swift`, the same
+  structure the §7 audit checklist already points at for verifying the
+  scoring blend) and it carries generic score components (e.g.
+  "similarity") with **no per-refinement-term attribution** — there is
+  no existing way to know which *specific* selected pill (as opposed to
+  the query as a whole) caused a given track to rank highly, and a fused
+  CLAP embedding of several combined terms may not even make that
+  meaningful to compute. Two honest options for the implementing
+  session, pick one deliberately rather than build the mockup's exact
+  claim by accident: (a) show the chips as **context** — the pills
+  currently selected, not a per-track "why this matched" explanation
+  (cheap, matches what's actually knowable) — or (b) treat true
+  per-pill attribution as its own separately-scoped follow-up requiring
+  new scoring work, and drop the chips (or relabel them) from this
+  pass. Recommendation: (a), and reword the mockup/UI copy to something
+  like "vibing with: Calm, Focus" rather than "matched," which
+  overclaims a causal explanation the data doesn't support.
 
 ### 3.4 Existing content — demoted, not deleted
 
@@ -347,8 +370,18 @@ simplification pass earlier this session).
   (BPM, key, scope, metadata mode). The Listen tab's mood entry point is
   a separate, simpler front door into the same underlying search, not a
   replacement for it.
-- Does not touch the DJ/Transition Lab, My Music, Settings, or CarPlay
-  surfaces.
+- Does not touch the DJ/Transition Lab, Settings, or CarPlay surfaces.
+- **My Music is NOT fully out of scope — this bullet used to claim
+  otherwise, contradicting §3.5 and §3.6 below; caught auditing this
+  plan a third time.** Two narrow, deliberate touches to `MyMusicView`/
+  `LibraryView` are in scope: (1) consuming
+  `appState.pendingArtistFilter` on appear (§3.5, step 12) — required
+  for a Top Artist row to go anywhere at all; (2) `TrackDetailCard`'s
+  eventual rollout there (§3.6, step 14) — explicitly sequenced as a
+  deliberate follow-up, not bundled into the same change, but still
+  part of this plan's arc, not a separate undertaking. Everything else
+  about My Music (its own browse UI, scope bar, playlist features) is
+  genuinely untouched.
 
 ## 5. Implementation plan (for the agentic session)
 

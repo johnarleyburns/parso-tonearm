@@ -232,7 +232,7 @@
 
   /* now-playing state (screen 2) */
   .np-art{
-    width:100%; aspect-ratio:1/1; border-radius:16px; margin:4px 0 14px;
+    width:100%; aspect-ratio:1.55/1; border-radius:16px; margin:4px 0 12px;
     background:
       radial-gradient(120% 140% at 15% 0%, rgba(227,164,75,.35), transparent 55%),
       linear-gradient(140deg,#3a2c16,#171310 70%);
@@ -452,9 +452,8 @@
               <div class="np-artist">Marguerite Volant — from Sonic Gallery Sessions</div>
             </div>
             <div class="matched">
-              <span>matched: calm</span>
-              <span>matched: focus</span>
-              <span>instrumental</span>
+              <span>vibing with: calm</span>
+              <span>vibing with: focus</span>
             </div>
 
             <div class="transport">
@@ -581,9 +580,9 @@
   <div class="annos">
     <div class="anno"><span class="n">1</span><div><b>Prompt bar + pills are additive, not either/or</b> — free text ("sunday morning coffee") and toggled pills (Calm, Focus) both feed one query. Matches parso‑acalum's <code style="font-family:var(--mono);color:var(--brass)">DiscoveryContext</code> pattern, mapped onto this app's existing <code style="font-family:var(--mono);color:var(--brass)">DiscoverySearchQuery(text:positiveRefinements:…)</code>.</div></div>
     <div class="anno"><span class="n">2</span><div><b>"Play a mood" starts a continuous queue</b>, not a static result list — no manual playlist‑building step. Reuses <code style="font-family:var(--mono);color:var(--brass)">AudioPlayer.play(tracks:startAt:source:)</code>, the exact call every other row‑tap in the app already uses.</div></div>
-    <div class="anno"><span class="n">3</span><div><b>Screen 02's "matched" chips</b> show which selected pills the current track actually scored on — plain‑language accountability for why a track was picked, not a black box.</div></div>
+    <div class="anno"><span class="n">3</span><div><b>Screen 02's "vibing with" chips</b> echo the pills currently selected — context for what's shaping the queue, not a per‑track "why this matched" claim. Audited: the scoring data (<code style="font-family:var(--mono);color:var(--brass)">RankBreakdownDisplay.Component</code>) has no per‑refinement‑term attribution, so a true causal "matched: X" explanation isn't something the current infrastructure can actually support — worded honestly instead of overclaiming.</div></div>
     <div class="anno"><span class="n">4</span><div><b>Jump Back In / Stats / Favorites move down, not away</b> (screen 03) — same progressive‑disclosure precedent as this session's Settings redesign. Nothing becomes unreachable. Stats now list <b>Top 10 Songs</b> and <b>Top 10 Artists</b>, not one name each — every row is tappable.</div></div>
-    <div class="anno"><span class="n">5</span><div><b>Tapping any track opens this card instead of playing instantly</b> (screen 04) — owner feedback: instant‑play‑on‑tap felt jarring with no information shown first. Every action reuses an existing <code style="font-family:var(--mono);color:var(--brass)">AudioPlayer</code> call (<code style="font-family:var(--mono);color:var(--brass)">playSingle</code>/<code style="font-family:var(--mono);color:var(--brass)">appendToQueue</code>) already wired to today's long‑press context menu — this promotes them to the primary tap, it doesn't invent new playback logic. Cross‑cutting: applies to My Music and search results too, not just Listen (see plan §3.6).</div></div>
+    <div class="anno"><span class="n">5</span><div><b>Tapping any track opens this card instead of playing instantly</b> (screen 04) — owner feedback: instant‑play‑on‑tap felt jarring with no information shown first. Every action reuses an existing <code style="font-family:var(--mono);color:var(--brass)">AudioPlayer</code> call (<code style="font-family:var(--mono);color:var(--brass)">playSingle</code>/<code style="font-family:var(--mono);color:var(--brass)">appendToQueue</code>) already wired to today's long‑press context menu — this promotes them to the primary tap, it doesn't invent new playback logic. Cross‑cutting: applies to My Music and search results too, not just Listen (see plan §3.6). Shown here with all four actions for illustration — <b>"Include in current mood" only actually appears when a mood is already playing</b> (<code style="font-family:var(--mono);color:var(--brass)">AudioPlayer.shared.queueSource == .mood</code>); tapping a track with nothing playing shows just Play Now / Add to Queue / Dismiss.</div></div>
   </div>
 
   <div class="notes">
