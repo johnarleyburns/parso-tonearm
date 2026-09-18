@@ -29,10 +29,10 @@ enum CarPlayRootBuilder {
             playlistsTemplate(interfaceController: interfaceController),
             artistsTemplate(interfaceController: interfaceController),
             flatListTemplate(
-                title: "Recently Played", systemImage: "clock",
+                title: "Recently Played", systemImage: "clock", interfaceController: interfaceController,
                 loadRows: { try await LibraryStore.shared.recentlyPlayedRows() }),
             flatListTemplate(
-                title: "Favorites", systemImage: "heart",
+                title: "Favorites", systemImage: "heart", interfaceController: interfaceController,
                 loadRows: { try await LibraryStore.shared.favoriteRows() })
         ]
         return CPTabBarTemplate(templates: tabs)
@@ -51,7 +51,9 @@ enum CarPlayRootBuilder {
                     Task {
                         let rows = Array(((try? await LibraryStore.shared.playlistItems(playlistId: playlist.id ?? -1)) ?? [])
                             .prefix(maxItemsPerList))
-                        let leaf = trackListTemplate(title: playlist.title, rows: rows, source: .playlist(playlist))
+                        let leaf = trackListTemplate(
+                            title: playlist.title, rows: rows, source: .playlist(playlist),
+                            interfaceController: interfaceController)
                         interfaceController.pushTemplate(leaf, animated: true, completion: nil)
                         completion()
                     }
@@ -76,7 +78,9 @@ enum CarPlayRootBuilder {
                     Task {
                         let rows = Array(((try? await LibraryStore.shared.tracks(forArtist: artist.name)) ?? [])
                             .prefix(maxItemsPerList))
-                        let leaf = trackListTemplate(title: artist.name, rows: rows, source: .library)
+                        let leaf = trackListTemplate(
+                            title: artist.name, rows: rows, source: .library,
+                            interfaceController: interfaceController)
                         interfaceController.pushTemplate(leaf, animated: true, completion: nil)
                         completion()
                     }
@@ -91,13 +95,14 @@ enum CarPlayRootBuilder {
     // MARK: - Flat track lists (Recently Played / Favorites)
 
     private static func flatListTemplate(
-        title: String, systemImage: String, loadRows: @escaping () async throws -> [TrackRow]
+        title: String, systemImage: String, interfaceController: CPInterfaceController,
+        loadRows: @escaping () async throws -> [TrackRow]
     ) -> CPListTemplate {
         let template = CPListTemplate(title: title, sections: [])
         template.tabImage = UIImage(systemName: systemImage)
         Task {
             let rows = Array(((try? await loadRows()) ?? []).prefix(maxItemsPerList))
-            template.updateSections([trackSection(rows: rows, source: .library)])
+            template.updateSections([trackSection(rows: rows, source: .library, interfaceController: interfaceController)])
         }
         return template
     }
@@ -105,17 +110,25 @@ enum CarPlayRootBuilder {
     // MARK: - Track list (shared leaf template)
 
     private static func trackListTemplate(
-        title: String, rows: [TrackRow], source: QueueSource
+        title: String, rows: [TrackRow], source: QueueSource, interfaceController: CPInterfaceController
     ) -> CPListTemplate {
-        CPListTemplate(title: title, sections: [trackSection(rows: rows, source: source)])
+        CPListTemplate(title: title, sections: [trackSection(rows: rows, source: source, interfaceController: interfaceController)])
     }
 
-    private static func trackSection(rows: [TrackRow], source: QueueSource) -> CPListSection {
+    /// Pushes the system `CPNowPlayingTemplate` right after starting
+    /// playback — real gap found auditing the first draft: this file's own
+    /// doc comment claimed selecting a track "pushes the system
+    /// CPNowPlayingTemplate," but nothing here actually did, leaving the
+    /// driver with no visual confirmation their selection registered.
+    private static func trackSection(
+        rows: [TrackRow], source: QueueSource, interfaceController: CPInterfaceController
+    ) -> CPListSection {
         let items = rows.enumerated().map { index, row -> CPListItem in
             let subtitle = row.artist?.name ?? row.album?.artist
             let item = CPListItem(text: row.track.title, detailText: subtitle)
             item.handler = { _, completion in
                 AudioPlayer.shared.play(tracks: rows, startAt: index, source: source)
+                interfaceController.pushTemplate(CPNowPlayingTemplate.shared, animated: true, completion: nil)
                 completion()
             }
             Task {

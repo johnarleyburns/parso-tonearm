@@ -3,13 +3,17 @@
 Status: **in progress**. Follows the competitor research (Plex/Plexamp,
 Apple Music, Spotify) done earlier this session.
 
-## 1. CarPlay — headline item, now unblocked
+## 1. CarPlay — headline item, code complete, entitlement currently pulled
 
-The `com.apple.developer.carplay-audio` entitlement was pending Apple
-approval (README's Roadmap said so explicitly); it's now granted. Verified
-before starting: there was **zero** CarPlay code in the repo — no scene
-delegate, no entitlement key, nothing. This plan implements a real, working
-CarPlay Audio App surface, not a stub.
+The `com.apple.developer.carplay-audio` App ID capability was pending
+Apple approval (README's Roadmap said so explicitly); the capability
+itself is now granted, but — see "Confirmed, not just a risk" below —
+the provisioning profile CI signs with hasn't caught up yet, so the
+entitlement key is pulled from the repo for now. Verified before
+starting: there was **zero** CarPlay code in the repo — no scene
+delegate, no entitlement key, nothing. This plan implements a real,
+working CarPlay Audio App surface, not a stub — it's just not switched on
+yet.
 
 **Design**: CarPlay is just another surface over the existing playback
 engine — no new state, no duplicated Now Playing logic. Now Playing
@@ -36,17 +40,40 @@ startAt:source:)` call the phone UI already uses.
   blocking-read escape hatch from an actor). Selecting a playlist/artist
   pushes a leaf track list; selecting a track calls
   `AudioPlayer.shared.play(tracks:startAt:source:)` — the exact same call
-  the phone UI's row-tap handlers use.
+  the phone UI's row-tap handlers use — then pushes the system
+  `CPNowPlayingTemplate` so the driver gets visual confirmation the
+  selection registered (found missing on audit — the file's own doc
+  comment claimed this from the start but the code didn't do it; fixed
+  by threading `interfaceController` through to the track-list leaf
+  templates too, not just the playlist/artist browse level).
 
-**Real, disclosed risk**: the Release configuration signs with
+**Confirmed, not just a risk**: the Release configuration signs with
 `CODE_SIGN_STYLE: Manual` and a named `PROVISIONING_PROFILE_SPECIFIER:
-"Platterhead Profile"` (`project.yml`). Adding the entitlement key to the
-app's own entitlements file is necessary but not sufficient — the
-provisioning profile itself must be regenerated on Apple's side to include
-the CarPlay capability, or the TestFlight archive/signing step in CI will
-fail. This can only be confirmed by watching the actual CI run after this
-lands; if it fails on the archive/export step with an entitlement mismatch,
-that's the profile, not the code.
+"Platterhead Profile"` (`project.yml`). The first CI run after adding the
+entitlement confirmed the predicted failure exactly:
+
+```
+error: Entitlement com.apple.developer.carplay-audio not found and could
+not be included in profile. This likely is not a valid entitlement and
+should be removed from your entitlements file.
+```
+
+This blocked the `Archive` step of `testflight-build` — i.e. it blocked
+**every** TestFlight build, not just CarPlay's. Fixed immediately
+(commit `7948f43`) by pulling the `com.apple.developer.carplay-audio` key
+back out of both entitlements files, while leaving all the CarPlay Swift
+code and the Info.plist scene configuration in place. Confirmed CI's
+`test` job (swift test, simulator build) was green throughout — this was
+purely a Release-signing/provisioning issue, not a code defect.
+
+**What's actually needed to finish this**: on Apple's Developer portal,
+the "Platterhead Profile" provisioning profile must be regenerated to
+include the CarPlay Audio App capability (enabling the capability on the
+App ID does not retroactively update an already-issued profile) — an
+account-level action outside what this session can do. Once that's done,
+re-add `com.apple.developer.carplay-audio` (`<true/>`) to both
+`Sources/App/Tonearm.entitlements` and `Sources/App/Tonearm.Debug.
+entitlements` and CarPlay goes live with no other changes needed.
 
 **Not done / explicitly deferred**:
 - No CarPlay simulator visual verification was done — Xcode's CarPlay
