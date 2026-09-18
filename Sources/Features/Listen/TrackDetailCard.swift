@@ -59,6 +59,12 @@ struct TrackDetailCard: View {
                 }
                 .accessibilityIdentifier("trackDetail.playNow")
 
+                actionButton("Play Next", icon: "arrow.turn.down.right", style: .secondary) {
+                    player.insertNext(row)
+                    dismiss()
+                }
+                .accessibilityIdentifier("trackDetail.playNext")
+
                 actionButton("Add to Queue", icon: "text.badge.plus", style: .secondary) {
                     player.appendToQueue(row)
                     dismiss()
@@ -136,7 +142,7 @@ extension View {
     func trackDetailSheet(for row: Binding<TrackRow?>) -> some View {
         sheet(item: row) { trackRow in
             TrackDetailCard(row: trackRow)
-                .presentationDetents([.height(320)])
+                .presentationDetents([.height(390)])
                 .presentationBackground(.clear)
         }
     }

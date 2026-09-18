@@ -176,18 +176,28 @@ struct ListenView: View {
         }
     }
 
-    /// Starts (or restarts) playback from the mood query's current results,
+    /// Starts (or updates) playback from the mood query's current results,
     /// tagging the queue `.mood(moodModel)` so Keep Playing re-queries this
     /// same mood instead of falling back to generic similarity (plan §3.3,
     /// `AudioPlayer+KeepPlaying.swift`). "Shake it up" reshuffles the same
     /// result set rather than issuing a new query — the pills/prompt are the
     /// mood the person asked for; shaking gives a different order through it,
     /// not a different mood.
+    ///
+    /// If a mood queue from THIS view model is already playing, both
+    /// buttons update the *upcoming* queue non-destructively instead of
+    /// restarting from track 0 — mirrors Acalum's "Update upcoming" vs.
+    /// "Play now" distinction (plan §3.1 point 5): changing pills mid-
+    /// listen shouldn't yank the currently-playing track.
     private func startMoodPlayback(shuffle: Bool = false) {
         guard let moodModel, !moodModel.results.isEmpty else { return }
         var tracks = moodModel.results.map(\.track)
         if shuffle { tracks.shuffle() }
-        player.play(tracks: tracks, startAt: 0, source: .mood(moodModel))
+        if player.isPlaying, case .mood(let active) = player.queueSource, active === moodModel {
+            player.updateUpcoming(with: tracks, source: .mood(moodModel))
+        } else {
+            player.play(tracks: tracks, startAt: 0, source: .mood(moodModel))
+        }
     }
 
     private func moodResultsRow(_ moodModel: DiscoverySearchViewModel) -> some View {

@@ -236,6 +236,26 @@ public final class AudioPlayer: ObservableObject {
         play(tracks: [track], startAt: 0)
     }
 
+    /// Replaces everything after the currently-playing track with `tracks`
+    /// without interrupting playback — the "Update upcoming" behavior a
+    /// re-rolled mood query needs, as opposed to `play(tracks:startAt:
+    /// source:)`, which always restarts from a fresh index 0 (mirrors
+    /// Acalum's "Update upcoming" vs. "Play now" distinction — docs/plans/
+    /// mood-based-listening-plan.md §3.1 point 5). Falls back to a normal
+    /// `play(tracks:startAt:source:)` when nothing is queued yet, since
+    /// there is no "currently playing track" to preserve.
+    public func updateUpcoming(with tracks: [TrackRow], source: QueueSource) {
+        guard !isAmbient else { return }
+        guard !queue.isEmpty else {
+            play(tracks: tracks, startAt: 0, source: source)
+            return
+        }
+        queueSource = source
+        let kept = Array(queue.prefix(index + 1))
+        let edited = QueueEditor.State(queue: kept + tracks, currentIndex: index)
+        applyQueueEdit(edited, reloadCurrent: false, autoplay: isPlaying)
+    }
+
     public func moveQueueItems(fromOffsets offsets: IndexSet, toOffset destination: Int) {
         guard !isAmbient, offsets.count == 1, let source = offsets.first else { return }
         let target = destination > source ? destination - 1 : destination
