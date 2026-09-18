@@ -489,6 +489,16 @@ private struct IndexTrackListSheet: View {
         .task {
             tracks = await model.trackSummaries(for: bucket)
         }
+        // Real report: scrolling this list feels "jerky... like it's
+        // processing something on the UI thread." Root cause: the status
+        // screen underneath keeps polling every 2s (`IndexStatusView`'s
+        // `.task { model.startPolling() }`) even while this sheet is on
+        // top of it, so every couple of seconds the whole presenting view
+        // republishes and re-lays-out mid-scroll. Nothing in this static,
+        // one-time track list needs that live refresh, so pause it while
+        // the sheet is open and resume when it's dismissed.
+        .onAppear { model.stopPolling() }
+        .onDisappear { model.startPolling() }
     }
 
     private var title: String {

@@ -149,7 +149,15 @@ public actor DiscoveryAssembly {
             modelDiagnostics: modelDiagnosticsProvider(),
             runtime: runtime,
             schedulerBlockReason: lastBlockReason,
-            thermalDiagnostic: lastThermalDiagnostic)
+            // Recomputed fresh on every status read (not `lastThermalDiagnostic`,
+            // which is only updated once per `drainQueue()` tick — up to 20s
+            // apart) so the "Resuming in Ns" countdown actually counts down as
+            // the status screen polls it, instead of freezing between ticks.
+            // Real report: the countdown "doesn't update every 5 sec so I can
+            // see it actually progressing."
+            thermalDiagnostic: lastBlockReason.flatMap {
+                Self.thermalDiagnostic(for: $0, snapshotProvider: snapshotProvider)
+            })
     }
 
     /// "Retry failed" status action (plan §10 action 4). Returns the count of
