@@ -60,6 +60,41 @@ already-built CLAP semantic-search infrastructure.
   `TonearmDiscovery`'s scoring code before assuming it matches Acalum's
   0.62/0.38 CLAP/tag split** — it may differ, and the pill design below
   should not hard-code an assumption about it.
+- **Real find, auditing this plan before implementation started**:
+  `Sources/DJ/Features/VibeSearch/VibeSearchModel.swift` and
+  `VibeSearchView.swift` (872 lines total) already implement almost
+  exactly this idea — a query-text field, additive `positiveTerms`/
+  `negativeTerms` chips (`+ hypnotic`/`− vocals`, Capsule-styled),
+  and, most valuably, **`SuggestionChips.seed(from: LibraryDescriptorSummary,
+  limit:)`** — a pure, deterministic function that derives chip text
+  ("steady around 124 BPM," "in 8B," "high energy") from the *library's
+  own* real BPM/Camelot-key/energy/duration distribution, never a
+  hand-picked list. This directly answers §3.2's open "Era/Vibe" category
+  question below — **read and likely adapt `SuggestionChips` instead of
+  hand-picking that category's pills**.
+
+  **But it's dead code** — confirmed via `grep` that nothing outside
+  `TonearmDJ` references `TonearmDJ.LibraryView` (the only place
+  `VibeSearchView` is constructed), the same class of orphaned leftover
+  from the DJ-mixer-workspace deletion earlier this session, just missed
+  in that pass because it lives in a sibling `VibeSearch/` directory, not
+  `Workspace/`. Two real implications for the implementing session:
+  1. Its query-combination model differs from what §3.1 proposes here —
+     `VibeSearchView`'s suggestion chips call `model.updateQuery(chip)`,
+     which **replaces** the query text, not an additive refinement the
+     way this plan's pills add to `positiveRefinements` alongside
+     unchanged free text. Don't assume the two are interchangeable;
+     decide deliberately which combination model the Listen tab wants
+     (this plan's own §3.1 point 4 — additive, matching Acalum — is
+     still the recommendation, just be aware `VibeSearchModel` itself
+     does it differently).
+  2. This is now a second, undeleted piece of DJ-mixer-era dead code
+     (`DiscoveryReconciler`'s earlier audit found similar orphans). Raise
+     with the owner whether to delete it outright (consistent with the
+     rest of that cleanup) or adapt `SuggestionChips` into a small,
+     standalone, `TonearmDiscovery`-side utility before deleting the rest
+     of the file around it — don't silently leave it or silently delete
+     it without flagging the `SuggestionChips` logic is worth keeping.
 
 ## 3. Design
 
@@ -106,10 +141,13 @@ during implementation:
 - **Energy**: Calm · Upbeat · Intense · Mellow
 - **Setting**: Focus · Background · Deep Listen · Sleep
 - **Character**: Instrumental · Vocal-forward · Acoustic · Electronic
-- **Era/Vibe**: (deliberately left open — this category is the one most
-  likely to need real catalog data to pick well; consider deriving
-  candidate terms from actual genre/tag frequency in a representative
-  library rather than hand-picking, during implementation)
+- **Era/Vibe**: derive from the library's own real descriptor distribution
+  rather than hand-picking — `SuggestionChips.seed(from:
+  LibraryDescriptorSummary, limit:)` (`Sources/DJ/Features/VibeSearch/
+  VibeSearchModel.swift`, currently dead code — see §2) already does
+  exactly this (BPM band, dominant Camelot key, energy, duration → chip
+  text like "steady around 124 BPM"/"high energy"). Adapt it rather than
+  writing a second version of the same deterministic-chip idea.
 
 Each pill needs, like Acalum's, an embedding phrase (fed into
 `positiveRefinements`, e.g. "Calm" → `"calm, relaxed, low energy"`) —
@@ -156,10 +194,29 @@ shows a single `topLine("Top Artist", …)` / `topLine("Top Track", …)` —
 one name each, not a list, and neither is tappable. Owner feedback:
 expand to a **Top 10 Songs** list and a **Top 10 Artists** list, each row
 tappable to jump to that song (play it / open its detail card — see
-§3.6) or that artist (open a filtered track list for that artist, the
-same list `LibraryBrowse`'s existing artist drill-down and the CarPlay
-implementation's `LibraryStore.tracks(forArtist:)` already produce — do
-not build a second artist-track query).
+§3.6) or that artist (open a filtered track list for that artist, using
+`LibraryStore.tracks(forArtist:)` — the same query the CarPlay
+implementation already uses — for the DATA; do not build a second
+artist-track query).
+
+**Real gap found auditing this section**: "reuse the artist drill-down"
+undersells the actual work. `LibraryView`'s artist drill-down
+(`navigationDestination(for: LibraryBrowse.Entry.self)`) is pushed onto
+**its own** `NavigationStack` — reachable only from inside `LibraryView`/
+`MyMusicView` itself, not from a different root tab. Tapping a Top Artist
+row on the *Listen* tab needs a real cross-tab deep link: switch
+`appState.tab = .myMusic`, select the Artists scope, and land on that
+specific artist — there's no existing mechanism for "jump into another
+tab already drilled into a specific destination." The pattern to copy
+is the one-shot launch-intent `@Published` property this session already
+used twice for exactly this kind of cross-tab handoff —
+`appState.pendingTransitionLabSet` (playlist → DJ tab) and
+`appState.soundSearchReference` (track → search sheet). Add a matching
+`appState.pendingArtistFilter: String?` (or similar), consumed once by
+`MyMusicView`/`LibraryView` on appear the same way `TransitionLabTabView.
+consumePendingSeed()` does, then cleared. Do not assume a simpler
+same-screen push will work — the artist list and the Listen tab are
+different tabs today.
 
 **Already mostly there**: `ListeningStats.Summary.topTracks: [TrackRank]`
 / `topArtists: [NameRank]` (`Sources/Domain/ListeningStats.swift`) are
@@ -208,13 +265,19 @@ directly, offering:
   has both and users may rely on the distinction.
 - **Include in current mood** — new; only relevant/shown when a mood
   query is active (§3.1–3.3). Adds the track as a positive signal to the
-  live `DiscoverySearchViewModel` (mirrors the existing
-  `addMoreLike(_:)` refinement mechanism — likely keyed off the track's
-  title/metadata the same way a typed refinement term is, or, if the
-  underlying search supports it, a direct "more like this track" seed
-  the same way `moreLikeThis(trackID:)` already works for the "Find by
-  sound" screen's "More like this" entry point) — reuse that existing
-  mechanism rather than inventing a second one.
+  live view-model via the existing **additive** mechanism —
+  `addMoreLike(_:)`, the same call the "More like/Less like" refinement
+  chips already use. **Real design flaw caught auditing this plan: do
+  NOT use `moreLikeThis(trackID:)` for this** — despite the name
+  sounding right, `moreLikeThis` sets `referenceTrackID`, which
+  `DiscoverySearchViewModel.refresh()` treats as an *exclusive
+  alternate mode* (`if let referenceTrackID { submitToCoordinator(...)
+  return }` — it short-circuits before the text+refinements path even
+  runs). Calling it here would silently **replace** the active mood
+  query with pure "similar to this one track" mode, discarding the
+  prompt and every selected pill — the opposite of "include in current
+  mood." `addMoreLike(_:)` is the correct primitive; `moreLikeThis` is
+  for the separate "Find by sound → More like this" entry point only.
 - **Dismiss** — closes the sheet, no action, no playback change.
 
 **Reuses, doesn't replace**: `TrackContextMenu`'s long-press menu can
@@ -254,47 +317,60 @@ simplification pass earlier this session).
    submission contract (`submit(query:referenceTrackID:completion:)`
    seen in `DiscoverySearchViewModel.swift`). Do not assume it matches
    Acalum's weights.
-2. Define `MoodPill` (id, label, queryTerm) and a starter taxonomy per
-   §3.2 as a plain data file/array — no UI yet.
-3. Build `MoodPillPicker`, a horizontally-scrolling capsule-chip row
+2. **Read `Sources/DJ/Features/VibeSearch/VibeSearchModel.swift` in full**
+   and decide with the owner whether to (a) delete it outright as
+   leftover DJ-mixer dead code, or (b) extract `SuggestionChips` (and
+   `LibraryDescriptorSummary`) into a small standalone utility first,
+   then delete the rest — do not silently leave it orphaned a second
+   time, and do not silently delete real, reusable logic without asking.
+3. Define `MoodPill` (id, label, queryTerm) and a starter taxonomy per
+   §3.2 as a plain data file/array — no UI yet. The Era/Vibe category
+   should come from the (possibly-extracted) `SuggestionChips` logic per
+   step 2, not be hand-picked.
+4. Build `MoodPillPicker`, a horizontally-scrolling capsule-chip row
    (styled per §3.1 point 3), taking `[MoodPill]` and a `Set<MoodPill.ID>`
    selection binding.
-4. Build the prompt bar + pill row + Play CTA as a new section in
+5. Build the prompt bar + pill row + Play CTA as a new section in
    `ListenView`, backed by a small new view-model (or extend
    `DiscoverySearchViewModel` — decide based on how entangled its
    `DiscoverySearchView`-specific state, like `bpmMinText`, is; a
    thin wrapper that composes a `DiscoverySearchViewModel` instance
    configured for text+refinements-only use is likely cleaner than adding
    Listen-tab-specific state to the existing view model).
-5. Wire "Play" to `AudioPlayer.play(tracks:startAt:source:)` using the
-   view model's current `results`.
-6. Implement continuous extension per §3.3's flagged design decision —
+6. Wire "Play" to `AudioPlayer.play(tracks:startAt:source:)` using
+   `results.map(\.track)` from the view model.
+7. Implement continuous extension per §3.3's flagged design decision —
    read `AudioPlayer`'s Keep Playing implementation fully first.
-7. Implement "Shake it up."
-8. Reorder `ListenView`'s existing sections below the new entry point;
+8. Implement "Shake it up."
+9. Reorder `ListenView`'s existing sections below the new entry point;
    verify nothing becomes unreachable (same verification standard as the
    Settings/My Music simplification pass).
-9. Add accessibility identifiers for the new controls (prompt field, each
-   pill, Play button, Shake it up) so a future UI test can exercise this
-   flow — following this session's `mymusic.scope.*`-style naming
-   convention.
-10. Bump `AppState.reload()`'s `ListeningStats.summarize(…)` call to
+10. Add accessibility identifiers for the new controls (prompt field,
+    each pill, Play button, Shake it up) so a future UI test can
+    exercise this flow — following this session's `mymusic.scope.*`-
+    style naming convention.
+11. Bump `AppState.reload()`'s `ListeningStats.summarize(…)` call to
     `rankLimit: 10`; replace `statsCard`'s single top-artist/top-track
     lines with two tappable top-10 lists per §3.5. Song rows open
-    `TrackDetailCard` (step 12); artist rows navigate to that artist's
-    existing track list.
-11. Build `TrackDetailCard` (§3.6) as a shared, reusable sheet — artwork/
+    `TrackDetailCard` (step 13).
+12. Add `appState.pendingArtistFilter: String?` (or similar), matching
+    the `pendingTransitionLabSet`/`soundSearchReference` one-shot
+    launch-intent pattern (§3.5's audit note), for artist-row taps to
+    cross into the My Music tab landed on that specific artist. Consume
+    it once in `MyMusicView`/`LibraryView` the same way
+    `TransitionLabTabView.consumePendingSeed()` does.
+13. Build `TrackDetailCard` (§3.6) as a shared, reusable sheet — artwork/
     title/artist/duration/source plus Play Now / Add to Queue / Include
-    in current mood (mood-context only) / Dismiss, wired to the existing
-    `playSingle(_:)`/`appendToQueue(_:)`/`insertNext(_:)` on `AudioPlayer`
-    and the existing refinement mechanism on `DiscoverySearchViewModel` —
-    no new playback logic.
-12. Wire `TrackDetailCard` into the Listen tab's own tap sites first
+    in current mood (mood-context only, via `addMoreLike(_:)` — NOT
+    `moreLikeThis(trackID:)`, see §3.6's audit note) / Dismiss, wired to
+    the existing `playSingle(_:)`/`appendToQueue(_:)`/`insertNext(_:)` on
+    `AudioPlayer` — no new playback logic.
+14. Wire `TrackDetailCard` into the Listen tab's own tap sites first
     (mood results, Top 10 Songs, Jump Back In, Favorites) and verify end-
     to-end before touching `LibraryView`/`DiscoverySearchView` — per
     §3.6's scope note, extending to My Music and search results is a
     deliberate follow-up step, not bundled into the same change.
-13. `swift test` + `xcodebuild build` + a real device/simulator pass
+15. `swift test` + `xcodebuild build` + a real device/simulator pass
     playing a mood query end-to-end, opening a track's detail card from
     every wired entry point, and confirming Top 10 lists jump correctly
     (this cannot be verified by compiling alone — actual result relevance
@@ -314,9 +390,11 @@ offline reference.
   favorite, tap a Jump Back In card) still reachable after reordering.
 - Mood query results actually differ meaningfully pill-to-pill on a real
   library (not just re-shuffling the same top tracks regardless of
-  selection) — a real qualitative check, not just "it compiles."
-  Should specifically verify the two Discovery Search score
-  components ranked as expected. If not run
+  selection) — a real qualitative check, not just "it compiles." Inspect
+  a few real results' `DiscoverySearchResult.breakdown: RankBreakdown?`
+  (surfaced today via `DiscoverySearchViewModel.scoreComponents(for:)` →
+  `RankBreakdownDisplay.Component`) to confirm the components you'd
+  expect actually moved. If anything looks off, run
   `swift test --filter DiscoverySearch` — the existing scoring tests
   should catch a broken blend before this new UI ships on top of it.
 - No duplicate CLAP model download/load triggered by having two entry
@@ -348,3 +426,17 @@ offline reference.
   card and no longer calls `play(tracks:startAt:source:)` directly on
   tap — grep for remaining direct-play-on-tap call sites the same way
   this plan's own research did, to confirm none were missed.
+- "Include in current mood" calls `addMoreLike(_:)`, never
+  `moreLikeThis(trackID:)` — confirm by checking that selecting it while
+  a mood query is active leaves the prompt text and selected pills
+  unchanged (§3.6's audit note: `moreLikeThis` would silently replace
+  the whole query instead of adding to it).
+- An artist row's tap lands on the exact artist tapped, on a fresh
+  `appState.pendingArtistFilter`-style handoff — not a stale value left
+  over from a previous tap (same one-shot-clear discipline
+  `pendingTransitionLabSet`/`soundSearchReference` already follow: cleared
+  immediately after being consumed, per §3.5's audit note).
+- `Sources/DJ/Features/VibeSearch/` was actually resolved one way or the
+  other (deleted, or reduced to just the extracted `SuggestionChips`
+  utility) — not left sitting as a second, still-dead, still-orphaned
+  implementation of the same idea now that a third (this plan's) exists.
