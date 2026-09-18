@@ -54,6 +54,13 @@ public enum RemoteLibraryProviderFactory {
         case .dropbox, .googleDrive, .oneDrive, .pCloud:
             guard let provider = CloudDriveAPI.Provider(sourceKind: kind) else { return [] }
             return [CloudDriveServerPolicy.credentialAccount(sourceID: sourceID, provider: provider)]
+        case .iaItem, .iaList, .iaCollection, .iaFavorites:
+            // Real bug found auditing the IA provider fix: a private IA
+            // list's password (`AppState.addIASource`, account
+            // "ia-private:<sourceID>") was never returned here, so
+            // `AppState.deleteSource` never cleaned it up — a deleted
+            // source's password stayed in the Keychain forever.
+            return ["ia-private:\(sourceID)"]
         default:
             return []
         }

@@ -62,6 +62,34 @@ final class RemoteLibraryProviderTests: XCTestCase {
         }
     }
 
+    /// Real bug: `RemoteLibraryProviderFactory.provider(for:)` fell through
+    /// to `.unsupportedURL` for every Internet Archive source kind, despite
+    /// `supports` already reporting them as remote libraries — breaking
+    /// both `RemoteSparseAssetResolver`'s analysis-time re-authentication
+    /// and the remote-indexing backfill for what is very likely this app's
+    /// single largest remote-library source type.
+    func testProviderFactoryConstructsAnIAProviderForEveryArchiveKind() throws {
+        for kind in [SourceKind.iaItem, .iaList, .iaCollection, .iaFavorites] {
+            let source = Source(
+                id: 1, kind: kind, iaIdentifier: "some-item", originalURL: "https://archive.org/details/some-item",
+                title: "Test", addedAt: Date(), lastResolvedAt: Date(), followUpdates: false,
+                licenseText: nil, memberCapHit: false)
+            let provider = try RemoteLibraryProviderFactory.provider(for: source)
+            XCTAssertTrue(provider is IARemoteLibraryProvider, "\(kind) should construct an IARemoteLibraryProvider")
+        }
+    }
+
+    /// Real bug found in the same audit: a private IA list's saved
+    /// password (`AppState.addIASource`, account "ia-private:<sourceID>")
+    /// was never returned here, so `AppState.deleteSource` never cleaned
+    /// it up on delete — the credential stayed in the Keychain forever.
+    func testCredentialAccountsIncludesIAPrivateListAccount() {
+        for kind in [SourceKind.iaItem, .iaList, .iaCollection, .iaFavorites] {
+            let accounts = RemoteLibraryProviderFactory.credentialAccounts(for: 42, kind: kind)
+            XCTAssertEqual(accounts, ["ia-private:42"], "\(kind) should report its private-list credential account")
+        }
+    }
+
     func testV11MigrationAcceptsRemoteProviderSourceKind() throws {
         let dbQueue = try DatabaseQueue()
         try Schema.migrator(upTo: "v11").migrate(dbQueue)
