@@ -26,7 +26,9 @@ struct ListenView: View {
     /// re-auditing against the plan — the first pass shipped one static
     /// placeholder instead.
     @State private var placeholderIndex = 0
-    private static let promptPlaceholders = [
+    /// `fileprivate` (not `private`) — `MoodEntryPointSection` below, a
+    /// separate type in this same file, reads it too.
+    fileprivate static let promptPlaceholders = [
         "sunday morning coffee", "focus, no vocals", "storm outside"
     ]
 
@@ -42,8 +44,31 @@ struct ListenView: View {
                     Spacer().frame(height: 16)
                 }
 
-                moodEntryPoint
-                    .padding(.bottom, 26)
+                // `moodModel` is only `@State` here (its identity, not its
+                // `@Published` internals, is what this view needs to react
+                // to) — real bug caught re-auditing against the plan:
+                // reading `moodModel?.results`/`.searchText` directly inside
+                // THIS view's own body, with no `@ObservedObject` anywhere,
+                // means SwiftUI never re-renders when the view model
+                // publishes new results — tap a pill, the query resolves
+                // async, and the Play button / results row would silently
+                // never update. `MoodEntryPointSection` below takes
+                // `@ObservedObject var moodModel`, matching the exact
+                // pattern `DiscoverySearchView` → `DiscoverySearchContent`
+                // already establishes in this codebase.
+                if let moodModel {
+                    MoodEntryPointSection(
+                        moodModel: moodModel,
+                        selectedPillIDs: $selectedPillIDs,
+                        eraVibePills: eraVibePills,
+                        promptDraft: $promptDraft,
+                        placeholderIndex: placeholderIndex,
+                        selectedTrackForDetail: $selectedTrackForDetail)
+                        .padding(.bottom, 26)
+                } else {
+                    moodEntryPointLoading
+                        .padding(.bottom, 26)
+                }
 
                 if !appState.recentlyPlayed.isEmpty {
                     cardRow(title: "Jump Back In", rows: appState.recentlyPlayed)
@@ -101,136 +126,14 @@ struct ListenView: View {
         }
     }
 
-    private var allMoodPills: [MoodPill] {
-        MoodPillTaxonomy.fixedCategories + eraVibePills
-    }
-
-    private var promptBinding: Binding<String> {
-        Binding(
-            get: { moodModel?.searchText ?? promptDraft },
-            set: { newValue in
-                promptDraft = newValue
-                moodModel?.searchText = newValue
-            })
-    }
-
-    /// Toggling a pill adds/removes its `queryTerm` from the mood model's
-    /// `positiveRefinements` — additive combination (plan §3.3), never a
-    /// replace.
-    private var pillSelectionBinding: Binding<Set<MoodPill.ID>> {
-        Binding(
-            get: { selectedPillIDs },
-            set: { newSelection in
-                guard let moodModel else {
-                    selectedPillIDs = newSelection
-                    return
-                }
-                let pills = allMoodPills
-                for id in newSelection.subtracting(selectedPillIDs) {
-                    if let pill = pills.first(where: { $0.id == id }) {
-                        moodModel.addMoreLike(pill.queryTerm)
-                    }
-                }
-                for id in selectedPillIDs.subtracting(newSelection) {
-                    if let pill = pills.first(where: { $0.id == id }) {
-                        moodModel.removeMoreLike(pill.queryTerm)
-                    }
-                }
-                selectedPillIDs = newSelection
-            })
-    }
-
-    private var moodEntryPoint: some View {
+    /// Shown only during the brief window before `prepareMoodModel()`
+    /// resolves (mirrors `DiscoverySearchView`'s "Preparing search…" state).
+    private var moodEntryPointLoading: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: "What's the mood?")
-
-            TextField(Self.promptPlaceholders[placeholderIndex], text: promptBinding)
-                .textFieldStyle(.plain)
-                .font(.system(size: 14))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .glassSurface(cornerRadius: 12)
-                .accessibilityIdentifier("listen.mood.prompt")
-
-            MoodPillPicker(pills: allMoodPills, selection: pillSelectionBinding)
-
-            HStack(spacing: 10) {
-                Button {
-                    startMoodPlayback()
-                } label: {
-                    Label("Play", systemImage: "play.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 11)
-                        .background(
-                            LinearGradient(colors: [Palette.brass, Palette.brassDeep],
-                                          startPoint: .top, endPoint: .bottom),
-                            in: Capsule())
-                        .foregroundStyle(Color.black)
-                }
-                .buttonStyle(.plain)
-                .disabled(moodModel?.results.isEmpty ?? true)
-                .accessibilityIdentifier("listen.mood.play")
-
-                Button {
-                    startMoodPlayback(shuffle: true)
-                } label: {
-                    Label("Shake it up", systemImage: "shuffle")
-                        .font(.system(size: 13, weight: .semibold))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 11)
-                        .background(Color.white.opacity(0.07), in: Capsule())
-                        .foregroundStyle(Palette.ink2)
-                }
-                .buttonStyle(.plain)
-                .disabled(moodModel?.results.isEmpty ?? true)
-                .accessibilityIdentifier("listen.mood.shakeItUp")
-            }
-
-            if let moodModel, !moodModel.results.isEmpty {
-                moodResultsRow(moodModel)
-            }
-        }
-    }
-
-    /// Starts (or updates) playback from the mood query's current results,
-    /// tagging the queue `.mood(moodModel)` so Keep Playing re-queries this
-    /// same mood instead of falling back to generic similarity (plan §3.3,
-    /// `AudioPlayer+KeepPlaying.swift`). "Shake it up" reshuffles the same
-    /// result set rather than issuing a new query — the pills/prompt are the
-    /// mood the person asked for; shaking gives a different order through it,
-    /// not a different mood.
-    ///
-    /// If a mood queue from THIS view model is already playing, both
-    /// buttons update the *upcoming* queue non-destructively instead of
-    /// restarting from track 0 — mirrors Acalum's "Update upcoming" vs.
-    /// "Play now" distinction (plan §3.1 point 5): changing pills mid-
-    /// listen shouldn't yank the currently-playing track.
-    private func startMoodPlayback(shuffle: Bool = false) {
-        guard let moodModel, !moodModel.results.isEmpty else { return }
-        var tracks = moodModel.results.map(\.track)
-        if shuffle { tracks.shuffle() }
-        if player.isPlaying, case .mood(let active) = player.queueSource, active === moodModel {
-            player.updateUpcoming(with: tracks, source: .mood(moodModel))
-        } else {
-            player.play(tracks: tracks, startAt: 0, source: .mood(moodModel))
-        }
-    }
-
-    private func moodResultsRow(_ moodModel: DiscoverySearchViewModel) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(moodModel.results, id: \.track.id) { result in
-                    Button {
-                        selectedTrackForDetail = result.track
-                    } label: {
-                        RecentCard(row: result.track)
-                    }
-                    .buttonStyle(.plain)
-                    .trackContextMenu(result.track)
-                }
-            }
-            .padding(.horizontal, 2)
+            ProgressView()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 14)
         }
     }
 
@@ -459,6 +362,153 @@ struct ListenView: View {
             .padding(.top, 4)
         }
         .padding(.top, 6)
+    }
+}
+
+/// The prompt bar + pill row + Play/Shake-it-up CTA + live mood results
+/// (plan §3.1–§3.3). Split out of `ListenView` itself so `moodModel` can be
+/// held as `@ObservedObject` — `ListenView` only needs `moodModel`'s
+/// *identity* (nil vs. built), but everything in here needs to react to its
+/// `@Published` `searchText`/`positiveRefinements`/`results` changing,
+/// which a plain `@State` reference never triggers a re-render for. Matches
+/// `DiscoverySearchView` → `DiscoverySearchContent`'s existing split in
+/// this codebase for exactly the same reason.
+private struct MoodEntryPointSection: View {
+    @ObservedObject var moodModel: DiscoverySearchViewModel
+    @Binding var selectedPillIDs: Set<MoodPill.ID>
+    let eraVibePills: [MoodPill]
+    @Binding var promptDraft: String
+    let placeholderIndex: Int
+    @Binding var selectedTrackForDetail: TrackRow?
+    @EnvironmentObject var player: AudioPlayer
+
+    private var allMoodPills: [MoodPill] {
+        MoodPillTaxonomy.fixedCategories + eraVibePills
+    }
+
+    private var promptBinding: Binding<String> {
+        Binding(
+            get: { moodModel.searchText },
+            set: { newValue in
+                promptDraft = newValue
+                moodModel.searchText = newValue
+            })
+    }
+
+    /// Toggling a pill adds/removes its `queryTerm` from the mood model's
+    /// `positiveRefinements` — additive combination (plan §3.3), never a
+    /// replace.
+    private var pillSelectionBinding: Binding<Set<MoodPill.ID>> {
+        Binding(
+            get: { selectedPillIDs },
+            set: { newSelection in
+                let pills = allMoodPills
+                for id in newSelection.subtracting(selectedPillIDs) {
+                    if let pill = pills.first(where: { $0.id == id }) {
+                        moodModel.addMoreLike(pill.queryTerm)
+                    }
+                }
+                for id in selectedPillIDs.subtracting(newSelection) {
+                    if let pill = pills.first(where: { $0.id == id }) {
+                        moodModel.removeMoreLike(pill.queryTerm)
+                    }
+                }
+                selectedPillIDs = newSelection
+            })
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: "What's the mood?")
+
+            TextField(ListenView.promptPlaceholders[placeholderIndex], text: promptBinding)
+                .textFieldStyle(.plain)
+                .font(.system(size: 14))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .glassSurface(cornerRadius: 12)
+                .accessibilityIdentifier("listen.mood.prompt")
+
+            MoodPillPicker(pills: allMoodPills, selection: pillSelectionBinding)
+
+            HStack(spacing: 10) {
+                Button {
+                    startMoodPlayback()
+                } label: {
+                    Label("Play", systemImage: "play.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 11)
+                        .background(
+                            LinearGradient(colors: [Palette.brass, Palette.brassDeep],
+                                          startPoint: .top, endPoint: .bottom),
+                            in: Capsule())
+                        .foregroundStyle(Color.black)
+                }
+                .buttonStyle(.plain)
+                .disabled(moodModel.results.isEmpty)
+                .accessibilityIdentifier("listen.mood.play")
+
+                Button {
+                    startMoodPlayback(shuffle: true)
+                } label: {
+                    Label("Shake it up", systemImage: "shuffle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 11)
+                        .background(Color.white.opacity(0.07), in: Capsule())
+                        .foregroundStyle(Palette.ink2)
+                }
+                .buttonStyle(.plain)
+                .disabled(moodModel.results.isEmpty)
+                .accessibilityIdentifier("listen.mood.shakeItUp")
+            }
+
+            if !moodModel.results.isEmpty {
+                moodResultsRow
+            }
+        }
+    }
+
+    /// Starts (or updates) playback from the mood query's current results,
+    /// tagging the queue `.mood(moodModel)` so Keep Playing re-queries this
+    /// same mood instead of falling back to generic similarity (plan §3.3,
+    /// `AudioPlayer+KeepPlaying.swift`). "Shake it up" reshuffles the same
+    /// result set rather than issuing a new query — the pills/prompt are the
+    /// mood the person asked for; shaking gives a different order through it,
+    /// not a different mood.
+    ///
+    /// If a mood queue from THIS view model is already playing, both
+    /// buttons update the *upcoming* queue non-destructively instead of
+    /// restarting from track 0 — mirrors Acalum's "Update upcoming" vs.
+    /// "Play now" distinction (plan §3.1 point 5): changing pills mid-
+    /// listen shouldn't yank the currently-playing track.
+    private func startMoodPlayback(shuffle: Bool = false) {
+        guard !moodModel.results.isEmpty else { return }
+        var tracks = moodModel.results.map(\.track)
+        if shuffle { tracks.shuffle() }
+        if player.isPlaying, case .mood(let active) = player.queueSource, active === moodModel {
+            player.updateUpcoming(with: tracks, source: .mood(moodModel))
+        } else {
+            player.play(tracks: tracks, startAt: 0, source: .mood(moodModel))
+        }
+    }
+
+    private var moodResultsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(moodModel.results, id: \.track.id) { result in
+                    Button {
+                        selectedTrackForDetail = result.track
+                    } label: {
+                        RecentCard(row: result.track)
+                    }
+                    .buttonStyle(.plain)
+                    .trackContextMenu(result.track)
+                }
+            }
+            .padding(.horizontal, 2)
+        }
     }
 }
 

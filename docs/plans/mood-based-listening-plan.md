@@ -691,3 +691,40 @@ implementation didn't match this plan's own explicit wording:
 
 All three fixes rebuilt clean (`xcodebuild build`) and re-passed the full
 `swift test` suite before this pass closed out.
+
+### 8.2 Seventh audit pass — a real, severe SwiftUI observation bug
+
+A third re-read, this time scrutinizing the app's own established
+conventions rather than just this plan's wording, found a genuine
+functional bug the first six passes all missed: `ListenView` held
+`moodModel` as a plain `@State private var moodModel: DiscoverySearchViewModel?`
+and read `moodModel?.results`/`.searchText`/etc. directly inside its own
+`body` and computed properties. `@State` only tracks the *reference itself*
+(nil → non-nil), never a class's `@Published` internals — SwiftUI has no
+way to know to re-render on `moodModel.objectWillChange` unless something
+holds it as `@ObservedObject`/`@StateObject`. Nothing did. In practice this
+meant: tap a mood pill (no typing involved, so no other `@State` happens to
+force a re-render afterward), the debounced search resolves asynchronously
+a few hundred milliseconds later, and the Play/"Shake it up" buttons'
+enabled state and the results row would silently never update — stuck
+showing stale (usually empty) state until some unrelated event forced
+`ListenView` to re-render. This exact pattern already has a correct
+precedent in the same codebase: `DiscoverySearchView` holds its own
+`@State private var model: DiscoverySearchViewModel?` at the outer level
+purely for the nil/non-nil check, then delegates all real rendering to a
+child `DiscoverySearchContent` that takes `@ObservedObject var model:
+DiscoverySearchViewModel`.
+
+Fixed by extracting the same split: a new `MoodEntryPointSection` (private,
+same file) takes `@ObservedObject var moodModel: DiscoverySearchViewModel`
+(non-optional) and owns everything that reads its published state — the
+prompt binding, pill selection, Play/Shake-it-up, and the results row.
+`ListenView` itself now only branches on `if let moodModel` to choose
+between this section and a brief `moodEntryPointLoading` placeholder
+(mirroring `DiscoverySearchView`'s "Preparing search…" state), never reads
+`moodModel`'s published properties directly again. Rebuilt clean and
+re-passed the full `swift test` suite (1479/1479) before this pass closed
+out. Grepped the rest of this feature's touched files for the same
+`@State private var x: SomeViewModel?` shape reading published properties
+directly — none found; `DiscoverySearchView` was already correct, and
+nothing else in this feature holds an `ObservableObject` via `@State`.
