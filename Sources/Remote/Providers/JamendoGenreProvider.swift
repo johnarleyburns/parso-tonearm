@@ -126,6 +126,11 @@ public struct JamendoGenreNode: Codable, Equatable, Hashable, Sendable, Identifi
 /// Jamendo exposes no taxonomy endpoint, so the tree is curated here; each tag
 /// is a real Jamendo genre tag used in the `tags` filter (§18A.3).
 public enum JamendoGenreTree {
+    // TODO: hip-hop/boom-bap, hip-hop/lo-fi, jazz/nu-jazz, pop/dream-pop, and
+    // experimental/musique-concrete return zero results from the live
+    // Jamendo API under every tag spelling tried (checked 2026-09) — real
+    // users browsing these subgenres in the picker hit an empty library.
+    // Needs either an alternate tag or removal from the curated tree.
     public static let roots: [JamendoGenreNode] = [
         .init(name: "Electronic", path: "electronic", children: [
             .init(name: "Dance", path: "electronic/dance"),

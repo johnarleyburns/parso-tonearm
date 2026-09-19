@@ -164,6 +164,16 @@ let package = Package(
             path: "Sources/Discovery",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        .executableTarget(
+            name: "BuiltInEmbedder",
+            dependencies: [
+                "TonearmDiscovery",
+                "TonearmCore",
+                .product(name: "ParsoAudioNeural", package: "parso-audio-engine")
+            ],
+            path: "Sources/Tools/BuiltInEmbedder",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .testTarget(
             name: "TonearmCoreTests",
             dependencies: [

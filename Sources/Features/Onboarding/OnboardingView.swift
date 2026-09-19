@@ -6,6 +6,12 @@ struct OnboardingSourceOption: Identifiable {
         case archiveOrg
         case subsonicDemo
         case jellyfinDemo
+        /// A curated Jamendo genre library (§18A) offered as an optional,
+        /// unchecked-by-default onboarding pick — "include in the (optional)
+        /// onboarding pre-selected genre music to help populate their
+        /// library". `url` carries the genre path (e.g. "electronic/ambient"),
+        /// matching `Source.iaIdentifier`'s convention for `.jamendoGenre`.
+        case jamendoGenre
     }
 
     let id = UUID()
@@ -57,7 +63,23 @@ struct OnboardingView: View {
               subtitle: "Jellyfin · an instant music collection",
               url: "https://demo.jellyfin.org/stable",
               username: "demo",
-              password: "")
+              password: ""),
+        .init(kind: .jamendoGenre, title: "Electronic", subtitle: "Jamendo · Creative Commons",
+              url: "electronic", selected: false),
+        .init(kind: .jamendoGenre, title: "Hip-Hop", subtitle: "Jamendo · Creative Commons",
+              url: "hip-hop", selected: false),
+        .init(kind: .jamendoGenre, title: "Rock", subtitle: "Jamendo · Creative Commons",
+              url: "rock", selected: false),
+        .init(kind: .jamendoGenre, title: "Jazz", subtitle: "Jamendo · Creative Commons",
+              url: "jazz", selected: false),
+        .init(kind: .jamendoGenre, title: "Soul · Funk", subtitle: "Jamendo · Creative Commons",
+              url: "soul", selected: false),
+        .init(kind: .jamendoGenre, title: "Pop", subtitle: "Jamendo · Creative Commons",
+              url: "pop", selected: false),
+        .init(kind: .jamendoGenre, title: "International", subtitle: "Jamendo · Creative Commons",
+              url: "world", selected: false),
+        .init(kind: .jamendoGenre, title: "Experimental", subtitle: "Jamendo · Creative Commons",
+              url: "experimental", selected: false),
     ]
 
     private let intros: [(icon: String, title: String, body: String)] = [
@@ -259,6 +281,12 @@ struct OnboardingView: View {
                                                          password: option.password ?? "")
                 } catch {
                     print("onboarding add jellyfin demo error: \(error)")
+                }
+            case .jamendoGenre:
+                do {
+                    try await appState.addGenreLibrary(path: option.url, name: option.title)
+                } catch {
+                    print("onboarding add jamendo genre error: \(error)")
                 }
             case .archiveOrg:
                 break

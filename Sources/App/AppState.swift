@@ -141,6 +141,7 @@ final class AppState: ObservableObject {
         // they're queued for indexing on the very first pass rather than
         // waiting for a later one.
         await seedBuiltInLibraryContentIfNeeded()
+        await seedBuiltInMoodIndexIfNeeded()
         await ArtworkService.shared.migrateCacheIfNeeded()
         applySettingsToPlayer()
         await AudioPlayer.shared.restorePersistedQueue()

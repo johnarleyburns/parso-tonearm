@@ -10,6 +10,34 @@ extension LibraryStore {
 
     // MARK: - Albums / Tracks / Assets
 
+    /// Seeds a completed embedding + a matching completed index job for a
+    /// track whose vector was precomputed offline (bundled built-in mood
+    /// index — see `AppState+BuiltInMoodIndex.swift`). The job row exists
+    /// purely so `DiscoveryReconciler`'s "does this track already have a job
+    /// at the current pipeline version" check finds one and never queues
+    /// live (network-fetching) indexing for these tracks.
+    public func seedBuiltInEmbedding(
+        trackId: Int64, assetId: Int64, pipelineVersion: Int,
+        modelVersion: Int, preprocessingVersion: Int, samplingVersion: Int,
+        dimensions: Int, quantizedVector: Data, scale: Double, completedAt: Date
+    ) throws {
+        try dbQueue.write { db in
+            var embedding = DiscoveryEmbedding(
+                trackId: trackId, assetId: assetId, assetRevision: 1,
+                modelVersion: modelVersion, preprocessingVersion: preprocessingVersion,
+                samplingVersion: samplingVersion, dimensions: dimensions,
+                quantizedVector: quantizedVector, scale: scale, completedAt: completedAt)
+            try embedding.upsert(db)
+            var job = DiscoveryIndexJob(
+                trackId: trackId, selectedAssetId: assetId, assetRevision: 1,
+                pipelineVersion: pipelineVersion, state: .complete,
+                createdAt: completedAt, updatedAt: completedAt,
+                completedWindows: 0, totalWindows: 0,
+                embeddingStageState: .complete, musicalAnalysisStageState: .unsupported)
+            try job.upsert(db)
+        }
+    }
+
     @discardableResult
     public func insertAlbum(_ album: Album) throws -> Album {
         try dbQueue.write { db in
