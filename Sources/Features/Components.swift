@@ -251,6 +251,11 @@ struct TrackContextMenu: ViewModifier {
             } label: {
                 Label("Change Artwork", systemImage: "photo.badge.plus")
             }
+            Button {
+                appState.metadataEditTrackRow = row
+            } label: {
+                Label("Edit Track Info", systemImage: "pencil")
+            }
             phoneMenuItems
             Divider()
             Button {

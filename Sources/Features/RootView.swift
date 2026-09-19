@@ -133,6 +133,9 @@ struct RootView: View {
             set: { if !$0 { appState.artworkChangeTrackRow = nil } }),
                       selection: $artworkPickerItem,
                       matching: .images)
+        .sheet(item: $appState.metadataEditTrackRow) { row in
+            EditTrackMetadataSheet(row: row)
+        }
         .onChange(of: artworkPickerItem) { _, item in
             guard let item,
                   let row = appState.artworkChangeTrackRow else { return }

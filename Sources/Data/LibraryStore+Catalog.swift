@@ -97,6 +97,33 @@ extension LibraryStore {
         }
     }
 
+    /// Owner-editable title/artist correction (real report: an imported
+    /// file's own embedded tags were wrong — "Calming Nature 4k" tagged with
+    /// two different, both-incorrect artist names across two duplicate
+    /// imports). Mirrors the "Change Artwork" pattern: a per-track fix, never
+    /// mutating the shared `album` row other tracks in the same album/folder
+    /// import batch also point to. `artistName: nil` leaves the track's
+    /// artist untouched; an empty/whitespace-only name clears it.
+    public func updateTrackMetadata(trackId: Int64, title: String, artistName: String?) throws {
+        var resolvedArtistId: Int64??
+        if let artistName {
+            if let normalized = ArtistNamePolicy.normalize(artistName) {
+                let artist = try findOrCreateArtist(
+                    name: normalized, sortName: ArtistNamePolicy.sortName(for: normalized))
+                resolvedArtistId = .some(artist.id)
+            } else {
+                resolvedArtistId = .some(nil)
+            }
+        }
+        try dbQueue.write { db in
+            guard var track = try Track.fetchOne(db, key: trackId) else { return }
+            let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedTitle.isEmpty { track.title = trimmedTitle }
+            if let resolvedArtistId { track.artistId = resolvedArtistId }
+            try track.update(db)
+        }
+    }
+
     public func fillAlbumMetadataIfEmpty(
         id: Int64,
         artistId: Int64?,

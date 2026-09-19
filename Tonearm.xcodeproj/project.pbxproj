@@ -140,6 +140,7 @@
 		D48DC71189EEC9D2917B9A0E /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07BB75BFAD34B2382CE704F9 /* ShareViewController.swift */; };
 		D9C1ADE0F0B4D3D996F132A2 /* CLAPAudioEncoder.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 538CEFDC4FA0F1BE2B051F4F /* CLAPAudioEncoder.mlpackage */; settings = {ASSET_TAGS = ("clap-audio", ); }; };
 		DA431A641AF843C00F285BCE /* TrackDetailCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A36CFE314EF66DE2810ECBA9 /* TrackDetailCard.swift */; };
+		DBFC0C10A9C34B013B4E0817 /* AppState+EditMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF0E2281F937ABC12F3DA08 /* AppState+EditMetadata.swift */; };
 		DE2BEC06DBD57AB6777880B0 /* splash_screen.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 390F5E4BCDCBB5C6D4A3A98D /* splash_screen.jpg */; };
 		E7D8EA806A23E80EA7653ACB /* ambient-ocean.wav in Resources */ = {isa = PBXBuildFile; fileRef = 74D07216801F19A8231EE98A /* ambient-ocean.wav */; };
 		E804FEFD3B24E44527EF05E8 /* Palette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EBACB49341C09E9F49B5482 /* Palette.swift */; };
@@ -156,6 +157,7 @@
 		FADBF5442CAB96566E333616 /* PhoneWatchPlaybackAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080C57977F143B9824ED300E /* PhoneWatchPlaybackAdapter.swift */; };
 		FADE01E4B305918AF925D05A /* JamendoCredentialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */; };
 		FBB00104D3B4C0B2D326F5D0 /* PhoneWatchProtocolAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1456A887E510378AA4B5141 /* PhoneWatchProtocolAdapter.swift */; };
+		FBE3EA391AE32FF87C23FB82 /* EditTrackMetadataSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4C44A52C5014F51211EBE00 /* EditTrackMetadataSheet.swift */; };
 		FC5103EF9A7C5CB98520D838 /* PhoneWatchRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14EEEDA2B8FDE22EF9533817 /* PhoneWatchRuntime.swift */; };
 		FCAB348675295B0F4304AAF4 /* AppState+FavoritesPlaylists.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E0B2058320CCB395106630 /* AppState+FavoritesPlaylists.swift */; };
 		FDF068EFDA72F93C5CC09111 /* PhoneWatchDownloadAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12BE4175EE11F1CFC76A3575 /* PhoneWatchDownloadAdapter.swift */; };
@@ -360,6 +362,7 @@
 		C114ED8EAE6B45F219A551DA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C1A2D9AEA288319B031257A7 /* AddRemoteTracksSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddRemoteTracksSheet.swift; sourceTree = "<group>"; };
 		C2E864A5E5944F80ADE5A869 /* DemucsStems.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DemucsStems.mlpackage; path = Resources/Models/DemucsStems.mlpackage; sourceTree = SOURCE_ROOT; };
+		C4C44A52C5014F51211EBE00 /* EditTrackMetadataSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditTrackMetadataSheet.swift; sourceTree = "<group>"; };
 		C55CE08A58DEB1BB867E399B /* DiscoveryModelResources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryModelResources.swift; sourceTree = "<group>"; };
 		C692ACE176572BB9A811276D /* OfflineProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineProgress.swift; sourceTree = "<group>"; };
 		CDA5510BE764F39731C1901D /* Tonearm.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tonearm.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -386,6 +389,7 @@
 		F43AA652B4D4981556956CB7 /* AppState+CustomArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+CustomArtwork.swift"; sourceTree = "<group>"; };
 		F82D29BCE382CB03501C797D /* GenrePickerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenrePickerModel.swift; sourceTree = "<group>"; };
 		F9753F65AC559CA8402C2D74 /* WatchUpNextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchUpNextView.swift; sourceTree = "<group>"; };
+		FBF0E2281F937ABC12F3DA08 /* AppState+EditMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+EditMetadata.swift"; sourceTree = "<group>"; };
 		FD5669565C3C31C5DAB9A3D3 /* OAuthSignInCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthSignInCoordinator.swift; sourceTree = "<group>"; };
 		FD82B6D2C3B08E82E7EB2068 /* AppState+RemoteBrowse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+RemoteBrowse.swift"; sourceTree = "<group>"; };
 		FF5CEA0DA2DDAF7A8F27DC1F /* TonearmSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonearmSmokeUITests.swift; sourceTree = "<group>"; };
@@ -683,6 +687,7 @@
 				3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */,
 				F43AA652B4D4981556956CB7 /* AppState+CustomArtwork.swift */,
 				80B6D0A4B5EC7E9F6FD662D7 /* AppState+Downloads.swift */,
+				FBF0E2281F937ABC12F3DA08 /* AppState+EditMetadata.swift */,
 				E9E0B2058320CCB395106630 /* AppState+FavoritesPlaylists.swift */,
 				2EC6ECC4D448840D7EC71C72 /* AppState+LibraryExtras.swift */,
 				D8EF07C6B5FA9C069F8ADDEC /* AppState+Onboarding.swift */,
@@ -709,6 +714,7 @@
 		910E3AEF5745A8A0C0EE75F0 /* Library */ = {
 			isa = PBXGroup;
 			children = (
+				C4C44A52C5014F51211EBE00 /* EditTrackMetadataSheet.swift */,
 				8B48E8BCEBBB60820A867070 /* LibraryView.swift */,
 			);
 			path = Library;
@@ -1188,6 +1194,7 @@
 				634F7013397B8B104E7B4EDC /* AnimatedSplashView.swift in Sources */,
 				C457EAB240BC220601E53F3B /* AppState+CustomArtwork.swift in Sources */,
 				2E252B9A58A5AD77EF083773 /* AppState+Downloads.swift in Sources */,
+				DBFC0C10A9C34B013B4E0817 /* AppState+EditMetadata.swift in Sources */,
 				FCAB348675295B0F4304AAF4 /* AppState+FavoritesPlaylists.swift in Sources */,
 				1C9FB19F6571B100C8C147EF /* AppState+LibraryExtras.swift in Sources */,
 				A6CA850AE61F4D96FE4601C3 /* AppState+Onboarding.swift in Sources */,
@@ -1211,6 +1218,7 @@
 				412CF624F006711FA4CB497F /* DiscoverySchedulingSampler.swift in Sources */,
 				2011F46F371763CE2AFCB2D8 /* DiscoverySearchView.swift in Sources */,
 				F1FEBCEF7BC2546437362B1D /* EQView.swift in Sources */,
+				FBE3EA391AE32FF87C23FB82 /* EditTrackMetadataSheet.swift in Sources */,
 				B38E5316DDFA37A958571C45 /* GenrePickerModel.swift in Sources */,
 				16EE30C7C328B4F0D6996243 /* GenrePickerView.swift in Sources */,
 				6E4FBE3405E7DED87AC0E5FE /* GlassDock.swift in Sources */,

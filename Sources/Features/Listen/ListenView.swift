@@ -12,6 +12,16 @@ struct ListenView: View {
     /// (docs/plans/mood-based-listening-plan.md §2's audit note). Built once
     /// on first appear.
     @State private var moodModel: DiscoverySearchViewModel?
+    /// `nil` while the readiness check hasn't resolved yet; `false` when the
+    /// CLAP model isn't downloaded or nothing is indexed yet. Real report:
+    /// showing the normal prompt/pills/Play UI with everything permanently
+    /// disabled (the old `.modelMissing`/`.zeroIndexed` inline hints) read as
+    /// broken — "Download models"/"Sound-index status" buttons in a cramped
+    /// layout underneath controls that don't work yet. Gating the whole
+    /// section up front on real readiness is clearer.
+    @State private var moodReady: Bool?
+    @StateObject private var indexStatusModel = IndexStatusModel()
+    @State private var showIndexStatus = false
     @State private var selectedPillIDs: Set<MoodPill.ID> = []
     /// The Era/Vibe pill category — generated from this library's own
     /// BPM/key/energy/duration distribution (`SuggestionChips`), not a fixed
@@ -56,19 +66,28 @@ struct ListenView: View {
                 // `@ObservedObject var moodModel`, matching the exact
                 // pattern `DiscoverySearchView` → `DiscoverySearchContent`
                 // already establishes in this codebase.
-                if let moodModel {
-                    MoodEntryPointSection(
-                        moodModel: moodModel,
-                        selectedPillIDs: $selectedPillIDs,
-                        eraVibePills: eraVibePills,
-                        promptDraft: $promptDraft,
-                        placeholderIndex: placeholderIndex,
-                        selectedTrackForDetail: $selectedTrackForDetail)
-                        .padding(.bottom, 26)
-                } else {
-                    moodEntryPointLoading
-                        .padding(.bottom, 26)
+                //
+                // Fixed `minHeight` on all three branches (loading/not-ready/
+                // ready) — real report: the page must not re-layout when this
+                // section resolves from "checking" to either outcome.
+                Group {
+                    if moodReady == true, let moodModel {
+                        MoodEntryPointSection(
+                            moodModel: moodModel,
+                            selectedPillIDs: $selectedPillIDs,
+                            eraVibePills: eraVibePills,
+                            promptDraft: $promptDraft,
+                            placeholderIndex: placeholderIndex,
+                            selectedTrackForDetail: $selectedTrackForDetail,
+                            showIndexStatus: $showIndexStatus)
+                    } else if moodReady == false {
+                        moodNotReadyView
+                    } else {
+                        moodEntryPointLoading
+                    }
                 }
+                .frame(minHeight: Self.moodSectionMinHeight, alignment: .top)
+                .padding(.bottom, 26)
 
                 if !appState.recentlyPlayed.isEmpty {
                     cardRow(title: "Jump Back In", rows: appState.recentlyPlayed)
@@ -86,6 +105,7 @@ struct ListenView: View {
         .task {
             await appState.reload()
             await prepareMoodModel()
+            await refreshMoodReadiness()
         }
         .task {
             while !Task.isCancelled {
@@ -97,6 +117,31 @@ struct ListenView: View {
             }
         }
         .trackDetailSheet(for: $selectedTrackForDetail)
+        .sheet(isPresented: $showIndexStatus, onDismiss: {
+            // Real report: going to Sound Index, doing something there, then
+            // returning to Listen must re-check readiness — this view's
+            // state (and `moodReady`) survives the sheet dismissal, so
+            // without this the mood section would keep showing whatever it
+            // decided before the trip.
+            Task { await refreshMoodReadiness() }
+        }) {
+            IndexStatusView(model: indexStatusModel)
+        }
+    }
+
+    private static let moodSectionMinHeight: CGFloat = 200
+
+    /// Real, current readiness — not assumed: the CLAP model must actually be
+    /// downloaded AND at least one track must actually be indexed, or a mood
+    /// query can never return anything (CLAUDE.md "no silent/magic
+    /// background work" — don't show a UI implying mood search works when it
+    /// structurally can't yet).
+    private func refreshMoodReadiness() async {
+        guard let snapshot = await DiscoveryRuntimeController.shared.statusSnapshot() else {
+            moodReady = false
+            return
+        }
+        moodReady = snapshot.modelResourceAvailable && snapshot.coverage.complete > 0
     }
 
     /// Shown only when `SupportDevelopmentStore.isSupporter` is true — the
@@ -126,14 +171,48 @@ struct ListenView: View {
         }
     }
 
-    /// Shown only during the brief window before `prepareMoodModel()`
-    /// resolves (mirrors `DiscoverySearchView`'s "Preparing search…" state).
+    /// Shown only during the brief window before `prepareMoodModel()`/
+    /// `refreshMoodReadiness()` resolve (mirrors `DiscoverySearchView`'s
+    /// "Preparing search…" state).
     private var moodEntryPointLoading: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: "What's the mood?")
             ProgressView()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 14)
+        }
+    }
+
+    /// Shown instead of the prompt/pills/Play UI when the CLAP model isn't
+    /// downloaded yet or nothing is indexed yet — real report: showing the
+    /// normal controls, all permanently disabled, with small inline
+    /// "Download models"/"Sound-index status" buttons underneath, read as
+    /// broken rather than "not ready yet." One clear sentence and one action,
+    /// styled like the real Play button so it reads as the equivalent, real
+    /// next step rather than a demoted afterthought.
+    private var moodNotReadyView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: "What's the mood?")
+            Text("Once you download the mood models and index your tracks, "
+                + "you can come back and search by mood here.")
+                .font(.system(size: 13))
+                .foregroundStyle(Palette.ink2)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                showIndexStatus = true
+            } label: {
+                Label("Index your tracks", systemImage: "waveform.badge.magnifyingglass")
+                    .font(.system(size: 14, weight: .semibold))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 11)
+                    .background(
+                        LinearGradient(colors: [Palette.brass, Palette.brassDeep],
+                                      startPoint: .top, endPoint: .bottom),
+                        in: Capsule())
+                    .foregroundStyle(Color.black)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("listen.mood.indexYourTracks")
         }
     }
 
@@ -380,9 +459,11 @@ private struct MoodEntryPointSection: View {
     @Binding var promptDraft: String
     let placeholderIndex: Int
     @Binding var selectedTrackForDetail: TrackRow?
+    /// Shared with `ListenView` — the same sheet the top-level readiness
+    /// gate uses, so there's one "open Sound Index" trigger for this whole
+    /// screen, not two independent ones.
+    @Binding var showIndexStatus: Bool
     @EnvironmentObject var player: AudioPlayer
-    @StateObject private var indexStatusModel = IndexStatusModel()
-    @State private var showIndexStatus = false
 
     private var allMoodPills: [MoodPill] {
         MoodPillTaxonomy.fixedCategories + eraVibePills
@@ -471,9 +552,6 @@ private struct MoodEntryPointSection: View {
             } else {
                 moodStatusHint
             }
-        }
-        .sheet(isPresented: $showIndexStatus) {
-            IndexStatusView(model: indexStatusModel)
         }
     }
 
@@ -593,7 +671,7 @@ struct RecentCard: View {
                 .font(.system(size: 12.5, weight: .semibold))
                 .lineLimit(1)
                 .padding(.top, 7)
-            Text(row.album?.artist ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : "On device"))
+            Text(row.artist?.name ?? row.album?.artist ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : "On device"))
                 .font(.system(size: 11))
                 .foregroundStyle(Palette.ink3)
                 .lineLimit(1)

@@ -156,7 +156,7 @@ struct NowPlayingView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(player.currentTrack?.track.title ?? "Nothing playing")
                     .font(.system(size: 17, weight: .bold)).lineLimit(1)
-                Text(player.currentTrack.flatMap { $0.album?.artist ?? $0.artist?.name } ?? "")
+                Text(player.currentTrack.flatMap { $0.artist?.name ?? $0.album?.artist } ?? "")
                     .font(.system(size: 14)).foregroundStyle(.white.opacity(0.62))
             }
             Spacer()

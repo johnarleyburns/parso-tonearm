@@ -79,6 +79,10 @@ final class AppState: ObservableObject {
     /// row's id can still be transient/negative here, so the picker's
     /// `onChange` must persist it before assigning artwork.
     @Published var artworkChangeTrackRow: TrackRow?
+    /// The row whose title/artist edit sheet is open (real report: an
+    /// imported file's own embedded tags were wrong, with no way to fix it
+    /// short of re-tagging the file outside the app).
+    @Published var metadataEditTrackRow: TrackRow?
     @Published var offlineProgress: OfflineProgress?
     @Published var offlineSourceID: Int64?
     @Published var backgroundTitle: String?
