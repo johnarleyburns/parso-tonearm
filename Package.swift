@@ -6,7 +6,6 @@ let package = Package(
     platforms: [.iOS(.v18), .macOS(.v15), .watchOS(.v11)],
     products: [
         .library(name: "TonearmCore", targets: ["TonearmCore"]),
-        .library(name: "TonearmDJ", targets: ["TonearmDJ"]),
         .library(name: "TonearmDiscovery", targets: ["TonearmDiscovery"]),
         .library(name: "TonearmWatchProtocol", targets: ["TonearmWatchProtocol"]),
         .library(name: "TonearmWatchCore", targets: ["TonearmWatchCore"])
@@ -52,7 +51,6 @@ let package = Package(
                 "Sources/App",
                 "Sources/CSQLiteVec",
                 "Sources/DesignSystem",
-                "Sources/DJ",
                 "Sources/Discovery",
                 "Sources/Features",
                 "Sources/Media",
@@ -151,43 +149,6 @@ let package = Package(
             ]
         ),
         .target(
-            name: "TonearmDJ",
-            dependencies: [
-                "TonearmCore",
-                // C02 (IMPLEMENT_CLAP_PLAN.md): DJ consumers being ported off
-                // the separate DJ catalog onto the unified core retrieval
-                // engine (`SearchService`/`DiscoverySearchQuery`) and core
-                // track IDs. Does not create a cycle: TonearmDiscovery
-                // depends only on TonearmCore.
-                "TonearmDiscovery",
-                "CSQLiteVec",
-                "CLAMEBridge",
-                .product(name: "GRDB", package: "GRDB.swift"),
-                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
-                // Phase 6d — the PAE DJ engine behind `PAEWorkspaceEngine`,
-                // the only DJ engine now that the GPLv3 `PerformanceEngine`
-                // is deleted.
-                .product(name: "ParsoDJEngine", package: "parso-audio-engine"),
-                // Phase 7b/7c — CLAP semantic search + swappable stem
-                // separation plumbing (StemModelProviding, SeparationBackendRegistry).
-                .product(name: "ParsoAudioNeural", package: "parso-audio-engine"),
-                // Phase 9 — LAME (LGPL-2.1) MP3 export via PAE's MP3Encoding
-                // seam (docs/BYO-CODEC.md in parso-audio-engine).
-                .product(name: "ParsoAudioCore", package: "parso-audio-engine")
-            ],
-            path: "Sources/DJ",
-            swiftSettings: [.swiftLanguageMode(.v6)],
-            linkerSettings: [
-                .linkedFramework("Accelerate"),
-                .linkedFramework("CoreML"),
-                .linkedFramework("Metal"),
-                .linkedFramework("MetalPerformanceShaders"),
-                .linkedFramework("AVFoundation"),
-                .linkedFramework("CoreMIDI"),
-                .linkedLibrary("sqlite3")
-            ]
-        ),
-        .target(
             name: "TonearmDiscovery",
             dependencies: [
                 "TonearmCore",
@@ -216,25 +177,9 @@ let package = Package(
             exclude: [
                 // Helper process used by optional integration smoke tests.
                 "Support",
-                // DJ tests live in their own target (TonearmDJTests).
-                "DJTests",
                 // Discovery tests live in their own target (TonearmDiscoveryTests).
                 "DiscoveryTests"
             ],
-            resources: [.copy("Fixtures")],
-            swiftSettings: [.swiftLanguageMode(.v6)]
-        ),
-        .testTarget(
-            name: "TonearmDJTests",
-            dependencies: [
-                "TonearmDJ",
-                "TonearmDiscovery",
-                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
-                .product(name: "ParsoDJEngine", package: "parso-audio-engine"),
-                .product(name: "ParsoAudioNeural", package: "parso-audio-engine"),
-                .product(name: "ParsoAudioCore", package: "parso-audio-engine")
-            ],
-            path: "Tests/DJTests",
             resources: [.copy("Fixtures")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),

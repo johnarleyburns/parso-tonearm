@@ -125,7 +125,6 @@ struct TabBar: View {
     private let items: [(AppTab, String, String)] = [
         (.listen, "play.circle.fill", "Listen"),
         (.myMusic, "square.grid.2x2.fill", "My Music"),
-        (.dj, "waveform.path.ecg", "DJ"),
         (.settings, "gearshape.fill", "Settings")
     ]
 

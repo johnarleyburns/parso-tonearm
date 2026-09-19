@@ -47,14 +47,7 @@ struct NowPlayingView: View {
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 16))
                 .contextMenu {
-                    if !player.isAmbient, let current = player.currentTrack {
-                        Button {
-                            appState.soundSearchReference = current.id
-                            appState.showSoundSearch = true
-                        } label: {
-                            Label("More Like This", systemImage: "wand.and.stars")
-                        }
-                        .disabled(current.id < 0)
+                    if !player.isAmbient, player.currentTrack != nil {
                         Button {
                             showPhotoPicker = true
                         } label: {

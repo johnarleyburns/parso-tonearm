@@ -19,9 +19,7 @@ enum CarPlayRootBuilder {
     /// `CPListTemplate` should stay well under it) — a large playlist or a
     /// heavily-favorited library could otherwise silently fail to display
     /// past the cap, or push more work than a car's slower hardware should
-    /// take on. Matches the existing `.prefix(300)` precedent
-    /// `TransitionLabTabView.TrackPickerSheet` already uses for its own
-    /// unbounded list.
+    /// take on.
     private static let maxItemsPerList = 300
 
     static func rootTemplate(interfaceController: CPInterfaceController) -> CPTabBarTemplate {

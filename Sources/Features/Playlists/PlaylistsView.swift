@@ -216,15 +216,6 @@ struct PlaylistDetailView: View {
                 }
                 .accessibilityIdentifier("playlist.add")
                 Menu {
-                    if trackRows.count >= 2, let playlistId = currentPlaylist.id {
-                        Button {
-                            appState.pendingTransitionLabSet = (playlistId, trackRows)
-                            appState.tab = .dj
-                        } label: {
-                            Label("Practice transitions", systemImage: "waveform.path.ecg")
-                        }
-                        .accessibilityIdentifier("mymusic.playlist.practiceTransitions")
-                    }
                     Button {
                         pinnedIds = PinnedPlaylistsStore.togglePin(currentPlaylist.id)
                     } label: {

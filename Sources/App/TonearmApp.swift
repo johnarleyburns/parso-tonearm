@@ -8,7 +8,6 @@
 
 import SwiftUI
 import TonearmCore
-import TonearmDJ
 
 @main
 struct TonearmApp: App {
@@ -41,25 +40,15 @@ struct TonearmApp: App {
         DiscoveryRuntimeController.shared.registerBackgroundTask()
     }
 
-    /// The `-resetLibrary` harness hook (dj-regression-suite §8.1): wipe the
-    /// app's library state so a regression run always starts from the same
-    /// empty slate — the main store, the DJ database (tracks, crates, the
-    /// mixes journal), recorded mixes, genre-crate downloads and the DJ caches.
-    /// Runs before any store is opened, so it is safe to delete the DB files.
+    /// The `-resetLibrary` harness hook: wipe the app's library state so a
+    /// regression run always starts from the same empty slate. Runs before
+    /// any store is opened, so it is safe to delete the DB files.
     private static func resetLibraryForRegression() {
         let fm = FileManager.default
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         for suffix in ["", "-shm", "-wal"] {
             try? fm.removeItem(at: appSupport.appendingPathComponent("library\(suffix).sqlite"))
         }
-        guard let djDatabase = try? DJDatabase.defaultDatabaseURL() else { return }
-        for suffix in ["", "-shm", "-wal"] {
-            try? fm.removeItem(at: URL(fileURLWithPath: djDatabase.path + suffix))
-        }
-        try? fm.removeItem(at: DJDatabase.mixesDirectory)
-        let documents = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        try? fm.removeItem(at: documents.appendingPathComponent("GenreCrates", isDirectory: true))
-        try? fm.removeItem(at: DJDatabase.cachesDirectory)
     }
 
     var body: some Scene {

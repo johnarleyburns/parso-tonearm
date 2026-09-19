@@ -2,7 +2,6 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 import TonearmCore
-import TonearmDJ
 
 struct AddServerSheet: View {
     @EnvironmentObject var appState: AppState

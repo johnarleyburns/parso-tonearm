@@ -28,12 +28,6 @@ struct RootView: View {
                     case .listen: ListenView()
                     case .myMusic: MyMusicView()
                     case .settings: SettingsView()
-                    // The DJ tab IS Transition Lab now (plan §7) — no home/
-                    // menu screen. The old DJHomeView and its mixer/MIDI/
-                    // recording/stems stack are deleted (plan §10); see
-                    // docs/plans/unified-my-music-transition-lab-status.md
-                    // for exactly what was removed vs. deliberately kept.
-                    case .dj: TransitionLabTabView()
                     }
                 }
 
@@ -73,9 +67,6 @@ struct RootView: View {
         }
         .sheet(isPresented: $appState.showCreatePlaylist) {
             CreatePlaylistSheet()
-        }
-        .sheet(isPresented: $appState.showSoundSearch) {
-            DiscoverySearchView()
         }
         .sheet(isPresented: $appState.showNowPlaying) {
             NowPlayingView()

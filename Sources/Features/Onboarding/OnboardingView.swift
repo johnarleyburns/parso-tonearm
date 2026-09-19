@@ -1,6 +1,5 @@
 import SwiftUI
 import TonearmCore
-import TonearmDJ
 
 struct OnboardingSourceOption: Identifiable {
     enum Kind {

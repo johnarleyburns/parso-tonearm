@@ -14,7 +14,7 @@ import UIKit
 /// Sources moves under Settings. See
 /// docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md.
 enum AppTab: Int, CaseIterable {
-    case listen, myMusic, dj, settings
+    case listen, myMusic, settings
 }
 
 enum PendingImport: Equatable {
@@ -41,7 +41,9 @@ final class AppState: ObservableObject {
     // v2: AppTab's cases/raw-values changed (six tabs -> four) — a stale v1
     // integer must never be reinterpreted under the new enum (e.g. old
     // `.sources` == 3 must not silently resolve to new `.settings` == 3).
-    private static let lastTabKey = "lastActiveTab.v2"
+    // v3: DJ/Transition Lab removed (four tabs -> three) — old `.settings`
+    // == 3 must not silently resolve to a now out-of-range/wrong case.
+    private static let lastTabKey = "lastActiveTab.v3"
     @Published var sources: [Source] = []
     @Published var playlists: [Playlist] = []
     @Published var allTracks: [TrackRow] = []
@@ -64,25 +66,12 @@ final class AppState: ObservableObject {
     @Published var showAddSource = false
     @Published var showAddRemoteLibrary = false
     @Published var showCreatePlaylist = false
-    /// Presents the sound / semantic search screen (plan §10.1, C07). Reachable
-    /// from the ordinary Library screen and from Now Playing ("More like this").
-    @Published var showSoundSearch = false
-    /// When set alongside `showSoundSearch`, the search screen opens in
-    /// "More like this" mode for this core track id (plan §9 similar mode).
-    @Published var soundSearchReference: Int64?
-    /// Set by a playlist's "Practice transitions" action (plan §14): the
-    /// playlist id (for edge persistence) plus its full ordered track list —
-    /// consumed once by `TransitionLabTabView` on appear then cleared, a
-    /// simple one-shot launch intent rather than a persisted navigation
-    /// state. `TransitionLabTabView` walks the list's adjacent pairs as Set
-    /// Practice.
-    @Published var pendingTransitionLabSet: (playlistId: Int64, tracks: [TrackRow])?
     /// Set by a Top Artist row's tap on the Listen tab (docs/plans/mood-
     /// based-listening-plan.md §3.5): the artist name to land on. Consumed
     /// once by `MyMusicView` on appear (switches to the Artists scope,
     /// resolves the name to a `LibraryBrowse.Entry`, pushes it onto the
     /// bound navigation path), then cleared — same one-shot launch-intent
-    /// pattern as `pendingTransitionLabSet`/`soundSearchReference`.
+    /// pattern used elsewhere in this file.
     @Published var pendingArtistFilter: String?
     @Published internal(set) var downloadRevision = 0
     @Published internal(set) var activePhoneDownloads: Set<Int64> = []

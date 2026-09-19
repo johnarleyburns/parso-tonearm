@@ -42,13 +42,8 @@ struct DiscoverySearchView: View {
         }
         .task {
             if model == nil {
-                let vm = await DiscoveryRuntimeController.shared.searchViewModel(
+                model = await DiscoveryRuntimeController.shared.searchViewModel(
                     appState: appState, player: player)
-                if let ref = appState.soundSearchReference {
-                    vm.moreLikeThis(trackID: ref)
-                    appState.soundSearchReference = nil
-                }
-                model = vm
             }
         }
     }
@@ -356,9 +351,8 @@ private struct DiscoverySearchContent: View {
     }
 
     private func openStatus() {
-        appState.showSoundSearch = false
-        // The Library screen owns the status sheet; surfacing it here would
-        // stack two sheets. Closing returns the user to the banner tap target.
+        // The Library screen owns the status sheet; nothing to do here
+        // beyond whatever it already shows.
     }
 }
 

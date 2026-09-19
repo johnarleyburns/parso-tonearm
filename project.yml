@@ -102,8 +102,6 @@ targets:
       - package: TonearmCore
       - package: TonearmCore
         product: TonearmWatchProtocol
-      - package: TonearmCore
-        product: TonearmDJ
       # Unified-library CLAP indexing/search (IMPLEMENT_CLAP_PLAN.md §3).
       - package: TonearmCore
         product: TonearmDiscovery
