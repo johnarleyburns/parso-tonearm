@@ -40,6 +40,7 @@
 		309C4A7BE4BFBADC96076097 /* night.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 88A33FCC489E05C9B60F3ACC /* night.jpg */; };
 		34532A4505591A95D2765EFF /* OAuthSignInCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD5669565C3C31C5DAB9A3D3 /* OAuthSignInCoordinator.swift */; };
 		34B368076B85126EC8E9433E /* AddToPlaylistDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32A195FFB5B42A74D34688B4 /* AddToPlaylistDialog.swift */; };
+		37AD2CDC16246B372951BF1F /* AppState+BuiltInLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2C6BF87AD45CFB16CEA0E3 /* AppState+BuiltInLibrary.swift */; };
 		3B69A3EEB3B798C7E772B384 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CEB1F70B1E36FCA6BCADAB6B /* Assets.xcassets */; };
 		3F45EBC68A11B97763AA09BA /* WatchSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A21E9BA83011557E190F76D /* WatchSmokeUITests.swift */; };
 		3FE1C9C665DAEAFA498FA7A0 /* CarPlayRootBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D79DAC21B19AAAB186936D5E /* CarPlayRootBuilder.swift */; };
@@ -359,6 +360,7 @@
 		BB454D89725B61725520B04A /* NowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingView.swift; sourceTree = "<group>"; };
 		BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchFixtureSeeder.swift; sourceTree = "<group>"; };
 		BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotPublisher.swift; sourceTree = "<group>"; };
+		BF2C6BF87AD45CFB16CEA0E3 /* AppState+BuiltInLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+BuiltInLibrary.swift"; sourceTree = "<group>"; };
 		C114ED8EAE6B45F219A551DA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C1A2D9AEA288319B031257A7 /* AddRemoteTracksSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddRemoteTracksSheet.swift; sourceTree = "<group>"; };
 		C2E864A5E5944F80ADE5A869 /* DemucsStems.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DemucsStems.mlpackage; path = Resources/Models/DemucsStems.mlpackage; sourceTree = SOURCE_ROOT; };
@@ -685,6 +687,7 @@
 				1C55B42B2B346D16718E95E8 /* CarPlay */,
 				D5D719C516744B6A8F1A002C /* Watch */,
 				3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */,
+				BF2C6BF87AD45CFB16CEA0E3 /* AppState+BuiltInLibrary.swift */,
 				F43AA652B4D4981556956CB7 /* AppState+CustomArtwork.swift */,
 				80B6D0A4B5EC7E9F6FD662D7 /* AppState+Downloads.swift */,
 				FBF0E2281F937ABC12F3DA08 /* AppState+EditMetadata.swift */,
@@ -1192,6 +1195,7 @@
 				55344DAAB8AAC8239D613381 /* AirPlayButton.swift in Sources */,
 				56F4F1925361073B6B0A664E /* AmbientPlaylistView.swift in Sources */,
 				634F7013397B8B104E7B4EDC /* AnimatedSplashView.swift in Sources */,
+				37AD2CDC16246B372951BF1F /* AppState+BuiltInLibrary.swift in Sources */,
 				C457EAB240BC220601E53F3B /* AppState+CustomArtwork.swift in Sources */,
 				2E252B9A58A5AD77EF083773 /* AppState+Downloads.swift in Sources */,
 				DBFC0C10A9C34B013B4E0817 /* AppState+EditMetadata.swift in Sources */,

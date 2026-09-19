@@ -135,6 +135,12 @@ final class AppState: ObservableObject {
     func bootstrap() async {
         await fixLegacySourceTitles()
         await repairDuplicatePlaylistsOnce()
+        // Before DiscoveryRuntimeController.startAfterBootstrap() (called
+        // right after this returns, from TonearmApp) runs its launch
+        // reconciliation sweep — these need to be real rows already, so
+        // they're queued for indexing on the very first pass rather than
+        // waiting for a later one.
+        await seedBuiltInLibraryContentIfNeeded()
         await ArtworkService.shared.migrateCacheIfNeeded()
         applySettingsToPlayer()
         await AudioPlayer.shared.restorePersistedQueue()

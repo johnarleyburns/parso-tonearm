@@ -44,6 +44,17 @@ public struct AnalysisAssetResolver: Sendable {
     }
 
     private func resolveURL(for asset: Asset) -> ResolvedURL? {
+        // Built-in tracks (docs/plans/builtin-mood-starter-index-plan.md)
+        // live in the app bundle, not Application Support — the generic
+        // `relPath` fallback below would silently never find them. Real
+        // gap found wiring this up: `.builtIn` was already an eligible
+        // `AssetKind` in `DiscoveryReconciler.isLocallyResolvable(_:)`, but
+        // nothing actually resolved one to a URL, so a seeded track would
+        // have sat in `waitingForAsset` forever.
+        if asset.kind == .builtIn, let channelId = asset.relPath,
+           let url = BuiltInContentProvider.bundledAudioURL(forChannelId: channelId) {
+            return ResolvedURL(url: url, needsStopAccessing: false)
+        }
         if let bookmark = asset.bookmark, let resolved = BookmarkVault.resolve(bookmark) {
             let accessed = resolved.url.startAccessingSecurityScopedResource()
             return ResolvedURL(url: resolved.url, needsStopAccessing: accessed)

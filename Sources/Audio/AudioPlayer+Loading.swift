@@ -99,6 +99,14 @@ extension AudioPlayer {
             }
         }
 
+        // Built-in tracks (docs/plans/builtin-mood-starter-index-plan.md)
+        // live in the app bundle, not Application Support — `managedURL(_:)`
+        // below would silently never find them.
+        if asset.kind == .builtIn, let channelId = asset.relPath,
+           let url = BuiltInContentProvider.bundledAudioURL(forChannelId: channelId) {
+            return (AVPlayerItem(url: url), nil)
+        }
+
         if asset.kind == .remote, let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) {
             if !asset.transientRemoteSupportsByteRanges {
                 return (directRemoteItem(url: remote, headers: asset.transientRemoteHeaders), nil)
