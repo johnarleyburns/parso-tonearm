@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find Tab Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0B0D;
+    --bg2:#101216;
+    --ink:#F2F4F6;
+    --ink2:rgba(235,235,235,.60);
+    --ink3:rgba(235,235,235,.36);
+    --brass:#E3A44B;
+    --brass-deep:#B97F2E;
+    --ok:#4CD471;
+    --card:rgba(255,255,255,.055);
+    --card-line:rgba(255,255,255,.09);
+    --rule:rgba(227,164,75,.16);
+    --display:'Fraunces',ui-serif,Georgia,serif;
+    --body:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,'SF Mono',monospace;
+    --phone-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1100px 500px at 15% -10%, rgba(227,164,75,.10), transparent 60%),
+      linear-gradient(180deg,var(--bg2),var(--bg) 380px);
+    color:var(--ink);
+    font-family:var(--body);
+    padding:0 20px;
+    padding-block:48px 80px;
+  }
+  .wrap{ max-width:1180px; margin:0 auto; }
+
+  header{ margin-bottom:44px; }
+  .eyebrow{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--brass); display:flex; align-items:center; gap:8px; margin-bottom:14px;
+  }
+  .eyebrow::before{ content:''; width:7px; height:7px; border-radius:50%; background:var(--brass); }
+  h1{
+    font-family:var(--display); font-weight:600; font-size:clamp(28px,4vw,42px);
+    line-height:1.08; margin:0 0 14px; text-wrap:balance; max-width:20ch;
+  }
+  .dek{ color:var(--ink2); font-size:15px; line-height:1.6; max-width:62ch; margin:0; }
+  .dek b{ color:var(--ink); font-weight:600; }
+
+  .board{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:28px;
+    margin-top:8px;
+  }
+  @media (max-width:940px){ .board{ grid-template-columns:1fr; max-width:340px; margin-inline:auto; } }
+
+  .card h2{
+    font-family:var(--display); font-weight:600; font-size:19px; margin:0 0 4px;
+  }
+  .card p.cap{ margin:0 0 18px; color:var(--ink3); font-size:12.5px; font-family:var(--mono); line-height:1.5; }
+
+  /* ---------- Phone frame ---------- */
+  .phone{
+    position:relative; width:100%; max-width:300px; aspect-ratio:390/844; margin:0 auto;
+    border-radius:46px; padding:12px;
+    background:linear-gradient(155deg,#2b2b2f,#0e0e10 55%);
+    box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 30px 60px -22px rgba(0,0,0,.75);
+  }
+  .screen{
+    position:relative; width:100%; height:100%; border-radius:34px; overflow:hidden;
+    background:linear-gradient(180deg,#101216,#0A0B0D 60%);
+    font-family:var(--phone-ui); color:var(--ink); display:flex; flex-direction:column;
+  }
+  .notch{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    width:92px; height:22px; background:#000; border-radius:14px; z-index:5;
+  }
+  .statusbar{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:16px 20px 2px; font-size:11.5px; font-weight:600; color:var(--ink); flex:0 0 auto;
+  }
+  .content{ flex:1 1 auto; overflow:hidden; padding:14px 16px 0; display:flex; flex-direction:column; gap:14px; }
+
+  .screentitle{ font-size:22px; font-weight:700; letter-spacing:-.01em; margin:2px 0 2px; }
+
+  /* segmented picker */
+  .segrow{ display:flex; gap:6px; overflow-x:auto; }
+  .seg{
+    font-size:11.5px; font-weight:600; padding:7px 13px; border-radius:20px; white-space:nowrap;
+    background:rgba(255,255,255,.07); color:var(--ink2);
+  }
+  .seg.on{ background:linear-gradient(180deg,var(--brass),var(--brass-deep)); color:#1a1200; }
+
+  /* search field */
+  .searchfield{
+    display:flex; align-items:center; gap:8px;
+    background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.09);
+    border-radius:12px; padding:10px 13px; font-size:12.5px; color:var(--ink2);
+  }
+  .searchfield svg{ flex:0 0 auto; opacity:.55; }
+  .searchfield.active{ color:var(--ink); border-color:rgba(227,164,75,.35); }
+
+  .filterrow{ display:flex; gap:6px; flex-wrap:wrap; }
+  .chip{
+    font-size:10.5px; font-weight:600; padding:5px 10px; border-radius:20px;
+    background:rgba(227,164,75,.12); border:1px solid rgba(227,164,75,.28); color:var(--brass);
+    display:flex; align-items:center; gap:5px;
+  }
+  .chip.ghost{ background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.09); color:var(--ink3); }
+
+  .sectioncap{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--ink3); display:flex; justify-content:space-between; margin-top:2px;
+  }
+
+  .row{
+    display:flex; align-items:center; gap:10px; padding:8px 0;
+    border-bottom:1px solid rgba(255,255,255,.055);
+  }
+  .row:last-child{ border-bottom:none; }
+  .thumb{
+    width:38px; height:38px; border-radius:8px; flex:0 0 auto;
+    background:linear-gradient(135deg,var(--seedA,#5b4b8a),var(--seedB,#2a2148));
+  }
+  .rowtext{ min-width:0; flex:1 1 auto; }
+  .rowtitle{ font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rowsub{ font-size:10.5px; color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+  .rowscore{ font-family:var(--mono); font-size:9.5px; color:var(--brass); flex:0 0 auto; }
+
+  .emptystate{
+    margin-top:18px; padding:16px; border-radius:14px;
+    background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.08);
+  }
+  .emptystate p{ margin:0 0 10px; font-size:12px; color:var(--ink2); line-height:1.5; }
+  .btnrow{ display:flex; gap:8px; }
+  .btn{
+    font-size:11px; font-weight:700; padding:8px 12px; border-radius:9px; text-align:center;
+  }
+  .btn.primary{ background:linear-gradient(180deg,var(--brass),var(--brass-deep)); color:#1a1200; }
+  .btn.secondary{ background:rgba(255,255,255,.08); color:var(--ink); }
+
+  /* tab bar */
+  .tabbar{
+    flex:0 0 auto; display:flex; justify-content:space-around; align-items:center;
+    padding:9px 4px 14px; background:rgba(12,13,16,.86); border-top:1px solid rgba(255,255,255,.07);
+    backdrop-filter:blur(14px);
+  }
+  .tab{ display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--ink3); }
+  .tab.on{ color:var(--brass); }
+  .tab svg{ width:20px; height:20px; }
+  .tab span{ font-size:9px; font-weight:600; }
+
+  .callout{
+    margin-top:20px; padding:14px 16px; border-radius:12px;
+    background:var(--card); border:1px solid var(--card-line); font-size:12.5px;
+    color:var(--ink2); line-height:1.6;
+  }
+  .callout b{ color:var(--brass); }
+
+  footer{
+    margin-top:56px; padding-top:18px; border-top:1px solid var(--rule);
+    font-family:var(--mono); font-size:11px; color:var(--ink3); display:flex; gap:18px; flex-wrap:wrap;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Find Tab · docs/plans/find-tab-plan.md</div>
+    <h1>Find, promoted from a sheet<br>to a real front door</h1>
+    <p class="dek">
+      Today "Find by sound, BPM or key" is a small button buried in My Music that opens
+      a modal sheet titled <b>"Find Music"</b> with a "Done" button — it reads like a
+      popup, not a destination. These three states show it living in the tab bar instead:
+      browsing by default, an active semantic + filter search, and the specific
+      empty/loading states that made it feel broken when nothing was explained.
+    </p>
+  </header>
+
+  <div class="board">
+
+    <!-- STATE 1: Default browse -->
+    <div class="card">
+      <h2>1 · Opens browsing, not blank</h2>
+      <p class="cap">TAB BAR · DEFAULT STATE — no query typed yet</p>
+      <div class="phone"><div class="screen">
+        <div class="notch"></div>
+        <div class="statusbar"><span>9:41</span><span>●●●●  📶  🔋</span></div>
+        <div class="content">
+          <div class="screentitle">Find</div>
+          <div class="searchfield">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            Search or describe a sound…
+          </div>
+          <div class="segrow">
+            <div class="seg on">Metadata</div>
+            <div class="seg">Find by sound</div>
+          </div>
+          <div class="sectioncap"><span>YOUR MUSIC</span><span>1,842 TRACKS</span></div>
+          <div style="overflow-y:auto; flex:1">
+            <div class="row"><div class="thumb" style="--seedA:#8a5b3f;--seedB:#3a2013"></div><div class="rowtext"><div class="rowtitle">Midnight in Tunisia</div><div class="rowsub">Dizzy Gillespie</div></div></div>
+            <div class="row"><div class="thumb" style="--seedA:#4b6b8a;--seedB:#132a3a"></div><div class="rowtext"><div class="rowtitle">København, Live '78</div><div class="rowsub">archive.org bootleg</div></div></div>
+            <div class="row"><div class="thumb" style="--seedA:#6b8a4b;--seedB:#1f2a13"></div><div class="rowtext"><div class="rowtitle">Rainfall Study No. 3</div><div class="rowsub">Ambient — self-hosted</div></div></div>
+            <div class="row"><div class="thumb" style="--seedA:#8a4b6f;--seedB:#2a1320"></div><div class="rowtext"><div class="rowtitle">Blue in Green</div><div class="rowsub">Miles Davis</div></div></div>
+            <div class="row"><div class="thumb" style="--seedA:#5b4b8a;--seedB:#20132a"></div><div class="rowtext"><div class="rowtitle">Warehouse, 3AM</div><div class="rowsub">Electronic — self-hosted</div></div></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg><span>Listen</span></div>
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>Find</span></div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg><span>My Music</span></div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="3.6"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Settings</span></div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- STATE 2: Active search -->
+    <div class="card">
+      <h2>2 · Find by sound, with real filters</h2>
+      <p class="cap">FIND-BY-SOUND MODE — text + BPM/key filters + refinements, ranked results</p>
+      <div class="phone"><div class="screen">
+        <div class="notch"></div>
+        <div class="statusbar"><span>9:41</span><span>●●●●  📶  🔋</span></div>
+        <div class="content">
+          <div class="screentitle">Find</div>
+          <div class="searchfield active">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            hypnotic, driving, minimal
+          </div>
+          <div class="segrow">
+            <div class="seg">Metadata</div>
+            <div class="seg on">Find by sound</div>
+          </div>
+          <div class="filterrow">
+            <div class="chip">120–128 BPM</div>
+            <div class="chip">Key: 8A compatible</div>
+            <div class="chip ghost">+ vocals</div>
+          </div>
+          <div class="sectioncap"><span>RANKED BY SOUND</span><span>47 RESULTS</span></div>
+          <div style="overflow-y:auto; flex:1">
+            <div class="row"><div class="thumb" style="--seedA:#5b4b8a;--seedB:#20132a"></div><div class="rowtext"><div class="rowtitle">Warehouse, 3AM</div><div class="rowsub">124 BPM · 8A</div></div><div class="rowscore">0.91</div></div>
+            <div class="row"><div class="thumb" style="--seedA:#4b6b8a;--seedB:#132a3a"></div><div class="rowtext"><div class="rowtitle">Concrete Loop</div><div class="rowsub">122 BPM · 9A</div></div><div class="rowscore">0.88</div></div>
+            <div class="row"><div class="thumb" style="--seedA:#6b5b4b;--seedB:#2a1f13"></div><div class="rowtext"><div class="rowtitle">Sub-Basement</div><div class="rowsub">126 BPM · 8A</div></div><div class="rowscore">0.85</div></div>
+            <div class="row"><div class="thumb" style="--seedA:#8a5b3f;--seedB:#3a2013"></div><div class="rowtext"><div class="rowtitle">Grey Static Pulse</div><div class="rowsub">121 BPM · 7A</div></div><div class="rowscore">0.81</div></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg><span>Listen</span></div>
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>Find</span></div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg><span>My Music</span></div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="3.6"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Settings</span></div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- STATE 3: Explained empty state -->
+    <div class="card">
+      <h2>3 · Says why, when it's empty</h2>
+      <p class="cap">ALREADY HANDLED BY DiscoverySearchPresentation — the "goofy/broken" feeling was the sheet, not this</p>
+      <div class="phone"><div class="screen">
+        <div class="notch"></div>
+        <div class="statusbar"><span>9:41</span><span>●●●●  📶  🔋</span></div>
+        <div class="content">
+          <div class="screentitle">Find</div>
+          <div class="searchfield active">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            storm outside, distant thunder
+          </div>
+          <div class="segrow">
+            <div class="seg">Metadata</div>
+            <div class="seg on">Find by sound</div>
+          </div>
+          <div class="emptystate">
+            <p><b style="color:var(--ink)">Find by sound needs the sound-search model.</b><br>It hasn't finished downloading on this device yet.</p>
+            <div class="btnrow">
+              <div class="btn primary">Download models</div>
+              <div class="btn secondary">Sound-index status</div>
+            </div>
+          </div>
+          <div class="emptystate" style="margin-top:10px">
+            <p><b style="color:var(--ink)">Nothing in this scope is indexed for sound yet.</b><br>Indexing runs in the background — check progress any time.</p>
+            <div class="btnrow"><div class="btn secondary">Open sound-index status</div></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg><span>Listen</span></div>
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>Find</span></div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg><span>My Music</span></div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="3.6"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Settings</span></div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="callout">
+    <b>Tab math:</b> this 4-tab layout (Listen · Find · My Music · Settings) assumes the separately-studied
+    DJ/Transition Lab removal happens first — Find takes the tab-bar slot DJ vacates rather than growing the
+    bar to 5. If DJ stays, Find simply becomes a 5th tab in the same position (right after Listen); the
+    screens above are otherwise identical either way. See <code style="color:var(--ink2)">docs/plans/find-tab-plan.md</code> §3.1.
+  </div>
+
+  <footer>
+    <span>docs/plans/find-tab-plan.md</span>
+    <span>Supersedes the stale AppTab sketch in docs/plans/tab-bar-redesign.md</span>
+    <span>DiscoverySearchViewModel/scoring: unchanged</span>
+  </footer>
+</div>
+</body>
+</html>
