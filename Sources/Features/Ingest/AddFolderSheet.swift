@@ -135,11 +135,17 @@ struct AddFolderSheet: View {
         }
         defer { url.stopAccessingSecurityScopedResource() }
         do {
-            try await IngestService().addFolder(url, includeSubfolders: includeSubfolders,
-                                                 keepOrder: keepOrder, watch: watch, into: appState.store)
+            let summary = try await IngestService().addFolder(
+                url, includeSubfolders: includeSubfolders,
+                keepOrder: keepOrder, watch: watch, into: appState.store)
             await appState.reload()
             dismiss()
             appState.tab = .myMusic
+            if summary.skippedDuplicates > 0 {
+                ToastCenter.shared.info(
+                    "Imported \(summary.imported), skipped \(summary.skippedDuplicates) "
+                        + "already in your library")
+            }
         } catch {
             importError = error.localizedDescription
             print("[AddFolderSheet] import error: \(error)")

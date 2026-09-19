@@ -129,7 +129,18 @@ struct ListenView: View {
         }
     }
 
-    private static let moodSectionMinHeight: CGFloat = 200
+    /// Real report: the section only reserved space for the baseline prompt/
+    /// pills/Play controls, not the results row that appears once a search
+    /// actually returns something — so running a search still bumped
+    /// everything below it down the page. Baseline controls (~200) plus the
+    /// results row's own height (~160, matching `RecentCard`'s 132pt
+    /// artwork + two text lines + spacing) reserved unconditionally, whether
+    /// or not results are showing right now.
+    private static let moodControlsMinHeight: CGFloat = 200
+    /// `fileprivate` (not `private`) — `MoodEntryPointSection` below, a
+    /// separate type in this same file, reads it too.
+    fileprivate static let moodResultsAreaMinHeight: CGFloat = 160
+    private static let moodSectionMinHeight: CGFloat = moodControlsMinHeight + 14 + moodResultsAreaMinHeight
 
     /// Real, current readiness — not assumed: the CLAP model must actually be
     /// downloaded AND at least one track must actually be indexed, or a mood
@@ -547,10 +558,26 @@ private struct MoodEntryPointSection: View {
                 .accessibilityIdentifier("listen.mood.shakeItUp")
             }
 
-            if !moodModel.results.isEmpty {
-                moodResultsRow
-            } else {
-                moodStatusHint
+            Group {
+                if !moodModel.results.isEmpty {
+                    moodResultsRow
+                } else {
+                    moodStatusHint
+                }
+            }
+            .frame(minHeight: ListenView.moodResultsAreaMinHeight, alignment: .top)
+        }
+        .task {
+            // Real report: "to prevent nothing showing on default... by
+            // default select something like calm so we are guaranteed to
+            // have results there when it loads." Runs once per appearance
+            // of this section (ready + moodModel just became available) —
+            // only when nothing is selected yet, so it never overrides a
+            // choice the person already made.
+            guard selectedPillIDs.isEmpty, moodModel.positiveRefinements.isEmpty else { return }
+            if let calm = MoodPillTaxonomy.energy.first(where: { $0.id == "calm" }) {
+                selectedPillIDs = [calm.id]
+                moodModel.addMoreLike(calm.queryTerm)
             }
         }
     }

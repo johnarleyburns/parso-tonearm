@@ -27,12 +27,34 @@ public struct IngestService {
         public let relativeSection: String?
     }
 
+    /// Real, current counts for an import pass — never collapse "skipped
+    /// because it's already in your library" into a silently-smaller
+    /// imported count with no explanation (CLAUDE.md "no silent/magic
+    /// background work").
+    public struct IngestSummary: Sendable, Equatable {
+        public var imported: Int = 0
+        public var skippedDuplicates: Int = 0
+        static func + (lhs: IngestSummary, rhs: IngestSummary) -> IngestSummary {
+            IngestSummary(imported: lhs.imported + rhs.imported,
+                          skippedDuplicates: lhs.skippedDuplicates + rhs.skippedDuplicates)
+        }
+        mutating func record(_ outcome: IngestOutcome) {
+            switch outcome {
+            case .inserted: imported += 1
+            case .skippedDuplicate: skippedDuplicates += 1
+            case .failed: break
+            }
+        }
+    }
+
     public init() {}
 
     // MARK: - Add individual files (FR-1.1)
 
-    public func addFiles(_ urls: [URL], into store: LibraryStore) async {
-        guard !urls.isEmpty else { return }
+    @discardableResult
+    public func addFiles(_ urls: [URL], into store: LibraryStore) async -> IngestSummary {
+        guard !urls.isEmpty else { return IngestSummary() }
+        var summary = IngestSummary()
         do {
             // Reuse a single persistent "Local Files" source rather than creating
             // a new source per import.
@@ -45,7 +67,7 @@ public struct IngestService {
                                followUpdates: false, licenseText: nil, memberCapHit: false)
                 source = try await store.insertSource(s)
             }
-            guard let sid = source.id else { return }
+            guard let sid = source.id else { return summary }
             let album: Album
             if let existing = try await store.firstAlbum(sourceId: sid, title: "Local Files") {
                 album = existing
@@ -55,12 +77,14 @@ public struct IngestService {
             }
             let existingCount = (try? await store.tracks(forSource: sid).count) ?? 0
             for (i, url) in urls.enumerated() {
-                try await ingestOne(url, sourceId: sid, albumId: album.id, index: existingCount + i,
-                                    section: nil, store: store)
+                let outcome = try await ingestOne(url, sourceId: sid, albumId: album.id, index: existingCount + i,
+                                                  section: nil, store: store)
+                summary.record(outcome)
             }
         } catch {
             print("addFiles error: \(error)")
         }
+        return summary
     }
 
     // MARK: - Add folder as playlist (FR-1.2)
@@ -68,25 +92,30 @@ public struct IngestService {
     /// Appends new files into an existing source + its (first) album, keeping the
     /// folder playlist in sync. Used by folder-watch rescans so freshly
     /// dropped files join the same source rather than the generic "Local Files".
-    public func addFiles(_ urls: [URL], toSourceId sid: Int64, into store: LibraryStore) async {
-        guard !urls.isEmpty else { return }
+    @discardableResult
+    public func addFiles(_ urls: [URL], toSourceId sid: Int64, into store: LibraryStore) async -> IngestSummary {
+        guard !urls.isEmpty else { return IngestSummary() }
+        var summary = IngestSummary()
         do {
             let album = try await store.firstAlbumForSource(sid)
             let existingCount = (try? await store.tracks(forSource: sid).count) ?? 0
             let playlist = try? await store.folderPlaylist(matchingSourceId: sid)
             for (i, url) in urls.enumerated() {
-                let trackId = try await ingestOne(url, sourceId: sid, albumId: album?.id,
+                let outcome = try await ingestOne(url, sourceId: sid, albumId: album?.id,
                                                   index: existingCount + i, section: nil, store: store)
-                if let pid = playlist?.id, let trackId {
+                summary.record(outcome)
+                if let pid = playlist?.id, case .inserted(let trackId) = outcome {
                     try await store.addToPlaylist(playlistId: pid, trackId: trackId, sectionTitle: nil)
                 }
             }
         } catch {
             print("addFiles(toSourceId:) error: \(error)")
         }
+        return summary
     }
+    @discardableResult
     public func addFolder(_ folderURL: URL, includeSubfolders: Bool, keepOrder: Bool,
-                          watch: Bool, into store: LibraryStore) async throws {
+                          watch: Bool, into store: LibraryStore) async throws -> IngestSummary {
         let files = scanFolder(folderURL, includeSubfolders: includeSubfolders)
         guard !files.isEmpty else {
             print("[IngestService] addFolder: no audio files found in \(folderURL.lastPathComponent)")
@@ -103,8 +132,7 @@ public struct IngestService {
             let newURLs = ordered.map(\.url).filter {
                 !existingPaths.contains(FolderImportIdentity.key(for: $0))
             }
-            await addFiles(newURLs, toSourceId: sourceID, into: store)
-            return
+            return await addFiles(newURLs, toSourceId: sourceID, into: store)
         }
 
         var source = Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
@@ -125,15 +153,19 @@ public struct IngestService {
         playlist = try await store.insertPlaylist(playlist)
 
         print("[IngestService] importing \(ordered.count) files from \(folderURL.lastPathComponent)")
+        var summary = IngestSummary()
         for (i, file) in ordered.enumerated() {
-            let trackId = try await ingestOne(file.url, sourceId: sid, albumId: album.id,
+            let outcome = try await ingestOne(file.url, sourceId: sid, albumId: album.id,
                                               index: i, section: file.relativeSection, store: store)
-            if let pid = playlist.id, let trackId {
+            summary.record(outcome)
+            if let pid = playlist.id, case .inserted(let trackId) = outcome {
                 try await store.addToPlaylist(playlistId: pid, trackId: trackId,
                                               sectionTitle: file.relativeSection)
             }
         }
-        print("[IngestService] addFolder complete: \(ordered.count) tracks imported")
+        print("[IngestService] addFolder complete: \(summary.imported) imported, "
+            + "\(summary.skippedDuplicates) skipped (already in library)")
+        return summary
     }
 
     public func scanFolder(_ folderURL: URL, includeSubfolders: Bool) -> [ScannedFile] {
@@ -162,15 +194,39 @@ public struct IngestService {
 
     // MARK: - Metadata extraction (FR-1.3)
 
-    @discardableResult
+    /// `.inserted`/`.skippedDuplicate` let callers report an accurate
+    /// "Imported N, skipped M already in your library" summary (CLAUDE.md
+    /// "no silent/magic background work" — a duplicate-skip must never just
+    /// silently produce fewer tracks than the user expected with no
+    /// explanation) instead of collapsing "duplicate" into the same `nil`
+    /// a genuine failure already returns.
+    enum IngestOutcome {
+        case inserted(Int64)
+        case skippedDuplicate
+        case failed
+    }
+
     private func ingestOne(_ url: URL, sourceId: Int64, albumId: Int64?, index: Int,
-                           section: String?, store: LibraryStore) async throws -> Int64? {
+                           section: String?, store: LibraryStore) async throws -> IngestOutcome {
         let bookmark = BookmarkVault.makeBookmark(for: url)
         let meta = await extractMetadata(url)
         let ext = url.pathExtension.lowercased()
         let supported = AVURLAsset(url: url)
         let unsupported = Self.audioExtensions.contains(ext) ? nil : "unsupported format"
         _ = supported
+
+        let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { $0 }
+            .map(Int64.init)
+
+        // Real report: "import multiple folders locally and sometimes have
+        // the same track in two different places and it shows up twice" —
+        // a cheap size+duration match against every already-ingested track,
+        // before doing any of the artist/album work below.
+        if let fileSize, let duration = meta.durationSec {
+            let existingId = (try? await store.findExistingTrackId(
+                sizeBytes: fileSize, durationSec: duration)) ?? nil
+            if existingId != nil { return .skippedDuplicate }
+        }
 
         let artistName = meta.artist ?? meta.albumArtist
         let artistRow = try await artist(for: artistName, store: store)
@@ -195,12 +251,12 @@ public struct IngestService {
                           rgTrackGain: meta.rgTrackGain, rgAlbumGain: meta.rgAlbumGain,
                           rgTrackPeak: meta.rgTrackPeak, rgAlbumPeak: meta.rgAlbumPeak)
         track = try await store.insertTrack(track)
-        guard let tid = track.id else { return nil }
+        guard let tid = track.id else { return .failed }
         let asset = Asset(id: nil, trackId: tid, kind: .localRef, bookmark: bookmark,
                           relPath: nil, remoteURL: url.absoluteString, altRemoteURL: nil,
-                          sizeBytes: nil, unsupportedReason: unsupported)
+                          sizeBytes: fileSize, unsupportedReason: unsupported)
         try await store.insertAsset(asset)
-        return tid
+        return .inserted(tid)
     }
 
     private func extractMetadata(_ url: URL) async -> TrackMetadata {

@@ -44,6 +44,30 @@ extension AppState {
         return DuplicateDetection.groups(from: candidates)
     }
 
+    /// The actual "eliminate" half of "Search for and eliminate duplicates"
+    /// (real report — the scan already existed, nothing acted on its
+    /// results). Keeps the first candidate in each group (the scan's own
+    /// order, which follows `allTrackRows()` — effectively oldest/lowest
+    /// track id first) and deletes the rest. Returns the number removed.
+    @discardableResult
+    func eliminateDuplicates(in groups: [DuplicateDetection.Group]) async -> Int {
+        var deletedCount = 0
+        for group in groups {
+            for candidate in group.candidates.dropFirst() {
+                guard let idPrefix = candidate.id.split(separator: ":").first,
+                      let trackId = Int64(idPrefix) else { continue }
+                do {
+                    try await store.deleteTrack(id: trackId)
+                    deletedCount += 1
+                } catch {
+                    print("eliminateDuplicates: failed to delete track \(trackId): \(error)")
+                }
+            }
+        }
+        if deletedCount > 0 { await reload() }
+        return deletedCount
+    }
+
     private func localAudioBytes(for row: TrackRow) -> Data? {
         guard let asset = row.asset else { return nil }
         let url: URL?

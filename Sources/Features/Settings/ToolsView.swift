@@ -34,6 +34,7 @@ struct ToolsView: View {
     @State private var duplicateGroups: [DuplicateDetection.Group] = []
     @State private var duplicateMessage: String?
     @State private var scanningDuplicates = false
+    @State private var eliminatingDuplicates = false
 
     var body: some View {
         NavigationStack {
@@ -152,15 +153,26 @@ struct ToolsView: View {
 
     private var duplicatesPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            primaryButton(scanningDuplicates ? "Scanning" : "Scan Local Files", icon: "doc.on.doc") {
+            primaryButton(scanningDuplicates ? "Scanning" : "Search for Duplicates", icon: "doc.on.doc") {
                 Task { await scanDuplicates() }
             }
             .disabled(scanningDuplicates)
             messageText(duplicateMessage)
 
+            if !duplicateGroups.isEmpty {
+                primaryButton(
+                    eliminatingDuplicates ? "Removing…" : "Eliminate \(totalDuplicateCount) Duplicate\(totalDuplicateCount == 1 ? "" : "s")",
+                    icon: "trash"
+                ) {
+                    Task { await eliminateDuplicates() }
+                }
+                .disabled(eliminatingDuplicates)
+                .accessibilityIdentifier("settings.tools.eliminateDuplicates")
+            }
+
             ForEach(Array(duplicateGroups.enumerated()), id: \.offset) { _, group in
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(group.candidates.count) matches")
+                    Text("\(group.candidates.count) matches — keeping the first, removing the rest")
                         .font(.system(size: 13.5, weight: .semibold))
                     ForEach(group.candidates, id: \.id) { candidate in
                         Text(candidate.id)
@@ -174,6 +186,10 @@ struct ToolsView: View {
             }
         }
         .toolPanel()
+    }
+
+    private var totalDuplicateCount: Int {
+        duplicateGroups.reduce(0) { $0 + $1.candidates.count - 1 }
     }
 
     private var editableRows: [TrackRow] {
@@ -295,6 +311,14 @@ struct ToolsView: View {
         } catch {
             duplicateMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
+    }
+
+    private func eliminateDuplicates() async {
+        eliminatingDuplicates = true
+        defer { eliminatingDuplicates = false }
+        let removed = await appState.eliminateDuplicates(in: duplicateGroups)
+        duplicateGroups = []
+        duplicateMessage = "Removed \(removed) duplicate track\(removed == 1 ? "" : "s")."
     }
 
     private func toggle(_ id: Int64) {

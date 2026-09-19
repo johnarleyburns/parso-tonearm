@@ -119,9 +119,14 @@ struct RootView: View {
                 }
             case .files(let urls):
                 Task {
-                    await IngestService().addFiles(urls, into: appState.store)
+                    let summary = await IngestService().addFiles(urls, into: appState.store)
                     await appState.reload()
                     appState.tab = .myMusic
+                    if summary.skippedDuplicates > 0 {
+                        ToastCenter.shared.info(
+                            "Imported \(summary.imported), skipped \(summary.skippedDuplicates) "
+                                + "already in your library")
+                    }
                 }
             case .none:
                 break

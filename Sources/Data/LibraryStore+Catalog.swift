@@ -124,6 +124,27 @@ extension LibraryStore {
         }
     }
 
+    /// A byte-size + duration match against every already-ingested track —
+    /// the cheap composite key that catches an exact byte-identical file
+    /// re-imported from a second folder (real report: "same track in two
+    /// different [local folders]... shows up twice") without reading/hashing
+    /// the whole file again. Duration is compared with a small tolerance
+    /// (float precision, not exact re-encodes — a genuinely different
+    /// encode of the same song has a different byte size anyway, so this
+    /// deliberately does NOT try to catch that case).
+    public func findExistingTrackId(sizeBytes: Int64, durationSec: Double) throws -> Int64? {
+        try dbQueue.read { db in
+            try Int64.fetchOne(
+                db,
+                sql: """
+                    SELECT t.id FROM track t JOIN asset a ON a.trackId = t.id
+                    WHERE a.sizeBytes = ? AND ABS(t.durationSec - ?) < 0.75
+                    LIMIT 1
+                    """,
+                arguments: [sizeBytes, durationSec])
+        }
+    }
+
     public func fillAlbumMetadataIfEmpty(
         id: Int64,
         artistId: Int64?,
