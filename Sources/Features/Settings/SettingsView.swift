@@ -308,9 +308,10 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             settingToggle(appState.streamOnCellular ? "Stream on cellular" : "Wi-Fi only",
                           "Off = Wi-Fi only; cached tracks always play",
-                          $appState.streamOnCellular)
+                          $appState.streamOnCellular, id: "settings.streamOnCellular")
             Divider().overlay(Palette.hairline)
-            settingToggle("Prefer FLAC over MP3", "Stream lossless when available (larger files)", $appState.preferFLAC)
+            settingToggle("Prefer FLAC over MP3", "Stream lossless when available (larger files)",
+                          $appState.preferFLAC, id: "settings.preferFLAC")
             Divider().overlay(Palette.hairline)
             prefetchControl
             Divider().overlay(Palette.hairline)
@@ -318,7 +319,7 @@ struct SettingsView: View {
             Divider().overlay(Palette.hairline)
             settingToggle("Look up missing artwork",
                           "Ask Apple's iTunes Search for covers your files lack",
-                          $appState.artworkLookup)
+                          $appState.artworkLookup, id: "settings.artworkLookup")
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
@@ -363,6 +364,7 @@ struct SettingsView: View {
             .padding(.vertical, 8)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.eq")
     }
 
     /// iCloud sync — free for all users. Off by default; the engine runs when
@@ -387,6 +389,7 @@ struct SettingsView: View {
                     }
                 ))
                 .labelsHidden().tint(Palette.brassDeep)
+                .accessibilityIdentifier("settings.icloudSync")
             }
             .padding(.vertical, 8)
         }
@@ -411,6 +414,7 @@ struct SettingsView: View {
             .glassSurface(cornerRadius: 18)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.watch")
         .sheet(isPresented: $showWatchSettings) {
             WatchSettingsView()
         }
@@ -457,9 +461,12 @@ struct SettingsView: View {
             .glassSurface(cornerRadius: 18)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.tools")
     }
 
-    private func settingToggle(_ title: String, _ sub: String, _ binding: Binding<Bool>) -> some View {
+    private func settingToggle(
+        _ title: String, _ sub: String, _ binding: Binding<Bool>, id: String? = nil
+    ) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 13.5))
@@ -469,6 +476,7 @@ struct SettingsView: View {
             Toggle("", isOn: binding).labelsHidden().tint(Palette.brassDeep)
         }
         .padding(.vertical, 8)
+        .modifier(OptionalAccessibilityIdentifier(id: id))
     }
 
     /// The Settings-level detail for Keep Playing (CLAUDE.md "let them drill
@@ -479,7 +487,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             settingToggle("Keep Playing",
                           "When your queue is about to end, keep music playing with similar-sounding tracks",
-                          $appState.keepPlayingEnabled)
+                          $appState.keepPlayingEnabled, id: "settings.keepPlaying")
             Divider().overlay(Palette.hairline)
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -517,6 +525,7 @@ struct SettingsView: View {
             .glassSurface(cornerRadius: 18)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.clearCache")
     }
 
     private var customArtworkCard: some View {
@@ -563,6 +572,7 @@ struct SettingsView: View {
             .glassSurface(cornerRadius: 18)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.privacy")
     }
 
     private var aboutCard: some View {
@@ -574,6 +584,7 @@ struct SettingsView: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.thirdPartyNotices")
             Divider().overlay(Palette.hairline)
             Link(destination: URL(string: "https://github.com/johnarleyburns/parso-tonearm")!) {
                 HStack {
@@ -721,6 +732,22 @@ struct ThirdPartyNoticesView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.brass)
             Text(body).font(.system(size: 13)).foregroundStyle(Palette.ink2)
+        }
+    }
+}
+
+/// `.accessibilityIdentifier(id ?? "")` would set an empty (matchable-by-
+/// substring, collision-prone) identifier for every unlabeled call site —
+/// this only applies one when `id` is actually given, for shared helpers
+/// like `settingToggle` used from many rows only some of which are
+/// UI-regression-tested today.
+private struct OptionalAccessibilityIdentifier: ViewModifier {
+    let id: String?
+    func body(content: Content) -> some View {
+        if let id {
+            content.accessibilityIdentifier(id)
+        } else {
+            content
         }
     }
 }

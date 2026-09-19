@@ -12,25 +12,17 @@
 #
 #   make test-ui-regression                 # every lane
 #   make test-ui-regression LANES=remote    # one group
-#   make test-ui-regression LANES=djmix     # the DJ live-mix journey (gates M5)
-#   make test-ui-regression LANES=djlive    # the same, against real Jamendo
-#   make test-ui-regression LANES=djhw      # M6: cue, MIDI, purchase row (no recording)
+#   make test-ui-regression LANES=settings  # Settings rows (sheets, toggles)
 #
 # Lanes whose prerequisites are absent SKIP with a stated reason and do not fail
 # the run — a missing credential or an unreachable demo server is not a product
 # defect (§53.4). Only an assertion about Platterhead's own behaviour can fail.
 #
-# THE DJ LANES (§53.7–53.12)
-# XCUITest cannot hear, so these drive the real UI and then assert against the
-# recording the app itself produced: this script pulls the export out of the
-# simulator container and runs scripts/ui-regression/verify-mix.py against it.
-#
-# The recorded mix is KEPT, in build/ui-regression/dj/ — the analyzer's thresholds
-# are a judgement call, and a human has to be able to play the file and decide
-# whether they are tuned right before trusting a pass or chasing a fail. That
-# directory is wiped at the START of every DJ run, and every intermediate is
-# deleted at the end, so exactly one audio file is left and it is always this
-# run's. KEEP_INTERMEDIATES=1 retains the journal and decoded audio for debugging.
+# The DJ lanes (djmix/djlive/djhw/djstem, §53.7–53.12) were removed along with
+# DJ/Transition Lab itself; the recording-capture machinery below (DJ_ARTIFACTS,
+# verify-mix.py, DJ_LANE) is dead code kept only because it's still referenced
+# by name a few lines down — DJ_LANE now never gets set to 1, so those branches
+# never run. Worth deleting outright in a follow-up pass.
 
 set -euo pipefail
 
@@ -174,21 +166,13 @@ DJ_LANE=0
 case "$LANES" in
   all)        FILTER=(-only-testing:TonearmUIRegressionTests/NowPlayingRegressionUITests
                       -only-testing:TonearmUIRegressionTests/PlaylistRegressionUITests
-                      -only-testing:TonearmUIRegressionTests/RemoteLibraryRegressionUITests) ;;
+                      -only-testing:TonearmUIRegressionTests/RemoteLibraryRegressionUITests
+                      -only-testing:TonearmUIRegressionTests/SettingsRegressionUITests) ;;
   nowplaying) FILTER=(-only-testing:TonearmUIRegressionTests/NowPlayingRegressionUITests) ;;
   playlists)  FILTER=(-only-testing:TonearmUIRegressionTests/PlaylistRegressionUITests) ;;
   remote)     FILTER=(-only-testing:TonearmUIRegressionTests/RemoteLibraryRegressionUITests) ;;
-  djmix)      FILTER=(-only-testing:TonearmUIRegressionTests/DJMixRegressionUITests); DJ_LANE=1 ;;
-  djlive)     FILTER=(-only-testing:TonearmUIRegressionTests/DJLiveMixRegressionUITests); DJ_LANE=1 ;;
-  # The M6 feature lanes (plan 6.7): cue, MIDI and the purchase row, driven
-  # through the real UI. They record nothing, so they are not a DJ_LANE — there
-  # is no mix to pull or verify, and demanding one would fail every run.
-  djhw)       FILTER=(-only-testing:TonearmUIRegressionTests/DJHardwareRegressionUITests) ;;
-  # The stems lane (plan S8): separates a real track and proves the vocal
-  # fader moves the recorded audio. It records, so it is a DJ_LANE — skipped
-  # honestly when the ODR tag is absent, verified by the analyzer when present.
-  djstem)     FILTER=(-only-testing:TonearmUIRegressionTests/DJStemRegressionUITests); DJ_LANE=1 ;;
-  *)          echo "Usage: LANES=[all|nowplaying|playlists|remote|djmix|djlive|djhw|djstem] $0" >&2; exit 2 ;;
+  settings)   FILTER=(-only-testing:TonearmUIRegressionTests/SettingsRegressionUITests) ;;
+  *)          echo "Usage: LANES=[all|nowplaying|playlists|remote|settings] $0" >&2; exit 2 ;;
 esac
 
 # Wipe the DJ artifacts BEFORE the run, so a rerun can never leave you auditioning
