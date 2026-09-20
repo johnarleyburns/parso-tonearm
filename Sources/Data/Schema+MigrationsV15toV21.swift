@@ -217,5 +217,35 @@ extension Schema {
                 }
             }
         }
+
+        if shouldRegister("v25", upTo: target) {
+            migrator.registerMigration("v25") { db in
+                // docs/plans/macos-app-cloud-sync-plan.md §4.1 — these two
+                // tables are the deliberate exception to
+                // `DiscoveryMigrations.swift`'s "all discovery tables are
+                // device-local" header comment: unlike the other eight
+                // (jobs, checkpoints, asset state — device-specific
+                // scratch/queue state with no meaning on another device),
+                // these two hold indexing *outcomes*, which are exactly
+                // what should carry across a user's own devices so a Mac
+                // (more CPU, no thermal throttling) can index a large
+                // library and have the phone see the results without
+                // re-processing the audio itself. Existing rows get `NULL`
+                // syncID, backfilled lazily the same way the v7
+                // syncedTables migration's own synced types are — a UUID
+                // generated the first time a row is actually mapped for
+                // sync, not eagerly here.
+                try db.alter(table: "discovery_embedding") { t in
+                    t.add(column: "syncID", .text)
+                }
+                try db.create(indexOn: "discovery_embedding", columns: ["syncID"], options: .unique)
+
+                try db.alter(table: "discovery_track_analysis") { t in
+                    t.add(column: "syncID", .text)
+                }
+                try db.create(
+                    indexOn: "discovery_track_analysis", columns: ["syncID"], options: .unique)
+            }
+        }
     }
 }

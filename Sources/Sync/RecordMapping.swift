@@ -25,6 +25,11 @@ public enum RecordMapping {
         case customArtwork = "CustomArtwork"
         case appSettings = "AppSettings"
         case playbackState = "PlaybackState"
+        /// docs/plans/macos-app-cloud-sync-plan.md §4.2 — indexing
+        /// *outcomes* only; the other eight discovery_* tables stay
+        /// device-local (see DiscoveryMigrations.swift's header comment).
+        case discoveryEmbedding = "DiscoveryEmbedding"
+        case discoveryTrackAnalysis = "DiscoveryTrackAnalysis"
     }
 
     /// The single fixed record name for the per-account settings singleton.
@@ -281,6 +286,88 @@ public enum RecordMapping {
               let playedAt = record["playedAt"] as? Date else { return nil }
         let event = PlayEvent(id: nil, trackId: 0, playedAt: playedAt, syncID: syncID)
         return (event, record["trackSyncID"] as? String)
+    }
+
+    // MARK: - DiscoveryEmbedding
+
+    /// Deliberately omits `assetId`/`assetRevision` — which physical file on
+    /// *this* device produced the embedding has no meaning on a receiving
+    /// device (mirrors `record(from: Asset, ...)`'s own reasoning for
+    /// omitting the local `bookmark` blob — device-specific identity
+    /// doesn't cross devices).
+    public static func record(from embedding: DiscoveryEmbedding, trackSyncID: String?,
+                       zoneID: CKRecordZone.ID) -> CKRecord {
+        let syncID = embedding.syncID ?? UUID().uuidString
+        let record = CKRecord(recordType: RecordType.discoveryEmbedding.rawValue,
+                              recordID: recordID(type: .discoveryEmbedding, syncID: syncID, zoneID: zoneID))
+        record["syncID"] = syncID as CKRecordValue
+        record["trackSyncID"] = trackSyncID as CKRecordValue?
+        record["modelVersion"] = embedding.modelVersion as CKRecordValue
+        record["preprocessingVersion"] = embedding.preprocessingVersion as CKRecordValue
+        record["samplingVersion"] = embedding.samplingVersion as CKRecordValue
+        record["dimensions"] = embedding.dimensions as CKRecordValue
+        record["quantizedVector"] = embedding.quantizedVector as CKRecordValue
+        record["scale"] = embedding.scale as CKRecordValue
+        record["completedAt"] = embedding.completedAt as CKRecordValue
+        return record
+    }
+
+    /// Returns the decoded embedding (with placeholder `trackId`/`assetId`/
+    /// `assetRevision` — the caller resolves the real local `trackId` from
+    /// `trackSyncID` and the real local `assetId`/`assetRevision` from its
+    /// own device's asset for that track, per plan §4.3) plus the parent
+    /// `trackSyncID` for that resolution.
+    public static func discoveryEmbedding(from record: CKRecord)
+        -> (embedding: DiscoveryEmbedding, trackSyncID: String?)? {
+        guard let syncID = record["syncID"] as? String,
+              let modelVersion = record["modelVersion"] as? Int,
+              let preprocessingVersion = record["preprocessingVersion"] as? Int,
+              let samplingVersion = record["samplingVersion"] as? Int,
+              let dimensions = record["dimensions"] as? Int,
+              let quantizedVector = record["quantizedVector"] as? Data,
+              let scale = record["scale"] as? Double,
+              let completedAt = record["completedAt"] as? Date
+        else { return nil }
+        let embedding = DiscoveryEmbedding(
+            trackId: 0, assetId: 0, assetRevision: 0,
+            modelVersion: modelVersion, preprocessingVersion: preprocessingVersion,
+            samplingVersion: samplingVersion, dimensions: dimensions,
+            quantizedVector: quantizedVector, scale: scale, completedAt: completedAt,
+            syncID: syncID)
+        return (embedding, record["trackSyncID"] as? String)
+    }
+
+    // MARK: - DiscoveryTrackAnalysis
+
+    public static func record(from analysis: DiscoveryTrackAnalysis, trackSyncID: String?,
+                       zoneID: CKRecordZone.ID) -> CKRecord {
+        let syncID = analysis.syncID ?? UUID().uuidString
+        let record = CKRecord(recordType: RecordType.discoveryTrackAnalysis.rawValue,
+                              recordID: recordID(type: .discoveryTrackAnalysis, syncID: syncID, zoneID: zoneID))
+        record["syncID"] = syncID as CKRecordValue
+        record["trackSyncID"] = trackSyncID as CKRecordValue?
+        record["analysisVersion"] = analysis.analysisVersion as CKRecordValue
+        record["bpm"] = analysis.bpm.map { $0 as CKRecordValue }
+        record["key"] = analysis.key as CKRecordValue?
+        record["energy"] = analysis.energy.map { $0 as CKRecordValue }
+        record["phraseSummary"] = analysis.phraseSummary as CKRecordValue?
+        record["analysisScopeSeconds"] = analysis.analysisScopeSeconds.map { $0 as CKRecordValue }
+        record["completedAt"] = analysis.completedAt as CKRecordValue?
+        return record
+    }
+
+    public static func discoveryTrackAnalysis(from record: CKRecord)
+        -> (analysis: DiscoveryTrackAnalysis, trackSyncID: String?)? {
+        guard let syncID = record["syncID"] as? String,
+              let analysisVersion = record["analysisVersion"] as? Int
+        else { return nil }
+        let analysis = DiscoveryTrackAnalysis(
+            trackId: 0, assetId: 0, assetRevision: 0, analysisVersion: analysisVersion,
+            bpm: record["bpm"] as? Double, key: record["key"] as? String,
+            energy: record["energy"] as? Double, phraseSummary: record["phraseSummary"] as? String,
+            analysisScopeSeconds: record["analysisScopeSeconds"] as? Double,
+            completedAt: record["completedAt"] as? Date, syncID: syncID)
+        return (analysis, record["trackSyncID"] as? String)
     }
 
     // MARK: - CustomArtwork

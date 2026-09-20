@@ -102,14 +102,21 @@ final class DiscoverySchemaMigrationTests: XCTestCase {
     }
 
     func testDiscoveryTablesHaveNoSyncIDColumn() throws {
-        // Plan §4: all new tables are device-local and excluded from CloudKit
-        // export. This repo's sync export list is keyed off syncID columns
-        // (v7), so the absence of syncID is the structural guarantee.
+        // Plan §4: device-local tables are excluded from CloudKit export.
+        // This repo's sync export list is keyed off syncID columns (v7), so
+        // the absence of syncID is the structural guarantee.
+        //
+        // discovery_track_analysis and discovery_embedding are the
+        // deliberate exception as of migration v25
+        // (docs/plans/macos-app-cloud-sync-plan.md §4.1): they hold indexing
+        // *outcomes*, not device-local queue/lease/scratch state, so they
+        // sync — see testDiscoveryEmbeddingAndTrackAnalysisHaveSyncIDColumn
+        // below for their matching positive assertion.
         let queue = try makeQueue()
         try Schema.migrator().migrate(queue)
         try queue.read { db in
             for table in [
-                "discovery_asset_state", "discovery_track_analysis", "discovery_embedding",
+                "discovery_asset_state",
                 "discovery_index_job", "discovery_window_checkpoint", "discovery_change",
                 "discovery_setting", "discovery_import_job", "discovery_import_item",
                 "discovery_runtime",
@@ -117,6 +124,18 @@ final class DiscoverySchemaMigrationTests: XCTestCase {
                 XCTAssertFalse(
                     try db.columns(in: table).contains { $0.name == "syncID" },
                     "\(table) must not be sync-exported")
+            }
+        }
+    }
+
+    func testDiscoveryEmbeddingAndTrackAnalysisHaveSyncIDColumn() throws {
+        let queue = try makeQueue()
+        try Schema.migrator().migrate(queue)
+        try queue.read { db in
+            for table in ["discovery_embedding", "discovery_track_analysis"] {
+                XCTAssertTrue(
+                    try db.columns(in: table).contains { $0.name == "syncID" },
+                    "\(table) is meant to sync its indexing outcome (plan §4.1)")
             }
         }
     }

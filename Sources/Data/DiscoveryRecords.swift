@@ -103,6 +103,11 @@ public struct DiscoveryTrackAnalysis: Codable, Equatable, Sendable, FetchableRec
     public var phraseSummary: String?
     public var analysisScopeSeconds: Double?
     public var completedAt: Date?
+    /// docs/plans/macos-app-cloud-sync-plan.md §4.1 — this table now
+    /// (unlike its 8 siblings, which stay device-local) syncs its *outcome*
+    /// across a user's own devices. `nil` until first synced, same lazy
+    /// pattern as every other synced type's `syncID`.
+    public var syncID: String? = nil
 
     public init(
         trackId: Int64,
@@ -114,7 +119,8 @@ public struct DiscoveryTrackAnalysis: Codable, Equatable, Sendable, FetchableRec
         energy: Double? = nil,
         phraseSummary: String? = nil,
         analysisScopeSeconds: Double? = nil,
-        completedAt: Date? = nil
+        completedAt: Date? = nil,
+        syncID: String? = nil
     ) {
         self.trackId = trackId
         self.assetId = assetId
@@ -126,6 +132,7 @@ public struct DiscoveryTrackAnalysis: Codable, Equatable, Sendable, FetchableRec
         self.phraseSummary = phraseSummary
         self.analysisScopeSeconds = analysisScopeSeconds
         self.completedAt = completedAt
+        self.syncID = syncID
     }
 }
 
@@ -147,6 +154,10 @@ public struct DiscoveryEmbedding: Codable, Equatable, Sendable, FetchableRecord,
     public var quantizedVector: Data
     public var scale: Double
     public var completedAt: Date
+    /// docs/plans/macos-app-cloud-sync-plan.md §4.1 — see
+    /// `DiscoveryTrackAnalysis.syncID`'s doc for why this table (and that
+    /// one) sync while their siblings don't.
+    public var syncID: String? = nil
 
     public init(
         trackId: Int64,
@@ -158,7 +169,8 @@ public struct DiscoveryEmbedding: Codable, Equatable, Sendable, FetchableRecord,
         dimensions: Int,
         quantizedVector: Data,
         scale: Double,
-        completedAt: Date
+        completedAt: Date,
+        syncID: String? = nil
     ) {
         self.trackId = trackId
         self.assetId = assetId
@@ -170,6 +182,7 @@ public struct DiscoveryEmbedding: Codable, Equatable, Sendable, FetchableRecord,
         self.quantizedVector = quantizedVector
         self.scale = scale
         self.completedAt = completedAt
+        self.syncID = syncID
     }
 }
 

@@ -127,6 +127,37 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertNil(decoded?.imageURL)
     }
 
+    func testDiscoveryEmbeddingRoundTrips() {
+        let embedding = DiscoveryEmbedding(
+            trackId: 3, assetId: 4, assetRevision: 1, modelVersion: 1,
+            preprocessingVersion: 1, samplingVersion: 1, dimensions: 4,
+            quantizedVector: Data([1, 2, 3, 4]), scale: 0.01,
+            completedAt: Date(timeIntervalSince1970: 100), syncID: "EMB-1")
+        let record = RecordMapping.record(from: embedding, trackSyncID: "TRK-1", zoneID: zoneID)
+        XCTAssertNil(record["assetId"], "device-local asset identity must never sync")
+        let decoded = RecordMapping.discoveryEmbedding(from: record)
+        XCTAssertEqual(decoded?.embedding.syncID, "EMB-1")
+        XCTAssertEqual(decoded?.embedding.dimensions, 4)
+        XCTAssertEqual(decoded?.embedding.quantizedVector, Data([1, 2, 3, 4]))
+        XCTAssertEqual(decoded?.embedding.scale, 0.01)
+        XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
+    }
+
+    func testDiscoveryTrackAnalysisRoundTrips() {
+        let analysis = DiscoveryTrackAnalysis(
+            trackId: 3, assetId: 4, assetRevision: 1, analysisVersion: 1,
+            bpm: 128, key: "Am", energy: 0.8, phraseSummary: "verse-chorus",
+            analysisScopeSeconds: 60, completedAt: Date(timeIntervalSince1970: 200),
+            syncID: "ANA-1")
+        let record = RecordMapping.record(from: analysis, trackSyncID: "TRK-1", zoneID: zoneID)
+        let decoded = RecordMapping.discoveryTrackAnalysis(from: record)
+        XCTAssertEqual(decoded?.analysis.syncID, "ANA-1")
+        XCTAssertEqual(decoded?.analysis.bpm, 128)
+        XCTAssertEqual(decoded?.analysis.key, "Am")
+        XCTAssertEqual(decoded?.analysis.phraseSummary, "verse-chorus")
+        XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
+    }
+
     func testAppSettingsRoundTrips() {
         let settings = SyncedSettings(
             eqEnabled: true,
