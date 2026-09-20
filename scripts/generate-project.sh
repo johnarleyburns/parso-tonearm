@@ -96,3 +96,11 @@ if [[ ${#absent[@]} -gt 0 ]]; then
 fi
 
 xcodegen generate
+
+# XcodeGen's YAML `platforms: [iOS]` on the Share/Widgets/Watch embed
+# dependencies (project.yml) doesn't emit the native platformFilters
+# attribute Mac Catalyst needs to skip embedding iOS/watchOS-built content —
+# confirmed directly against 2.45.4 and 2.46.0. Patch it onto every
+# generated project so `make project` always produces a Catalyst-buildable
+# project without a separate manual step.
+python3 "$(dirname "$0")/patch-catalyst-embed-filters.py"

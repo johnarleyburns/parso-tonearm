@@ -83,7 +83,7 @@
 		71739C830652D67DF339A260 /* AppState+RemoteServers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE3D9BA840241DCED71A095 /* AppState+RemoteServers.swift */; };
 		71A33C0FABA810E5419CAB45 /* WatchPlaybackIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3569174AE673A3FFFB87F5E0 /* WatchPlaybackIntents.swift */; };
 		735D16F65DF5E7AAFC9CD91A /* AppState+RemoteBrowse.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD82B6D2C3B08E82E7EB2068 /* AppState+RemoteBrowse.swift */; };
-		73BB22E45390F362F4B45F55 /* TonearmWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		73BB22E45390F362F4B45F55 /* TonearmWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		73EF48B22BA7870F3A6C08D7 /* TonearmSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5CEA0DA2DDAF7A8F27DC1F /* TonearmSmokeUITests.swift */; };
 		781C7C906ED63132DF7CCDB2 /* WatchNowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C123D981D52AC1C9DE3751 /* WatchNowPlayingView.swift */; };
 		7823BEF7E32E97CC60A6BEB0 /* TonearmWatchCore in Frameworks */ = {isa = PBXBuildFile; productRef = BBD12630BF2D8DC41AAA8B3A /* TonearmWatchCore */; };
@@ -91,7 +91,7 @@
 		7971FCD80BE7D612C09F9B60 /* RemoteLibraryRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D198A526169E0BB94CA5DC01 /* RemoteLibraryRegressionUITests.swift */; };
 		7A3B9D3BDEBED8D945FA809F /* ATTRIBUTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */; };
 		7BCD9C0D5042BD0C8228401E /* ToastBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00F6FDF943434896481BB2F /* ToastBanner.swift */; };
-		7EC0CA2A51F83AC350BF5AEE /* TonearmWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		7EC0CA2A51F83AC350BF5AEE /* TonearmWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		817CD786F8CC3FC747B95A61 /* WatchAlbumsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 783A00C9B2142335E1E6936B /* WatchAlbumsView.swift */; };
 		83C6C3AFB6460B1E19995D71 /* WatchDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 645D617838A06D3AE39AD11B /* WatchDiagnosticsView.swift */; };
 		8553DC45ADAE9EC2DCB3101A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B48E8BCEBBB60820A867070 /* LibraryView.swift */; };
@@ -114,7 +114,7 @@
 		A6CA850AE61F4D96FE4601C3 /* AppState+Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8EF07C6B5FA9C069F8ADDEC /* AppState+Onboarding.swift */; };
 		A874CDAAE6139A6C31115E30 /* WatchFixtureSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */; };
 		AAD287FF1055A8EE2BE162D8 /* MoodPillPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1BD28A2C0AA7F0AC32331A /* MoodPillPicker.swift */; };
-		AD8AF503F7EE66FABFD99B86 /* TonearmShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AD8AF503F7EE66FABFD99B86 /* TonearmShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AD9B06C812D8117166D0FB4F /* RemoteArtworkImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACD90D09A8CB12D233707F2 /* RemoteArtworkImageView.swift */; };
 		AEF4981A074AAE935043A8D0 /* WatchPlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30488D91649319F8F2EFA5EF /* WatchPlaybackCoordinator.swift */; };
 		AF7E4C4D3F359E4A5E3D3CE1 /* WatchRemotePlaybackObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BBEF9271A1D0067EAC63C90 /* WatchRemotePlaybackObserver.swift */; };
@@ -1130,10 +1130,10 @@
 			targets = (
 				68F0460D59215C176FF8B8A3 /* Tonearm */,
 				C40A8C12F54ED33C850C40B6 /* TonearmShareExtension */,
-				96DC51EBD7436848C7437352 /* TonearmUIRegressionTests */,
-				65C5BA178A6D1265B091D80E /* TonearmUITests */,
-				CD1737525AA7AB55ACD89AF0 /* TonearmWatch */,
 				B5F60FC34FB7BCEF9231709E /* TonearmWidgetsExtension */,
+				65C5BA178A6D1265B091D80E /* TonearmUITests */,
+				96DC51EBD7436848C7437352 /* TonearmUIRegressionTests */,
+				CD1737525AA7AB55ACD89AF0 /* TonearmWatch */,
 				541B2581DFBC0293A58EEE08 /* WatchUITests */,
 			);
 		};

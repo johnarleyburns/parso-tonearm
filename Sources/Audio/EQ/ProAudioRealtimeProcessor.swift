@@ -39,7 +39,7 @@ public final class ProAudioRealtimeProcessor: RealtimeAudioProcessor, @unchecked
         live.reset()
     }
 
-    public func processRealtime(_ bufferList: UnsafeMutableAudioBufferListPointer, frameCount: Int) {
+    public func processRealtime(_ bufferList: AudioBufferListPointer, frameCount: Int) {
         adoptPendingIfAvailable()
         guard !live.isTransparent else { return }
 

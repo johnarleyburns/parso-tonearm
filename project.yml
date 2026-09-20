@@ -40,7 +40,7 @@ packages:
   # 1.1.0 ships the Internet Archive streaming cache-key fix (see Package.swift).
   ParsoAudioEngine:
     url: https://github.com/johnarleyburns/parso-audio-engine.git
-    exactVersion: 1.2.1
+    exactVersion: 1.2.2
 
 settings:
   base:
@@ -113,12 +113,20 @@ targets:
         product: ParsoAudioStreaming
       - package: ParsoAudioEngine
         product: ParsoAudioPlayback
+      # macOS Catalyst (§3.1) can't embed iOS/watchOS-built extensions — Xcode
+      # error: "This target is built for macOS but contains embedded content
+      # built for iOS/watchOS, which is not allowed." `platformFilter: ios`
+      # keeps each embed on iOS/iPadOS only, excluding it from the maccatalyst
+      # build product without a second, duplicated target.
       - target: TonearmShareExtension
         embed: true
+        platforms: [iOS]
       - target: TonearmWidgetsExtension
         embed: true
+        platforms: [iOS]
       - target: TonearmWatch
         embed: true
+        platforms: [iOS]
     info:
       path: Sources/App/Info.plist
       properties:

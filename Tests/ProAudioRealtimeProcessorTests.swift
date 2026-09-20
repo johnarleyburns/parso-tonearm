@@ -1,6 +1,7 @@
 #if !os(watchOS)
 import XCTest
 import AVFoundation
+import ParsoAudioPlayback
 @testable import TonearmCore
 
 /// Phase 4 (audio-engine unification): the Pro Audio chain now runs behind the
@@ -34,7 +35,7 @@ final class ProAudioRealtimeProcessorTests: XCTestCase {
         let original = Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: 2048))
 
         processor.prepareRealtime()
-        processor.processRealtime(UnsafeMutableAudioBufferListPointer(buffer.mutableAudioBufferList),
+        processor.processRealtime(AudioBufferListPointer(buffer.mutableAudioBufferList),
                                   frameCount: 2048)
 
         for i in 0..<2048 {
@@ -51,7 +52,7 @@ final class ProAudioRealtimeProcessorTests: XCTestCase {
 
         let processor = ProAudioRealtimeProcessor(kernel: kernel(eqGains: [6, 0, 0, 0, 0, 0, 0, 0, 0, -6]))
         processor.prepareRealtime()
-        processor.processRealtime(UnsafeMutableAudioBufferListPointer(buffer.mutableAudioBufferList),
+        processor.processRealtime(AudioBufferListPointer(buffer.mutableAudioBufferList),
                                   frameCount: 4096)
 
         var maxDelta = 0.0
@@ -69,14 +70,14 @@ final class ProAudioRealtimeProcessorTests: XCTestCase {
         // Transparent: pass-through.
         let b1 = stereoBuffer(frames: 1024)
         let o1 = Array(UnsafeBufferPointer(start: b1.floatChannelData![0], count: 1024))
-        processor.processRealtime(UnsafeMutableAudioBufferListPointer(b1.mutableAudioBufferList), frameCount: 1024)
+        processor.processRealtime(AudioBufferListPointer(b1.mutableAudioBufferList), frameCount: 1024)
         XCTAssertEqual(b1.floatChannelData![0][512], o1[512], accuracy: 1e-6)
 
         // Publish an active kernel; the next process cycle must adopt it.
         processor.publish(kernel(eqGains: [10, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
         let b2 = stereoBuffer(frames: 1024)
         let o2 = Array(UnsafeBufferPointer(start: b2.floatChannelData![0], count: 1024))
-        processor.processRealtime(UnsafeMutableAudioBufferListPointer(b2.mutableAudioBufferList), frameCount: 1024)
+        processor.processRealtime(AudioBufferListPointer(b2.mutableAudioBufferList), frameCount: 1024)
 
         var changed = false
         for i in 0..<1024 where abs(b2.floatChannelData![0][i] - o2[i]) > 1e-5 { changed = true; break }
