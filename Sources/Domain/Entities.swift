@@ -248,6 +248,19 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
     /// Runtime-only provider artwork reference for browsed remote-library rows.
     /// Authenticated URLs and headers stay transient and are never written to DB.
     public var transientArtwork: RemoteArtwork? = nil
+    /// A stable, PUBLIC, non-authenticated artwork URL safe to persist —
+    /// unlike `transientArtwork` above (which exists specifically because
+    /// most provider artwork needs auth headers/expiring URLs that don't
+    /// survive a save). Real report: "none of the Jamendo artwork is
+    /// loading" — a genuinely-imported `.remote` Jamendo track never had
+    /// anywhere to remember its real `album_image` URL (Jamendo's own
+    /// `JamendoTrack.albumImage`, a plain CDN URL needing no auth), so it
+    /// fell through to embedded-tag/iTunes-search fallbacks that usually
+    /// miss for obscure CC tracks. `LibraryStore` bridges this into
+    /// `transientArtwork` when loading a row, so `ArtworkService`'s
+    /// existing `remoteProviderArtwork(asset:)` resolution needs no changes
+    /// at all.
+    public var persistedArtworkURL: String? = nil
 
     public init(id: Int64?,
                 trackId: Int64,
@@ -265,7 +278,8 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
                 remoteNodePath: String? = nil,
                 transientRemoteHeaders: [String: String] = [:],
                 transientRemoteSupportsByteRanges: Bool = true,
-                transientArtwork: RemoteArtwork? = nil) {
+                transientArtwork: RemoteArtwork? = nil,
+                persistedArtworkURL: String? = nil) {
         self.id = id
         self.trackId = trackId
         self.kind = kind
@@ -283,6 +297,7 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
         self.transientRemoteHeaders = transientRemoteHeaders
         self.transientRemoteSupportsByteRanges = transientRemoteSupportsByteRanges
         self.transientArtwork = transientArtwork
+        self.persistedArtworkURL = persistedArtworkURL
     }
 
     public enum CodingKeys: String, CodingKey {
@@ -300,6 +315,7 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
         case syncID
         case remoteNodeID
         case remoteNodePath
+        case persistedArtworkURL
     }
 }
 

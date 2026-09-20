@@ -334,10 +334,26 @@ actor ArtworkService {
     }
 
     private func remoteProviderArtwork(asset: Asset) async -> (image: UIImage, persistable: Bool)? {
-        guard let artwork = asset.transientArtwork,
-              let url = artwork.url else { return nil }
-        let key = artwork.id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-            ? artwork.id!
+        // `transientArtwork` (never persisted — most provider artwork needs
+        // auth headers/expiring URLs) takes priority when a live browse
+        // session set it; `persistedArtworkURL` is the fallback for a
+        // genuinely-imported row, real fix for "none of the Jamendo artwork
+        // is loading" (see that field's doc comment).
+        let url: URL?
+        let artworkId: String?
+        if let transient = asset.transientArtwork, let transientURL = transient.url {
+            url = transientURL
+            artworkId = transient.id
+        } else if let persisted = asset.persistedArtworkURL, let persistedURL = URL(string: persisted) {
+            url = persistedURL
+            artworkId = nil
+        } else {
+            url = nil
+            artworkId = nil
+        }
+        guard let url else { return nil }
+        let key = artworkId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? artworkId!
             : "remote-artwork-\(url.absoluteString)"
         if let cached = memCache.object(forKey: key as NSString) {
             return cached === Self.notFoundSentinel ? nil : (cached, true)
@@ -348,7 +364,7 @@ actor ArtworkService {
         }
 
         var request = URLRequest(url: url)
-        for (field, value) in artwork.headers {
+        for (field, value) in asset.transientArtwork?.headers ?? [:] {
             request.setValue(value, forHTTPHeaderField: field)
         }
         guard let (data, response) = try? await session.data(for: request),

@@ -197,5 +197,25 @@ extension Schema {
                     columns: ["playlistId", "outgoingTrackId", "incomingTrackId"], options: .unique)
             }
         }
+
+        if shouldRegister("v24", upTo: target) {
+            migrator.registerMigration("v24") { db in
+                // Real report: "none of the Jamendo artwork is loading" — a
+                // genuinely-imported `.remote` asset (Jamendo, or any future
+                // provider) had nowhere to remember its real, public,
+                // non-authenticated cover URL (Jamendo's `album_image`), so
+                // it always fell through to embedded-tag/iTunes-search
+                // fallbacks that usually miss for obscure CC tracks.
+                // Deliberately separate from `remoteNodeID`/`remoteNodePath`
+                // (v22, re-resolves an authenticated node) and from
+                // `Asset.transientArtwork` (never persisted, because MOST
+                // provider artwork needs auth headers/expiring URLs) — this
+                // column is only ever populated with a URL already known to
+                // be stable and public.
+                try db.alter(table: "asset") { t in
+                    t.add(column: "persistedArtworkURL", .text)
+                }
+            }
+        }
     }
 }

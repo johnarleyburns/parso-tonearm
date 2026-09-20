@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import TonearmCore
 import TonearmDiscovery
 
@@ -23,7 +24,10 @@ extension AppState {
     /// pattern as `seedBuiltInLibraryContentIfNeeded()`.
     func seedBuiltInMoodIndexIfNeeded() async {
         guard (try? await store.firstSource(title: Self.moodIndexSourceTitle, kind: .local)) == nil
-        else { return }
+        else {
+            await backfillMoodIndexArtworkIfNeeded()
+            return
+        }
         let bundled = BuiltInMoodIndexProvider.tracks
         guard !bundled.isEmpty else { return }
         do {
@@ -63,7 +67,8 @@ extension AppState {
                 let asset = try await store.insertAsset(Asset(
                     id: nil, trackId: trackId, kind: .remote, bookmark: nil,
                     relPath: nil, remoteURL: entry.streamURL, altRemoteURL: nil,
-                    sizeBytes: nil, unsupportedReason: nil))
+                    sizeBytes: nil, unsupportedReason: nil,
+                    persistedArtworkURL: entry.artworkURL))
                 guard let assetId = asset.id else { continue }
 
                 guard let vectorData = Data(base64Encoded: entry.quantizedVectorBase64) else { continue }
@@ -83,4 +88,34 @@ extension AppState {
     }
 
     private static let moodIndexSourceTitle = "Mood Starter"
+
+    /// One-time backfill for a device that already seeded the mood-starter
+    /// index before this bundle carried `artworkURL` — real report: "none
+    /// of the Jamendo artwork is loading." Seeding itself is idempotent
+    /// (checks the source exists first), so those rows would otherwise stay
+    /// stuck at `persistedArtworkURL == nil` forever on an already-seeded
+    /// device. Matches each bundled entry to its real asset by the stream
+    /// URL (the one value both sides share) rather than by title/artist,
+    /// which aren't guaranteed unique. Cheap and safe to run every launch —
+    /// a single indexed lookup per bundled entry with an artwork URL, and a
+    /// no-op once every row already has one.
+    private func backfillMoodIndexArtworkIfNeeded() async {
+        let bundled = BuiltInMoodIndexProvider.tracks
+        guard !bundled.isEmpty else { return }
+        do {
+            try await store.dbQueue.write { db in
+                for entry in bundled {
+                    guard let artworkURL = entry.artworkURL else { continue }
+                    try db.execute(
+                        sql: """
+                            UPDATE asset SET persistedArtworkURL = ?
+                            WHERE remoteURL = ? AND persistedArtworkURL IS NULL
+                            """,
+                        arguments: [artworkURL, entry.streamURL])
+                }
+            }
+        } catch {
+            print("backfillMoodIndexArtworkIfNeeded error: \(error)")
+        }
+    }
 }

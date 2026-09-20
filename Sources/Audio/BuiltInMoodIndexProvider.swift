@@ -15,6 +15,11 @@ public struct BuiltInMoodTrack: Codable, Sendable {
     public let licenseURL: String?
     public let durationSec: Double
     public let streamURL: String
+    /// Real report: "none of the Jamendo artwork is loading" — Jamendo's own
+    /// `album_image` field (a plain, public, non-authenticated CDN URL), when
+    /// the source provides one. `nil` for the archive.org classical items,
+    /// which don't carry a comparable per-track image.
+    public let artworkURL: String?
     public let dimensions: Int
     public let scale: Double
     public let quantizedVectorBase64: String
