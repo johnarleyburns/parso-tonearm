@@ -34,6 +34,14 @@ public actor BoundedIndexWorker: IndexJobExecuting {
     private let resolver: AnalysisAssetResolver
     private let executionContext: @Sendable () -> ModelManager.ExecutionContext
     private let clock: () -> Date
+    /// docs/plans/macos-app-cloud-sync-plan.md §4.4 — the push half of
+    /// syncing indexing outcomes. Called with the track id right after a
+    /// local embedding commits. An injected closure (same cross-module-
+    /// boundary pattern as `executionContext`/`modelResourceProvider`
+    /// elsewhere in this file) because `CloudSyncEngine` lives in
+    /// `Sources/Sync/`, part of the `TonearmCore` product this
+    /// `TonearmDiscovery` product depends on — not the other way around.
+    private let onEmbeddingCompleted: @Sendable (Int64) -> Void
     /// Remote sparse indexing (docs/plans/remote-sparse-indexing.md) — a
     /// `.remote` asset's PCM comes from here instead of
     /// `resolver`/`reader`. See `remoteSession(jobId:asset:)` for lifecycle.
@@ -59,7 +67,8 @@ public actor BoundedIndexWorker: IndexJobExecuting {
         resolver: AnalysisAssetResolver = AnalysisAssetResolver(),
         remoteReader: AssetBackedWindowedAudioReader = AssetBackedWindowedAudioReader(),
         executionContext: @escaping @Sendable () -> ModelManager.ExecutionContext = { .foreground },
-        clock: @escaping () -> Date = Date.init
+        clock: @escaping () -> Date = Date.init,
+        onEmbeddingCompleted: @escaping @Sendable (Int64) -> Void = { _ in }
     ) {
         self.writer = writer
         self.jobs = jobs
@@ -69,6 +78,7 @@ public actor BoundedIndexWorker: IndexJobExecuting {
         self.remoteReader = remoteReader
         self.executionContext = executionContext
         self.clock = clock
+        self.onEmbeddingCompleted = onEmbeddingCompleted
     }
 
     public func processNextUnit(job: DiscoveryIndexJob, leaseToken: String) async -> IndexWorkOutcome {
@@ -292,6 +302,7 @@ public actor BoundedIndexWorker: IndexJobExecuting {
         } catch {
             return .transientFailure(code: "embeddingCommitFailed", message: error.localizedDescription)
         }
+        onEmbeddingCompleted(trackId)
         return .embeddingStageFinished(.complete)
     }
 

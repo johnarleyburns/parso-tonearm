@@ -420,9 +420,25 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings.icloudSync")
             }
             .padding(.vertical, 8)
+
+            if icloudSync, #available(iOS 17.0, *) {
+                Divider().overlay(Palette.hairline)
+                discoverySyncActivityRow
+            }
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
+    }
+
+    /// docs/plans/macos-app-cloud-sync-plan.md §4 status surface — real
+    /// counts from `CloudSyncEngine`'s most recent pull pass (CLAUDE.md "no
+    /// silent/magic background work": a user turning this on should be able
+    /// to see what it's actually doing, not just a spinner). `nil` counts
+    /// (nothing synced yet this launch) show a plain waiting line instead
+    /// of a fabricated "0 of 0".
+    @available(iOS 17.0, *)
+    private var discoverySyncActivityRow: some View {
+        DiscoverySyncActivityRow()
     }
 
     private var watchCard: some View {
@@ -792,5 +808,37 @@ private struct OptionalAccessibilityIdentifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// docs/plans/macos-app-cloud-sync-plan.md §4 status surface (CLAUDE.md "no
+/// silent/magic background work") — real counts from `CloudSyncEngine`'s
+/// most recent pull pass. A separate view (rather than a computed property
+/// on `SettingsView`) so `@ObservedObject` can actually subscribe to
+/// `CloudSyncEngine`'s `@Published lastSyncActivity` — a computed property
+/// re-reads a plain value once per parent render, which would leave this
+/// stuck at whatever it read when Settings first appeared instead of
+/// updating live as sync passes complete while the screen is open.
+@available(iOS 17.0, *)
+private struct DiscoverySyncActivityRow: View {
+    @ObservedObject private var engine = CloudSyncEngine.shared
+
+    var body: some View {
+        let activity = engine.lastSyncActivity
+        let total = activity.accepted + activity.rejectedKeepLocal + activity.rejectedRequeued
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("Sound Index Sync").font(.system(size: 12, weight: .semibold))
+            if total == 0 {
+                Text("No indexing results received from another device yet.")
+                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+            } else {
+                Text("\(activity.accepted) received · \(activity.rejectedKeepLocal) already indexed here"
+                    + (activity.rejectedRequeued > 0
+                        ? " · \(activity.rejectedRequeued) incompatible, re-indexing here" : ""))
+                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+            }
+        }
+        .padding(.top, 6)
+        .accessibilityIdentifier("settings.icloudSync.discoveryActivity")
     }
 }

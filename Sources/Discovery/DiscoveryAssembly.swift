@@ -98,7 +98,8 @@ public actor DiscoveryAssembly {
         modelDownloadErrorProvider: @escaping @Sendable () -> String? = { nil },
         modelDownloadTagDebugProvider: @escaping @Sendable () -> String? = { nil },
         modelDiagnosticsProvider: @escaping @Sendable () -> ModelDiagnosticsDetail? = { nil },
-        executionEngineProvider: @escaping @Sendable () -> DiscoveryExecutionPolicy.Engine? = { nil }
+        executionEngineProvider: @escaping @Sendable () -> DiscoveryExecutionPolicy.Engine? = { nil },
+        onEmbeddingCompleted: @escaping @Sendable (Int64) -> Void = { _ in }
     ) {
         self.modelDownloadProgressProvider = modelDownloadProgressProvider
         self.modelDownloadErrorProvider = modelDownloadErrorProvider
@@ -116,7 +117,8 @@ public actor DiscoveryAssembly {
         let models = ModelManager(resourceProvider: modelResourceProvider)
         self.models = models
         let worker = BoundedIndexWorker(
-            writer: writer, jobs: jobs, models: models, executionContext: executionContext)
+            writer: writer, jobs: jobs, models: models, executionContext: executionContext,
+            onEmbeddingCompleted: onEmbeddingCompleted)
         self.scheduler = IndexScheduler(jobs: jobs, worker: worker)
         let vectorIndex = VectorIndex(writer: writer)
         self.vectorIndex = vectorIndex

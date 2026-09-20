@@ -83,8 +83,30 @@ final class DiscoveryRuntimeController {
             modelDownloadErrorProvider: { DiscoveryModelResources.shared.currentDownloadError() },
             modelDownloadTagDebugProvider: { DiscoveryModelResources.shared.currentPerTagDebugSummary() },
             modelDiagnosticsProvider: { DiscoveryModelResources.shared.currentDiagnosticsDetail() },
-            executionEngineProvider: { sampler.currentEngine })
+            executionEngineProvider: { sampler.currentEngine },
+            // docs/plans/macos-app-cloud-sync-plan.md §4.4 — push a
+            // just-completed local embedding to CloudKit so another of the
+            // owner's devices can pick it up without re-indexing the audio
+            // itself. `CloudSyncEngine` already no-ops when sync is off or
+            // no iCloud account is available (SyncGating) — this call site
+            // doesn't need to check that itself.
+            onEmbeddingCompleted: { trackId in
+                guard #available(iOS 17.0, *) else { return }
+                Task { @MainActor in
+                    await CloudSyncEngine.shared.enqueueDiscoveryResults(trackId: trackId)
+                }
+            })
         assembly = built
+        if #available(iOS 17.0, *) {
+            CloudSyncEngine.shared.activePipelineVersionsProvider = {
+                CloudSyncEngine.ActivePipelineVersions(
+                    pipeline: DiscoveryPipelineVersion.pipeline,
+                    model: DiscoveryPipelineVersion.model,
+                    preprocessing: DiscoveryPipelineVersion.preprocessing,
+                    sampling: DiscoveryPipelineVersion.sampling,
+                    musicalAnalysis: DiscoveryPipelineVersion.musicalAnalysis)
+            }
+        }
         return built
     }
 
