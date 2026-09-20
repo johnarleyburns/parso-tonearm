@@ -64,20 +64,23 @@ final class IndexPolicyTests: XCTestCase {
         XCTAssertEqual(decision, .blocked(reason: .thermalSerious))
     }
 
-    func testThermalFairBlocksEvenWithSelectedTrackRequest() {
+    /// `.fair` no longer halts the scheduler at all (see
+    /// `DiscoveryExecutionPolicy`'s doc comment for the incident this
+    /// replaces) — CPU-only indexing was never what caused a `.fair`
+    /// reading, so there is no reason to stop it too. `.fair`'s reaction
+    /// is now purely a compute-engine choice, decided separately by
+    /// `DiscoveryExecutionPolicy.decide(_:)`.
+    func testThermalFairDoesNotBlockScheduling() {
         let decision = IndexPolicy.decide(
             snapshot(thermalState: .fair, isUserSelectedTrackRequest: true))
-        XCTAssertEqual(decision, .blocked(reason: .thermalFair))
+        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
     }
 
-    func testThermalFairRecoveryRequiresSixtyContinuousNominalSeconds() {
-        let stillBlocked = IndexPolicy.decide(
-            snapshot(thermalState: .nominal, continuousNominalSeconds: 59))
-        XCTAssertEqual(stillBlocked, .blocked(reason: .thermalFair))
-
-        let recovered = IndexPolicy.decide(
-            snapshot(thermalState: .nominal, continuousNominalSeconds: 60))
-        XCTAssertEqual(recovered, .proceed(interWindowDelaySeconds: 2))
+    func testThermalFairInBackgroundStillProceedsWhileCharging() {
+        let decision = IndexPolicy.decide(
+            snapshot(appState: .background, thermalState: .fair, isCharging: true,
+                     hasBackgroundProcessingGrant: true))
+        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 0))
     }
 
     func testMemoryWarningBlocks() {

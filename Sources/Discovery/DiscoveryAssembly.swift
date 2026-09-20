@@ -38,6 +38,13 @@ public actor DiscoveryAssembly {
     /// not disappear the moment the problem it was added to diagnose goes
     /// away.
     private let modelDiagnosticsProvider: @Sendable () -> ModelDiagnosticsDetail?
+    /// The engine (GPU-preferred vs CPU-only, and why) most recently decided
+    /// for automatic indexing — surfaced on `IndexStatusSnapshot` so "no
+    /// silent/magic background work" extends to compute-engine choice, not
+    /// just whether indexing is running at all. `nil` by default (tests, or
+    /// before the iOS adapter's first decision) rather than a fabricated
+    /// default engine.
+    private let executionEngineProvider: @Sendable () -> DiscoveryExecutionPolicy.Engine?
     private var isDraining = false
 
     /// The reason the scheduler was last unable to make progress — a real
@@ -90,12 +97,14 @@ public actor DiscoveryAssembly {
         modelDownloadProgressProvider: @escaping @Sendable () -> ModelDownloadProgress? = { nil },
         modelDownloadErrorProvider: @escaping @Sendable () -> String? = { nil },
         modelDownloadTagDebugProvider: @escaping @Sendable () -> String? = { nil },
-        modelDiagnosticsProvider: @escaping @Sendable () -> ModelDiagnosticsDetail? = { nil }
+        modelDiagnosticsProvider: @escaping @Sendable () -> ModelDiagnosticsDetail? = { nil },
+        executionEngineProvider: @escaping @Sendable () -> DiscoveryExecutionPolicy.Engine? = { nil }
     ) {
         self.modelDownloadProgressProvider = modelDownloadProgressProvider
         self.modelDownloadErrorProvider = modelDownloadErrorProvider
         self.modelDownloadTagDebugProvider = modelDownloadTagDebugProvider
         self.modelDiagnosticsProvider = modelDiagnosticsProvider
+        self.executionEngineProvider = executionEngineProvider
         let jobs = IndexJobRepository(writer: writer)
         self.jobs = jobs
         self.importJobs = ImportJobRepository(writer: writer)
@@ -148,6 +157,7 @@ public actor DiscoveryAssembly {
             modelDownloadTagDebug: modelAvailable ? nil : modelDownloadTagDebugProvider(),
             modelDiagnostics: modelDiagnosticsProvider(),
             runtime: runtime,
+            currentEngine: executionEngineProvider(),
             schedulerBlockReason: lastBlockReason,
             // Recomputed fresh on every status read (not `lastThermalDiagnostic`,
             // which is only updated once per `drainQueue()` tick — up to 20s

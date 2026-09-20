@@ -163,9 +163,13 @@ public enum IndexPolicy {
         if s.thermalState == .critical { return .blocked(reason: .thermalCritical) }
         if s.thermalState == .serious { return .blocked(reason: .thermalSerious) }
         if s.hasMemoryWarning { return .blocked(reason: .memoryWarning) }
-        if s.thermalState == .fair || s.continuousNominalSeconds < thermalFairRecoverySeconds {
-            return .blocked(reason: .thermalFair)
-        }
+        // `.fair` no longer halts indexing outright (see
+        // DiscoveryExecutionPolicy's doc comment for the incident this
+        // replaces): CPU-only indexing was never what caused a `.fair`
+        // reading, so there is no reason to also stop CPU-only progress
+        // while GPU/ANE backs off. `DiscoveryExecutionPolicy.decide(_:)`
+        // is what actually reacts to `.fair` now, by falling back to
+        // CPU-only compute rather than blocking the scheduler.
 
         // Only ever gates the job the scheduler has actually claimed when
         // that job needs remote bytes — a local/downloaded job is never

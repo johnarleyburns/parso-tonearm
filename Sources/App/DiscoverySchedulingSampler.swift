@@ -33,6 +33,21 @@ final class SchedulingSampler: @unchecked Sendable {
     private var _hasBackgroundProcessingGrant = false
     private var _hasMemoryWarning = false
     private var _nominalSince: Date? = Date()
+    /// Mirrors `_nominalSince` for the opposite direction — how long the
+    /// thermal state has continuously read `.fair` or worse. Feeds
+    /// `DiscoveryExecutionPolicy`'s sustained-`.fair` check, so a single
+    /// instantaneous blip (the incident `DiscoveryExecutionPolicy`'s doc
+    /// comment describes) isn't mistaken for real heat.
+    private var _fairOrWorseSince: Date?
+    /// Timestamps of thermal-triggered GPU→CPU downgrades, pruned to the
+    /// trailing `DiscoveryExecutionPolicy.oscillationWindowSeconds` on every
+    /// read — feeds the oscillation circuit breaker.
+    private var _thermalDowngradeTimestamps: [Date] = []
+    /// The most recently decided execution engine — read-only outside this
+    /// type via `currentEngine`, so the status surface can show which
+    /// engine is actually active without re-deciding (and thereby risking
+    /// double-counting an oscillation) on every status read.
+    private var _lastEngine: DiscoveryExecutionPolicy.Engine = .gpuPreferred
     private var _remoteIndexingWiFiOnlySetting = true
     /// Real current network path. Starts `true` (see the matching doc on
     /// `DiscoverySchedulingSnapshot.isOnWiFi`) until the first
@@ -174,11 +189,49 @@ final class SchedulingSampler: @unchecked Sendable {
         withLock {
             if state == .nominal {
                 if _thermalState != .nominal || _nominalSince == nil { _nominalSince = Date() }
+                _fairOrWorseSince = nil
             } else {
                 _nominalSince = nil
+                if _thermalState == .nominal || _fairOrWorseSince == nil { _fairOrWorseSince = Date() }
             }
             _thermalState = state
         }
+    }
+
+    // MARK: - Execution engine (GPU vs CPU) decision
+
+    /// Decides, and records, which compute engine automatic indexing should
+    /// use right now (`DiscoveryExecutionPolicy`). Mutating — advances the
+    /// oscillation-tracking state — so this is the one call site that
+    /// should drive the actual `ModelManager.ExecutionContext` a job
+    /// resolves; status reads should use `currentEngine` instead so merely
+    /// checking status never itself counts as a decision.
+    func decideExecutionEngine() -> DiscoveryExecutionPolicy.Engine {
+        lock.lock()
+        defer { lock.unlock() }
+        let now = Date()
+        let fairOrWorseSeconds = _fairOrWorseSince.map { now.timeIntervalSince($0) } ?? 0
+        _thermalDowngradeTimestamps.removeAll {
+            now.timeIntervalSince($0) > DiscoveryExecutionPolicy.oscillationWindowSeconds
+        }
+        let snapshot = DiscoveryExecutionPolicy.Snapshot(
+            thermalState: _thermalState,
+            continuousFairOrWorseSeconds: fairOrWorseSeconds,
+            isPlaybackActive: _isPlaybackActive,
+            recentThermalDowngradeCount: _thermalDowngradeTimestamps.count)
+        let engine = DiscoveryExecutionPolicy.decide(snapshot)
+        if engine == .cpuOnly(reason: .thermalSustainedFair), _lastEngine == .gpuPreferred {
+            _thermalDowngradeTimestamps.append(now)
+        }
+        _lastEngine = engine
+        return engine
+    }
+
+    /// The most recently decided engine, for the status surface — does not
+    /// itself decide or mutate oscillation state (see `decideExecutionEngine`).
+    var currentEngine: DiscoveryExecutionPolicy.Engine {
+        lock.lock(); defer { lock.unlock() }
+        return _lastEngine
     }
 
     private func withLock(_ body: () -> Void) {

@@ -60,28 +60,30 @@ final class DiscoveryRuntimeController {
             // park at `waitingForModel` — until the `clap-audio` ODR pack is
             // actually on disk; never a fabricated embedding.
             modelResourceProvider: { DiscoveryModelResources.shared.currentResources() },
-            // Always `.cpuOnly` (`.background`) for automatic indexing, never GPU/ANE
-            // (`.foreground`), regardless of scene state. Real report: indexing almost never
-            // progressed — the status surface constantly read "waiting for the device to cool
-            // down" on a device that did not feel hot. Root cause: this closure gave every
-            // automatic embed CPU+GPU/ANE compute whenever the app scene happened to be
-            // foregrounded (the common case — nothing here is actually latency-sensitive
-            // "foreground" work, just automatic indexing that runs while the app is open).
-            // Running the CLAP encoder on GPU/ANE nudges `ProcessInfo.thermalState` from
-            // `.nominal` to `.fair` well before a device feels warm; IndexPolicy's `.fair`
-            // recovery requires 60 *continuous* nominal seconds (IMPLEMENT_CLAP_PLAN.md §6),
-            // so each blip reset that clock — the scheduler spent nearly all its time waiting
-            // out a debounce window it kept re-triggering. There is no shipped "analyze this
-            // one track now" interactive path today (`isUserSelectedTrackRequest` is always
-            // `false` — see `SchedulingSampler.snapshot()`), so nothing currently needs the
-            // GPU/ANE path; CPU-only is slower per track but produces real, sustained progress
-            // instead of a self-defeating thermal loop. Revisit if/when a genuine interactive
-            // single-track request ships.
-            executionContext: { .background },
+            // GPU/ANE-preferred by default, falling back to CPU-only only for a real reason —
+            // see `DiscoveryExecutionPolicy`'s doc comment for the incident this replaces (naively
+            // using GPU/ANE whenever the scene was foregrounded made `ProcessInfo.thermalState`
+            // blip from `.nominal` to `.fair` well before the device felt warm, and the old
+            // policy's 60-continuous-second `.fair` recovery rule meant every blip reset the
+            // countdown — indexing spent nearly all its time in a self-triggered debounce loop).
+            // `SchedulingSampler.decideExecutionEngine()` reacts to *sustained* `.fair`, not a
+            // single sample, and `IndexPolicy.decide()` no longer halts indexing outright on
+            // `.fair` either — CPU-only was never what caused that reading, so there is no reason
+            // to also stop CPU-only progress while GPU backs off. Active playback still forces
+            // CPU-only unconditionally (a separate, real concern: GPU/ANE inference contending
+            // with the real-time audio render thread, not a thermal one — see IndexPolicy.swift's
+            // `.foreground` case comment).
+            executionContext: {
+                switch sampler.decideExecutionEngine() {
+                case .gpuPreferred: return .foreground
+                case .cpuOnly: return .background
+                }
+            },
             modelDownloadProgressProvider: { DiscoveryModelResources.shared.currentDownloadProgress() },
             modelDownloadErrorProvider: { DiscoveryModelResources.shared.currentDownloadError() },
             modelDownloadTagDebugProvider: { DiscoveryModelResources.shared.currentPerTagDebugSummary() },
-            modelDiagnosticsProvider: { DiscoveryModelResources.shared.currentDiagnosticsDetail() })
+            modelDiagnosticsProvider: { DiscoveryModelResources.shared.currentDiagnosticsDetail() },
+            executionEngineProvider: { sampler.currentEngine })
         assembly = built
         return built
     }

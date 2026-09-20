@@ -166,6 +166,12 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
     public var modelDiagnostics: ModelDiagnosticsDetail?
     public var runtime: DiscoveryRuntime
     public var capturedAt: Date
+    /// The compute engine (GPU-preferred vs CPU-only, and why) most
+    /// recently decided for automatic indexing by `DiscoveryExecutionPolicy`
+    /// — `nil` when indexing hasn't run yet this launch, or under test. See
+    /// that type's doc for the incident this replaces (naive always-GPU
+    /// thermal-looping) and why it isn't simply "always GPU."
+    public var currentEngine: DiscoveryExecutionPolicy.Engine?
     /// The real `IndexPolicy` gate that most recently kept the scheduler from
     /// claiming/continuing work, or `nil` when nothing is currently blocking
     /// it. A job blocked before it is ever claimed stays `.queued` (plan §6:
@@ -191,6 +197,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         modelDiagnostics: ModelDiagnosticsDetail? = nil,
         runtime: DiscoveryRuntime,
         capturedAt: Date = Date(),
+        currentEngine: DiscoveryExecutionPolicy.Engine? = nil,
         schedulerBlockReason: IndexBlockReason? = nil,
         thermalDiagnostic: ThermalDiagnostic? = nil
     ) {
@@ -206,6 +213,7 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         self.modelDiagnostics = modelDiagnostics
         self.runtime = runtime
         self.capturedAt = capturedAt
+        self.currentEngine = currentEngine
         self.schedulerBlockReason = schedulerBlockReason
         self.thermalDiagnostic = thermalDiagnostic
     }
@@ -299,6 +307,7 @@ public struct IndexStatusPresentation: Equatable, Sendable {
         } else if c.queuedOrRunning > 0 {
             phase = .indexing
             detail = "Indexing \(number(c.queuedOrRunning)) track\(c.queuedOrRunning == 1 ? "" : "s")…"
+                + Self.engineSuffix(snapshot.currentEngine)
         } else if c.waiting > 0 {
             phase = .waiting
             detail = Self.detail(
@@ -412,6 +421,22 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             return "Waiting for background processing time from iOS."
         case .remoteSamplingRequiresWiFi:
             return "Waiting for Wi-Fi before indexing this remote track."
+        }
+    }
+
+    /// Which compute engine is actually doing the work, and why — CLAUDE.md
+    /// "no silent/magic background work" extends to compute-engine choice:
+    /// a user who knows this app can use GPU/ANE should not have to wonder
+    /// why indexing looks slow right now without being told CPU is active
+    /// and why.
+    private static func engineSuffix(_ engine: DiscoveryExecutionPolicy.Engine?) -> String {
+        guard let engine else { return "" }
+        switch engine {
+        case .gpuPreferred: return " (GPU)"
+        case .cpuOnly(.playbackActive): return " (CPU — paused for playback)"
+        case .cpuOnly(.thermalSeriousOrCritical): return " (CPU — device is hot)"
+        case .cpuOnly(.thermalSustainedFair): return " (CPU — cooling down)"
+        case .cpuOnly(.recentOscillation): return " (CPU — ran warm recently)"
         }
     }
 

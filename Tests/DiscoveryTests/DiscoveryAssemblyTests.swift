@@ -173,17 +173,19 @@ final class DiscoveryAssemblyTests: XCTestCase {
         let trackCount = 25
         for _ in 0..<trackCount { _ = try await seedTrack(queue, fileURL: nil, durationSec: nil) }
 
-        // Real-world gate: device thermal state has not been continuously
-        // nominal for the 60s `IndexPolicy.thermalFairRecoverySeconds`
-        // requirement — exactly the state a phone can sit in for minutes if
-        // thermal is flapping right after a big TestFlight install.
+        // Real-world gate: device thermal state is genuinely `.serious` — one
+        // of the two conditions (with `.critical`) `IndexPolicy.decide()`
+        // still treats as an unconditional hard block. `.fair` no longer
+        // blocks scheduling at all (see `DiscoveryExecutionPolicy`'s doc
+        // comment) — it only degrades the compute engine — so it would no
+        // longer reproduce this scenario.
         final class SnapshotBox: @unchecked Sendable {
             var value: DiscoverySchedulingSnapshot
             init(_ v: DiscoverySchedulingSnapshot) { value = v }
         }
         let box = SnapshotBox(
             DiscoverySchedulingSnapshot(
-                appState: .foreground, thermalState: .nominal, batteryLevel: 0.9, isCharging: true,
+                appState: .foreground, thermalState: .serious, batteryLevel: 0.9, isCharging: true,
                 isLowPowerModeEnabled: false, isPlaybackActive: false, isUserPaused: false,
                 chargingOnlySetting: false, hasBackgroundProcessingGrant: false,
                 hasMemoryWarning: false, continuousNominalSeconds: 5))
@@ -209,10 +211,10 @@ final class DiscoveryAssemblyTests: XCTestCase {
             "jobs blocked before being claimed stay .queued — this is what made the old "
                 + "status UI show a generic, unexplained 'Indexing' forever")
         let reasonAfterBlock = await assembly.lastBlockReason
-        XCTAssertEqual(reasonAfterBlock, .thermalFair)
+        XCTAssertEqual(reasonAfterBlock, .thermalSerious)
 
         let snapshot = try await assembly.statusSnapshot()
-        XCTAssertEqual(snapshot.schedulerBlockReason, .thermalFair)
+        XCTAssertEqual(snapshot.schedulerBlockReason, .thermalSerious)
 
         // Once the real condition clears, the scheduler is unblocked and the
         // stale reason must not survive — even though these particular jobs
