@@ -1,3 +1,4 @@
+#if !targetEnvironment(macCatalyst)
 import CarPlay
 import UIKit
 
@@ -41,3 +42,4 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         self.interfaceController = nil
     }
 }
+#endif

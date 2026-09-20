@@ -1453,6 +1453,7 @@
 				CODE_SIGN_ENTITLEMENTS = Sources/App/Tonearm.Debug.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				DEVELOPMENT_TEAM = 3264Y8YUGV;
 				INFOPLIST_FILE = Sources/App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1461,8 +1462,9 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm;
 				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = YES;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,6";
 			};
 			name = Debug;
 		};
@@ -1553,6 +1555,7 @@
 				CODE_SIGN_ENTITLEMENTS = Sources/App/Tonearm.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				DEVELOPMENT_TEAM = 3264Y8YUGV;
 				INFOPLIST_FILE = Sources/App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1562,8 +1565,9 @@
 				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm;
 				PROVISIONING_PROFILE_SPECIFIER = "Platterhead Profile";
 				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = YES;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,6";
 			};
 			name = Release;
 		};

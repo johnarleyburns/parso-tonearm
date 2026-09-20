@@ -175,7 +175,18 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: guru.parso.tonearm
-        TARGETED_DEVICE_FAMILY: "1,2"
+        # "6" enables Mac Catalyst as a build destination for this SAME
+        # target (docs/plans/macos-app-cloud-sync-plan.md §3.1) — the
+        # standard, lowest-risk way to add Catalyst to an existing iOS app:
+        # a build-setting flip, not a second target with a duplicated
+        # sources/excludes/dependencies list to keep in sync forever.
+        # CarPlay is unavailable under Catalyst (unlike the
+        # Designed-for-iPad path below, which is a different mechanism) —
+        # Sources/App/CarPlay/*.swift is gated with
+        # `#if !targetEnvironment(macCatalyst)`.
+        TARGETED_DEVICE_FAMILY: "1,2,6"
+        SUPPORTS_MACCATALYST: "YES"
+        DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: "NO"
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: "YES"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         DEVELOPMENT_TEAM: "3264Y8YUGV"

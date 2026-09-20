@@ -1,3 +1,4 @@
+#if !targetEnvironment(macCatalyst)
 import CarPlay
 import TonearmCore
 
@@ -281,3 +282,4 @@ private final class CarPlaySearchDelegate: NSObject, CPSearchTemplateDelegate {
         completionHandler()
     }
 }
+#endif
