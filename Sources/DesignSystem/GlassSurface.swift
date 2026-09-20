@@ -16,10 +16,19 @@ struct GlassSurface: ViewModifier {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .fill(fill)
                     )
+                    .allowsHitTesting(false)
             }
             .overlay {
+                // Real report: "Settings -> Music Libraries does nothing" (also EQ,
+                // Tools) — this stroke is purely decorative, but as a Shape-backed
+                // overlay it otherwise sits above the card's own Button in z-order
+                // and silently absorbs the tap before the Button's gesture ever
+                // sees it, for any card where glassSurface wraps the Button/VStack
+                // from the outside rather than living inside the label. Chrome must
+                // never be hit-testable.
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(Color.white.opacity(strokeOpacity), lineWidth: 1)
+                    .allowsHitTesting(false)
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }

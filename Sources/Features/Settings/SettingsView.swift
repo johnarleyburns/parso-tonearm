@@ -2,6 +2,20 @@ import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
 
+/// Real report: "clicking Settings -> Music Libraries does nothing" — tapping
+/// worked and set its own `@State` bool, but the sheet never presented.
+/// Root cause (confirmed via the UI regression suite's captured accessibility
+/// snapshot: the tap registered, the screen never changed): SwiftUI's
+/// well-known reliability problem with many `.sheet(isPresented:)` modifiers
+/// boolean-driven and chained on the same view — only some of them reliably
+/// present, and which ones is not deterministic from the modifier order alone.
+/// A single `.sheet(item:)` bound to one optional value doesn't have this
+/// failure mode, since there is only ever one sheet identity to track.
+enum SettingsSheet: Identifiable {
+    case privacy, thirdPartyNotices, musicLibraries, eq, tools, jamendoKey, cacheManagement
+    var id: Self { self }
+}
+
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
 
@@ -9,20 +23,14 @@ struct SettingsView: View {
     @State private var cacheLimit: Int64 = SparseCacheStore.defaultLimit
     @State private var cachedCount: Int = 0
     @State private var customArtworkBytes: Int64 = 0
-    @State private var showPrivacy = false
+    @State private var activeSheet: SettingsSheet?
     @State private var showClearConfirm = false
     @State private var showClearCustomConfirm = false
-    @State private var showEQ = false
-    @State private var showTools = false
     @State private var showCustomCacheLimit = false
     @State private var customCacheLimitMB = ""
     @State private var customCacheLimitMessage: String?
     @State private var icloudSync = SyncGating.isEnabled
     @State private var showWatchSettings = false
-    @State private var showJamendoKey = false
-    @State private var showThirdPartyNotices = false
-    @State private var showMusicLibraries = false
-    @State private var showCacheManagement = false
     @State private var advancedExpanded = false
 
     private let presets: [(String, Int64)] = [
@@ -60,13 +68,17 @@ struct SettingsView: View {
         }
         .foregroundStyle(Palette.ink)
         .task { await refresh() }
-        .sheet(isPresented: $showPrivacy) { PrivacyView() }
-        .sheet(isPresented: $showThirdPartyNotices) { ThirdPartyNoticesView() }
-        .sheet(isPresented: $showMusicLibraries) { SourcesView() }
-        .sheet(isPresented: $showEQ) { EQView() }
-        .sheet(isPresented: $showTools) { ToolsView() }
-        .sheet(isPresented: $showJamendoKey) { JamendoCredentialView() }
-        .sheet(isPresented: $showCacheManagement) { cacheManagementSheet }
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .privacy: PrivacyView()
+            case .thirdPartyNotices: ThirdPartyNoticesView()
+            case .musicLibraries: SourcesView()
+            case .eq: EQView()
+            case .tools: ToolsView()
+            case .jamendoKey: JamendoCredentialView()
+            case .cacheManagement: cacheManagementSheet
+            }
+        }
         .confirmationDialog("Clear \(TimeFmt.megabytes(cacheUsed)) of cached audio?",
                             isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button("Clear Cache", role: .destructive) {
@@ -157,7 +169,7 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { showCacheManagement = false }.tint(Palette.brass)
+                    Button("Done") { activeSheet = nil }.tint(Palette.brass)
                 }
             }
         }
@@ -175,7 +187,7 @@ struct SettingsView: View {
     /// — the full preset/custom-limit controls (`cacheCard`) move into a
     /// sheet opened from here; nothing about setting the limit changes.
     private var cacheSummaryCard: some View {
-        Button { showCacheManagement = true } label: {
+        Button { activeSheet = .cacheManagement } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Streaming Cache").font(.system(size: 13.5))
@@ -280,7 +292,7 @@ struct SettingsView: View {
     /// source configuration is a low-frequency task, not a permanent
     /// bottom-tab destination.
     private var musicLibrariesCard: some View {
-        Button { showMusicLibraries = true } label: {
+        Button { activeSheet = .musicLibraries } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Music Libraries").font(.system(size: 13.5))
@@ -349,7 +361,7 @@ struct SettingsView: View {
     }
 
     private var eqRow: some View {
-        Button { showEQ = true } label: {
+        Button { activeSheet = .eq } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("10-band EQ").font(.system(size: 13.5))
@@ -425,7 +437,7 @@ struct SettingsView: View {
     /// need no account (FR-LIB-9); a user may supply their own instead, which
     /// then takes precedence (plan 6.3).
     private var jamendoCard: some View {
-        Button { showJamendoKey = true } label: {
+        Button { activeSheet = .jamendoKey } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Jamendo key").font(.system(size: 13.5))
@@ -445,7 +457,7 @@ struct SettingsView: View {
     }
 
     private var toolsCard: some View {
-        Button { showTools = true } label: {
+        Button { activeSheet = .tools } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Tools").font(.system(size: 13.5))
@@ -473,10 +485,16 @@ struct SettingsView: View {
                 Text(sub).font(.system(size: 11)).foregroundStyle(Palette.ink3)
             }
             Spacer()
-            Toggle("", isOn: binding).labelsHidden().tint(Palette.brassDeep)
+            // The identifier belongs on the Toggle itself, not the row — an
+            // identifier on the surrounding HStack merges into a single
+            // accessibility element whose reported control type/value is the
+            // row's own (a StaticText), not the switch's, so UI-test taps
+            // land on the row but state reads/writes never see the switch.
+            Toggle("", isOn: binding)
+                .labelsHidden().tint(Palette.brassDeep)
+                .modifier(OptionalAccessibilityIdentifier(id: id))
         }
         .padding(.vertical, 8)
-        .modifier(OptionalAccessibilityIdentifier(id: id))
     }
 
     /// The Settings-level detail for Keep Playing (CLAUDE.md "let them drill
@@ -558,7 +576,7 @@ struct SettingsView: View {
     }
 
     private var privacyCard: some View {
-        Button { showPrivacy = true } label: {
+        Button { activeSheet = .privacy } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Privacy").font(.system(size: 13.5))
@@ -577,7 +595,7 @@ struct SettingsView: View {
 
     private var aboutCard: some View {
         VStack(spacing: 0) {
-            Button { showThirdPartyNotices = true } label: {
+            Button { activeSheet = .thirdPartyNotices } label: {
                 HStack {
                     aboutRow("Terms", "GPLv3+ · third-party notices")
                     Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)

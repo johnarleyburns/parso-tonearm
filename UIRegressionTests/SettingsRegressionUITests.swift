@@ -19,9 +19,12 @@ final class SettingsRegressionUITests: XCTestCase {
     }
 
     /// The reported symptom verbatim: tapping Music Libraries did nothing.
+    /// SourcesView uses its own in-content `ScreenHeader`, not a native
+    /// navigation bar (same as `LibraryView`), so the check is for that
+    /// header's title rather than `app.navigationBars`.
     func testMusicLibrariesOpensSourcesSheet() throws {
         app.waitFor("settings.musicLibraries").tap()
-        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 5),
+        XCTAssertTrue(app.staticTexts["Libraries"].waitForExistence(timeout: 5),
                       "Music Libraries did not open a sheet")
     }
 
