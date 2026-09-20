@@ -133,6 +133,15 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.ink3)
                 }
                 .padding(15)
+                // Real report: tapping this (and other Spacer-based row
+                // labels below) did nothing at all on a real device. A
+                // Button's plain-style label with a Spacer only makes its
+                // VISIBLY DRAWN content (the Text/Image glyphs) tappable by
+                // default — the Spacer's own flexible empty space, which is
+                // most of a normal-width row, is not part of the hit area
+                // unless explicitly claimed. `.contentShape(Rectangle())`
+                // claims the whole padded frame instead.
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.advanced")
@@ -201,6 +210,7 @@ struct SettingsView: View {
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.cache")
@@ -309,6 +319,7 @@ struct SettingsView: View {
                     .foregroundStyle(Palette.ink3)
             }
             .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.musicLibraries")
@@ -349,11 +360,15 @@ struct SettingsView: View {
                     .font(.system(size: 11)).foregroundStyle(Palette.ink3)
             }
             Spacer()
-            Stepper(value: $appState.prefetchDepth,
-                    in: PrefetchDepthPolicy.minimum...PrefetchDepthPolicy.maximum) {
-                Text("\(appState.prefetchDepth)").font(.system(size: 13, weight: .semibold))
-                    .monospacedDigit()
-            }
+            // Real report: "the +/- does nothing, I don't see any number
+            // shown" — a Stepper's label closure is accessibility-only on
+            // iOS; it is never rendered inline next to the control, however
+            // it's used here (this was true before this change too — not a
+            // new regression). The value needs its own always-visible Text.
+            Text("\(appState.prefetchDepth)").font(.system(size: 13, weight: .semibold))
+                .monospacedDigit()
+            Stepper("", value: $appState.prefetchDepth,
+                    in: PrefetchDepthPolicy.minimum...PrefetchDepthPolicy.maximum)
             .labelsHidden()
             .fixedSize()
         }
@@ -374,6 +389,7 @@ struct SettingsView: View {
                     .foregroundStyle(Palette.ink3)
             }
             .padding(.vertical, 8)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.eq")
@@ -424,6 +440,7 @@ struct SettingsView: View {
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.watch")
@@ -451,6 +468,7 @@ struct SettingsView: View {
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.jamendo.key")
@@ -471,6 +489,7 @@ struct SettingsView: View {
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.tools")
@@ -515,10 +534,12 @@ struct SettingsView: View {
                         .font(.system(size: 11)).foregroundStyle(Palette.ink3)
                 }
                 Spacer()
-                Stepper(value: $appState.keepPlayingBatchSize, in: 5...30, step: 5) {
-                    Text("\(appState.keepPlayingBatchSize)").font(.system(size: 13, weight: .semibold))
-                        .monospacedDigit()
-                }
+                // Same fix as `prefetchControl` — a Stepper's label closure
+                // never renders inline on iOS, so the value needs its own
+                // visible Text.
+                Text("\(appState.keepPlayingBatchSize)").font(.system(size: 13, weight: .semibold))
+                    .monospacedDigit()
+                Stepper("", value: $appState.keepPlayingBatchSize, in: 5...30, step: 5)
                 .labelsHidden()
                 .fixedSize()
             }
@@ -541,6 +562,7 @@ struct SettingsView: View {
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.clearCache")
@@ -588,6 +610,7 @@ struct SettingsView: View {
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.privacy")
@@ -600,6 +623,7 @@ struct SettingsView: View {
                     aboutRow("Terms", "GPLv3+ · third-party notices")
                     Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
                 }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.thirdPartyNotices")
@@ -609,6 +633,7 @@ struct SettingsView: View {
                     aboutRow("Source", "View on GitHub")
                     Image(systemName: "arrow.up.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
                 }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             Divider().overlay(Palette.hairline)
