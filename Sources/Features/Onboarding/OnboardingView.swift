@@ -2,7 +2,7 @@ import SwiftUI
 import TonearmCore
 
 struct OnboardingSourceOption: Identifiable {
-    enum Kind {
+    enum Kind: Equatable {
         case archiveOrg
         case subsonicDemo
         case jellyfinDemo
@@ -64,23 +64,31 @@ struct OnboardingView: View {
               url: "https://demo.jellyfin.org/stable",
               username: "demo",
               password: ""),
-        .init(kind: .jamendoGenre, title: "Electronic", subtitle: "Jamendo · Creative Commons",
-              url: "electronic", selected: false),
-        .init(kind: .jamendoGenre, title: "Hip-Hop", subtitle: "Jamendo · Creative Commons",
-              url: "hip-hop", selected: false),
-        .init(kind: .jamendoGenre, title: "Rock", subtitle: "Jamendo · Creative Commons",
-              url: "rock", selected: false),
-        .init(kind: .jamendoGenre, title: "Jazz", subtitle: "Jamendo · Creative Commons",
-              url: "jazz", selected: false),
-        .init(kind: .jamendoGenre, title: "Soul · Funk", subtitle: "Jamendo · Creative Commons",
-              url: "soul", selected: false),
-        .init(kind: .jamendoGenre, title: "Pop", subtitle: "Jamendo · Creative Commons",
-              url: "pop", selected: false),
-        .init(kind: .jamendoGenre, title: "International", subtitle: "Jamendo · Creative Commons",
-              url: "world", selected: false),
-        .init(kind: .jamendoGenre, title: "Experimental", subtitle: "Jamendo · Creative Commons",
-              url: "experimental", selected: false),
-    ]
+    ] + OnboardingView.jamendoGenreOptions
+
+    /// Real report: "the Jamendo onboarding genres are much too sparse, I
+    /// want genres + subgenres n-levels deep essentially exposing every
+    /// genre category that jamendo has." Replaces the previous 8 hardcoded
+    /// top-level-only picks with the full, real `JamendoGenreTree` (built
+    /// from live-verified Jamendo tags, not invented names — see that
+    /// type's doc comment) — every top-level genre AND every subgenre, so a
+    /// user can pick down to "Rock — Shoegaze" rather than only "Rock".
+    /// Sorted alphabetically per that same report; all unchecked by default
+    /// (§18A.2, unchanged from before).
+    private static let jamendoGenreOptions: [OnboardingSourceOption] = {
+        var out: [OnboardingSourceOption] = []
+        for parent in JamendoGenreTree.roots {
+            out.append(.init(kind: .jamendoGenre, title: parent.name,
+                             subtitle: "Jamendo · Creative Commons",
+                             url: parent.path, selected: false))
+            for child in parent.children {
+                out.append(.init(kind: .jamendoGenre, title: "\(parent.name) — \(child.name)",
+                                 subtitle: "Jamendo · Creative Commons",
+                                 url: child.path, selected: false))
+            }
+        }
+        return out.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }()
 
     private let intros: [(icon: String, title: String, body: String)] = [
         ("music.note.house.fill", "Welcome to Platterhead",
@@ -206,6 +214,10 @@ struct OnboardingView: View {
             ScrollView {
                 VStack(spacing: 10) {
                     ForEach($options) { $option in
+                        if option.kind == .jamendoGenre,
+                           options.first(where: { $0.kind == .jamendoGenre })?.id == option.id {
+                            jamendoGenreSectionHeader
+                        }
                         Button { option.selected.toggle() } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: option.selected ? "checkmark.circle.fill" : "circle")
@@ -249,6 +261,35 @@ struct OnboardingView: View {
                 .disabled(isFinishing)
         }
         .padding(.horizontal, 24).padding(.bottom, 20)
+    }
+
+    /// Real report: "select ZERO by default instead have a SELECT ALL and
+    /// SELECT NONE so they can easily pick" — with 155 real Jamendo genre/
+    /// subgenre entries now in this list (JamendoGenreTree.roots' full
+    /// depth, not just 8 top-level picks), bulk selection is what makes the
+    /// list usable at all. Scoped to Jamendo entries only — the curated
+    /// archive.org/demo-server sources above keep their own independent
+    /// checked state.
+    private var jamendoGenreSectionHeader: some View {
+        HStack {
+            Text("JAMENDO GENRES").font(.system(size: 11, weight: .bold)).kerning(0.5)
+                .foregroundStyle(Palette.ink3)
+            Spacer()
+            Button("Select All") { setAllJamendoGenres(selected: true) }
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.brass)
+                .accessibilityIdentifier("onboarding.jamendoGenres.selectAll")
+            Text("·").foregroundStyle(Palette.ink3)
+            Button("Select None") { setAllJamendoGenres(selected: false) }
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.brass)
+                .accessibilityIdentifier("onboarding.jamendoGenres.selectNone")
+        }
+        .padding(.top, 12)
+    }
+
+    private func setAllJamendoGenres(selected: Bool) {
+        for index in options.indices where options[index].kind == .jamendoGenre {
+            options[index].selected = selected
+        }
     }
 
     private var selectedCount: Int { options.filter { $0.selected }.count }

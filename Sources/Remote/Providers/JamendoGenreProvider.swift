@@ -123,60 +123,191 @@ public struct JamendoGenreNode: Codable, Equatable, Hashable, Sendable, Identifi
 }
 
 /// The curated genre hierarchy (mockup `ipad/15-genre-picker.html` §41.1a).
-/// Jamendo exposes no taxonomy endpoint, so the tree is curated here; each tag
-/// is a real Jamendo genre tag used in the `tags` filter (§18A.3).
+/// Jamendo exposes no taxonomy endpoint, so the tree is built here from real,
+/// evidence-based tags — not invented names. Real report: "the Jamendo
+/// onboarding genres are much too sparse... essentially exposing every genre
+/// category that jamendo has." The previous 8-top-level/33-node tree was
+/// replaced (2026-09) after aggregating `musicinfo.tags.genres` across ~7,800
+/// real tracks sampled live from the API, then verifying every candidate tag
+/// via a live `tags=` search (retried — Jamendo's search endpoint is known to
+/// intermittently return zero results for a real tag under repeat identical
+/// queries, already documented on `JamendoAPI.tracks(tag:offset:limit:)`'s own
+/// retry). Every path below is a tag confirmed to return real, CC-licensed
+/// tracks. The prior TODO's five "dead" tags were a spelling problem, not a
+/// content problem: Jamendo's real tag values have no hyphens
+/// ("nujazz"/"postrock"/"dreampop"/"musiqueconcrete", not "nu-jazz" etc.) —
+/// four of five now resolve correctly under their real spelling; only
+/// "boom-bap" never appeared anywhere in the sampled data or under any
+/// spelling tried, and has been dropped rather than kept as a dead entry.
 public enum JamendoGenreTree {
-    // TODO: hip-hop/boom-bap, hip-hop/lo-fi, jazz/nu-jazz, pop/dream-pop, and
-    // experimental/musique-concrete return zero results from the live
-    // Jamendo API under every tag spelling tried (checked 2026-09) — real
-    // users browsing these subgenres in the picker hit an empty library.
-    // Needs either an alternate tag or removal from the curated tree.
     public static let roots: [JamendoGenreNode] = [
+        .init(name: "Blues", path: "blues", children: [
+        ]),
+        .init(name: "Classical", path: "classical", children: [
+            .init(name: "Baroque", path: "classical/baroque"),
+            .init(name: "Choral", path: "classical/choral"),
+            .init(name: "Contemporary Piano", path: "classical/contemporarypiano"),
+            .init(name: "Medieval", path: "classical/medieval"),
+            .init(name: "Neoclassical", path: "classical/neoclassical"),
+            .init(name: "Ragtime", path: "classical/ragtime"),
+            .init(name: "Symphonic", path: "classical/symphonic"),
+            .init(name: "Waltz", path: "classical/waltz"),
+        ]),
+        .init(name: "Easy Listening", path: "easylistening", children: [
+            .init(name: "Cabaret", path: "easylistening/cabaret"),
+            .init(name: "Christian", path: "easylistening/christian"),
+            .init(name: "Corporate", path: "easylistening/corporate"),
+            .init(name: "Film Score", path: "easylistening/filmscore"),
+            .init(name: "Intro", path: "easylistening/intro"),
+            .init(name: "Jingle", path: "easylistening/jingle"),
+            .init(name: "Kids / Quirky", path: "easylistening/kidsquirky"),
+            .init(name: "Music Bed", path: "easylistening/musicbed"),
+            .init(name: "Production", path: "easylistening/production"),
+            .init(name: "Spoken Word", path: "easylistening/spokenword"),
+            .init(name: "Trailer", path: "easylistening/trailer"),
+        ]),
         .init(name: "Electronic", path: "electronic", children: [
-            .init(name: "Dance", path: "electronic/dance"),
-            .init(name: "Techno", path: "electronic/techno"),
-            .init(name: "House", path: "electronic/house"),
-            .init(name: "Drum & Bass", path: "electronic/drum-and-bass"),
+            .init(name: "8-Bit", path: "electronic/8bit"),
+            .init(name: "Acid House", path: "electronic/acidhouse"),
             .init(name: "Ambient", path: "electronic/ambient"),
             .init(name: "Breakbeat", path: "electronic/breakbeat"),
+            .init(name: "Chillout", path: "electronic/chillout"),
+            .init(name: "Chillwave", path: "electronic/chillwave"),
+            .init(name: "Coldwave", path: "electronic/coldwave"),
+            .init(name: "Dance", path: "electronic/dance"),
+            .init(name: "Dark Ambient", path: "electronic/darkambient"),
+            .init(name: "Darkwave", path: "electronic/darkwave"),
+            .init(name: "Deep House", path: "electronic/deephouse"),
+            .init(name: "Downtempo", path: "electronic/downtempo"),
+            .init(name: "Drum & Bass", path: "electronic/drumnbass"),
+            .init(name: "Dub", path: "electronic/dub"),
             .init(name: "Dubstep", path: "electronic/dubstep"),
-        ]),
-        .init(name: "Hip-Hop", path: "hip-hop", children: [
-            .init(name: "Boom Bap", path: "hip-hop/boom-bap"),
-            .init(name: "Trap", path: "hip-hop/trap"),
-            .init(name: "Instrumental", path: "hip-hop/instrumental"),
-            .init(name: "Lo-fi", path: "hip-hop/lo-fi"),
-            .init(name: "Alternative", path: "hip-hop/alternative"),
-        ]),
-        .init(name: "Rock", path: "rock", children: [
-            .init(name: "Indie", path: "rock/indie"),
-            .init(name: "Punk", path: "rock/punk"),
-            .init(name: "Post-Rock", path: "rock/post-rock"),
-            .init(name: "Garage", path: "rock/garage"),
-        ]),
-        .init(name: "Jazz", path: "jazz", children: [
-            .init(name: "Nu-Jazz", path: "jazz/nu-jazz"),
-            .init(name: "Free Jazz", path: "jazz/free-jazz"),
-            .init(name: "Swing", path: "jazz/swing"),
-        ]),
-        .init(name: "Soul · Funk", path: "soul", children: [
-            .init(name: "Funk", path: "soul/funk"),
-            .init(name: "Disco", path: "soul/disco"),
-            .init(name: "R&B", path: "soul/r-and-b"),
-        ]),
-        .init(name: "Pop", path: "pop", children: [
-            .init(name: "Synth Pop", path: "pop/synth-pop"),
-            .init(name: "Dream Pop", path: "pop/dream-pop"),
-        ]),
-        .init(name: "International", path: "world", children: [
-            .init(name: "Afrobeat", path: "world/afrobeat"),
-            .init(name: "Latin", path: "world/latin"),
-            .init(name: "Balkan", path: "world/balkan"),
+            .init(name: "EDM", path: "electronic/edm"),
+            .init(name: "Electrofunk", path: "electronic/electrofunk"),
+            .init(name: "Electronica", path: "electronic/electronica"),
+            .init(name: "Electropop", path: "electronic/electropop"),
+            .init(name: "Electroswing", path: "electronic/electroswing"),
+            .init(name: "Eurodance", path: "electronic/eurodance"),
+            .init(name: "Glitch", path: "electronic/glitch"),
+            .init(name: "House", path: "electronic/house"),
+            .init(name: "IDM", path: "electronic/idm"),
+            .init(name: "Industrial", path: "electronic/industrial"),
+            .init(name: "New Age", path: "electronic/newage"),
+            .init(name: "Progressive House", path: "electronic/progressivehouse"),
+            .init(name: "Psytrance", path: "electronic/psytrance"),
+            .init(name: "Synth Pop", path: "electronic/synthpop"),
+            .init(name: "Synthwave", path: "electronic/synthwave"),
+            .init(name: "Techno", path: "electronic/techno"),
+            .init(name: "Trance", path: "electronic/trance"),
+            .init(name: "Trip-Hop", path: "electronic/triphop"),
+            .init(name: "Tropical House", path: "electronic/tropicalhouse"),
         ]),
         .init(name: "Experimental", path: "experimental", children: [
-            .init(name: "Noise", path: "experimental/noise"),
+            .init(name: "Avant-Garde", path: "experimental/avantgarde"),
             .init(name: "Drone", path: "experimental/drone"),
-            .init(name: "Musique Concrète", path: "experimental/musique-concrete"),
+            .init(name: "Musique Concrète", path: "experimental/musiqueconcrete"),
+        ]),
+        .init(name: "Folk · Country", path: "folk", children: [
+            .init(name: "Americana", path: "folk/americana"),
+            .init(name: "Bluegrass", path: "folk/bluegrass"),
+            .init(name: "Celtic", path: "folk/celtic"),
+            .init(name: "Chanson Française", path: "folk/chansonfrancaise"),
+            .init(name: "Country", path: "folk/country"),
+            .init(name: "Gypsy", path: "folk/gypsy"),
+            .init(name: "Gypsy Jazz (Manouche)", path: "folk/manouche"),
+            .init(name: "Singer-Songwriter", path: "folk/singersongwriter"),
+        ]),
+        .init(name: "Hip-Hop", path: "hiphop", children: [
+            .init(name: "Chillhop", path: "hiphop/chillhop"),
+            .init(name: "Lo-Fi", path: "hiphop/lofi"),
+            .init(name: "Rap", path: "hiphop/rap"),
+            .init(name: "Trap", path: "hiphop/trap"),
+        ]),
+        .init(name: "Jazz", path: "jazz", children: [
+            .init(name: "Acid Jazz", path: "jazz/acidjazz"),
+            .init(name: "Bebop", path: "jazz/bebop"),
+            .init(name: "Free Jazz", path: "jazz/freejazz"),
+            .init(name: "Jazz Fusion", path: "jazz/jazzfusion"),
+            .init(name: "Jazz-Funk", path: "jazz/jazzfunk"),
+            .init(name: "Latin Jazz", path: "jazz/latinjazz"),
+            .init(name: "Nu-Jazz", path: "jazz/nujazz"),
+            .init(name: "Smooth Jazz", path: "jazz/smoothjazz"),
+            .init(name: "Swing", path: "jazz/swing"),
+        ]),
+        .init(name: "Metal", path: "metal", children: [
+            .init(name: "Death Metal", path: "metal/deathmetal"),
+            .init(name: "Heavy Metal", path: "metal/heavymetal"),
+            .init(name: "Industrial Metal", path: "metal/industrialmetal"),
+            .init(name: "Power Metal", path: "metal/powermetal"),
+            .init(name: "Progressive Metal", path: "metal/progressivemetal"),
+            .init(name: "Thrash Metal", path: "metal/thrashmetal"),
+        ]),
+        .init(name: "Pop", path: "pop", children: [
+            .init(name: "Adult Contemporary", path: "pop/adultcontemporary"),
+            .init(name: "Alternative Pop", path: "pop/alternativepop"),
+            .init(name: "Britpop", path: "pop/britpop"),
+            .init(name: "Dance Pop", path: "pop/dancepop"),
+            .init(name: "Dream Pop", path: "pop/dreampop"),
+            .init(name: "French Pop", path: "pop/frenchpop"),
+            .init(name: "Indie Pop", path: "pop/indiepop"),
+        ]),
+        .init(name: "Rock", path: "rock", children: [
+            .init(name: "Alternative Rock", path: "rock/alternativerock"),
+            .init(name: "Art Rock", path: "rock/artrock"),
+            .init(name: "Blues Rock", path: "rock/bluesrock"),
+            .init(name: "Classic Rock", path: "rock/classicrock"),
+            .init(name: "Electro Rock", path: "rock/electrorock"),
+            .init(name: "Emo", path: "rock/emo"),
+            .init(name: "Garage", path: "rock/garage"),
+            .init(name: "Gothic", path: "rock/gothic"),
+            .init(name: "Grindcore", path: "rock/grindcore"),
+            .init(name: "Grunge", path: "rock/grunge"),
+            .init(name: "Hardcore", path: "rock/hardcore"),
+            .init(name: "Hardcore Punk", path: "rock/hardcorepunk"),
+            .init(name: "Indie", path: "rock/indie"),
+            .init(name: "Indie Rock", path: "rock/indierock"),
+            .init(name: "Industrial Rock", path: "rock/industrialrock"),
+            .init(name: "New Wave", path: "rock/newwave"),
+            .init(name: "Pop Punk", path: "rock/poppunk"),
+            .init(name: "Pop Rock", path: "rock/poprock"),
+            .init(name: "Post-Punk", path: "rock/postpunk"),
+            .init(name: "Post-Rock", path: "rock/postrock"),
+            .init(name: "Progressive Rock", path: "rock/progressiverock"),
+            .init(name: "Psychedelic Rock", path: "rock/psychedelicrock"),
+            .init(name: "Punk", path: "rock/punk"),
+            .init(name: "Rock & Roll", path: "rock/rocknroll"),
+            .init(name: "Rockabilly", path: "rock/rockabilly"),
+            .init(name: "Shoegaze", path: "rock/shoegaze"),
+            .init(name: "Southern Rock", path: "rock/southernrock"),
+            .init(name: "Surf Rock", path: "rock/surfrock"),
+        ]),
+        .init(name: "Soul · Funk · R&B", path: "soul", children: [
+            .init(name: "Alternative R&B", path: "soul/alternativernb"),
+            .init(name: "Disco", path: "soul/disco"),
+            .init(name: "Funk", path: "soul/funk"),
+            .init(name: "Gospel", path: "soul/gospel"),
+            .init(name: "R&B", path: "soul/rnb"),
+        ]),
+        .init(name: "World", path: "world", children: [
+            .init(name: "African", path: "world/african"),
+            .init(name: "Afrobeat", path: "world/afrobeat"),
+            .init(name: "Balkan", path: "world/balkan"),
+            .init(name: "Bossa Nova", path: "world/bossanova"),
+            .init(name: "Dancehall", path: "world/dancehall"),
+            .init(name: "Flamenco", path: "world/flamenco"),
+            .init(name: "Indian", path: "world/indian"),
+            .init(name: "Latin", path: "world/latin"),
+            .init(name: "Merengue", path: "world/merengue"),
+            .init(name: "Middle Eastern", path: "world/middleeastern"),
+            .init(name: "Oriental", path: "world/oriental"),
+            .init(name: "Ragga", path: "world/ragga"),
+            .init(name: "Reggae", path: "world/reggae"),
+            .init(name: "Reggaeton", path: "world/reggaeton"),
+            .init(name: "Rumba", path: "world/rumba"),
+            .init(name: "Samba", path: "world/samba"),
+            .init(name: "Ska", path: "world/ska"),
+            .init(name: "Tribal", path: "world/tribal"),
+            .init(name: "Zouk", path: "world/zouk"),
         ]),
     ]
 
