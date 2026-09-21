@@ -47,13 +47,44 @@ public actor LibraryStore {
     public let dbQueue: DatabaseQueue
 
     public init(inMemory: Bool = false) throws {
+        // Real incident: `Tests/PlaybackPositionLossTests.swift` inserted
+        // "PosTest*" fixture rows straight into `LibraryStore.shared`
+        // because the code path under test (`AudioPlayer.shared
+        // .restorePersistedQueue()`) hydrates via `.shared` internally with
+        // no injection seam — swapping just the insert call to an isolated
+        // store would have broken the test's own premise. On a real Mac,
+        // `swift test` runs as a plain, unsandboxed process, so `.shared`'s
+        // "real" path IS the same on-disk file the actual (also
+        // unsandboxed Catalyst) app reads — every `swift test` run this
+        // session had been silently polluting the owner's real Mac
+        // library. `XCTestConfigurationFilePath` is the standard, reliable
+        // signal XCTest sets for the whole test process — redirecting
+        // `.shared` itself to a per-run temporary directory whenever it's
+        // present makes this impossible to repeat, for any test, without
+        // requiring every future test author to remember `inMemory: true`.
+        // `XCTestConfigurationFilePath` alone is not reliable here — verified
+        // directly that a plain `swift test` run does NOT set it, only
+        // `ProcessInfo.processInfo.processName == "xctest"` (the real Apple
+        // test-runner binary hosting the test bundle) and the `SWIFT_TESTING_ENABLED`
+        // key (present regardless of its value once SwiftPM's test plumbing is
+        // active). Checking all three covers both `swift test` and an Xcode-
+        // hosted `xcodebuild test` run.
+        let isRunningUnderXCTest = ProcessInfo.processInfo.processName == "xctest"
+            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || ProcessInfo.processInfo.environment["SWIFT_TESTING_ENABLED"] != nil
         if inMemory {
             dbQueue = try DatabaseQueue()
         } else {
             let fm = FileManager.default
-            let dir = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask,
+            let dir: URL
+            if isRunningUnderXCTest {
+                dir = fm.temporaryDirectory
+                    .appendingPathComponent("TonearmXCTestLibraryStore-\(UUID().uuidString)", isDirectory: true)
+            } else {
+                dir = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                  appropriateFor: nil, create: true)
-                .appendingPathComponent("Tonearm", isDirectory: true)
+                    .appendingPathComponent("Tonearm", isDirectory: true)
+            }
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
             var config = Configuration()
             config.foreignKeysEnabled = true
