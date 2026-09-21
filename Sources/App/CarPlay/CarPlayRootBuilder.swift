@@ -42,11 +42,10 @@ enum CarPlayRootBuilder {
     private static var searchDelegate: CarPlaySearchDelegate?
 
     static func rootTemplate(interfaceController: CPInterfaceController) -> CPTabBarTemplate {
-        let search = searchTemplate(interfaceController: interfaceController)
         let tabs = [
             playlistsTemplate(interfaceController: interfaceController),
             libraryTemplate(interfaceController: interfaceController),
-            search,
+            searchTab(interfaceController: interfaceController),
             flatListTemplate(
                 title: "Recently Played", systemImage: "clock", interfaceController: interfaceController,
                 loadRows: { try await LibraryStore.shared.recentlyPlayedRows() }),
@@ -167,13 +166,29 @@ enum CarPlayRootBuilder {
     /// `INPlayMediaIntent`/`INPlayMediaIntentHandling` conformance anywhere
     /// under Sources/). Not attempted here — flagged as a real, separate
     /// follow-up, not silently skipped.
-    private static func searchTemplate(interfaceController: CPInterfaceController) -> CPSearchTemplate {
-        let template = CPSearchTemplate()
-        template.tabTitle = "Search"
+    ///
+    /// Real crash, confirmed via a TestFlight device crash report:
+    /// `-[CPTabBarTemplate validateTemplates:]` throws when a
+    /// `CPSearchTemplate` is included directly in a tab bar's `templates`
+    /// array — CarPlay only accepts a `CPSearchTemplate` when it is PUSHED
+    /// onto the interface controller's stack, never as tab-bar content
+    /// itself, contrary to what the original implementation assumed. This
+    /// wraps the real search template in an ordinary `CPListTemplate` tab
+    /// (a valid tab-bar member) whose one row pushes the real search
+    /// template — the tab bar itself never holds the `CPSearchTemplate`
+    /// directly.
+    private static func searchTab(interfaceController: CPInterfaceController) -> CPListTemplate {
+        let item = CPListItem(text: "Search Library", detailText: "Songs, albums, artists")
+        item.handler = { _, completion in
+            let delegate = CarPlaySearchDelegate(interfaceController: interfaceController)
+            searchDelegate = delegate
+            let search = CPSearchTemplate()
+            search.delegate = delegate
+            interfaceController.pushTemplate(search, animated: true, completion: nil)
+            completion()
+        }
+        let template = CPListTemplate(title: "Search", sections: [CPListSection(items: [item])])
         template.tabImage = UIImage(systemName: "magnifyingglass")
-        let delegate = CarPlaySearchDelegate(interfaceController: interfaceController)
-        searchDelegate = delegate
-        template.delegate = delegate
         return template
     }
 
