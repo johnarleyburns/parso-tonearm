@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Native Mac App Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0B0D; --bg2:#101216; --ink:#F2F4F6;
+    --ink2:rgba(235,235,235,.60); --ink3:rgba(235,235,235,.36);
+    --brass:#E3A44B; --brass-deep:#B97F2E; --ok:#4CD471; --warn:#E3A44B; --bad:#ED6A5E;
+    --card:rgba(255,255,255,.055); --card-line:rgba(255,255,255,.09);
+    --display:'Fraunces',ui-serif,Georgia,serif;
+    --body:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,'SF Mono',monospace;
+    --mac-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1100px 500px at 15% -10%, rgba(227,164,75,.10), transparent 60%),
+      linear-gradient(180deg,var(--bg2),var(--bg) 380px);
+    color:var(--ink); font-family:var(--body);
+    padding:0 20px; padding-block:24px 90px;
+  }
+  .wrap{ max-width:1280px; margin:0 auto; }
+  header{ margin-bottom:30px; }
+  .eyebrow{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--brass); display:flex; align-items:center; gap:8px; margin-bottom:14px;
+  }
+  .eyebrow::before{ content:''; width:7px; height:7px; border-radius:50%; background:var(--brass); }
+  h1{
+    font-family:var(--display); font-weight:600; font-size:clamp(26px,3.6vw,38px);
+    line-height:1.1; margin:0 0 12px; text-wrap:balance; max-width:24ch;
+  }
+  .dek{ color:var(--ink2); font-size:14.5px; line-height:1.6; max-width:72ch; margin:0; }
+  .dek b{ color:var(--ink); font-weight:600; } .dek code{ font-family:var(--mono); font-size:.92em; color:var(--brass); }
+
+  /* Table of contents — sticky */
+  nav.toc{
+    position:sticky; top:0; z-index:20; margin:22px -20px 40px; padding:12px 20px;
+    background:rgba(10,11,13,.86); backdrop-filter:blur(14px);
+    border-bottom:1px solid rgba(255,255,255,.08);
+    display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; font-family:var(--mono); font-size:11px;
+  }
+  nav.toc .grp{ display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; margin-right:16px; }
+  nav.toc .grp-label{ color:var(--brass); text-transform:uppercase; letter-spacing:.08em; margin-right:2px; }
+  nav.toc a{ color:var(--ink3); text-decoration:none; padding:3px 7px; border-radius:5px; white-space:nowrap; }
+  nav.toc a:hover{ color:var(--ink); background:rgba(255,255,255,.06); }
+
+  section.board{ margin-top:54px; scroll-margin-top:70px; }
+  section.divider{ margin-top:70px; padding-top:6px; border-top:1px solid rgba(227,164,75,.18); }
+  section.divider > .part-eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--brass); margin-bottom:6px;
+  }
+  section.divider > h2.part-title{ font-family:var(--display); font-weight:600; font-size:26px; margin:0 0 8px; }
+  section.divider > p.part-dek{ color:var(--ink2); font-size:13.5px; max-width:74ch; line-height:1.6; margin:0 0 10px; }
+
+  section.board > h2{ font-family:var(--display); font-weight:600; font-size:19px; margin:0 0 5px; }
+  section.board > p.cap{
+    margin:0 0 18px; color:var(--ink3); font-size:12px; font-family:var(--mono); line-height:1.6;
+    max-width:78ch;
+  }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:26px; align-items:start; }
+  @media (max-width:920px){ .grid2{ grid-template-columns:1fr; } }
+
+  .macwin{
+    border-radius:10px; overflow:hidden; background:#1b1c20;
+    box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 40px 80px -30px rgba(0,0,0,.8);
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .macwin.compact{ max-width:560px; }
+  .macmenubar{
+    height:24px; background:#0d0d0f; display:flex; align-items:center; gap:18px; padding:0 14px;
+    font-family:var(--mac-ui); font-size:12.5px; color:rgba(255,255,255,.82);
+    border-bottom:1px solid rgba(255,255,255,.06);
+  }
+  .macmenubar .apple{ font-size:13px; }
+  .macmenubar .appname{ font-weight:600; }
+  .macmenubar .sp{ flex:1; }
+  .macmenubar .active{ color:var(--brass); font-weight:600; }
+  .macmenubar span{ position:relative; }
+
+  .titlebar{
+    height:48px; display:flex; align-items:center; gap:12px; padding:0 14px;
+    background:linear-gradient(180deg,#232428,#1d1e22);
+    border-bottom:1px solid rgba(0,0,0,.35);
+  }
+  .titlebar.sm{ height:38px; }
+  .dot{ width:11px; height:11px; border-radius:50%; }
+  .dot.r{ background:#ED6A5E; } .dot.y{ background:#F4BF4F; } .dot.g{ background:#61C454; }
+  .tb-sep{ width:1px; height:20px; background:rgba(255,255,255,.1); margin:0 2px; }
+  .tb-icon{ width:28px; height:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.65); font-size:14px; }
+  .tb-icon.active{ background:rgba(227,164,75,.16); color:var(--brass); }
+  .tb-search{ display:flex; align-items:center; gap:6px; background:rgba(255,255,255,.07); border-radius:7px; padding:5px 9px; font-size:12px; color:var(--ink3); width:170px; margin-left:auto; }
+  .tb-title{ font-family:var(--mac-ui); font-size:13px; color:rgba(255,255,255,.72); margin:0 auto; }
+
+  .winbody{ display:flex; min-height:420px; font-family:var(--mac-ui); }
+  .winbody.short{ min-height:0; }
+  .sidebar{ width:200px; flex-shrink:0; background:#17181b; padding:14px 10px; border-right:1px solid rgba(255,255,255,.06); }
+  .sb-section{ font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink3); padding:12px 8px 6px; font-family:var(--mono); }
+  .sb-item{ display:flex; align-items:center; gap:9px; padding:6px 8px; border-radius:6px; font-size:12.5px; color:var(--ink2); }
+  .sb-item.active{ background:rgba(227,164,75,.16); color:var(--ink); font-weight:600; }
+  .sb-item .ic{ width:16px; text-align:center; opacity:.8; font-size:13px; }
+  .sb-item .n{ margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--ink3); }
+
+  .main{ flex:1; background:linear-gradient(180deg,#141519,#101216); display:flex; flex-direction:column; min-width:0; position:relative; }
+  .content{ padding:16px 20px; overflow:auto; flex:1; }
+  .content.pad-lg{ padding:22px 26px; }
+  .idx-letter{ font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--brass); padding:10px 4px 4px; }
+  .row{ display:flex; align-items:center; gap:11px; padding:7px 9px; border-radius:7px; position:relative; }
+  .row:hover{ background:rgba(255,255,255,.045); }
+  .row.rightclicked{ background:rgba(255,255,255,.07); }
+  .row .art{ width:32px; height:32px; border-radius:5px; flex-shrink:0; background:linear-gradient(155deg,#3a3d46,#22242b); }
+  .row .art.mood{ background:linear-gradient(155deg,var(--brass),var(--brass-deep)); }
+  .row .meta{ min-width:0; flex:1; }
+  .row .t{ font-size:12px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .row .s{ font-size:10.5px; color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+  .row .dur{ font-family:var(--mono); font-size:10px; color:var(--ink3); flex-shrink:0; }
+  .row .badge{ font-family:var(--mono); font-size:8.5px; text-transform:uppercase; padding:2px 5px; border-radius:4px; background:rgba(227,164,75,.15); color:var(--brass); flex-shrink:0; }
+
+  .sectionhead{ font-family:var(--display); font-weight:600; font-size:15px; margin:0 0 3px; }
+  .sectionsub{ font-size:11px; color:var(--ink3); margin:0 0 12px; }
+
+  .pill{ display:inline-flex; align-items:center; padding:5px 12px; border-radius:20px; font-size:11.5px; font-family:var(--mac-ui); background:rgba(255,255,255,.06); color:var(--ink2); border:1px solid rgba(255,255,255,.08); }
+  .pill.on{ background:var(--brass); color:#1b1508; font-weight:600; border-color:transparent; }
+  .pillrow{ display:flex; flex-wrap:wrap; gap:7px; margin-bottom:16px; }
+
+  .ctxmenu{
+    position:absolute; width:210px; background:rgba(40,41,46,.98); backdrop-filter:blur(20px);
+    border-radius:8px; border:1px solid rgba(255,255,255,.1); box-shadow:0 20px 44px -14px rgba(0,0,0,.7);
+    padding:5px; font-family:var(--mac-ui); font-size:12px; z-index:5;
+  }
+  .ctxmenu.static{ position:static; margin-left:20px; }
+  .ctxmenu .mi{ padding:6px 10px; border-radius:5px; color:var(--ink); display:flex; align-items:center; justify-content:space-between; }
+  .ctxmenu .mi.dim{ color:var(--ink3); }
+  .ctxmenu .mi.hi{ background:var(--brass); color:#1b1508; }
+  .ctxmenu .mi .kbd{ font-family:var(--mono); font-size:10px; color:rgba(255,255,255,.4); }
+  .ctxmenu .mi.hi .kbd{ color:rgba(27,21,8,.6); }
+  .ctxmenu hr{ border:none; border-top:1px solid rgba(255,255,255,.08); margin:4px 2px; }
+
+  .nowplaying{ height:56px; flex-shrink:0; display:flex; align-items:center; gap:14px; padding:0 18px; border-top:1px solid rgba(255,255,255,.07); background:rgba(0,0,0,.18); }
+  .np-art{ width:36px; height:36px; border-radius:6px; background:linear-gradient(155deg,var(--brass),var(--brass-deep)); flex-shrink:0; }
+  .np-meta .t{ font-size:11.5px; color:var(--ink); font-weight:600; }
+  .np-meta .a{ font-size:10px; color:var(--ink3); margin-top:1px; }
+  .np-controls{ display:flex; align-items:center; gap:15px; margin:0 auto; color:var(--ink2); font-size:14px; }
+  .np-controls .play{ width:26px; height:26px; border-radius:50%; background:var(--brass); color:#1b1508; display:flex; align-items:center; justify-content:center; font-size:11px; }
+
+  .menubarwrap{ display:flex; flex-direction:column; align-items:center; }
+  .statusbar{ width:100%; max-width:700px; height:26px; background:rgba(20,21,24,.92); backdrop-filter:blur(6px); border-radius:8px 8px 0 0; display:flex; align-items:center; padding:0 12px; gap:16px; font-family:var(--mac-ui); font-size:12px; color:rgba(255,255,255,.85); border:1px solid rgba(255,255,255,.08); border-bottom:none; }
+  .statusbar .sp{ flex:1; }
+  .menu-panel{ width:300px; background:#1d1e22; border:1px solid rgba(255,255,255,.1); border-radius:0 0 10px 10px; box-shadow:0 24px 50px -18px rgba(0,0,0,.7); padding:15px; font-family:var(--mac-ui); }
+  .mp-track{ display:flex; gap:11px; align-items:center; margin-bottom:11px; }
+  .mp-art{ width:44px; height:44px; border-radius:7px; background:linear-gradient(155deg,var(--brass),var(--brass-deep)); flex-shrink:0; }
+  .mp-title{ font-size:13px; font-weight:600; color:var(--ink); }
+  .mp-artist{ font-size:11px; color:var(--ink3); margin-top:2px; }
+  .mp-scrub{ height:4px; border-radius:2px; background:rgba(255,255,255,.1); margin:9px 0; position:relative; }
+  .mp-scrub::after{ content:''; position:absolute; left:0; top:0; bottom:0; width:38%; background:var(--brass); border-radius:2px; }
+  .mp-transport{ display:flex; align-items:center; justify-content:center; gap:18px; color:var(--ink); font-size:15px; margin-bottom:9px; }
+  .mp-transport .play{ width:30px; height:30px; border-radius:50%; background:var(--brass); color:#1b1508; display:flex; align-items:center; justify-content:center; }
+
+  .prefswin{ max-width:540px; margin:0 auto; }
+  .prefs-toolbar{ display:flex; gap:4px; padding:12px 14px 9px; border-bottom:1px solid rgba(255,255,255,.07); }
+  .prefs-tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:7px 3px; border-radius:8px; font-family:var(--mac-ui); font-size:10px; color:var(--ink3); }
+  .prefs-tab.active{ background:rgba(227,164,75,.14); color:var(--brass); }
+  .prefs-tab .ic{ font-size:16px; }
+  .prefs-body{ padding:18px; font-family:var(--mac-ui); }
+  .prefs-row{ display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06); gap:14px; }
+  .prefs-row .label{ font-size:12.5px; color:var(--ink); }
+  .prefs-row .sub{ font-size:10.5px; color:var(--ink3); margin-top:2px; }
+  .prefs-section{ font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--brass); margin:16px 0 4px; }
+  .prefs-section:first-child{ margin-top:0; }
+  .toggle{ width:32px; height:19px; border-radius:10px; background:var(--brass); position:relative; flex-shrink:0; }
+  .toggle::after{ content:''; position:absolute; top:2px; right:2px; width:15px; height:15px; border-radius:50%; background:#fff; }
+  .toggle.off{ background:rgba(255,255,255,.15); }
+  .toggle.off::after{ right:auto; left:2px; }
+  .stepper{ display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12px; color:var(--ink); }
+  .stepper .btns{ display:flex; border-radius:6px; overflow:hidden; border:1px solid rgba(255,255,255,.12); }
+  .stepper .btns span{ width:22px; height:20px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.06); font-size:11px; }
+
+  /* Sheets & dialogs */
+  .sheet{ max-width:480px; margin:0 auto; }
+  .sheet-body{ padding:20px; font-family:var(--mac-ui); }
+  .field-label{ font-size:11px; color:var(--ink3); margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em; font-family:var(--mono); }
+  .field{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:7px; padding:8px 11px; font-size:12.5px; color:var(--ink); margin-bottom:14px; }
+  .sheet-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:6px; }
+  .btn{ font-family:var(--mac-ui); font-size:12.5px; padding:7px 16px; border-radius:7px; background:rgba(255,255,255,.08); color:var(--ink); }
+  .btn.primary{ background:var(--brass); color:#1b1508; font-weight:600; }
+
+  /* NSOpenPanel-style file picker */
+  .openpanel{ display:flex; height:340px; }
+  .op-sidebar{ width:170px; background:#1b1c20; border-right:1px solid rgba(255,255,255,.07); padding:12px 8px; font-family:var(--mac-ui); font-size:12px; }
+  .op-sidebar .h{ font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink3); padding:8px 6px 4px; font-family:var(--mono); }
+  .op-sidebar .it{ padding:5px 8px; border-radius:5px; color:var(--ink2); display:flex; align-items:center; gap:8px; }
+  .op-sidebar .it.active{ background:var(--brass); color:#1b1508; }
+  .op-main{ flex:1; padding:14px 16px; font-family:var(--mac-ui); }
+  .op-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+  .op-folder{ display:flex; flex-direction:column; align-items:center; gap:6px; font-size:11px; color:var(--ink2); text-align:center; }
+  .op-folder .ic{ width:52px; height:44px; background:linear-gradient(155deg,#5b9df0,#2f6fd6); border-radius:6px; }
+  .op-folder.sel .ic{ outline:2px solid var(--brass); outline-offset:2px; }
+  .op-bottombar{ display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; border-top:1px solid rgba(255,255,255,.07); }
+
+  /* EQ bands */
+  .eqbands{ display:flex; gap:10px; align-items:flex-end; height:150px; padding:10px 6px; }
+  .eqband{ flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; }
+  .eqband .track{ flex:1; width:4px; background:rgba(255,255,255,.1); border-radius:2px; position:relative; }
+  .eqband .thumb{ position:absolute; left:50%; transform:translate(-50%,50%); width:16px; height:16px; border-radius:50%; background:var(--brass); }
+  .eqband .lbl{ font-family:var(--mono); font-size:9px; color:var(--ink3); }
+
+  footer{ margin-top:70px; text-align:center; color:var(--ink3); font-size:11.5px; font-family:var(--mono); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Platterhead — native-mac-app-plan.md</div>
+    <h1>Every window, sheet, and menu — mocked as a real Mac app</h1>
+    <p class="dek">The full inventory: every top-level destination, every sheet/dialog the app presents,
+      and the real system menu bar with three menus actually open. Grouped below; use the index to jump
+      to any one screen. Same visual system throughout — <b>NSWindow chrome</b>, not UIKit-on-Mac.</p>
+  </header>
+
+  <nav class="toc">
+    <div class="grp"><span class="grp-label">Windows</span>
+      <a href="#w-listen">Listen</a><a href="#w-library">Library</a><a href="#w-playlists">Playlists</a>
+      <a href="#w-nowplaying">Now Playing</a><a href="#w-upnext">Up Next</a><a href="#w-findbysound">Find by Sound</a>
+      <a href="#w-soundindex">Sound Index</a><a href="#w-onboarding">Onboarding</a>
+    </div>
+    <div class="grp"><span class="grp-label">Prefs</span>
+      <a href="#p-playback">Playback</a><a href="#p-library">Library</a><a href="#p-account">Account</a><a href="#p-advanced">Advanced</a>
+    </div>
+    <div class="grp"><span class="grp-label">Sheets</span>
+      <a href="#s-addmusic">Add Music</a><a href="#s-addserver">Add Server</a><a href="#s-sources">Sources</a>
+      <a href="#s-createplaylist">Playlist</a><a href="#s-edittrack">Edit Track</a><a href="#s-trackdetail">Track Detail</a>
+      <a href="#s-eq">EQ</a><a href="#s-tools">Tools</a><a href="#s-jamendo">Jamendo</a><a href="#s-remoteguide">Remote Guide</a>
+      <a href="#s-ambient">Ambient</a><a href="#s-watch">Apple Watch</a>
+    </div>
+    <div class="grp"><span class="grp-label">Menu bar</span>
+      <a href="#m-file">File</a><a href="#m-edit">Edit</a><a href="#m-playback">Playback</a><a href="#m-extra">Status item</a>
+    </div>
+    <div class="grp"><span class="grp-label">Other</span><a href="#x-context">Context menu</a></div>
+  </nav>
+
+  <!-- ================= PRIMARY WINDOWS ================= -->
+  <section class="divider">
+    <div class="part-eyebrow">Part 1</div>
+    <h2 class="part-title">Primary windows</h2>
+    <p class="part-dek">One window, `NavigationSplitView` swapping the detail column per sidebar
+      destination — matching the plan's §3 decision. Each mockup below shows that same shell with
+      the destination's real content, not a generic placeholder.</p>
+  </section>
+
+  <section class="board" id="w-listen">
+    <h2>Listen — mood entry point</h2>
+    <p class="cap">Sources/Features/Listen/ListenView.swift: mood pills feeding "What's the mood?",
+      Favorites, and Listening Stats (Top 10 Songs/Artists). Mood pills render as a real Mac pill
+      row — same interaction, wider canvas to show more at once than the phone's horizontal scroll.</p>
+    <div class="macwin">
+      <div class="titlebar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <div class="tb-sep"></div><span class="tb-icon active">☰</span>
+        <span style="font-family:var(--display);font-weight:600;font-size:13.5px">Listen</span>
+        <div class="tb-search">⌕ Search</div>
+      </div>
+      <div class="winbody">
+        <div class="sidebar">
+          <div class="sb-section">Library</div>
+          <div class="sb-item active"><span class="ic">♪</span> Listen</div>
+          <div class="sb-item"><span class="ic">▤</span> My Music</div>
+          <div class="sb-item"><span class="ic">☰</span> Playlists</div>
+          <div class="sb-section">Sound Index</div>
+          <div class="sb-item">Indexed on this Mac <span class="n">2,014</span></div>
+        </div>
+        <div class="main">
+          <div class="content pad-lg">
+            <div class="sectionhead">What's the mood?</div>
+            <div class="sectionsub">Pick one or more — results blend the vibes you choose.</div>
+            <div class="pillrow">
+              <span class="pill on">Calm</span><span class="pill">Energetic</span><span class="pill">Melancholy</span>
+              <span class="pill">Focus</span><span class="pill">Nostalgic</span><span class="pill">Upbeat</span>
+            </div>
+            <div class="row"><div class="art mood"></div><div class="meta"><div class="t">Calming Nature 4K</div><div class="s">Ambient Sounds — 96% match</div></div><div class="dur">4:12</div></div>
+            <div class="row"><div class="art mood"></div><div class="meta"><div class="t">Nocturne in E-flat major, Op. 9</div><div class="s">Chopin — 91% match</div></div><div class="dur">4:33</div></div>
+            <div class="sectionhead" style="margin-top:20px">Top 10 Songs</div>
+            <div class="row"><div class="meta"><div class="t">1 · In Tune</div><div class="s">Kellee Maize — 41 plays</div></div></div>
+            <div class="row"><div class="meta"><div class="t">2 · Prelude No. 1</div><div class="s">Bach — 33 plays</div></div></div>
+          </div>
+          <div class="nowplaying">
+            <div class="np-art"></div><div class="np-meta"><div class="t">Calming Nature 4K</div><div class="a">Ambient Sounds</div></div>
+            <div class="np-controls"><span>⏮</span><span class="play">▶</span><span>⏭</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="w-library">
+    <h2>My Music — Library (Artists / Albums / Songs)</h2>
+    <p class="cap">Sources/Features/Library/LibraryView.swift: indexed alphabetical sections
+      (SectionHeader per index letter) — the toolbar's segmented control switches the grouping
+      mode; the sidebar carries the Artists/Albums/Recently Added counts already shown on iPad.</p>
+    <div class="macwin">
+      <div class="titlebar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <div class="tb-sep"></div><span class="tb-icon">☰</span>
+        <span style="font-family:var(--display);font-weight:600;font-size:13.5px">My Music</span>
+        <div class="tb-sep" style="margin-left:6px"></div>
+        <span class="tb-icon active">Artists</span><span class="tb-icon">Albums</span><span class="tb-icon">Songs</span>
+        <div class="tb-search">⌕ Search library</div>
+      </div>
+      <div class="winbody">
+        <div class="sidebar">
+          <div class="sb-section">Browse</div>
+          <div class="sb-item active">Artists <span class="n">312</span></div>
+          <div class="sb-item">Albums <span class="n">648</span></div>
+          <div class="sb-item">Recently Added <span class="n">24</span></div>
+        </div>
+        <div class="main">
+          <div class="content">
+            <div class="idx-letter">B</div>
+            <div class="row"><div class="art"></div><div class="meta"><div class="t">Bach, Johann Sebastian</div><div class="s">48 tracks</div></div></div>
+            <div class="idx-letter">C</div>
+            <div class="row"><div class="art"></div><div class="meta"><div class="t">Chopin, Frédéric</div><div class="s">104 tracks</div></div></div>
+            <div class="idx-letter">K</div>
+            <div class="row"><div class="art"></div><div class="meta"><div class="t">Kellee Maize</div><div class="s">2 tracks</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="w-playlists">
+    <h2>Playlists</h2>
+    <p class="cap">Sources/Features/Playlists/PlaylistsView.swift: "Your Playlists" list, each row
+      pushing into its own track list — identical structure to My Music's detail column.</p>
+    <div class="macwin compact">
+      <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="tb-title">Your Playlists</span></div>
+      <div class="winbody" style="min-height:220px">
+        <div class="main" style="width:100%">
+          <div class="content">
+            <div class="row"><div class="art"></div><div class="meta"><div class="t">Ambient Focus</div><div class="s">18 tracks · 1h 12m</div></div></div>
+            <div class="row"><div class="art"></div><div class="meta"><div class="t">Sunday Piano</div><div class="s">9 tracks · 34m</div></div></div>
+            <div class="row"><div class="art"></div><div class="meta"><div class="t">Set Practice — Mix A</div><div class="s">6 tracks · 22m</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="w-nowplaying">
+    <h2>Now Playing — full player</h2>
+    <p class="cap">Sources/Features/NowPlaying/NowPlayingView.swift as its own window (not just the
+      bottom bar) — real Mac apps let Now Playing detach into its own resizable window; the bottom
+      bar's artwork click opens this.</p>
+    <div class="macwin compact">
+      <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="tb-title">Now Playing</span></div>
+      <div class="content" style="padding:26px; text-align:center; background:linear-gradient(180deg,#181a1f,#101216)">
+        <div style="width:180px;height:180px;border-radius:12px;background:linear-gradient(155deg,var(--brass),var(--brass-deep));margin:0 auto 18px"></div>
+        <div style="font-family:var(--mac-ui);font-weight:600;font-size:16px">Calming Nature 4K</div>
+        <div style="font-family:var(--mac-ui);font-size:12px;color:var(--ink3);margin-top:3px">Ambient Sounds</div>
+        <div class="mp-scrub" style="max-width:320px;margin:20px auto 6px"></div>
+        <div style="display:flex;justify-content:space-between;max-width:320px;margin:0 auto;font-family:var(--mono);font-size:10.5px;color:var(--ink3)"><span>1:36</span><span>-2:36</span></div>
+        <div class="mp-transport" style="margin-top:16px"><span>🔀</span><span>⏮</span><span class="play" style="width:38px;height:38px;font-size:15px">▶</span><span>⏭</span><span>🔁</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="w-upnext">
+    <h2>Up Next — queue</h2>
+    <p class="cap">Sources/Features/NowPlaying/UpNextView.swift: "Extended by Keep Playing" tail
+      badge on auto-added rows, matching the phone build exactly — no Mac-specific change needed here.</p>
+    <div class="macwin compact">
+      <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="tb-title">Queue</span></div>
+      <div class="winbody" style="min-height:200px">
+        <div class="main" style="width:100%"><div class="content">
+          <div class="row"><div class="meta"><div class="t">1 · In Tune</div><div class="s">Kellee Maize</div></div></div>
+          <div class="row"><div class="meta"><div class="t">2 · Boston Fog (Dub Mix)</div><div class="s">Jamendo</div></div><span class="badge">Keep Playing</span></div>
+          <div class="row"><div class="meta"><div class="t">3 · Prelude No. 1</div><div class="s">Bach</div></div><span class="badge">Keep Playing</span></div>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="w-findbysound">
+    <h2>Find by Sound — Discovery search</h2>
+    <p class="cap">Sources/Features/Discovery/DiscoverySearchView.swift: Metadata / Find by Sound
+      mode toggle, musical filters, More-like/Less-like soft preferences — a real segmented toolbar
+      control on Mac instead of the phone's inline picker.</p>
+    <div class="macwin">
+      <div class="titlebar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <div class="tb-sep"></div><span class="tb-icon active">Metadata</span><span class="tb-icon">Find by Sound</span>
+        <div class="tb-search" style="margin-left:auto">⌕ Describe a sound…</div>
+      </div>
+      <div class="winbody" style="min-height:260px">
+        <div class="main" style="width:100%"><div class="content pad-lg">
+          <div class="sectionhead">Musical filters</div>
+          <div class="pillrow"><span class="pill on">90–110 BPM</span><span class="pill">Key: C major</span><span class="pill">Energy: low</span></div>
+          <div class="sectionhead">More like / less like</div>
+          <div class="sectionsub">Soft preferences — nudge results, never exclude.</div>
+          <div class="row"><div class="art"></div><div class="meta"><div class="t">Calming Nature 4K</div><div class="s">More like this</div></div></div>
+          <div style="margin-top:14px;font-family:var(--mac-ui);font-size:12px;color:var(--ink3)">241 results</div>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="w-soundindex">
+    <h2>Sound Index — status</h2>
+    <p class="cap">Sources/Features/Discovery/IndexStatusView.swift: Models download progress and
+      an Activity log — now also carrying this session's GPU/CPU engine line
+      (DiscoveryExecutionPolicy) and the CloudKit sync counts (indexed here / received from iPhone /
+      rejected, per docs/plans/macos-app-cloud-sync-plan.md's own status-surface requirement).</p>
+    <div class="macwin">
+      <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="tb-title">Sound Index</span></div>
+      <div class="content pad-lg">
+        <div class="sectionhead">Models</div>
+        <div class="prefs-row"><div><div class="label" style="font-size:12px;color:var(--ink)">CLAP Audio Encoder</div><div class="sub">128 of 128 MB — finished</div></div><span style="color:var(--ok)">✓</span></div>
+        <div class="prefs-row" style="border-bottom:none"><div><div class="label" style="font-size:12px;color:var(--ink)">CLAP Text Encoder</div><div class="sub">221 of 221 MB — finished</div></div><span style="color:var(--ok)">✓</span></div>
+        <div class="sectionhead" style="margin-top:18px">Coverage</div>
+        <div class="prefs-row"><div class="label" style="font-size:12px;color:var(--ink)">Indexing 3 tracks…</div><span style="font-family:var(--mono);font-size:11px;color:var(--brass)">GPU</span></div>
+        <div class="prefs-row"><div class="label" style="font-size:12px;color:var(--ink)">Indexed on this Mac</div><span style="font-family:var(--mono);font-size:11px">2,014</span></div>
+        <div class="prefs-row"><div class="label" style="font-size:12px;color:var(--ink)">Synced from iPhone</div><span style="font-family:var(--mono);font-size:11px">581</span></div>
+        <div class="prefs-row" style="border-bottom:none"><div class="label" style="font-size:12px;color:var(--ink)">Rejected (incompatible model)</div><span style="font-family:var(--mono);font-size:11px">3 · requeued</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="w-onboarding">
+    <h2>Onboarding — first launch</h2>
+    <p class="cap">Sources/Features/Onboarding/OnboardingView.swift: same flow shape as iPad, wider
+      canvas for the (separately, currently in-flight) expanded Jamendo genre picker — shown here
+      generically since that list's exact contents are still being finalized.</p>
+    <div class="macwin compact">
+      <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <div class="content pad-lg" style="text-align:center">
+        <div style="font-family:var(--display);font-weight:600;font-size:22px;margin-bottom:8px">Welcome to Platterhead</div>
+        <div style="font-family:var(--mac-ui);font-size:12.5px;color:var(--ink3);margin-bottom:18px">Pick a few genres to seed your library — you can always add more later.</div>
+        <div style="display:flex;justify-content:center;gap:10px;margin-bottom:14px">
+          <span class="btn">Select All</span><span class="btn">Select None</span>
+        </div>
+        <div class="pillrow" style="justify-content:center">
+          <span class="pill">Ambient</span><span class="pill on">Classical</span><span class="pill">Hip-Hop</span>
+          <span class="pill on">Jazz</span><span class="pill">Rock</span><span class="pill">Electronic</span>
+        </div>
+        <div class="btn primary" style="display:inline-block;margin-top:16px">Continue</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PREFERENCES ================= -->
+  <section class="divider">
+    <div class="part-eyebrow">Part 2</div>
+    <h2 class="part-title">⌘, Preferences window</h2>
+    <p class="part-dek">A real <code style="font-family:var(--mono);color:var(--brass)">Settings{}</code>
+      scene, not a sidebar tab — the four sections SettingsView.swift already has on iPhone/iPad
+      become four preference panes here, same content, Mac-appropriate chrome.</p>
+  </section>
+
+  <section class="board" id="p-playback">
+    <h2>Playback</h2>
+    <p class="cap">Cellular streaming is meaningless on Mac (shown disabled with a note, not hidden —
+      keeps the same setting/binding shared with iOS); Launch at Login is a real Mac-only addition.</p>
+    <div class="macwin prefswin">
+      <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Platterhead Preferences</span></div>
+      <div class="prefs-toolbar">
+        <div class="prefs-tab"><span class="ic">⚙</span>General</div>
+        <div class="prefs-tab active"><span class="ic">♬</span>Playback</div>
+        <div class="prefs-tab"><span class="ic">▤</span>Library</div>
+        <div class="prefs-tab"><span class="ic">☁</span>Account</div>
+        <div class="prefs-tab"><span class="ic">🛠</span>Advanced</div>
+      </div>
+      <div class="prefs-body">
+        <div class="prefs-row"><div><div class="label">Stream on cellular</div><div class="sub">Not applicable — Wi-Fi/Ethernet only on Mac</div></div><div class="toggle off"></div></div>
+        <div class="prefs-row"><div><div class="label">Prefer FLAC over MP3</div><div class="sub">Stream lossless when available</div></div><div class="toggle"></div></div>
+        <div class="prefs-row"><div><div class="label">Prefetch next tracks</div></div><div class="stepper"><span>2</span><div class="btns"><span>−</span><span>+</span></div></div></div>
+        <div class="prefs-row"><div><div class="label">10-band EQ</div><div class="sub">Presets and custom curves</div></div><span style="color:var(--ink3)">›</span></div>
+        <div class="prefs-row" style="border-bottom:none"><div><div class="label">Launch at Login</div><div class="sub">Real Mac idiom, no iOS equivalent</div></div><div class="toggle off"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="p-library">
+    <h2>Library &amp; Storage</h2>
+    <p class="cap">Music Libraries, Streaming Cache, Apple Watch — the Watch row is kept for
+      visual parity even though a Mac has no paired-Watch relationship the way iPhone does; tapping
+      it explains that Watch downloads are managed from your iPhone, rather than hiding the concept.</p>
+    <div class="macwin prefswin">
+      <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Platterhead Preferences</span></div>
+      <div class="prefs-toolbar">
+        <div class="prefs-tab"><span class="ic">⚙</span>General</div>
+        <div class="prefs-tab"><span class="ic">♬</span>Playback</div>
+        <div class="prefs-tab active"><span class="ic">▤</span>Library</div>
+        <div class="prefs-tab"><span class="ic">☁</span>Account</div>
+        <div class="prefs-tab"><span class="ic">🛠</span>Advanced</div>
+      </div>
+      <div class="prefs-body">
+        <div class="prefs-row"><div><div class="label">Music Libraries</div><div class="sub">6 connected</div></div><span style="color:var(--ink3)">›</span></div>
+        <div class="prefs-row"><div><div class="label">Streaming Cache</div><div class="sub">1.2 GB of 5 GB used</div></div><span style="color:var(--ink3)">›</span></div>
+        <div class="prefs-row" style="border-bottom:none"><div><div class="label">Apple Watch</div><div class="sub">Managed from your iPhone — this Mac has no paired Watch</div></div><span style="color:var(--ink3)">›</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="p-account">
+    <h2>Account &amp; About</h2>
+    <div class="macwin prefswin">
+      <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Platterhead Preferences</span></div>
+      <div class="prefs-toolbar">
+        <div class="prefs-tab"><span class="ic">⚙</span>General</div>
+        <div class="prefs-tab"><span class="ic">♬</span>Playback</div>
+        <div class="prefs-tab"><span class="ic">▤</span>Library</div>
+        <div class="prefs-tab active"><span class="ic">☁</span>Account</div>
+        <div class="prefs-tab"><span class="ic">🛠</span>Advanced</div>
+      </div>
+      <div class="prefs-body">
+        <div class="prefs-row"><div><div class="label">iCloud Sync</div><div class="sub">Music, playlists &amp; sound index across devices</div></div><div class="toggle"></div></div>
+        <div class="prefs-row"><div><div class="label">Privacy</div></div><span style="color:var(--ink3)">›</span></div>
+        <div class="prefs-row" style="border-bottom:none"><div><div class="label">Terms &amp; Third-Party Notices</div></div><span style="color:var(--ink3)">›</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="p-advanced">
+    <h2>Advanced</h2>
+    <div class="macwin prefswin">
+      <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Platterhead Preferences</span></div>
+      <div class="prefs-toolbar">
+        <div class="prefs-tab"><span class="ic">⚙</span>General</div>
+        <div class="prefs-tab"><span class="ic">♬</span>Playback</div>
+        <div class="prefs-tab"><span class="ic">▤</span>Library</div>
+        <div class="prefs-tab"><span class="ic">☁</span>Account</div>
+        <div class="prefs-tab active"><span class="ic">🛠</span>Advanced</div>
+      </div>
+      <div class="prefs-body">
+        <div class="prefs-row"><div><div class="label">Tools</div><div class="sub">Smart playlists, tags, duplicates, parametric EQ</div></div><span style="color:var(--ink3)">›</span></div>
+        <div class="prefs-row"><div><div class="label">Jamendo key</div></div><span style="color:var(--ink3)">›</span></div>
+        <div class="prefs-row" style="border-bottom:none"><div><div class="label">Clear Cache</div></div><span style="color:var(--bad)">840 MB</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SHEETS & DIALOGS ================= -->
+  <section class="divider">
+    <div class="part-eyebrow">Part 3</div>
+    <h2 class="part-title">Sheets &amp; dialogs</h2>
+    <p class="part-dek">Every import/edit flow that's a modal sheet on iPhone. Two are genuinely
+      re-thought for Mac (Add Music, Add Server) — the rest keep the same sheet pattern, native
+      Mac sheets already look and behave this way with zero extra code.</p>
+  </section>
+
+  <div class="grid2">
+    <section class="board" id="s-addmusic">
+      <h2>Add Music — real NSOpenPanel</h2>
+      <p class="cap">AddFolderSheet.swift's iOS document-picker sheet becomes a genuine
+        NSOpenPanel folder chooser on Mac — File → Add Music Folder… (⌘O).</p>
+      <div class="macwin">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Choose a folder</span></div>
+        <div class="openpanel">
+          <div class="op-sidebar">
+            <div class="h">Favorites</div>
+            <div class="it active">🎵 Music</div><div class="it">🖥 Desktop</div><div class="it">📄 Documents</div>
+            <div class="h">Locations</div><div class="it">💾 Macintosh HD</div>
+          </div>
+          <div class="op-main">
+            <div class="op-grid">
+              <div class="op-folder sel"><div class="ic"></div>Classical FLACs</div>
+              <div class="op-folder"><div class="ic"></div>Ambient</div>
+              <div class="op-folder"><div class="ic"></div>DJ Sets</div>
+            </div>
+          </div>
+        </div>
+        <div class="op-bottombar"><span class="btn">Cancel</span><span class="btn primary">Choose</span></div>
+      </div>
+    </section>
+
+    <section class="board" id="s-addserver">
+      <h2>Add Server / Remote Library</h2>
+      <p class="cap">AddServerSheet.swift / AddSourceSheet.swift — stays a real sheet, host/
+        credentials form, since this isn't a filesystem operation.</p>
+      <div class="macwin compact">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Add Remote Library</span></div>
+        <div class="sheet-body">
+          <div class="field-label">Server type</div>
+          <div class="field">Subsonic / Navidrome</div>
+          <div class="field-label">Host</div>
+          <div class="field">music.example.com</div>
+          <div class="field-label">Username</div>
+          <div class="field">arley</div>
+          <div class="sheet-actions"><span class="btn">Cancel</span><span class="btn primary">Connect</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid2">
+    <section class="board" id="s-sources">
+      <h2>Music Libraries (Sources)</h2>
+      <p class="cap">SourcesView.swift / SourceDetailView.swift — connected-libraries list,
+        opened from Preferences → Library.</p>
+      <div class="macwin compact">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Music Libraries</span></div>
+        <div class="content">
+          <div class="row"><div class="art"></div><div class="meta"><div class="t">Local — Classical FLACs</div><div class="s">1,204 tracks</div></div></div>
+          <div class="row"><div class="art"></div><div class="meta"><div class="t">Mood Starter</div><div class="s">197 tracks — bundled</div></div></div>
+          <div class="row"><div class="art"></div><div class="meta"><div class="t">Navidrome — music.example.com</div><div class="s">3,412 tracks</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="board" id="s-createplaylist">
+      <h2>Create / Add to Playlist</h2>
+      <p class="cap">CreatePlaylistSheet.swift, AddToPlaylistDialog.swift, AddTracksToPlaylistSheet.swift.</p>
+      <div class="macwin compact">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">New Playlist</span></div>
+        <div class="sheet-body">
+          <div class="field-label">Name</div>
+          <div class="field">Untitled Playlist</div>
+          <div class="sheet-actions"><span class="btn">Cancel</span><span class="btn primary">Create</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid2">
+    <section class="board" id="s-edittrack">
+      <h2>Edit Track Info</h2>
+      <p class="cap">EditTrackMetadataSheet.swift — title/artist correction, same fields as iOS.</p>
+      <div class="macwin compact">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Edit Track Info</span></div>
+        <div class="sheet-body">
+          <div class="field-label">Title</div><div class="field">In Tune</div>
+          <div class="field-label">Artist</div><div class="field">Kellee Maize</div>
+          <div class="sheet-actions"><span class="btn">Cancel</span><span class="btn primary">Save</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="board" id="s-trackdetail">
+      <h2>Track Detail</h2>
+      <p class="cap">TrackDetailCard.swift — format/bitrate/source metadata, license info for
+        CC-licensed tracks.</p>
+      <div class="macwin compact">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Get Info</span></div>
+        <div class="sheet-body">
+          <div style="display:flex;gap:14px;margin-bottom:14px">
+            <div style="width:64px;height:64px;border-radius:8px;background:linear-gradient(155deg,var(--brass),var(--brass-deep))"></div>
+            <div><div style="font-weight:600;font-size:13.5px">In Tune</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Kellee Maize · Jamendo</div></div>
+          </div>
+          <div class="prefs-row"><div class="label" style="font-size:12px">Format</div><span style="font-family:var(--mono);font-size:11px;color:var(--ink3)">MP3 320kbps</span></div>
+          <div class="prefs-row"><div class="label" style="font-size:12px">Duration</div><span style="font-family:var(--mono);font-size:11px;color:var(--ink3)">3:11</span></div>
+          <div class="prefs-row" style="border-bottom:none"><div class="label" style="font-size:12px">License</div><span style="font-family:var(--mono);font-size:11px;color:var(--ink3)">CC BY-SA 3.0</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid2">
+    <section class="board" id="s-eq">
+      <h2>10-band EQ</h2>
+      <p class="cap">EQView.swift — vertical sliders instead of the phone's compact horizontal
+        layout; presets in the toolbar.</p>
+      <div class="macwin compact">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">10-Band EQ — Flat</span></div>
+        <div class="content pad-lg">
+          <div class="eqbands">
+            <div class="eqband"><div class="track"><div class="thumb" style="bottom:50%"></div></div><div class="lbl">32</div></div>
+            <div class="eqband"><div class="track"><div class="thumb" style="bottom:62%"></div></div><div class="lbl">64</div></div>
+            <div class="eqband"><div class="track"><div class="thumb" style="bottom:50%"></div></div><div class="lbl">125</div></div>
+            <div class="eqband"><div class="track"><div class="thumb" style="bottom:40%"></div></div><div class="lbl">250</div></div>
+            <div class="eqband"><div class="track"><div class="thumb" style="bottom:50%"></div></div><div class="lbl">500</div></div>
+            <div class="eqband"><div class="track"><div class="thumb" style="bottom:55%"></div></div><div class="lbl">1k</div></div>
+            <div class="eqband"><div class="track"><div class="thumb" style="bottom:50%"></div></div><div class="lbl">2k</div></div>
+            <div class="eqband"><div class="track"><div class="thumb" style="bottom:45%"></div></div><div class="lbl">4k</div></div>
+            <div class="eqband"><div class="track"><div class="thumb" style="bottom:50%"></div></div><div class="lbl">8k</div></div>
+            <div class="eqband"><div class="track"><div class="thumb" style="bottom:60%"></div></div><div class="lbl">16k</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="board" id="s-tools">
+      <h2>Tools</h2>
+      <p class="cap">ToolsView.swift — smart playlists, tag editing, duplicate detection, all
+        already headless-logic-driven, so this is a straight visual port.</p>
+      <div class="macwin compact">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Tools</span></div>
+        <div class="content">
+          <div class="row"><div class="meta"><div class="t">Smart Playlists</div><div class="s">Rule-based, auto-updating</div></div></div>
+          <div class="row"><div class="meta"><div class="t">Tag Editor</div></div></div>
+          <div class="row"><div class="meta"><div class="t">Find &amp; Eliminate Duplicates</div><div class="s">12 groups found</div></div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid2">
+    <section class="board" id="s-jamendo">
+      <h2>Jamendo Browse &amp; Credential</h2>
+      <p class="cap">JamendoBrowseView.swift / JamendoCredentialView.swift — genre browse list plus
+        the optional own-API-key field.</p>
+      <div class="macwin compact">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Jamendo</span></div>
+        <div class="content">
+          <div class="row"><div class="art"></div><div class="meta"><div class="t">In Tune</div><div class="s">Kellee Maize — Hip-Hop</div></div><div class="dur">3:11</div></div>
+          <div class="row"><div class="art"></div><div class="meta"><div class="t">Boston Fog (Dub Mix)</div><div class="s">Ambient</div></div><div class="dur">6:01</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="board" id="s-remoteguide">
+      <h2>Remote Connector Guide</h2>
+      <p class="cap">RemoteConnectorGuideView.swift — provider-specific setup instructions
+        (Plex, Subsonic, WebDAV, etc.), unchanged content, native sheet chrome.</p>
+      <div class="macwin compact">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Connect Plex</span></div>
+        <div class="sheet-body">
+          <div style="font-size:12px;color:var(--ink2);line-height:1.6">1. Open Plex → Settings → Network<br>2. Copy your server's local address<br>3. Paste it below</div>
+          <div class="field" style="margin-top:14px">http://192.168.1.20:32400</div>
+          <div class="sheet-actions"><span class="btn primary">Connect</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid2">
+    <section class="board" id="s-ambient">
+      <h2>Ambient Playlist</h2>
+      <p class="cap">AmbientPlaylistView.swift — the built-in ambient-sounds quick-play surface.</p>
+      <div class="macwin compact">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Ambient Sounds</span></div>
+        <div class="content">
+          <div class="row"><div class="art mood"></div><div class="meta"><div class="t">Calming Nature 4K</div></div><div class="dur">4:12</div></div>
+          <div class="row"><div class="art mood"></div><div class="meta"><div class="t">Rainfall Loop</div></div><div class="dur">3:40</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="board" id="s-watch">
+      <h2>Apple Watch settings</h2>
+      <p class="cap">WatchSettingsView.swift / WatchDownloadDetailViews.swift — a Mac has no
+        paired-Watch relationship the way iPhone does. Decision: keep the entry point (Preferences
+        → Library → Apple Watch) but show an explainer instead of download management controls,
+        rather than hiding the concept entirely.</p>
+      <div class="macwin compact">
+        <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="tb-title">Apple Watch</span></div>
+        <div class="content pad-lg" style="text-align:center">
+          <div style="font-size:34px;margin-bottom:10px">⌚</div>
+          <div style="font-family:var(--mac-ui);font-size:12.5px;color:var(--ink2);line-height:1.6">Apple Watch downloads are managed from your iPhone.<br>This Mac has no paired Watch.</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= MENU BAR ================= -->
+  <section class="divider">
+    <div class="part-eyebrow">Part 4</div>
+    <h2 class="part-title">The real system menu bar</h2>
+    <p class="part-dek">Three menus actually open, showing real items and real keyboard-shortcut
+      glyphs — built via <code style="font-family:var(--mono);color:var(--brass)">.commands{}</code>
+      on the WindowGroup scene (plan §3). The status-item extra at the end is a separate,
+      complementary piece — both exist on a real Mac app at once.</p>
+  </section>
+
+  <section class="board" id="m-file">
+    <h2>File menu</h2>
+    <div class="macwin compact">
+      <div class="macmenubar">
+        <span class="apple">🍎</span><span class="appname">Platterhead</span>
+        <span class="active">File</span><span>Edit</span><span>View</span><span>Playback</span><span>Window</span><span>Help</span>
+        <span class="sp"></span><span style="color:rgba(255,255,255,.4)">18:42</span>
+      </div>
+      <div style="padding:10px 0 0 60px">
+        <div class="ctxmenu static" style="width:250px">
+          <div class="mi hi">Add Music Folder… <span class="kbd">⌘O</span></div>
+          <div class="mi">Add Remote Library…</div>
+          <div class="mi">Import Playlist…</div>
+          <hr>
+          <div class="mi">New Playlist <span class="kbd">⌘N</span></div>
+          <hr>
+          <div class="mi">Close Window <span class="kbd">⌘W</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="m-edit">
+    <h2>Edit menu</h2>
+    <div class="macwin compact">
+      <div class="macmenubar">
+        <span class="apple">🍎</span><span class="appname">Platterhead</span>
+        <span>File</span><span class="active">Edit</span><span>View</span><span>Playback</span><span>Window</span><span>Help</span>
+        <span class="sp"></span><span style="color:rgba(255,255,255,.4)">18:42</span>
+      </div>
+      <div style="padding:10px 0 0 100px">
+        <div class="ctxmenu static" style="width:230px">
+          <div class="mi dim">Undo <span class="kbd">⌘Z</span></div>
+          <div class="mi dim">Redo <span class="kbd">⇧⌘Z</span></div>
+          <hr>
+          <div class="mi hi">Find in Library <span class="kbd">⌘F</span></div>
+          <div class="mi">Find Next <span class="kbd">⌘G</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="m-playback">
+    <h2>Playback menu</h2>
+    <div class="macwin compact">
+      <div class="macmenubar">
+        <span class="apple">🍎</span><span class="appname">Platterhead</span>
+        <span>File</span><span>Edit</span><span>View</span><span class="active">Playback</span><span>Window</span><span>Help</span>
+        <span class="sp"></span><span style="color:rgba(255,255,255,.4)">18:42</span>
+      </div>
+      <div style="padding:10px 0 0 180px">
+        <div class="ctxmenu static" style="width:250px">
+          <div class="mi hi">Play / Pause <span class="kbd">Space</span></div>
+          <div class="mi">Next Track <span class="kbd">⌘→</span></div>
+          <div class="mi">Previous Track <span class="kbd">⌘←</span></div>
+          <hr>
+          <div class="mi">Shuffle <span class="kbd">⇧⌘S</span></div>
+          <div class="mi">Repeat <span class="kbd">⇧⌘R</span></div>
+          <hr>
+          <div class="mi">Increase Volume <span class="kbd">⌘↑</span></div>
+          <div class="mi">Decrease Volume <span class="kbd">⌘↓</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="board" id="m-extra">
+    <h2>Status item — MenuBarExtra Now Playing</h2>
+    <p class="cap">The always-visible panel, independent of whether the main window is even open —
+      the piece macos-app-cloud-sync-plan.md originally scoped.</p>
+    <div class="menubarwrap">
+      <div class="statusbar"><span class="appname">🎵</span><span class="sp"></span><span>♪ Calming Nature 4K</span><span style="color:rgba(255,255,255,.4)">18:42</span></div>
+      <div class="menu-panel">
+        <div class="mp-track"><div class="mp-art"></div><div><div class="mp-title">Calming Nature 4K</div><div class="mp-artist">Ambient Sounds</div></div></div>
+        <div class="mp-scrub"></div>
+        <div class="mp-transport"><span>⏮</span><span class="play">▶</span><span>⏭</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= OTHER ================= -->
+  <section class="divider">
+    <div class="part-eyebrow">Part 5</div>
+    <h2 class="part-title">Interaction detail</h2>
+  </section>
+
+  <section class="board" id="x-context">
+    <h2>Right-click context menu</h2>
+    <p class="cap">.contextMenu{} already renders as a real NSMenu on Mac automatically — the
+      existing TrackContextMenu (built for iOS long-press) likely ports with zero code changes.</p>
+    <div class="macwin compact">
+      <div class="titlebar sm"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <div class="winbody short" style="min-height:220px">
+        <div class="main" style="width:100%"><div class="content">
+          <div class="row"><div class="art"></div><div class="meta"><div class="t">In Tune</div><div class="s">Kellee Maize</div></div><div class="dur">3:11</div></div>
+          <div class="row rightclicked">
+            <div class="art"></div><div class="meta"><div class="t">Boston Fog (Dub Mix)</div><div class="s">Jamendo</div></div><div class="dur">6:01</div>
+            <div class="ctxmenu" style="top:30px;left:110px">
+              <div class="mi hi">Play Next</div>
+              <div class="mi">Add to Playlist ▸</div>
+              <div class="mi">Add to Up Next</div>
+              <hr>
+              <div class="mi">Get Info <span class="kbd">⌘I</span></div>
+              <div class="mi">Change Artwork…</div>
+              <div class="mi">Edit Track Info…</div>
+              <hr>
+              <div class="mi">Show in Finder</div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>docs/plans/native-mac-app-plan.md · mockups only, not shipped UI</footer>
+</div>
+</body>
+</html>
