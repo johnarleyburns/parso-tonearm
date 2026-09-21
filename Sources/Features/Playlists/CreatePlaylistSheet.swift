@@ -29,7 +29,7 @@ struct CreatePlaylistSheet: View {
 
             TextField("", text: $name, prompt: Text("Playlist name").foregroundStyle(Palette.ink3))
                 .font(.system(size: 15, weight: .medium))
-                .textInputAutocapitalization(.words)
+                .platformAutocapitalization(.words)
                 .padding(.horizontal, 14).frame(height: 46)
                 .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12)))

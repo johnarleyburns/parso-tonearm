@@ -77,7 +77,9 @@ struct MyMusicView: View {
                 }
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
+            #if !os(macOS)
             .toolbar(.hidden, for: .navigationBar)
+            #endif
         }
         .task { consumePendingArtistFilter() }
     }

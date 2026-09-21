@@ -156,7 +156,9 @@ struct PlaylistsView: View {
             .navigationDestination(for: String.self) { value in
                 if value == "ambient" { AmbientPlaylistView() }
             }
+            #if !os(macOS)
             .toolbar(.hidden, for: .navigationBar)
+            #endif
             .sheet(isPresented: $showLocalCreate) {
                 CreatePlaylistSheet(isEmbedded: true)
             }
@@ -205,10 +207,12 @@ struct PlaylistDetailView: View {
                 .accessibilityLabel("Back")
                 .accessibilityIdentifier("playlist.back")
                 Spacer()
+                #if !os(macOS)
                 EditButton()
                     .font(.system(size: 13, weight: .semibold))
                     .frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("playlist.edit")
+                #endif
                 Button { showAddTracks = true } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.brass)
@@ -235,6 +239,7 @@ struct PlaylistDetailView: View {
                     } label: {
                         Label("Download All", systemImage: "arrow.down.circle")
                     }
+                    #if !os(macOS)
                     Menu {
                         Button {
                             Task { await appState.downloadAllToWatch(playlistId: currentPlaylist.id ?? -1) }
@@ -249,6 +254,7 @@ struct PlaylistDetailView: View {
                     } label: {
                         Label("Apple Watch", systemImage: "applewatch")
                     }
+                    #endif
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 14)).foregroundStyle(Palette.brass)

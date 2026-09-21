@@ -3,7 +3,7 @@
 // Tonearm (Platterhead DJ) — Copyright (C) 2026 John Arley Burns.
 // See ../../../LICENSE.
 
-#if canImport(UIKit) && !os(watchOS)
+#if !os(watchOS)
 import SwiftUI
 import TonearmCore
 import TonearmDiscovery
@@ -33,7 +33,7 @@ struct DiscoverySearchView: View {
                 }
             }
             .navigationTitle("Find Music")
-            .navigationBarTitleDisplayMode(.inline)
+            .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -94,7 +94,7 @@ private struct DiscoverySearchContent: View {
                         ? "Describe a sound, e.g. warm analog pads"
                         : "Search titles and artists",
                     text: $model.searchText)
-                    .textInputAutocapitalization(.never)
+                    .platformAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .accessibilityLabel("Search text")
             } else {
@@ -174,14 +174,16 @@ private struct DiscoverySearchContent: View {
 
     private func bpmField(_ label: String, text: Binding<String>) -> some View {
         TextField(label, text: text)
+            #if !os(macOS)
             .keyboardType(.numberPad)
+            #endif
             .modifier(FilterFieldStyle())
             .accessibilityLabel(label)
     }
 
     private func filterField(_ label: String, text: Binding<String>) -> some View {
         TextField(label, text: text)
-            .textInputAutocapitalization(.characters)
+            .platformAutocapitalization(.characters)
             .autocorrectionDisabled()
             .modifier(FilterFieldStyle())
             .accessibilityLabel(label)

@@ -1,7 +1,11 @@
 import AuthenticationServices
 import Foundation
 import TonearmCore
+#if os(macOS)
+import AppKit
+#else
 import UIKit
+#endif
 
 @MainActor
 final class OAuthSignInCoordinator: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
@@ -14,11 +18,21 @@ final class OAuthSignInCoordinator: NSObject, ObservableObject, ASWebAuthenticat
         return try await tokenClient.exchange(session: authSession, callbackURL: callbackURL)
     }
 
+    // `ASPresentationAnchor` is a cross-platform typealias (`UIWindow` on
+    // iOS, `NSWindow` on macOS) — `ASWebAuthenticationPresentationContextProviding`
+    // itself needs no porting, only the platform-specific way of finding the
+    // current key window (native Mac app, docs/plans/native-mac-app-plan.md §2a).
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        #if os(macOS)
+        NSApplication.shared.keyWindow
+            ?? NSApplication.shared.windows.first
+            ?? ASPresentationAnchor()
+        #else
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
             .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+        #endif
     }
 
     private func callbackURL(for authSession: OAuthAuthorizationSession) async throws -> URL {

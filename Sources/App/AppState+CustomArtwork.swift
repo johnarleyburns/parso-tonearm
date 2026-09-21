@@ -2,12 +2,30 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
+#if !os(macOS)
 import UIKit
+#endif
 
 extension AppState {
     func assignCustomArtwork(trackId: Int64, data: Data) async -> Bool {
         let previous = (try? await store.customArtworkId(for: trackId)) ?? nil
         guard let sourceID = await ArtworkStore.shared.store(data) else { return false }
+        #if os(macOS)
+        // No watch-optimized derivative on Mac — there's no paired watch to
+        // transfer it to (native Mac app, docs/plans/native-mac-app-plan.md
+        // §1 — no Watch extension embed). Store the source artwork directly.
+        do {
+            try await store.setCustomArtwork(trackId: trackId, artworkId: sourceID)
+            let stillUsed = (try? await store.allCustomArtworkIds()) ?? []
+            if let previous, previous != sourceID, !stillUsed.contains(previous) {
+                await ArtworkStore.shared.delete(id: previous)
+            }
+            return true
+        } catch {
+            await ArtworkStore.shared.delete(id: sourceID)
+            return false
+        }
+        #else
         var variantID: String?
         var temporaryURL: URL?
         do {
@@ -39,6 +57,7 @@ extension AppState {
             }
             return false
         }
+        #endif
     }
 
     /// Persist-if-needed then assign: a remote/streamed `TrackRow` can carry a
@@ -63,7 +82,9 @@ extension AppState {
         if let oldID, !((try? await store.allCustomArtworkIds()) ?? []).contains(oldID) {
             await ArtworkStore.shared.delete(id: oldID)
         }
+        #if !os(macOS)
         await watchRuntime.artworkDidChange()
+        #endif
     }
 
     /// Sets one image to represent an entire album (falls back to it for every

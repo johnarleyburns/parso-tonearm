@@ -26,7 +26,7 @@ struct EQView: View {
             .foregroundStyle(Palette.ink)
             .background(Palette.libraryBackground.ignoresSafeArea())
             .navigationTitle("10-band EQ")
-            .navigationBarTitleDisplayMode(.inline)
+            .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.tint(Palette.brass)
@@ -113,7 +113,7 @@ struct EQView: View {
     private var savePreset: some View {
         VStack(alignment: .leading, spacing: 10) {
             TextField("Preset name", text: $presetName)
-                .textInputAutocapitalization(.words)
+                .platformAutocapitalization(.words)
                 .padding(.horizontal, 12)
                 .frame(height: 42)
                 .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))

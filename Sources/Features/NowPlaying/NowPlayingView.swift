@@ -1,5 +1,7 @@
 import SwiftUI
+#if !os(macOS)
 import UIKit
+#endif
 import PhotosUI
 import TonearmCore
 
@@ -10,7 +12,7 @@ struct NowPlayingView: View {
     @ObservedObject private var invalidation = ArtworkInvalidation.shared
     @State private var scrubValue: Double = 0
     @State private var isScrubbing = false
-    @State private var npArtwork: UIImage?
+    @State private var npArtwork: PlatformImage?
     @State private var showPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showEQ = false
@@ -286,12 +288,16 @@ struct NowPlayingView: View {
             .accessibilityLabel("Add to Playlist")
             .accessibilityIdentifier("np.addToPlaylist")
 
+            #if !os(macOS)
             AirPlayButton()
                 .frame(width: 44, height: 44)
                 .accessibilityIdentifier("np.airplay")
+            #endif
 
             phoneDownloadButton(for: player.currentTrack)
+            #if !os(macOS)
             watchButton(for: player.currentTrack)
+            #endif
 
             Menu {
                 if !player.isAmbient, player.currentTrack != nil {
@@ -375,6 +381,7 @@ struct NowPlayingView: View {
         .contentShape(Circle())
     }
 
+    #if !os(macOS)
     @ViewBuilder
     private func watchButton(for row: TrackRow?) -> some View {
         let state = row.map { appState.watchGlyphState(for: $0) } ?? .notOnWatch
@@ -422,6 +429,7 @@ struct NowPlayingView: View {
         .background(.ultraThinMaterial, in: Circle())
         .contentShape(Circle())
     }
+    #endif
 
     private func cacheGlyphState(from state: PhoneDownloadState) -> CacheGlyphState {
         switch state {

@@ -25,9 +25,9 @@ struct RemoteConnectorGuideView: View {
             .foregroundStyle(Palette.ink)
             .background(Palette.sourcesBackground.ignoresSafeArea())
             .navigationTitle(guide.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .compactNavigationTitle()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button("Done") { dismiss() }
                 }
             }

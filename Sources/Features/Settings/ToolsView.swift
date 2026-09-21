@@ -63,7 +63,7 @@ struct ToolsView: View {
             .background(Palette.libraryBackground.ignoresSafeArea())
             .foregroundStyle(Palette.ink)
             .navigationTitle("Tools")
-            .navigationBarTitleDisplayMode(.inline)
+            .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.tint(Palette.brass)
@@ -335,7 +335,7 @@ struct ToolsView: View {
                 .foregroundStyle(Palette.ink3)
             TextField("", text: text, prompt: Text(prompt).foregroundStyle(Palette.ink3))
                 .font(.system(size: 12.5))
-                .textInputAutocapitalization(.never)
+                .platformAutocapitalization(.never)
                 .autocorrectionDisabled()
         }
         .padding(.horizontal, 12).padding(.vertical, 10)

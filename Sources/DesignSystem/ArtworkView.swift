@@ -45,7 +45,7 @@ private actor TrackAnalysisSummaryCache {
 }
 
 struct ArtworkView: View {
-    var image: UIImage?
+    var image: PlatformImage?
     var identifier: String?
     var trackRow: TrackRow?
     var seed: String
@@ -61,16 +61,16 @@ struct ArtworkView: View {
     var thumbnailMaxDimension: CGFloat? = nil
 
     @ObservedObject private var invalidation = ArtworkInvalidation.shared
-    @State private var fetchedImage: UIImage?
+    @State private var fetchedImage: PlatformImage?
     @State private var analysis: TrackAnalysisSummary?
-    @State private var keywordImage: UIImage?
+    @State private var keywordImage: PlatformImage?
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(resolvedGradient)
             .overlay {
                 if let img = image ?? fetchedImage {
-                    Image(uiImage: img)
+                    Image(platformImage: img)
                         .resizable()
                         .scaledToFill()
                 } else if let keywordImage {
@@ -80,7 +80,7 @@ struct ArtworkView: View {
                     // upgrade over the flat gradient below it, never a
                     // different palette (real user complaint this answers:
                     // "just blank colored squares everywhere").
-                    Image(uiImage: keywordImage)
+                    Image(platformImage: keywordImage)
                         .resizable()
                         .scaledToFill()
                 } else if let icon = fallbackIcon {
@@ -122,7 +122,7 @@ struct ArtworkView: View {
                    let keyword = KeywordArtworkLibrary.match(title: title) {
                     let identity = colorIdentity
                     keywordImage = KeywordArtworkLibrary.tintedImage(
-                        forKeyword: keyword, dark: UIColor(identity.dark), base: UIColor(identity.base))
+                        forKeyword: keyword, dark: PlatformColor(identity.dark), base: PlatformColor(identity.base))
                 } else {
                     keywordImage = nil
                 }

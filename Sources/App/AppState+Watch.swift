@@ -2,8 +2,67 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
-import UIKit
 
+/// General library UI (row glyphs, Now Playing) calls these unconditionally
+/// regardless of platform, so they stay outside the `#if !os(macOS)` block
+/// below — on Mac there's simply never anything on a watch (native Mac app,
+/// docs/plans/native-mac-app-plan.md §1 — no Watch extension embed), which
+/// `WatchGlyphState.notOnWatch` already expresses honestly. `WatchGlyphState`/
+/// `WatchGlyph`/`PhoneWatchID`/`WatchTransferState` all live in the portable
+/// `Sources/WatchSync`/`Sources/WatchProtocol` packages, so referencing them
+/// here needs no platform branch of their own.
+extension AppState {
+    private func watchTransferState(forID id: String) -> WatchTransferState? {
+        #if os(macOS)
+        nil
+        #else
+        switch watchJobStates[id] {
+        case "queued", "resolving", "waitingForWiFi": return .queued
+        case "transferring": return .sending
+        case "sent": return .sent
+        case "failed": return .failed
+        default: return nil
+        }
+        #endif
+    }
+
+    func watchGlyphState(for row: TrackRow) -> WatchGlyphState {
+        #if os(macOS)
+        .notOnWatch
+        #else
+        let id = PhoneWatchID.track(row.track).rawValue
+        return WatchGlyph.state(trackKey: id, manifest: watchInstalledTrackIDs,
+                                transferState: watchTransferState(forID: id), errorText: nil,
+                                sendingProgress: liveWatchTransferFraction(forID: id))
+        #endif
+    }
+
+    /// Sender-side byte progress for a track WatchConnectivity is transferring to the watch right
+    /// now, read straight off the session so the Now Playing ring closes as it goes.
+    func liveWatchTransferFraction(forID id: String) -> Double? {
+        #if os(macOS)
+        nil
+        #else
+        PhoneWatchProtocolAdapter.activeAudioTransferFractions()[id]
+        #endif
+    }
+
+    func watchAggregateState(for rows: [TrackRow]) -> (WatchGlyphState, Double) {
+        #if os(macOS)
+        (.notOnWatch, 0)
+        #else
+        let ids = rows.map { PhoneWatchID.track($0.track).rawValue }
+        guard !ids.isEmpty else { return (.notOnWatch, 0) }
+        let states = Dictionary(uniqueKeysWithValues: ids.compactMap { id in
+            watchTransferState(forID: id).map { (id, $0) }
+        })
+        return WatchGlyph.aggregateState(trackKeys: ids, manifest: watchInstalledTrackIDs,
+                                         transferStates: states, errorTexts: [:])
+        #endif
+    }
+}
+
+#if !os(macOS)
 extension AppState {
     // MARK: - Watch
 
@@ -33,39 +92,6 @@ extension AppState {
         watchInstalledBytes = watchRuntime.installedBytes
         watchSessionState = watchRuntime.sessionDisplayState
         watchManagement = watchRuntime.management
-    }
-
-    private func watchTransferState(forID id: String) -> WatchTransferState? {
-        switch watchJobStates[id] {
-        case "queued", "resolving", "waitingForWiFi": return .queued
-        case "transferring": return .sending
-        case "sent": return .sent
-        case "failed": return .failed
-        default: return nil
-        }
-    }
-
-    func watchGlyphState(for row: TrackRow) -> WatchGlyphState {
-        let id = PhoneWatchID.track(row.track).rawValue
-        return WatchGlyph.state(trackKey: id, manifest: watchInstalledTrackIDs,
-                                transferState: watchTransferState(forID: id), errorText: nil,
-                                sendingProgress: liveWatchTransferFraction(forID: id))
-    }
-
-    /// Sender-side byte progress for a track WatchConnectivity is transferring to the watch right
-    /// now, read straight off the session so the Now Playing ring closes as it goes.
-    func liveWatchTransferFraction(forID id: String) -> Double? {
-        PhoneWatchProtocolAdapter.activeAudioTransferFractions()[id]
-    }
-
-    func watchAggregateState(for rows: [TrackRow]) -> (WatchGlyphState, Double) {
-        let ids = rows.map { PhoneWatchID.track($0.track).rawValue }
-        guard !ids.isEmpty else { return (.notOnWatch, 0) }
-        let states = Dictionary(uniqueKeysWithValues: ids.compactMap { id in
-            watchTransferState(forID: id).map { (id, $0) }
-        })
-        return WatchGlyph.aggregateState(trackKeys: ids, manifest: watchInstalledTrackIDs,
-                                         transferStates: states, errorTexts: [:])
     }
 
     func downloadToWatch(rows: [TrackRow]) async {
@@ -129,3 +155,4 @@ extension AppState {
     /// Persist phone-authored art as a derivative-backed custom binding and nudge the active watch
     /// roots so the same desired-download reconciliation schedules its bytes.
 }
+#endif

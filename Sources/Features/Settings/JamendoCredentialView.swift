@@ -42,11 +42,11 @@ struct JamendoCredentialView: View {
 
                 Section("Your Jamendo application") {
                     TextField("Client ID", text: $clientID)
-                        .textInputAutocapitalization(.never)
+                        .platformAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("jamendo.credential.id")
                     SecureField("Client secret (optional)", text: $clientSecret)
-                        .textInputAutocapitalization(.never)
+                        .platformAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("jamendo.credential.secret")
                     Text("Register an application at devportal.jamendo.com. This is an "

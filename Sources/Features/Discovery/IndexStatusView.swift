@@ -3,7 +3,7 @@
 // Tonearm (Platterhead DJ) — Copyright (C) 2026 John Arley Burns.
 // See ../../../LICENSE.
 
-#if canImport(UIKit) && !os(watchOS)
+#if !os(watchOS)
 import SwiftUI
 import TonearmDiscovery
 
@@ -100,7 +100,7 @@ struct IndexStatusView: View {
             }
             .foregroundStyle(Palette.ink)
             .navigationTitle("Sound Index")
-            .navigationBarTitleDisplayMode(.inline)
+            .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -113,7 +113,7 @@ struct IndexStatusView: View {
             .onDisappear { model.stopPolling() }
             .sheet(isPresented: $showShare) {
                 if let text = diagnosticsText {
-                    ActivityView(items: [text])
+                    DiagnosticsShareSheet(text: text)
                 }
             }
             .alert(
@@ -479,7 +479,7 @@ private struct IndexTrackListSheet: View {
                 }
             }
             .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
+            .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -511,13 +511,38 @@ private struct IndexTrackListSheet: View {
     }
 }
 
-/// Minimal `UIActivityViewController` wrapper for the redacted-diagnostics
-/// share sheet (plan §10.6).
-private struct ActivityView: UIViewControllerRepresentable {
-    let items: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+/// The redacted-diagnostics share sheet (plan §10.6). `ShareLink` is fully
+/// cross-platform SwiftUI (iOS 16+/macOS 13+, well within this project's
+/// deployment targets) — it renders the real `UIActivityViewController` on
+/// iOS and `NSSharingServicePicker` on macOS automatically, so this needs no
+/// platform-specific wrapper at all (native Mac app,
+/// docs/plans/native-mac-app-plan.md §2a — this file's own UIKit-only
+/// `UIActivityViewController`/`UIViewControllerRepresentable` wrapper is
+/// exactly the kind of real, but avoidable, port that section flagged).
+private struct DiagnosticsShareSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let text: String
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                Text(text)
+                    .font(.system(size: 12, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(18)
+            }
+            .navigationTitle("Diagnostics")
+            .compactNavigationTitle()
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    ShareLink(item: text)
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
-    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 #endif

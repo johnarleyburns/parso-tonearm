@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 import PhotosUI
 import TonearmCore
 
@@ -162,6 +161,7 @@ struct SourceDetailView: View {
                 } label: {
                     Label("Download All", systemImage: "arrow.down.circle")
                 }
+                #if !os(macOS)
                 Button {
                     Task { await appState.downloadToWatch(rows: tracks) }
                 } label: {
@@ -172,6 +172,7 @@ struct SourceDetailView: View {
                 } label: {
                     Label("Remove All from Apple Watch", systemImage: "applewatch.slash")
                 }
+                #endif
                 Divider()
                 Button {
                     showArtworkPicker = true

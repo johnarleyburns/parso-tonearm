@@ -3,7 +3,27 @@
 // Tonearm (Platterhead DJ) — Copyright (C) 2026 John Arley Burns.
 // See ../../LICENSE.
 
-#if canImport(UIKit) && !os(watchOS)
+#if os(macOS)
+import Foundation
+import TonearmDiscovery
+
+/// `BackgroundTasks` doesn't exist on macOS — Mac apps aren't suspended the
+/// way iOS apps are, so there's no OS-granted background execution window to
+/// request. `DiscoveryRuntimeController`'s foreground tick loop already
+/// drives indexing continuously while the process is alive
+/// (docs/plans/native-mac-app-plan.md §2c), so the scheduler seam is simply a
+/// no-op on Mac rather than a real substitute.
+struct NoopBackgroundTaskScheduler: BackgroundTaskScheduling {
+    func register(
+        identifier: String,
+        launchHandler: @escaping @Sendable (any BackgroundTaskInvocation) -> Void
+    ) -> Bool { true }
+
+    func submit(_ request: BackgroundProcessingRequest) throws {}
+
+    func cancel(identifier: String) {}
+}
+#elseif canImport(UIKit) && !os(watchOS)
 import BackgroundTasks
 import Foundation
 import TonearmDiscovery

@@ -63,7 +63,7 @@ struct AnimatedSplashView: View {
         #if canImport(UIKit)
         if let url = Bundle.main.url(forResource: "splash_screen", withExtension: "jpg"),
            let image = UIImage(contentsOfFile: url.path) {
-            return Image(uiImage: image)
+            return Image(platformImage: image)
         }
         #endif
         return Image("SplashScreen")

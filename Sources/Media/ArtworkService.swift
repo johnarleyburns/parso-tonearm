@@ -1,19 +1,24 @@
 import Foundation
+#if os(macOS)
+import AppKit
+#else
 import UIKit
+#endif
 import AVFoundation
+import CoreImage
 import TonearmCore
 
 actor ArtworkService {
     static let shared = ArtworkService()
 
-    private let memCache: NSCache<NSString, UIImage> = {
-        let c = NSCache<NSString, UIImage>()
+    private let memCache: NSCache<NSString, PlatformImage> = {
+        let c = NSCache<NSString, PlatformImage>()
         c.countLimit = 100
         c.totalCostLimit = 50 * 1024 * 1024
         return c
     }()
 
-    private static let notFoundSentinel = UIImage()
+    private static let notFoundSentinel = PlatformImage()
 
     /// Bump to wipe stale disk/mem caches on next launch (e.g. after fixing
     /// cover-resolution logic so old waveform images re-resolve).
@@ -34,8 +39,8 @@ actor ArtworkService {
     /// scroll... be smart about SwiftUI list implementation with images").
     /// Small entries, so this can comfortably hold far more of them than
     /// `memCache` without the memory cost of full covers.
-    private let thumbnailMemCache: NSCache<NSString, UIImage> = {
-        let c = NSCache<NSString, UIImage>()
+    private let thumbnailMemCache: NSCache<NSString, PlatformImage> = {
+        let c = NSCache<NSString, PlatformImage>()
         c.countLimit = 1000
         c.totalCostLimit = 24 * 1024 * 1024
         return c
@@ -88,7 +93,7 @@ actor ArtworkService {
         UserDefaults.standard.set(Self.cacheGeneration, forKey: key)
     }
 
-    func artwork(forIdentifier identifier: String) async -> UIImage? {
+    func artwork(forIdentifier identifier: String) async -> PlatformImage? {
         let key = identifier as NSString
 
         if let cached = memCache.object(forKey: key) {
@@ -131,7 +136,7 @@ actor ArtworkService {
                 return nil
             }
 
-            guard imageData.count > 2048, let image = UIImage(data: imageData) else {
+            guard imageData.count > 2048, let image = PlatformImage(data: imageData) else {
                 print("[ArtworkService] data too small or invalid image for: \(identifier) (\(imageData.count) bytes)")
                 return nil
             }
@@ -143,7 +148,7 @@ actor ArtworkService {
                 return nil
             }
 
-            if SpectrogramDetector().isSpectrogram(image) {
+            if let cgImage = image.tonearmCGImage, SpectrogramDetector().isSpectrogram(cgImage) {
                 print("[ArtworkService] probable spectrogram for: \(identifier) (\(Int(w))×\(Int(h)))")
                 memCache.setObject(Self.notFoundSentinel, forKey: key)
                 return nil
@@ -179,11 +184,18 @@ actor ArtworkService {
     /// must never collide on one cache entry). `maxDimension` is in points;
     /// the actual pixel size scales for the device's screen scale so the
     /// thumbnail still looks sharp, never blurry, at its real render size.
-    func thumbnail(forTrackRow row: TrackRow, maxDimension: CGFloat) async -> UIImage? {
+    func thumbnail(forTrackRow row: TrackRow, maxDimension: CGFloat) async -> PlatformImage? {
         let trackId = row.track.id ?? -1
-        // UIScreen.main is MainActor-isolated; hop over rather than making
-        // this whole actor method require a caller-supplied pixel size.
-        let screenScale = await MainActor.run { UIScreen.main.scale }
+        // UIScreen.main/NSScreen.main are MainActor-isolated; hop over rather
+        // than making this whole actor method require a caller-supplied
+        // pixel size.
+        let screenScale = await MainActor.run { () -> CGFloat in
+            #if os(macOS)
+            NSScreen.main?.backingScaleFactor ?? 2
+            #else
+            UIScreen.main.scale
+            #endif
+        }
         let pixelDimension = maxDimension * screenScale
         let cacheKey = "track-\(trackId)-\(Int(pixelDimension))" as NSString
 
@@ -204,27 +216,37 @@ actor ArtworkService {
         return thumb
     }
 
-    private func thumbnailCost(_ image: UIImage) -> Int {
-        Int(image.size.width * image.size.height * image.scale * image.scale * 4)
+    private func thumbnailCost(_ image: PlatformImage) -> Int {
+        Int(image.size.width * image.size.height * image.platformScale * image.platformScale * 4)
     }
 
-    /// Fast, correct-orientation downscale via `UIGraphicsImageRenderer` —
-    /// cheap relative to the list-scroll cost this exists to avoid, since
-    /// it runs once per track and is cached forever after (both in memory
-    /// and on disk), never per frame.
-    private static func downsampled(_ image: UIImage, maxPixelDimension: CGFloat) -> UIImage {
-        let pixelSize = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+    /// Fast, correct-orientation downscale — cheap relative to the
+    /// list-scroll cost this exists to avoid, since it runs once per track
+    /// and is cached forever after (both in memory and on disk), never per
+    /// frame. `UIGraphicsImageRenderer` has no macOS equivalent (native Mac
+    /// app, docs/plans/native-mac-app-plan.md §2b) — the Mac branch uses
+    /// `NSImage(size:flipped:drawingHandler:)`, the modern AppKit analog.
+    private static func downsampled(_ image: PlatformImage, maxPixelDimension: CGFloat) -> PlatformImage {
+        let scale = image.platformScale
+        let pixelSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
         guard pixelSize.width > 0, pixelSize.height > 0 else { return image }
-        let scale = min(1, maxPixelDimension / max(pixelSize.width, pixelSize.height))
-        guard scale < 1 else { return image }
-        let targetPointSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let downscale = min(1, maxPixelDimension / max(pixelSize.width, pixelSize.height))
+        guard downscale < 1 else { return image }
+        let targetPointSize = CGSize(width: image.size.width * downscale, height: image.size.height * downscale)
+        #if os(macOS)
+        return PlatformImage(size: targetPointSize, flipped: false) { rect in
+            image.draw(in: rect, from: .zero, operation: .copy, fraction: 1)
+            return true
+        }
+        #else
         let format = UIGraphicsImageRendererFormat()
-        format.scale = image.scale
+        format.scale = scale
         format.opaque = true
         let renderer = UIGraphicsImageRenderer(size: targetPointSize, format: format)
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: targetPointSize))
         }
+        #endif
     }
 
     private func thumbnailDiskCacheURL(key: String) -> URL {
@@ -234,22 +256,22 @@ actor ArtworkService {
         return thumbnailDiskCacheDir.appendingPathComponent(String(format: "%016llx.jpg", hash))
     }
 
-    private func readThumbnailDiskCache(key: String) -> UIImage? {
+    private func readThumbnailDiskCache(key: String) -> PlatformImage? {
         let url = thumbnailDiskCacheURL(key: key)
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
               let modified = attrs[.modificationDate] as? Date,
               Date().timeIntervalSince(modified) < 30 * 86400,
               let data = try? Data(contentsOf: url) else { return nil }
         try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
-        return UIImage(data: data)
+        return PlatformImage(data: data)
     }
 
-    private func writeThumbnailDiskCache(_ image: UIImage, key: String) {
-        guard let data = image.jpegData(compressionQuality: 0.8) else { return }
+    private func writeThumbnailDiskCache(_ image: PlatformImage, key: String) {
+        guard let data = image.tonearmJPEGData(compressionQuality: 0.8) else { return }
         try? data.write(to: thumbnailDiskCacheURL(key: key))
     }
 
-    func artwork(forTrackRow row: TrackRow) async -> UIImage? {
+    func artwork(forTrackRow row: TrackRow) async -> PlatformImage? {
         await trackArtwork(forTrackRow: row)?.image
     }
 
@@ -257,7 +279,7 @@ actor ArtworkService {
     /// be remembered as a source's representative cover. Embedded art and IA covers
     /// are always persistable; iTunes fallbacks are persistable only on a strong
     /// (artist + album/track aligned) match.
-    func trackArtwork(forTrackRow row: TrackRow) async -> (image: UIImage, persistable: Bool)? {
+    func trackArtwork(forTrackRow row: TrackRow) async -> (image: PlatformImage, persistable: Bool)? {
         let trackId = row.track.id ?? -1
 
         // 0. Custom user-attached artwork (highest priority, persistable).
@@ -333,7 +355,7 @@ actor ArtworkService {
         return nil
     }
 
-    private func remoteProviderArtwork(asset: Asset) async -> (image: UIImage, persistable: Bool)? {
+    private func remoteProviderArtwork(asset: Asset) async -> (image: PlatformImage, persistable: Bool)? {
         // `transientArtwork` (never persisted — most provider artwork needs
         // auth headers/expiring URLs) takes priority when a live browse
         // session set it; `persistedArtworkURL` is the fallback for a
@@ -370,7 +392,7 @@ actor ArtworkService {
         guard let (data, response) = try? await session.data(for: request),
               let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode),
-              let image = UIImage(data: data) else {
+              let image = PlatformImage(data: data) else {
             memCache.setObject(Self.notFoundSentinel, forKey: key as NSString)
             return nil
         }
@@ -382,7 +404,7 @@ actor ArtworkService {
     /// External iTunes artwork lookup for a track, keyed and cached separately from
     /// embedded/IA art so a miss on one path doesn't block the other.
     private func iTunesArtwork(trackId: Int64, artist: String?, album: String?,
-                              title: String?) async -> (image: UIImage, persistable: Bool)? {
+                              title: String?) async -> (image: PlatformImage, persistable: Bool)? {
         guard artworkLookupEnabled else { return nil }
         let key = "itunes-\(trackId)"
 
@@ -400,7 +422,7 @@ actor ArtworkService {
             return nil
         }
         guard let data = try? await ArtworkSearchClient.shared.imageData(from: match.artworkURL),
-              data.count > 2048, let image = UIImage(data: data) else {
+              data.count > 2048, let image = PlatformImage(data: data) else {
             memCache.setObject(Self.notFoundSentinel, forKey: key as NSString)
             return nil
         }
@@ -418,7 +440,7 @@ actor ArtworkService {
     /// Loads a local file's embedded artwork and common tags (artist/album/title) in
     /// a single metadata pass.
     private func loadLocalFile(asset: Asset) async
-        -> (image: UIImage?, artist: String?, album: String?, title: String?) {
+        -> (image: PlatformImage?, artist: String?, album: String?, title: String?) {
         let url: URL?
         if let bookmark = asset.bookmark, let (resolved, _) = BookmarkVault.resolve(bookmark) {
             url = resolved
@@ -441,7 +463,7 @@ actor ArtworkService {
             return (nil, nil, nil, nil)
         }
 
-        var image: UIImage?
+        var image: PlatformImage?
         var artist: String?
         var album: String?
         var title: String?
@@ -449,7 +471,7 @@ actor ArtworkService {
             guard let commonKey = item.commonKey else { continue }
             switch commonKey {
             case .commonKeyArtwork:
-                if let data = try? await item.load(.dataValue) { image = UIImage(data: data) }
+                if let data = try? await item.load(.dataValue) { image = PlatformImage(data: data) }
             case .commonKeyArtist:
                 artist = try? await item.load(.stringValue)
             case .commonKeyAlbumName:
@@ -464,8 +486,17 @@ actor ArtworkService {
     }
 
     @MainActor
-    static func dominantColor(from image: UIImage) -> UIColor {
+    static func dominantColor(from image: PlatformImage) -> PlatformColor {
+        // `CIImage(image:)` only takes a `UIImage` on iOS — macOS's CoreImage
+        // has no `NSImage`-taking initializer, so route through `CGImage`
+        // there instead (native Mac app, docs/plans/native-mac-app-plan.md
+        // §2b).
+        #if os(macOS)
+        guard let cgImage = image.tonearmCGImage else { return .systemBlue }
+        let ciImage = CIImage(cgImage: cgImage)
+        #else
         guard let ciImage = CIImage(image: image) else { return .systemBlue }
+        #endif
         let filter = CIFilter(
             name: "CIAreaAverage",
             parameters: [
@@ -483,7 +514,7 @@ actor ArtworkService {
             format: .RGBA8,
             colorSpace: nil
         )
-        return UIColor(
+        return PlatformColor(
             red: CGFloat(pixel[0]) / 255,
             green: CGFloat(pixel[1]) / 255,
             blue: CGFloat(pixel[2]) / 255,
@@ -491,7 +522,7 @@ actor ArtworkService {
         )
     }
 
-    private func store(_ image: UIImage, forKey key: NSString) {
+    private func store(_ image: PlatformImage, forKey key: NSString) {
         let cost = Int(image.size.width * image.size.height * 4)
         memCache.setObject(image, forKey: key, cost: cost)
     }
@@ -503,7 +534,7 @@ actor ArtworkService {
         return diskCacheDir.appendingPathComponent(String(format: "%016llx.jpg", hash))
     }
 
-    private func readDiskCache(key: String) -> UIImage? {
+    private func readDiskCache(key: String) -> PlatformImage? {
         let url = diskCacheURL(key: key)
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
               let modified = attrs[.modificationDate] as? Date,
@@ -512,7 +543,7 @@ actor ArtworkService {
         // Renew the entry's lifetime on access so artwork stays cached as long as
         // its music keeps being played, rather than expiring out from under it.
         try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
-        return UIImage(data: data)
+        return PlatformImage(data: data)
     }
 
     /// Purges the on-disk and in-memory artwork caches. Call alongside clearing
@@ -534,8 +565,8 @@ actor ArtworkService {
         thumbnailMemCache.removeAllObjects()
     }
 
-    private func writeDiskCache(_ image: UIImage, key: String) {
-        guard let data = image.jpegData(compressionQuality: 0.85) else { return }
+    private func writeDiskCache(_ image: PlatformImage, key: String) {
+        guard let data = image.tonearmJPEGData(compressionQuality: 0.85) else { return }
         try? data.write(to: diskCacheURL(key: key))
     }
 }

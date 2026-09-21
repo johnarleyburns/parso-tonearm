@@ -1,5 +1,7 @@
 import SwiftUI
+#if !os(macOS)
 import UIKit
+#endif
 import TonearmCore
 
 /// Remote artwork loading + cache for `SourceDetailView`/`RemoteNodeRow` —
@@ -11,7 +13,7 @@ struct RemoteArtworkImageView: View {
     let seed: String
     let cornerRadius: CGFloat
 
-    @State private var image: UIImage?
+    @State private var image: PlatformImage?
 
     var body: some View {
         ArtworkView(image: image, seed: seed, cornerRadius: cornerRadius)
@@ -24,27 +26,27 @@ struct RemoteArtworkImageView: View {
 actor RemoteArtworkCache {
     static let shared = RemoteArtworkCache()
 
-    private var cache: [String: UIImage] = [:]
-    private var tasks: [String: Task<UIImage?, Never>] = [:]
+    private var cache: [String: PlatformImage] = [:]
+    private var tasks: [String: Task<PlatformImage?, Never>] = [:]
 
-    func load(_ artwork: RemoteArtwork) async -> UIImage? {
+    func load(_ artwork: RemoteArtwork) async -> PlatformImage? {
         let cacheKey = artwork.id ?? artwork.url?.absoluteString ?? ""
         if let img = cache[cacheKey] { return img }
         return await performFetch(artwork)
     }
 
-    private func performFetch(_ artwork: RemoteArtwork) async -> UIImage? {
+    private func performFetch(_ artwork: RemoteArtwork) async -> PlatformImage? {
         let cacheKey = artwork.id ?? artwork.url?.absoluteString ?? UUID().uuidString
         if let existing = tasks[cacheKey] { return await existing.value }
 
-        let task = Task<UIImage?, Never> {
+        let task = Task<PlatformImage?, Never> {
             guard let url = artwork.url else { return nil }
             var request = URLRequest(url: url)
             for (key, value) in artwork.headers {
                 request.setValue(value, forHTTPHeaderField: key)
             }
             guard let (data, _) = try? await URLSession.shared.data(for: request),
-                  let img = UIImage(data: data) else { return nil }
+                  let img = PlatformImage(data: data) else { return nil }
             return img
         }
         tasks[cacheKey] = task

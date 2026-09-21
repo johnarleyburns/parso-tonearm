@@ -1,3 +1,4 @@
+#if !os(macOS)
 import AVFoundation
 import Foundation
 import MediaPlayer
@@ -195,3 +196,4 @@ private struct NotificationBox: @unchecked Sendable {
     let value: Notification
     init(_ value: Notification) { self.value = value }
 }
+#endif

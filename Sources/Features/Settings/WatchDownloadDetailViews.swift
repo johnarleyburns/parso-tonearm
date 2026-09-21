@@ -1,3 +1,4 @@
+#if !os(macOS)
 import SwiftUI
 import TonearmCore
 
@@ -34,7 +35,7 @@ struct WatchDownloadQueueView: View {
         .foregroundStyle(Palette.ink)
         .background(Palette.libraryBackground.ignoresSafeArea())
         .navigationTitle("Download Queue")
-        .navigationBarTitleDisplayMode(.inline)
+        .compactNavigationTitle()
         .preferredColorScheme(.dark)
         .task { await appState.refreshWatchState() }
     }
@@ -114,7 +115,7 @@ struct WatchDownloadedCollectionDetailView: View {
         .foregroundStyle(Palette.ink)
         .background(Palette.libraryBackground.ignoresSafeArea())
         .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
+        .compactNavigationTitle()
         .preferredColorScheme(.dark)
         .task { await reload() }
         .accessibilityIdentifier("watchRoot.\(rootID)")
@@ -237,3 +238,4 @@ struct WatchDownloadedCollectionDetailView: View {
         }
     }
 }
+#endif

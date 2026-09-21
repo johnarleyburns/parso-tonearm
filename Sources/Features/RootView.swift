@@ -55,11 +55,19 @@ struct RootView: View {
         .toastLayer(bottomInset: 96)
         .task { await announceWatchConnection() }
         .tint(Palette.brass)
+        #if os(macOS)
+        .sheet(isPresented: Binding(
+            get: { !appState.didOnboard },
+            set: { if $0 == false { appState.didOnboard = true } })) {
+            OnboardingView()
+        }
+        #else
         .fullScreenCover(isPresented: Binding(
             get: { !appState.didOnboard },
             set: { if $0 == false { appState.didOnboard = true } })) {
             OnboardingView()
         }
+        #endif
         .sheet(isPresented: $appState.showAddMenu) {
             AddMenuSheet()
                 .presentationDetents([.height(365)])

@@ -1,10 +1,6 @@
 import CoreGraphics
 import Foundation
 
-#if canImport(UIKit)
-import UIKit
-#endif
-
 public struct SpectrogramDetector {
     private let sampleSize: Int
     private let grayThreshold: Double
@@ -21,12 +17,12 @@ public struct SpectrogramDetector {
         self.channelTolerance = channelTolerance
     }
 
-    #if canImport(UIKit)
-    public func isSpectrogram(_ image: UIImage) -> Bool {
-        guard let cgImage = image.cgImage else { return false }
-        return isSpectrogram(cgImage)
-    }
-    #endif
+    // The `UIImage`/`NSImage` convenience overload used to live here, but
+    // `PlatformImage` is a `Sources/DesignSystem` (app-target) typealias and
+    // this file compiles as part of the separate `TonearmCore` package
+    // module — it isn't visible here. Callers extract a `CGImage` themselves
+    // (native Mac app, docs/plans/native-mac-app-plan.md §2b) and call the
+    // `CGImage` overload below directly.
 
     public func isSpectrogram(_ cgImage: CGImage) -> Bool {
         guard let context = CGContext(

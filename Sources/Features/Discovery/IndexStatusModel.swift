@@ -3,7 +3,7 @@
 // Tonearm (Platterhead DJ) — Copyright (C) 2026 John Arley Burns.
 // See ../../../LICENSE.
 
-#if canImport(UIKit) && !os(watchOS)
+#if !os(watchOS)
 import Foundation
 import SwiftUI
 import TonearmDiscovery

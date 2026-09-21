@@ -2,7 +2,6 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
-import UIKit
 
 extension AppState {
     func firstArtworkId(for source: Source) async -> String? {
@@ -19,7 +18,7 @@ extension AppState {
         var identifier: String?
         var trackRow: TrackRow?
         var fallbackIcon: String
-        var image: UIImage? = nil
+        var image: PlatformImage? = nil
     }
 
     func resolvedArtwork(for source: Source) async -> ResolvedSourceArtwork {

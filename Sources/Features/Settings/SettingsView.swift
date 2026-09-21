@@ -175,7 +175,7 @@ struct SettingsView: View {
             .background(Palette.libraryBackground.ignoresSafeArea())
             .foregroundStyle(Palette.ink)
             .navigationTitle("Streaming Cache")
-            .navigationBarTitleDisplayMode(.inline)
+            .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { activeSheet = nil }.tint(Palette.brass)
@@ -184,7 +184,9 @@ struct SettingsView: View {
         }
         .alert("Custom Cache Limit", isPresented: $showCustomCacheLimit) {
             TextField("MB", text: $customCacheLimitMB)
+                #if !os(macOS)
                 .keyboardType(.numberPad)
+                #endif
             Button("Cancel", role: .cancel) {}
             Button("Set") { applyCustomCacheLimit() }
         } message: {
@@ -729,7 +731,7 @@ struct PrivacyView: View {
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
             .navigationTitle("Privacy")
-            .navigationBarTitleDisplayMode(.inline)
+            .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.tint(Palette.brass)
@@ -777,7 +779,7 @@ struct ThirdPartyNoticesView: View {
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
             .navigationTitle("Terms & Notices")
-            .navigationBarTitleDisplayMode(.inline)
+            .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.tint(Palette.brass)

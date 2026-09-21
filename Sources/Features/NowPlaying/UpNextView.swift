@@ -4,7 +4,9 @@ import TonearmCore
 struct UpNextView: View {
     @EnvironmentObject var player: AudioPlayer
     @EnvironmentObject var appState: AppState
+    #if !os(macOS)
     @State private var editMode: EditMode = .inactive
+    #endif
 
     /// The first queue offset Keep Playing appended, if any — where the
     /// "Extended by Keep Playing" marker renders. `nil` when nothing in the
@@ -45,6 +47,7 @@ struct UpNextView: View {
                     .accessibilityIdentifier("np.keepPlaying.clearAutoAdded")
                 }
 
+                #if !os(macOS)
                 if !player.isAmbient, player.queue.count > 1 {
                     Button {
                         editMode = editMode == .active ? .inactive : .active
@@ -56,6 +59,7 @@ struct UpNextView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                #endif
             }
             .padding(.bottom, 8)
 
@@ -96,7 +100,9 @@ struct UpNextView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                #if !os(macOS)
                 .environment(\.editMode, $editMode)
+                #endif
                 .frame(height: queueListHeight)
             }
         }

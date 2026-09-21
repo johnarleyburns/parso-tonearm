@@ -1,4 +1,6 @@
+#if !os(macOS)
 import UIKit
+#endif
 import CoreImage
 
 /// "Phase 2" fallback artwork for a track with no real cover: a bundled
@@ -97,10 +99,10 @@ enum KeywordArtworkLibrary {
     /// rather than re-reading from disk on every match. `@MainActor`-isolated
     /// (not a separate actor): every caller is `ArtworkView`'s `.task`, which
     /// already runs on the main actor as a SwiftUI view — isolating here
-    /// instead of introducing a cross-actor `UIImage` hop keeps this simple.
-    @MainActor private static var imageCache: [String: UIImage] = [:]
+    /// instead of introducing a cross-actor `PlatformImage` hop keeps this simple.
+    @MainActor private static var imageCache: [String: PlatformImage] = [:]
 
-    @MainActor static func image(forKeyword keyword: String) -> UIImage? {
+    @MainActor static func image(forKeyword keyword: String) -> PlatformImage? {
         if let cached = imageCache[keyword] { return cached }
         // Try a preserved "ArtworkKeywords" subdirectory first (folder
         // reference), then a flat lookup (group reference flattens at build
@@ -109,7 +111,7 @@ enum KeywordArtworkLibrary {
         // rather than gamble on one.
         let url = Bundle.main.url(forResource: keyword, withExtension: "jpg", subdirectory: "ArtworkKeywords")
             ?? Bundle.main.url(forResource: keyword, withExtension: "jpg")
-        guard let url, let data = try? Data(contentsOf: url), let image = UIImage(data: data) else { return nil }
+        guard let url, let data = try? Data(contentsOf: url), let image = PlatformImage(data: data) else { return nil }
         imageCache[keyword] = image
         return image
     }
@@ -119,9 +121,9 @@ enum KeywordArtworkLibrary {
     /// track showing up in multiple lists/re-appearing in one scroll
     /// session never re-renders it, same performance discipline as
     /// `ArtworkService`'s other caches.
-    @MainActor private static var tintedCache: [String: UIImage] = [:]
+    @MainActor private static var tintedCache: [String: PlatformImage] = [:]
 
-    @MainActor static func tintedImage(forKeyword keyword: String, dark: UIColor, base: UIColor) -> UIImage? {
+    @MainActor static func tintedImage(forKeyword keyword: String, dark: PlatformColor, base: PlatformColor) -> PlatformImage? {
         let key = "\(keyword)-\(dark.tonearmHex)-\(base.tonearmHex)"
         if let cached = tintedCache[key] { return cached }
         guard let source = image(forKeyword: keyword), let tinted = source.duotone(dark: dark, base: base)
@@ -131,33 +133,52 @@ enum KeywordArtworkLibrary {
     }
 }
 
-private extension UIColor {
+private extension PlatformColor {
     /// A stable cache-key component — exact color equality isn't needed,
     /// just a value that changes whenever the color meaningfully does.
+    /// `NSColor.getRed(...)` traps if the receiver isn't already in an
+    /// RGB-compatible color space (unlike `UIColor`, which always is) —
+    /// converting explicitly first is required on macOS (native Mac app,
+    /// docs/plans/native-mac-app-plan.md §2b).
     var tonearmHex: String {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        #if os(macOS)
+        let rgb = usingColorSpace(.deviceRGB) ?? self
+        rgb.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #else
         getRed(&r, green: &g, blue: &b, alpha: &a)
+        #endif
         return String(format: "%02x%02x%02x", Int(r * 255), Int(g * 255), Int(b * 255))
     }
 }
 
-extension UIImage {
+extension PlatformImage {
     /// Duotone remap: shadows -> `dark`, highlights -> `base` — the same two
     /// colors a plain gradient fallback would have used, now mapped by the
     /// bundled photo's own luminance via CoreImage's `CIFalseColor` (a
     /// hardware-accelerated, well-tested system filter; no manual per-pixel
     /// loop). Returns `nil` (never a partially-processed or wrong-color
     /// image) if the filter pipeline fails for any reason.
-    func duotone(dark: UIColor, base: UIColor) -> UIImage? {
+    func duotone(dark: PlatformColor, base: PlatformColor) -> PlatformImage? {
+        #if os(macOS)
+        guard let cgSource = tonearmCGImage else { return nil }
+        let ciImage = CIImage(cgImage: cgSource)
+        guard let filter = CIFilter(name: "CIFalseColor") else { return nil }
+        #else
         guard let ciImage = CIImage(image: self),
               let filter = CIFilter(name: "CIFalseColor")
         else { return nil }
+        #endif
         filter.setValue(ciImage, forKey: kCIInputImageKey)
         filter.setValue(CIColor(color: dark), forKey: "inputColor0")
         filter.setValue(CIColor(color: base), forKey: "inputColor1")
         guard let output = filter.outputImage else { return nil }
         let context = CIContext()
         guard let cgImage = context.createCGImage(output, from: output.extent) else { return nil }
-        return UIImage(cgImage: cgImage, scale: scale, orientation: .up)
+        #if os(macOS)
+        return PlatformImage(cgImage: cgImage, size: size)
+        #else
+        return PlatformImage(cgImage: cgImage, scale: scale, orientation: .up)
+        #endif
     }
 }

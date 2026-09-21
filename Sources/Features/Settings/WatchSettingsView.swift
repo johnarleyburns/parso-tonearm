@@ -1,6 +1,7 @@
 import SwiftUI
 import TonearmCore
 
+#if !os(macOS)
 /// Watch rearchitecture Phase 8 — Settings › Apple Watch (§9 P2/P3/P4).
 ///
 /// The iPhone owns desired downloads and makes every transfer understandable without opening the
@@ -32,7 +33,7 @@ struct WatchSettingsView: View {
             .foregroundStyle(Palette.ink)
             .background(Palette.libraryBackground.ignoresSafeArea())
             .navigationTitle("Apple Watch")
-            .navigationBarTitleDisplayMode(.inline)
+            .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.tint(Palette.brass)
@@ -388,3 +389,35 @@ private struct WatchCollectionRowView: View {
         }
     }
 }
+#else
+/// Mac's Apple Watch surface is an explainer, not a management screen: the
+/// paired watch — and every transfer/download/storage concept above — is
+/// only ever reachable from the iPhone (native Mac app,
+/// docs/plans/native-mac-app-plan.md §1/§3 — "Apple Watch as explainer not
+/// management").
+struct WatchSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                Image(systemName: "applewatch")
+                    .font(.system(size: 44))
+                    .foregroundStyle(Palette.ink2)
+                Text("Apple Watch")
+                    .font(.system(size: 17, weight: .semibold))
+                Text("Manage Apple Watch downloads from Platterhead on your iPhone — the watch pairs with iPhone, not Mac.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.ink2)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 320)
+            }
+            .padding(32)
+            .frame(minWidth: 380, minHeight: 280)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+}
+#endif

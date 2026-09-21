@@ -1,5 +1,7 @@
 import SwiftUI
+#if !os(macOS)
 import UIKit
+#endif
 import UniformTypeIdentifiers
 import TonearmCore
 
@@ -211,7 +213,7 @@ struct AddServerSheet: View {
                 textField(label: isIAConnector ? "ARCHIVE.ORG URL" : "SERVER URL",
                           prompt: isIAConnector ? "https://archive.org/details/…" : connectorKind == .plex ? "https://plex.example.com:32400" : "https://music.example.com",
                           text: $urlText,
-                          keyboardType: .URL)
+                          keyboardType: .url)
             }
             if needsUsernamePassword {
                 textField(label: "USERNAME",
@@ -263,7 +265,7 @@ struct AddServerSheet: View {
     private func textField(label: String,
                            prompt: String,
                            text: Binding<String>,
-                           keyboardType: UIKeyboardType) -> some View {
+                           keyboardType: TextFieldKeyboardHint) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
                 .foregroundStyle(Palette.ink3)
@@ -439,11 +441,25 @@ struct AddServerSheet: View {
     }
 }
 
+// Native Mac app (docs/plans/native-mac-app-plan.md §2a): this `UITextField`
+// wrapper exists because a plain SwiftUI `TextField` didn't reliably support
+// paste in some iOS sheet-presentation contexts (a real report this app
+// already worked around). macOS's `TextField` doesn't have that same
+// limitation, so the Mac build below uses the plain SwiftUI control
+// directly — no wrapper needed at all. `TextFieldKeyboardHint` replaces the
+// iOS-only `UIKeyboardType` in the shared call-site signature so both
+// platform implementations can share one interface.
+public enum TextFieldKeyboardHint {
+    case url
+    case `default`
+}
+
+#if !os(macOS)
 struct PasteCapableTextField: UIViewRepresentable {
     @Binding var text: String
     var prompt: String
     var isSecure: Bool
-    var keyboardType: UIKeyboardType
+    var keyboardType: TextFieldKeyboardHint
     var accessibilityIdentifier: String? = nil
 
     func makeUIView(context: Context) -> PasteEnabledTextField {
@@ -453,7 +469,7 @@ struct PasteCapableTextField: UIViewRepresentable {
         textField.textContentType = isSecure ? .password : nil
         textField.autocorrectionType = .no
         textField.autocapitalizationType = .none
-        textField.keyboardType = keyboardType
+        textField.keyboardType = keyboardType == .url ? .URL : .default
         textField.font = .monospacedSystemFont(ofSize: 12.5, weight: .regular)
         textField.textColor = UIColor.white.withAlphaComponent(0.92)
         textField.tintColor = UIColor(Color(hex: 0xEEB35B))
@@ -529,3 +545,36 @@ final class PasteEnabledTextField: UITextField {
         pasteCoordinator?.textDidChange(self)
     }
 }
+#else
+struct PasteCapableTextField: View {
+    @Binding var text: String
+    var prompt: String
+    var isSecure: Bool
+    var keyboardType: TextFieldKeyboardHint
+    var accessibilityIdentifier: String? = nil
+
+    var body: some View {
+        Group {
+            if isSecure {
+                SecureField(prompt, text: $text)
+            } else {
+                TextField(prompt, text: $text)
+            }
+        }
+        .font(.system(size: 12.5, design: .monospaced))
+        .textFieldStyle(.plain)
+        .modifier(OptionalAccessibilityID(id: accessibilityIdentifier))
+    }
+}
+
+private struct OptionalAccessibilityID: ViewModifier {
+    let id: String?
+    func body(content: Content) -> some View {
+        if let id {
+            content.accessibilityIdentifier(id)
+        } else {
+            content
+        }
+    }
+}
+#endif

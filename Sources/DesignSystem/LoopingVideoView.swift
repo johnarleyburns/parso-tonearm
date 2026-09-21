@@ -1,6 +1,138 @@
 import SwiftUI
 import AVFoundation
 
+#if os(macOS)
+import AppKit
+
+/// Real `NSViewRepresentable` port (native-mac-app-plan.md §2a) — mirrors
+/// the iOS `UIView`/`CALayer` looping logic exactly, just on `NSView`'s
+/// layer-backing API instead of UIKit's implicit `CALayer`-backed view.
+struct LoopingVideoView: NSViewRepresentable {
+    let url: URL
+    var horizontalAnchor: CGFloat = 0.5
+    var isPlaying: Bool = true
+
+    func makeNSView(context: Context) -> LoopingPlayerNSView {
+        LoopingPlayerNSView(url: url, horizontalAnchor: horizontalAnchor)
+    }
+
+    func updateNSView(_ nsView: LoopingPlayerNSView, context: Context) {
+        nsView.horizontalAnchor = horizontalAnchor
+        nsView.update(url: url)
+        nsView.setPlaying(isPlaying)
+    }
+
+    static func dismantleNSView(_ nsView: LoopingPlayerNSView, coordinator: ()) {
+        nsView.teardown()
+    }
+}
+
+final class LoopingPlayerNSView: NSView {
+    private let playerLayer = AVPlayerLayer()
+    private var queuePlayer: AVQueuePlayer?
+    private var looper: AVPlayerLooper?
+    private var currentURL: URL?
+    private var videoAspect: CGFloat?
+
+    var horizontalAnchor: CGFloat = 0.5 {
+        didSet { if horizontalAnchor != oldValue { needsLayout = true } }
+    }
+
+    init(url: URL, horizontalAnchor: CGFloat) {
+        self.horizontalAnchor = horizontalAnchor
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        layer?.addSublayer(playerLayer)
+        playerLayer.videoGravity = .resizeAspectFill
+        setup(url: url)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        layer?.addSublayer(playerLayer)
+        playerLayer.videoGravity = .resizeAspectFill
+    }
+
+    func update(url: URL) {
+        guard url != currentURL else { return }
+        teardown()
+        setup(url: url)
+    }
+
+    func setPlaying(_ playing: Bool) {
+        guard let qp = queuePlayer else { return }
+        if playing {
+            if qp.timeControlStatus != .playing { qp.play() }
+        } else {
+            qp.pause()
+        }
+    }
+
+    private func setup(url: URL) {
+        currentURL = url
+        let asset = AVURLAsset(url: url)
+        let item = AVPlayerItem(asset: asset)
+        let qp = AVQueuePlayer()
+        qp.isMuted = true
+        qp.actionAtItemEnd = .advance
+        looper = AVPlayerLooper(player: qp, templateItem: item)
+        playerLayer.player = qp
+        queuePlayer = qp
+        qp.play()
+
+        Task { [weak self] in
+            guard let track = try? await asset.loadTracks(withMediaType: .video).first,
+                  let size = try? await track.load(.naturalSize),
+                  let tf = try? await track.load(.preferredTransform)
+            else { return }
+            let r = size.applying(tf)
+            let w = abs(r.width), h = abs(r.height)
+            guard w > 0, h > 0 else { return }
+            await MainActor.run {
+                self?.videoAspect = w / h
+                self?.needsLayout = true
+            }
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        let b = bounds
+        guard b.width > 0, b.height > 0 else { return }
+        guard let aspect = videoAspect else {
+            playerLayer.frame = b
+            return
+        }
+        let viewAspect = b.width / b.height
+        var f = b
+        if aspect > viewAspect {
+            let w = b.height * aspect
+            f = CGRect(x: (b.width - w) * horizontalAnchor, y: 0,
+                       width: w, height: b.height)
+        } else {
+            let h = b.width / aspect
+            f = CGRect(x: 0, y: (b.height - h) * 0.5,
+                       width: b.width, height: h)
+        }
+        playerLayer.frame = f
+    }
+
+    func teardown() {
+        queuePlayer?.pause()
+        looper?.disableLooping()
+        looper = nil
+        playerLayer.player = nil
+        queuePlayer = nil
+        currentURL = nil
+    }
+}
+
+#else
+import UIKit
+
 struct LoopingVideoView: UIViewRepresentable {
     let url: URL
     var horizontalAnchor: CGFloat = 0.5
@@ -123,3 +255,4 @@ final class LoopingPlayerUIView: UIView {
         currentURL = nil
     }
 }
+#endif

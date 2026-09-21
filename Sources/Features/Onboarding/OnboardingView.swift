@@ -110,8 +110,10 @@ struct OnboardingView: View {
                     localPage.tag(intros.count)
                     sourcesPage.tag(intros.count + 1)
                 }
+                #if !os(macOS)
                 .tabViewStyle(.page(indexDisplayMode: .always))
                 .indexViewStyle(.page(backgroundDisplayMode: .always))
+                #endif
 
                 footer
             }

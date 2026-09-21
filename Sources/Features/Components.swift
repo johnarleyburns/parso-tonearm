@@ -42,7 +42,7 @@ struct SearchField: View {
             TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Palette.ink3))
                 .foregroundStyle(Palette.ink)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
+                .platformAutocapitalization(.never)
         }
         .font(.system(size: 15))
         .padding(.horizontal, 14)
@@ -265,10 +265,13 @@ struct TrackContextMenu: ViewModifier {
                 Label(fav ? "Remove from Favorites" : "Add to Favorites",
                       systemImage: fav ? "heart.slash" : "heart")
             }
+            #if !os(macOS)
             watchMenuItems
+            #endif
         }
     }
 
+    #if !os(macOS)
     @ViewBuilder
     private var watchMenuItems: some View {
         let state = appState.watchGlyphState(for: row)
@@ -295,6 +298,7 @@ struct TrackContextMenu: ViewModifier {
             EmptyView()
         }
     }
+    #endif
 
     @ViewBuilder
     private var phoneMenuItems: some View {

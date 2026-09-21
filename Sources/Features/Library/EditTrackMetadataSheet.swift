@@ -32,7 +32,7 @@ struct EditTrackMetadataSheet: View {
                 }
             }
             .navigationTitle("Edit Track Info")
-            .navigationBarTitleDisplayMode(.inline)
+            .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

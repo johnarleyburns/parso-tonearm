@@ -2,13 +2,9 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
+#if !os(macOS)
 import UIKit
-
-import Foundation
-import ParsoAudioStreaming
-import SwiftUI
-import TonearmCore
-import UIKit
+#endif
 
 /// Four root tabs (down from six) — Playlists/Library unify into My Music,
 /// Sources moves under Settings. See
@@ -119,9 +115,13 @@ final class AppState: ObservableObject {
     // The following are declared here (rather than in AppState+Watch.swift,
     // where they are used) because Swift extensions cannot hold stored
     // instance properties. `watchRuntime` is also used by `bootstrap()`
-    // below and by AppState+CustomArtwork.swift.
+    // below and by AppState+CustomArtwork.swift. Not compiled on macOS: no
+    // paired watch reachable from a Mac (native Mac app,
+    // docs/plans/native-mac-app-plan.md §1 — no Watch extension embed).
+    #if !os(macOS)
     var tickTask: Task<Void, Never>?
     lazy var watchRuntime = PhoneWatchRuntime(store: store, player: AudioPlayer.shared)
+    #endif
 
     init(store: LibraryStore = .shared) {
         self.store = store
@@ -148,9 +148,11 @@ final class AppState: ObservableObject {
         await reload()
         await AudioCache.shared.garbageCollectStalePartials()
         Task { await warmLocalSourceArtwork() }
+        #if !os(macOS)
         watchRuntime.onChange = { [weak self] in self?.refreshWatchStateFromRuntime() }
         await watchRuntime.activate()
         startWatchTransferTick()
+        #endif
     }
 
     private func repairDuplicatePlaylistsOnce() async {

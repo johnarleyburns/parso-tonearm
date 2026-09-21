@@ -84,7 +84,9 @@ struct SourcesView: View {
                 case .jamendo: JamendoBrowseView()
                 }
             }
+            #if !os(macOS)
             .toolbar(.hidden, for: .navigationBar)
+            #endif
     }
 }
 
