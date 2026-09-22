@@ -87,6 +87,86 @@ struct SourcesView: View {
             #if !os(macOS)
             .toolbar(.hidden, for: .navigationBar)
             #endif
+            // Real report: "Settings -> Libraries -> '+' does nothing." Root
+            // cause: `ScreenHeader`'s default "+" sets `appState.showAddMenu`,
+            // which only `RootView` listens for via `.sheet(isPresented:)` —
+            // but this screen is always reached nested inside Settings' own
+            // `.sheet(item: $activeSheet)` (SettingsView.swift), so RootView's
+            // copy of the view hierarchy is already covered by that sheet and
+            // can't present a second one on top of it. Attaching the same
+            // sheet here too lets it present from the actually-frontmost
+            // context (same SwiftUI multi-sheet-nesting issue already fixed
+            // once for Settings itself — see SettingsSheet's doc comment).
+            .sheet(isPresented: Binding(
+                get: { appState.showAddMenu },
+                set: { appState.showAddMenu = $0 })) {
+                AddMenuSheet()
+            }
+            // Same nested-sheet issue as above, one step further down the
+            // flow: AddMenuSheet's own choices (RootView.swift) set these
+            // same three things, which RootView also listens for — but by
+            // the time AddMenuSheet's 0.35s dismiss delay fires, the
+            // frontmost context is this screen's own sheet again, not
+            // RootView's. Mirrors RootView's identical modifiers so "Add
+            // Remote Library" / "Add Local Folder" / "Add Audio Files"
+            // actually present from here too.
+            .sheet(isPresented: Binding(
+                get: { appState.showAddSource },
+                set: { appState.showAddSource = $0 })) {
+                AddSourceSheet()
+            }
+            .sheet(isPresented: Binding(
+                get: { appState.showAddRemoteLibrary },
+                set: { appState.showAddRemoteLibrary = $0 })) {
+                AddServerSheet()
+            }
+            .sheet(item: Binding(
+                get: { appState.pickedFolder },
+                set: { appState.pickedFolder = $0 })) { url in
+                AddFolderSheet(folderURL: url, folderBookmark: appState.pickedFolderBookmark)
+            }
+            .fileImporter(
+                isPresented: Binding(get: { appState.pendingImport != nil },
+                                     set: { if !$0 { appState.pendingImport = nil } }),
+                allowedContentTypes: appState.pendingImport == .files ? [.audio] : [.folder],
+                allowsMultipleSelection: appState.pendingImport == .files
+            ) { result in
+                guard case .success(let urls) = result else {
+                    appState.pendingImport = nil
+                    return
+                }
+                switch ImportRouter.route(urls) {
+                case .folder(let url):
+                    let didScope = url.startAccessingSecurityScopedResource()
+                    let bookmark = try? url.bookmarkData(options: [.minimalBookmark],
+                                                          includingResourceValuesForKeys: nil,
+                                                          relativeTo: nil)
+                    if didScope { url.stopAccessingSecurityScopedResource() }
+                    if appState.pendingImport == .smbFolder {
+                        Task {
+                            try? await appState.addSMBFolder(url, bookmark: bookmark)
+                        }
+                    } else {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                            appState.pickedFolder = url
+                            appState.pickedFolderBookmark = bookmark
+                        }
+                    }
+                case .files(let urls):
+                    Task {
+                        let summary = await IngestService().addFiles(urls, into: appState.store)
+                        await appState.reload()
+                        if summary.skippedDuplicates > 0 {
+                            ToastCenter.shared.info(
+                                "Imported \(summary.imported), skipped \(summary.skippedDuplicates) "
+                                    + "already in your library")
+                        }
+                    }
+                case .none:
+                    break
+                }
+                appState.pendingImport = nil
+            }
     }
 }
 
