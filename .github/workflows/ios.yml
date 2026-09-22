@@ -326,6 +326,8 @@ jobs:
           APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
           TEAM_ID: ${{ secrets.TEAM_ID }}
           MAC_PROVISIONING_PROFILE_BASE64: ${{ secrets.MAC_PROVISIONING_PROFILE_BASE64 }}
+          MAC_INSTALLER_CERTIFICATE_BASE64: ${{ secrets.MAC_INSTALLER_CERTIFICATE_BASE64 }}
+          MAC_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MAC_INSTALLER_CERTIFICATE_PASSWORD }}
         run: |
           set -eo pipefail
           missing=()
@@ -344,6 +346,13 @@ jobs:
           require_secret APPSTORE_API_ISSUER_ID APPSTORE_API_ISSUER_ID
           require_secret TEAM_ID TEAM_ID
           require_secret MAC_PROVISIONING_PROFILE_BASE64 MAC_PROVISIONING_PROFILE_BASE64
+          # Distinct from APPLE_CERTIFICATE_BASE64 (Apple Distribution, signs
+          # the .app itself) — a Mac App Store .pkg export separately needs a
+          # "Mac Installer Distribution" certificate to sign the installer
+          # package. xcodebuild -exportArchive fails with "No signing
+          # certificate 'Mac Installer Distribution' found" without it.
+          require_secret MAC_INSTALLER_CERTIFICATE_BASE64 MAC_INSTALLER_CERTIFICATE_BASE64
+          require_secret MAC_INSTALLER_CERTIFICATE_PASSWORD MAC_INSTALLER_CERTIFICATE_PASSWORD
 
           if [ ${#missing[@]} -gt 0 ]; then
             echo "HAS_TESTFLIGHT_SECRETS=false" >> "$GITHUB_ENV"
@@ -400,11 +409,13 @@ jobs:
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         run: make project
 
-      - name: Import Distribution Certificate
+      - name: Import Distribution Certificates
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          MAC_INSTALLER_CERTIFICATE: ${{ secrets.MAC_INSTALLER_CERTIFICATE_BASE64 }}
+          MAC_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MAC_INSTALLER_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           set -eo pipefail
@@ -415,6 +426,14 @@ jobs:
           echo -n "$APPLE_CERTIFICATE" | base64 --decode -o certificate.p12
           security import certificate.p12 \
             -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k build.keychain
+          # Signs the .app itself (Apple Distribution) — a Mac App Store .pkg
+          # export separately needs a "Mac Installer Distribution" cert to
+          # sign the installer package, or -exportArchive fails outright.
+          echo -n "$MAC_INSTALLER_CERTIFICATE" | base64 --decode -o installer.p12
+          security import installer.p12 \
+            -P "$MAC_INSTALLER_CERTIFICATE_PASSWORD" \
             -A -t cert -f pkcs12 \
             -k build.keychain
           security set-key-partition-list \
