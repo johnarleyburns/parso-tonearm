@@ -312,7 +312,12 @@ public final class AudioPlayer: ObservableObject {
             updateNowPlaying()
             return
         }
-        if isPlaying { player.pause() } else { player.play() }
+        if isPlaying {
+            player.pause()
+        } else {
+            seekToStartIfAtEnd()
+            player.play()
+        }
         isPlaying.toggle()
         updateNowPlaying()
     }

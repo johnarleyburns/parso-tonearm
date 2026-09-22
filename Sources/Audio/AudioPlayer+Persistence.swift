@@ -17,8 +17,28 @@ extension AudioPlayer {
         pathMonitor.start(queue: pathMonitorQueue)
     }
 
-    func resume() { player.play(); isPlaying = true; updateNowPlaying() }
+    func resume() { seekToStartIfAtEnd(); player.play(); isPlaying = true; updateNowPlaying() }
     func pause() { player.pause(); isPlaying = false; updateNowPlaying() }
+
+    /// AVPlayer never auto-rewinds: once an item plays to
+    /// `AVPlayerItemDidPlayToEndTime` (the normal way a queue that isn't
+    /// auto-extended — e.g. the Mood Starter Jamendo queue, which "Keep
+    /// Playing" doesn't extend — reaches a real end with `repeatMode ==
+    /// .off`), `currentItem` is left parked at its own duration. Calling
+    /// `.play()` on an item already at its end is a no-op — real report:
+    /// "the Jamendo track plays once, then pressing play again does
+    /// nothing." Reproducible with any track whose queue actually ends
+    /// (not just Jamendo), but Jamendo's non-extending queue is the
+    /// common way to hit a genuine end in practice.
+    func seekToStartIfAtEnd() {
+        guard let item = player.currentItem else { return }
+        let duration = item.duration.seconds
+        guard duration.isFinite, duration > 0 else { return }
+        if item.currentTime().seconds >= duration - 0.1 {
+            player.seek(to: .zero)
+            currentTime = 0
+        }
+    }
 
     func updateNowPlaying() {
         guard currentTrack != nil else {
