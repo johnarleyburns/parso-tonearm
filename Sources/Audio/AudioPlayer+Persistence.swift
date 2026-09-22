@@ -20,6 +20,15 @@ extension AudioPlayer {
     func resume() { seekToStartIfAtEnd(); player.play(); isPlaying = true; updateNowPlaying() }
     func pause() { player.pause(); isPlaying = false; updateNowPlaying() }
 
+    /// Nudges output volume by `delta`, clamped to [0, 1] — the Mac
+    /// Playback menu's Increase/Decrease Volume commands (native-mac-
+    /// app-plan.md §3, mockup §m-playback). No UI elsewhere in the app
+    /// exposes a volume control today; this is real, not a placeholder —
+    /// it drives the same `AVPlayer.volume` crossfade already reads/writes.
+    public func adjustVolume(by delta: Float) {
+        player.volume = min(max(player.volume + delta, 0), 1)
+    }
+
     /// AVPlayer never auto-rewinds: once an item plays to
     /// `AVPlayerItemDidPlayToEndTime` (the normal way a queue that isn't
     /// auto-extended — e.g. the Mood Starter Jamendo queue, which "Keep

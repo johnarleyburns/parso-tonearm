@@ -13,11 +13,22 @@ import TonearmCore
 struct MacRootView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
-    @State private var selection: MacSidebarDestination? = .listen
+
+    /// Mirrors `appState.tab` (`.settings` has no Mac sidebar row — Settings
+    /// is its own `Settings { }` scene, ⌘, — so it maps to `.listen`). A
+    /// plain local `@State` here would silently strand every existing
+    /// `appState.tab = .myMusic` call site (e.g. RootView.swift's "switch to
+    /// My Music after import", and TonearmMacCommands' Edit > Find in
+    /// Library) — real app-wide code with no effect on Mac.
+    private var selection: Binding<MacSidebarDestination?> {
+        Binding(
+            get: { appState.tab == .myMusic ? .myMusic : .listen },
+            set: { appState.tab = ($0 == .myMusic) ? .myMusic : .listen })
+    }
 
     var body: some View {
         NavigationSplitView {
-            List(MacSidebarDestination.allCases, selection: $selection) { destination in
+            List(MacSidebarDestination.allCases, selection: selection) { destination in
                 Label(destination.title, systemImage: destination.systemImage)
                     .tag(destination)
             }
@@ -25,7 +36,7 @@ struct MacRootView: View {
         } detail: {
             VStack(spacing: 0) {
                 Group {
-                    switch selection ?? .listen {
+                    switch selection.wrappedValue ?? .listen {
                     case .listen: ListenView()
                     case .myMusic: MyMusicView()
                     }

@@ -28,6 +28,18 @@ struct TonearmMacCommands: Commands {
                 .keyboardShortcut("d", modifiers: [.command, .shift])
         }
 
+        // Mockup §m-edit shows "Find in Library ⌘F" / "Find Next ⌘G". Only
+        // Find is real here — the app has no concept of stepping through
+        // multiple search matches (LibraryView's search filters the whole
+        // list, it doesn't select/advance a "current match"), and inventing
+        // one just to fill the menu slot would be exactly the kind of fake
+        // affordance CLAUDE.md's "no silent/magic behavior" rule warns
+        // against. ⌘F jumps to My Music, where the real search field lives.
+        CommandGroup(replacing: .textEditing) {
+            Button("Find in Library") { appState.tab = .myMusic }
+                .keyboardShortcut("f", modifiers: .command)
+        }
+
         CommandMenu("Playback") {
             Button(player.isPlaying ? "Pause" : "Play") { player.togglePlayPause() }
                 .keyboardShortcut(.space, modifiers: [])
@@ -35,6 +47,16 @@ struct TonearmMacCommands: Commands {
                 .keyboardShortcut(.rightArrow, modifiers: .command)
             Button("Previous Track") { player.previous() }
                 .keyboardShortcut(.leftArrow, modifiers: .command)
+            Divider()
+            Button("Shuffle") { player.toggleShuffle() }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+            Button("Repeat") { player.cycleRepeatMode() }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+            Divider()
+            Button("Increase Volume") { player.adjustVolume(by: 0.1) }
+                .keyboardShortcut(.upArrow, modifiers: .command)
+            Button("Decrease Volume") { player.adjustVolume(by: -0.1) }
+                .keyboardShortcut(.downArrow, modifiers: .command)
         }
     }
 }
