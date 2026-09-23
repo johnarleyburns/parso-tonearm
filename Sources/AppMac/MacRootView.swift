@@ -47,6 +47,17 @@ struct MacRootView: View {
             }
         }
         .frame(minWidth: 820, minHeight: 560)
+        // Plan §3: "Sidebar + toolbar ... search field, view-mode toggles"
+        // — the real payoff over Catalyst's UIKit-flavored nav bar. A native
+        // `.searchable` toolbar field, wired to the same `appState.searchText`
+        // LibraryView's own search already reacts to (App/AppState.swift),
+        // not a second, disconnected search state. Typing switches to My
+        // Music — the only place search results actually render.
+        .searchable(text: $appState.searchText, placement: .toolbar, prompt: "Search your music")
+        .onChange(of: appState.searchText) { _, text in
+            guard !text.isEmpty, appState.tab != .myMusic else { return }
+            appState.tab = .myMusic
+        }
         .sheet(isPresented: Binding(
             get: { !appState.didOnboard },
             set: { if $0 == false { appState.didOnboard = true } })) {

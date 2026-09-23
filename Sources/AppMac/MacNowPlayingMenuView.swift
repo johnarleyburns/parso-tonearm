@@ -14,12 +14,34 @@ struct MacNowPlayingMenuView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
 
+    /// Local scrub position while actively dragging — avoids fighting the
+    /// player's own `currentTime` publisher mid-drag (same pattern as the
+    /// iOS `NowPlayingView` scrubber).
+    @State private var scrubPosition: Double?
+    @State private var isScrubbing = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let row = player.currentTrack {
                 Text(row.track.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 Text(row.album?.artist ?? row.artist?.name ?? "")
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+
+                if player.duration > 0 {
+                    Slider(
+                        value: Binding(
+                            get: { scrubPosition ?? player.currentTime },
+                            set: { scrubPosition = $0 }),
+                        in: 0...player.duration,
+                        onEditingChanged: { editing in
+                            isScrubbing = editing
+                            if !editing, let position = scrubPosition {
+                                player.seek(to: position)
+                                scrubPosition = nil
+                            }
+                        })
+                        .controlSize(.mini)
+                }
             } else {
                 Text("Not Playing").font(.system(size: 13, weight: .semibold))
             }

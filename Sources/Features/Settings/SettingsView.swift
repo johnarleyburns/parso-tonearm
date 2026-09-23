@@ -16,8 +16,17 @@ enum SettingsSheet: Identifiable {
     var id: Self { self }
 }
 
+/// A real macOS Preferences pane (native-mac-app-plan.md §3: "its four
+/// existing sections... become four preference panes unchanged") — matches
+/// `SettingsView.body`'s own four groupings exactly. `nil` on iOS/iPadOS,
+/// where `SettingsView` still renders every section in one scroll.
+enum MacPreferencesPane {
+    case playback, library, account, advanced
+}
+
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
+    var macPane: MacPreferencesPane?
 
     @State private var cacheUsed: Int64 = 0
     @State private var cacheLimit: Int64 = SparseCacheStore.defaultLimit
@@ -31,7 +40,14 @@ struct SettingsView: View {
     @State private var customCacheLimitMessage: String?
     @State private var icloudSync = SyncGating.isEnabled
     @State private var showWatchSettings = false
-    @State private var advancedExpanded = false
+    @State private var advancedExpanded: Bool
+
+    init(macPane: MacPreferencesPane? = nil) {
+        self.macPane = macPane
+        // A dedicated Advanced pane IS the disclosure's content — start
+        // expanded rather than making the whole pane one collapsed row.
+        _advancedExpanded = State(initialValue: macPane == .advanced)
+    }
 
     private let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
@@ -43,28 +59,38 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Settings").font(.system(size: 31, weight: .heavy)).kerning(-0.5)
-                    .padding(.top, 8)
+                if macPane == nil {
+                    Text("Settings").font(.system(size: 31, weight: .heavy)).kerning(-0.5)
+                        .padding(.top, 8)
+                }
 
-                sectionHeader("Playback")
-                behaviorCard
-                keepPlayingCard
+                if macPane == nil || macPane == .playback {
+                    sectionHeader("Playback")
+                    behaviorCard
+                    keepPlayingCard
+                }
 
-                sectionHeader("Library & Storage")
-                musicLibrariesCard
-                cacheSummaryCard
-                watchCard
-                syncCard
+                if macPane == nil || macPane == .library {
+                    sectionHeader("Library & Storage")
+                    musicLibrariesCard
+                    cacheSummaryCard
+                    watchCard
+                    syncCard
+                }
 
-                sectionHeader("Account & About")
-                privacyCard
-                SupportDevelopmentCard()
-                aboutCard
+                if macPane == nil || macPane == .account {
+                    sectionHeader("Account & About")
+                    privacyCard
+                    SupportDevelopmentCard()
+                    aboutCard
+                }
 
-                advancedSection
+                if macPane == nil || macPane == .advanced {
+                    advancedSection
+                }
             }
             .padding(.horizontal, 18)
-            .padding(.bottom, 160)
+            .padding(.bottom, macPane == nil ? 160 : 18)
         }
         .foregroundStyle(Palette.ink)
         .task { await refresh() }
