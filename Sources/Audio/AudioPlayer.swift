@@ -67,6 +67,20 @@ public final class AudioPlayer: ObservableObject {
     /// "just-played track" it must never repeat.
     var keepPlayingHistory: [Int64] = []
     var keepPlayingExtensionInFlight = false
+    /// Real report: "Keep Playing is on, but after a mood search's matches
+    /// finish, I get dead air — nothing in the queue." Root cause: `next()`
+    /// below permanently pauses when the queue is exhausted, with no path
+    /// back to playing once the in-flight extension (`maybeExtendKeepPlaying
+    /// Queue`, triggered when 1-2 tracks remain) finishes appending rows —
+    /// `finishKeepPlayingExtension` only mutates `queue`, it never resumes.
+    /// A mood queue's extension re-runs a live query (slower than the local
+    /// vector lookup other sources use), so it's the most likely to still be
+    /// running when the last track ends and lose this race. Set only when
+    /// `next()` pauses specifically because it ran out of queue while an
+    /// extension was still in flight; `finishKeepPlayingExtension` checks it
+    /// to resume automatically once real tracks land, instead of leaving
+    /// them queued-but-silent.
+    var isWaitingForKeepPlayingToResume = false
     /// The queue `index` Keep Playing last attempted an extension from, so a
     /// second `loadCurrent` for the same index (no queue-shape change) never
     /// double-fires the lookup.
@@ -223,6 +237,7 @@ public final class AudioPlayer: ObservableObject {
         keepPlayingExtensionTask?.cancel()
         keepPlayingExtensionTask = nil
         keepPlayingExtensionInFlight = false
+        isWaitingForKeepPlayingToResume = false
         keepPlayingHistory = []
         keepPlayingAutoAddedTrackIDs = []
         keepPlayingLastExtensionAttemptIndex = nil
@@ -388,6 +403,9 @@ public final class AudioPlayer: ObservableObject {
         } else if repeatMode == .all {
             index = 0
         } else {
+            if keepPlayingEnabled, keepPlayingExtensionInFlight {
+                isWaitingForKeepPlayingToResume = true
+            }
             player.pause(); isPlaying = false; updateNowPlaying(); return
         }
         loadCurrent(autoplay: true)

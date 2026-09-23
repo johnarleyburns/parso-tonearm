@@ -175,6 +175,7 @@ extension AudioPlayer {
         keepPlayingExtensionTask?.cancel()
         keepPlayingExtensionTask = nil
         keepPlayingExtensionInFlight = false
+        isWaitingForKeepPlayingToResume = false
     }
 
     internal func performQueueRestore() async {

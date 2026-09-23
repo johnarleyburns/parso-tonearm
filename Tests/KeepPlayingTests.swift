@@ -339,4 +339,58 @@ final class KeepPlayingTests: XCTestCase {
 
         XCTAssertEqual(provider.callCount, 0)
     }
+
+    // MARK: - Dead air: next() at end of queue must resume once a
+    // still-in-flight extension lands (real report — a mood search's
+    // matches finish before the extension, which re-runs a live query, has
+    // time to complete)
+
+    func testNextAtEndOfQueueResumesOnceInFlightExtensionLands() async throws {
+        let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
+        try XCTSkipIf(realIDs.isEmpty, "Needs at least one track in the shared library to hydrate against")
+        let pick = realIDs[0]
+
+        let player = AudioPlayer.shared
+        let tracks = [makeTrack(1)]
+        playWithoutAutoExtending(player, tracks: tracks, startAt: 0)  // the one and only track, already "playing"
+
+        // Simulate `maybeExtendKeepPlayingQueue` having already kicked off a
+        // real extension for this position (it re-runs a live query for a
+        // mood queue, so it can genuinely still be running when the last
+        // track ends).
+        player.keepPlayingExtensionInFlight = true
+
+        player.next()  // the track just finished; queue is exhausted
+
+        XCTAssertFalse(player.isPlaying, "nothing to play yet — this is the real dead-air moment")
+        XCTAssertTrue(player.isWaitingForKeepPlayingToResume,
+                      "next() must remember it stopped only because an extension was still in flight")
+
+        player.keepPlayingProvider = FixedProvider(.ready([pick]))
+        await player.extendKeepPlayingQueueForTesting()
+
+        XCTAssertEqual(player.queue.map(\.id), [1, pick])
+        XCTAssertTrue(player.isPlaying, "the extension landed real tracks — playback must actually resume, not sit queued-but-silent")
+        XCTAssertEqual(player.index, 1)
+        XCTAssertFalse(player.isWaitingForKeepPlayingToResume)
+    }
+
+    /// The same race, but the extension comes back with nothing playable
+    /// (a real "no matches" or empty fallback pool) — must NOT force a
+    /// resume into an unchanged, still-exhausted queue.
+    func testNextAtEndOfQueueStaysStoppedWhenExtensionFindsNothing() async {
+        let player = AudioPlayer.shared
+        let tracks = [makeTrack(1)]
+        playWithoutAutoExtending(player, tracks: tracks, startAt: 0)
+
+        player.keepPlayingExtensionInFlight = true
+        player.next()
+        XCTAssertTrue(player.isWaitingForKeepPlayingToResume)
+
+        player.keepPlayingProvider = FixedProvider(.unavailable)
+        await player.extendKeepPlayingQueueForTesting()
+
+        XCTAssertFalse(player.isPlaying)
+        XCTAssertFalse(player.isWaitingForKeepPlayingToResume)
+    }
 }

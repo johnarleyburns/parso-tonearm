@@ -224,6 +224,12 @@ extension AudioPlayer {
     ) {
         keepPlayingLastExtensionWasFallback = isFallback
         keepPlayingFallbackReason = isFallback ? reason : nil
+        // `next()` set this when it hit the end of the queue while this
+        // extension was still running (real report: dead air after a mood
+        // search's matches finish) — clear it either way, since the wait is
+        // over regardless of whether it produced anything playable.
+        let shouldResume = isWaitingForKeepPlayingToResume
+        isWaitingForKeepPlayingToResume = false
         guard !rows.isEmpty else { return }
 
         queue.append(contentsOf: rows)
@@ -234,6 +240,12 @@ extension AudioPlayer {
         prefetchNext()
         preloadNextItem()
         persist(reason: .transportEvent)
+        // The newly-appended rows are real tracks the player was waiting on
+        // — actually start them instead of leaving them queued-but-silent.
+        // Still gated on keepPlayingEnabled: if the user turned it off while
+        // this extension was in flight, honor that rather than resuming
+        // playback they just asked to stop auto-extending.
+        if shouldResume, keepPlayingEnabled { next() }
     }
 
     /// Removes the not-yet-played auto-added tail from the queue — called
