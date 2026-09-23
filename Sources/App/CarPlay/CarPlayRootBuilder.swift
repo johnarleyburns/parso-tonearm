@@ -3,9 +3,7 @@ import CarPlay
 import TonearmCore
 
 /// Builds the CarPlay template hierarchy: a tab bar mirroring the phone
-/// app's most-used browse surfaces (Playlists/Library/Search/Recently
-/// Played/Favorites — CarPlay caps a tab bar at 5 tabs, so this
-/// deliberately doesn't try to mirror the full My Music scope bar), each a
+/// app's most-used browse surfaces (Playlists/Library/Search/More, each a
 /// `CPListTemplate`/`CPSearchTemplate` reading directly from
 /// `LibraryStore.shared`. Selecting a track starts playback on the shared
 /// `AudioPlayer` — the same engine phone playback uses — then pushes the
@@ -23,8 +21,20 @@ import TonearmCore
 /// standalone Artists tab with a "Library" tab (Artists/Albums/Songs
 /// sub-menu, reusing `LibraryBrowse.sections(for:rows:)` — the exact same
 /// grouping logic `MyMusicView`/`LibraryView` already use, not a second
-/// implementation) and adds a "Search" tab. Both fit within Apple's 5-tab
-/// cap alongside the existing Playlists/Recently Played/Favorites.
+/// implementation) and adds a "Search" tab.
+///
+/// Real crash, confirmed via 4 TestFlight reports even after the
+/// `CPSearchTemplate`-in-tab-bar fix: `CPTabBarTemplate.maximumTabCount`
+/// (Apple's `CPTabBarTemplate.h`) is NOT a fixed "5" — it depends on the
+/// app's CarPlay entitlement category, and the plain CarPlay-audio
+/// entitlement this app declares grants fewer than the originally-assumed
+/// 5. Adding a 5th tab (Search) this session pushed every real device over
+/// that real, dynamic limit even though the (wrong) 5-tab assumption
+/// compiled and ran fine in the CarPlay Simulator, which does not enforce
+/// this check. Fixed by merging Recently Played/Favorites into one "More"
+/// tab (same mode-picker pattern as Library) to get back to 4 tabs, plus a
+/// runtime `maximumTabCount` guard in `rootTemplate` so this can't silently
+/// regress again on a device/OS combination with an even lower real limit.
 @MainActor
 enum CarPlayRootBuilder {
     /// CarPlay enforces a per-template item cap (Apple's guidelines: a
@@ -46,14 +56,19 @@ enum CarPlayRootBuilder {
             playlistsTemplate(interfaceController: interfaceController),
             libraryTemplate(interfaceController: interfaceController),
             searchTab(interfaceController: interfaceController),
-            flatListTemplate(
-                title: "Recently Played", systemImage: "clock", interfaceController: interfaceController,
-                loadRows: { try await LibraryStore.shared.recentlyPlayedRows() }),
-            flatListTemplate(
-                title: "Favorites", systemImage: "heart", interfaceController: interfaceController,
-                loadRows: { try await LibraryStore.shared.favoriteRows() })
+            moreTemplate(interfaceController: interfaceController)
         ]
-        return CPTabBarTemplate(templates: tabs)
+        // Real, repeated crash (4 TestFlight reports, confirmed via Apple's
+        // own CPTabBarTemplate.h): `initWithTemplates:` throws when the
+        // array exceeds `maximumTabCount` — which is NOT the fixed "5" this
+        // file used to assume, but depends on the app's CarPlay entitlement
+        // category and can change per-OS/per-device. `tabs.count` above (4)
+        // was chosen to fit comfortably under what a plain CarPlay-audio
+        // entitlement grants, but trim defensively rather than ever crash
+        // again if a future change (more tabs added, a stricter OS) pushes
+        // past whatever the real limit turns out to be on a given device.
+        let capped = Array(tabs.prefix(CPTabBarTemplate.maximumTabCount))
+        return CPTabBarTemplate(templates: capped)
     }
 
     // MARK: - Playlists
@@ -192,18 +207,34 @@ enum CarPlayRootBuilder {
         return template
     }
 
-    // MARK: - Flat track lists (Recently Played / Favorites)
+    // MARK: - More (Recently Played / Favorites)
 
-    private static func flatListTemplate(
-        title: String, systemImage: String, interfaceController: CPInterfaceController,
-        loadRows: @escaping () async throws -> [TrackRow]
-    ) -> CPListTemplate {
-        let template = CPListTemplate(title: title, sections: [])
-        template.tabImage = UIImage(systemName: systemImage)
-        Task {
-            let rows = Array(((try? await loadRows()) ?? []).prefix(maxItemsPerList))
-            template.updateSections([trackSection(rows: rows, source: .library, interfaceController: interfaceController)])
+    /// One tab, two picks — same reasoning as `libraryTemplate`'s mode
+    /// picker: `maximumTabCount` (real, device/entitlement-dependent — see
+    /// `rootTemplate`'s doc) can't afford a separate slot for each of
+    /// Recently Played and Favorites alongside Playlists/Library/Search.
+    private static func moreTemplate(interfaceController: CPInterfaceController) -> CPListTemplate {
+        let template = CPListTemplate(title: "More", sections: [])
+        template.tabImage = UIImage(systemName: "ellipsis")
+        let picks: [(title: String, icon: String, loadRows: @Sendable () async throws -> [TrackRow])] = [
+            ("Recently Played", "clock", { try await LibraryStore.shared.recentlyPlayedRows() }),
+            ("Favorites", "heart", { try await LibraryStore.shared.favoriteRows() })
+        ]
+        let items = picks.map { pick -> CPListItem in
+            let item = CPListItem(text: pick.title, detailText: nil, image: UIImage(systemName: pick.icon))
+            item.handler = { _, completion in
+                Task {
+                    let rows = Array(((try? await pick.loadRows()) ?? []).prefix(maxItemsPerList))
+                    let leaf = trackListTemplate(
+                        title: pick.title, rows: rows, source: .library,
+                        interfaceController: interfaceController)
+                    interfaceController.pushTemplate(leaf, animated: true, completion: nil)
+                    completion()
+                }
+            }
+            return item
         }
+        template.updateSections([CPListSection(items: items)])
         return template
     }
 
