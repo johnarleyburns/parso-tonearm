@@ -4,7 +4,12 @@ enum Palette {
     static let bg = Color(hex: 0x0A0B0D)
     static let ink = Color(hex: 0xF2F4F6)
     static let ink2 = Color(white: 0.92).opacity(0.58)
-    static let ink3 = Color(white: 0.92).opacity(0.34)
+    // Real WCAG AA failure at the old 0.34 (≈2.7:1 against `bg`, below even
+    // the 3:1 large-text minimum) — used for real informational text
+    // (section headers, hints), not decoration. 0.52 clears the 4.5:1
+    // normal-text AA minimum (≈4.9:1) with real margin, while staying
+    // visually distinct from ink2 (≈5.9:1).
+    static let ink3 = Color(white: 0.92).opacity(0.52)
     static let brass = Color(hex: 0xE3A44B)
     static let brassDeep = Color(hex: 0xB97F2E)
     static let ok = Color(hex: 0x4CD471)

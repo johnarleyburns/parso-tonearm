@@ -54,6 +54,11 @@ struct TransferPill: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("watch.transferBanner")
+            // Without this, VoiceOver reads every glyph individually
+            // ("warning image", "apple watch image") ahead of the real
+            // label — a real label collapses it to one clean announcement.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(label(banner))
         }
     }
 
