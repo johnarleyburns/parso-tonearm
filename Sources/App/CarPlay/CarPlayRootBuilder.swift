@@ -195,12 +195,24 @@ enum CarPlayRootBuilder {
     private static func searchTab(interfaceController: CPInterfaceController) -> CPListTemplate {
         let item = CPListItem(text: "Search Library", detailText: "Songs, albums, artists")
         item.handler = { _, completion in
-            let delegate = CarPlaySearchDelegate(interfaceController: interfaceController)
-            searchDelegate = delegate
-            let search = CPSearchTemplate()
-            search.delegate = delegate
-            interfaceController.pushTemplate(search, animated: true, completion: nil)
-            completion()
+            // Real crash, confirmed via a TestFlight report + an Apple
+            // engineer's forum answer (developer.apple.com/forums/thread/
+            // 672634): "for audio apps, only the List template may be
+            // pushed on top of the Now Playing template." CPSearchTemplate
+            // isn't a list template — if the user started playback earlier
+            // (pushing CPNowPlayingTemplate.shared, see browseModeTemplate/
+            // trackSection below) and it's still on the navigation stack
+            // when they open Search, this push is illegal and aborts.
+            // Popping to root first guarantees nothing but the tab bar is
+            // underneath, which IS a valid base for this push.
+            interfaceController.popToRootTemplate(animated: false) { _, _ in
+                let delegate = CarPlaySearchDelegate(interfaceController: interfaceController)
+                searchDelegate = delegate
+                let search = CPSearchTemplate()
+                search.delegate = delegate
+                interfaceController.pushTemplate(search, animated: true, completion: nil)
+                completion()
+            }
         }
         let template = CPListTemplate(title: "Search", sections: [CPListSection(items: [item])])
         template.tabImage = UIImage(systemName: "magnifyingglass")
