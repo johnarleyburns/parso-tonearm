@@ -3,11 +3,10 @@ import CarPlay
 import TonearmCore
 
 /// Builds the CarPlay template hierarchy: a tab bar mirroring the phone
-/// app's most-used browse surfaces (Playlists/Library/Search/More, each a
-/// `CPListTemplate`/`CPSearchTemplate` reading directly from
-/// `LibraryStore.shared`. Selecting a track starts playback on the shared
-/// `AudioPlayer` — the same engine phone playback uses — then pushes the
-/// system `CPNowPlayingTemplate`.
+/// app's most-used browse surfaces (Playlists/Library/More), each a
+/// `CPListTemplate` reading directly from `LibraryStore.shared`. Selecting a
+/// track starts playback on the shared `AudioPlayer` — the same engine phone
+/// playback uses — then pushes the system `CPNowPlayingTemplate`.
 ///
 /// Every list starts empty and fills in via `updateSections` once its
 /// `LibraryStore` (an actor) read completes — CarPlay needs a template
@@ -17,24 +16,35 @@ import TonearmCore
 /// Real report: "currently I have to scroll by artist only and I have no
 /// way to search for songs / albums or even list them in carplay." Before
 /// this, the tab bar only had Playlists/Artists/Recently Played/Favorites —
-/// no way to browse by Album or Song, and no search at all. Replaces the
-/// standalone Artists tab with a "Library" tab (Artists/Albums/Songs
-/// sub-menu, reusing `LibraryBrowse.sections(for:rows:)` — the exact same
-/// grouping logic `MyMusicView`/`LibraryView` already use, not a second
-/// implementation) and adds a "Search" tab.
+/// no way to browse by Album or Song. Replaces the standalone Artists tab
+/// with a "Library" tab (Artists/Albums/Songs sub-menu, reusing
+/// `LibraryBrowse.sections(for:rows:)` — the exact same grouping logic
+/// `MyMusicView`/`LibraryView` already use, not a second implementation) —
+/// its "Songs" mode is a full alphabetical list, which is the "list them"
+/// half of the original report.
 ///
-/// Real crash, confirmed via 4 TestFlight reports even after the
-/// `CPSearchTemplate`-in-tab-bar fix: `CPTabBarTemplate.maximumTabCount`
-/// (Apple's `CPTabBarTemplate.h`) is NOT a fixed "5" — it depends on the
-/// app's CarPlay entitlement category, and the plain CarPlay-audio
-/// entitlement this app declares grants fewer than the originally-assumed
-/// 5. Adding a 5th tab (Search) this session pushed every real device over
-/// that real, dynamic limit even though the (wrong) 5-tab assumption
-/// compiled and ran fine in the CarPlay Simulator, which does not enforce
-/// this check. Fixed by merging Recently Played/Favorites into one "More"
-/// tab (same mode-picker pattern as Library) to get back to 4 tabs, plus a
-/// runtime `maximumTabCount` guard in `rootTemplate` so this can't silently
-/// regress again on a device/OS combination with an even lower real limit.
+/// The "search" half was tried twice this session (a `CPSearchTemplate`
+/// pushed from a dedicated tab, then the same thing after popping to root
+/// first) and crashed on real hardware both times — root cause found only
+/// by reading Apple's own CarPlay App Programming Guide PDF directly
+/// (developer.apple.com/carplay/documentation/CarPlay-App-Programming-
+/// Guide.pdf, the template-support matrix, "Templates" section): Search is
+/// simply **not in the supported-template set for the Audio/video app
+/// category at all** — not a stack-ordering bug, not a push-vs-present bug,
+/// a hard per-category platform restriction with no workaround. `Now
+/// playing`, `List`, `Tab bar`, `Alert`/`Action sheet` ARE all supported for
+/// Audio; `Search` and `Point of interest` are not. Removed the Search tab
+/// entirely rather than keep shipping something Apple's own platform can
+/// never let work — a real, honest capability gap, not a bug to chase
+/// further. A true "search while driving" story for an Audio-category app
+/// would need Siri's `INPlayMediaIntent` (a separate Intents extension this
+/// app doesn't have — flagged as a real, distinct follow-up), not
+/// `CPSearchTemplate`.
+///
+/// Separately, `CPTabBarTemplate.maximumTabCount` (Apple's
+/// `CPTabBarTemplate.h`) is NOT a fixed "5" either — it depends on the app's
+/// CarPlay entitlement category — so `rootTemplate` still caps defensively
+/// at that real, queried value even though only 3 tabs are built today.
 @MainActor
 enum CarPlayRootBuilder {
     /// CarPlay enforces a per-template item cap (Apple's guidelines: a
@@ -44,18 +54,10 @@ enum CarPlayRootBuilder {
     /// take on.
     fileprivate static let maxItemsPerList = 300
 
-    /// `CPSearchTemplate.searchTemplateDelegate` is `weak` — this session
-    /// holds the one strong reference for as long as CarPlay is connected
-    /// (mirrors `CPNowPlayingTemplate.shared`'s own singleton-ish lifetime;
-    /// a fresh `rootTemplate(interfaceController:)` call on reconnect
-    /// replaces it).
-    private static var searchDelegate: CarPlaySearchDelegate?
-
     static func rootTemplate(interfaceController: CPInterfaceController) -> CPTabBarTemplate {
         let tabs = [
             playlistsTemplate(interfaceController: interfaceController),
             libraryTemplate(interfaceController: interfaceController),
-            searchTab(interfaceController: interfaceController),
             moreTemplate(interfaceController: interfaceController)
         ]
         // Real, repeated crash (4 TestFlight reports, confirmed via Apple's
@@ -102,8 +104,8 @@ enum CarPlayRootBuilder {
 
     /// One tab, three browse modes — mirrors the phone app's own My Music
     /// unification (one entry point, a mode picker) rather than spending a
-    /// separate tab slot per mode, which Apple's 5-tab cap can't afford
-    /// alongside Playlists/Search/Recently Played/Favorites.
+    /// separate tab slot per mode, which the real, entitlement-dependent tab
+    /// cap can't afford alongside Playlists/More.
     private static func libraryTemplate(interfaceController: CPInterfaceController) -> CPListTemplate {
         let template = CPListTemplate(title: "Library", sections: [])
         template.tabImage = UIImage(systemName: "square.grid.2x2")
@@ -169,62 +171,11 @@ enum CarPlayRootBuilder {
         return CPListTemplate(title: mode.rawValue, sections: cpSections)
     }
 
-    // MARK: - Search
-
-    /// `CPSearchTemplate` gets a real text field with the car's own
-    /// dictation/microphone input for free at the OS level — no separate
-    /// SiriKit intent handler needed for "type or speak what to search
-    /// for." A true Siri Shortcut ("Hey Siri, play {song} in Platterhead"
-    /// without opening the app first) is a materially different feature —
-    /// it needs an `INPlayMediaIntent` handler, which this codebase does
-    /// not have (checked: no Intents extension target in project.yml, no
-    /// `INPlayMediaIntent`/`INPlayMediaIntentHandling` conformance anywhere
-    /// under Sources/). Not attempted here — flagged as a real, separate
-    /// follow-up, not silently skipped.
-    ///
-    /// Real crash, confirmed via a TestFlight device crash report:
-    /// `-[CPTabBarTemplate validateTemplates:]` throws when a
-    /// `CPSearchTemplate` is included directly in a tab bar's `templates`
-    /// array — CarPlay only accepts a `CPSearchTemplate` when it is PUSHED
-    /// onto the interface controller's stack, never as tab-bar content
-    /// itself, contrary to what the original implementation assumed. This
-    /// wraps the real search template in an ordinary `CPListTemplate` tab
-    /// (a valid tab-bar member) whose one row pushes the real search
-    /// template — the tab bar itself never holds the `CPSearchTemplate`
-    /// directly.
-    private static func searchTab(interfaceController: CPInterfaceController) -> CPListTemplate {
-        let item = CPListItem(text: "Search Library", detailText: "Songs, albums, artists")
-        item.handler = { _, completion in
-            // Real crash, confirmed via a TestFlight report + an Apple
-            // engineer's forum answer (developer.apple.com/forums/thread/
-            // 672634): "for audio apps, only the List template may be
-            // pushed on top of the Now Playing template." CPSearchTemplate
-            // isn't a list template — if the user started playback earlier
-            // (pushing CPNowPlayingTemplate.shared, see browseModeTemplate/
-            // trackSection below) and it's still on the navigation stack
-            // when they open Search, this push is illegal and aborts.
-            // Popping to root first guarantees nothing but the tab bar is
-            // underneath, which IS a valid base for this push.
-            interfaceController.popToRootTemplate(animated: false) { _, _ in
-                let delegate = CarPlaySearchDelegate(interfaceController: interfaceController)
-                searchDelegate = delegate
-                let search = CPSearchTemplate()
-                search.delegate = delegate
-                interfaceController.pushTemplate(search, animated: true, completion: nil)
-                completion()
-            }
-        }
-        let template = CPListTemplate(title: "Search", sections: [CPListSection(items: [item])])
-        template.tabImage = UIImage(systemName: "magnifyingglass")
-        return template
-    }
-
     // MARK: - More (Recently Played / Favorites)
 
     /// One tab, two picks — same reasoning as `libraryTemplate`'s mode
-    /// picker: `maximumTabCount` (real, device/entitlement-dependent — see
-    /// `rootTemplate`'s doc) can't afford a separate slot for each of
-    /// Recently Played and Favorites alongside Playlists/Library/Search.
+    /// picker: keeps Recently Played and Favorites off Playlists/Library's
+    /// own tab budget rather than spending a slot each.
     private static func moreTemplate(interfaceController: CPInterfaceController) -> CPListTemplate {
         let template = CPListTemplate(title: "More", sections: [])
         template.tabImage = UIImage(systemName: "ellipsis")
@@ -282,62 +233,6 @@ enum CarPlayRootBuilder {
             return item
         }
         return CPListSection(items: items)
-    }
-}
-
-/// `CPSearchTemplateDelegate` is `NSObjectProtocol`-based, so this can't be
-/// a nested type inside the `CarPlayRootBuilder` enum the way the other
-/// helpers are — it needs a real class identity. Reuses
-/// `CarPlayRootBuilder`'s `trackSection`/`trackListTemplate`/
-/// `maxItemsPerList` (`fileprivate`, not `private` — this is a second type
-/// in the same file) rather than duplicating that logic.
-@MainActor
-private final class CarPlaySearchDelegate: NSObject, CPSearchTemplateDelegate {
-    private let interfaceController: CPInterfaceController
-
-    init(interfaceController: CPInterfaceController) {
-        self.interfaceController = interfaceController
-    }
-
-    func searchTemplate(
-        _ searchTemplate: CPSearchTemplate,
-        updatedSearchText searchText: String,
-        completionHandler: @escaping ([CPListItem]) -> Void
-    ) {
-        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            completionHandler([])
-            return
-        }
-        Task {
-            // Reuses LibraryStore.search(_:) — the same metadata matcher
-            // AppState.runSearch()/DiscoverySearchViewModel's metadata mode
-            // already use — never a second, ad-hoc text matcher.
-            let rows = Array(((try? await LibraryStore.shared.search(trimmed)) ?? [])
-                .prefix(CarPlayRootBuilder.maxItemsPerList))
-            let items = rows.enumerated().map { index, row -> CPListItem in
-                let subtitle = row.artist?.name ?? row.album?.artist
-                let item = CPListItem(text: row.track.title, detailText: subtitle)
-                item.handler = { [weak self] _, completion in
-                    guard let self else { completion(); return }
-                    AudioPlayer.shared.play(tracks: rows, startAt: index, source: .library)
-                    self.interfaceController.pushTemplate(CPNowPlayingTemplate.shared, animated: true, completion: nil)
-                    completion()
-                }
-                return item
-            }
-            completionHandler(items)
-        }
-    }
-
-    func searchTemplate(
-        _ searchTemplate: CPSearchTemplate,
-        selectedResult item: CPListItem,
-        completionHandler: @escaping () -> Void
-    ) {
-        // The result's own `item.handler` (set above) already starts
-        // playback and pushes Now Playing — nothing further to do here.
-        completionHandler()
     }
 }
 #endif
