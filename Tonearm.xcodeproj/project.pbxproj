@@ -192,6 +192,7 @@
 		AD8AF503F7EE66FABFD99B86 /* TonearmShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AD9B06C812D8117166D0FB4F /* RemoteArtworkImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACD90D09A8CB12D233707F2 /* RemoteArtworkImageView.swift */; };
 		AE7085A1C9DE4ADE0BB7286A /* DiscoverySearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3CB0F1AAE5D512A11B85645 /* DiscoverySearchView.swift */; };
+		AE8BE2A8F7BC8491D7BEDBE2 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D66422FCC77DE1E1324E56EE /* PrivacyInfo.xcprivacy */; };
 		AEF4981A074AAE935043A8D0 /* WatchPlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30488D91649319F8F2EFA5EF /* WatchPlaybackCoordinator.swift */; };
 		AF3030318A0DFF9CF18DED7B /* TonearmMacCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42985C09FAFF423332545E9C /* TonearmMacCommands.swift */; };
 		AF7E4C4D3F359E4A5E3D3CE1 /* WatchRemotePlaybackObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BBEF9271A1D0067EAC63C90 /* WatchRemotePlaybackObserver.swift */; };
@@ -266,6 +267,7 @@
 		F23094F2C41CCEA3CDCBB5A2 /* TrackDetailCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A36CFE314EF66DE2810ECBA9 /* TrackDetailCard.swift */; };
 		F437B1B4F530F4029A25F000 /* MyMusicView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95AC01A007801264AC4194EA /* MyMusicView.swift */; };
 		F48DDEAE9471A804A6D377A6 /* ArtworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E305F0D8B7B9B42169405D1 /* ArtworkService.swift */; };
+		F6340DDE34BA415C9B08C1F4 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D66422FCC77DE1E1324E56EE /* PrivacyInfo.xcprivacy */; };
 		F7047FAA7ACFFDEB5BF76F1A /* AddSourceSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3521D0B43D98F47FD1188599 /* AddSourceSheet.swift */; };
 		F988679E965F1CF14A03E646 /* heart.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7F433D3C8A0902790D6E379A /* heart.jpg */; };
 		F9FF663536834A156EF40E11 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 391DE85B4F0BACCBFDCDAF98 /* TonearmCore */; };
@@ -501,6 +503,7 @@
 		D0974BD26C3A62104181966A /* WatchRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRootView.swift; sourceTree = "<group>"; };
 		D198A526169E0BB94CA5DC01 /* RemoteLibraryRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteLibraryRegressionUITests.swift; sourceTree = "<group>"; };
 		D2D463ADF9B65E36FCDABFBD /* TonearmMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TonearmMac.entitlements; sourceTree = "<group>"; };
+		D66422FCC77DE1E1324E56EE /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		D79DAC21B19AAAB186936D5E /* CarPlayRootBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayRootBuilder.swift; sourceTree = "<group>"; };
 		D80C464F1FF08824183F765F /* PlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsView.swift; sourceTree = "<group>"; };
 		D8EF07C6B5FA9C069F8ADDEC /* AppState+Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+Onboarding.swift"; sourceTree = "<group>"; };
@@ -799,6 +802,7 @@
 				D3F715052D65995177B44222 /* Models */,
 				F90AE6772698F2114601747C /* Video */,
 				FFBC2DE0A6436C4A1A80014C /* Assets.xcassets */,
+				D66422FCC77DE1E1324E56EE /* PrivacyInfo.xcprivacy */,
 				390F5E4BCDCBB5C6D4A3A98D /* splash_screen.jpg */,
 				2B9AB52221643622272FFDB6 /* Tonearm.storekit */,
 			);
@@ -1326,6 +1330,7 @@
 			files = (
 				BD38B111851C766BAB2D808C /* ATTRIBUTION.md in Resources */,
 				454ECBE16FB9EB7665A712D7 /* Assets.xcassets in Resources */,
+				AE8BE2A8F7BC8491D7BEDBE2 /* PrivacyInfo.xcprivacy in Resources */,
 				859FF5128A4FB2431F372BC1 /* Tonearm.storekit in Resources */,
 				7632BF5A7300E0161E31561E /* ambient-flowing-water.mp4 in Resources */,
 				0382D625CFFFBBCCD5C33260 /* ambient-flowing-water.wav in Resources */,
@@ -1356,6 +1361,7 @@
 				D9C1ADE0F0B4D3D996F132A2 /* CLAPAudioEncoder.mlpackage in Resources */,
 				1478A167A7B83B1158DA49A8 /* CLAPTextEncoder.mlpackage in Resources */,
 				29522115BA049E012FBD14D8 /* DemucsStems.mlpackage in Resources */,
+				F6340DDE34BA415C9B08C1F4 /* PrivacyInfo.xcprivacy in Resources */,
 				2BDD7EA40A22BF33622364F5 /* Tonearm.storekit in Resources */,
 				19D3B7BFDB92E43C1DF0BB38 /* ambient-flowing-water.mp4 in Resources */,
 				04AB1C915EDC9668DB183B57 /* ambient-flowing-water.wav in Resources */,

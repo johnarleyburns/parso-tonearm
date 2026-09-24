@@ -748,7 +748,7 @@ struct PrivacyView: View {
                     privacyPoint("No accounts", "There is no sign-in and no server that belongs to Platterhead.")
                     privacyPoint("Optional iCloud sync", "Free for everyone, off by default. When you turn it on, your Music, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Platterhead server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
                     privacyPoint("No ads, no analytics", "No tracking of any kind. OAuth tokens are used only for services you explicitly connect.")
-                    privacyPoint("Network contact", "archive.org for libraries you added by URL (public items, lists, and collections require only the URL; private lists require your archive.org username/password stored locally in Keychain), Apple's iTunes Search for missing cover art, and remote-library providers you add yourself: \(RemoteConnectorCatalog.proDisplayList).")
+                    privacyPoint("Network contact", "Jamendo for the built-in Creative Commons mood-starter library and its own genre libraries, archive.org for libraries you added by URL (public items, lists, and collections require only the URL; private lists require your archive.org username/password stored locally in Keychain), Apple's iTunes Search for missing cover art, and remote-library providers you add yourself: \(RemoteConnectorCatalog.proDisplayList).")
                     privacyPoint("Your files stay yours", "Local music is referenced in place by secure bookmark and never uploaded.")
                     privacyPoint("The cache is temporary", "Streamed audio is kept in an LRU cache so recently played music works offline. It is evicted automatically and can be cleared anytime.")
                 }
@@ -799,6 +799,8 @@ struct ThirdPartyNoticesView: View {
                     privacyPoint("Vendored audio/DSP libraries",
                         "Platterhead's audio engine vendors permissively-licensed open-source libraries for decode/encode and DSP (libFLAC, libebur128, libsamplerate, libogg/libopus, and others) — BSD, MIT, and public-domain terms. See parso-audio-engine's ATTRIBUTION.md for the complete per-file list.")
                     privacyPoint("GRDB.swift", "SQLite access, MIT licensed.")
+                    privacyPoint("Jamendo — Creative Commons music",
+                        "The built-in Mood Starter library and every Jamendo genre library you add stream Creative Commons-licensed tracks from Jamendo (jamendo.com). Each track keeps its own real license (shown on its library's detail screen) exactly as Jamendo publishes it — Platterhead adds no restrictions of its own and changes no track's license.")
                 }
                 .foregroundStyle(Palette.ink)
                 .padding(20)

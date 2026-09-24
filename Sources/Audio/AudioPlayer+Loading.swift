@@ -267,8 +267,13 @@ extension AudioPlayer {
     }
 
     func managedURL(_ rel: String) -> URL {
-        let base = try! FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                appropriateFor: nil, create: true)
+        // Same fallback pattern as AudioCache.root: extremely unlikely to
+        // fail on a real device/Mac, but this runs on every local-track
+        // resolve — a force-try here is a needless crash risk versus a
+        // graceful fallback to a directory that always resolves.
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                  appropriateFor: nil, create: true))
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
         return base.appendingPathComponent(rel)
     }
 

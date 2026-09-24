@@ -143,7 +143,6 @@ targets:
                 UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlaySceneDelegate
         UIBackgroundModes:
           - audio
-          - remote-notification
           - processing
         # Durable CLAP/discovery indexing (IMPLEMENT_CLAP_PLAN.md §7).
         BGTaskSchedulerPermittedIdentifiers:
