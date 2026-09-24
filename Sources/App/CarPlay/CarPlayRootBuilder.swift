@@ -54,6 +54,19 @@ enum CarPlayRootBuilder {
     /// take on.
     fileprivate static let maxItemsPerList = 300
 
+    /// A real, on-screen "Ask Siri" row (docs/plans/carplay-voice-search-
+    /// plan.md §3) — Apple's own documented replacement for Search on an
+    /// audio app (`CPListTemplate.h`: `CPAssistantCellConfiguration`,
+    /// "only supported by CarPlay Audio and Communication apps," our exact
+    /// category). `.playMedia` routes to the same App Intents already wired
+    /// in `Sources/Intents/TonearmAppIntents.swift` — no separate handling
+    /// needed here. Always visible, not just while Limited UI is active: a
+    /// hands-free entry point should always be reachable, not conditional.
+    private static var assistantCellConfiguration: CPAssistantCellConfiguration {
+        CPAssistantCellConfiguration(
+            position: .top, visibility: .always, assistantAction: .playMedia)
+    }
+
     static func rootTemplate(interfaceController: CPInterfaceController) -> CPTabBarTemplate {
         let tabs = [
             playlistsTemplate(interfaceController: interfaceController),
@@ -78,6 +91,7 @@ enum CarPlayRootBuilder {
     private static func playlistsTemplate(interfaceController: CPInterfaceController) -> CPListTemplate {
         let template = CPListTemplate(title: "Playlists", sections: [])
         template.tabImage = UIImage(systemName: "music.note.list")
+        template.assistantCellConfiguration = Self.assistantCellConfiguration
         Task {
             let playlists = ((try? await LibraryStore.shared.allPlaylists()) ?? []).prefix(maxItemsPerList)
             let items = playlists.map { playlist -> CPListItem in
@@ -109,6 +123,7 @@ enum CarPlayRootBuilder {
     private static func libraryTemplate(interfaceController: CPInterfaceController) -> CPListTemplate {
         let template = CPListTemplate(title: "Library", sections: [])
         template.tabImage = UIImage(systemName: "square.grid.2x2")
+        template.assistantCellConfiguration = Self.assistantCellConfiguration
         let modes: [(LibraryBrowseMode, String)] = [
             (.artists, "person.wave.2"), (.albums, "square.stack"), (.songs, "music.note")
         ]
@@ -179,6 +194,7 @@ enum CarPlayRootBuilder {
     private static func moreTemplate(interfaceController: CPInterfaceController) -> CPListTemplate {
         let template = CPListTemplate(title: "More", sections: [])
         template.tabImage = UIImage(systemName: "ellipsis")
+        template.assistantCellConfiguration = Self.assistantCellConfiguration
         let picks: [(title: String, icon: String, loadRows: @Sendable () async throws -> [TrackRow])] = [
             ("Recently Played", "clock", { try await LibraryStore.shared.recentlyPlayedRows() }),
             ("Favorites", "heart", { try await LibraryStore.shared.favoriteRows() })

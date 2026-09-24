@@ -74,6 +74,62 @@ final class IntentResolverTests: XCTestCase {
         XCTAssertEqual(resolution, .failure(.emptyParameter(.artist)))
     }
 
+    // MARK: - Song (docs/plans/carplay-voice-search-plan.md §1)
+
+    func testSongEmptyLibraryFailsBeforeMatching() {
+        let resolution = IntentResolver.resolveSong(title: "Yesterday", artist: nil, songs: [])
+
+        XCTAssertEqual(resolution, .failure(.emptyLibrary(.song)))
+    }
+
+    func testSongExactTitleMatchReturnsPlayCommand() {
+        let resolution = IntentResolver.resolveSong(title: "Hotel California", artist: nil, songs: [
+            .init(trackId: 1, title: "Take It Easy", artist: "Eagles"),
+            .init(trackId: 2, title: "Hotel California", artist: "Eagles")
+        ])
+
+        XCTAssertEqual(resolution, .command(.playSong(trackId: 2, title: "Hotel California", artist: "Eagles")))
+    }
+
+    /// The exact scenario the plan calls out: the same title recorded by
+    /// two different artists. Without narrowing by the spoken artist first,
+    /// this is ambiguous; with it, it resolves cleanly.
+    func testSpokenArtistNarrowsAmbiguousTitleBeforeMatching() {
+        let songs: [IntentResolver.SongCandidate] = [
+            .init(trackId: 1, title: "Yesterday", artist: "The Beatles"),
+            .init(trackId: 2, title: "Yesterday", artist: "Boyz II Men")
+        ]
+
+        XCTAssertEqual(
+            IntentResolver.resolveSong(title: "Yesterday", artist: nil, songs: songs),
+            .failure(.ambiguous(kind: .song, query: "Yesterday", matches: ["Yesterday", "Yesterday"]))
+        )
+        XCTAssertEqual(
+            IntentResolver.resolveSong(title: "Yesterday", artist: "Beatles", songs: songs),
+            .command(.playSong(trackId: 1, title: "Yesterday", artist: "The Beatles"))
+        )
+    }
+
+    /// An artist Siri misheard (or that just doesn't match anything) must
+    /// not make an otherwise-findable song fail outright — the narrowing
+    /// only applies when it actually leaves a candidate.
+    func testUnmatchedSpokenArtistFallsBackToSearchingEverySong() {
+        let resolution = IntentResolver.resolveSong(
+            title: "Hotel California",
+            artist: "Some Mishearing",
+            songs: [.init(trackId: 1, title: "Hotel California", artist: "Eagles")])
+
+        XCTAssertEqual(resolution, .command(.playSong(trackId: 1, title: "Hotel California", artist: "Eagles")))
+    }
+
+    func testSongNoMatchReturnsFailure() {
+        let resolution = IntentResolver.resolveSong(title: "Nonexistent Track", artist: nil, songs: [
+            .init(trackId: 1, title: "Hotel California", artist: "Eagles")
+        ])
+
+        XCTAssertEqual(resolution, .failure(.noMatch(kind: .song, query: "Nonexistent Track")))
+    }
+
     func testResumeAlwaysReturnsCommand() {
         XCTAssertEqual(IntentResolver.resolveResume(), .command(.resume))
     }

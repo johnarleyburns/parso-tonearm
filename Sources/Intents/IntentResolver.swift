@@ -4,6 +4,7 @@ public enum IntentResolver {
     public enum TargetKind: String, Equatable {
         case playlist
         case artist
+        case song
         case sourceURL
         case sleepTimer
     }
@@ -26,6 +27,7 @@ public enum IntentResolver {
     public enum Command: Equatable {
         case playPlaylist(id: Int64, title: String)
         case playArtist(name: String)
+        case playSong(trackId: Int64, title: String, artist: String?)
         case resume
         case setSleepTimer(SleepTimerPlan)
         case addSource(rawURL: String)
@@ -43,6 +45,12 @@ public enum IntentResolver {
 
     public struct ArtistCandidate: Equatable {
         var name: String
+    }
+
+    public struct SongCandidate: Equatable {
+        var trackId: Int64
+        var title: String
+        var artist: String?
     }
 
     private struct NamedCandidate: Equatable {
@@ -77,6 +85,42 @@ public enum IntentResolver {
         switch match(query: query, candidates: candidates, kind: .artist) {
         case .matched(let candidate):
             return .command(.playArtist(name: candidate.name))
+        case .failed(let failure):
+            return .failure(failure)
+        }
+    }
+
+    /// Real gap: only playlist/artist could be voice-triggered — "play
+    /// Hotel California" (the single most natural request) had no path.
+    /// When a spoken artist is given, narrows to that artist FIRST (so
+    /// "play Yesterday by the Beatles" doesn't get lost among every other
+    /// artist's "Yesterday") — but only if that narrowing actually leaves a
+    /// candidate; an artist name Siri misheard shouldn't make an otherwise
+    /// findable song fail outright.
+    public static func resolveSong(
+        title: String,
+        artist: String?,
+        songs: [SongCandidate]
+    ) -> Resolution {
+        var pool = songs
+        if let artist, case let normalizedArtist = StringSimilarity.normalize(artist), !normalizedArtist.isEmpty {
+            let narrowed = pool.filter { candidate in
+                guard let candidateArtist = candidate.artist else { return false }
+                let normalizedCandidate = StringSimilarity.normalize(candidateArtist)
+                return normalizedCandidate.contains(normalizedArtist)
+                    || StringSimilarity.tokensContained(needle: artist, in: candidateArtist)
+            }
+            if !narrowed.isEmpty { pool = narrowed }
+        }
+
+        let candidates = pool.map { NamedCandidate(id: String($0.trackId), name: $0.title) }
+        switch match(query: title, candidates: candidates, kind: .song) {
+        case .matched(let candidate):
+            guard let trackId = Int64(candidate.id) else {
+                return .failure(.noMatch(kind: .song, query: title))
+            }
+            let songArtist = pool.first { String($0.trackId) == candidate.id }?.artist
+            return .command(.playSong(trackId: trackId, title: candidate.name, artist: songArtist))
         case .failed(let failure):
             return .failure(failure)
         }

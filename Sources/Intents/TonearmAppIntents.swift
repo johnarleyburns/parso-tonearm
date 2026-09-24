@@ -6,15 +6,23 @@ public struct TonearmPlayPlaylistIntent: AppIntent {
     public init() {}
     public static let title: LocalizedStringResource = "Play Playlist"
     public static let description = IntentDescription("Starts a Platterhead playlist.")
-    public static let openAppWhenRun = true
+    // Real report (docs/plans/carplay-voice-search-plan.md §2), confirmed
+    // against a real Apple Developer Forums thread: `openAppWhenRun = true`
+    // is BLOCKED entirely while CarPlay is active ("Sorry, I can't do that
+    // while you're driving") — a custom intent that tries to foreground the
+    // app never even runs. `false` starts playback directly against the
+    // live `AudioPlayer.shared` singleton (this file already runs in the
+    // main app process, not a satellite extension) without ever needing the
+    // screen — the fix for driving, and honestly better UX at rest too.
+    public static let openAppWhenRun = false
 
     @Parameter(title: "Playlist")
     public var playlistName: String
 
     @MainActor
-    public func perform() async throws -> some IntentResult {
+    public func perform() async throws -> some IntentResult & ProvidesDialog {
         try await TonearmIntentRunner.playPlaylist(named: playlistName)
-        return .result()
+        return .result(dialog: "Playing \(playlistName)")
     }
 }
 
@@ -22,15 +30,39 @@ public struct TonearmPlayArtistIntent: AppIntent {
     public init() {}
     public static let title: LocalizedStringResource = "Play Artist"
     public static let description = IntentDescription("Starts all Platterhead tracks by an artist.")
-    public static let openAppWhenRun = true
+    public static let openAppWhenRun = false  // see TonearmPlayPlaylistIntent
 
     @Parameter(title: "Artist")
     public var artistName: String
 
     @MainActor
-    public func perform() async throws -> some IntentResult {
+    public func perform() async throws -> some IntentResult & ProvidesDialog {
         try await TonearmIntentRunner.playArtist(named: artistName)
-        return .result()
+        return .result(dialog: "Playing \(artistName)")
+    }
+}
+
+/// Real gap (docs/plans/carplay-voice-search-plan.md §1): only playlist and
+/// artist could be voice-triggered — "play Hotel California," the single
+/// most natural request, had no path at all.
+public struct TonearmPlaySongIntent: AppIntent {
+    public init() {}
+    public static let title: LocalizedStringResource = "Play Song"
+    public static let description = IntentDescription("Plays a song in Platterhead.")
+    public static let openAppWhenRun = false  // see TonearmPlayPlaylistIntent
+
+    @Parameter(title: "Song")
+    public var songTitle: String
+    @Parameter(title: "Artist")
+    public var artistName: String?
+
+    @MainActor
+    public func perform() async throws -> some IntentResult & ProvidesDialog {
+        let spoken = try await TonearmIntentRunner.playSong(title: songTitle, artist: artistName)
+        if let artist = spoken.artist {
+            return .result(dialog: "Playing \(spoken.title) by \(artist)")
+        }
+        return .result(dialog: "Playing \(spoken.title)")
     }
 }
 
@@ -38,12 +70,12 @@ public struct TonearmResumeIntent: AppIntent {
     public init() {}
     public static let title: LocalizedStringResource = "Resume Platterhead"
     public static let description = IntentDescription("Resumes Platterhead playback.")
-    public static let openAppWhenRun = true
+    public static let openAppWhenRun = false  // see TonearmPlayPlaylistIntent
 
     @MainActor
-    public func perform() async throws -> some IntentResult {
+    public func perform() async throws -> some IntentResult & ProvidesDialog {
         try await TonearmIntentRunner.run(.resume)
-        return .result()
+        return .result(dialog: "Resuming playback")
     }
 }
 
@@ -112,6 +144,15 @@ public struct TonearmShortcutsProvider: AppShortcutsProvider {
             systemImageName: "music.mic"
         )
         AppShortcut(
+            intent: TonearmPlaySongIntent(),
+            phrases: [
+                "Play a song in \(.applicationName)",
+                "Play a track in \(.applicationName)"
+            ],
+            shortTitle: "Play Song",
+            systemImageName: "music.note"
+        )
+        AppShortcut(
             intent: TonearmResumeIntent(),
             phrases: [
                 "Resume \(.applicationName)",
@@ -172,6 +213,32 @@ public enum TonearmIntentRunner {
         }
     }
 
+    /// Returns the resolved (title, artist) so the intent's spoken
+    /// confirmation says the real match Siri found, not just an echo of
+    /// whatever the user said (which might have been corrected by fuzzy
+    /// matching, e.g. a mishearing).
+    public static func playSong(title: String, artist: String?) async throws -> (title: String, artist: String?) {
+        let store = LibraryStore.shared
+        let rows = try await store.allTrackRows()
+        let candidates = rows.compactMap { row -> IntentResolver.SongCandidate? in
+            guard let trackId = row.track.id else { return nil }
+            return IntentResolver.SongCandidate(
+                trackId: trackId, title: row.track.title,
+                artist: row.artist?.name ?? row.album?.artist)
+        }
+
+        switch IntentResolver.resolveSong(title: title, artist: artist, songs: candidates) {
+        case .command(let command):
+            try await run(command)
+            guard case .playSong(_, let resolvedTitle, let resolvedArtist) = command else {
+                return (title, artist)
+            }
+            return (resolvedTitle, resolvedArtist)
+        case .failure(let failure):
+            throw TonearmIntentError(failure)
+        }
+    }
+
     public static func run(_ command: IntentResolver.Command) async throws {
         try await run(command, playlists: nil)
     }
@@ -193,6 +260,12 @@ public enum TonearmIntentRunner {
                 throw TonearmIntentError("Artist \"\(name)\" has no playable tracks.")
             }
             AudioPlayer.shared.play(tracks: rows, startAt: 0, source: .library)
+
+        case .playSong(let trackId, let title, _):
+            guard let row = try await LibraryStore.shared.trackRow(id: trackId) else {
+                throw TonearmIntentError("\"\(title)\" is no longer in your library.")
+            }
+            AudioPlayer.shared.play(tracks: [row], startAt: 0, source: .library)
 
         case .resume:
             await AudioPlayer.shared.withRestoredQueue { AudioPlayer.shared.resumePlayback() }
@@ -247,6 +320,8 @@ private extension IntentResolver.TargetKind {
             return "playlist"
         case .artist:
             return "artist"
+        case .song:
+            return "song"
         case .sourceURL:
             return "source URL"
         case .sleepTimer:
