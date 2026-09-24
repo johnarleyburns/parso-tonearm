@@ -41,9 +41,21 @@ extension AudioPlayer {
     /// common way to hit a genuine end in practice.
     func seekToStartIfAtEnd() {
         guard let item = player.currentItem else { return }
-        let duration = item.duration.seconds
-        guard duration.isFinite, duration > 0 else { return }
-        if item.currentTime().seconds >= duration - 0.1 {
+        // Real report: still hit this "plays once, then dead" symptom on a
+        // build that already had the item.duration-based check below. Root
+        // cause: AVPlayerItem's OWN duration can be unreliable for a
+        // network-streamed asset served through CachingResourceLoader — it
+        // depends on AVFoundation having parsed enough of the container to
+        // know a real duration (e.g. an MP3's VBR header), which isn't
+        // guaranteed for every remote track, Jamendo included. `self.
+        // duration` (AudioPlayer+Loading.swift's loadCurrent, set directly
+        // from the track's own library metadata) is always known and
+        // doesn't depend on that parsing, so prefer it and only fall back
+        // to the item's own value when a track genuinely has no known
+        // duration at all.
+        let knownDuration = self.duration > 0 ? self.duration : item.duration.seconds
+        guard knownDuration.isFinite, knownDuration > 0 else { return }
+        if item.currentTime().seconds >= knownDuration - 0.1 {
             player.seek(to: .zero)
             currentTime = 0
         }
