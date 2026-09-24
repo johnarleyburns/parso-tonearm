@@ -7,48 +7,6 @@
 import SwiftUI
 import TonearmDiscovery
 
-/// The compact, tappable sound-index banner for the Library screen (plan §10
-/// item 2: "Persistent compact status banner: 'Sound index: 238 / 1,042
-/// tracks' and actual state such as 'Waiting for charging.'"). Hidden until
-/// there is a library to index.
-struct IndexStatusBanner: View {
-    @ObservedObject var model: IndexStatusModel
-    var onTap: () -> Void
-
-    var body: some View {
-        if let p = model.presentation, p.showsBanner {
-            Button(action: onTap) {
-                HStack(spacing: 10) {
-                    ProgressView(value: p.modelDownloadFraction ?? p.fractionComplete)
-                        .progressViewStyle(.circular)
-                        .scaleEffect(0.7)
-                        .frame(width: 22, height: 22)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(p.headline)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Palette.ink)
-                        Text(p.detail)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Palette.ink3)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Palette.ink3)
-                }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 12)
-                .glassSurface(cornerRadius: 14)
-            }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(p.headline). \(p.detail)")
-            .task { await model.refresh() }
-        }
-    }
-}
-
 /// The full sound-index status screen (plan §10 item 3 + actions in item 4 +
 /// diagnostics export in item 6).
 struct IndexStatusView: View {

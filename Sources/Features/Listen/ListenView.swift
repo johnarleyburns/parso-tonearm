@@ -23,6 +23,9 @@ struct ListenView: View {
     @StateObject private var indexStatusModel = IndexStatusModel()
     @State private var showIndexStatus = false
     @State private var selectedPillIDs: Set<MoodPill.ID> = []
+    /// Listening Stats' Top 10 Songs/Artists — collapsed by default (real
+    /// report), shown via an explicit "Show More…".
+    @State private var showTopLists = false
     /// The Era/Vibe pill category — generated from this library's own
     /// BPM/key/energy/duration distribution (`SuggestionChips`), not a fixed
     /// list (plan §3.2).
@@ -54,6 +57,15 @@ struct ListenView: View {
                     Spacer().frame(height: 16)
                 }
 
+                if !appState.recentlyPlayed.isEmpty {
+                    cardRow(title: "Jump Back In", rows: appState.recentlyPlayed)
+                }
+                // "Recently Added" removed at the user's request — it duplicated "Jump Back In"
+                // in practice and wasn't used. `appState.recentlyAdded` is left in place (still
+                // populated by `reload()`) in case another surface wants it later.
+                statsCard(appState.listeningStats)
+                favorites
+
                 // `moodModel` is only `@State` here (its identity, not its
                 // `@Published` internals, is what this view needs to react
                 // to) — real bug caught re-auditing against the plan:
@@ -70,6 +82,8 @@ struct ListenView: View {
                 // Fixed `minHeight` on all three branches (loading/not-ready/
                 // ready) — real report: the page must not re-layout when this
                 // section resolves from "checking" to either outcome.
+                //
+                // Moved to last, below Favorites, at the user's request.
                 Group {
                     if moodReady == true, let moodModel {
                         MoodEntryPointSection(
@@ -87,16 +101,7 @@ struct ListenView: View {
                     }
                 }
                 .frame(minHeight: Self.moodSectionMinHeight, alignment: .top)
-                .padding(.bottom, 26)
-
-                if !appState.recentlyPlayed.isEmpty {
-                    cardRow(title: "Jump Back In", rows: appState.recentlyPlayed)
-                }
-                // "Recently Added" removed at the user's request — it duplicated "Jump Back In"
-                // in practice and wasn't used. `appState.recentlyAdded` is left in place (still
-                // populated by `reload()`) in case another surface wants it later.
-                statsCard(appState.listeningStats)
-                favorites
+                .padding(.top, 26)
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 160)
@@ -132,11 +137,13 @@ struct ListenView: View {
     /// Real report: the section only reserved space for the baseline prompt/
     /// pills/Play controls, not the results row that appears once a search
     /// actually returns something — so running a search still bumped
-    /// everything below it down the page. Baseline controls (~200) plus the
+    /// everything below it down the page. Baseline controls (~142) plus the
     /// results row's own height (~160, matching `RecentCard`'s 132pt
     /// artwork + two text lines + spacing) reserved unconditionally, whether
-    /// or not results are showing right now.
-    private static let moodControlsMinHeight: CGFloat = 200
+    /// or not results are showing right now. (Was ~200 with a Play/"Shake it
+    /// up" button row — removed at the user's request, "I don't use these
+    /// buttons," reclaiming that ~58pt rather than leaving dead space.)
+    private static let moodControlsMinHeight: CGFloat = 142
     /// `fileprivate` (not `private`) — `MoodEntryPointSection` below, a
     /// separate type in this same file, reads it too.
     fileprivate static let moodResultsAreaMinHeight: CGFloat = 160
@@ -305,11 +312,28 @@ struct ListenView: View {
                 weeklyChart(stats.dailyRollups)
             }
 
-            if !stats.topTracks.isEmpty {
-                topTracksList(stats.topTracks)
-            }
-            if !stats.topArtists.isEmpty {
-                topArtistsList(stats.topArtists)
+            // Real report: collapsed by default, showing only the summary
+            // tiles and the weekly chart — Top 10 Songs/Artists (the long
+            // part) sit behind an explicit "Show More…" rather than always
+            // taking their full height on a screen everyone opens often.
+            if !stats.topTracks.isEmpty || !stats.topArtists.isEmpty {
+                if showTopLists {
+                    if !stats.topTracks.isEmpty {
+                        topTracksList(stats.topTracks)
+                    }
+                    if !stats.topArtists.isEmpty {
+                        topArtistsList(stats.topArtists)
+                    }
+                    Button("Show Less") { withAnimation { showTopLists = false } }
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(Palette.brass)
+                        .accessibilityIdentifier("listen.stats.showLess")
+                } else {
+                    Button("Show More…") { withAnimation { showTopLists = true } }
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(Palette.brass)
+                        .accessibilityIdentifier("listen.stats.showMore")
+                }
             }
         }
         .padding(.bottom, 22)
@@ -474,7 +498,6 @@ private struct MoodEntryPointSection: View {
     /// gate uses, so there's one "open Sound Index" trigger for this whole
     /// screen, not two independent ones.
     @Binding var showIndexStatus: Bool
-    @EnvironmentObject var player: AudioPlayer
 
     private var allMoodPills: [MoodPill] {
         MoodPillTaxonomy.fixedCategories + eraVibePills
@@ -524,39 +547,6 @@ private struct MoodEntryPointSection: View {
                 .accessibilityIdentifier("listen.mood.prompt")
 
             MoodPillPicker(pills: allMoodPills, selection: pillSelectionBinding)
-
-            HStack(spacing: 10) {
-                Button {
-                    startMoodPlayback()
-                } label: {
-                    Label("Play", systemImage: "play.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 11)
-                        .background(
-                            LinearGradient(colors: [Palette.brass, Palette.brassDeep],
-                                          startPoint: .top, endPoint: .bottom),
-                            in: Capsule())
-                        .foregroundStyle(Color.black)
-                }
-                .buttonStyle(.plain)
-                .disabled(moodModel.results.isEmpty)
-                .accessibilityIdentifier("listen.mood.play")
-
-                Button {
-                    startMoodPlayback(shuffle: true)
-                } label: {
-                    Label("Shake it up", systemImage: "shuffle")
-                        .font(.system(size: 13, weight: .semibold))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 11)
-                        .background(Color.white.opacity(0.07), in: Capsule())
-                        .foregroundStyle(Palette.ink2)
-                }
-                .buttonStyle(.plain)
-                .disabled(moodModel.results.isEmpty)
-                .accessibilityIdentifier("listen.mood.shakeItUp")
-            }
 
             Group {
                 if !moodModel.results.isEmpty {
@@ -641,30 +631,6 @@ private struct MoodEntryPointSection: View {
     private func hint(_ text: String) -> some View {
         Text(text).font(.callout).foregroundStyle(Palette.ink3)
             .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Starts (or updates) playback from the mood query's current results,
-    /// tagging the queue `.mood(moodModel)` so Keep Playing re-queries this
-    /// same mood instead of falling back to generic similarity (plan §3.3,
-    /// `AudioPlayer+KeepPlaying.swift`). "Shake it up" reshuffles the same
-    /// result set rather than issuing a new query — the pills/prompt are the
-    /// mood the person asked for; shaking gives a different order through it,
-    /// not a different mood.
-    ///
-    /// If a mood queue from THIS view model is already playing, both
-    /// buttons update the *upcoming* queue non-destructively instead of
-    /// restarting from track 0 — mirrors Acalum's "Update upcoming" vs.
-    /// "Play now" distinction (plan §3.1 point 5): changing pills mid-
-    /// listen shouldn't yank the currently-playing track.
-    private func startMoodPlayback(shuffle: Bool = false) {
-        guard !moodModel.results.isEmpty else { return }
-        var tracks = moodModel.results.map(\.track)
-        if shuffle { tracks.shuffle() }
-        if player.isPlaying, case .mood(let active) = player.queueSource, active === moodModel {
-            player.updateUpcoming(with: tracks, source: .mood(moodModel))
-        } else {
-            player.play(tracks: tracks, startAt: 0, source: .mood(moodModel))
-        }
     }
 
     private var moodResultsRow: some View {

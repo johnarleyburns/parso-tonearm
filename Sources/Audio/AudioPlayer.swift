@@ -224,6 +224,23 @@ public final class AudioPlayer: ObservableObject {
 
     public func play(tracks: [TrackRow], startAt start: Int, source: QueueSource = .none) {
         shutdownLoopPlayer()
+        // Real, repeated report: "I click on a track I've played before and
+        // nothing happens." Root cause found by reading loadCurrent
+        // (AudioPlayer+Loading.swift): it reuses `preloadedNextItem`
+        // whenever `preloadedNextTrackId` matches the track about to load,
+        // as a near-gapless optimization for ADVANCING within the SAME
+        // queue. But `play(tracks:startAt:)` starts a brand new, unrelated
+        // queue — if the tapped track happens to still be sitting in
+        // `preloadedNextTrackId` from an earlier, abandoned session (queued
+        // next but never actually reached), loadCurrent would silently
+        // reuse that stale item instead of building a fresh one. Invalidate
+        // it here, before loadCurrent ever runs for this new queue — not
+        // via invalidatePreloadedNext(), which also repreloads against the
+        // OLD queue/index that are about to be overwritten below anyway.
+        preloadedNextLoader?.shutdown()
+        preloadedNextItem = nil
+        preloadedNextTrackId = nil
+        preloadedNextLoader = nil
         unshuffledQueue = []
         queueSource = source
         queue = tracks

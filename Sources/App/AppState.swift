@@ -43,6 +43,13 @@ final class AppState: ObservableObject {
     @Published var sources: [Source] = []
     @Published var playlists: [Playlist] = []
     @Published var allTracks: [TrackRow] = []
+    /// Real report: "My Music says I have no music, then a few seconds
+    /// later loads it all in" — `allTracks` starts empty and `LibraryView`
+    /// had no way to tell "still loading" apart from "genuinely empty," so
+    /// it showed the empty state first every launch. `false` until the
+    /// first `reload()` completes (success or failure — an error still
+    /// means the load attempt is over, not "still loading forever").
+    @Published var didLoadLibraryOnce = false
     @Published var recentlyPlayed: [TrackRow] = []
     @Published var recentlyAdded: [TrackRow] = []
     @Published var favoriteRows: [TrackRow] = []
@@ -240,6 +247,7 @@ final class AppState: ObservableObject {
         } catch {
             print("reload error: \(error)")
         }
+        didLoadLibraryOnce = true
     }
 
     func runSearch() async {

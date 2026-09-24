@@ -6,8 +6,6 @@ struct LibraryView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @State private var internalMode: LibraryBrowseMode = .artists
-    @StateObject private var indexStatus = IndexStatusModel()
-    @State private var showIndexStatus = false
     /// The DJ entry route already owns a NavigationStack. Embedding another
     /// stack there makes the first push unstable on iPhone (and can crash when
     /// SwiftUI reconciles the two navigation paths). Keep the standalone Music
@@ -77,10 +75,21 @@ struct LibraryView: View {
                                 .padding(.bottom, 16)
                             }
 
-                            IndexStatusBanner(model: indexStatus) { showIndexStatus = true }
-                                .padding(.bottom, indexStatus.showsBanner ? 12 : 0)
-
-                            if rows.isEmpty {
+                            if rows.isEmpty, !appState.didLoadLibraryOnce {
+                                // Real report: "My Music says I have no
+                                // music, then a few seconds later loads it
+                                // all in" — show a real loading state until
+                                // the first reload() actually finishes,
+                                // never the empty state prematurely.
+                                VStack(spacing: 14) {
+                                    ProgressView().tint(Palette.brass)
+                                    Text("Loading your music…")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Palette.ink3)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 60)
+                            } else if rows.isEmpty {
                                 VStack(spacing: 14) {
                                     EmptyStateView(icon: "music.note",
                                                    title: appState.searchText.isEmpty ? "Your music is empty" : "No matches",
@@ -118,10 +127,6 @@ struct LibraryView: View {
             }
         .foregroundStyle(Palette.ink)
         .task { await appState.reload() }
-        .task { await indexStatus.refresh() }
-        .sheet(isPresented: $showIndexStatus) {
-            IndexStatusView(model: indexStatus)
-        }
     }
 
     @ViewBuilder

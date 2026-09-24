@@ -12,7 +12,7 @@ import TonearmCore
 /// A single `.sheet(item:)` bound to one optional value doesn't have this
 /// failure mode, since there is only ever one sheet identity to track.
 enum SettingsSheet: Identifiable {
-    case privacy, thirdPartyNotices, musicLibraries, eq, tools, jamendoKey, cacheManagement
+    case privacy, thirdPartyNotices, musicLibraries, eq, tools, jamendoKey, cacheManagement, soundIndex
     var id: Self { self }
 }
 
@@ -73,6 +73,7 @@ struct SettingsView: View {
                 if macPane == nil || macPane == .library {
                     sectionHeader("Library & Storage")
                     musicLibrariesCard
+                    soundIndexCard
                     cacheSummaryCard
                     watchCard
                     syncCard
@@ -103,6 +104,7 @@ struct SettingsView: View {
             case .tools: ToolsView()
             case .jamendoKey: JamendoCredentialView()
             case .cacheManagement: cacheManagementSheet
+            case .soundIndex: IndexStatusView(model: IndexStatusModel())
             }
         }
         .confirmationDialog("Clear \(TimeFmt.megabytes(cacheUsed)) of cached audio?",
@@ -351,6 +353,28 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.musicLibraries")
+        .padding(15)
+        .glassSurface(cornerRadius: 18)
+    }
+
+    /// Moved off the main Music tab (real report: it shouldn't show there
+    /// at all) into its own row here — same reachable status/controls
+    /// (IndexStatusView), just not competing for space on the tab everyone
+    /// opens constantly.
+    private var soundIndexCard: some View {
+        Button { activeSheet = .soundIndex } label: {
+            HStack {
+                Text("Sound Index").font(.system(size: 13.5))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.ink3)
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.soundIndex")
         .padding(15)
         .glassSurface(cornerRadius: 18)
     }
