@@ -6,11 +6,11 @@ import TonearmCore
 import UIKit
 #endif
 
-/// Four root tabs (down from six) — Playlists/Library unify into My Music,
+/// Five root tabs — Playlists/Library unify into My Music,
 /// Sources moves under Settings. See
 /// docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md.
 enum AppTab: Int, CaseIterable {
-    case listen, myMusic, settings
+    case listen, myMusic, dj, settings
 }
 
 enum PendingImport: Equatable {
@@ -39,7 +39,10 @@ final class AppState: ObservableObject {
     // `.sources` == 3 must not silently resolve to new `.settings` == 3).
     // v3: DJ/Transition Lab removed (four tabs -> three) — old `.settings`
     // == 3 must not silently resolve to a now out-of-range/wrong case.
-    private static let lastTabKey = "lastActiveTab.v3"
+    // v4: the real DJ surface is back as a first-class tab immediately before
+    // Settings; reset the persisted raw value rather than reopening Settings
+    // as DJ on an upgrade.
+    private static let lastTabKey = "lastActiveTab.v4"
     @Published var sources: [Source] = []
     @Published var playlists: [Playlist] = []
     @Published var allTracks: [TrackRow] = []

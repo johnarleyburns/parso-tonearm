@@ -60,6 +60,15 @@ extension LibraryStore {
         }
     }
 
+    /// The DJ surface needs the locally-indexed musical values without making
+    /// the UI know the discovery table layout. Unknown BPM/key values remain
+    /// nil; callers display an honest "—" until analysis completes.
+    public func discoveryTrackAnalysis(trackId: Int64) throws -> DiscoveryTrackAnalysis? {
+        try dbQueue.read { db in
+            try DiscoveryTrackAnalysis.fetchOne(db, key: trackId)
+        }
+    }
+
     /// The local `discovery_embedding`'s `syncID`, generating and
     /// persisting one first if needed — `nil` if this track has no local
     /// embedding at all (nothing to push).

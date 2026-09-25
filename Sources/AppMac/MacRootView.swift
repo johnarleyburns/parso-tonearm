@@ -22,8 +22,20 @@ struct MacRootView: View {
     /// Library) — real app-wide code with no effect on Mac.
     private var selection: Binding<MacSidebarDestination?> {
         Binding(
-            get: { appState.tab == .myMusic ? .myMusic : .listen },
-            set: { appState.tab = ($0 == .myMusic) ? .myMusic : .listen })
+            get: {
+                switch appState.tab {
+                case .myMusic: return .myMusic
+                case .dj: return .dj
+                default: return .listen
+                }
+            },
+            set: {
+                switch $0 {
+                case .myMusic: appState.tab = .myMusic
+                case .dj: appState.tab = .dj
+                case .listen, .none: appState.tab = .listen
+                }
+            })
     }
 
     var body: some View {
@@ -39,11 +51,14 @@ struct MacRootView: View {
                     switch selection.wrappedValue ?? .listen {
                     case .listen: ListenView()
                     case .myMusic: MyMusicView()
+                    case .dj: DJView()
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                MacTransportBar()
+                if !appState.isPerformanceSurfaceFullScreen {
+                    MacTransportBar()
+                }
             }
         }
         .frame(minWidth: 820, minHeight: 560)
@@ -89,7 +104,7 @@ struct MacRootView: View {
 }
 
 enum MacSidebarDestination: String, CaseIterable, Identifiable, Hashable {
-    case listen, myMusic
+    case listen, myMusic, dj
 
     var id: String { rawValue }
 
@@ -97,6 +112,7 @@ enum MacSidebarDestination: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .listen: return "Listen"
         case .myMusic: return "My Music"
+        case .dj: return "DJ"
         }
     }
 
@@ -104,6 +120,7 @@ enum MacSidebarDestination: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .listen: return "play.circle"
         case .myMusic: return "music.note.list"
+        case .dj: return "slider.horizontal.3"
         }
     }
 }

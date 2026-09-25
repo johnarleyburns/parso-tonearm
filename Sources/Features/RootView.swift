@@ -27,6 +27,7 @@ struct RootView: View {
                     switch appState.tab {
                     case .listen: ListenView()
                     case .myMusic: MyMusicView()
+                    case .dj: DJView()
                     case .settings: SettingsView()
                     }
                 }
