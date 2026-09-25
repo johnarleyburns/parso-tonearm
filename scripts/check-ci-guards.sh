@@ -256,6 +256,37 @@ if ! grep -q 'public static let currentProtocolVersion' Sources/WatchProtocol/En
 fi
 [ "$protocol_ok" = "1" ] && echo "    OK"
 
+# ── CarPlay Search template gate ────────────────────────────────────────────
+#
+# CPSearchTemplate is allowed for the Audio app category only on iOS 27+
+# (Apple CarPlay Developer Guide, June 2026, Templates table). Earlier iOS
+# aborts inside pushTemplate (CPAssertAllowedClasses) — the feda4bf/e3ae1a5
+# TestFlight crash, and an ObjC exception Swift can't catch. Exactly one
+# construction site, behind CarPlaySearchAvailability, which gates on 27.0.
+echo "==> CarPlay Search template gate"
+search_file=Sources/App/CarPlay/CarPlaySearchController.swift
+availability_file=Sources/App/CarPlay/CarPlaySearchAvailability.swift
+stray=$(grep -rl --include='*.swift' 'CPSearchTemplate(' Sources | grep -v "^${search_file}\$" || true)
+if [ -n "$stray" ]; then
+  echo "    CPSearchTemplate constructed outside ${search_file}:"
+  echo "$stray"
+  status=1
+elif [ -f "$search_file" ]; then
+  gate=$(grep -n 'guard CarPlaySearchAvailability.templateSupported' "$search_file" | head -1 | cut -d: -f1)
+  ctor=$(grep -n 'CPSearchTemplate(' "$search_file" | head -1 | cut -d: -f1)
+  if [ -z "$gate" ] || [ -z "$ctor" ] || [ "$gate" -gt "$ctor" ]; then
+    echo "    ${search_file}: the availability guard must precede CPSearchTemplate("
+    status=1
+  elif ! grep -q '#available(iOS 27.0, \*)' "$availability_file" 2>/dev/null; then
+    echo "    ${availability_file} must gate on #available(iOS 27.0, *)"
+    status=1
+  else
+    echo "    OK"
+  fi
+else
+  echo "    OK (no search controller)"
+fi
+
 if [ "$status" != "0" ]; then
   echo
   echo "one or more guards failed — this is what CI would have told you, sooner"

@@ -34,6 +34,12 @@ Two real gaps against that existing infrastructure:
 
 ## What does NOT apply here
 
+> **Update 2026-09-24:** iOS 27 shipped on 2026-09-14 (iPhone 11 and later). Two things below changed as a result.
+> Apple's CarPlay Developer Guide (June 2026, Templates table) allows `CPSearchTemplate` for Audio apps on iOS 27+,
+> so on-screen search is back behind an iOS 27 gate (`docs/plans/carplay-search-ios27-handoff.md`, T1).
+> The `.audio` App Intents schema (`AudioSearch`) is now usable on real devices too, but only on iOS 27+.
+> Also, §3's assistant cell was reverted in `3e34979`: it requires an `INPlayMediaIntent` Intents extension (T4 there).
+
 - **`AssistantSchemas`/`AudioSearch`/`IntentValueQuery` audio entities** (the "modern" approach
   ChatGPT's advice centered on) — verified directly against Apple's own docs
   (`developer.apple.com/documentation/MediaIntents/AudioSearch`): **introduced in iOS 27**, which

@@ -23,23 +23,17 @@ import TonearmCore
 /// its "Songs" mode is a full alphabetical list, which is the "list them"
 /// half of the original report.
 ///
-/// The "search" half was tried twice this session (a `CPSearchTemplate`
-/// pushed from a dedicated tab, then the same thing after popping to root
-/// first) and crashed on real hardware both times — root cause found only
-/// by reading Apple's own CarPlay App Programming Guide PDF directly
-/// (developer.apple.com/carplay/documentation/CarPlay-App-Programming-
-/// Guide.pdf, the template-support matrix, "Templates" section): Search is
-/// simply **not in the supported-template set for the Audio/video app
-/// category at all** — not a stack-ordering bug, not a push-vs-present bug,
-/// a hard per-category platform restriction with no workaround. `Now
-/// playing`, `List`, `Tab bar`, `Alert`/`Action sheet` ARE all supported for
-/// Audio; `Search` and `Point of interest` are not. Removed the Search tab
-/// entirely rather than keep shipping something Apple's own platform can
-/// never let work — a real, honest capability gap, not a bug to chase
-/// further. A true "search while driving" story for an Audio-category app
-/// would need Siri's `INPlayMediaIntent` (a separate Intents extension this
-/// app doesn't have — flagged as a real, distinct follow-up), not
-/// `CPSearchTemplate`.
+/// The "search" half crashed on real hardware (iOS 18) three times
+/// (`feda4bf`, `e3ae1a5`): Apple's CarPlay Developer Guide (June 2026,
+/// "Templates" table) allows the Search template for the Audio/video
+/// category **only on iOS 27 or later**, and pushing it earlier raises
+/// `CPAssertAllowedClasses`. It is back as a "Search" row at the top of the
+/// Library tab, present only where `CarPlaySearchAvailability` says the
+/// template is supported (`CarPlaySearchController`). A row, not a tab: the
+/// tab bar may only hold List/Grid/Information/POI templates, and a row keeps
+/// the tab bar the same shape on every iOS version. On iOS 18, voice is the
+/// search path: the Siri App Intents in `Sources/Intents/TonearmAppIntents
+/// .swift`.
 ///
 /// Separately, `CPTabBarTemplate.maximumTabCount` (Apple's
 /// `CPTabBarTemplate.h`) is NOT a fixed "5" either — it depends on the app's
@@ -56,23 +50,28 @@ enum CarPlayRootBuilder {
 
     // REMOVED: CPAssistantCellConfiguration(assistantAction: .playMedia).
     // Real report: CarPlay stopped opening at all after this shipped — no
-    // crash log, a silent scene-setup failure. Root cause, found via a real
-    // third-party project that hit the identical issue: `.playMedia`
-    // requires a legacy `Intents.framework` `INPlayMediaIntentHandling`
-    // implementation in an actual Intents App Extension — the modern
-    // `AppIntents` framework this app uses for TonearmPlaySongIntent
-    // (docs/plans/carplay-voice-search-plan.md) is NOT a substitute, contra
-    // what `CPListTemplate.h`'s doc comment alone suggested. Declaring the
-    // assistant cell without that extension is invalid and broke CarPlay
-    // scene setup outright. "Hey Siri, play [song] in Platterhead" still
-    // works fine without this — it never depended on the on-screen cell —
-    // only the CarPlay-screen tap-to-ask-Siri affordance is gone. Building
-    // that extension is a real, separate, larger follow-up, not a quick fix.
+    // crash log, a silent scene-setup failure. Apple's
+    // CPAssistantCellConfiguration docs: the app must include an Intents
+    // Extension that handles INPlayMediaIntent; the modern `AppIntents` used
+    // by TonearmPlaySongIntent is not a substitute. Do not re-add it without
+    // that extension and Siri authorization.
+    //
+    // Correction to the original note here: a one-sentence "Hey Siri, play
+    // Hotel California in Platterhead" does NOT work with the App Intents
+    // alone. App Shortcut phrases can't carry a free-text String parameter,
+    // so the registered phrase is "Play a song in Platterhead" and Siri asks
+    // for the title in a second turn. One-sentence media requests need
+    // INPlayMediaIntent (or the iOS 27 App Intents `.audio` schema).
 
-    static func rootTemplate(interfaceController: CPInterfaceController) -> CPTabBarTemplate {
+    /// `search` is non-nil only where `CPSearchTemplate` is supported for this
+    /// app category (iOS 27+); it contributes the Library tab's "Search" row.
+    static func rootTemplate(
+        interfaceController: CPInterfaceController,
+        search: CarPlaySearchController?
+    ) -> CPTabBarTemplate {
         let tabs = [
             playlistsTemplate(interfaceController: interfaceController),
-            libraryTemplate(interfaceController: interfaceController),
+            libraryTemplate(interfaceController: interfaceController, search: search),
             moreTemplate(interfaceController: interfaceController)
         ]
         // Real, repeated crash (4 TestFlight reports, confirmed via Apple's
@@ -121,7 +120,10 @@ enum CarPlayRootBuilder {
     /// unification (one entry point, a mode picker) rather than spending a
     /// separate tab slot per mode, which the real, entitlement-dependent tab
     /// cap can't afford alongside Playlists/More.
-    private static func libraryTemplate(interfaceController: CPInterfaceController) -> CPListTemplate {
+    private static func libraryTemplate(
+        interfaceController: CPInterfaceController,
+        search: CarPlaySearchController?
+    ) -> CPListTemplate {
         let template = CPListTemplate(title: "Library", sections: [])
         template.tabImage = UIImage(systemName: "square.grid.2x2")
         let modes: [(LibraryBrowseMode, String)] = [
@@ -140,7 +142,9 @@ enum CarPlayRootBuilder {
             }
             return item
         }
-        template.updateSections([CPListSection(items: items)])
+        // iOS 27+ only: the controller exists only where the template is allowed.
+        let searchRow: [CPListItem] = search.map { [$0.entryItem] } ?? []
+        template.updateSections([CPListSection(items: searchRow + items)])
         return template
     }
 

@@ -2,7 +2,15 @@
 import AppIntents
 import Foundation
 
-public struct TonearmPlayPlaylistIntent: AppIntent {
+/// Playback-starting intents conform to `AudioPlaybackIntent` (iOS 17+ /
+/// macOS 14+), the App Intents protocol for intents that start or change
+/// audio playback. It tells the system this intent — run in the app process
+/// with `openAppWhenRun = false` — is meant to start audio, which is exactly
+/// the hands-free CarPlay case (docs/plans/carplay-search-ios27-handoff.md
+/// T3). Before iOS 27 an audio app can't show CPSearchTemplate in CarPlay at
+/// all, so on iOS 18 these intents are the only way to find music by name
+/// while driving.
+public struct TonearmPlayPlaylistIntent: AudioPlaybackIntent {
     public init() {}
     public static let title: LocalizedStringResource = "Play Playlist"
     public static let description = IntentDescription("Starts a Platterhead playlist.")
@@ -26,7 +34,7 @@ public struct TonearmPlayPlaylistIntent: AppIntent {
     }
 }
 
-public struct TonearmPlayArtistIntent: AppIntent {
+public struct TonearmPlayArtistIntent: AudioPlaybackIntent {
     public init() {}
     public static let title: LocalizedStringResource = "Play Artist"
     public static let description = IntentDescription("Starts all Platterhead tracks by an artist.")
@@ -45,7 +53,13 @@ public struct TonearmPlayArtistIntent: AppIntent {
 /// Real gap (docs/plans/carplay-voice-search-plan.md §1): only playlist and
 /// artist could be voice-triggered — "play Hotel California," the single
 /// most natural request, had no path at all.
-public struct TonearmPlaySongIntent: AppIntent {
+///
+/// The spoken flow is two turns: "Play a song in Platterhead" → Siri asks
+/// for the song. App Shortcut phrases can't carry a free-text `String`
+/// parameter, so "Play Hotel California in Platterhead" in one sentence
+/// needs `INPlayMediaIntent` (an Intents extension) or the iOS 27 App
+/// Intents `.audio` schema — not this intent.
+public struct TonearmPlaySongIntent: AudioPlaybackIntent {
     public init() {}
     public static let title: LocalizedStringResource = "Play Song"
     public static let description = IntentDescription("Plays a song in Platterhead.")
@@ -66,7 +80,7 @@ public struct TonearmPlaySongIntent: AppIntent {
     }
 }
 
-public struct TonearmResumeIntent: AppIntent {
+public struct TonearmResumeIntent: AudioPlaybackIntent {
     public init() {}
     public static let title: LocalizedStringResource = "Resume Platterhead"
     public static let description = IntentDescription("Resumes Platterhead playback.")

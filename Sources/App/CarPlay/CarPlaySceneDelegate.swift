@@ -7,15 +7,10 @@ import UIKit
 /// (`project.yml` generates both copies) — UIKit instantiates this
 /// independently of the SwiftUI `App` scene the phone UI uses.
 ///
-/// The `com.apple.developer.carplay-audio` entitlement itself is
-/// currently PULLED from `Tonearm.entitlements`/`Tonearm.Debug.
-/// entitlements` — the Apple App ID capability is enabled, but the named
-/// provisioning profile CI signs Release with ("Platterhead Profile")
-/// hasn't been regenerated to include it yet, which failed the TestFlight
-/// archive step outright (docs/plans/carplay-and-competitor-gaps-plan.md
-/// has the full incident). This scene delegate and the whole template
-/// hierarchy below are ready and inert until that entitlement is re-added
-/// — CarPlay simply won't connect to this scene without it.
+/// Requires the `com.apple.developer.carplay-audio` entitlement, declared in
+/// `Tonearm.entitlements`/`Tonearm.Debug.entitlements` (it was briefly pulled
+/// while the "Platterhead Profile" was regenerated —
+/// docs/plans/carplay-and-competitor-gaps-plan.md has that incident).
 ///
 /// Deliberately thin: all state lives in the existing `AudioPlayer`/
 /// `LibraryStore` singletons the phone UI already uses, so CarPlay is just
@@ -25,13 +20,19 @@ import UIKit
 /// duplicated here.
 final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private var interfaceController: CPInterfaceController?
+    /// Library search; only exists where `CPSearchTemplate` is allowed for
+    /// this app category (iOS 27+). Held here for the connection's lifetime.
+    private var search: CarPlaySearchController?
 
     func templateApplicationScene(
         _ templateApplicationScene: CPTemplateApplicationScene,
         didConnect interfaceController: CPInterfaceController
     ) {
         self.interfaceController = interfaceController
-        let root = CarPlayRootBuilder.rootTemplate(interfaceController: interfaceController)
+        search = CarPlaySearchAvailability.templateSupported
+            ? CarPlaySearchController(interfaceController: interfaceController)
+            : nil
+        let root = CarPlayRootBuilder.rootTemplate(interfaceController: interfaceController, search: search)
         interfaceController.setRootTemplate(root, animated: true, completion: nil)
     }
 
@@ -40,6 +41,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         didDisconnectInterfaceController interfaceController: CPInterfaceController
     ) {
         self.interfaceController = nil
+        search = nil
     }
 }
 #endif
