@@ -113,11 +113,26 @@ extension AudioPlayer {
         }
 
         if asset.kind == .remote, let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) {
+            let assetOptions = audioAssetOptions(for: remote)
+
+            // Jamendo's resolved stream URL is a query-only URL (`?trackid=…&format=mp32`),
+            // so the cache blob has no filename extension.  Once the blob is complete,
+            // play it directly and provide AVFoundation the format hint it cannot infer
+            // from the extensionless cache filename.  This also makes cached playback
+            // independent of Jamendo's current signed URL response.
+            if AudioCache.completeCacheExists(for: remote) {
+                let cachedURL = AudioCache.fileURL(for: AudioCache.key(for: remote))
+                if FileManager.default.fileExists(atPath: cachedURL.path) {
+                    loadingLog.notice("loadCurrent: using complete cached file for \(remote.absoluteString, privacy: .public) mime=\(assetOptions[AVURLAssetOverrideMIMETypeKey] as? String ?? "none", privacy: .public)")
+                    return (AVPlayerItem(asset: AVURLAsset(url: cachedURL, options: assetOptions)), nil)
+                }
+            }
+
             if !asset.transientRemoteSupportsByteRanges {
                 return (directRemoteItem(url: remote, headers: asset.transientRemoteHeaders), nil)
             }
             let cacheURL = RemoteAudioURL.cacheURL(for: remote, scheme: AudioCache.scheme)
-            let avAsset = AVURLAsset(url: cacheURL)
+            let avAsset = AVURLAsset(url: cacheURL, options: assetOptions)
             let loader = CachingResourceLoader(originalURL: remote, store: AudioCache.shared, config: AudioCache.loaderConfig(headers: asset.transientRemoteHeaders))
             avAsset.resourceLoader.setDelegate(loader, queue: loaderQueue)
             return (AVPlayerItem(asset: avAsset), loader)
@@ -127,6 +142,38 @@ extension AudioPlayer {
         } else if let rel = asset.relPath {
             let url = managedURL(rel)
             return (AVPlayerItem(url: url), nil)
+        }
+        return nil
+    }
+
+    /// AVFoundation cannot infer a media type from Jamendo's extensionless
+    /// `format=mp32` URLs or from their extensionless cache blobs.  Keep this
+    /// inference at the app boundary so the shared streaming package remains
+    /// provider-agnostic.
+    private func audioAssetOptions(for remote: URL) -> [String: Any] {
+        guard let mime = remoteAudioMIMEType(for: remote) else { return [:] }
+        return [AVURLAssetOverrideMIMETypeKey: mime]
+    }
+
+    private func remoteAudioMIMEType(for remote: URL) -> String? {
+        if let mime = RemoteAudioURL.contentTypeMIME(for: remote) {
+            return mime
+        }
+        guard let queryItems = URLComponents(url: remote, resolvingAgainstBaseURL: false)?.queryItems else {
+            return nil
+        }
+        for name in ["format", "audioformat", "audiodlformat"] {
+            guard let value = queryItems.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame })?.value?.lowercased() else {
+                continue
+            }
+            switch value {
+            case "mp3", "mp31", "mp32", "mpeg": return "audio/mpeg"
+            case "m4a", "aac", "mp4": return "audio/mp4"
+            case "flac": return "audio/flac"
+            case "wav": return "audio/wav"
+            case "aif", "aiff": return "audio/aiff"
+            default: continue
+            }
         }
         return nil
     }
