@@ -48,11 +48,16 @@ extension AudioPlayer {
         let built: (item: AVPlayerItem, loader: CachingResourceLoader?)?
         // Near-gapless (T2.5): consume the preloaded next item if it matches the
         // track we're loading, so the boundary swap avoids a fresh teardown/build.
+        let reusedPreload = preloadedNextItem != nil && preloadedNextTrackId == row.track.id
         if let preItem = preloadedNextItem, preloadedNextTrackId == row.track.id {
             built = (preItem, preloadedNextLoader)
         } else {
             built = buildItem(for: asset)
         }
+        // TEMPORARY diagnostic — real, repeated report ("I click on a track
+        // I've played before and nothing happens"), 4th occurrence despite
+        // 3 distinct fixes this session. Remove once root-caused live.
+        loadingLog.notice("loadCurrent: track \(row.track.id ?? -1, privacy: .public) \"\(row.track.title, privacy: .public)\" kind=\(asset.kind.rawValue, privacy: .public) reusedPreload=\(reusedPreload, privacy: .public) remoteURL=\(asset.remoteURL ?? "nil", privacy: .public) transientSupportsByteRanges=\(asset.transientRemoteSupportsByteRanges, privacy: .public) autoplay=\(autoplay, privacy: .public)")
         preloadedNextItem = nil
         preloadedNextTrackId = nil
         preloadedNextLoader = nil
@@ -221,6 +226,15 @@ extension AudioPlayer {
     func replaceItem(_ item: AVPlayerItem) {
         player.replaceCurrentItem(with: item)
         loadedSourceSampleRate = 0
+        // TEMPORARY diagnostic — see loadCurrent's matching comment. Logs
+        // every status transition (unknown -> readyToPlay/failed) and the
+        // real underlying error if AVFoundation ever reports one, which
+        // print-based debugging of this exact bug has never captured yet.
+        let trackTitle = currentTrack?.track.title ?? "?"
+        itemStatusCancellable = item.publisher(for: \.status)
+            .sink { status in
+                loadingLog.notice("replaceItem: status change for \"\(trackTitle, privacy: .public)\" -> \(String(describing: status), privacy: .public), error=\(String(describing: item.error), privacy: .public)")
+            }
         // Drop EQ taps for items no longer in play (the outgoing current item,
         // and any preloaded item that wasn't the one we advanced to).
         eqTap?.prune(keeping: [item, preloadedNextItem].compactMap { $0 })

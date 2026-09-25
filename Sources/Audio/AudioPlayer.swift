@@ -126,6 +126,7 @@ public final class AudioPlayer: ObservableObject {
     var timeObserver: Any?
     var itemEndObserver: NSObjectProtocol?
     var timeControlCancellable: AnyCancellable?
+    var itemStatusCancellable: AnyCancellable?
     var restoreTask: Task<Void, Never>?
     var isRestoring = false
     var pendingRestoreSeek: Double?
