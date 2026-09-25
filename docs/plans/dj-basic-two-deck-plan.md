@@ -9,17 +9,41 @@ the Load-a-track sheet (My Music reused, LOAD instead of PLAY). The focused layo
 also summarized in [`dj-basic-two-deck-mockups.md`](dj-basic-two-deck-mockups.md). Indexed by
 anchor; every anchor referenced from this doc is verified to exist in the HTML (§9).
 
-## 0 · One-paragraph summary
+## 0 · Current implementation contract
 
-Add a fourth tab, `.dj`, that shows a **single fixed portrait screen**: three equal vertical
-thirds — two stacked 3-band waveforms with minimaps in the top-right of each waveform header,
-bottom-centered elapsed/remaining time and bottom-left BPM readouts, deck controls (switchable A/B) in
-the middle, and always-visible two-deck mixer controls on the bottom. The audio engine is not
-built from scratch: `ParsoDJEngine` (product of the `parso-audio-engine` package, **already
-pinned at exact 1.2.2** in this repo's `Package.swift`, just not yet imported) is a complete,
-tested, two-deck DJ engine — decks, mixer, EQ, crossfader, cues, loops, pads, jog/scratch, sync —
-and this plan's job is almost entirely SwiftUI + view-model wiring on top of it, plus a small
-number of named gaps. No paywall: DJ is free, matching the rest of the app (§1.3).
+The current source of truth is the revised mockup and its companion notes:
+[`docs/plans/mockups/dj-basic-two-deck-mockups.md`](mockups/dj-basic-two-deck-mockups.md). It
+supersedes older paragraphs in this document that describe a portrait-only three-third surface,
+switchable deck-control panels, CUE/LOOP/SYNC buttons, or per-deck volume faders. The shipped
+surface is intentionally smaller and touch-first:
+
+- `.dj` is immediately before Settings and opens `DJView` on iOS and the native Mac sidebar.
+- Portrait and landscape use the same header → two equal waveform regions → two-column mixer
+  footer structure. Header and footer are equal height.
+- The header cycles STEREO, SPLIT L, and SPLIT R and opens all gesture help from `(i)`.
+- Each waveform supports load/replace by tapping its track-name area or an unloaded body, tap
+  play/pause, 0.1 BPM pinch changes, 1/75-second nudges, playing scratch, paused direct waveform
+  movement plus release flick, and persistent four-slot hot cues.
+- The footer exposes only Bassfader and Crossfader. There are no vertical volume faders or
+  vertical volume gestures.
+
+Playback, decoding, transport, tempo, mixing, scratch transport, and waveform preparation are
+backed by PAE 1.2.2 (`ParsoDJEngine`, `ParsoAudioCore`, and `ParsoAudioAnalysis`). This app owns
+the SwiftUI surface and its per-track hot-cue persistence; PAE owns the real-time two-deck graph.
+No paywall is involved.
+
+### 0.1 · Audit record — 2026-09-25
+
+The first implementation audit found and corrected four gaps: the surface had been using a
+separate AVAudioEngine instead of PAE's two-deck graph; paused drag waited for the hold threshold
+instead of following the finger; output modes only changed a pan value and did not mono-route the
+master; and the unloaded title had a literal `id.rawValue` string. The implementation now uses
+PAE's `DJEngine`, `AudioFileReader`, `TrackAnalyzer`, `RealtimeInsert` master routing, exact
+sample seek, and jog transport. Load preparation is detached from the main actor and guarded by a
+per-deck generation so replacing a track cannot let stale analysis overwrite the new deck.
+
+Remaining older mapping/test tables below are historical design research. Where they conflict
+with this section or the revised mockup, this section is authoritative.
 
 ## 1 · Reconciliation — what already exists, what this plan does with it
 

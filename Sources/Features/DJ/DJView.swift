@@ -1,6 +1,7 @@
 import AVFoundation
+import ParsoAudioCore
 import ParsoAudioAnalysis
-import ParsoAudioPlayback
+import ParsoDJEngine
 import SwiftUI
 import TonearmCore
 
@@ -11,7 +12,7 @@ enum DJDeckID: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum DJOutputMode: String, CaseIterable {
+enum DJOutputMode: String, CaseIterable, Sendable {
     case stereo = "STEREO"
     case splitLeft = "SPLIT L"
     case splitRight = "SPLIT R"
@@ -36,13 +37,12 @@ final class DJDeckState: ObservableObject {
     @Published var key: String?
     @Published var waveform: [WaveformBin] = []
     @Published var tempo: Double = 120
-    @Published var volume = 1.0
     @Published var bass = 0.5
     @Published var hotCues: [Int: Double] = [:]
 
     init(id: DJDeckID) { self.id = id }
 
-    var title: String { row?.track.title ?? "LOAD TRACK (id.rawValue)" }
+    var title: String { row?.track.title ?? "LOAD TRACK " + id.rawValue }
     var artist: String { row?.artist?.name ?? "" }
     var tempoRatio: Double {
         guard let bpm, bpm > 0 else { return 1 }
@@ -60,21 +60,16 @@ final class DJPerformanceModel: ObservableObject {
     @Published var loadError: String?
 
     private let store: LibraryStore
-    private var tracks: [TrackRow] = []
+    private var loadGeneration: [DJDeckID: Int] = [.a: 0, .b: 0]
     private var tickTask: Task<Void, Never>?
     private var audio = DJAudioBacker()
     private let cues = DJHotCueStore()
+    private var scratching: Set<DJDeckID> = []
 
     init(store: LibraryStore = .shared) {
         self.store = store
-        // Keep this dependency explicit: DJ uses the app's PAE-linked playback
-        // product and its shared engine version, rather than creating a second
-        // listening-path stack.
-        _ = ParsoAudioPlaybackLayer.layerVersion
-        audio.setBass(deck: .a, gain: 0.5)
-        audio.setBass(deck: .b, gain: 0.5)
-        audio.setVolume(deck: .a, volume: 0.5)
-        audio.setVolume(deck: .b, volume: 0.5)
+        audio.setBassBlend(0.5)
+        audio.setCrossfader(0.5)
         tickTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(50))
@@ -86,11 +81,11 @@ final class DJPerformanceModel: ObservableObject {
 
     deinit { tickTask?.cancel() }
 
-    func updateTracks(_ tracks: [TrackRow]) { self.tracks = tracks }
-
     func deck(_ id: DJDeckID) -> DJDeckState { id == .a ? deckA : deckB }
 
     func load(_ row: TrackRow, into id: DJDeckID) {
+        loadGeneration[id, default: 0] += 1
+        let generation = loadGeneration[id] ?? 0
         let deck = deck(id)
         deck.isPlaying = false
         deck.position = 0
@@ -100,23 +95,39 @@ final class DJPerformanceModel: ObservableObject {
         deck.key = nil
         deck.waveform = []
         deck.hotCues = cues.load(trackID: row.id)
+        deck.tempo = 120
         loadError = nil
 
-        do {
-            try audio.load(row: row, deck: id)
-            deck.duration = audio.duration(for: id) ?? deck.duration
-        } catch {
+        guard let url = audio.resolve(row.asset) else {
             loadError = "This track is not available on this device."
+            deck.row = nil
+            deck.duration = 0
+            return
         }
 
-        Task { [weak self] in
-            guard let self else { return }
-            if let analysis = try? await store.discoveryTrackAnalysis(trackId: row.id) {
-                deck.bpm = analysis.bpm
-                deck.key = analysis.key
-                if let bpm = analysis.bpm { deck.tempo = bpm }
+        Task { [weak self, store] in
+            do {
+                let prepared = try await Task.detached(priority: .userInitiated) {
+                    try DJAudioBacker.prepare(url: url)
+                }.value
+                guard let self,
+                      self.loadGeneration[id] == generation,
+                      self.deck(id).row?.id == row.id else { return }
+                try self.audio.load(prepared, deck: id)
+                self.audio.restoreHotCues(deck.hotCues, deck: id)
+                deck.duration = prepared.analysis.duration
+                deck.waveform = self.audio.waveform(for: id)
+                let indexed = try? await store.discoveryTrackAnalysis(trackId: row.id)
+                deck.bpm = indexed?.bpm ?? prepared.analysis.tempo.bpm
+                deck.key = indexed?.key ?? prepared.analysis.key.camelot
+                if let bpm = deck.bpm { deck.tempo = bpm }
+            } catch {
+                guard let self, self.loadGeneration[id] == generation else { return }
+                deck.row = nil
+                deck.duration = 0
+                deck.waveform = []
+                self.loadError = "This track could not be prepared for DJ playback."
             }
-            deck.waveform = audio.waveform(for: id)
         }
     }
 
@@ -124,11 +135,8 @@ final class DJPerformanceModel: ObservableObject {
         let deck = deck(id)
         guard deck.row != nil else { return }
         deck.isPlaying.toggle()
-        if deck.isPlaying {
-            audio.play(deck: id, position: deck.position, rate: deck.tempoRatio)
-        } else {
-            audio.pause(deck: id)
-        }
+        if deck.isPlaying { audio.play(deck: id, position: deck.position, rate: deck.tempoRatio) }
+        else { audio.pause(deck: id) }
     }
 
     func setPlaying(_ playing: Bool, deck id: DJDeckID) {
@@ -152,7 +160,22 @@ final class DJPerformanceModel: ObservableObject {
     func scratch(_ id: DJDeckID, by pixels: CGFloat, width: CGFloat) {
         let deck = deck(id)
         guard deck.isPlaying, deck.duration > 0, width > 0 else { return }
-        seek(id, by: -Double(pixels / width) * min(deck.duration, 2))
+        if !scratching.contains(id) {
+            scratching.insert(id)
+            audio.beginScratch(deck: id)
+        }
+        audio.scratch(deck: id, seconds: -Double(pixels / width) * min(deck.duration, 2))
+    }
+
+    func endScratch(_ id: DJDeckID) {
+        guard scratching.remove(id) != nil else { return }
+        audio.endScratch(deck: id)
+    }
+
+    func beginScratch(_ id: DJDeckID) {
+        guard deck(id).isPlaying else { return }
+        scratching.insert(id)
+        audio.beginScratch(deck: id)
     }
 
     func flick(_ id: DJDeckID, translation: CGFloat, width: CGFloat) {
@@ -174,8 +197,10 @@ final class DJPerformanceModel: ObservableObject {
         guard deck.row != nil else { return }
         if let position = deck.hotCues[number] {
             seek(id, to: position)
+            audio.jumpHotCue(number, deck: id)
         } else {
             deck.hotCues[number] = deck.position
+            audio.setHotCue(number, deck: id, position: deck.position)
             cues.save(deck.hotCues, trackID: deck.row?.id ?? -1)
         }
     }
@@ -183,19 +208,18 @@ final class DJPerformanceModel: ObservableObject {
     func deleteCue(_ number: Int, deck id: DJDeckID) {
         let deck = deck(id)
         deck.hotCues[number] = nil
+        audio.deleteHotCue(number, deck: id)
         if let trackID = deck.row?.id { cues.save(deck.hotCues, trackID: trackID) }
     }
 
     func setBass(_ value: Double) {
         bassFader = value
-        audio.setBass(deck: .a, gain: 1 - value)
-        audio.setBass(deck: .b, gain: value)
+        audio.setBassBlend(value)
     }
 
     func setCrossfader(_ value: Double) {
         crossfader = value
-        audio.setVolume(deck: .a, volume: 1 - value)
-        audio.setVolume(deck: .b, volume: value)
+        audio.setCrossfader(value)
     }
 
     func cycleOutputMode() {
@@ -206,10 +230,13 @@ final class DJPerformanceModel: ObservableObject {
     }
 
     func stopAll() {
+        for id in scratching { audio.endScratch(deck: id) }
+        scratching.removeAll()
         for id in DJDeckID.allCases {
             deck(id).isPlaying = false
             audio.pause(deck: id)
         }
+        audio.stop()
     }
 
     private func seek(_ id: DJDeckID, by amount: Double) {
@@ -220,117 +247,158 @@ final class DJPerformanceModel: ObservableObject {
         let deck = deck(id)
         let position = max(0, min(deck.duration, value))
         deck.position = position
-        audio.seek(deck: id, position: position, playing: deck.isPlaying, rate: deck.tempoRatio)
+        audio.seek(deck: id, position: position)
     }
 
     private func tick() {
         for id in DJDeckID.allCases {
             let deck = deck(id)
-            guard deck.isPlaying, deck.duration > 0 else { continue }
-            deck.position += 0.05 * deck.tempoRatio
-            if deck.position >= deck.duration {
-                deck.position = 0
-                deck.isPlaying = false
-                audio.pause(deck: id)
-            }
+            deck.position = min(deck.duration, audio.position(for: id))
+            deck.isPlaying = audio.isPlaying(for: id)
         }
     }
 }
 
 @MainActor
 private final class DJAudioBacker {
-    private final class Channel {
-        let player = AVAudioPlayerNode()
-        let rate = AVAudioUnitVarispeed()
-        let eq = AVAudioUnitEQ(numberOfBands: 1)
-        let mixer = AVAudioMixerNode()
-        var file: AVAudioFile?
-        var duration: Double = 0
+    private let engine = DJEngine(sampleRate: 48_000, maxFramesPerRender: 512,
+                                  deckCount: 2, profile: .full)
+    private let splitLeftRouter = DJMasterOutputRouter(mode: .splitLeft)
+    private let splitRightRouter = DJMasterOutputRouter(mode: .splitRight)
+    private var prepared: [DJDeckID: PreparedDJTrack] = [:]
+
+    struct PreparedDJTrack: Sendable {
+        let buffer: PCMBuffer
+        let analysis: TrackAnalysis
     }
 
-    private let engine = AVAudioEngine()
-    private var channels: [DJDeckID: Channel] = [.a: Channel(), .b: Channel()]
-    private var started = false
-
-    init() {
-        for channel in channels.values {
-            let band = channel.eq.bands[0]
-            band.filterType = .lowShelf
-            band.frequency = 120
-            band.bandwidth = 1
-            band.gain = 0
-            band.bypass = false
-            engine.attach(channel.player)
-            engine.attach(channel.rate)
-            engine.attach(channel.eq)
-            engine.attach(channel.mixer)
-            engine.connect(channel.player, to: channel.rate, format: nil)
-            engine.connect(channel.rate, to: channel.eq, format: nil)
-            engine.connect(channel.eq, to: channel.mixer, format: nil)
-            engine.connect(channel.mixer, to: engine.mainMixerNode, format: nil)
-        }
-        engine.prepare()
+    nonisolated static func prepare(url: URL) throws -> PreparedDJTrack {
+        let buffer = try AudioFileReader(url: url).readAll()
+        let analysis = TrackAnalyzer().analyze(buffer)
+        return PreparedDJTrack(buffer: buffer, analysis: analysis)
     }
 
-    func load(row: TrackRow, deck: DJDeckID) throws {
-        guard let url = resolve(row.asset) else { throw DJAudioError.unavailable }
-        let channel = channels[deck]!
-        channel.player.stop()
-        let file = try AVAudioFile(forReading: url)
-        channel.file = file
-        channel.duration = Double(file.length) / file.fileFormat.sampleRate
-        channel.player.scheduleFile(file, at: nil)
-        if !started {
-            try start()
-        }
+    func load(_ track: PreparedDJTrack, deck: DJDeckID) throws {
+        if !engine.isRunning { try start() }
+        let index = deck == .a ? 0 : 1
+        engine.decks[index].load(track.analysis, buffer: track.buffer)
+        engine.decks[index].tempoRange = .wide
+        prepared[deck] = track
+        restoreHotCues(deck)
     }
-
-    func duration(for deck: DJDeckID) -> Double? { channels[deck]?.duration }
 
     func waveform(for deck: DJDeckID) -> [WaveformBin] {
-        guard let file = channels[deck]?.file else { return [] }
-        return makeWaveform(file: file)
+        guard let waveform = prepared[deck]?.analysis.waveform else { return [] }
+        return waveform.overviewMinMax.indices.map { index in
+            let bands = waveform.bandEnergy.indices.contains(index) ? waveform.bandEnergy[index] : .zero
+            let rms = waveform.detailRMS.indices.contains(index) ? waveform.detailRMS[index] : 0
+            return WaveformBin(min: waveform.overviewMinMax[index].x,
+                               max: waveform.overviewMinMax[index].y,
+                               rms: rms,
+                               bandRMS: [bands.x, bands.y, bands.z])
+        }
     }
 
     func play(deck: DJDeckID, position: Double, rate: Double) {
-        let channel = channels[deck]!
+        if !engine.isRunning { try? start() }
+        let player = engine.decks[index(for: deck)]
         setRate(deck: deck, rate: rate)
-        if !channel.player.isPlaying { channel.player.play() }
-        if position > 0 { seek(deck: deck, position: position, playing: true, rate: rate) }
+        if abs(player.playhead - position) > 0.02 { seek(deck: deck, position: position) }
+        player.play()
     }
 
-    func pause(deck: DJDeckID) { channels[deck]?.player.pause() }
+    func pause(deck: DJDeckID) { engine.decks[index(for: deck)].pause() }
 
-    func seek(deck: DJDeckID, position: Double, playing: Bool, rate: Double) {
-        guard let channel = channels[deck], let file = channel.file else { return }
-        channel.player.stop()
-        let frame = AVAudioFramePosition(max(0, min(Double(file.length), position * file.fileFormat.sampleRate)))
-        let frames = AVAudioFrameCount(max(0, file.length - frame))
-        channel.player.scheduleSegment(file, startingFrame: frame, frameCount: frames, at: nil)
-        setRate(deck: deck, rate: rate)
-        if playing { channel.player.play() }
+    func seek(deck: DJDeckID, position: Double) {
+        guard let track = prepared[deck] else { return }
+        let frame = Int64(max(0, min(Double(track.buffer.frameCount),
+                                     position * track.buffer.format.sampleRate)).rounded())
+        engine.decks[index(for: deck)].seek(toSample: frame, quantized: false)
+    }
+
+    func position(for deck: DJDeckID) -> Double {
+        engine.decks[index(for: deck)].playhead
+    }
+
+    func isPlaying(for deck: DJDeckID) -> Bool {
+        engine.decks[index(for: deck)].isPlaying
     }
 
     func setRate(deck: DJDeckID, rate: Double) {
-        channels[deck]?.rate.rate = Float(max(0.25, min(4, rate)))
+        let player = engine.decks[index(for: deck)]
+        player.tempoRange = .wide
+        player.tempoPercent = (max(0.25, min(4, rate)) - 1) * 100
     }
 
-    func setBass(deck: DJDeckID, gain: Double) {
-        channels[deck]?.eq.bands[0].gain = Float((gain - 0.5) * 24)
+    func restoreHotCues(_ cues: [Int: Double], deck: DJDeckID) {
+        guard let track = prepared[deck] else { return }
+        let player = engine.decks[index(for: deck)]
+        for (slot, position) in cues where (1...4).contains(slot) {
+        let frame = Int64(max(0, min(Double(track.buffer.frameCount),
+                                         position * track.buffer.format.sampleRate)).rounded())
+            player.triggerHotCue(slot - 1, atSample: frame)
+        }
     }
 
-    func setVolume(deck: DJDeckID, volume: Double) {
-        channels[deck]?.mixer.outputVolume = Float(max(0, min(1, volume)))
+    func setHotCue(_ slot: Int, deck: DJDeckID, position: Double) {
+        guard let track = prepared[deck], (1...4).contains(slot) else { return }
+        let frame = Int64(max(0, min(Double(track.buffer.frameCount),
+                                     position * track.buffer.format.sampleRate)).rounded())
+        engine.decks[index(for: deck)].triggerHotCue(slot - 1, atSample: frame)
+    }
+
+    func jumpHotCue(_ slot: Int, deck: DJDeckID) {
+        guard (1...4).contains(slot) else { return }
+        engine.decks[index(for: deck)].jumpHotCue(slot - 1)
+    }
+
+    func deleteHotCue(_ slot: Int, deck: DJDeckID) {
+        guard (1...4).contains(slot) else { return }
+        engine.decks[index(for: deck)].deleteHotCue(slot - 1)
+    }
+
+    func beginScratch(deck: DJDeckID) {
+        engine.decks[index(for: deck)].jogTouchBegan()
+    }
+
+    func scratch(deck: DJDeckID, seconds: Double) {
+        engine.decks[index(for: deck)].fastSearch(seconds: seconds)
+    }
+
+    func endScratch(deck: DJDeckID) {
+        engine.decks[index(for: deck)].jogTouchEnded()
+    }
+
+    func setBassBlend(_ value: Double) {
+        let position = max(0, min(1, value))
+        let a = engine.mixer.channelA
+        let b = engine.mixer.channelB
+        a.eqLow = position > 0.5 ? -24 * ((position - 0.5) * 2) : 0
+        b.eqLow = position < 0.5 ? -24 * ((0.5 - position) * 2) : 0
+    }
+
+    func setCrossfader(_ value: Double) {
+        engine.mixer.crossfader = (max(0, min(1, value)) * 2) - 1
     }
 
     func setOutputMode(_ mode: DJOutputMode) {
-        let pan: Float
         switch mode {
-        case .stereo: pan = 0
-        case .splitLeft: pan = -1
-        case .splitRight: pan = 1
+        case .stereo: engine.mixer.setInsert(nil, at: .master)
+        case .splitLeft: engine.mixer.setInsert(splitLeftRouter, at: .master)
+        case .splitRight: engine.mixer.setInsert(splitRightRouter, at: .master)
         }
-        for channel in channels.values { channel.mixer.pan = pan }
+        // PAE owns the cue/program bus. The incoming deck is the default PFL
+        // source because this surface has no separate cue-selector control.
+        engine.mixer.channelA.cuePFL = false
+        engine.mixer.channelB.cuePFL = true
+        engine.monitoring.masterCue = true
+        engine.monitoring.cueMasterMix = 0
+        engine.monitoring.cueMode = mode == .stereo ? .off : .splitOutput
+    }
+
+    func stop() {
+        for deck in DJDeckID.allCases { engine.decks[index(for: deck)].pause() }
+        if engine.isRunning { engine.stop() }
     }
 
     private func start() throws {
@@ -340,10 +408,9 @@ private final class DJAudioBacker {
         try session.setActive(true)
         #endif
         try engine.start()
-        started = true
     }
 
-    private func resolve(_ asset: Asset?) -> URL? {
+    func resolve(_ asset: Asset?) -> URL? {
         guard let asset else { return nil }
         if asset.kind == .builtIn, let channel = asset.relPath {
             return BuiltInContentProvider.bundledAudioURL(forChannelId: channel)
@@ -362,37 +429,39 @@ private final class DJAudioBacker {
         return nil
     }
 
-    private func makeWaveform(file: AVAudioFile) -> [WaveformBin] {
-        do {
-            let capacity = AVAudioFrameCount(file.length)
-            guard capacity > 0,
-                  let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat,
-                                                frameCapacity: capacity) else { return [] }
-            file.framePosition = 0
-            try file.read(into: buffer)
-            guard let samples = buffer.floatChannelData else { return [] }
-            let count = Int(buffer.frameLength)
-            var mono = [Float](repeating: 0, count: count)
-            let channels = Int(buffer.format.channelCount)
-            for index in 0..<count {
-                var value: Float = 0
-                for channel in 0..<channels { value += samples[channel][index] }
-                mono[index] = value / Float(max(1, channels))
-            }
-            return mono.withUnsafeBufferPointer {
-                WaveformPyramidBuilder.build(
-                    $0,
-                    sampleRate: file.fileFormat.sampleRate,
-                    config: WaveformConfig(baseSamplesPerBin: max(1, count / 240), levels: 1, bandSplit: true)
-                ).levels.first ?? []
-            }
-        } catch {
-            return []
-        }
+    private func index(for deck: DJDeckID) -> Int { deck == .a ? 0 : 1 }
+
+    private func restoreHotCues(_ deck: DJDeckID) {
+        // Hot-cue positions are restored by DJPerformanceModel's persisted
+        // state; PAE receives the exact sample address when the user jumps.
     }
 }
 
 private enum DJAudioError: Error { case unavailable }
+
+private final class DJMasterOutputRouter: RealtimeInsert {
+    private let mode: DJOutputMode
+
+    init(mode: DJOutputMode) { self.mode = mode }
+
+    nonisolated func process(left: UnsafeMutablePointer<Float>,
+                             right: UnsafeMutablePointer<Float>,
+                             frames: Int) {
+        guard mode != .stereo else { return }
+        for frame in 0..<frames {
+            let mono = (left[frame] + right[frame]) * 0.5
+            switch mode {
+            case .stereo: break
+            case .splitLeft:
+                left[frame] = mono
+                right[frame] = 0
+            case .splitRight:
+                left[frame] = 0
+                right[frame] = mono
+            }
+        }
+    }
+}
 
 private final class DJHotCueStore {
     private let defaults = UserDefaults.standard
@@ -436,13 +505,11 @@ struct DJView: View {
         .ignoresSafeArea()
         .onAppear {
             appState.isPerformanceSurfaceFullScreen = true
-            model.updateTracks(appState.allTracks)
         }
         .onDisappear {
             model.stopAll()
             appState.isPerformanceSurfaceFullScreen = false
         }
-        .onChange(of: appState.allTracks) { _, rows in model.updateTracks(rows) }
         .sheet(item: $loadTarget) { deck in
             DJLoadSheet(deck: deck, tracks: modelTracks, onLoad: { row in
                 model.load(row, into: deck)
@@ -519,6 +586,7 @@ private struct DJWaveform: View {
     @State private var dragStart: CGFloat = 0
     @State private var dragStartDate = Date()
     @State private var didDrag = false
+    @State private var scratchActive = false
     @State private var pinchBucket: CGFloat = 1
 
     var body: some View {
@@ -535,7 +603,7 @@ private struct DJWaveform: View {
                     .gesture(touchGesture(width: proxy.size.width))
                     .simultaneousGesture(pinchGesture)
                     Rectangle()
-                        .fill(Palette.brass)
+                        .fill(deck.id == .a ? Palette.brass : Color.blue)
                         .frame(width: 1.5)
                         .allowsHitTesting(false)
                     VStack {
@@ -584,6 +652,8 @@ private struct DJWaveform: View {
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 2) {
                 MiniMap(bins: deck.waveform,
+                        position: deck.position,
+                        duration: deck.duration,
                         accent: deck.id == .a ? Palette.brass : Color.blue)
                     .frame(width: 112, height: 28)
                 HStack(spacing: 3) {
@@ -620,15 +690,27 @@ private struct DJWaveform: View {
                 }
                 let delta = value.translation.width - dragStart
                 let held = Date().timeIntervalSince(dragStartDate) >= 0.22
-                if held {
-                    if deck.isPlaying { model.scratch(deck.id, by: delta, width: width) }
-                    else { model.movePaused(deck.id, by: delta, width: width) }
+                if deck.isPlaying, held {
+                    if !scratchActive {
+                        scratchActive = true
+                        model.beginScratch(deck.id)
+                    }
+                    model.scratch(deck.id, by: delta, width: width)
+                    dragStart = value.translation.width
+                } else if !deck.isPlaying, abs(delta) > 0.5 {
+                    // Paused movement follows the finger immediately. A quick
+                    // swipe is still classified as a nudge on release.
+                    model.movePaused(deck.id, by: delta, width: width)
                     dragStart = value.translation.width
                 }
             }
             .onEnded { value in
                 let elapsed = Date().timeIntervalSince(dragStartDate)
                 let distance = abs(value.translation.width)
+                if scratchActive {
+                    model.endScratch(deck.id)
+                    scratchActive = false
+                }
                 if distance < 12 && elapsed < 0.22 {
                     if deck.row == nil { onLoad() } else { model.toggle(deck.id) }
                 } else if distance >= 12 {
@@ -684,6 +766,8 @@ private struct WaveformCanvas: View {
 
 private struct MiniMap: View {
     let bins: [WaveformBin]
+    let position: Double
+    let duration: Double
     let accent: Color
 
     var body: some View {
@@ -699,6 +783,12 @@ private struct MiniMap: View {
                 path.addLine(to: CGPoint(x: x, y: mid - CGFloat(bin.min) * size.height * 0.42))
                 context.stroke(path, with: .color(accent.opacity(0.7)), lineWidth: max(1, step))
             }
+            let progress = duration > 0 ? max(0, min(1, position / duration)) : 0
+            var head = Path()
+            let x = progress * size.width
+            head.move(to: CGPoint(x: x, y: 0))
+            head.addLine(to: CGPoint(x: x, y: size.height))
+            context.stroke(head, with: .color(Palette.ink), lineWidth: 1)
         }
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
         .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.white.opacity(0.12)))

@@ -44,6 +44,7 @@
 		1A0ED14038DAB24DEC322BEC /* UpNextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42E2045814F52BC75F1609F /* UpNextView.swift */; };
 		1C9FB19F6571B100C8C147EF /* AppState+LibraryExtras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC6ECC4D448840D7EC71C72 /* AppState+LibraryExtras.swift */; };
 		1D77EA63AEA02320CCC96A8F /* TonearmDiscovery in Frameworks */ = {isa = PBXBuildFile; productRef = 76950D6B4037085999F207A3 /* TonearmDiscovery */; };
+		1F2AB3D61BDA2B5565075215 /* ParsoDJEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 551ED4CBE7B235659C23A496 /* ParsoDJEngine */; };
 		1F9B5D8EDC4EABB6C6B53DDE /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB454D89725B61725520B04A /* NowPlayingView.swift */; };
 		2011F46F371763CE2AFCB2D8 /* DiscoverySearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3CB0F1AAE5D512A11B85645 /* DiscoverySearchView.swift */; };
 		203E3F04A4D7C7663CDB3FC0 /* SupportDevelopmentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */; };
@@ -159,6 +160,7 @@
 		7EE119F683EDBF692284DB3D /* ParsoAudioStreaming in Frameworks */ = {isa = PBXBuildFile; productRef = 16431512B03093769BDFBEDC /* ParsoAudioStreaming */; };
 		7F1EAF6AA92CAB416C072261 /* GenrePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7685B36AC5D9148D7638574C /* GenrePickerView.swift */; };
 		7F920D1FC54062B0A7A6CC22 /* AddMenuSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA48CEED5AEAFB50D5AB50F /* AddMenuSheet.swift */; };
+		81006A1B6B56725D293F3AF9 /* ParsoAudioCore in Frameworks */ = {isa = PBXBuildFile; productRef = 06DA88CB200C3E05BF8E69A2 /* ParsoAudioCore */; };
 		817CD786F8CC3FC747B95A61 /* WatchAlbumsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 783A00C9B2142335E1E6936B /* WatchAlbumsView.swift */; };
 		831E0EF37C3B7195B5B4D3DE /* WidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */; };
 		83380E6527F4B5D37BBFE103 /* mel_filterbank_slaney_64.bin in Resources */ = {isa = PBXBuildFile; fileRef = 39DCFD0118F0838F83219F22 /* mel_filterbank_slaney_64.bin */; };
@@ -168,6 +170,7 @@
 		859FF5128A4FB2431F372BC1 /* Tonearm.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 2B9AB52221643622272FFDB6 /* Tonearm.storekit */; };
 		87174B228E776A7BF0A704C3 /* TonearmMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C3AB62CF54EA0C876AEB81A /* TonearmMacApp.swift */; };
 		87A633175B9F0EF1B57DC461 /* SupportDevelopmentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90C5E6EF701A765A58C5C4E5 /* SupportDevelopmentStore.swift */; };
+		88058CD3EE508E07C042264F /* ParsoAudioCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6B209CE98A0F807619C5B480 /* ParsoAudioCore */; };
 		887D130CA82A14CB9D425888 /* love.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 4390806554BE308328C92340 /* love.jpg */; };
 		889043F18979AD7E936F1197 /* AppState+SourceArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = A96CA438842FCA6E4E863EB7 /* AppState+SourceArtwork.swift */; };
 		8AE40034D4CB1F72F61EC466 /* CacheGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071CC5C8B79CC1A10F456254 /* CacheGlyph.swift */; };
@@ -248,6 +251,7 @@
 		CE2DF2A03F702707EEB672FB /* WidgetArtworkStore+Save.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */; };
 		CFBD80626ED3BCF63CD60960 /* JamendoBrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F050FDF819A0D40258D11F51 /* JamendoBrowseView.swift */; };
 		D03406B7B729D4CAF0E10224 /* DiscoveryRuntimeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2691BB73DBF1FEEB2FF9DC14 /* DiscoveryRuntimeController.swift */; };
+		D164368A449E38B7B71B5BFE /* ParsoDJEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 23AE0F246BF805F17302EDDD /* ParsoDJEngine */; };
 		D287044D4831E560295655E7 /* AppState+PlaylistEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16AE3C7D4FDB66E4CEDBBB6C /* AppState+PlaylistEditing.swift */; };
 		D48DC71189EEC9D2917B9A0E /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07BB75BFAD34B2382CE704F9 /* ShareViewController.swift */; };
 		D494D4118881339616F8E6C6 /* JamendoCredentialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */; };
@@ -589,6 +593,8 @@
 				A3A398BAB76A6339273F0E3D /* ParsoAudioStreaming in Frameworks */,
 				2F3A40B92265A4853AC54F8F /* ParsoAudioPlayback in Frameworks */,
 				E603E33823AFCA45928A9787 /* ParsoAudioAnalysis in Frameworks */,
+				88058CD3EE508E07C042264F /* ParsoAudioCore in Frameworks */,
+				1F2AB3D61BDA2B5565075215 /* ParsoDJEngine in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -609,6 +615,8 @@
 				7EE119F683EDBF692284DB3D /* ParsoAudioStreaming in Frameworks */,
 				6125A78DA1E8A0EB84F631A8 /* ParsoAudioPlayback in Frameworks */,
 				C59987F4E03B6407BCE6032F /* ParsoAudioAnalysis in Frameworks */,
+				81006A1B6B56725D293F3AF9 /* ParsoAudioCore in Frameworks */,
+				D164368A449E38B7B71B5BFE /* ParsoDJEngine in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1186,6 +1194,8 @@
 				16431512B03093769BDFBEDC /* ParsoAudioStreaming */,
 				3117D11991A33B0EEDAF1B7B /* ParsoAudioPlayback */,
 				CF7A9506C0865B7EDA9AC2BF /* ParsoAudioAnalysis */,
+				06DA88CB200C3E05BF8E69A2 /* ParsoAudioCore */,
+				23AE0F246BF805F17302EDDD /* ParsoDJEngine */,
 			);
 			productName = TonearmMac;
 			productReference = C71E407E96ECBD998E13852F /* TonearmMac.app */;
@@ -1272,6 +1282,8 @@
 				3B6FB098C448BE93A4F034FE /* ParsoAudioStreaming */,
 				6647207692C56A15D1A0C61E /* ParsoAudioPlayback */,
 				E0D95148A10212D63BC73E5C /* ParsoAudioAnalysis */,
+				6B209CE98A0F807619C5B480 /* ParsoAudioCore */,
+				551ED4CBE7B235659C23A496 /* ParsoDJEngine */,
 			);
 			productName = Tonearm;
 			productReference = CDA5510BE764F39731C1901D /* Tonearm.app */;
@@ -2447,10 +2459,20 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		06DA88CB200C3E05BF8E69A2 /* ParsoAudioCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */;
+			productName = ParsoAudioCore;
+		};
 		16431512B03093769BDFBEDC /* ParsoAudioStreaming */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */;
 			productName = ParsoAudioStreaming;
+		};
+		23AE0F246BF805F17302EDDD /* ParsoDJEngine */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */;
+			productName = ParsoDJEngine;
 		};
 		25DC295C778B26F9C30D320D /* TonearmCore */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -2470,6 +2492,11 @@
 			package = 808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */;
 			productName = ParsoAudioStreaming;
 		};
+		551ED4CBE7B235659C23A496 /* ParsoDJEngine */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */;
+			productName = ParsoDJEngine;
+		};
 		5EDA31C3AD0CDB64A40CF2EC /* TonearmCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = TonearmCore;
@@ -2482,6 +2509,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */;
 			productName = ParsoAudioPlayback;
+		};
+		6B209CE98A0F807619C5B480 /* ParsoAudioCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */;
+			productName = ParsoAudioCore;
 		};
 		76950D6B4037085999F207A3 /* TonearmDiscovery */ = {
 			isa = XCSwiftPackageProductDependency;

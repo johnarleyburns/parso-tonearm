@@ -118,6 +118,10 @@ targets:
         product: ParsoAudioPlayback
       - package: ParsoAudioEngine
         product: ParsoAudioAnalysis
+      - package: ParsoAudioEngine
+        product: ParsoAudioCore
+      - package: ParsoAudioEngine
+        product: ParsoDJEngine
       - target: TonearmShareExtension
         embed: true
       - target: TonearmWidgetsExtension
@@ -466,6 +470,10 @@ targets:
         product: ParsoAudioPlayback
       - package: ParsoAudioEngine
         product: ParsoAudioAnalysis
+      - package: ParsoAudioEngine
+        product: ParsoAudioCore
+      - package: ParsoAudioEngine
+        product: ParsoDJEngine
       # No Share/Widgets/Watch extension embeds — this target simply never
       # lists them as dependencies (native-mac-app-plan.md §1).
     info:
