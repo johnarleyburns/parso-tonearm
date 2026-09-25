@@ -130,7 +130,7 @@ final class KeepPlayingTests: XCTestCase {
         init(_ result: KeepPlayingLookup) { self.result = result }
 
         func continuationTrackIDs(
-            after recentlyPlayed: [Int64], excluding: Set<Int64>, limit: Int
+            after recentlyPlayed: [Int64], excluding: Set<Int64>, matchingTracksOnly: Bool, limit: Int
         ) async -> KeepPlayingLookup {
             callCount += 1
             lastRecentlyPlayed = recentlyPlayed

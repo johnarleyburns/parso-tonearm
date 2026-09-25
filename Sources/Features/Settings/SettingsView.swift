@@ -599,6 +599,11 @@ struct SettingsView: View {
                           "When your queue is about to end, keep music playing with similar-sounding tracks",
                           $appState.keepPlayingEnabled, id: "settings.keepPlaying")
             Divider().overlay(Palette.hairline)
+            settingToggle("Select matching tracks",
+                          "Prefer Camelot-compatible keys and BPM within 8% of the last track",
+                          $appState.keepPlayingMatchingTracksOnly,
+                          id: "settings.keepPlayingMatchingTracks")
+            Divider().overlay(Palette.hairline)
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Tracks added per extension").font(.system(size: 13.5))
@@ -624,6 +629,7 @@ struct SettingsView: View {
         .glassSurface(cornerRadius: 18)
         .onChange(of: appState.keepPlayingEnabled) { _, _ in appState.applySettingsToPlayer() }
         .onChange(of: appState.keepPlayingBatchSize) { _, _ in appState.applySettingsToPlayer() }
+        .onChange(of: appState.keepPlayingMatchingTracksOnly) { _, _ in appState.applySettingsToPlayer() }
     }
 
     private var clearCard: some View {

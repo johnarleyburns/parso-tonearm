@@ -35,6 +35,11 @@ public final class DiscoverySearchViewModel: ObservableObject {
     /// Non-nil while in "More like this" mode. The reference track is excluded
     /// from its own results (plan §9).
     @Published public private(set) var referenceTrackID: Int64?
+    /// Runtime-only anchor/option for the shared DJ-compatible match gate.
+    /// These values are deliberately not part of `DiscoverySearchQuery`'s
+    /// Codable saved-search payload.
+    @Published public private(set) var matchingReferenceTrackID: Int64?
+    @Published public private(set) var matchingTracksOnly = false
 
     // MARK: - Outputs (observed by the view)
 
@@ -157,7 +162,11 @@ public final class DiscoverySearchViewModel: ObservableObject {
     ) {
         Task { [weak self] in
             guard let self else { return }
-            await self.coordinator.submit(query, referenceTrackID: referenceTrackID) { response in
+            await self.coordinator.submit(
+                query,
+                referenceTrackID: referenceTrackID,
+                matchingReferenceTrackID: self.matchingReferenceTrackID,
+                matchingTracksOnly: self.matchingTracksOnly) { response in
                 Task { @MainActor [weak self] in
                     self?.apply(response, gen: gen)
                 }
@@ -175,6 +184,7 @@ public final class DiscoverySearchViewModel: ObservableObject {
         let search = metadataSearch
         let service = self.service
         metadataTask = Task { [weak self] in
+            guard let self else { return }
             try? await Task.sleep(for: DiscoverySearchCoordinator.debounceInterval)
             if Task.isCancelled { return }
             let outcome = await search(query)
@@ -191,6 +201,11 @@ public final class DiscoverySearchViewModel: ObservableObject {
                     filterOnly.positiveRefinements = []
                     filterOnly.negativeRefinements = []
                     let allowed = Set(await service.candidateTrackIDs(filterOnly))
+                    rows = rows.filter { allowed.contains($0.id) }
+                }
+                if self.matchingTracksOnly, let referenceID = self.matchingReferenceTrackID {
+                    let allowed = Set(await service.matchingTrackIDs(
+                        query, referenceTrackID: referenceID))
                     rows = rows.filter { allowed.contains($0.id) }
                 }
                 let snapshot = rows
@@ -272,6 +287,7 @@ public final class DiscoverySearchViewModel: ObservableObject {
     /// refinements are cleared; scope and BPM/key filters are kept.
     public func moreLikeThis(trackID: Int64) {
         referenceTrackID = trackID
+        matchingReferenceTrackID = trackID
         searchText = ""
         positiveRefinements = []
         negativeRefinements = []
@@ -281,6 +297,25 @@ public final class DiscoverySearchViewModel: ObservableObject {
     public func exitSimilarMode() {
         guard referenceTrackID != nil else { return }
         referenceTrackID = nil
+        matchingReferenceTrackID = nil
+        matchingTracksOnly = false
+        refresh()
+    }
+
+    /// Sets a live playback anchor without replacing the semantic query with
+    /// similar-track mode. Used by Mood and by its Keep Playing continuation.
+    public func setMatchingReferenceTrackID(_ trackID: Int64?, enabled: Bool = true) {
+        let usable = trackID.flatMap { $0 > 0 ? $0 : nil }
+        let shouldEnable = enabled && usable != nil
+        guard matchingReferenceTrackID != usable || matchingTracksOnly != shouldEnable else { return }
+        matchingReferenceTrackID = usable
+        matchingTracksOnly = shouldEnable
+        refresh()
+    }
+
+    public func setMatchingTracksOnly(_ enabled: Bool) {
+        guard matchingTracksOnly != enabled else { return }
+        matchingTracksOnly = enabled
         refresh()
     }
 
@@ -342,8 +377,15 @@ extension DiscoverySearchViewModel: MoodQuerySource {
     /// to, never a second search implementation (docs/plans/mood-based-
     /// listening-plan.md §3.3).
     public func refreshedTracks() async -> [TrackRow] {
-        let response = await service.search(currentQuery(), referenceTrackID: referenceTrackID)
+        let response = await service.search(
+            currentQuery(), referenceTrackID: referenceTrackID,
+            matchingReferenceTrackID: matchingReferenceTrackID,
+            matchingTracksOnly: matchingTracksOnly)
         return response.results.map(\.track)
+    }
+
+    public func setMatchingAnchor(_ trackID: Int64?) {
+        setMatchingReferenceTrackID(trackID, enabled: trackID != nil)
     }
 }
 #endif

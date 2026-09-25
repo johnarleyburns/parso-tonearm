@@ -455,7 +455,7 @@ final class DiscoveryRuntimeController {
     /// `AudioPlayer` can fall back honestly and say why (CLAUDE.md
     /// "no silent/magic background work").
     func keepPlayingLookup(
-        after recentlyPlayed: [Int64], excluding: Set<Int64>, limit: Int
+        after recentlyPlayed: [Int64], excluding: Set<Int64>, matchingTracksOnly: Bool, limit: Int
     ) async -> KeepPlayingLookup {
         guard let referenceTrackID = recentlyPlayed.first else { return .unavailable }
         let assembly = await makeAssembly()
@@ -465,15 +465,29 @@ final class DiscoveryRuntimeController {
         // leaves up to `limit` real picks.
         let requestLimit = min(ValidatedQuery.maxLimit, limit + excluding.count + 5)
         let query = DiscoverySearchQuery(limit: requestLimit)
-        let response = await assembly.search.search(query, referenceTrackID: referenceTrackID)
+        let response = await assembly.search.search(
+            query,
+            referenceTrackID: referenceTrackID,
+            matchingTracksOnly: matchingTracksOnly)
 
         switch response.state {
         case .ready:
             let ids = response.results.map(\.trackID).filter { !excluding.contains($0) }
-            guard !ids.isEmpty else { return modelAvailable ? .unavailable : .waitingForModel }
-            return .ready(Array(ids.prefix(limit)))
+            if !ids.isEmpty { return .ready(Array(ids.prefix(limit))) }
+            guard matchingTracksOnly else {
+                return modelAvailable ? .unavailable : .waitingForModel
+            }
+            return await broaderKeepPlayingLookup(
+                assembly: assembly, query: query, referenceTrackID: referenceTrackID,
+                excluding: excluding, limit: limit, modelAvailable: modelAvailable)
         case .modelMissing, .modelDownloadFailed:
             return .waitingForModel
+        case .matchingReferenceUnavailable, .noMatches, .emptyLibrary, .emptyScope,
+             .unindexedReference:
+            guard matchingTracksOnly else { return .unavailable }
+            return await broaderKeepPlayingLookup(
+                assembly: assembly, query: query, referenceTrackID: referenceTrackID,
+                excluding: excluding, limit: limit, modelAvailable: modelAvailable)
         default:
             // .unindexedReference, .zeroIndexed, .noMatches, .emptyLibrary,
             // .emptyScope, .sourceUnavailable, .searchFailed,
@@ -481,6 +495,25 @@ final class DiscoveryRuntimeController {
             // reference/scope just has nothing usable right now.
             return .unavailable
         }
+    }
+
+    private func broaderKeepPlayingLookup(
+        assembly: DiscoveryAssembly, query: DiscoverySearchQuery, referenceTrackID: Int64,
+        excluding: Set<Int64>, limit: Int, modelAvailable: Bool
+    ) async -> KeepPlayingLookup {
+        let response = await assembly.search.search(
+            query, referenceTrackID: referenceTrackID, matchingTracksOnly: false)
+        guard case .ready = response.state else {
+            switch response.state {
+            case .modelMissing, .modelDownloadFailed:
+                return .waitingForModel
+            default:
+                return modelAvailable ? .unavailable : .waitingForModel
+            }
+        }
+        let ids = response.results.map(\.trackID).filter { !excluding.contains($0) }
+        guard !ids.isEmpty else { return modelAvailable ? .unavailable : .waitingForModel }
+        return .readyFromBroaderSimilarity(Array(ids.prefix(limit)))
     }
 
     // MARK: - Status surface (plan §10, C07)
@@ -577,10 +610,11 @@ final class DiscoveryRuntimeController {
 /// depends on both.
 struct KeepPlayingDiscoveryProvider: KeepPlayingSimilarityProviding {
     func continuationTrackIDs(
-        after recentlyPlayed: [Int64], excluding: Set<Int64>, limit: Int
+        after recentlyPlayed: [Int64], excluding: Set<Int64>, matchingTracksOnly: Bool, limit: Int
     ) async -> KeepPlayingLookup {
         await DiscoveryRuntimeController.shared.keepPlayingLookup(
-            after: recentlyPlayed, excluding: excluding, limit: limit)
+            after: recentlyPlayed, excluding: excluding,
+            matchingTracksOnly: matchingTracksOnly, limit: limit)
     }
 }
 #endif

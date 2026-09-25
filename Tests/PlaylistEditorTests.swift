@@ -40,6 +40,15 @@ final class PlaylistEditorTests: XCTestCase {
         XCTAssertEqual(PlaylistEditor.remove([], at: 0), [])
     }
 
+    func testBPMSortIsAscendingStableAndPutsUnknownLast() {
+        let original = items([10, 20, 30, 40])
+        let edited = PlaylistEditor.sortedByBPM(
+            original, bpmByTrackID: [10: 128, 20: 100, 40: 128])
+
+        XCTAssertEqual(edited.map(\.trackId), [20, 10, 40, 30])
+        XCTAssertEqual(edited.map(\.position), [0, 1, 2, 3])
+    }
+
     func testSwiftUIMoveOffsetsRenumbersContiguously() {
         let edited = PlaylistEditor.move(
             items([10, 20, 30, 40, 50]),
@@ -88,6 +97,47 @@ final class PlaylistEditorTests: XCTestCase {
         XCTAssertEqual(rows.map(\.row.id), [trackIDs[2], trackIDs[1]])
         XCTAssertEqual(rows.map(\.item.id), [originalRows[2].item.id, originalRows[1].item.id])
         XCTAssertEqual(rows.map(\.item.position), [0, 1])
+    }
+
+    func testLibraryStoreBPMSortPersistsAscendingOrderAndLeavesUnknownLast() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let trackIDs = try await seedTracks(into: store, count: 3)
+        for trackID in trackIDs {
+            let asset = try await store.insertAsset(
+                Asset(id: nil, trackId: trackID, kind: .remote, bookmark: nil, relPath: nil,
+                      remoteURL: "https://example.com/\(trackID).mp3", altRemoteURL: nil,
+                      sizeBytes: nil, unsupportedReason: nil))
+            let analysis = DiscoveryTrackAnalysis(
+                trackId: trackID, assetId: try XCTUnwrap(asset.id), assetRevision: 1,
+                analysisVersion: 1, bpm: trackID == trackIDs[0] ? 128 : (trackID == trackIDs[1] ? 100 : nil),
+                key: nil, energy: nil, phraseSummary: nil, analysisScopeSeconds: nil,
+                completedAt: Date())
+            try await store.dbQueue.write { db in
+                var row = analysis
+                try row.insert(db)
+            }
+        }
+        let playlist = try await store.createManualPlaylist(
+            title: "DJ Set", trackIds: [trackIDs[0], trackIDs[1], trackIDs[2]])
+
+        try await store.sortPlaylistByBPM(id: try XCTUnwrap(playlist.id))
+        let rows = try await store.playlistTrackRows(playlistId: try XCTUnwrap(playlist.id))
+        XCTAssertEqual(rows.map(\.row.id), [trackIDs[1], trackIDs[0], trackIDs[2]])
+        XCTAssertEqual(rows.map(\.item.position), [0, 1, 2])
+    }
+
+    func testCrateMembershipRoundTripsThroughThePlaylistRecord() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let playlist = try await store.insertPlaylist(
+            Playlist(id: nil, title: "DJ Set", kind: .manual, folderBookmark: nil, watch: false))
+        let id = try XCTUnwrap(playlist.id)
+
+        try await store.setPlaylistInCrate(id: id, isInCrate: true)
+        let inCrate = try await store.playlist(id: id)?.isInCrate
+        XCTAssertEqual(inCrate, true)
+        try await store.setPlaylistInCrate(id: id, isInCrate: false)
+        let outOfCrate = try await store.playlist(id: id)?.isInCrate
+        XCTAssertEqual(outOfCrate, false)
     }
 
     private func items(_ trackIDs: [Int64]) -> [PlaylistItem] {

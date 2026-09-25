@@ -241,6 +241,12 @@ final class DiscoverySearchViewModelTests: XCTestCase {
         d.vm.moreLikeThis(trackID: 1)
         await settle(d.vm) { $0.screen.hasResults }
         XCTAssertEqual(d.vm.results.map(\.trackID), [2], "reference is absent from its own results")
+        XCTAssertEqual(d.vm.matchingReferenceTrackID, 1)
+        XCTAssertFalse(d.vm.matchingTracksOnly, "matching is opt-in in Find Music")
+
+        d.vm.setMatchingTracksOnly(true)
+        await settle(d.vm) { $0.screen == .matchingReferenceUnavailable }
+        XCTAssertEqual(d.vm.screen, .matchingReferenceUnavailable)
     }
 
     // MARK: - Refinement chips

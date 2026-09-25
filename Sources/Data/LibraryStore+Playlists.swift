@@ -36,6 +36,14 @@ extension LibraryStore {
         }
     }
 
+    public func setPlaylistInCrate(id playlistId: Int64, isInCrate: Bool) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE playlist SET isInCrate = ? WHERE id = ?",
+                arguments: [isInCrate, playlistId])
+        }
+    }
+
     public func deletePlaylist(id: Int64) throws {
         _ = try dbQueue.write { db in try Playlist.deleteOne(db, key: id) }
     }
@@ -64,6 +72,20 @@ extension LibraryStore {
                 guard let t = try Track.fetchOne(db, key: item.trackId) else { return nil }
                 return try PlaylistTrackRow(item: item, row: self.hydrate(t, db: db))
             }
+        }
+    }
+
+    public func playlistHasAnalyzedBPM(id playlistId: Int64) throws -> Bool {
+        try dbQueue.read { db in
+            try Bool.fetchOne(
+                db,
+                sql: """
+                    SELECT EXISTS(
+                        SELECT 1 FROM playlist_item i
+                        JOIN discovery_track_analysis a ON a.trackId = i.trackId
+                        WHERE i.playlistId = ? AND a.bpm IS NOT NULL)
+                    """,
+                arguments: [playlistId]) ?? false
         }
     }
 
@@ -97,6 +119,33 @@ extension LibraryStore {
             let original = try playlistItemRecords(playlistId: playlistId, db: db)
             let edited = PlaylistEditor.move(original, fromOffsets: offsets, toOffset: destination)
             try self.persistPlaylistItems(original: original, edited: edited, db: db)
+        }
+    }
+
+    /// Persists a complete ascending-BPM reorder in one transaction. The
+    /// analysis join is intentionally local to this operation so unknown BPM
+    /// values remain unknown and are sorted last rather than fabricated.
+    public func sortPlaylistByBPM(id playlistId: Int64) throws {
+        try dbQueue.write { db in
+            let original = try playlistItemRecords(playlistId: playlistId, db: db)
+            guard !original.isEmpty else { return }
+            let trackIDs = original.map(\.trackId)
+            let placeholders = trackIDs.map { _ in "?" }.joined(separator: ",")
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT trackId, bpm FROM discovery_track_analysis
+                    WHERE trackId IN (\(placeholders)) AND bpm IS NOT NULL
+                    """,
+                arguments: StatementArguments(trackIDs))
+            var bpmByTrackID: [Int64: Double] = [:]
+            for row in rows {
+                if let bpm: Double = row["bpm"] {
+                    bpmByTrackID[row["trackId"]] = bpm
+                }
+            }
+            let edited = PlaylistEditor.sortedByBPM(original, bpmByTrackID: bpmByTrackID)
+            try persistPlaylistItems(original: original, edited: edited, db: db)
         }
     }
 

@@ -158,6 +158,45 @@ final class SearchServiceTests: XCTestCase {
         XCTAssertEqual(bySemantic.first?.trackID, highSemID)
     }
 
+    func testMatchingTracksGateUsesCamelotAndRelativeBPMBeforeRanking() async throws {
+        let queue = try SearchFixture.makeQueue()
+        let referenceID: Int64 = try await queue.write { db in
+            let s = try SearchFixture.seedSource(db)
+            let ref = try SearchFixture.seedTrack(db, sourceId: s, title: "reference")
+            let refAsset = try SearchFixture.seedAsset(db, trackId: ref)
+            try SearchFixture.seedEmbedding(
+                db, trackId: ref, assetId: refAsset, vector: [1, 0, 0, 0, 0, 0, 0, 0])
+            try SearchFixture.seedAnalysis(db, trackId: ref, assetId: refAsset, bpm: 125, key: "1A")
+
+            let fixtures: [(String, Double, String)] = [
+                ("relative-key-match", 125, "1B"),
+                ("wrapped-key-match", 135, "12A"),
+                ("bpm-outside", 136, "1A"),
+                ("key-outside", 125, "2B")
+            ]
+            for (offset, (title, bpm, key)) in fixtures.enumerated() {
+                let track = try SearchFixture.seedTrack(
+                    db, sourceId: s, title: title, sortKey: "\(offset)-\(title)")
+                let asset = try SearchFixture.seedAsset(db, trackId: track)
+                try SearchFixture.seedEmbedding(
+                    db, trackId: track, assetId: asset,
+                    vector: [0.9, 0.43, 0, 0, 0, 0, 0, 0])
+                try SearchFixture.seedAnalysis(db, trackId: track, assetId: asset, bpm: bpm, key: key)
+            }
+            return ref
+        }
+
+        let service = await makeService(queue)
+        let response = await service.search(
+            DiscoverySearchQuery(text: ""), referenceTrackID: referenceID, matchingTracksOnly: true)
+
+        XCTAssertEqual(response.state, .ready)
+        XCTAssertEqual(
+            Set(response.results.map(\.track.track.title)),
+            ["relative-key-match", "wrapped-key-match"])
+        XCTAssertFalse(response.results.contains { $0.trackID == referenceID })
+    }
+
     // MARK: - Filtered match below the old global top-N
 
     func testFilteredHybridMatchRanksAboveHigherSemanticInRange() async throws {

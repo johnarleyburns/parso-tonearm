@@ -118,6 +118,7 @@ final class AppState: ObservableObject {
     /// magic background work" — a settings-only toggle isn't sufficient).
     @AppStorage("keepPlayingEnabled") var keepPlayingEnabled = true
     @AppStorage("keepPlayingBatchSize") var keepPlayingBatchSize = 15
+    @AppStorage("keepPlayingMatchingTracksOnly") var keepPlayingMatchingTracksOnly = true
 
     // The following are declared here (rather than in AppState+Watch.swift,
     // where they are used) because Swift extensions cannot hold stored
@@ -220,6 +221,7 @@ final class AppState: ObservableObject {
         AudioPlayer.shared.preferFLAC = preferFLAC
         AudioPlayer.shared.keepPlayingEnabled = keepPlayingEnabled
         AudioPlayer.shared.keepPlayingBatchSize = min(30, max(5, keepPlayingBatchSize))
+        AudioPlayer.shared.keepPlayingMatchingTracksOnly = keepPlayingMatchingTracksOnly
         let lookup = artworkLookup
         Task { await ArtworkService.shared.setArtworkLookupEnabled(lookup) }
     }

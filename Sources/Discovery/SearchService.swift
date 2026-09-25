@@ -45,6 +45,9 @@ public struct DiscoverySearchResponse: Sendable, Equatable {
         /// Similar-track query whose reference has no / a stale embedding —
         /// UI offers "Analyze this track" (plan §9).
         case unindexedReference
+        /// Matching was requested but the anchor has no usable BPM/key
+        /// analysis, so applying the requested gate would be dishonest.
+        case matchingReferenceUnavailable
         case noMatches
         case cancelled
         /// A real SQL / vector-cache error occurred — distinct from a truthful
@@ -117,6 +120,8 @@ public actor SearchService {
     public func search(
         _ raw: DiscoverySearchQuery,
         referenceTrackID: Int64? = nil,
+        matchingReferenceTrackID: Int64? = nil,
+        matchingTracksOnly: Bool = false,
         isCancelled: @escaping @Sendable () -> Bool = { false }
     ) async -> DiscoverySearchResponse {
         let start = DispatchTime.now()
@@ -159,6 +164,7 @@ public actor SearchService {
         if let referenceTrackID {
             return await runSimilar(
                 validated, referenceTrackID: referenceTrackID, coverage: coverage,
+                matchingTracksOnly: matchingTracksOnly,
                 isCancelled: isCancelled, start: start)
         }
         if !validated.hasText {
@@ -166,7 +172,10 @@ public actor SearchService {
                 validated, coverage: coverage, isCancelled: isCancelled, start: start)
         }
         return await runSemantic(
-            validated, coverage: coverage, isCancelled: isCancelled, start: start)
+            validated, coverage: coverage,
+            matchingReferenceTrackID: matchingReferenceTrackID,
+            matchingTracksOnly: matchingTracksOnly,
+            isCancelled: isCancelled, start: start)
     }
 
     /// Shared candidate retrieval for saved searches and auto-playlist
@@ -178,6 +187,19 @@ public actor SearchService {
     ) async -> [Int64] {
         let response = await search(raw, referenceTrackID: referenceTrackID)
         return response.results.map(\.trackID)
+    }
+
+    /// Metadata-search companion for the matching toggle. It applies the same
+    /// hard musical gate without requiring a vector or text model.
+    public func matchingTrackIDs(
+        _ raw: DiscoverySearchQuery, referenceTrackID: Int64
+    ) async -> [Int64] {
+        guard case .success(let query) = ValidatedQuery.validate(raw),
+              let attrs = try? repo.referenceAttributes(
+                trackID: referenceTrackID, pipelineVersion: analysisVersion),
+              let bpm = attrs.bpm, let camelot = attrs.camelot else { return [] }
+        let target = MusicalMatchReference(bpm: bpm, camelot: camelot)
+        return Array((try? repo.eligibleTrackIDs(for: query, musicalMatch: target)) ?? [])
     }
 
     // MARK: - Modes
@@ -212,6 +234,7 @@ public actor SearchService {
 
     private func runSemantic(
         _ q: ValidatedQuery, coverage: SearchRepository.Coverage,
+        matchingReferenceTrackID: Int64?, matchingTracksOnly: Bool,
         isCancelled: @escaping @Sendable () -> Bool, start: DispatchTime
     ) async -> DiscoverySearchResponse {
         let encoder: any SemanticModel
@@ -246,14 +269,30 @@ public actor SearchService {
             camelot: q.compatibleKey,
             energy: nil, phraseLength: nil, bpmTolerance: bpmTolerance)
 
+        let musicalMatch: MusicalMatchReference?
+        if matchingTracksOnly {
+            guard let matchingReferenceTrackID,
+                  let attrs = try? repo.referenceAttributes(
+                    trackID: matchingReferenceTrackID, pipelineVersion: analysisVersion),
+                  let bpm = attrs.bpm, let camelot = attrs.camelot else {
+                return response(mode: .semantic, state: .matchingReferenceUnavailable, results: [],
+                    coverage: coverage, generation: nil, start: start)
+            }
+            musicalMatch = MusicalMatchReference(bpm: bpm, camelot: camelot)
+        } else {
+            musicalMatch = nil
+        }
+
         return await scanAndRank(
             mode: .semantic, query: q, queryVector: queryVector, target: target,
-            excludeTrackID: nil, includeUnknownMusical: !q.hasHardMusicalFilter,
+            musicalMatch: musicalMatch, excludeTrackID: nil,
+            includeUnknownMusical: !q.hasHardMusicalFilter,
             coverage: coverage, isCancelled: isCancelled, start: start)
     }
 
     private func runSimilar(
         _ q: ValidatedQuery, referenceTrackID: Int64, coverage: SearchRepository.Coverage,
+        matchingTracksOnly: Bool,
         isCancelled: @escaping @Sendable () -> Bool, start: DispatchTime
     ) async -> DiscoverySearchResponse {
         let mode = DiscoverySearchMode.similar(referenceTrackID: referenceTrackID)
@@ -286,12 +325,23 @@ public actor SearchService {
 
         let refAttrs = (try? repo.referenceAttributes(
             trackID: referenceTrackID, pipelineVersion: analysisVersion)) ?? nil
+        let musicalMatch: MusicalMatchReference?
+        if matchingTracksOnly {
+            guard let refAttrs, let bpm = refAttrs.bpm, let camelot = refAttrs.camelot else {
+                return response(mode: mode, state: .matchingReferenceUnavailable, results: [],
+                    coverage: coverage, generation: nil, start: start)
+            }
+            musicalMatch = MusicalMatchReference(bpm: bpm, camelot: camelot)
+        } else {
+            musicalMatch = nil
+        }
         let target = RankTarget(
             bpm: refAttrs?.bpm, camelot: refAttrs?.camelot, energy: refAttrs?.energy,
             phraseLength: refAttrs?.phraseLength, bpmTolerance: bpmTolerance)
 
         return await scanAndRank(
             mode: mode, query: q, queryVector: queryVector, target: target,
+            musicalMatch: musicalMatch,
             excludeTrackID: referenceTrackID, includeUnknownMusical: !q.hasHardMusicalFilter,
             coverage: coverage, isCancelled: isCancelled, start: start)
     }
@@ -300,7 +350,8 @@ public actor SearchService {
 
     private func scanAndRank(
         mode: DiscoverySearchMode, query q: ValidatedQuery, queryVector: [Float],
-        target: RankTarget, excludeTrackID: Int64?, includeUnknownMusical: Bool,
+        target: RankTarget, musicalMatch: MusicalMatchReference?,
+        excludeTrackID: Int64?, includeUnknownMusical: Bool,
         coverage: SearchRepository.Coverage,
         isCancelled: @escaping @Sendable () -> Bool, start: DispatchTime,
         attempt: Int = 0
@@ -322,7 +373,7 @@ public actor SearchService {
         // Eligibility: scope ∩ hard BPM/key, BEFORE top-K truncation (plan §9).
         let eligible: Set<Int64>
         do {
-            eligible = try repo.eligibleTrackIDs(for: q)
+            eligible = try repo.eligibleTrackIDs(for: q, musicalMatch: musicalMatch)
         } catch {
             return response(mode: mode, state: .searchFailed, results: [], coverage: coverage,
                 generation: snapshot.generation, start: start)
@@ -393,6 +444,7 @@ public actor SearchService {
             // rebuilds from the (now cascade-trimmed) embedding rows.
             return await scanAndRank(
                 mode: mode, query: q, queryVector: queryVector, target: target,
+                musicalMatch: musicalMatch,
                 excludeTrackID: excludeTrackID, includeUnknownMusical: includeUnknownMusical,
                 coverage: coverage, isCancelled: isCancelled, start: start, attempt: 1)
         }

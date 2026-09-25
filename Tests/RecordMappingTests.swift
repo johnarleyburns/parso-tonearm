@@ -79,12 +79,14 @@ final class RecordMappingTests: XCTestCase {
 
     func testPlaylistOmitsFolderBookmark() {
         let playlist = Playlist(id: 6, title: "Faves", kind: .manual,
-                                folderBookmark: Data([9]), watch: false, syncID: "PL-1")
+                                folderBookmark: Data([9]), watch: false,
+                                isInCrate: true, syncID: "PL-1")
         let record = RecordMapping.record(from: playlist, zoneID: zoneID)
         XCTAssertNil(record["folderBookmark"])
         let decoded = RecordMapping.playlist(from: record)
         XCTAssertEqual(decoded?.syncID, "PL-1")
         XCTAssertEqual(decoded?.title, "Faves")
+        XCTAssertEqual(decoded?.isInCrate, true)
     }
 
     func testPlaylistItemCarriesParentRefs() {

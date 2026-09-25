@@ -10,6 +10,9 @@ public enum KeepPlayingLookup: Equatable, Sendable {
     /// Real CLAP nearest-neighbor candidates, already excluding the caller's
     /// `excluding` set, ordered best match first.
     case ready([Int64])
+    /// Sound-similar candidates returned after the requested Camelot/BPM
+    /// gate had no results. This is still surfaced as a visible fallback.
+    case readyFromBroaderSimilarity([Int64])
     /// The CLAP model/index isn't available yet (downloading, or indexing
     /// hasn't produced an embedding for the reference track). Distinct from
     /// `.unavailable` so the fallback can say *why* it's a fallback.
@@ -37,7 +40,7 @@ public protocol KeepPlayingSimilarityProviding: Sendable {
     ///     knows how many extra candidates to fetch to still hit `limit`.
     ///   - limit: how many track ids to return at most.
     func continuationTrackIDs(
-        after recentlyPlayed: [Int64], excluding: Set<Int64>, limit: Int
+        after recentlyPlayed: [Int64], excluding: Set<Int64>, matchingTracksOnly: Bool, limit: Int
     ) async -> KeepPlayingLookup
 }
 
@@ -54,6 +57,9 @@ public enum KeepPlayingFallbackReason: Equatable, Sendable {
     /// (e.g. everything eligible is already in the queue/history, or a real
     /// search error occurred).
     case unavailable
+    /// No Camelot/BPM-compatible candidate was available, so Keep Playing
+    /// broadened to ordinary sound similarity.
+    case matchingUnavailable
 }
 
 extension AudioPlayer {
@@ -110,6 +116,7 @@ extension AudioPlayer {
         // last-played-track similarity `keepPlayingProvider` below — that
         // provider has no idea a mood query (prompt + pills) is even active.
         if case .mood(let source) = queueSource {
+            source.setMatchingAnchor(keepPlayingHistory.last)
             let rows = await source.refreshedTracks()
             guard !Task.isCancelled else { return }
             let candidates = rows.filter { row in
@@ -133,7 +140,8 @@ extension AudioPlayer {
         // `keepPlayingHistory` is stored oldest-first; the provider wants
         // most-recently-played first so it can search against `.first`.
         let lookup = await provider.continuationTrackIDs(
-            after: Array(keepPlayingHistory.reversed()), excluding: excluded, limit: keepPlayingBatchSize)
+            after: Array(keepPlayingHistory.reversed()), excluding: excluded,
+            matchingTracksOnly: keepPlayingMatchingTracksOnly, limit: keepPlayingBatchSize)
         guard !Task.isCancelled else { return }
         switch lookup {
         case .ready(let ids) where !ids.isEmpty:
@@ -146,11 +154,21 @@ extension AudioPlayer {
                 await extendWithFallback(reason: .unavailable, excluding: excluded)
                 return
             }
-            await appendKeepPlayingSimilarTracks(deduped)
+            await appendKeepPlayingSimilarTracks(deduped, isFallback: false, reason: nil)
+        case .readyFromBroaderSimilarity(let ids) where !ids.isEmpty:
+            let deduped = KeepPlayingPicker.dedupedCandidates(ids, excluding: excluded)
+            guard !deduped.isEmpty else {
+                await extendWithFallback(reason: .matchingUnavailable, excluding: excluded)
+                return
+            }
+            await appendKeepPlayingSimilarTracks(
+                deduped, isFallback: true, reason: .matchingUnavailable)
         case .ready:
             // The provider had nothing left after its own exclusions — a
             // real "no matches", not a bug — fall back honestly.
             await extendWithFallback(reason: .unavailable, excluding: excluded)
+        case .readyFromBroaderSimilarity:
+            await extendWithFallback(reason: .matchingUnavailable, excluding: excluded)
         case .waitingForModel:
             await extendWithFallback(reason: .waitingForModel, excluding: excluded)
         case .unavailable:
@@ -162,7 +180,9 @@ extension AudioPlayer {
     /// them. Falls back if none of the ids could be hydrated (e.g. a track was
     /// deleted between the lookup and now) rather than silently appending
     /// nothing.
-    private func appendKeepPlayingSimilarTracks(_ ids: [Int64]) async {
+    private func appendKeepPlayingSimilarTracks(
+        _ ids: [Int64], isFallback: Bool, reason: KeepPlayingFallbackReason?
+    ) async {
         var rows: [TrackRow] = []
         for id in ids {
             if let row = try? await LibraryStore.shared.trackRow(id: id) {
@@ -174,7 +194,7 @@ extension AudioPlayer {
             await extendWithFallback(reason: .unavailable, excluding: currentKeepPlayingExclusions())
             return
         }
-        finishKeepPlayingExtension(with: rows, isFallback: false, reason: nil)
+        finishKeepPlayingExtension(with: rows, isFallback: isFallback, reason: reason)
     }
 
     /// The honest fallback: shuffle-continue from the same source/library

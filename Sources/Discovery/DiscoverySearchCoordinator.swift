@@ -39,6 +39,8 @@ public actor DiscoverySearchCoordinator {
     public func submit(
         _ query: DiscoverySearchQuery,
         referenceTrackID: Int64? = nil,
+        matchingReferenceTrackID: Int64? = nil,
+        matchingTracksOnly: Bool = false,
         deliver: @escaping @Sendable (DiscoverySearchResponse) -> Void
     ) -> Int64 {
         generation += 1
@@ -57,6 +59,8 @@ public actor DiscoverySearchCoordinator {
             if flag.isCancelled || Task.isCancelled { return }
             let response = await service.search(
                 query, referenceTrackID: referenceTrackID,
+                matchingReferenceTrackID: matchingReferenceTrackID,
+                matchingTracksOnly: matchingTracksOnly,
                 isCancelled: { flag.isCancelled || Task.isCancelled })
             guard let self else { return }
             let isCurrent = await self.isCurrent(myGeneration)

@@ -120,6 +120,13 @@ final class DiscoverySearchPresentationTests: XCTestCase {
         XCTAssertEqual(s, .analyzeReference(trackID: 77))
     }
 
+    func testMatchingReferenceUnavailableHasItsOwnState() {
+        XCTAssertEqual(
+            DiscoverySearchPresentation.make(
+                from: response(mode: .semantic, state: .matchingReferenceUnavailable)),
+            .matchingReferenceUnavailable)
+    }
+
     func testSearchFailedIsRetryableFailureNotNoMatches() {
         XCTAssertEqual(
             DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .searchFailed)),

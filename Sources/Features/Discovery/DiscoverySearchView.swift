@@ -169,6 +169,14 @@ private struct DiscoverySearchContent: View {
                 filterField("Key (e.g. 8A)", text: $model.compatibleKey)
                     .frame(maxWidth: 110)
             }
+            if model.referenceTrackID != nil {
+                Toggle("Matching tracks", isOn: Binding(
+                    get: { model.matchingTracksOnly },
+                    set: { model.setMatchingTracksOnly($0) }))
+                    .font(.callout)
+                    .tint(Palette.brass)
+                    .accessibilityIdentifier("search.matchingTracks")
+            }
         }
     }
 
@@ -262,6 +270,8 @@ private struct DiscoverySearchContent: View {
             }
         case .noMatches(let kind):
             hint("No \(kindLabel(kind).lowercased()) matched. Try broadening the text or filters.")
+        case .matchingReferenceUnavailable:
+            hint("Matching tracks needs BPM and key analysis for the reference track.")
         case .emptyLibrary:
             hint("Your library is empty. Add music to start searching.")
         case .emptyScope:

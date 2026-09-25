@@ -110,7 +110,12 @@ struct ListenView: View {
         .task {
             await appState.reload()
             await prepareMoodModel()
+            moodModel?.setMatchingReferenceTrackID(
+                player.currentTrack?.id, enabled: player.currentTrack?.id != nil)
             await refreshMoodReadiness()
+        }
+        .onChange(of: player.currentTrack?.id) { _, trackID in
+            moodModel?.setMatchingReferenceTrackID(trackID, enabled: trackID != nil)
         }
         .task {
             while !Task.isCancelled {
@@ -548,6 +553,15 @@ private struct MoodEntryPointSection: View {
 
             MoodPillPicker(pills: allMoodPills, selection: pillSelectionBinding)
 
+            if moodModel.matchingReferenceTrackID != nil {
+                Toggle("DJ-compatible tracks", isOn: Binding(
+                    get: { moodModel.matchingTracksOnly },
+                    set: { moodModel.setMatchingTracksOnly($0) }))
+                    .font(.system(size: 12.5, weight: .medium))
+                    .tint(Palette.brass)
+                    .accessibilityIdentifier("listen.mood.matchingTracks")
+            }
+
             Group {
                 if !moodModel.results.isEmpty {
                     moodResultsRow
@@ -613,7 +627,9 @@ private struct MoodEntryPointSection: View {
                     .buttonStyle(.bordered)
             }
         case .noMatches:
-            hint("No tracks matched that mood yet. Try different pills or fewer of them.")
+            hint(moodModel.matchingTracksOnly
+                ? "No DJ-compatible tracks matched this mood. Turn off DJ-compatible tracks or try different pills."
+                : "No tracks matched that mood yet. Try different pills or fewer of them.")
         case .emptyLibrary:
             hint("Your library is empty. Add music to try a mood.")
         case .emptyScope, .sourceUnavailable:
@@ -623,6 +639,8 @@ private struct MoodEntryPointSection: View {
                 hint("Something went wrong running that search.")
                 Button("Retry") { moodModel.retry() }.buttonStyle(.bordered)
             }
+        case .matchingReferenceUnavailable:
+            hint("DJ-compatible mood results need BPM and key analysis for the current track.")
         case .validationError, .analyzeReference, .staleSuppressed, .results:
             EmptyView()
         }

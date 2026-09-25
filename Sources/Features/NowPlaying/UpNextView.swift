@@ -173,6 +173,8 @@ struct UpNextView: View {
         switch player.keepPlayingFallbackReason {
         case .waitingForModel:
             return "Shuffled — the sound-search model is still downloading"
+        case .matchingUnavailable:
+            return "Broader sound match — no Camelot/BPM match was available"
         case .unavailable, nil:
             return "Shuffled — no sound-search match available for this track"
         }

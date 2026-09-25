@@ -62,6 +62,18 @@ struct PlaylistsView: View {
                     .padding(.bottom, 6)
 
                 List {
+                    ZStack(alignment: .leading) {
+                        NavigationLink(value: "crate") { EmptyView() }.opacity(0)
+                        NavigationRow(
+                            icon: "shippingbox.fill",
+                            title: "Crate",
+                            subtitle: "Crate is where you put playlists for DJing")
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("playlist.crate")
+                    .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18))
+                    .listRowBackground(Color.clear)
+
                     // NavigationRow already draws its own trailing chevron
                     // for this app's custom row styling — wrapping it
                     // directly in `NavigationLink(value:) { ... }` also gets
@@ -106,6 +118,16 @@ struct PlaylistsView: View {
                                     } else {
                                         Label("Pin", systemImage: "pin")
                                     }
+                                }
+                                Button {
+                                    Task {
+                                        await appState.setPlaylistInCrate(
+                                            playlist, isInCrate: !playlist.isInCrate)
+                                    }
+                                } label: {
+                                    Label(
+                                        playlist.isInCrate ? "Remove from Crate" : "Add to Crate",
+                                        systemImage: playlist.isInCrate ? "shippingbox" : "shippingbox.fill")
                                 }
                                 Button {
                                     beginRename(playlist)
@@ -155,6 +177,7 @@ struct PlaylistsView: View {
             }
             .navigationDestination(for: String.self) { value in
                 if value == "ambient" { AmbientPlaylistView() }
+                if value == "crate" { CrateDetailView() }
             }
             #if !os(macOS)
             .toolbar(.hidden, for: .navigationBar)
@@ -181,7 +204,11 @@ struct PlaylistDetailView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @Environment(\.dismiss) private var dismiss
+    #if !os(macOS)
+    @Environment(\.editMode) private var editMode
+    #endif
     @State private var tracks: [PlaylistTrackRow] = []
+    @State private var hasAnalyzedBPM = false
     @State private var playlistToRename: Playlist?
     @State private var renameTitle = ""
     @State private var showAddTracks = false
@@ -212,6 +239,23 @@ struct PlaylistDetailView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("playlist.edit")
+                if editMode?.wrappedValue == .active {
+                    Button {
+                        Task {
+                            await appState.sortPlaylistByBPM(currentPlaylist)
+                            await loadTracks()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Palette.brass)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Sort by BPM order")
+                    .accessibilityHint("Requires at least one analyzed BPM")
+                    .accessibilityIdentifier("playlist.sortByBPM")
+                    .disabled(!hasAnalyzedBPM)
+                }
                 #endif
                 Button { showAddTracks = true } label: {
                     Image(systemName: "plus")
@@ -234,6 +278,23 @@ struct PlaylistDetailView: View {
                     } label: {
                         Label("Rename", systemImage: "pencil")
                     }
+                    Button {
+                        Task { await appState.setPlaylistInCrate(
+                            currentPlaylist, isInCrate: !currentPlaylist.isInCrate) }
+                    } label: {
+                        Label(
+                            currentPlaylist.isInCrate ? "Remove from Crate" : "Add to Crate",
+                            systemImage: currentPlaylist.isInCrate ? "shippingbox" : "shippingbox.fill")
+                    }
+                    Button {
+                        Task {
+                            await appState.sortPlaylistByBPM(currentPlaylist)
+                            await loadTracks()
+                        }
+                    } label: {
+                        Label("Sort by BPM order", systemImage: "arrow.up.arrow.down")
+                    }
+                    .disabled(!hasAnalyzedBPM)
                     Button {
                         Task { await appState.download(rows: trackRows) }
                     } label: {
@@ -342,11 +403,67 @@ struct PlaylistDetailView: View {
     private func loadTracks() async {
         guard let id = currentPlaylist.id else { return }
         tracks = (try? await appState.store.playlistTrackRows(playlistId: id)) ?? []
+        hasAnalyzedBPM = (try? await appState.store.playlistHasAnalyzedBPM(id: id)) ?? false
     }
 
     private func beginRename(_ playlist: Playlist) {
         playlistToRename = playlist
         renameTitle = playlist.title
+    }
+}
+
+/// The built-in DJ playlist grouping. Membership lives on each Playlist so
+/// this view remains a normal navigation surface and survives reload/sync.
+struct CrateDetailView: View {
+    @EnvironmentObject var appState: AppState
+
+    private var cratePlaylists: [Playlist] {
+        appState.playlists.filter(\.isInCrate)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Text("Crate is where you put playlists for DJing")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.ink2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .listRowBackground(Color.clear)
+            }
+
+            Section("Playlists") {
+                ForEach(cratePlaylists) { playlist in
+                    ZStack(alignment: .leading) {
+                        NavigationLink(value: playlist) { EmptyView() }.opacity(0)
+                        NavigationRow(
+                            icon: playlist.kind == .folder ? "folder.fill" : "music.note.list",
+                            title: playlist.title,
+                            subtitle: playlist.kind == .folder ? "Folder playlist" : "Manual playlist")
+                    }
+                    .accessibilityElement(children: .combine)
+                    .contextMenu {
+                        Button {
+                            Task { await appState.setPlaylistInCrate(playlist, isInCrate: false) }
+                        } label: {
+                            Label("Remove from Crate", systemImage: "shippingbox")
+                        }
+                    }
+                }
+            }
+
+            if cratePlaylists.isEmpty {
+                ContentUnavailableView(
+                    "Your Crate is empty",
+                    systemImage: "shippingbox",
+                    description: Text("Add playlists here when you are preparing a DJ set."))
+                .listRowBackground(Color.clear)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .navigationTitle("Crate")
+        .foregroundStyle(Palette.ink)
+        .background(Palette.libraryBackground.ignoresSafeArea())
     }
 }
 

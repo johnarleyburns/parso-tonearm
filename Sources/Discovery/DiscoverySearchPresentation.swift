@@ -68,6 +68,8 @@ public enum DiscoverySearchScreenState: Equatable, Sendable {
     /// "More like this" whose reference track has no / a stale embedding —
     /// offers "Analyze this track" (plan §9).
     case analyzeReference(trackID: Int64)
+    /// The matching toggle is on, but the anchor has no BPM/key analysis.
+    case matchingReferenceUnavailable
     /// A real SQL / vector-cache error — a retryable failure, not "no matches".
     case searchFailed
     /// A superseded query's late response was received and discarded — the
@@ -140,6 +142,8 @@ public enum DiscoverySearchPresentation {
                 return .analyzeReference(trackID: referenceTrackID)
             }
             return .analyzeReference(trackID: -1)
+        case .matchingReferenceUnavailable:
+            return .matchingReferenceUnavailable
         case .searchFailed:
             return .searchFailed
         case .cancelled:

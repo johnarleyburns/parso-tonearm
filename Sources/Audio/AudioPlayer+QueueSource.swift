@@ -24,6 +24,8 @@ public protocol MoodQuerySource: AnyObject {
     /// batch of tracks from the SAME mood query, not a generic similarity
     /// fallback.
     func refreshedTracks() async -> [TrackRow]
+    /// Updates the live DJ-matching anchor as a mood queue advances.
+    func setMatchingAnchor(_ trackID: Int64?)
 }
 
 public enum QueueSource {

@@ -40,6 +40,9 @@ public final class AudioPlayer: ObservableObject {
     /// Settings can let the user tune it (CLAUDE.md "let them drill down for
     /// more info in settings").
     public var keepPlayingBatchSize = 15
+    /// When on, Keep Playing prefers tracks within the shared Camelot/BPM DJ
+    /// match gate before falling back to broader sound similarity.
+    public var keepPlayingMatchingTracksOnly = true
     /// The core track ids of every track Keep Playing has appended to the
     /// current queue (played or not) — what lets the queue UI mark them as
     /// "Extended by Keep Playing" instead of a track the user chose.

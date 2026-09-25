@@ -337,6 +337,8 @@ public struct Playlist: Identifiable, Equatable, Codable, Hashable, Sendable {
     public var sourceId: Int64?
     public var folderBookmark: Data?
     public var watch: Bool
+    /// Membership in the built-in DJ Crate grouping.
+    public var isInCrate: Bool = false
     public var syncID: String? = nil
 
     public init(id: Int64?,
@@ -345,6 +347,7 @@ public struct Playlist: Identifiable, Equatable, Codable, Hashable, Sendable {
                 sourceId: Int64? = nil,
                 folderBookmark: Data?,
                 watch: Bool,
+                isInCrate: Bool = false,
                 syncID: String? = nil) {
         self.id = id
         self.title = title
@@ -352,6 +355,7 @@ public struct Playlist: Identifiable, Equatable, Codable, Hashable, Sendable {
         self.sourceId = sourceId
         self.folderBookmark = folderBookmark
         self.watch = watch
+        self.isInCrate = isInCrate
         self.syncID = syncID
     }
 }
@@ -378,4 +382,3 @@ public struct Favorite: Identifiable, Equatable, Codable, Sendable {
     public var favoritedAt: Date
     public var syncID: String? = nil
 }
-

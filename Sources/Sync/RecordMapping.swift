@@ -210,6 +210,7 @@ public enum RecordMapping {
         record["title"] = playlist.title as CKRecordValue
         record["kind"] = playlist.kind.rawValue as CKRecordValue
         record["watch"] = (playlist.watch ? 1 : 0) as CKRecordValue
+        record["isInCrate"] = (playlist.isInCrate ? 1 : 0) as CKRecordValue
         // folderBookmark is device-specific — not synced.
         return record
     }
@@ -220,7 +221,9 @@ public enum RecordMapping {
               let kindRaw = record["kind"] as? String,
               let kind = PlaylistKind(rawValue: kindRaw) else { return nil }
         return Playlist(id: nil, title: title, kind: kind, folderBookmark: nil,
-                        watch: (record["watch"] as? Int ?? 0) != 0, syncID: syncID)
+                        watch: (record["watch"] as? Int ?? 0) != 0,
+                        isInCrate: (record["isInCrate"] as? Int ?? 0) != 0,
+                        syncID: syncID)
     }
 
     // MARK: - PlaylistItem

@@ -62,6 +62,29 @@ public enum PlaylistEditor {
         return renumber(ordered)
     }
 
+    /// Stable ascending BPM order for a DJ playlist. Tracks without analyzed
+    /// BPM are deliberately placed after known BPM values; ties retain the
+    /// playlist's existing order before positions are renumbered.
+    public static func sortedByBPM(
+        _ items: [PlaylistItem], bpmByTrackID: [Int64: Double]
+    ) -> [PlaylistItem] {
+        let ordered = normalized(items)
+        return renumber(ordered.enumerated().sorted { lhs, rhs in
+            let left = bpmByTrackID[lhs.element.trackId]
+            let right = bpmByTrackID[rhs.element.trackId]
+            switch (left, right) {
+            case let (a?, b?) where a != b:
+                return a < b
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            default:
+                return lhs.offset < rhs.offset
+            }
+        }.map(\.element))
+    }
+
     private static func renumber(_ items: [PlaylistItem]) -> [PlaylistItem] {
         items.enumerated().map { position, item in
             var updated = item

@@ -181,7 +181,10 @@ public struct SearchRepository: Sendable {
     /// Unknown required attributes are excluded (plan §9: "Hard musical
     /// filters exclude unknown required attributes"). Predicate-only — safe
     /// for a 20,000-row scope.
-    public func eligibleTrackIDs(for query: ValidatedQuery) throws -> Set<Int64> {
+    public func eligibleTrackIDs(
+        for query: ValidatedQuery,
+        musicalMatch: MusicalMatchReference? = nil
+    ) throws -> Set<Int64> {
         try reader.read { db in
             guard let scope = Self.scopeSQL(query) else { return [] }
             var sql = "SELECT t.id FROM track t"
@@ -189,8 +192,8 @@ public struct SearchRepository: Sendable {
             if let sourceIDs = query.sourceIDs { args.append(contentsOf: sourceIDs) }
             if let playlistID = query.playlistID { args.append(playlistID) }
 
-            if query.hasHardMusicalFilter {
-                let (clause, hardArgs) = Self.hardFilterClause(query)
+            if query.hasHardMusicalFilter || musicalMatch != nil {
+                let (clause, hardArgs) = Self.hardFilterClause(query, musicalMatch: musicalMatch)
                 sql += " JOIN discovery_track_analysis a ON a.trackId = t.id"
                 sql += " WHERE \(scope.whereClause) AND \(clause)"
                 args.append(contentsOf: hardArgs)
@@ -203,7 +206,8 @@ public struct SearchRepository: Sendable {
     }
 
     private static func hardFilterClause(
-        _ query: ValidatedQuery
+        _ query: ValidatedQuery,
+        musicalMatch: MusicalMatchReference? = nil
     ) -> (String, [any DatabaseValueConvertible]) {
         var clauses: [String] = []
         var args: [any DatabaseValueConvertible] = []
@@ -214,6 +218,18 @@ public struct SearchRepository: Sendable {
         }
         if let key = query.compatibleKey {
             let codes = Camelot.compatible(key).map(\.code).sorted()
+            let sp = codes.map { _ in "?" }.joined(separator: ",")
+            clauses.append("a.key IS NOT NULL AND a.key IN (\(sp))")
+            args.append(contentsOf: codes)
+        }
+        if let musicalMatch {
+            guard let range = MusicalMatchPolicy.bpmRange(for: musicalMatch.bpm) else {
+                return ("0", [])
+            }
+            clauses.append("a.bpm IS NOT NULL AND a.bpm BETWEEN ? AND ?")
+            args.append(range.lowerBound)
+            args.append(range.upperBound)
+            let codes = MusicalMatchPolicy.compatibleKeyCodes(for: musicalMatch.camelot).sorted()
             let sp = codes.map { _ in "?" }.joined(separator: ",")
             clauses.append("a.key IS NOT NULL AND a.key IN (\(sp))")
             args.append(contentsOf: codes)

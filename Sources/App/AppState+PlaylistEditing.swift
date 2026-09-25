@@ -15,6 +15,12 @@ extension AppState {
         await reload()
     }
 
+    func setPlaylistInCrate(_ playlist: Playlist, isInCrate: Bool) async {
+        guard let id = playlist.id else { return }
+        try? await store.setPlaylistInCrate(id: id, isInCrate: isInCrate)
+        await reload()
+    }
+
     func reorderPlaylist(_ playlist: Playlist, from source: Int, to destination: Int) async {
         guard let id = playlist.id else { return }
         try? await store.reorderPlaylist(id: id, from: source, to: destination)
@@ -23,6 +29,11 @@ extension AppState {
     func reorderPlaylist(_ playlist: Playlist, fromOffsets offsets: IndexSet, toOffset destination: Int) async {
         guard let id = playlist.id else { return }
         try? await store.reorderPlaylist(id: id, fromOffsets: offsets, toOffset: destination)
+    }
+
+    func sortPlaylistByBPM(_ playlist: Playlist) async {
+        guard let id = playlist.id else { return }
+        try? await store.sortPlaylistByBPM(id: id)
     }
 
     func removeFromPlaylist(_ playlist: Playlist, atOffsets offsets: IndexSet) async {

@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-// MARK: - Migrations v15-v21
+// MARK: - Migrations v15-v26
 
 extension Schema {
     static func registerV15toV21(_ migrator: inout DatabaseMigrator, upTo target: String?) {
@@ -245,6 +245,17 @@ extension Schema {
                 }
                 try db.create(
                     indexOn: "discovery_track_analysis", columns: ["syncID"], options: .unique)
+            }
+        }
+
+        if shouldRegister("v26", upTo: target) {
+            migrator.registerMigration("v26") { db in
+                // Crate is a virtual DJ grouping. Storing membership on the
+                // playlist keeps it on the existing synced Playlist record
+                // instead of introducing a second unsynced graph.
+                try db.alter(table: "playlist") { t in
+                    t.add(column: "isInCrate", .boolean).notNull().defaults(to: false)
+                }
             }
         }
     }
