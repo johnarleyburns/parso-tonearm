@@ -11,6 +11,9 @@ import TonearmCore
 
 @main
 struct TonearmApp: App {
+    /// Receives SiriKit media requests handed over by the TonearmSiriIntents
+    /// extension (`application(_:handlerFor:)`, Sources/App/Siri).
+    @UIApplicationDelegateAdaptor(TonearmAppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
     @StateObject private var player = AudioPlayer.shared
     @Environment(\.scenePhase) private var scenePhase

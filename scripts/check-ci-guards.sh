@@ -287,6 +287,31 @@ else
   echo "    OK (no search controller)"
 fi
 
+# ── CarPlay assistant cell gate ─────────────────────────────────────────────
+#
+# CPAssistantCellConfiguration(.playMedia) without an INPlayMediaIntent
+# Intents extension stopped CarPlay from opening at all (3e34979). It may only
+# appear alongside that extension, and only behind Siri authorization.
+echo "==> CarPlay assistant cell gate"
+cell_files=$(grep -rl --include='*.swift' 'CPAssistantCellConfiguration(' Sources || true)
+if [ -z "$cell_files" ]; then
+  echo "    OK (no assistant cell)"
+elif ! grep -q 'INPlayMediaIntentHandling' SiriIntentsExtension/IntentHandler.swift 2>/dev/null \
+     || ! grep -q 'INPlayMediaIntent' SiriIntentsExtension/Info.plist 2>/dev/null; then
+  echo "    CPAssistantCellConfiguration used without the SiriIntentsExtension INPlayMediaIntent handler:"
+  echo "$cell_files"
+  status=1
+else
+  cell_ok=1
+  for f in $cell_files; do
+    if ! grep -q 'siriAuthorizationStatus() == .authorized' "$f"; then
+      echo "    $f: assistant cell must be gated on INPreferences.siriAuthorizationStatus() == .authorized"
+      status=1; cell_ok=0
+    fi
+  done
+  [ "$cell_ok" = "1" ] && echo "    OK"
+fi
+
 if [ "$status" != "0" ]; then
   echo
   echo "one or more guards failed — this is what CI would have told you, sooner"

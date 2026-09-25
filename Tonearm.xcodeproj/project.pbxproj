@@ -35,6 +35,7 @@
 		157B1EFC5A4F53FA5A6E0781 /* SourceDetailView+Remote.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC7A21C58025194C07411493 /* SourceDetailView+Remote.swift */; };
 		15D68A714F1A586F779133FE /* AVPlayerOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9270E7191F0C56C47CA68AEF /* AVPlayerOutput.swift */; };
 		16EE30C7C328B4F0D6996243 /* GenrePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7685B36AC5D9148D7638574C /* GenrePickerView.swift */; };
+		188474691ABE001A453E8C8B /* SiriMediaHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DFACA84CBD5D7FDDE7C6E7 /* SiriMediaHandling.swift */; };
 		188DCF097324FEC2785EA01B /* EditTrackMetadataSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4C44A52C5014F51211EBE00 /* EditTrackMetadataSheet.swift */; };
 		18D1934C9CE07F897BAD4FCE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C114ED8EAE6B45F219A551DA /* SettingsView.swift */; };
 		196E29C39914A9C5C18EEFEA /* SourceDetailView+ManagementSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89AA0A45EA728BFDB5858390 /* SourceDetailView+ManagementSection.swift */; };
@@ -73,6 +74,7 @@
 		36A1EEF0A2E726359FC7378B /* PlatformCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68484E3221D5E02B0BA44AB4 /* PlatformCompat.swift */; };
 		37AD2CDC16246B372951BF1F /* AppState+BuiltInLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2C6BF87AD45CFB16CEA0E3 /* AppState+BuiltInLibrary.swift */; };
 		399FCA70804576F1845E8482 /* ambient-ocean.wav in Resources */ = {isa = PBXBuildFile; fileRef = 74D07216801F19A8231EE98A /* ambient-ocean.wav */; };
+		3AB21BA857562089CAB35821 /* Intents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BA955857DA3FB3CB68351691 /* Intents.framework */; };
 		3B69A3EEB3B798C7E772B384 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CEB1F70B1E36FCA6BCADAB6B /* Assets.xcassets */; };
 		3F45EBC68A11B97763AA09BA /* WatchSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A21E9BA83011557E190F76D /* WatchSmokeUITests.swift */; };
 		3FE1C9C665DAEAFA498FA7A0 /* CarPlayRootBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D79DAC21B19AAAB186936D5E /* CarPlayRootBuilder.swift */; };
@@ -86,6 +88,7 @@
 		464C5B08FAAF1036A497892B /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0974BD26C3A62104181966A /* WatchRootView.swift */; };
 		471860B6E4026ABBD21B2A33 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BD8625177C1F1696B158A63 /* Components.swift */; };
 		493D2A5834C417A802025D18 /* KeywordArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1348A12821BE0F3A575DD9AC /* KeywordArtwork.swift */; };
+		497875BCE7882AEA22A4F432 /* SiriSettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB385B4AB921E5BA4F27DB0 /* SiriSettingsCard.swift */; };
 		4A262164FCDD82C3501F78B1 /* AppState+Watch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 642414839821D38BCEA39933 /* AppState+Watch.swift */; };
 		4A74E01C056E4544258DDB9A /* RemoteNodeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807F6AF04290951989A6C983 /* RemoteNodeRow.swift */; };
 		4B9CBD27BCB2241D428B353C /* SourceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9894FCBA2B17EE64A57067E8 /* SourceDetailView.swift */; };
@@ -99,6 +102,7 @@
 		523F4C05A525DFAC3879CE73 /* blue.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 38B0D60DFE656F6E570617BB /* blue.jpg */; };
 		53622ED77DF628B5D0B06B29 /* SourceDetailView+Remote.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC7A21C58025194C07411493 /* SourceDetailView+Remote.swift */; };
 		5441C555034D686043CFEE90 /* WatchProtocolSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C1C58F472E8351D8A722A1B /* WatchProtocolSessionAdapter.swift */; };
+		546A481F625ED2B820C84BCD /* SiriSettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB385B4AB921E5BA4F27DB0 /* SiriSettingsCard.swift */; };
 		549A1230D744E47360C31C8A /* WatchConnectionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FA71918C2C0556DD804C456 /* WatchConnectionBanner.swift */; };
 		55344DAAB8AAC8239D613381 /* AirPlayButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C72A4A2127018D6E48638F2 /* AirPlayButton.swift */; };
 		56F4F1925361073B6B0A664E /* AmbientPlaylistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3726DD886D8478C23AEA8A73 /* AmbientPlaylistView.swift */; };
@@ -132,6 +136,7 @@
 		7155FE7BF0A91F242A4A2F25 /* PlaylistsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80C464F1FF08824183F765F /* PlaylistsView.swift */; };
 		71739C830652D67DF339A260 /* AppState+RemoteServers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE3D9BA840241DCED71A095 /* AppState+RemoteServers.swift */; };
 		71A33C0FABA810E5419CAB45 /* WatchPlaybackIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3569174AE673A3FFFB87F5E0 /* WatchPlaybackIntents.swift */; };
+		71BB05204B97DF9A5E0F6D3F /* IntentHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 855FD797FDB10845B0BA492E /* IntentHandler.swift */; };
 		735D16F65DF5E7AAFC9CD91A /* AppState+RemoteBrowse.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD82B6D2C3B08E82E7EB2068 /* AppState+RemoteBrowse.swift */; };
 		73A60974C697547F3923AD5C /* ToastBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00F6FDF943434896481BB2F /* ToastBanner.swift */; };
 		73BB22E45390F362F4B45F55 /* TonearmWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -179,6 +184,7 @@
 		9DD64F94C12A2374C136AF9F /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 292C3AA06CBE9E58AA7418FF /* ArtworkView.swift */; };
 		9E573BB60815F1EB9B85148D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50DA465263A2171C1396F13F /* RootView.swift */; };
 		9EC1A5D1F71874F5419FC2BE /* merges.txt in Resources */ = {isa = PBXBuildFile; fileRef = 3907EDDD5DF96CE5ABA29E5D /* merges.txt */; };
+		9F50FE5B13420A2961DA7D25 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5EDA31C3AD0CDB64A40CF2EC /* TonearmCore */; };
 		9FDE771587B35B56ED9750B8 /* SupportDevelopmentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */; };
 		A196CB4D0462628843CAA4C4 /* AppState+BuiltInMoodIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4C2C74CE7D4768E86F3D57 /* AppState+BuiltInMoodIndex.swift */; };
 		A3A398BAB76A6339273F0E3D /* ParsoAudioStreaming in Frameworks */ = {isa = PBXBuildFile; productRef = 3B6FB098C448BE93A4F034FE /* ParsoAudioStreaming */; };
@@ -250,6 +256,7 @@
 		DE2BEC06DBD57AB6777880B0 /* splash_screen.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 390F5E4BCDCBB5C6D4A3A98D /* splash_screen.jpg */; };
 		E1A24216237BD50119B2C416 /* OAuthClientConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD37144613B3E4468ED3D2 /* OAuthClientConfiguration.swift */; };
 		E2363E8E141CBC87334B04C6 /* ArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE86C3C1F56FA212DBB6D8F0 /* ArtworkStore.swift */; };
+		E2B3017605DD59328B8AE966 /* TonearmSiriIntents.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 86748D3F12BE3CE19A0D9AF8 /* TonearmSiriIntents.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E3766D6C936E12775A06FEAA /* UpNextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42E2045814F52BC75F1609F /* UpNextView.swift */; };
 		E731CB7281E09C9EA9F36B05 /* MacPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 382B26367E44F07F80D9F2EB /* MacPreferencesView.swift */; };
 		E7D8EA806A23E80EA7653ACB /* ambient-ocean.wav in Resources */ = {isa = PBXBuildFile; fileRef = 74D07216801F19A8231EE98A /* ambient-ocean.wav */; };
@@ -287,6 +294,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		0F4F98F7A4F7B6C4E269EAFE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2657207D642EAA297D8BD2CE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4FF752415B2FE715CD6A6EE2;
+			remoteInfo = TonearmSiriIntents;
+		};
 		61F9A33AE0E075259C9C372D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 2657207D642EAA297D8BD2CE /* Project object */;
@@ -340,6 +354,7 @@
 			files = (
 				AD8AF503F7EE66FABFD99B86 /* TonearmShareExtension.appex in Embed Foundation Extensions */,
 				73BB22E45390F362F4B45F55 /* TonearmWidgetsExtension.appex in Embed Foundation Extensions */,
+				E2B3017605DD59328B8AE966 /* TonearmSiriIntents.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -401,6 +416,7 @@
 		3907EDDD5DF96CE5ABA29E5D /* merges.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = merges.txt; sourceTree = "<group>"; };
 		390F5E4BCDCBB5C6D4A3A98D /* splash_screen.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = splash_screen.jpg; sourceTree = "<group>"; };
 		39DCFD0118F0838F83219F22 /* mel_filterbank_slaney_64.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = mel_filterbank_slaney_64.bin; sourceTree = "<group>"; };
+		3AB385B4AB921E5BA4F27DB0 /* SiriSettingsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriSettingsCard.swift; sourceTree = "<group>"; };
 		3B148C78FDABC2A552953E74 /* LoopingVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopingVideoView.swift; sourceTree = "<group>"; };
 		3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		3CD29E464171B12804066A29 /* dream.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = dream.jpg; sourceTree = "<group>"; };
@@ -423,6 +439,7 @@
 		5D0D0E117897F3AD1FBCF091 /* WatchRemotePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRemotePlayer.swift; sourceTree = "<group>"; };
 		5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TonearmShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5D81A7D18FEF6469F1F597F0 /* MacRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacRootView.swift; sourceTree = "<group>"; };
+		633F69D4A9E570BB225A99B0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		642414839821D38BCEA39933 /* AppState+Watch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+Watch.swift"; sourceTree = "<group>"; };
 		645D617838A06D3AE39AD11B /* WatchDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchDiagnosticsView.swift; sourceTree = "<group>"; };
 		68484E3221D5E02B0BA44AB4 /* PlatformCompat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformCompat.swift; sourceTree = "<group>"; };
@@ -434,6 +451,7 @@
 		6DDE8091034A33A4333D7605 /* builtin-mood-index.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "builtin-mood-index.json"; sourceTree = "<group>"; };
 		6E3EECAA4F3F90C416B78A37 /* WatchLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLibraryModel.swift; sourceTree = "<group>"; };
 		706DA4B73090EF9C76A51174 /* TonearmApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonearmApp.swift; sourceTree = "<group>"; };
+		70DFACA84CBD5D7FDDE7C6E7 /* SiriMediaHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriMediaHandling.swift; sourceTree = "<group>"; };
 		732D19D5B0A59029A785C86A /* TonearmWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TonearmWidgets.entitlements; sourceTree = "<group>"; };
 		738E22304AC5FEF3B6449D27 /* PlaylistRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistRegressionUITests.swift; sourceTree = "<group>"; };
 		73C123D981D52AC1C9DE3751 /* WatchNowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchNowPlayingView.swift; sourceTree = "<group>"; };
@@ -454,7 +472,9 @@
 		80B6D0A4B5EC7E9F6FD662D7 /* AppState+Downloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+Downloads.swift"; sourceTree = "<group>"; };
 		8386CD93C2E826E9FE11D810 /* NowPlayingRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingRegressionUITests.swift; sourceTree = "<group>"; };
 		84C11BF720CD17E6BA34B3AA /* MacNowPlayingMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacNowPlayingMenuView.swift; sourceTree = "<group>"; };
+		855FD797FDB10845B0BA492E /* IntentHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentHandler.swift; sourceTree = "<group>"; };
 		85DFF868930E6AB3F8FFFF11 /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
+		86748D3F12BE3CE19A0D9AF8 /* TonearmSiriIntents.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TonearmSiriIntents.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		88A33FCC489E05C9B60F3ACC /* night.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = night.jpg; sourceTree = "<group>"; };
 		89AA0A45EA728BFDB5858390 /* SourceDetailView+ManagementSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SourceDetailView+ManagementSection.swift"; sourceTree = "<group>"; };
 		8B48E8BCEBBB60820A867070 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
@@ -489,6 +509,7 @@
 		B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JamendoCredentialView.swift; sourceTree = "<group>"; };
 		B97FF4E2C42647407E4F4E0F /* ListenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenView.swift; sourceTree = "<group>"; };
 		BA10A0A38CCAEB7B37B8B008 /* ambient-ocean.mp4 */ = {isa = PBXFileReference; path = "ambient-ocean.mp4"; sourceTree = "<group>"; };
+		BA955857DA3FB3CB68351691 /* Intents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Intents.framework; path = System/Library/Frameworks/Intents.framework; sourceTree = SDKROOT; };
 		BB454D89725B61725520B04A /* NowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingView.swift; sourceTree = "<group>"; };
 		BB60DAA0FCFB67B98B012E86 /* WatchFixtureSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchFixtureSeeder.swift; sourceTree = "<group>"; };
 		BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotPublisher.swift; sourceTree = "<group>"; };
@@ -584,6 +605,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		ED87F97032BB491EEE372D93 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9F50FE5B13420A2961DA7D25 /* TonearmCore in Frameworks */,
+				3AB21BA857562089CAB35821 /* Intents.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -639,6 +669,7 @@
 				CDA5510BE764F39731C1901D /* Tonearm.app */,
 				C71E407E96ECBD998E13852F /* TonearmMac.app */,
 				5D353405F870FCB64FD00422 /* TonearmShareExtension.appex */,
+				86748D3F12BE3CE19A0D9AF8 /* TonearmSiriIntents.appex */,
 				A89542BA6FB2BE8E1579D735 /* TonearmUIRegressionTests.xctest */,
 				59CB1F5051BC2E45CAFEFCB5 /* TonearmUITests.xctest */,
 				8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */,
@@ -646,6 +677,14 @@
 				0FFCDEBB114755DD71B0E074 /* WatchUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		1A2234C03041796855CB9A1F /* Siri */ = {
+			isa = PBXGroup;
+			children = (
+				70DFACA84CBD5D7FDDE7C6E7 /* SiriMediaHandling.swift */,
+			);
+			path = Siri;
 			sourceTree = "<group>";
 		};
 		1C55B42B2B346D16718E95E8 /* CarPlay */ = {
@@ -781,6 +820,15 @@
 			path = MyMusic;
 			sourceTree = "<group>";
 		};
+		69D4B7FF274DCFB929ADF5EF /* SiriIntentsExtension */ = {
+			isa = PBXGroup;
+			children = (
+				633F69D4A9E570BB225A99B0 /* Info.plist */,
+				855FD797FDB10845B0BA492E /* IntentHandler.swift */,
+			);
+			path = SiriIntentsExtension;
+			sourceTree = "<group>";
+		};
 		6C188CA38BDF5ACBFC5EFBF5 /* UITests */ = {
 			isa = PBXGroup;
 			children = (
@@ -853,6 +901,7 @@
 			isa = PBXGroup;
 			children = (
 				1C55B42B2B346D16718E95E8 /* CarPlay */,
+				1A2234C03041796855CB9A1F /* Siri */,
 				D5D719C516744B6A8F1A002C /* Watch */,
 				3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */,
 				BF2C6BF87AD45CFB16CEA0E3 /* AppState+BuiltInLibrary.swift */,
@@ -969,6 +1018,14 @@
 			path = ArtworkKeywords;
 			sourceTree = "<group>";
 		};
+		B88ABD3ED47D559E824E826B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				BA955857DA3FB3CB68351691 /* Intents.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		BB0939C124BAA2B61B94386A /* Media */ = {
 			isa = PBXGroup;
 			children = (
@@ -1029,12 +1086,14 @@
 				264AB505F29364FB7B0B6672 /* Packages */,
 				84A5835CD1D34ED39549B235 /* Resources */,
 				9F2907457C1E2173870ADF57 /* ShareExtension */,
+				69D4B7FF274DCFB929ADF5EF /* SiriIntentsExtension */,
 				11B60F667CF5D1321E6931A3 /* Sources */,
 				4F40D3F081E378CA589B6C79 /* UIRegressionTests */,
 				6C188CA38BDF5ACBFC5EFBF5 /* UITests */,
 				0A758F8A0D5E9029B3F7BFC3 /* WatchApp */,
 				A8CC20B716BD06760275EDF0 /* WatchUITests */,
 				91690C89622E5142A62FE70F /* WidgetsExtension */,
+				B88ABD3ED47D559E824E826B /* Frameworks */,
 				17A3C7131FA4A509010DE475 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -1045,6 +1104,7 @@
 				6AB44399EDF479626BC62A6F /* EQView.swift */,
 				B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */,
 				C114ED8EAE6B45F219A551DA /* SettingsView.swift */,
+				3AB385B4AB921E5BA4F27DB0 /* SiriSettingsCard.swift */,
 				3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */,
 				E666B8D84233392E2587377A /* ToolsView.swift */,
 				4DA9DA16335431A3B294A331 /* WatchDownloadDetailViews.swift */,
@@ -1114,6 +1174,25 @@
 			productReference = C71E407E96ECBD998E13852F /* TonearmMac.app */;
 			productType = "com.apple.product-type.application";
 		};
+		4FF752415B2FE715CD6A6EE2 /* TonearmSiriIntents */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6D8211145287CDFCE3ABC1AA /* Build configuration list for PBXNativeTarget "TonearmSiriIntents" */;
+			buildPhases = (
+				9046645B5668CB7BD9F68D06 /* Sources */,
+				ED87F97032BB491EEE372D93 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TonearmSiriIntents;
+			packageProductDependencies = (
+				5EDA31C3AD0CDB64A40CF2EC /* TonearmCore */,
+			);
+			productName = TonearmSiriIntents;
+			productReference = 86748D3F12BE3CE19A0D9AF8 /* TonearmSiriIntents.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		541B2581DFBC0293A58EEE08 /* WatchUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 2AF329E0032EBA72685B10A9 /* Build configuration list for PBXNativeTarget "WatchUITests" */;
@@ -1165,6 +1244,7 @@
 			dependencies = (
 				2DBF718735591301675A5C8A /* PBXTargetDependency */,
 				FB9695396F51D883627E9D2F /* PBXTargetDependency */,
+				2D76D038A78D84DE3C86781F /* PBXTargetDependency */,
 				6D722A483E33EC32D641CD1E /* PBXTargetDependency */,
 			);
 			name = Tonearm;
@@ -1268,6 +1348,9 @@
 					0BFA42233B382B4D33D25D6F = {
 						DevelopmentTeam = 3264Y8YUGV;
 					};
+					4FF752415B2FE715CD6A6EE2 = {
+						DevelopmentTeam = 3264Y8YUGV;
+					};
 					541B2581DFBC0293A58EEE08 = {
 						DevelopmentTeam = 3264Y8YUGV;
 						TestTargetID = CD1737525AA7AB55ACD89AF0;
@@ -1320,6 +1403,7 @@
 				68F0460D59215C176FF8B8A3 /* Tonearm */,
 				C40A8C12F54ED33C850C40B6 /* TonearmShareExtension */,
 				B5F60FC34FB7BCEF9231709E /* TonearmWidgetsExtension */,
+				4FF752415B2FE715CD6A6EE2 /* TonearmSiriIntents */,
 				65C5BA178A6D1265B091D80E /* TonearmUITests */,
 				96DC51EBD7436848C7437352 /* TonearmUIRegressionTests */,
 				CD1737525AA7AB55ACD89AF0 /* TonearmWatch */,
@@ -1488,6 +1572,8 @@
 				4A74E01C056E4544258DDB9A /* RemoteNodeRow.swift in Sources */,
 				9E573BB60815F1EB9B85148D /* RootView.swift in Sources */,
 				EA61DA978312F3700904DED7 /* SettingsView.swift in Sources */,
+				188474691ABE001A453E8C8B /* SiriMediaHandling.swift in Sources */,
+				546A481F625ED2B820C84BCD /* SiriSettingsCard.swift in Sources */,
 				146E33BC89812886E6BA29EF /* SourceDetailView+ManagementSection.swift in Sources */,
 				53622ED77DF628B5D0B06B29 /* SourceDetailView+Remote.swift in Sources */,
 				B72DE992BD62735CB370A71F /* SourceDetailView.swift in Sources */,
@@ -1630,6 +1716,7 @@
 				B3B1A16BF929948569C32880 /* RemoteNodeRow.swift in Sources */,
 				6C6773658C0B2E87D9472EA9 /* RootView.swift in Sources */,
 				18D1934C9CE07F897BAD4FCE /* SettingsView.swift in Sources */,
+				497875BCE7882AEA22A4F432 /* SiriSettingsCard.swift in Sources */,
 				196E29C39914A9C5C18EEFEA /* SourceDetailView+ManagementSection.swift in Sources */,
 				157B1EFC5A4F53FA5A6E0781 /* SourceDetailView+Remote.swift in Sources */,
 				4B9CBD27BCB2241D428B353C /* SourceDetailView.swift in Sources */,
@@ -1671,9 +1758,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9046645B5668CB7BD9F68D06 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				71BB05204B97DF9A5E0F6D3F /* IntentHandler.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		2D76D038A78D84DE3C86781F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4FF752415B2FE715CD6A6EE2 /* TonearmSiriIntents */;
+			targetProxy = 0F4F98F7A4F7B6C4E269EAFE /* PBXContainerItemProxy */;
+		};
 		2DBF718735591301675A5C8A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = C40A8C12F54ED33C850C40B6 /* TonearmShareExtension */;
@@ -1802,6 +1902,28 @@
 				WATCHOS_DEPLOYMENT_TARGET = 11.0;
 			};
 			name = Debug;
+		};
+		621A7916D87589EA5DC65F92 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = 3264Y8YUGV;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SiriIntentsExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.siri;
+				PROVISIONING_PROFILE_SPECIFIER = "Platterhead Siri Extension Profile";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
 		};
 		67D5EAB64FA67C443B073469 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -1993,6 +2115,26 @@
 				TONEARM_PCLOUD_CLIENT_SECRET = "";
 			};
 			name = Release;
+		};
+		9AE285B623BD549FEC67D78F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3264Y8YUGV;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SiriIntentsExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = guru.parso.tonearm.siri;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
 		};
 		9CE67CC13675AD6B5D8414A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -2210,6 +2352,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		6D8211145287CDFCE3ABC1AA /* Build configuration list for PBXNativeTarget "TonearmSiriIntents" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9AE285B623BD549FEC67D78F /* Debug */,
+				621A7916D87589EA5DC65F92 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		7455A9BD93AED2D5F57D38A4 /* Build configuration list for PBXNativeTarget "TonearmWatch" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -2298,6 +2449,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 808CB116E89F47855E4D8164 /* XCRemoteSwiftPackageReference "parso-audio-engine" */;
 			productName = ParsoAudioStreaming;
+		};
+		5EDA31C3AD0CDB64A40CF2EC /* TonearmCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TonearmCore;
 		};
 		65EC4F101281094B1EB48E18 /* TonearmCore */ = {
 			isa = XCSwiftPackageProductDependency;

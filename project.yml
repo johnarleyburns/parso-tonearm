@@ -120,6 +120,10 @@ targets:
         embed: true
       - target: TonearmWidgetsExtension
         embed: true
+      # SiriKit INPlayMediaIntent (docs/plans/carplay-search-ios27-handoff.md
+      # T4). Needs its own App ID + "Platterhead Siri Extension Profile".
+      - target: TonearmSiriIntents
+        embed: true
       - target: TonearmWatch
         embed: true
     info:
@@ -166,6 +170,7 @@ targets:
               NSIncludesSubdomains: true
               NSExceptionAllowsInsecureHTTPLoads: false
         ITSAppUsesNonExemptEncryption: false
+        NSSiriUsageDescription: "Siri can play songs, artists and playlists from your Platterhead library when you ask, including in CarPlay. Platterhead itself collects and sends nothing."
         TonearmOAuthClientIDs:
           dropbox: "$(TONEARM_DROPBOX_CLIENT_ID)"
           googleDrive: "$(TONEARM_GOOGLE_DRIVE_CLIENT_ID)"
@@ -268,6 +273,50 @@ targets:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "Platterhead Widgets Profile"
+
+  # SiriKit media requests ("Play Hotel California on Platterhead") and the
+  # CarPlay "Ask Siri" assistant cell, which Apple requires an
+  # INPlayMediaIntent Intents extension for (3e34979). Thin: it can't see the
+  # library, so it answers .handleInApp and the app resolves the request
+  # (Sources/App/Siri, SiriMediaRequest in TonearmCore).
+  TonearmSiriIntents:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SiriIntentsExtension
+    dependencies:
+      - package: TonearmCore
+      - sdk: Intents.framework
+    info:
+      path: SiriIntentsExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Platterhead Siri
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.intents-service
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).IntentHandler"
+          NSExtensionAttributes:
+            IntentsRestrictedWhileLocked: []
+            IntentsSupported:
+              - INPlayMediaIntent
+            SupportedMediaCategories:
+              - INMediaCategoryMusic
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: guru.parso.tonearm.siri
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: "3264Y8YUGV"
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        GENERATE_INFOPLIST_FILE: "NO"
+        SKIP_INSTALL: "YES"
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "Platterhead Siri Extension Profile"
 
   TonearmUITests:
     type: bundle.ui-testing
@@ -399,6 +448,8 @@ targets:
           - "App/Watch/**"
           # No widget extension ships on Mac (native-mac-app-plan.md §1).
           - "App/SystemPlaybackBridge.swift"
+          # SiriKit media handoff is iOS-only (TonearmSiriIntents extension).
+          - "App/Siri/**"
       - path: Resources
         excludes:
           - "Models/**"

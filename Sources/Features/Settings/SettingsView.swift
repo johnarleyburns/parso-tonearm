@@ -68,6 +68,11 @@ struct SettingsView: View {
                     sectionHeader("Playback")
                     behaviorCard
                     keepPlayingCard
+                    #if os(iOS)
+                    if macPane == nil {
+                        SiriSettingsCard()
+                    }
+                    #endif
                 }
 
                 if macPane == nil || macPane == .library {

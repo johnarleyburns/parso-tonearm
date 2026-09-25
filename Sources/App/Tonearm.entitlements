@@ -22,5 +22,7 @@
 	<string>Production</string>
 	<key>com.apple.developer.carplay-audio</key>
 	<true/>
+	<key>com.apple.developer.siri</key>
+	<true/>
 </dict>
 </plist>

@@ -1,5 +1,6 @@
 #if !targetEnvironment(macCatalyst)
 import CarPlay
+import Intents
 import TonearmCore
 
 /// Builds the CarPlay template hierarchy: a tab bar mirroring the phone
@@ -48,13 +49,14 @@ enum CarPlayRootBuilder {
     /// take on.
     fileprivate static let maxItemsPerList = 300
 
-    // REMOVED: CPAssistantCellConfiguration(assistantAction: .playMedia).
-    // Real report: CarPlay stopped opening at all after this shipped — no
-    // crash log, a silent scene-setup failure. Apple's
-    // CPAssistantCellConfiguration docs: the app must include an Intents
-    // Extension that handles INPlayMediaIntent; the modern `AppIntents` used
-    // by TonearmPlaySongIntent is not a substitute. Do not re-add it without
-    // that extension and Siri authorization.
+    // CPAssistantCellConfiguration history: added in 3457a7a, removed in
+    // 3e34979 because CarPlay stopped opening at all (no crash log, a silent
+    // scene-setup failure). Apple's CPAssistantCellConfiguration docs require
+    // an Intents Extension that handles INPlayMediaIntent; the modern
+    // `AppIntents` used by TonearmPlaySongIntent are not a substitute. It is
+    // back only because that extension now exists (SiriIntentsExtension/),
+    // and only while Siri is authorized for the app (`assistantCell`
+    // below). scripts/check-ci-guards.sh pins both conditions.
     //
     // Correction to the original note here: a one-sentence "Hey Siri, play
     // Hotel California in Platterhead" does NOT work with the App Intents
@@ -84,7 +86,21 @@ enum CarPlayRootBuilder {
         // again if a future change (more tabs added, a stricter OS) pushes
         // past whatever the real limit turns out to be on a given device.
         let capped = Array(tabs.prefix(CPTabBarTemplate.maximumTabCount))
+        if let cell = assistantCell() {
+            for tab in capped {
+                tab.assistantCellConfiguration = cell
+            }
+        }
         return CPTabBarTemplate(templates: capped)
+    }
+
+    /// The CarPlay "Ask Siri" row: only when the TonearmSiriIntents extension
+    /// can actually receive the request, i.e. Siri is authorized for the app.
+    /// Unauthorized (including every build without the Siri entitlement),
+    /// the tabs render exactly as they did after 3e34979.
+    private static func assistantCell() -> CPAssistantCellConfiguration? {
+        guard INPreferences.siriAuthorizationStatus() == .authorized else { return nil }
+        return CPAssistantCellConfiguration(position: .top, visibility: .always, assistantAction: .playMedia)
     }
 
     // MARK: - Playlists

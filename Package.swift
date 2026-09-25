@@ -48,6 +48,7 @@ let package = Package(
                 "Resources/Models",
                 "Resources/CLAP",
                 "ShareExtension",
+                "SiriIntentsExtension",
                 "Sources/App",
                 "Sources/CSQLiteVec",
                 "Sources/DesignSystem",

@@ -4,7 +4,7 @@
 - T1 + T2: `feat(carplay): library search back on iOS 27+, as a row in the Library tab`
 - T3: `fix(intents): playback intents adopt AudioPlaybackIntent; correct the Siri flow comments`
 
-T4 is a separate patch, `feat(siri)…`. It must not be merged until the portal steps in T4 are done.
+T4 is a separate **draft** patch on top: `feat(siri): INPlayMediaIntent extension + gated CarPlay Ask Siri cell (DRAFT…)`. Do not merge it until the T4 portal steps are done and the `SIRI_EXTENSION_PROVISIONING_PROFILE_BASE64` secret is added. Until then, the TestFlight job skips with a "missing secrets" notice.
 
 This was written without a macOS toolchain. `Sources/App` is outside `TonearmCore`, and PR CI runs `swift test` only, so run `make project` and build the `Tonearm` scheme in Xcode before merging. The real-car checklist under "Definition of done" is still open. The sections below are the original plan, kept as the rationale.
 

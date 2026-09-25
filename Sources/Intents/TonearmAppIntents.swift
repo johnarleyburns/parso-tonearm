@@ -257,6 +257,34 @@ public enum TonearmIntentRunner {
         try await run(command, playlists: nil)
     }
 
+    /// A SiriKit media request handed over by the `TonearmSiriIntents`
+    /// extension (`.handleInApp`). Tries `request.attempts` in order through
+    /// the same resolvers the App Intents use; a no-match moves on to the
+    /// next attempt, anything else (ambiguous, empty playlist) stops and
+    /// reports.
+    public static func playSiriRequest(_ request: SiriMediaRequest) async throws {
+        var lastError: TonearmIntentError?
+        for attempt in request.attempts {
+            do {
+                switch attempt {
+                case .resume:
+                    try await run(.resume)
+                case .song(let title, let artist):
+                    _ = try await playSong(title: title, artist: artist)
+                case .artist(let name):
+                    try await playArtist(named: name)
+                case .playlist(let name):
+                    try await playPlaylist(named: name)
+                }
+                return
+            } catch let error as TonearmIntentError where error.isNoMatch {
+                lastError = error
+                continue
+            }
+        }
+        throw lastError ?? TonearmIntentError("Nothing in Platterhead matched \"\(request.displayTitle)\".")
+    }
+
     private static func run(_ command: IntentResolver.Command, playlists: [Playlist]?) async throws {
         switch command {
         case .playPlaylist(let id, let title):
@@ -298,6 +326,10 @@ public enum TonearmIntentRunner {
 
 public struct TonearmIntentError: LocalizedError {
     public var errorDescription: String?
+    /// The library had nothing matching (or nothing at all of that kind), as
+    /// opposed to an ambiguous or otherwise unusable match. Lets a SiriKit
+    /// request fall through to its next interpretation.
+    public private(set) var isNoMatch = false
 
     public init(_ message: String) {
         errorDescription = message
@@ -305,6 +337,12 @@ public struct TonearmIntentError: LocalizedError {
 
     public init(_ failure: IntentResolver.Failure) {
         errorDescription = failure.message
+        switch failure {
+        case .noMatch, .emptyLibrary:
+            isNoMatch = true
+        default:
+            isNoMatch = false
+        }
     }
 }
 
