@@ -745,9 +745,6 @@ private struct DJWaveform: View {
                                        hotCues: deck.hotCues,
                                        isPlaying: deck.isPlaying,
                                        accent: deck.id == .a ? Palette.brass : Color.blue)
-                        .contentShape(Rectangle())
-                        .gesture(touchGesture(width: waveformProxy.size.width))
-                        .simultaneousGesture(pinchGesture)
                         Rectangle()
                             .fill(deck.id == .a ? Palette.brass : Color.blue)
                             .frame(width: 1.5,
@@ -771,9 +768,16 @@ private struct DJWaveform: View {
                             .padding(.horizontal, 9)
                             .padding(.bottom, 7)
                         }
+                        // The transport readout is visual chrome, not a
+                        // separate control. Let taps anywhere on it reach the
+                        // waveform gesture below.
+                        .allowsHitTesting(false)
                     }
                     .background(Color.white.opacity(0.035))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .contentShape(Rectangle())
+                    .gesture(touchGesture(width: waveformProxy.size.width))
+                    .simultaneousGesture(pinchGesture)
                 }
             }
         }
@@ -844,7 +848,10 @@ private struct DJWaveform: View {
     }
 
     private func touchGesture(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+        let tapSlop: CGFloat = 12
+        let scratchSlop: CGFloat = 8
+
+        return DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if !didDrag {
                     didDrag = true
@@ -859,17 +866,24 @@ private struct DJWaveform: View {
                 let delta = value.translation.width - lastX
                 let speed = abs(delta) / interval
                 let horizontal = abs(value.translation.width) > abs(value.translation.height)
+                let horizontalDistance = abs(value.translation.width)
                 lastX = value.translation.width
                 lastSampleDate = now
 
                 if deck.isPlaying {
                     if touchMode == .pending,
                        horizontal,
-                       abs(value.translation.width) >= 12,
+                       horizontalDistance >= tapSlop,
                        speed > 900,
                        elapsed < 0.28 {
                         touchMode = .nudge
-                    } else if touchMode == .pending, elapsed >= 0.22 {
+                    } else if touchMode == .pending,
+                              horizontal,
+                              horizontalDistance >= scratchSlop,
+                              elapsed >= 0.22 {
+                        // A stationary press is still a play/pause tap. Only
+                        // enter scratch after the held touch actually moves;
+                        // otherwise normal, slightly slow taps get swallowed.
                         touchMode = .scratch
                         scratchActive = true
                         model.beginScratch(deck.id)
@@ -896,9 +910,9 @@ private struct DJWaveform: View {
                     model.endScratch(deck.id)
                     scratchActive = false
                 }
-                if distance < 12 && elapsed < 0.22 {
+                if distance < tapSlop && touchMode == .pending {
                     if deck.row == nil { onLoad() } else { model.toggle(deck.id) }
-                } else if horizontal && distance >= 12 {
+                } else if horizontal && distance >= tapSlop {
                     if touchMode == .nudge {
                         model.nudge(deck.id, direction: value.translation.width > 0 ? 1 : -1)
                     } else if touchMode == .move {
