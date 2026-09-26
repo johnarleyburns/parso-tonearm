@@ -45,7 +45,10 @@ xcodebuild build -project Tonearm.xcodeproj -scheme TonearmWatch \
 Before changing the catalog, run `bash scripts/verify-watch-icon-catalog.sh`.
 It invokes the real watchOS `actool` compiler and fails if the icon set is
 missing, malformed, references a missing PNG, or has no applicable watchOS
-content. `make ci-guards` and CI run this check automatically. If the error
+content. `swift test` also runs `WatchAppIconCatalogTests`, which checks the
+catalog contents and invokes watchOS `actool`; therefore a catalog regression
+fails the normal commit test with the repair instructions in the failure text.
+`make ci-guards` and CI run the standalone compiler check automatically. If the error
 appears again, first inspect the logged `actool` command: if it says
 `--platform iphonesimulator` while compiling `WatchApp/Assets.xcassets`, fix
 the build invocation to use a destination; only if it says `--platform
