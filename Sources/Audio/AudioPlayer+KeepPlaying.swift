@@ -132,6 +132,17 @@ extension AudioPlayer {
             return
         }
 
+        if case .continuation(let source) = queueSource {
+            let rows = await source.nextTracks(excluding: excluded, limit: keepPlayingBatchSize)
+            guard !Task.isCancelled else { return }
+            if !rows.isEmpty {
+                finishKeepPlayingExtension(with: rows, isFallback: false, reason: nil)
+            } else {
+                await extendWithFallback(reason: .unavailable, excluding: excluded)
+            }
+            return
+        }
+
         guard let provider = keepPlayingProvider else {
             await extendWithFallback(reason: .unavailable, excluding: excluded)
             return
@@ -224,7 +235,7 @@ extension AudioPlayer {
         case .playlist(let playlist):
             guard let playlistId = playlist.id else { return (try? await LibraryStore.shared.allTrackRows()) ?? [] }
             return (try? await LibraryStore.shared.playlistItems(playlistId: playlistId)) ?? []
-        case .library, .none, .mood:
+        case .library, .none, .mood, .continuation:
             // A mood queue's own extension is handled entirely above
             // (re-running the mood query) — this generic fallback pool is
             // only reached if that already failed, so the honest fallback

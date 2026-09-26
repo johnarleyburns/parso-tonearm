@@ -139,6 +139,22 @@ final class KeepPlayingTests: XCTestCase {
         }
     }
 
+    @MainActor
+    private final class FixedContinuation: QueueContinuationSource {
+        let rows: [TrackRow]
+        private(set) var callCount = 0
+
+        init(rows: [TrackRow]) { self.rows = rows }
+
+        func nextTracks(excluding: Set<Int64>, limit: Int) async -> [TrackRow] {
+            callCount += 1
+            return Array(rows.filter { row in
+                guard let id = row.track.id else { return false }
+                return !excluding.contains(id)
+            }.prefix(limit))
+        }
+    }
+
     /// `play(tracks:startAt:)` itself can trigger `maybeExtendKeepPlayingQueue`
     /// synchronously (fire-and-forget `Task`) when it lands on the last/
     /// second-to-last track — disabling Keep Playing for the call keeps that
@@ -218,6 +234,25 @@ final class KeepPlayingTests: XCTestCase {
 
         XCTAssertTrue(player.keepPlayingLastExtensionWasFallback)
         XCTAssertEqual(player.keepPlayingFallbackReason, .unavailable)
+    }
+
+    /// Remote browse queues have no persisted source id to use as a fallback.
+    /// Their explicit continuation must be preferred so a one-track Jamendo
+    /// play-now action becomes a real queue instead of ending in dead air.
+    func testQueueContinuationAppendsRemoteTracksWithoutFallback() async {
+        let player = AudioPlayer.shared
+        let continuation = FixedContinuation(rows: [makeTrack(2), makeTrack(3)])
+
+        player.keepPlayingEnabled = false
+        player.play(tracks: [makeTrack(1)], startAt: 0,
+                    source: .continuation(continuation))
+        player.keepPlayingEnabled = true
+        await player.extendKeepPlayingQueueForTesting()
+
+        XCTAssertEqual(player.queue.map(\.id), [1, 2, 3])
+        XCTAssertEqual(continuation.callCount, 1)
+        XCTAssertFalse(player.keepPlayingLastExtensionWasFallback)
+        XCTAssertNil(player.keepPlayingFallbackReason)
     }
 
     /// An empty `.ready([])` result (provider found literally nothing) must

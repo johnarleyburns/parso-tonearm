@@ -28,6 +28,14 @@ public protocol MoodQuerySource: AnyObject {
     func setMatchingAnchor(_ trackID: Int64?)
 }
 
+/// A queue source that can supply the next batch on demand. Remote browse
+/// screens use this for ad-hoc queues whose selected track is not persisted in
+/// the library yet (Jamendo is the first one).
+@MainActor
+public protocol QueueContinuationSource: AnyObject {
+    func nextTracks(excluding: Set<Int64>, limit: Int) async -> [TrackRow]
+}
+
 public enum QueueSource {
     case source(Source)
     case playlist(Playlist)
@@ -38,6 +46,7 @@ public enum QueueSource {
     /// is running the query so "Include in current mood" and queue
     /// extension can both reach it from anywhere in the app.
     case mood(any MoodQuerySource)
+    case continuation(any QueueContinuationSource)
     case none
 
     public var label: String {
@@ -47,6 +56,7 @@ public enum QueueSource {
         case .library: return "From Music"
         case .ambient: return "Ambient"
         case .mood: return "A Mood"
+        case .continuation: return "Jamendo"
         case .none: return ""
         }
     }
@@ -60,6 +70,7 @@ extension QueueSource: Equatable {
         case (.library, .library): return true
         case (.ambient, .ambient): return true
         case (.mood(let a), .mood(let b)): return a === b
+        case (.continuation(let a), .continuation(let b)): return a === b
         case (.none, .none): return true
         default: return false
         }

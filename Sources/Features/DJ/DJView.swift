@@ -929,39 +929,75 @@ private struct WaveformCanvas: View {
     let isPlaying: Bool
     let accent: Color
 
+    private let displayWindowSeconds = 4.0
+
     var body: some View {
         Canvas { context, size in
             let count = max(1, bins.count)
             let mid = size.height * 0.48
-            let step = size.width / CGFloat(count)
-            let progress = duration > 0 ? max(0, min(1, position / duration)) : 0
-            let scrollOffset = size.width / 2 - CGFloat(progress) * size.width
-            for index in 0..<count {
+            let secondsPerBin = duration > 0 ? duration / Double(count) : displayWindowSeconds
+            let firstIndex = duration > 0
+                ? max(0, Int(floor((position - displayWindowSeconds / 2) / secondsPerBin)) - 1)
+                : 0
+            let lastIndex = duration > 0
+                ? min(count - 1, Int(ceil((position + displayWindowSeconds / 2) / secondsPerBin)) + 1)
+                : count - 1
+            let barWidth = max(1.2, CGFloat(secondsPerBin / displayWindowSeconds) * size.width * 0.78)
+            for index in firstIndex...max(firstIndex, lastIndex) {
                 let bin = bins.isEmpty ? WaveformBin(min: -0.15, max: 0.15, rms: 0.1) : bins[index]
-                let x = scrollOffset + CGFloat(index) * step + step / 2
-                guard x + step >= 0, x - step <= size.width else { continue }
-                let top = mid - CGFloat(bin.max) * size.height * 0.42
-                let bottom = mid - CGFloat(bin.min) * size.height * 0.42
-                var path = Path()
-                path.move(to: CGPoint(x: x, y: top))
-                path.addLine(to: CGPoint(x: x, y: bottom))
-                context.stroke(path,
-                               with: .color(isPlaying ? accent : accent.opacity(0.62)),
-                               lineWidth: max(1, step * 0.58))
+                let time = (Double(index) + 0.5) * secondsPerBin
+                let x = size.width / 2 + CGFloat((time - position) / displayWindowSeconds) * size.width
+                guard x + barWidth >= 0, x - barWidth <= size.width else { continue }
+                drawRGBBin(bin, at: x, mid: mid, height: size.height,
+                           width: barWidth, context: &context,
+                           fallback: isPlaying ? accent : accent.opacity(0.62))
             }
 
             // Hot cues move with the waveform content. The playhead stays
             // centered, while each cue is drawn at its exact time position.
             guard duration > 0 else { return }
             for cue in hotCues.values {
-                let cueProgress = max(0, min(1, cue / duration))
-                let x = size.width / 2 + CGFloat(cueProgress - progress) * size.width
+                let x = size.width / 2 + CGFloat((cue - position) / displayWindowSeconds) * size.width
                 guard x >= -1, x <= size.width + 1 else { continue }
                 var marker = Path()
                 marker.move(to: CGPoint(x: x, y: 8))
                 marker.addLine(to: CGPoint(x: x, y: max(8, size.height - 8)))
                 context.stroke(marker, with: .color(Palette.brass.opacity(0.95)), lineWidth: 2)
             }
+        }
+    }
+
+    private func drawRGBBin(_ bin: WaveformBin, at x: CGFloat, mid: CGFloat,
+                            height: CGFloat, width: CGFloat,
+                            context: inout GraphicsContext, fallback: Color) {
+        let envelope = min(1, max(0.035, CGFloat(max(abs(bin.min), max(abs(bin.max), bin.rms * 1.8)))))
+        let totalHeight = envelope * height * 0.84
+        let energies = bin.bandRMS.count >= 3
+            ? bin.bandRMS.prefix(3).map { max(0, CGFloat($0)) }
+            : []
+        guard energies.count == 3, energies.reduce(0, +) > 0 else {
+            var path = Path()
+            path.move(to: CGPoint(x: x, y: mid - totalHeight / 2))
+            path.addLine(to: CGPoint(x: x, y: mid + totalHeight / 2))
+            context.stroke(path, with: .color(fallback), lineWidth: width)
+            return
+        }
+
+        let totalEnergy = energies.reduce(0, +)
+        let colors: [Color] = [
+            Color(red: 0.98, green: 0.16, blue: 0.12), // low / red
+            Color(red: 0.18, green: 0.92, blue: 0.28), // mid / green
+            Color(red: 0.20, green: 0.48, blue: 1.00)  // high / blue
+        ]
+        var y = mid - totalHeight / 2
+        for index in 0..<3 {
+            let segment = totalHeight * energies[index] / totalEnergy
+            var path = Path()
+            path.move(to: CGPoint(x: x, y: y))
+            path.addLine(to: CGPoint(x: x, y: y + max(1, segment)))
+            context.stroke(path, with: .color(colors[index].opacity(isPlaying ? 1 : 0.62)),
+                           lineWidth: width)
+            y += segment
         }
     }
 }
@@ -980,11 +1016,9 @@ private struct MiniMap: View {
             let mid = size.height / 2
             for index in 0..<count {
                 let bin = bins.isEmpty ? WaveformBin(min: -0.12, max: 0.12, rms: 0.1) : bins[index]
-                var path = Path()
                 let x = CGFloat(index) * step + step / 2
-                path.move(to: CGPoint(x: x, y: mid - CGFloat(bin.max) * size.height * 0.42))
-                path.addLine(to: CGPoint(x: x, y: mid - CGFloat(bin.min) * size.height * 0.42))
-                context.stroke(path, with: .color(accent.opacity(0.7)), lineWidth: max(1, step))
+                drawRGBBin(bin, at: x, mid: mid, height: size.height,
+                           width: max(1, step), context: &context, fallback: accent.opacity(0.7))
             }
             let progress = duration > 0 ? max(0, min(1, position / duration)) : 0
             var head = Path()
@@ -1004,6 +1038,38 @@ private struct MiniMap: View {
         }
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
         .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.white.opacity(0.12)))
+    }
+
+    private func drawRGBBin(_ bin: WaveformBin, at x: CGFloat, mid: CGFloat,
+                            height: CGFloat, width: CGFloat,
+                            context: inout GraphicsContext, fallback: Color) {
+        let envelope = min(1, max(0.035, CGFloat(max(abs(bin.min), max(abs(bin.max), bin.rms * 1.8)))))
+        let totalHeight = envelope * height * 0.84
+        let energies = bin.bandRMS.count >= 3
+            ? bin.bandRMS.prefix(3).map { max(0, CGFloat($0)) }
+            : []
+        guard energies.count == 3, energies.reduce(0, +) > 0 else {
+            var path = Path()
+            path.move(to: CGPoint(x: x, y: mid - totalHeight / 2))
+            path.addLine(to: CGPoint(x: x, y: mid + totalHeight / 2))
+            context.stroke(path, with: .color(fallback), lineWidth: width)
+            return
+        }
+        let totalEnergy = energies.reduce(0, +)
+        let colors: [Color] = [
+            Color(red: 0.98, green: 0.16, blue: 0.12),
+            Color(red: 0.18, green: 0.92, blue: 0.28),
+            Color(red: 0.20, green: 0.48, blue: 1.00)
+        ]
+        var y = mid - totalHeight / 2
+        for index in 0..<3 {
+            let segment = totalHeight * energies[index] / totalEnergy
+            var path = Path()
+            path.move(to: CGPoint(x: x, y: y))
+            path.addLine(to: CGPoint(x: x, y: y + max(1, segment)))
+            context.stroke(path, with: .color(colors[index].opacity(0.82)), lineWidth: width)
+            y += segment
+        }
     }
 }
 

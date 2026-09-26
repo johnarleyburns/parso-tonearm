@@ -210,15 +210,81 @@ struct JamendoBrowseView: View {
     private func play(node: RemoteNode, index: Int) async {
         do {
             let resolved = try await provider.resolve(node: node)
-            let source = Source(id: nil, kind: .jamendoGenre, iaIdentifier: selectedGenre.path,
-                                originalURL: nil, title: "Jamendo", addedAt: Date(),
-                                lastResolvedAt: nil, followUpdates: false, licenseText: nil,
-                                memberCapHit: false)
+            let source = JamendoQueueSource.makeSource(query: activeQuery, genre: selectedGenre)
             let row = RemoteTrackRowFactory.row(source: source, node: node, resolved: resolved, index: index)
-            player.play(tracks: [row], startAt: 0, source: .source(source))
+            let continuation = JamendoQueueSource(provider: provider, source: source,
+                                                  query: activeQuery, genre: selectedGenre,
+                                                  nextOffset: index + 1)
+            player.play(tracks: [row], startAt: 0, source: .continuation(continuation))
         } catch {
             errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
+    }
+}
+
+/// Keeps a Jamendo browse queue alive after the tapped track. The initial
+/// browse result is intentionally not persisted as a library source, so the
+/// continuation owns the API cursor and resolves each next row into the same
+/// playable shape as the tapped row.
+@MainActor
+private final class JamendoQueueSource: QueueContinuationSource {
+    private let provider: JamendoGenreProvider
+    private let source: Source
+    private let query: String?
+    private let genre: JamendoGenreNode
+    private var nextOffset: Int
+    private var exhausted = false
+
+    init(provider: JamendoGenreProvider, source: Source, query: String?,
+         genre: JamendoGenreNode, nextOffset: Int) {
+        self.provider = provider
+        self.source = source
+        self.query = query
+        self.genre = genre
+        self.nextOffset = max(0, nextOffset)
+    }
+
+    static func makeSource(query: String?, genre: JamendoGenreNode) -> Source {
+        let identifier = query.map { "search:\($0)" } ?? genre.path
+        return Source(id: nil, kind: .jamendoGenre, iaIdentifier: identifier,
+                      originalURL: nil, title: "Jamendo", addedAt: Date(),
+                      lastResolvedAt: nil, followUpdates: false, licenseText: nil,
+                      memberCapHit: false)
+    }
+
+    func nextTracks(excluding: Set<Int64>, limit: Int) async -> [TrackRow] {
+        guard !exhausted, limit > 0 else { return [] }
+        do {
+            let page: JamendoAPI.Page
+            if let query {
+                page = try await provider.api.search(query: query, offset: nextOffset, limit: limit)
+            } else {
+                page = try await provider.api.tracks(tag: selectedTag, offset: nextOffset, limit: limit)
+            }
+            let pageStart = nextOffset
+            nextOffset += page.tracks.count
+            exhausted = page.tracks.isEmpty || page.tracks.count < limit
+
+            let nodes = JamendoGenreProvider.nodes(from: page.tracks)
+            var rows: [TrackRow] = []
+            rows.reserveCapacity(nodes.count)
+            for (offset, node) in nodes.enumerated() {
+                guard let resolved = try? await provider.resolve(node: node) else { continue }
+                let row = RemoteTrackRowFactory.row(source: source, node: node,
+                                                    resolved: resolved, index: pageStart + offset)
+                if let id = row.track.id, !excluding.contains(id) {
+                    rows.append(row)
+                }
+            }
+            return rows
+        } catch {
+            exhausted = true
+            return []
+        }
+    }
+
+    private var selectedTag: String {
+        String(genre.path.split(separator: "/").last ?? Substring(genre.path))
     }
 }
 
