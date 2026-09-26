@@ -529,6 +529,9 @@ targets:
 schemes:
   Tonearm:
     build:
+      # This scheme embeds a watchOS target. Do not validate it with a global
+      # `-sdk iphonesimulator` override; use an iOS destination so Xcode keeps
+      # the embedded TonearmWatch build on watchOS (see CLAUDE.md).
       targets:
         Tonearm: all
         TonearmShareExtension: all

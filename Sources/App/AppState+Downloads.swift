@@ -7,6 +7,80 @@ import UIKit
 #endif
 
 extension AppState {
+    /// Resolves a track to bytes that the DJ engine can read. The normal player
+    /// can stream a remote asset, but the DJ engine needs a complete local file
+    /// before it can build its PCM buffer and waveform. Reuse the durable audio
+    /// cache when possible and fetch the track on demand when it is not there.
+    ///
+    /// This is deliberately separate from `phoneDownloadState`: selecting a
+    /// track in DJ is an explicit request to make it playable now, not a reason
+    /// to reject the track because it has not been pre-downloaded.
+    func djPlayableURL(for row: TrackRow) async throws -> URL {
+        guard let asset = row.asset else { throw DJPlayableAssetError.missingAsset }
+
+        if asset.kind == .builtIn, let channel = asset.relPath,
+           let url = BuiltInContentProvider.bundledAudioURL(forChannelId: channel),
+           FileManager.default.fileExists(atPath: url.path) {
+            return url
+        }
+
+        if let bookmark = asset.bookmark,
+           let (url, _) = BookmarkVault.resolve(bookmark),
+           FileManager.default.fileExists(atPath: url.path) {
+            return url
+        }
+
+        if let fileURL = asset.remoteURL.flatMap(URL.init(string:)), fileURL.isFileURL,
+           FileManager.default.fileExists(atPath: fileURL.path) {
+            return fileURL
+        }
+
+        if let relPath = asset.relPath {
+            let base = try FileManager.default.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: false)
+            let url = base.appendingPathComponent(relPath)
+            if FileManager.default.fileExists(atPath: url.path) { return url }
+        }
+
+        guard asset.kind == .remote else { throw DJPlayableAssetError.noLocalBytes }
+
+        let remoteURLs = [asset.remoteURL, asset.altRemoteURL]
+            .compactMap { $0.flatMap(URL.init(string:)) }
+        for remote in remoteURLs {
+            let key = AudioCache.key(for: remote)
+            let cached = AudioCache.fileURL(for: key)
+            if AudioCache.completeCacheExists(for: remote),
+               FileManager.default.fileExists(atPath: cached.path) {
+                return cached
+            }
+        }
+
+        guard let request = await fetchRequest(for: asset, source: row.source) else {
+            throw DJPlayableAssetError.remoteRequestUnavailable
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse,
+           !(200..<300).contains(http.statusCode) {
+            throw DJPlayableAssetError.remoteRequestFailed(http.statusCode)
+        }
+
+        guard let remote = asset.remoteURL.flatMap(URL.init(string:)) else {
+            throw DJPlayableAssetError.missingRemoteURL
+        }
+        let key = AudioCache.key(for: remote)
+        let destination = AudioCache.fileURL(for: key)
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try data.write(to: destination, options: .atomic)
+        await AudioCache.shared.adoptCompleteFile(
+            byteCount: Int64(data.count), for: key, durable: true)
+        return destination
+    }
+
     @discardableResult
     func makeOffline(source: Source) async -> Bool {
         guard let sourceID = source.id else { return false }
@@ -217,4 +291,12 @@ extension AppState {
         try RemoteLibraryProviderFactory.provider(for: source)
     }
 
+}
+
+private enum DJPlayableAssetError: Error {
+    case missingAsset
+    case noLocalBytes
+    case missingRemoteURL
+    case remoteRequestUnavailable
+    case remoteRequestFailed(Int)
 }

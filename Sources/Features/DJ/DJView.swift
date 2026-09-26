@@ -5,14 +5,14 @@ import ParsoDJEngine
 import SwiftUI
 import TonearmCore
 
-enum DJDeckID: String, CaseIterable, Identifiable {
+enum DJDeckID: String, CaseIterable, Identifiable, Hashable, Sendable {
     case a = "A"
     case b = "B"
 
     var id: String { rawValue }
 }
 
-enum DJOutputMode: String, CaseIterable, Sendable {
+enum DJOutputMode: String, CaseIterable, Hashable, Sendable {
     case stereo = "STEREO"
     case splitLeft = "SPLIT L"
     case splitRight = "SPLIT R"
@@ -55,13 +55,17 @@ final class DJPerformanceModel: ObservableObject {
     @Published var deckA = DJDeckState(id: .a)
     @Published var deckB = DJDeckState(id: .b)
     @Published var outputMode: DJOutputMode = .stereo
+    @Published var cueA = false
+    @Published var cueB = false
     @Published var bassFader = 0.5
     @Published var crossfader = 0.5
     @Published var loadError: String?
+    @Published private(set) var loadingDecks: Set<DJDeckID> = []
 
     private let store: LibraryStore
     private var loadGeneration: [DJDeckID: Int] = [.a: 0, .b: 0]
     private var tickTask: Task<Void, Never>?
+    private var glideTasks: [DJDeckID: Task<Void, Never>] = [:]
     private var audio = DJAudioBacker()
     private let cues = DJHotCueStore()
     private var scratching: Set<DJDeckID> = []
@@ -79,14 +83,24 @@ final class DJPerformanceModel: ObservableObject {
         }
     }
 
-    deinit { tickTask?.cancel() }
+    deinit {
+        tickTask?.cancel()
+        glideTasks.values.forEach { $0.cancel() }
+    }
 
     func deck(_ id: DJDeckID) -> DJDeckState { id == .a ? deckA : deckB }
 
-    func load(_ row: TrackRow, into id: DJDeckID) {
+    func load(
+        _ row: TrackRow,
+        into id: DJDeckID,
+        resolve: @escaping (TrackRow) async throws -> URL,
+        requestIndex: @escaping (Int64) async -> Void
+    ) {
+        cancelGlide(id)
         loadGeneration[id, default: 0] += 1
         let generation = loadGeneration[id] ?? 0
         let deck = deck(id)
+        loadingDecks.insert(id)
         deck.isPlaying = false
         deck.position = 0
         deck.row = row
@@ -98,35 +112,46 @@ final class DJPerformanceModel: ObservableObject {
         deck.tempo = 120
         loadError = nil
 
-        guard let url = audio.resolve(row.asset) else {
-            loadError = "This track is not available on this device."
-            deck.row = nil
-            deck.duration = 0
-            return
-        }
-
         Task { [weak self, store] in
             do {
+                // Resolution may download a remote asset into the local cache.
+                // It is part of loading, so a track that was not pre-indexed or
+                // pre-downloaded remains a valid DJ selection.
+                let url = try await resolve(row)
                 let prepared = try await Task.detached(priority: .userInitiated) {
-                    try DJAudioBacker.prepare(url: url)
+                    if let bookmark = row.asset?.bookmark {
+                        guard let prepared = try BookmarkVault.withAccess(bookmark, {
+                            try DJAudioBacker.prepare(url: $0, codec: row.track.codec)
+                        }) else { throw DJAudioError.unavailable }
+                        return prepared
+                    }
+                    return try DJAudioBacker.prepare(url: url, codec: row.track.codec)
                 }.value
                 guard let self,
                       self.loadGeneration[id] == generation,
                       self.deck(id).row?.id == row.id else { return }
                 try self.audio.load(prepared, deck: id)
                 self.audio.restoreHotCues(deck.hotCues, deck: id)
+                self.loadingDecks.remove(id)
                 deck.duration = prepared.analysis.duration
                 deck.waveform = self.audio.waveform(for: id)
                 let indexed = try? await store.discoveryTrackAnalysis(trackId: row.id)
                 deck.bpm = indexed?.bpm ?? prepared.analysis.tempo.bpm
                 deck.key = indexed?.key ?? prepared.analysis.key.camelot
                 if let bpm = deck.bpm { deck.tempo = bpm }
+                if indexed == nil, row.id >= 0 {
+                    // Queue the durable library index as soon as the track has
+                    // been made playable. The DJ's local analysis above keeps
+                    // the deck useful immediately while the shared indexer
+                    // finishes in the background.
+                    await requestIndex(row.id)
+                }
             } catch {
                 guard let self, self.loadGeneration[id] == generation else { return }
-                deck.row = nil
+                self.loadingDecks.remove(id)
                 deck.duration = 0
                 deck.waveform = []
-                self.loadError = "This track could not be prepared for DJ playback."
+                self.loadError = "This track could not be prepared for DJ playback. Check the file or connection and try again."
             }
         }
     }
@@ -148,12 +173,14 @@ final class DJPerformanceModel: ObservableObject {
     }
 
     func nudge(_ id: DJDeckID, direction: Double) {
+        cancelGlide(id)
         seek(id, by: direction / 75)
     }
 
     func movePaused(_ id: DJDeckID, by pixels: CGFloat, width: CGFloat) {
         let deck = deck(id)
         guard !deck.isPlaying, deck.duration > 0, width > 0 else { return }
+        cancelGlide(id)
         seek(id, by: -Double(pixels / width) * deck.duration)
     }
 
@@ -178,10 +205,25 @@ final class DJPerformanceModel: ObservableObject {
         audio.beginScratch(deck: id)
     }
 
-    func flick(_ id: DJDeckID, translation: CGFloat, width: CGFloat) {
-        guard !deck(id).isPlaying, width > 0 else { return }
-        let seconds = -Double(translation / width) * min(deck(id).duration, 3)
-        seek(id, by: seconds)
+    func flick(_ id: DJDeckID, translation: CGFloat, predictedTranslation: CGFloat, width: CGFloat) {
+        let deck = deck(id)
+        guard !deck.isPlaying, deck.duration > 0, width > 0 else { return }
+        cancelGlide(id)
+        let remaining = predictedTranslation - translation
+        let seconds = -Double(remaining / width) * min(deck.duration, 3)
+        guard seconds.isFinite, abs(seconds) > 0.005 else { return }
+
+        glideTasks[id] = Task { @MainActor [weak self] in
+            var velocity = seconds / 0.35
+            while abs(velocity) > 0.01 {
+                do { try await Task.sleep(for: .milliseconds(16)) }
+                catch { return }
+                guard let self, !Task.isCancelled, !self.deck(id).isPlaying else { return }
+                self.seek(id, by: velocity * 0.016)
+                velocity *= 0.90
+            }
+            self?.glideTasks[id] = nil
+        }
     }
 
     func changeTempo(_ id: DJDeckID, zoom: CGFloat) {
@@ -195,6 +237,7 @@ final class DJPerformanceModel: ObservableObject {
     func activateCue(_ number: Int, deck id: DJDeckID) {
         let deck = deck(id)
         guard deck.row != nil else { return }
+        cancelGlide(id)
         if let position = deck.hotCues[number] {
             seek(id, to: position)
             audio.jumpHotCue(number, deck: id)
@@ -222,14 +265,22 @@ final class DJPerformanceModel: ObservableObject {
         audio.setCrossfader(value)
     }
 
-    func cycleOutputMode() {
-        let modes = DJOutputMode.allCases
-        let index = modes.firstIndex(of: outputMode) ?? 0
-        outputMode = modes[(index + 1) % modes.count]
-        audio.setOutputMode(outputMode)
+    func setOutputMode(_ mode: DJOutputMode) {
+        outputMode = mode
+        audio.setOutputMode(mode, cueA: cueA, cueB: cueB)
+    }
+
+    func toggleCue(_ id: DJDeckID) {
+        if id == .a { cueA.toggle() } else { cueB.toggle() }
+        audio.setCue(deck: id, enabled: id == .a ? cueA : cueB,
+                     outputMode: outputMode,
+                     cueA: cueA,
+                     cueB: cueB)
     }
 
     func stopAll() {
+        glideTasks.values.forEach { $0.cancel() }
+        glideTasks.removeAll()
         for id in scratching { audio.endScratch(deck: id) }
         scratching.removeAll()
         for id in DJDeckID.allCases {
@@ -254,8 +305,15 @@ final class DJPerformanceModel: ObservableObject {
         for id in DJDeckID.allCases {
             let deck = deck(id)
             deck.position = min(deck.duration, audio.position(for: id))
-            deck.isPlaying = audio.isPlaying(for: id)
+            if !scratching.contains(id) {
+                deck.isPlaying = audio.isPlaying(for: id)
+            }
         }
+    }
+
+    private func cancelGlide(_ id: DJDeckID) {
+        glideTasks[id]?.cancel()
+        glideTasks[id] = nil
     }
 }
 
@@ -272,10 +330,27 @@ private final class DJAudioBacker {
         let analysis: TrackAnalysis
     }
 
-    nonisolated static func prepare(url: URL) throws -> PreparedDJTrack {
-        let buffer = try AudioFileReader(url: url).readAll()
+    nonisolated static func prepare(url: URL, codec: String?) throws -> PreparedDJTrack {
+        let buffer = try AudioFileReader(url: url, container: container(codec: codec, url: url)).readAll()
         let analysis = TrackAnalyzer().analyze(buffer)
         return PreparedDJTrack(buffer: buffer, analysis: analysis)
+    }
+
+    private nonisolated static func container(codec: String?, url: URL) -> AudioContainer {
+        let queryFormat = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+            .first(where: { ["format", "audioformat", "audiodlformat"].contains($0.name.lowercased()) })?.value
+        let value = (codec ?? queryFormat ?? url.pathExtension).lowercased()
+        if value.contains("flac") { return .flac }
+        if value.contains("opus") { return .opus }
+        if value.contains("ogg") { return .oggVorbis }
+        if value.contains("mp3") || value.contains("mpeg") { return .mp3 }
+        if value.contains("aac") { return .aac }
+        if value.contains("m4b") { return .m4b }
+        if value.contains("m4a") || value.contains("alac") || value.contains("mp4") { return .m4a }
+        if value.contains("aiff") || value == "aif" { return .aiff }
+        if value.contains("caf") { return .caf }
+        if value.contains("wav") { return .wav }
+        return .auto
     }
 
     func load(_ track: PreparedDJTrack, deck: DJDeckID) throws {
@@ -333,8 +408,9 @@ private final class DJAudioBacker {
     func restoreHotCues(_ cues: [Int: Double], deck: DJDeckID) {
         guard let track = prepared[deck] else { return }
         let player = engine.decks[index(for: deck)]
+        for slot in 0..<4 { player.deleteHotCue(slot) }
         for (slot, position) in cues where (1...4).contains(slot) {
-        let frame = Int64(max(0, min(Double(track.buffer.frameCount),
+            let frame = Int64(max(0, min(Double(track.buffer.frameCount),
                                          position * track.buffer.format.sampleRate)).rounded())
             player.triggerHotCue(slot - 1, atSample: frame)
         }
@@ -381,19 +457,30 @@ private final class DJAudioBacker {
         engine.mixer.crossfader = (max(0, min(1, value)) * 2) - 1
     }
 
-    func setOutputMode(_ mode: DJOutputMode) {
+    func setOutputMode(_ mode: DJOutputMode, cueA: Bool, cueB: Bool) {
         switch mode {
         case .stereo: engine.mixer.setInsert(nil, at: .master)
         case .splitLeft: engine.mixer.setInsert(splitLeftRouter, at: .master)
         case .splitRight: engine.mixer.setInsert(splitRightRouter, at: .master)
         }
-        // PAE owns the cue/program bus. The incoming deck is the default PFL
-        // source because this surface has no separate cue-selector control.
-        engine.mixer.channelA.cuePFL = false
-        engine.mixer.channelB.cuePFL = true
-        engine.monitoring.masterCue = true
+        setCueRouting(outputMode: mode, cueA: cueA, cueB: cueB)
+    }
+
+    func setCue(deck: DJDeckID, enabled: Bool, outputMode: DJOutputMode,
+                cueA: Bool, cueB: Bool) {
+        if deck == .a { engine.mixer.channelA.cuePFL = enabled }
+        else { engine.mixer.channelB.cuePFL = enabled }
+        setCueRouting(outputMode: outputMode, cueA: cueA, cueB: cueB)
+    }
+
+    private func setCueRouting(outputMode: DJOutputMode, cueA: Bool, cueB: Bool) {
+        engine.mixer.channelA.cuePFL = cueA
+        engine.mixer.channelB.cuePFL = cueB
+        engine.monitoring.masterCue = cueA || cueB
         engine.monitoring.cueMasterMix = 0
-        engine.monitoring.cueMode = mode == .stereo ? .off : .splitOutput
+        engine.monitoring.cueMode = (cueA || cueB)
+            ? (outputMode == .stereo ? .cueInPlace : .splitOutput)
+            : .off
     }
 
     func stop() {
@@ -487,9 +574,18 @@ struct DJView: View {
     var body: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
+                // DJView intentionally renders edge-to-edge so the dock cannot
+                // cover the mixer, but the header still has to clear the
+                // Dynamic Island/notch. Without this spacer the top part of
+                // the header is underneath the iPhone display cutout.
+                Color.clear.frame(height: proxy.safeAreaInsets.top)
                 DJHeader(outputMode: model.outputMode,
+                         cueA: model.cueA,
+                         cueB: model.cueB,
                          onBack: { appState.isPerformanceSurfaceFullScreen = false; appState.tab = .listen },
-                         onOutput: model.cycleOutputMode,
+                         onOutput: model.setOutputMode,
+                         onCueA: { model.toggleCue(.a) },
+                         onCueB: { model.toggleCue(.b) },
                          onInfo: { showHelp = true })
                     .frame(height: 58)
                 waveformArea
@@ -502,7 +598,10 @@ struct DJView: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
             .background(Palette.bg)
         }
-        .ignoresSafeArea()
+        // Keep the top safe area owned by SwiftUI so the iPhone's Dynamic
+        // Island/notch cannot cover the back button. The DJ surface still
+        // owns the bottom edge and horizontal space for the mixer.
+        .ignoresSafeArea(edges: [.bottom, .horizontal])
         .onAppear {
             appState.isPerformanceSurfaceFullScreen = true
         }
@@ -511,8 +610,16 @@ struct DJView: View {
             appState.isPerformanceSurfaceFullScreen = false
         }
         .sheet(item: $loadTarget) { deck in
-            DJLoadSheet(deck: deck, tracks: modelTracks, onLoad: { row in
-                model.load(row, into: deck)
+            DJLoadSheet(deck: deck,
+                        tracks: modelTracks,
+                        playlists: appState.playlists,
+                        store: appState.store,
+                        onLoad: { row in
+                model.load(row, into: deck,
+                           resolve: { row in try await appState.djPlayableURL(for: row) },
+                           requestIndex: { trackID in
+                               await DiscoveryRuntimeController.shared.analyzeTrack(trackID)
+                           })
                 loadTarget = nil
             })
         }
@@ -542,36 +649,47 @@ struct DJView: View {
 
 private struct DJHeader: View {
     let outputMode: DJOutputMode
+    let cueA: Bool
+    let cueB: Bool
     let onBack: () -> Void
-    let onOutput: () -> Void
+    let onOutput: (DJOutputMode) -> Void
+    let onCueA: () -> Void
+    let onCueB: () -> Void
     let onInfo: () -> Void
 
     var body: some View {
-        HStack {
-            Button(action: onBack) {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.down")
-                    Text("Platterhead DJ")
-                        .font(.system(size: 15, weight: .bold))
+        ZStack {
+            HStack {
+                Button(action: onBack) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.down")
+                        Text("Platterhead DJ")
+                            .font(.system(size: 15, weight: .bold))
+                    }
+                    .frame(height: 34)
                 }
-                .frame(height: 34)
+                .accessibilityLabel("Close DJ")
+                Spacer()
+                Button(action: onInfo) {
+                    Text("(i)").font(.system(size: 17, weight: .semibold))
+                        .frame(width: 34, height: 34)
+                }
+                .accessibilityLabel("DJ gestures and help")
             }
-            .accessibilityLabel("Close DJ")
-            Spacer()
-            Button(action: onOutput) {
-                Text(outputMode.rawValue)
-                    .font(.system(size: 12, weight: .bold))
-                    .tracking(0.6)
-                    .frame(minWidth: 112, minHeight: 34)
-                    .background(Color.white.opacity(0.08), in: Capsule())
+            HStack(spacing: 6) {
+                Picker("Output", selection: Binding(get: { outputMode }, set: onOutput)) {
+                    ForEach(DJOutputMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 170)
+                .accessibilityLabel("Output mode")
+
+                DJCueButton(deck: "A", isOn: cueA, action: onCueA)
+                DJCueButton(deck: "B", isOn: cueB, action: onCueB)
             }
-            .accessibilityLabel(outputMode.helpText)
-            Spacer()
-            Button(action: onInfo) {
-                Text("(i)").font(.system(size: 17, weight: .semibold))
-                    .frame(width: 34, height: 34)
-            }
-            .accessibilityLabel("DJ gestures and help")
         }
         .foregroundStyle(Palette.ink)
         .padding(.horizontal, 12)
@@ -579,63 +697,107 @@ private struct DJHeader: View {
     }
 }
 
+private struct DJCueButton: View {
+    let deck: String
+    let isOn: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text("CUE (deck)")
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(isOn ? Palette.bg : Palette.ink2)
+                .frame(width: 48, height: 30)
+                .background(isOn ? Palette.brass : Color.white.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(isOn ? Palette.brass : Color.white.opacity(0.14)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Cue deck (deck)")
+        .accessibilityValue(isOn ? "on" : "off")
+    }
+}
+
 private struct DJWaveform: View {
     @ObservedObject var deck: DJDeckState
     let model: DJPerformanceModel
     let onLoad: () -> Void
-    @State private var dragStart: CGFloat = 0
     @State private var dragStartDate = Date()
     @State private var didDrag = false
     @State private var scratchActive = false
     @State private var pinchBucket: CGFloat = 1
+    @State private var lastX: CGFloat = 0
+    @State private var lastSampleDate = Date()
+    @State private var touchMode: TouchMode = .pending
+
+    private enum TouchMode { case pending, nudge, move, scratch }
 
     var body: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                header
-                ZStack {
-                    WaveformCanvas(bins: deck.waveform,
-                                   position: deck.position,
-                                   duration: deck.duration,
-                                   isPlaying: deck.isPlaying,
-                                   accent: deck.id == .a ? Palette.brass : Color.blue)
-                    .contentShape(Rectangle())
-                    .gesture(touchGesture(width: proxy.size.width))
-                    .simultaneousGesture(pinchGesture)
-                    Rectangle()
-                        .fill(deck.id == .a ? Palette.brass : Color.blue)
-                        .frame(width: 1.5)
-                        .allowsHitTesting(false)
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Text(deck.bpm.map { String(format: "%.1f BPM", $0) } ?? "— BPM")
-                                .foregroundStyle(deck.id == .a ? Palette.brass : Color.blue)
+                header(width: proxy.size.width)
+                GeometryReader { waveformProxy in
+                    ZStack {
+                        WaveformCanvas(bins: deck.waveform,
+                                       position: deck.position,
+                                       duration: deck.duration,
+                                       hotCues: deck.hotCues,
+                                       isPlaying: deck.isPlaying,
+                                       accent: deck.id == .a ? Palette.brass : Color.blue)
+                        .contentShape(Rectangle())
+                        .gesture(touchGesture(width: waveformProxy.size.width))
+                        .simultaneousGesture(pinchGesture)
+                        Rectangle()
+                            .fill(deck.id == .a ? Palette.brass : Color.blue)
+                            .frame(width: 1.5,
+                                   height: max(0, waveformProxy.size.height - 16))
+                            .allowsHitTesting(false)
+                        VStack {
                             Spacer()
-                            HStack(spacing: 5) {
-                                Text(formatTime(deck.position))
-                                Text("/").foregroundStyle(Palette.ink3)
-                                Text("−" + formatTime(max(0, deck.duration - deck.position)))
+                            HStack {
+                                Text(deck.bpm.map { String(format: "%.1f BPM", $0) } ?? "— BPM")
+                                    .foregroundStyle(deck.id == .a ? Palette.brass : Color.blue)
+                                Spacer()
+                                HStack(spacing: 5) {
+                                    Text(formatTime(deck.position))
+                                    Text("/").foregroundStyle(Palette.ink3)
+                                    Text("−" + formatTime(max(0, deck.duration - deck.position)))
+                                }
+                                Spacer()
                             }
-                            Spacer()
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Palette.ink2)
+                            .padding(.horizontal, 9)
+                            .padding(.bottom, 7)
                         }
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Palette.ink2)
-                        .padding(.horizontal, 9)
-                        .padding(.bottom, 7)
                     }
+                    .background(Color.white.opacity(0.035))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
-                .background(Color.white.opacity(0.035))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
         .frame(maxHeight: .infinity)
         .padding(4)
         .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            if model.loadingDecks.contains(deck.id) {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Analyzing…")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                }
+                .padding(.horizontal, 9)
+                .padding(.vertical, 6)
+                .background(.black.opacity(0.78), in: Capsule())
+            }
+        }
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
+    private func header(width: CGFloat) -> some View {
+        let minimapWidth = max(112, width * 0.5)
+        let minimapHeight = minimapWidth / 4
+        return HStack(spacing: 8) {
             Button(action: onLoad) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(deck.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
@@ -654,8 +816,9 @@ private struct DJWaveform: View {
                 MiniMap(bins: deck.waveform,
                         position: deck.position,
                         duration: deck.duration,
+                        hotCues: deck.hotCues,
                         accent: deck.id == .a ? Palette.brass : Color.blue)
-                    .frame(width: 112, height: 28)
+                    .frame(width: minimapWidth, height: minimapHeight)
                 HStack(spacing: 3) {
                     ForEach(1...4, id: \.self) { number in
                         HotCueButton(number: number, lit: deck.hotCues[number] != nil,
@@ -663,12 +826,12 @@ private struct DJWaveform: View {
                                      onDelete: { model.deleteCue(number, deck: deck.id) })
                     }
                 }
-            }.frame(width: 112)
+            }.frame(width: minimapWidth)
         }
         .font(.system(size: 10, weight: .semibold, design: .monospaced))
         .foregroundStyle(Palette.ink2)
         .padding(.horizontal, 7)
-        .frame(height: 60)
+        .frame(minHeight: max(60, minimapHeight + 32))
     }
 
     private var pinchGesture: some Gesture {
@@ -685,45 +848,70 @@ private struct DJWaveform: View {
             .onChanged { value in
                 if !didDrag {
                     didDrag = true
-                    dragStart = value.translation.width
                     dragStartDate = Date()
+                    lastSampleDate = dragStartDate
+                    lastX = value.translation.width
+                    touchMode = .pending
                 }
-                let delta = value.translation.width - dragStart
-                let held = Date().timeIntervalSince(dragStartDate) >= 0.22
-                if deck.isPlaying, held {
-                    if !scratchActive {
+                let now = Date()
+                let elapsed = now.timeIntervalSince(dragStartDate)
+                let interval = max(0.001, now.timeIntervalSince(lastSampleDate))
+                let delta = value.translation.width - lastX
+                let speed = abs(delta) / interval
+                let horizontal = abs(value.translation.width) > abs(value.translation.height)
+                lastX = value.translation.width
+                lastSampleDate = now
+
+                if deck.isPlaying {
+                    if touchMode == .pending,
+                       horizontal,
+                       abs(value.translation.width) >= 12,
+                       speed > 900,
+                       elapsed < 0.28 {
+                        touchMode = .nudge
+                    } else if touchMode == .pending, elapsed >= 0.22 {
+                        touchMode = .scratch
                         scratchActive = true
                         model.beginScratch(deck.id)
                     }
-                    model.scratch(deck.id, by: delta, width: width)
-                    dragStart = value.translation.width
-                } else if !deck.isPlaying, abs(delta) > 0.5 {
-                    // Paused movement follows the finger immediately. A quick
-                    // swipe is still classified as a nudge on release.
+                    if touchMode == .scratch {
+                        model.scratch(deck.id, by: delta, width: width)
+                    }
+                } else if touchMode == .pending, horizontal, abs(value.translation.width) > 0.5 {
+                    if speed > 900, abs(value.translation.width) >= 12, elapsed < 0.25 {
+                        touchMode = .nudge
+                    } else {
+                        touchMode = .move
+                        model.movePaused(deck.id, by: delta, width: width)
+                    }
+                } else if touchMode == .move, horizontal {
                     model.movePaused(deck.id, by: delta, width: width)
-                    dragStart = value.translation.width
                 }
             }
             .onEnded { value in
                 let elapsed = Date().timeIntervalSince(dragStartDate)
-                let distance = abs(value.translation.width)
+                let horizontal = abs(value.translation.width) > abs(value.translation.height)
+                let distance = max(abs(value.translation.width), abs(value.translation.height))
                 if scratchActive {
                     model.endScratch(deck.id)
                     scratchActive = false
                 }
                 if distance < 12 && elapsed < 0.22 {
                     if deck.row == nil { onLoad() } else { model.toggle(deck.id) }
-                } else if distance >= 12 {
-                    if !deck.isPlaying && elapsed < 0.22 {
+                } else if horizontal && distance >= 12 {
+                    if touchMode == .nudge {
                         model.nudge(deck.id, direction: value.translation.width > 0 ? 1 : -1)
-                    } else if !deck.isPlaying {
-                        model.flick(deck.id, translation: value.predictedEndTranslation.width,
+                    } else if touchMode == .move {
+                        model.flick(deck.id,
+                                    translation: value.translation.width,
+                                    predictedTranslation: value.predictedEndTranslation.width,
                                     width: width)
-                    } else if elapsed < 0.22 {
+                    } else if deck.isPlaying && elapsed < 0.22 {
                         model.nudge(deck.id, direction: value.translation.width > 0 ? 1 : -1)
                     }
                 }
                 didDrag = false
+                touchMode = .pending
             }
     }
 
@@ -737,6 +925,7 @@ private struct WaveformCanvas: View {
     let bins: [WaveformBin]
     let position: Double
     let duration: Double
+    let hotCues: [Int: Double]
     let isPlaying: Bool
     let accent: Color
 
@@ -760,6 +949,19 @@ private struct WaveformCanvas: View {
                                with: .color(isPlaying ? accent : accent.opacity(0.62)),
                                lineWidth: max(1, step * 0.58))
             }
+
+            // Hot cues move with the waveform content. The playhead stays
+            // centered, while each cue is drawn at its exact time position.
+            guard duration > 0 else { return }
+            for cue in hotCues.values {
+                let cueProgress = max(0, min(1, cue / duration))
+                let x = size.width / 2 + CGFloat(cueProgress - progress) * size.width
+                guard x >= -1, x <= size.width + 1 else { continue }
+                var marker = Path()
+                marker.move(to: CGPoint(x: x, y: 8))
+                marker.addLine(to: CGPoint(x: x, y: max(8, size.height - 8)))
+                context.stroke(marker, with: .color(Palette.brass.opacity(0.95)), lineWidth: 2)
+            }
         }
     }
 }
@@ -768,6 +970,7 @@ private struct MiniMap: View {
     let bins: [WaveformBin]
     let position: Double
     let duration: Double
+    let hotCues: [Int: Double]
     let accent: Color
 
     var body: some View {
@@ -786,9 +989,18 @@ private struct MiniMap: View {
             let progress = duration > 0 ? max(0, min(1, position / duration)) : 0
             var head = Path()
             let x = progress * size.width
-            head.move(to: CGPoint(x: x, y: 0))
-            head.addLine(to: CGPoint(x: x, y: size.height))
+            head.move(to: CGPoint(x: x, y: 5))
+            head.addLine(to: CGPoint(x: x, y: max(5, size.height - 5)))
             context.stroke(head, with: .color(Palette.ink), lineWidth: 1)
+
+            guard duration > 0 else { return }
+            for cue in hotCues.values {
+                let cueX = max(0, min(1, cue / duration)) * size.width
+                var marker = Path()
+                marker.move(to: CGPoint(x: cueX, y: 5))
+                marker.addLine(to: CGPoint(x: cueX, y: max(5, size.height - 5)))
+                context.stroke(marker, with: .color(Palette.brass.opacity(0.95)), lineWidth: 2)
+            }
         }
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
         .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.white.opacity(0.12)))
@@ -858,27 +1070,155 @@ private struct DJFooter: View {
 }
 
 private struct DJLoadSheet: View {
+    private enum LibraryScope: String, CaseIterable, Identifiable {
+        case tracks = "Tracks"
+        case playlists = "Playlists"
+
+        var id: String { rawValue }
+    }
+
     let deck: DJDeckID
     let tracks: [TrackRow]
+    let playlists: [Playlist]
+    let store: LibraryStore
     let onLoad: (TrackRow) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var scope: LibraryScope = .tracks
+    @State private var query = ""
+    @State private var selectedPlaylist: Playlist?
+    @State private var playlistTracks: [TrackRow] = []
+    @State private var isLoadingPlaylist = false
 
     var body: some View {
         NavigationStack {
-            List(tracks) { row in
-                Button { onLoad(row) } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(row.track.title).foregroundStyle(Palette.ink)
-                        Text(row.artist?.name ?? "Unknown artist")
-                            .font(.caption).foregroundStyle(Palette.ink3)
+            VStack(spacing: 0) {
+                Picker("Load from", selection: $scope) {
+                    ForEach(LibraryScope.allCases) { value in
+                        Text(value.rawValue).tag(value)
                     }
                 }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.top, 8)
+
+                if scope == .tracks {
+                    trackList(filtered(tracks))
+                } else if let selectedPlaylist {
+                    playlistTrackList(selectedPlaylist)
+                } else {
+                    playlistList
+                }
             }
-            .scrollContentBackground(.hidden)
             .background(Palette.bg)
             .navigationTitle("Load Deck " + deck.rawValue)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         }
+    }
+
+    private var playlistList: some View {
+        List(filteredPlaylists) { playlist in
+            Button {
+                selectedPlaylist = playlist
+                query = ""
+                playlistTracks = []
+                isLoadingPlaylist = true
+                Task {
+                    guard let id = playlist.id else {
+                        isLoadingPlaylist = false
+                        return
+                    }
+                    playlistTracks = (try? await store.playlistItems(playlistId: id)) ?? []
+                    isLoadingPlaylist = false
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "music.note.list")
+                        .foregroundStyle(Palette.brass)
+                    Text(playlist.title).foregroundStyle(Palette.ink)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(Palette.ink3)
+                }
+            }
+        }
+        .searchable(text: $query, prompt: "Search playlists")
+        .scrollContentBackground(.hidden)
+    }
+
+    private func playlistTrackList(_ playlist: Playlist) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    selectedPlaylist = nil
+                    playlistTracks = []
+                    query = ""
+                } label: {
+                    Label("All playlists", systemImage: "chevron.left")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Palette.brass)
+                Spacer()
+                Text(playlist.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 9)
+
+            if isLoadingPlaylist {
+                ProgressView("Loading playlist…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                trackList(filtered(playlistTracks))
+            }
+        }
+    }
+
+    private func trackList(_ rows: [TrackRow]) -> some View {
+        List(rows) { row in
+            Button { onLoad(row) } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(row.track.title).foregroundStyle(Palette.ink)
+                    Text(trackSubtitle(row))
+                        .font(.caption).foregroundStyle(Palette.ink3)
+                }
+            }
+        }
+        .overlay {
+            if rows.isEmpty {
+                ContentUnavailableView(
+                    query.isEmpty ? "No tracks" : "No matching tracks",
+                    systemImage: query.isEmpty ? "music.note" : "magnifyingglass",
+                    description: Text(query.isEmpty
+                        ? "Add music to your library to load a DJ deck."
+                        : "Search by track, artist, or album."))
+            }
+        }
+        .searchable(text: $query, prompt: "Search tracks, artists, or albums")
+        .scrollContentBackground(.hidden)
+    }
+
+    private var filteredPlaylists: [Playlist] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return playlists }
+        return playlists.filter { $0.title.localizedCaseInsensitiveContains(needle) }
+    }
+
+    private func filtered(_ rows: [TrackRow]) -> [TrackRow] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return rows }
+        return rows.filter { row in
+            [row.track.title, row.artist?.name, row.album?.title]
+                .compactMap { $0 }
+                .contains { $0.localizedCaseInsensitiveContains(needle) }
+        }
+    }
+
+    private func trackSubtitle(_ row: TrackRow) -> String {
+        let artist = row.artist?.name ?? "Unknown artist"
+        guard let album = row.album?.title, !album.isEmpty else { return artist }
+        return "\(artist) · \(album)"
     }
 }
 
@@ -896,7 +1236,8 @@ private struct DJHelpSheet: View {
                 help("Pinch", "Pinch in to lower BPM by 0.1; pinch out to raise BPM by 0.1.")
                 help("Hot cues 1–4", "Tap an empty cue to store; tap a lit cue to jump; hold to delete.")
                 help("Bassfader / Crossfader", "Blend bass or deck volume from A to B.")
-                help("Output", "Cycle stereo, split-left, and split-right monitoring modes.")
+                help("Output", "Choose stereo, split-left, or split-right program routing.")
+                help("CUE A / CUE B", "Turn on either cue to hear that deck pre-fader in the headphone cue path. Both may be enabled together.")
             }
             .scrollContentBackground(.hidden)
             .background(Palette.bg)

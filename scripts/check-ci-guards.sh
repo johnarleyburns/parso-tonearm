@@ -18,6 +18,18 @@ cd "$(git rev-parse --show-toplevel)"
 
 status=0
 
+# ── Watch app icon catalog ─────────────────────────────────────────────────
+#
+# The iOS app embeds a watchOS app. Its icon catalog must be validated with
+# watchOS actool; compiling it with `-sdk iphonesimulator` is the wrong test and
+# produces the misleading "no applicable content" error for a valid watch icon.
+echo "==> Watch app icon catalog"
+if bash scripts/verify-watch-icon-catalog.sh; then
+  :
+else
+  status=1
+fi
+
 # ── Swift 6 contract ────────────────────────────────────────────────────────
 echo "==> Swift 6 contract"
 if bash scripts/check-swift6.sh; then

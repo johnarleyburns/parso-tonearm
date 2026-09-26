@@ -19,6 +19,39 @@ Read [`docs/plans/tonearm-mvp-ios/HANDOFF.md`](docs/plans/tonearm-mvp-ios/HANDOF
 - The pre-commit hook runs `swift test` only now; a normal command timeout is enough.
 - `git push` needs no extra timeout; the pre-push hook runs no tests by repository policy. The pre-commit hook is the gate, so nothing is skipped by pushing.
 
+## Xcode build and Watch AppIcon catalog — do not regress this
+
+`Tonearm` is a multi-platform scheme: it builds the iOS app and embeds the
+`TonearmWatch` watchOS app. Never pass `-sdk iphonesimulator` or `-sdk iphoneos`
+to that scheme. That global override forces the embedded Watch target through
+the iOS SDK; `actool` then reports the misleading error:
+
+```
+The stickers icon set, app icon set, or icon stack named "AppIcon" did not have any applicable content.
+```
+
+The catalog at `WatchApp/Assets.xcassets/AppIcon.appiconset` is intentionally
+watchOS-specific. Do not add iOS icon idioms or replace its watch entries just
+to silence an iOS-SDK build. Use destinations so Xcode selects each target's
+platform correctly:
+
+```sh
+xcodebuild build -project Tonearm.xcodeproj -scheme Tonearm \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
+xcodebuild build -project Tonearm.xcodeproj -scheme TonearmWatch \
+  -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO
+```
+
+Before changing the catalog, run `bash scripts/verify-watch-icon-catalog.sh`.
+It invokes the real watchOS `actool` compiler and fails if the icon set is
+missing, malformed, references a missing PNG, or has no applicable watchOS
+content. `make ci-guards` and CI run this check automatically. If the error
+appears again, first inspect the logged `actool` command: if it says
+`--platform iphonesimulator` while compiling `WatchApp/Assets.xcassets`, fix
+the build invocation to use a destination; only if it says `--platform
+watchos` should the JSON or icon files be repaired. If `project.yml` changes,
+regenerate with `make project` and rerun both platform-specific builds.
+
 ## No silent/magic background work — always visible, always in the user's control
 
 Any background or automatic behavior (indexing, downloading a model, syncing, migrating data, retrying) must tell the user what is happening in the moment it's happening, not just eventually succeed or fail silently. Concretely:
