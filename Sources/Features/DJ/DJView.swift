@@ -26,6 +26,18 @@ enum DJOutputMode: String, CaseIterable, Hashable, Sendable {
     }
 }
 
+enum DJLoadPhase: String, Equatable, Sendable {
+    case loading
+    case analyzing
+
+    var label: String {
+        switch self {
+        case .loading: return "LOADING"
+        case .analyzing: return "ANALYZING"
+        }
+    }
+}
+
 @MainActor
 final class DJDeckState: ObservableObject {
     let id: DJDeckID
@@ -70,6 +82,7 @@ final class DJPerformanceModel: ObservableObject {
     @Published var masterLevel = UserDefaults.standard.object(forKey: "dj.masterLevel") as? Double ?? 0.8
     @Published var loadError: String?
     @Published private(set) var loadingDecks: Set<DJDeckID> = []
+    @Published private(set) var loadPhases: [DJDeckID: DJLoadPhase] = [:]
 
     private let store: LibraryStore
     private var loadGeneration: [DJDeckID: Int] = [.a: 0, .b: 0]
@@ -88,7 +101,11 @@ final class DJPerformanceModel: ObservableObject {
                 let active = await MainActor.run { [weak self] in
                     self?.deckA.isPlaying == true || self?.deckB.isPlaying == true || self?.scratching.isEmpty == false
                 }
-                try? await Task.sleep(for: .milliseconds(active ? 16 : 100))
+                // PAE's event stream is polled on the main/display actor, but
+                // 60 Hz ObservableObject writes make the whole DJ surface
+                // participate in every audio tick. Thirty FPS is enough for a
+                // centered playhead and keeps Canvas/layout work bounded.
+                try? await Task.sleep(for: .milliseconds(active ? 33 : 200))
                 guard let self else { return }
                 self.tick()
             }
@@ -113,6 +130,7 @@ final class DJPerformanceModel: ObservableObject {
         let generation = loadGeneration[id] ?? 0
         let deck = deck(id)
         loadingDecks.insert(id)
+        loadPhases[id] = .loading
         deck.isPlaying = false
         deck.position = 0
         deck.row = row
@@ -144,6 +162,9 @@ final class DJPerformanceModel: ObservableObject {
                 // It is part of loading, so a track that was not pre-indexed or
                 // pre-downloaded remains a valid DJ selection.
                 let url = try await resolve(row)
+                guard let self else { return }
+                guard self.loadGeneration[id] == generation else { return }
+                self.loadPhases[id] = .analyzing
                 let prepared = try await Task.detached(priority: .userInitiated) {
                     if let bookmark = row.asset?.bookmark {
                         guard let prepared = try BookmarkVault.withAccess(bookmark, {
@@ -153,14 +174,14 @@ final class DJPerformanceModel: ObservableObject {
                     }
                     return try DJAudioBacker.prepare(url: url, codec: row.track.codec)
                 }.value
-                guard let self,
-                      self.loadGeneration[id] == generation,
+                guard self.loadGeneration[id] == generation,
                       self.deck(id).row?.id == row.id else { return }
                 try self.audio.load(prepared, deck: id)
                 self.audio.restoreHotCues(deck.hotCues, deck: id)
                 if let cue = deck.cuePoint { self.audio.setCue(deck: id, position: cue) }
                 if let start = deck.loopIn, let end = deck.loopOut { self.audio.setLoop(deck: id, start: start, end: end, active: false) }
                 self.loadingDecks.remove(id)
+                self.loadPhases[id] = nil
                 deck.duration = prepared.analysis.duration
                 deck.waveform = self.audio.waveform(for: id)
                 let indexed = try? await store.discoveryTrackAnalysis(trackId: row.id)
@@ -177,6 +198,7 @@ final class DJPerformanceModel: ObservableObject {
             } catch {
                 guard let self, self.loadGeneration[id] == generation else { return }
                 self.loadingDecks.remove(id)
+                self.loadPhases[id] = nil
                 deck.duration = 0
                 deck.waveform = []
                 self.loadError = "This track could not be prepared for DJ playback. Check the file or connection and try again."
@@ -425,11 +447,16 @@ final class DJPerformanceModel: ObservableObject {
         audio.pollEvents()
         for id in DJDeckID.allCases {
             let deck = deck(id)
-            deck.position = min(deck.duration, audio.position(for: id))
-            if !scratching.contains(id) {
-                deck.isPlaying = audio.isPlaying(for: id)
+            let position = min(deck.duration, audio.position(for: id))
+            if abs(deck.position - position) >= 0.005 {
+                deck.position = position
             }
-            deck.loopActive = audio.isLoopActive(for: id)
+            if !scratching.contains(id) {
+                let isPlaying = audio.isPlaying(for: id)
+                if deck.isPlaying != isPlaying { deck.isPlaying = isPlaying }
+            }
+            let loopActive = audio.isLoopActive(for: id)
+            if deck.loopActive != loopActive { deck.loopActive = loopActive }
         }
     }
 
@@ -783,19 +810,6 @@ struct DJView: View {
 
     private var modelTracks: [TrackRow] { appState.allTracks }
 
-    private var waveformArea: some View {
-        GeometryReader { proxy in
-            VStack(spacing: 4) {
-                DJWaveform(deck: model.deckA, model: model,
-                           onLoad: { loadTarget = .a })
-                DJWaveform(deck: model.deckB, model: model,
-                           onLoad: { loadTarget = .b })
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-    }
 }
 
 private struct DJTitleBar: View {
@@ -864,25 +878,43 @@ private struct DJEightRowSurface: View {
                     DJCueButton(deck: "B", isOn: model.cueB, action: { model.toggleCue(.b) })
                 }
 
-                deckTrack(model.deckA, onLoad: onLoad)
-                    .frame(width: layout.frame(col: 0, row: 1, span: 4).width,
-                           height: layout.frame(col: 0, row: 1, span: 4).height)
-                    .position(x: layout.frame(col: 0, row: 1, span: 4).midX,
-                              y: layout.frame(col: 0, row: 1, span: 4).midY)
-                deckTrack(model.deckB, onLoad: onLoad)
-                    .frame(width: layout.frame(col: 0, row: 6, span: 4).width,
-                           height: layout.frame(col: 0, row: 6, span: 4).height)
-                    .position(x: layout.frame(col: 0, row: 6, span: 4).midX,
-                              y: layout.frame(col: 0, row: 6, span: 4).midY)
+                DJGridCell(frame: layout.frame(col: 0, row: 1, span: 4)) {
+                    DJDeckTrackCell(deck: model.deckA,
+                                    loadPhase: model.loadPhases[.a],
+                                    onLoad: onLoad)
+                }
+                DJGridCell(frame: layout.frame(col: 0, row: 6, span: 4)) {
+                    DJDeckTrackCell(deck: model.deckB,
+                                    loadPhase: model.loadPhases[.b],
+                                    onLoad: onLoad)
+                }
 
-                deckTransport(model.deckA, row: 1)
-                deckTransport(model.deckB, row: 6)
-                deckMinimap(model.deckA, row: 2)
-                deckMinimap(model.deckB, row: 5)
-                deckPads(model.deckA, row: 2)
-                deckPads(model.deckB, row: 5)
-                deckWaveform(model.deckA, row: 3)
-                deckWaveform(model.deckB, row: 4)
+                DJGridCell(frame: layout.frame(col: 4, row: 1, span: 4)) {
+                    DJDeckTransport(deck: model.deckA, model: model)
+                }
+                DJGridCell(frame: layout.frame(col: 4, row: 6, span: 4)) {
+                    DJDeckTransport(deck: model.deckB, model: model)
+                }
+                DJGridCell(frame: layout.frame(col: 0, row: 2, span: 4)) {
+                    DJDeckMinimap(deck: model.deckA, model: model)
+                }
+                DJGridCell(frame: layout.frame(col: 0, row: 5, span: 4)) {
+                    DJDeckMinimap(deck: model.deckB, model: model)
+                }
+                DJGridCell(frame: layout.frame(col: 4, row: 2, span: 4)) {
+                    DJPerformancePads(deck: model.deckA, model: model)
+                }
+                DJGridCell(frame: layout.frame(col: 4, row: 5, span: 4)) {
+                    DJPerformancePads(deck: model.deckB, model: model)
+                }
+                DJGridCell(frame: layout.frame(col: 0, row: 3, span: 8)) {
+                    DJDeckWaveform(deck: model.deckA,
+                                   loadPhase: model.loadPhases[.a])
+                }
+                DJGridCell(frame: layout.frame(col: 0, row: 4, span: 8)) {
+                    DJDeckWaveform(deck: model.deckB,
+                                   loadPhase: model.loadPhases[.b])
+                }
 
                 DJGridCell(frame: layout.frame(col: 0, row: 7, span: 4)) {
                     DJFader(title: "BASS", value: model.bassFader, onChange: model.setBass)
@@ -897,32 +929,78 @@ private struct DJEightRowSurface: View {
         .clipped()
     }
 
-    private func deckTrack(_ deck: DJDeckState, onLoad: @escaping (DJDeckID) -> Void) -> some View {
-        Button { onLoad(deck.id) } label: {
-            HStack(spacing: 8) {
-                Text(deck.id.rawValue)
-                    .font(.system(size: 12, weight: .black, design: .monospaced))
-                    .foregroundStyle(deck.id == .a ? Palette.brass : Color.blue)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(deck.title).font(.system(size: 13, weight: .bold)).lineLimit(1)
-                    Text(deck.artist.isEmpty ? "Tap to load" : deck.artist)
-                        .font(.system(size: 10, weight: .medium)).foregroundStyle(Palette.ink2).lineLimit(1)
-                    Text(deck.album.isEmpty ? "" : deck.album)
-                        .font(.system(size: 9)).foregroundStyle(Palette.ink3).lineLimit(1)
-                }
-                Spacer(minLength: 2)
-            }
-            .padding(.horizontal, 8)
-            .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 9))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Load deck \(deck.id.rawValue)")
+    private func cycleOutput() {
+        let modes = DJOutputMode.allCases
+        let next = (modes.firstIndex(of: model.outputMode).map { ($0 + 1) % modes.count }) ?? 0
+        model.setOutputMode(modes[next])
     }
+}
 
-    private func deckTransport(_ deck: DJDeckState, row: Int) -> some View {
-        return HStack(spacing: 5) {
+private struct DJLoadBadge: View {
+    let phase: DJLoadPhase
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ProgressView().controlSize(.small)
+            Text(phase.label)
+        }
+        .font(.system(size: 9, weight: .black, design: .monospaced))
+        .foregroundStyle(Palette.ink)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .background(.black.opacity(0.82), in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.14)))
+        .accessibilityLabel(phase == .analyzing ? "Analyzing track" : "Loading track")
+    }
+}
+
+private struct DJDeckTrackCell: View {
+    @ObservedObject var deck: DJDeckState
+    let loadPhase: DJLoadPhase?
+    let onLoad: (DJDeckID) -> Void
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Button { onLoad(deck.id) } label: {
+                HStack(spacing: 8) {
+                    Text(deck.id.rawValue)
+                        .font(.system(size: 12, weight: .black, design: .monospaced))
+                        .foregroundStyle(deck.id == .a ? Palette.brass : Color.blue)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(deck.title).font(.system(size: 13, weight: .bold)).lineLimit(1)
+                        Text(deck.artist.isEmpty ? "Tap to load" : deck.artist)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Palette.ink2)
+                            .lineLimit(1)
+                        Text(deck.album.isEmpty ? "" : deck.album)
+                            .font(.system(size: 9))
+                            .foregroundStyle(Palette.ink3)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 2)
+                }
+                .padding(.horizontal, 8)
+                .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 9))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Load deck \(deck.id.rawValue)")
+
+            if let loadPhase {
+                DJLoadBadge(phase: loadPhase)
+                    .padding(5)
+            }
+        }
+    }
+}
+
+private struct DJDeckTransport: View {
+    @ObservedObject var deck: DJDeckState
+    let model: DJPerformanceModel
+
+    var body: some View {
+        HStack(spacing: 5) {
             DJTransportButton(title: "CUE", active: deck.cuePoint != nil,
-                              gesture: cueGesture(deck.id))
+                              gesture: cueGesture)
             DJTransportButton(title: deck.isPlaying ? "PAUSE" : "PLAY", active: deck.isPlaying) {
                 model.toggle(deck.id)
             }
@@ -933,34 +1011,45 @@ private struct DJEightRowSurface: View {
                 model.toggleLoop(deck.id)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(2)
-        .gridPlacement(row: row, col: 4, span: 4)
     }
 
-    private func cueGesture(_ id: DJDeckID) -> some Gesture {
+    private var cueGesture: some Gesture {
         DragGesture(minimumDistance: 0)
-            .onChanged { _ in model.cueDown(id) }
-            .onEnded { _ in model.cueUp(id) }
+            .onChanged { _ in model.cueDown(deck.id) }
+            .onEnded { _ in model.cueUp(deck.id) }
     }
+}
 
-    private func deckMinimap(_ deck: DJDeckState, row: Int) -> some View {
+private struct DJDeckMinimap: View {
+    @ObservedObject var deck: DJDeckState
+    let model: DJPerformanceModel
+
+    var body: some View {
         MiniMap(bins: deck.waveform, position: deck.position, duration: deck.duration,
                 hotCues: deck.hotCues, accent: deck.id == .a ? Palette.brass : Color.blue)
             .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0).onChanged { value in
-                model.minimapSeek(deck.id, x: value.location.x, width: max(1, value.translation.width + value.location.x))
+                model.minimapSeek(deck.id, x: value.location.x,
+                                  width: max(1, value.translation.width + value.location.x))
             })
-            .gridPlacement(row: row, col: 0, span: 4)
     }
+}
 
-    private func deckWaveform(_ deck: DJDeckState, row: Int) -> some View {
+private struct DJDeckWaveform: View {
+    @ObservedObject var deck: DJDeckState
+    let loadPhase: DJLoadPhase?
+
+    var body: some View {
         ZStack {
             WaveformCanvas(bins: deck.waveform, position: deck.position, duration: deck.duration,
                            hotCues: deck.hotCues, isPlaying: deck.isPlaying,
                            accent: deck.id == .a ? Palette.brass : Color.blue)
-            Rectangle().fill(deck.id == .a ? Palette.brass : Color.blue).frame(width: 1.5)
+            Rectangle()
+                .fill(deck.id == .a ? Palette.brass : Color.blue)
+                .frame(width: 1.5)
+                .allowsHitTesting(false)
             HStack {
                 Text("\(deck.bpm.map { String(format: "%.1f", $0) } ?? "—") BPM")
                 Spacer()
@@ -971,20 +1060,14 @@ private struct DJEightRowSurface: View {
             .font(.system(size: 9, weight: .bold, design: .monospaced))
             .foregroundStyle(Palette.ink2)
             .padding(6)
+            .allowsHitTesting(false)
+
+            if let loadPhase {
+                Rectangle().fill(.black.opacity(0.42))
+                DJLoadBadge(phase: loadPhase)
+            }
         }
         .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 7))
-        .gridPlacement(row: row, col: 0, span: 8)
-    }
-
-    private func deckPads(_ deck: DJDeckState, row: Int) -> some View {
-        DJPerformancePads(deck: deck, model: model)
-            .gridPlacement(row: row, col: 4, span: 4)
-    }
-
-    private func cycleOutput() {
-        let modes = DJOutputMode.allCases
-        let next = (modes.firstIndex(of: model.outputMode).map { ($0 + 1) % modes.count }) ?? 0
-        model.setOutputMode(modes[next])
     }
 
     private func formatTime(_ value: Double) -> String {
@@ -993,24 +1076,12 @@ private struct DJEightRowSurface: View {
     }
 }
 
-private extension View {
-    func gridPlacement(row: Int, col: Int, span: Int = 1) -> some View {
-        GeometryReader { proxy in
-            let layout = DJGridLayout(size: proxy.size, gap: 5)
-            self.frame(width: layout.frame(col: col, row: row, span: span).width,
-                      height: layout.frame(col: col, row: row, span: span).height)
-                .position(x: layout.frame(col: col, row: row, span: span).midX,
-                          y: layout.frame(col: col, row: row, span: span).midY)
-        }
-        .allowsHitTesting(true)
-    }
-}
-
 private struct DJSmallInfoButton: View {
     var body: some View {
         Text("(i)").font(.system(size: 14, weight: .bold, design: .monospaced))
             .foregroundStyle(Palette.ink2)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .aspectRatio(1, contentMode: .fit)
             .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 7))
     }
 }
@@ -1028,6 +1099,7 @@ private struct DJOutputButton: View {
             .font(.system(size: 10, weight: .bold, design: .monospaced))
             .foregroundStyle(Palette.ink2)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .aspectRatio(1, contentMode: .fit)
             .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
@@ -1048,6 +1120,7 @@ private struct DJVolumeButton: View {
             .font(.system(size: 9, weight: .bold, design: .monospaced))
             .foregroundStyle(Palette.ink2)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .aspectRatio(1, contentMode: .fit)
             .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
@@ -1087,6 +1160,11 @@ private struct DJTransportButton: View {
                 .background(active ? Palette.brass : Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
+        // Grid rows are intentionally taller than a phone's eight-column cell
+        // width. Keep the control itself square instead of stretching it into
+        // a portrait rectangle.
+        .frame(maxHeight: .infinity)
+        .aspectRatio(1, contentMode: .fit)
 
         if let gesture {
             button.simultaneousGesture(gesture)
@@ -1104,22 +1182,33 @@ private struct DJPerformancePads: View {
         HStack(spacing: 4) {
             if deck.padMode == .hotCue {
                 ForEach(1...4, id: \.self) { n in
-                    Button("\(n)") { model.activateCue(n, deck: deck.id) }
-                        .buttonStyle(.plain).background(deck.hotCues[n] == nil ? Color.white.opacity(0.05) : Palette.brass,
-                                                         in: RoundedRectangle(cornerRadius: 5))
+                    Button { model.activateCue(n, deck: deck.id) } label: {
+                        Text("\(n)")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .aspectRatio(1, contentMode: .fit)
+                            .background(deck.hotCues[n] == nil ? Color.white.opacity(0.05) : Palette.brass,
+                                        in: RoundedRectangle(cornerRadius: 5))
+                    }
+                    .buttonStyle(.plain)
                 }
             } else if deck.padMode == .echo {
                 ForEach([0.25, 0.5, 1.0, 2.0], id: \.self) { beats in
                     Text(echoLabel(beats))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .aspectRatio(1, contentMode: .fit)
                         .background(deck.echoPad == beats ? Palette.brass : Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
                         .gesture(DragGesture(minimumDistance: 0).onChanged { _ in model.echoPad(beats, deck: deck.id, pressed: true) }
                             .onEnded { _ in model.echoPad(beats, deck: deck.id, pressed: false) })
                 }
             } else {
                 ForEach(["IN", "OUT", "SET", deck.loopActive ? "EXIT" : "ENTER"], id: \.self) { label in
-                    Button(label) { model.loopPad(["IN", "OUT", "SET", "ENTER"].firstIndex(of: label) ?? 3, deck: deck.id) }
-                        .buttonStyle(.plain)
+                    Button { model.loopPad(["IN", "OUT", "SET", "ENTER"].firstIndex(of: label) ?? 3, deck: deck.id) } label: {
+                        Text(label)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .aspectRatio(1, contentMode: .fit)
+                            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -1209,17 +1298,22 @@ private struct DJCueButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text("CUE (deck)")
+            VStack(spacing: 1) {
+                Text("CUE")
+                Text(deck)
+                    .font(.system(size: 9, weight: .black, design: .monospaced))
+            }
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(isOn ? Palette.bg : Palette.ink2)
-                .frame(width: 48, height: 30)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .aspectRatio(1, contentMode: .fit)
                 .background(isOn ? Palette.brass : Color.white.opacity(0.08),
                             in: RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6)
                     .strokeBorder(isOn ? Palette.brass : Color.white.opacity(0.14)))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Cue deck (deck)")
+        .accessibilityLabel("Cue deck \(deck)")
         .accessibilityValue(isOn ? "on" : "off")
     }
 }
@@ -1530,11 +1624,17 @@ private struct MiniMap: View {
 
     var body: some View {
         Canvas { context, size in
-            let count = max(1, bins.count)
+            // The source overview has 2048 bins. A phone-width minimap cannot
+            // display that many independent strokes; cap the redraw to 512
+            // samples so playhead updates do not repeatedly rasterize a full
+            // high-resolution waveform.
+            let binStride = max(1, (bins.count + 511) / 512)
+            let count = max(1, (bins.count + binStride - 1) / binStride)
             let step = size.width / CGFloat(count)
             let mid = size.height / 2
             for index in 0..<count {
-                let bin = bins.isEmpty ? WaveformBin(min: -0.12, max: 0.12, rms: 0.1) : bins[index]
+                let sourceIndex = max(0, min(bins.count - 1, index * binStride))
+                let bin = bins.isEmpty ? WaveformBin(min: -0.12, max: 0.12, rms: 0.1) : bins[sourceIndex]
                 let x = CGFloat(index) * step + step / 2
                 drawRGBBin(bin, at: x, mid: mid, height: size.height,
                            width: max(1, step), context: &context, fallback: accent.opacity(0.7))
