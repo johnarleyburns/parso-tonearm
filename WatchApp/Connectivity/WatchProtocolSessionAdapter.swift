@@ -48,13 +48,6 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
         Task { await endpoint.reachabilityChanged(reachable) }
     }
 
-#if os(watchOS)
-    public func sessionDidBecomeInactive(_ session: WCSession) {}
-    public func sessionDidDeactivate(_ session: WCSession) {
-        session.activate()
-    }
-#endif
-
     public func session(_ session: WCSession, didReceiveMessageData messageData: Data,
                         replyHandler: @escaping (Data) -> Void) {
         let endpoint = endpoint
