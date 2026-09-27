@@ -35,6 +35,13 @@ watchOS-specific. Do not add iOS icon idioms or replace its watch entries just
 to silence an iOS-SDK build. Use destinations so Xcode selects each target's
 platform correctly:
 
+**Absolute command rule: never run `xcodebuild -scheme Tonearm ... -sdk
+iphonesimulator...` or `... -sdk iphoneos...`, even when validating the iOS 27
+app.** The global SDK flag is invalid for this composite scheme. If an iOS
+destination is unavailable, fix/select the destination or build the standalone
+`TonearmWatch` scheme with a watchOS destination; do not add the global SDK
+override.
+
 ```sh
 xcodebuild build -project Tonearm.xcodeproj -scheme Tonearm \
   -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
