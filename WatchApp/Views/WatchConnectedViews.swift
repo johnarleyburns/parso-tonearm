@@ -27,7 +27,11 @@ struct WatchDownloadsView: View {
                                    systemImage: "internaldrive")
             }
         }
+#if os(watchOS)
         .listStyle(.carousel)
+#else
+        .listStyle(.plain)
+#endif
         .navigationTitle("Downloads")
         .task { await model.refresh() }
     }
@@ -57,7 +61,11 @@ struct WatchPhonePlaylistsView: View {
                 }
             }
         }
+#if os(watchOS)
         .listStyle(.carousel)
+#else
+        .listStyle(.plain)
+#endif
         .navigationTitle("Playlists")
         .task {
             rows = await WatchAppAssembly.shared.browsePhonePlaylists()
@@ -141,7 +149,11 @@ struct WatchPhoneCollectionView: View {
                                     message: "The iPhone could not be reached.")
             }
         }
+#if os(watchOS)
         .listStyle(.carousel)
+#else
+        .listStyle(.plain)
+#endif
         .navigationTitle(response?.title ?? "Collection")
         .task {
             response = await WatchAppAssembly.shared.loadPhoneCollection(ref)

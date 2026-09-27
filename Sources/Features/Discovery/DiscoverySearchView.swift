@@ -419,6 +419,7 @@ private struct FlowChips: View {
 }
 
 private struct DiscoverySearchResultRow: View {
+    @EnvironmentObject private var appState: AppState
     let result: DiscoverySearchResult
     let kind: DiscoverySearchResultKind
     let components: [RankBreakdownDisplay.Component]
@@ -426,6 +427,9 @@ private struct DiscoverySearchResultRow: View {
     let onMoreLikeThis: () -> Void
 
     @State private var showScore = false
+    @State private var showPlaylistPicker = false
+    @State private var analysis: DiscoveryTrackAnalysis?
+    @State private var prep: DJTrackPrep?
 
     private var track: Track { result.track.track }
 
@@ -438,6 +442,9 @@ private struct DiscoverySearchResultRow: View {
                     if let musical = musicalLine {
                         Text(musical).font(.caption2).foregroundStyle(Palette.ink3)
                     }
+                    Text(djLine)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(Palette.brass)
                 }
                 Spacer(minLength: 6)
                 Button(action: onPlay) {
@@ -449,6 +456,10 @@ private struct DiscoverySearchResultRow: View {
             HStack(spacing: 14) {
                 Button(action: onMoreLikeThis) {
                     Label("More like this", systemImage: "wand.and.stars")
+                }
+                .font(.caption)
+                Button { showPlaylistPicker = true } label: {
+                    Label("Add to playlist", systemImage: "text.badge.plus")
                 }
                 .font(.caption)
                 if kind.showsSemanticScore, !components.isEmpty {
@@ -480,6 +491,23 @@ private struct DiscoverySearchResultRow: View {
         }
         .padding(.vertical, 8)
         .accessibilityElement(children: .contain)
+        .task {
+            analysis = try? await appState.store.discoveryTrackAnalysis(trackId: result.trackID)
+            prep = try? await appState.store.djTrackPrep(trackId: result.trackID)
+        }
+        .sheet(isPresented: $showPlaylistPicker) {
+            AddToPlaylistDialog(
+                title: "Add to DJ playlist",
+                subtitle: "Choose a playlist to keep this track in your crate.") { target in
+                    switch target {
+                    case .existing(let playlist):
+                        await appState.addToPlaylist(result.track, playlist: playlist)
+                    case .create(let name):
+                        guard let playlist = await appState.makePlaylist(title: name) else { return }
+                        await appState.addToPlaylist(result.track, playlist: playlist)
+                    }
+                }
+        }
     }
 
     private var subtitle: String {
@@ -494,6 +522,12 @@ private struct DiscoverySearchResultRow: View {
         if let d = track.durationSec { parts.append(TimeFmt.mmss(d)) }
         if let codec = track.codec { parts.append(codec) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private var djLine: String {
+        let bpm = (analysis?.bpm ?? prep?.bpm).map { String(format: "%.1f BPM", $0) } ?? "— BPM"
+        let key = DJKeyFormatter.format(analysis?.key ?? prep?.camelotKey)
+        return "\(bpm) · \(key)"
     }
 }
 #endif

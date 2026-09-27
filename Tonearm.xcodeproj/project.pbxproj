@@ -139,6 +139,7 @@
 		71739C830652D67DF339A260 /* AppState+RemoteServers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE3D9BA840241DCED71A095 /* AppState+RemoteServers.swift */; };
 		71A33C0FABA810E5419CAB45 /* WatchPlaybackIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3569174AE673A3FFFB87F5E0 /* WatchPlaybackIntents.swift */; };
 		71BB05204B97DF9A5E0F6D3F /* IntentHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 855FD797FDB10845B0BA492E /* IntentHandler.swift */; };
+		731AE9FAAB14E8254B8881A4 /* CarPlayVoiceSearchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5E3A5360F20929E181F8F9 /* CarPlayVoiceSearchController.swift */; };
 		735D16F65DF5E7AAFC9CD91A /* AppState+RemoteBrowse.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD82B6D2C3B08E82E7EB2068 /* AppState+RemoteBrowse.swift */; };
 		73A60974C697547F3923AD5C /* ToastBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00F6FDF943434896481BB2F /* ToastBanner.swift */; };
 		73BB22E45390F362F4B45F55 /* TonearmWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -389,6 +390,7 @@
 		080C57977F143B9824ED300E /* PhoneWatchPlaybackAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchPlaybackAdapter.swift; sourceTree = "<group>"; };
 		089C841BE7459AF20665F7B0 /* Tonearm.Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.Debug.entitlements; sourceTree = "<group>"; };
 		0A0EA57A9A9BC3350FCC805C /* GlassSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSurface.swift; sourceTree = "<group>"; };
+		0A5E3A5360F20929E181F8F9 /* CarPlayVoiceSearchController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayVoiceSearchController.swift; sourceTree = "<group>"; };
 		0AE3D9BA840241DCED71A095 /* AppState+RemoteServers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+RemoteServers.swift"; sourceTree = "<group>"; };
 		0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPlaylistsView.swift; sourceTree = "<group>"; };
 		0C1C58F472E8351D8A722A1B /* WatchProtocolSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchProtocolSessionAdapter.swift; sourceTree = "<group>"; };
@@ -717,6 +719,7 @@
 				85DFF868930E6AB3F8FFFF11 /* CarPlaySceneDelegate.swift */,
 				4EC0AC467BFB05721F8500E4 /* CarPlaySearchAvailability.swift */,
 				D7139EA5E3E1CE0C5ED8EF05 /* CarPlaySearchController.swift */,
+				0A5E3A5360F20929E181F8F9 /* CarPlayVoiceSearchController.swift */,
 			);
 			path = CarPlay;
 			sourceTree = "<group>";
@@ -1560,6 +1563,7 @@
 				94E235BC47AAA808554CD3C0 /* CarPlaySceneDelegate.swift in Sources */,
 				F826D5756272B6B117AA82BB /* CarPlaySearchAvailability.swift in Sources */,
 				0D63AA1F7F6CE64D03115BD9 /* CarPlaySearchController.swift in Sources */,
+				731AE9FAAB14E8254B8881A4 /* CarPlayVoiceSearchController.swift in Sources */,
 				471860B6E4026ABBD21B2A33 /* Components.swift in Sources */,
 				40ADEDBFEE6EF20F755D9813 /* CreatePlaylistSheet.swift in Sources */,
 				AC396BF7640568305DEFB735 /* DJView.swift in Sources */,
@@ -2131,7 +2135,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -2308,7 +2312,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -2453,7 +2457,7 @@
 			repositoryURL = "https://github.com/johnarleyburns/parso-audio-engine.git";
 			requirement = {
 				kind = exactVersion;
-				version = 1.2.2;
+				version = 1.2.3;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

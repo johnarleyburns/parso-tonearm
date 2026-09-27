@@ -65,7 +65,11 @@ struct WatchStorageView: View {
                 Text("Add or remove downloads from Platterhead on your iPhone.")
             }
         }
+#if os(watchOS)
         .listStyle(.carousel)
+#else
+        .listStyle(.plain)
+#endif
         .navigationTitle("Storage")
         .task { await model.refresh() }
     }

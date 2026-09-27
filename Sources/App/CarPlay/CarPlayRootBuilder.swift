@@ -159,7 +159,7 @@ enum CarPlayRootBuilder {
             return item
         }
         // iOS 27+ only: the controller exists only where the template is allowed.
-        let searchRow: [CPListItem] = search.map { [$0.entryItem] } ?? []
+        let searchRow: [CPListItem] = search.map { [$0.entryItem, $0.voiceEntryItem] } ?? []
         template.updateSections([CPListSection(items: searchRow + items)])
         return template
     }

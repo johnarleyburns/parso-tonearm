@@ -258,5 +258,53 @@ extension Schema {
                 }
             }
         }
+
+        if shouldRegister("v27", upTo: target) {
+            migrator.registerMigration("v27") { db in
+                try db.create(table: "dj_track_prep") { t in
+                    t.column("trackId", .integer).primaryKey().references("track", onDelete: .cascade)
+                    t.column("hotCuesJSON", .text).notNull().defaults(to: "{}")
+                    t.column("cuePointSeconds", .double)
+                    t.column("loopInSeconds", .double)
+                    t.column("loopOutSeconds", .double)
+                    t.column("hotCuesUpdatedAt", .datetime)
+                    t.column("analysisPayload", .blob)
+                    t.column("analysisAlgorithm", .text)
+                    t.column("analysisPayloadVersion", .integer)
+                    t.column("sourceSampleRate", .double)
+                    t.column("sourceFrameCount", .integer)
+                    t.column("bpm", .double)
+                    t.column("camelotKey", .text)
+                    t.column("analysisUpdatedAt", .datetime)
+                    t.column("syncID", .text).unique()
+                    t.check(sql: "(loopInSeconds IS NULL) = (loopOutSeconds IS NULL) AND (loopInSeconds IS NULL OR loopOutSeconds > loopInSeconds)")
+                }
+            }
+        }
+
+        if shouldRegister("v28", upTo: target) {
+            migrator.registerMigration("v28") { db in
+                try db.create(table: "track_identity") { t in
+                    t.column("trackId", .integer).notNull().references("track", onDelete: .cascade)
+                    t.column("strength", .text).notNull()
+                    t.column("keyHash", .text).notNull()
+                    t.primaryKey(["trackId", "strength"])
+                }
+                try db.create(indexOn: "track_identity", columns: ["keyHash"])
+            }
+        }
+
+        if shouldRegister("v29", upTo: target) {
+            migrator.registerMigration("v29") { db in
+                try db.create(table: "sync_pending_record") { t in
+                    t.column("recordName", .text).primaryKey()
+                    t.column("recordType", .text).notNull()
+                    t.column("payload", .blob).notNull()
+                    t.column("trackKeys", .text).notNull().defaults(to: "[]")
+                    t.column("receivedAt", .datetime).notNull()
+                    t.column("attempts", .integer).notNull().defaults(to: 0)
+                }
+            }
+        }
     }
 }

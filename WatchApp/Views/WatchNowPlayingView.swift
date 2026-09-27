@@ -186,8 +186,10 @@ struct WatchNowPlayingView: View {
             }
             .onAppear { crownValue = player.volume }
             .focusable(player.audioRouteProblem == nil)
+#if os(watchOS)
             .digitalCrownRotation($crownValue, from: 0.0, through: 1.0, by: 0.02,
                                   sensitivity: .low, isContinuous: true)
+#endif
             .onChange(of: crownValue) { _, newValue in player.volume = newValue }
         } else {
             VStack(spacing: 6) {

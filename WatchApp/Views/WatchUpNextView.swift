@@ -51,7 +51,11 @@ struct WatchUpNextView: View {
                     }
                 }
             }
+#if os(watchOS)
             .listStyle(.carousel)
+#else
+            .listStyle(.plain)
+#endif
         } else {
             WatchEmptyStateView(icon: "list.bullet", title: "Nothing Queued",
                                 message: "Play something on your iPhone to see it here.")
@@ -83,7 +87,11 @@ struct WatchUpNextView: View {
                     .buttonStyle(.plain)
                 }
             }
+#if os(watchOS)
             .listStyle(.carousel)
+#else
+            .listStyle(.plain)
+#endif
         }
     }
 }

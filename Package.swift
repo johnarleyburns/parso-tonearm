@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "TonearmCore",
-    platforms: [.iOS(.v18), .macOS(.v15), .watchOS(.v11)],
+    platforms: [.iOS("27.0"), .macOS(.v15), .watchOS(.v11)],
     products: [
         .library(name: "TonearmCore", targets: ["TonearmCore"]),
         .library(name: "TonearmDiscovery", targets: ["TonearmDiscovery"]),
@@ -18,7 +18,7 @@ let package = Package(
         // parenthesis, previously hashed to a different cache key than the
         // one callers computed from the same raw URL, causing eviction/
         // offline-lookup mismatches — "shows cached, play does nothing").
-        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.2.2")
+        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.2.3")
     ],
     targets: [
         .target(
@@ -33,6 +33,7 @@ let package = Package(
             path: ".",
             exclude: [
                 ".build",
+                "build",
                 "CLAUDE.md",
                 ".github",
                 "docs",

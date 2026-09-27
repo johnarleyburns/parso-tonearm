@@ -39,11 +39,19 @@ final class DJDeckState: ObservableObject {
     @Published var tempo: Double = 120
     @Published var bass = 0.5
     @Published var hotCues: [Int: Double] = [:]
+    @Published var cuePoint: Double?
+    @Published var loopIn: Double?
+    @Published var loopOut: Double?
+    @Published var loopActive = false
+    @Published var loopExitPending = false
+    @Published var padMode: DJPadMode = .hotCue
+    @Published var echoPad: Double?
 
     init(id: DJDeckID) { self.id = id }
 
     var title: String { row?.track.title ?? "LOAD TRACK " + id.rawValue }
     var artist: String { row?.artist?.name ?? "" }
+    var album: String { row?.album?.title ?? "" }
     var tempoRatio: Double {
         guard let bpm, bpm > 0 else { return 1 }
         return max(0.5, min(2, tempo / bpm))
@@ -59,6 +67,7 @@ final class DJPerformanceModel: ObservableObject {
     @Published var cueB = false
     @Published var bassFader = 0.5
     @Published var crossfader = 0.5
+    @Published var masterLevel = UserDefaults.standard.object(forKey: "dj.masterLevel") as? Double ?? 0.8
     @Published var loadError: String?
     @Published private(set) var loadingDecks: Set<DJDeckID> = []
 
@@ -76,7 +85,10 @@ final class DJPerformanceModel: ObservableObject {
         audio.setCrossfader(0.5)
         tickTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(50))
+                let active = await MainActor.run { [weak self] in
+                    self?.deckA.isPlaying == true || self?.deckB.isPlaying == true || self?.scratching.isEmpty == false
+                }
+                try? await Task.sleep(for: .milliseconds(active ? 16 : 100))
                 guard let self else { return }
                 self.tick()
             }
@@ -109,11 +121,25 @@ final class DJPerformanceModel: ObservableObject {
         deck.key = nil
         deck.waveform = []
         deck.hotCues = cues.load(trackID: row.id)
+        deck.cuePoint = nil
+        deck.loopIn = nil
+        deck.loopOut = nil
+        deck.loopActive = false
+        deck.loopExitPending = false
+        deck.padMode = .hotCue
+        deck.echoPad = nil
         deck.tempo = 120
         loadError = nil
 
         Task { [weak self, store] in
             do {
+                let prep = try await store.djTrackPrep(trackId: row.id)
+                if let prep {
+                    deck.hotCues = prep.markings.hotCues
+                    deck.cuePoint = prep.cuePointSeconds
+                    deck.loopIn = prep.loopInSeconds
+                    deck.loopOut = prep.loopOutSeconds
+                }
                 // Resolution may download a remote asset into the local cache.
                 // It is part of loading, so a track that was not pre-indexed or
                 // pre-downloaded remains a valid DJ selection.
@@ -132,6 +158,8 @@ final class DJPerformanceModel: ObservableObject {
                       self.deck(id).row?.id == row.id else { return }
                 try self.audio.load(prepared, deck: id)
                 self.audio.restoreHotCues(deck.hotCues, deck: id)
+                if let cue = deck.cuePoint { self.audio.setCue(deck: id, position: cue) }
+                if let start = deck.loopIn, let end = deck.loopOut { self.audio.setLoop(deck: id, start: start, end: end, active: false) }
                 self.loadingDecks.remove(id)
                 deck.duration = prepared.analysis.duration
                 deck.waveform = self.audio.waveform(for: id)
@@ -161,7 +189,7 @@ final class DJPerformanceModel: ObservableObject {
         guard deck.row != nil else { return }
         deck.isPlaying.toggle()
         if deck.isPlaying { audio.play(deck: id, position: deck.position, rate: deck.tempoRatio) }
-        else { audio.pause(deck: id) }
+        else { stop(deck: id) }
     }
 
     func setPlaying(_ playing: Bool, deck id: DJDeckID) {
@@ -169,7 +197,7 @@ final class DJPerformanceModel: ObservableObject {
         guard deck.row != nil else { return }
         deck.isPlaying = playing
         if playing { audio.play(deck: id, position: deck.position, rate: deck.tempoRatio) }
-        else { audio.pause(deck: id) }
+        else { stop(deck: id) }
     }
 
     func nudge(_ id: DJDeckID, direction: Double) {
@@ -244,7 +272,7 @@ final class DJPerformanceModel: ObservableObject {
         } else {
             deck.hotCues[number] = deck.position
             audio.setHotCue(number, deck: id, position: deck.position)
-            cues.save(deck.hotCues, trackID: deck.row?.id ?? -1)
+            saveMarkings(deck)
         }
     }
 
@@ -252,7 +280,93 @@ final class DJPerformanceModel: ObservableObject {
         let deck = deck(id)
         deck.hotCues[number] = nil
         audio.deleteHotCue(number, deck: id)
-        if let trackID = deck.row?.id { cues.save(deck.hotCues, trackID: trackID) }
+        saveMarkings(deck)
+    }
+
+    func cueDown(_ id: DJDeckID) {
+        let deck = deck(id)
+        guard deck.row != nil else { return }
+        if deck.isPlaying {
+            audio.jumpToCue(deck: id); stop(deck: id)
+        } else if let cue = deck.cuePoint, abs(deck.position - cue) <= 0.01 {
+            audio.cuePlayPress(deck: id)
+        } else {
+            deck.cuePoint = deck.position; audio.setCue(deck: id, position: deck.position); audio.cuePlayPress(deck: id); saveMarkings(deck)
+        }
+    }
+
+    func cueUp(_ id: DJDeckID) { audio.cuePlayRelease(deck: id); deck(id).position = audio.position(for: id) }
+
+    func minimapSeek(_ id: DJDeckID, x: CGFloat, width: CGFloat) {
+        let deck = deck(id)
+        guard !deck.isPlaying, width > 0, deck.duration > 0 else { return }
+        seek(id, to: deck.duration * Double(max(0, min(width, x)) / width))
+    }
+
+    func toggleEcho(_ id: DJDeckID) {
+        let deck = deck(id)
+        if deck.padMode == .echo { deck.padMode = .hotCue; audio.disarmEchoOut(deck: id) }
+        else {
+            if deck.padMode == .loop, deck.loopActive {
+                audio.reloopExit(deck: id)
+                deck.loopActive = false
+            }
+            deck.padMode = .echo
+            audio.armEchoOut(deck: id)
+        }
+    }
+
+    func toggleLoop(_ id: DJDeckID) {
+        let deck = deck(id)
+        if deck.padMode == .loop {
+            deck.padMode = .hotCue
+            if deck.loopActive { audio.reloopExit(deck: id); deck.loopActive = false }
+        } else {
+            if deck.padMode == .echo { audio.disarmEchoOut(deck: id) }
+            deck.padMode = .loop
+        }
+    }
+
+    func echoPad(_ value: Double, deck id: DJDeckID, pressed: Bool) {
+        let deck = deck(id); guard deck.padMode == .echo else { return }
+        deck.echoPad = pressed ? value : nil
+        if pressed { audio.setEcho(deck: id, enabled: true, beats: value) }
+        else { audio.setEcho(deck: id, enabled: false, beats: value) }
+    }
+
+    func loopPad(_ pad: Int, deck id: DJDeckID) {
+        let deck = deck(id); guard deck.padMode == .loop else { return }
+        switch pad {
+        case 0:
+            deck.loopIn = deck.position; deck.loopOut = nil; deck.loopActive = false; audio.loopIn(deck: id); saveMarkings(deck)
+        case 1:
+            guard let start = deck.loopIn, deck.position > start else { return }
+            deck.loopOut = deck.position; deck.loopActive = false; audio.setLoop(deck: id, start: start, end: deck.position, active: false); saveMarkings(deck)
+        case 2:
+            guard let start = deck.loopIn, let bpm = deck.bpm, bpm > 0 else { return }
+            let lengths = [1.0, 2, 4, 8, 16, 32]
+            let current = deck.loopOut.map { max(0, Int((($0 - start) * bpm / 60).rounded())) } ?? 4
+            let next = lengths.first(where: { Int($0) > current }) ?? 1
+            let end = min(deck.duration, start + next * 60 / bpm)
+            deck.loopOut = end; audio.setLoop(deck: id, start: start, end: end, active: false); saveMarkings(deck)
+        default:
+            guard deck.loopIn != nil, deck.loopOut != nil else { return }
+            if deck.loopActive { audio.exitLoopAtEnd(deck: id); deck.loopActive = false; deck.loopExitPending = true }
+            else { audio.setLoopActive(deck: id, active: true); deck.loopActive = true; deck.loopExitPending = false }
+        }
+    }
+
+    private func stop(deck id: DJDeckID) {
+        let state = deck(id)
+        state.isPlaying = false
+        audio.stop(deck: id, echoOut: state.padMode == .echo)
+    }
+
+    private func saveMarkings(_ deck: DJDeckState) {
+        guard let id = deck.row?.id, id >= 0 else { return }
+        let markings = DJMarkings(hotCues: deck.hotCues, cuePointSeconds: deck.cuePoint,
+                                  loopInSeconds: deck.loopIn, loopOutSeconds: deck.loopOut)
+        Task { try? await store.saveDJMarkings(markings, trackId: id) }
     }
 
     func setBass(_ value: Double) {
@@ -263,6 +377,12 @@ final class DJPerformanceModel: ObservableObject {
     func setCrossfader(_ value: Double) {
         crossfader = value
         audio.setCrossfader(value)
+    }
+
+    func setMasterLevel(_ value: Double) {
+        masterLevel = max(0, min(1, value))
+        UserDefaults.standard.set(masterLevel, forKey: "dj.masterLevel")
+        audio.setMasterLevel(masterLevel)
     }
 
     func setOutputMode(_ mode: DJOutputMode) {
@@ -302,12 +422,14 @@ final class DJPerformanceModel: ObservableObject {
     }
 
     private func tick() {
+        audio.pollEvents()
         for id in DJDeckID.allCases {
             let deck = deck(id)
             deck.position = min(deck.duration, audio.position(for: id))
             if !scratching.contains(id) {
                 deck.isPlaying = audio.isPlaying(for: id)
             }
+            deck.loopActive = audio.isLoopActive(for: id)
         }
     }
 
@@ -384,6 +506,12 @@ private final class DJAudioBacker {
 
     func pause(deck: DJDeckID) { engine.decks[index(for: deck)].pause() }
 
+    func pollEvents() { engine.pollEvents() }
+
+    func setMasterLevel(_ value: Double) {
+        engine.mixer.master.level = max(0, min(1, value))
+    }
+
     func seek(deck: DJDeckID, position: Double) {
         guard let track = prepared[deck] else { return }
         let frame = Int64(max(0, min(Double(track.buffer.frameCount),
@@ -397,6 +525,10 @@ private final class DJAudioBacker {
 
     func isPlaying(for deck: DJDeckID) -> Bool {
         engine.decks[index(for: deck)].isPlaying
+    }
+
+    func isLoopActive(for deck: DJDeckID) -> Bool {
+        engine.decks[index(for: deck)].isLoopActive
     }
 
     func setRate(deck: DJDeckID, rate: Double) {
@@ -421,6 +553,43 @@ private final class DJAudioBacker {
         let frame = Int64(max(0, min(Double(track.buffer.frameCount),
                                      position * track.buffer.format.sampleRate)).rounded())
         engine.decks[index(for: deck)].triggerHotCue(slot - 1, atSample: frame)
+    }
+
+    func setCue(deck: DJDeckID, position: Double) {
+        guard let track = prepared[deck] else { return }
+        let frame = Int64(max(0, min(Double(track.buffer.frameCount),
+                                     position * track.buffer.format.sampleRate)).rounded())
+        engine.decks[index(for: deck)].setCue(atSample: frame)
+    }
+
+    func jumpToCue(deck: DJDeckID) { engine.decks[index(for: deck)].jumpToCue() }
+    func cuePlayPress(deck: DJDeckID) { engine.decks[index(for: deck)].cuePlayPress() }
+    func cuePlayRelease(deck: DJDeckID) { engine.decks[index(for: deck)].cuePlayRelease() }
+
+    func setLoop(deck: DJDeckID, start: Double, end: Double, active: Bool) {
+        guard let track = prepared[deck] else { return }
+        let rate = track.buffer.format.sampleRate
+        let maxFrame = Double(track.buffer.frameCount)
+        let startFrame = Int64(max(0, min(maxFrame, start * rate)).rounded())
+        let endFrame = Int64(max(0, min(maxFrame, end * rate)).rounded())
+        let player = engine.decks[index(for: deck)]
+        player.setLoop(startSample: startFrame, endSample: endFrame)
+        player.setActiveLoop(active)
+    }
+
+    func loopIn(deck: DJDeckID) { engine.decks[index(for: deck)].loopIn() }
+    func setLoopActive(deck: DJDeckID, active: Bool) { engine.decks[index(for: deck)].setActiveLoop(active) }
+    func exitLoopAtEnd(deck: DJDeckID) { engine.decks[index(for: deck)].exitLoopAtEnd() }
+    func reloopExit(deck: DJDeckID) { engine.decks[index(for: deck)].reloopExit() }
+
+    func armEchoOut(deck: DJDeckID) { engine.decks[index(for: deck)].armEchoOut() }
+    func disarmEchoOut(deck: DJDeckID) { engine.decks[index(for: deck)].disarmEchoOut() }
+    func setEcho(deck: DJDeckID, enabled: Bool, beats: Double) {
+        engine.decks[index(for: deck)].setEcho(enabled: enabled, beats: beats)
+    }
+    func stop(deck: DJDeckID, echoOut: Bool) {
+        if echoOut { engine.decks[index(for: deck)].echoOutStop() }
+        else { engine.decks[index(for: deck)].pause() }
     }
 
     func jumpHotCue(_ slot: Int, deck: DJDeckID) {
@@ -572,31 +741,13 @@ struct DJView: View {
     @State private var showHelp = false
 
     var body: some View {
-        GeometryReader { proxy in
-            VStack(spacing: 0) {
-                // DJView intentionally renders edge-to-edge so the dock cannot
-                // cover the mixer, but the header still has to clear the
-                // Dynamic Island/notch. Without this spacer the top part of
-                // the header is underneath the iPhone display cutout.
-                Color.clear.frame(height: proxy.safeAreaInsets.top)
-                DJHeader(outputMode: model.outputMode,
-                         cueA: model.cueA,
-                         cueB: model.cueB,
-                         onBack: { appState.isPerformanceSurfaceFullScreen = false; appState.tab = .listen },
-                         onOutput: model.setOutputMode,
-                         onCueA: { model.toggleCue(.a) },
-                         onCueB: { model.toggleCue(.b) },
-                         onInfo: { showHelp = true })
-                    .frame(height: 58)
-                waveformArea
-                DJFooter(bass: model.bassFader,
-                         crossfade: model.crossfader,
-                         onBass: model.setBass,
-                         onCrossfade: model.setCrossfader)
-                    .frame(height: 58)
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .background(Palette.bg)
+        VStack(spacing: 0) {
+            DJTitleBar(onBack: {
+                appState.isPerformanceSurfaceFullScreen = false
+                appState.tab = .listen
+            }, onInfo: { showHelp = true })
+            DJEightRowSurface(model: model,
+                              onLoad: { loadTarget = $0 })
         }
         // Keep the top safe area owned by SwiftUI so the iPhone's Dynamic
         // Island/notch cannot cover the back button. The DJ surface still
@@ -644,6 +795,360 @@ struct DJView: View {
             .padding(.vertical, 4)
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
+    }
+}
+
+private struct DJTitleBar: View {
+    let onBack: () -> Void
+    let onInfo: () -> Void
+
+    var body: some View {
+        HStack {
+            Button(action: onBack) {
+                Label("Platterhead DJ", systemImage: "chevron.down")
+                    .font(.system(size: 15, weight: .bold))
+            }
+            .accessibilityLabel("Close DJ")
+            Spacer()
+            Button("(i)", action: onInfo)
+                .font(.system(size: 17, weight: .semibold))
+                .accessibilityLabel("DJ gestures and help")
+        }
+        .foregroundStyle(Palette.ink)
+        .padding(.horizontal, 14)
+        .frame(height: 46)
+        .background(.ultraThinMaterial)
+    }
+}
+
+private struct DJGridCell<Content: View>: View {
+    let frame: CGRect
+    let content: () -> Content
+
+    init(frame: CGRect, @ViewBuilder content: @escaping () -> Content) {
+        self.frame = frame
+        self.content = content
+    }
+
+    var body: some View {
+        content()
+            .frame(width: frame.width, height: frame.height)
+            .position(x: frame.midX, y: frame.midY)
+    }
+}
+
+private struct DJEightRowSurface: View {
+    @ObservedObject var model: DJPerformanceModel
+    let onLoad: (DJDeckID) -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            let layout = DJGridLayout(size: proxy.size, gap: 5)
+            ZStack(alignment: .topLeading) {
+                DJGridCell(frame: layout.frame(col: 0, row: 0)) { DJSmallInfoButton() }
+                DJGridCell(frame: layout.frame(col: 1, row: 0, span: 3)) {
+                    Text("LIVE MIX")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Palette.ink3)
+                }
+                DJGridCell(frame: layout.frame(col: 4, row: 0)) {
+                    DJOutputButton(mode: model.outputMode, action: cycleOutput)
+                }
+                DJGridCell(frame: layout.frame(col: 5, row: 0)) {
+                    DJVolumeButton(level: model.masterLevel, onChange: model.setMasterLevel)
+                }
+                DJGridCell(frame: layout.frame(col: 6, row: 0)) {
+                    DJCueButton(deck: "A", isOn: model.cueA, action: { model.toggleCue(.a) })
+                }
+                DJGridCell(frame: layout.frame(col: 7, row: 0)) {
+                    DJCueButton(deck: "B", isOn: model.cueB, action: { model.toggleCue(.b) })
+                }
+
+                deckTrack(model.deckA, onLoad: onLoad)
+                    .frame(width: layout.frame(col: 0, row: 1, span: 4).width,
+                           height: layout.frame(col: 0, row: 1, span: 4).height)
+                    .position(x: layout.frame(col: 0, row: 1, span: 4).midX,
+                              y: layout.frame(col: 0, row: 1, span: 4).midY)
+                deckTrack(model.deckB, onLoad: onLoad)
+                    .frame(width: layout.frame(col: 0, row: 6, span: 4).width,
+                           height: layout.frame(col: 0, row: 6, span: 4).height)
+                    .position(x: layout.frame(col: 0, row: 6, span: 4).midX,
+                              y: layout.frame(col: 0, row: 6, span: 4).midY)
+
+                deckTransport(model.deckA, row: 1)
+                deckTransport(model.deckB, row: 6)
+                deckMinimap(model.deckA, row: 2)
+                deckMinimap(model.deckB, row: 5)
+                deckPads(model.deckA, row: 2)
+                deckPads(model.deckB, row: 5)
+                deckWaveform(model.deckA, row: 3)
+                deckWaveform(model.deckB, row: 4)
+
+                DJGridCell(frame: layout.frame(col: 0, row: 7, span: 4)) {
+                    DJFader(title: "BASS", value: model.bassFader, onChange: model.setBass)
+                }
+                DJGridCell(frame: layout.frame(col: 4, row: 7, span: 4)) {
+                    DJFader(title: "CROSSFADER", value: model.crossfader, onChange: model.setCrossfader)
+                }
+            }
+            .padding(7)
+            .background(Palette.bg)
+        }
+        .clipped()
+    }
+
+    private func deckTrack(_ deck: DJDeckState, onLoad: @escaping (DJDeckID) -> Void) -> some View {
+        Button { onLoad(deck.id) } label: {
+            HStack(spacing: 8) {
+                Text(deck.id.rawValue)
+                    .font(.system(size: 12, weight: .black, design: .monospaced))
+                    .foregroundStyle(deck.id == .a ? Palette.brass : Color.blue)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(deck.title).font(.system(size: 13, weight: .bold)).lineLimit(1)
+                    Text(deck.artist.isEmpty ? "Tap to load" : deck.artist)
+                        .font(.system(size: 10, weight: .medium)).foregroundStyle(Palette.ink2).lineLimit(1)
+                    Text(deck.album.isEmpty ? "" : deck.album)
+                        .font(.system(size: 9)).foregroundStyle(Palette.ink3).lineLimit(1)
+                }
+                Spacer(minLength: 2)
+            }
+            .padding(.horizontal, 8)
+            .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 9))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Load deck \(deck.id.rawValue)")
+    }
+
+    private func deckTransport(_ deck: DJDeckState, row: Int) -> some View {
+        return HStack(spacing: 5) {
+            DJTransportButton(title: "CUE", active: deck.cuePoint != nil,
+                              gesture: cueGesture(deck.id))
+            DJTransportButton(title: deck.isPlaying ? "PAUSE" : "PLAY", active: deck.isPlaying) {
+                model.toggle(deck.id)
+            }
+            DJTransportButton(title: "ECHO", active: deck.padMode == .echo) {
+                model.toggleEcho(deck.id)
+            }
+            DJTransportButton(title: "LOOP", active: deck.padMode == .loop) {
+                model.toggleLoop(deck.id)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(2)
+        .gridPlacement(row: row, col: 4, span: 4)
+    }
+
+    private func cueGesture(_ id: DJDeckID) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { _ in model.cueDown(id) }
+            .onEnded { _ in model.cueUp(id) }
+    }
+
+    private func deckMinimap(_ deck: DJDeckState, row: Int) -> some View {
+        MiniMap(bins: deck.waveform, position: deck.position, duration: deck.duration,
+                hotCues: deck.hotCues, accent: deck.id == .a ? Palette.brass : Color.blue)
+            .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 6))
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { value in
+                model.minimapSeek(deck.id, x: value.location.x, width: max(1, value.translation.width + value.location.x))
+            })
+            .gridPlacement(row: row, col: 0, span: 4)
+    }
+
+    private func deckWaveform(_ deck: DJDeckState, row: Int) -> some View {
+        ZStack {
+            WaveformCanvas(bins: deck.waveform, position: deck.position, duration: deck.duration,
+                           hotCues: deck.hotCues, isPlaying: deck.isPlaying,
+                           accent: deck.id == .a ? Palette.brass : Color.blue)
+            Rectangle().fill(deck.id == .a ? Palette.brass : Color.blue).frame(width: 1.5)
+            HStack {
+                Text("\(deck.bpm.map { String(format: "%.1f", $0) } ?? "—") BPM")
+                Spacer()
+                Text(DJKeyFormatter.format(deck.key))
+                Spacer()
+                Text(formatTime(deck.position))
+            }
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .foregroundStyle(Palette.ink2)
+            .padding(6)
+        }
+        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 7))
+        .gridPlacement(row: row, col: 0, span: 8)
+    }
+
+    private func deckPads(_ deck: DJDeckState, row: Int) -> some View {
+        DJPerformancePads(deck: deck, model: model)
+            .gridPlacement(row: row, col: 4, span: 4)
+    }
+
+    private func cycleOutput() {
+        let modes = DJOutputMode.allCases
+        let next = (modes.firstIndex(of: model.outputMode).map { ($0 + 1) % modes.count }) ?? 0
+        model.setOutputMode(modes[next])
+    }
+
+    private func formatTime(_ value: Double) -> String {
+        let seconds = max(0, Int(value.rounded()))
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+private extension View {
+    func gridPlacement(row: Int, col: Int, span: Int = 1) -> some View {
+        GeometryReader { proxy in
+            let layout = DJGridLayout(size: proxy.size, gap: 5)
+            self.frame(width: layout.frame(col: col, row: row, span: span).width,
+                      height: layout.frame(col: col, row: row, span: span).height)
+                .position(x: layout.frame(col: col, row: row, span: span).midX,
+                          y: layout.frame(col: col, row: row, span: span).midY)
+        }
+        .allowsHitTesting(true)
+    }
+}
+
+private struct DJSmallInfoButton: View {
+    var body: some View {
+        Text("(i)").font(.system(size: 14, weight: .bold, design: .monospaced))
+            .foregroundStyle(Palette.ink2)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 7))
+    }
+}
+
+private struct DJOutputButton: View {
+    let mode: DJOutputMode
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 1) {
+                Text(mode == .stereo ? "OUT" : "SPLIT")
+                Text(mode == .stereo ? "STEREO" : mode.rawValue.replacingOccurrences(of: "SPLIT ", with: ""))
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+            }
+            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .foregroundStyle(Palette.ink2)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 7))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Output \(mode.rawValue)")
+    }
+}
+
+private struct DJVolumeButton: View {
+    let level: Double
+    let onChange: (Double) -> Void
+    @State private var presented = false
+    var body: some View {
+        Button { presented = true } label: {
+            VStack(spacing: 1) {
+                Image(systemName: "speaker.wave.2.fill")
+                Text("VOL")
+            }
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .foregroundStyle(Palette.ink2)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 7))
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $presented) {
+            VStack {
+                Text("MASTER").font(.caption.monospaced())
+                Slider(value: Binding(get: { level }, set: onChange))
+            }
+            .padding()
+            .presentationCompactAdaptation(.popover)
+        }
+    }
+}
+
+private struct DJTransportButton: View {
+    let title: String
+    let active: Bool
+    var gesture: AnyGesture<Void>? = nil
+    let action: (() -> Void)?
+
+    init(title: String, active: Bool, gesture: some Gesture, action: (() -> Void)? = nil) {
+        self.title = title; self.active = active; self.gesture = AnyGesture(gesture.map { _ in () }); self.action = action
+    }
+    init(title: String, active: Bool, action: @escaping () -> Void) {
+        self.title = title; self.active = active; self.action = action
+    }
+    var body: some View {
+        button
+    }
+
+    @ViewBuilder
+    private var button: some View {
+        let button = Button(action: action ?? {}) {
+            Text(title).font(.system(size: 10, weight: .black, design: .monospaced))
+                .foregroundStyle(active ? Palette.bg : Palette.ink2)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(active ? Palette.brass : Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 7))
+        }
+        .buttonStyle(.plain)
+
+        if let gesture {
+            button.simultaneousGesture(gesture)
+        } else {
+            button
+        }
+    }
+}
+
+private struct DJPerformancePads: View {
+    @ObservedObject var deck: DJDeckState
+    let model: DJPerformanceModel
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if deck.padMode == .hotCue {
+                ForEach(1...4, id: \.self) { n in
+                    Button("\(n)") { model.activateCue(n, deck: deck.id) }
+                        .buttonStyle(.plain).background(deck.hotCues[n] == nil ? Color.white.opacity(0.05) : Palette.brass,
+                                                         in: RoundedRectangle(cornerRadius: 5))
+                }
+            } else if deck.padMode == .echo {
+                ForEach([0.25, 0.5, 1.0, 2.0], id: \.self) { beats in
+                    Text(echoLabel(beats))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(deck.echoPad == beats ? Palette.brass : Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
+                        .gesture(DragGesture(minimumDistance: 0).onChanged { _ in model.echoPad(beats, deck: deck.id, pressed: true) }
+                            .onEnded { _ in model.echoPad(beats, deck: deck.id, pressed: false) })
+                }
+            } else {
+                ForEach(["IN", "OUT", "SET", deck.loopActive ? "EXIT" : "ENTER"], id: \.self) { label in
+                    Button(label) { model.loopPad(["IN", "OUT", "SET", "ENTER"].firstIndex(of: label) ?? 3, deck: deck.id) }
+                        .buttonStyle(.plain)
+                }
+            }
+        }
+        .font(.system(size: 9, weight: .black, design: .monospaced))
+        .foregroundStyle(Palette.ink2)
+    }
+
+    private func echoLabel(_ beats: Double) -> String {
+        switch beats {
+        case 0.25: return "¼"
+        case 0.5: return "½"
+        case 1: return "1"
+        default: return "2"
+        }
+    }
+}
+
+private struct DJFader: View {
+    let title: String
+    let value: Double
+    let onChange: (Double) -> Void
+    var body: some View {
+        VStack(spacing: 3) {
+            Text(title).font(.system(size: 9, weight: .black, design: .monospaced)).foregroundStyle(Palette.ink3)
+            Slider(value: Binding(get: { value }, set: onChange))
+                .tint(Palette.brass)
+        }
+        .padding(.horizontal, 9)
+        .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 7))
     }
 }
 

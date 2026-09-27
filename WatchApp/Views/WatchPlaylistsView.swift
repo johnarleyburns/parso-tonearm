@@ -23,7 +23,11 @@ struct WatchPlaylistsView: View {
                         }
                     }
                 }
+#if os(watchOS)
                 .listStyle(.carousel)
+#else
+                .listStyle(.plain)
+#endif
             }
         }
         .navigationTitle("Playlists")
@@ -93,7 +97,11 @@ struct WatchPlaylistDetailView: View {
                 .accessibilityIdentifier("watch.track.\(track.id)")
             }
         }
+#if os(watchOS)
         .listStyle(.carousel)
+#else
+        .listStyle(.plain)
+#endif
         .navigationTitle(model.playlist(id: playlistID)?.title ?? "Playlist")
         .task { await model.refresh() }
     }

@@ -28,6 +28,7 @@ final class CarPlaySearchController: NSObject, CPSearchTemplateDelegate {
     private var hitsByItem: [ObjectIdentifier: (rows: [TrackRow], index: Int)] = [:]
     private var searchTask: Task<Void, Never>?
     private var sessionConfiguration: CPSessionConfiguration?
+    private lazy var voice = CarPlayVoiceSearchController(interfaceController: interfaceController, search: self)
 
     /// The row `CarPlayRootBuilder` puts at the top of the Library tab.
     private(set) lazy var entryItem: CPListItem = {
@@ -38,6 +39,21 @@ final class CarPlaySearchController: NSObject, CPSearchTemplateDelegate {
         )
         item.handler = { [weak self] _, completion in
             self?.present()
+            completion()
+        }
+        return item
+    }()
+
+    /// A separate row keeps voice search discoverable without hiding the
+    /// keyboard path behind a secondary gesture on the car's display.
+    private(set) lazy var voiceEntryItem: CPListItem = {
+        let item = CPListItem(
+            text: "Voice Search",
+            detailText: "Hands-free library search",
+            image: UIImage(systemName: "mic.fill")
+        )
+        item.handler = { [weak self] _, completion in
+            self?.voice.present()
             completion()
         }
         return item
@@ -64,6 +80,22 @@ final class CarPlaySearchController: NSObject, CPSearchTemplateDelegate {
             }
             _ = try? await interfaceController.pushTemplate(template, animated: true)
         }
+    }
+
+    func presentVoiceResults(for query: String, interfaceController: CPInterfaceController) async {
+        let cap = max(1, min(CPListTemplate.maximumItemCount, 24))
+        let rows = Array(((try? await LibraryStore.shared.search(query)) ?? []).prefix(cap))
+        let items = rows.enumerated().map { index, row -> CPListItem in
+            let item = CPListItem(text: row.track.title, detailText: row.artist?.name ?? row.album?.artist)
+            item.handler = { _, completion in
+                AudioPlayer.shared.play(tracks: rows, startAt: index, source: .library)
+                interfaceController.pushTemplate(CPNowPlayingTemplate.shared, animated: true, completion: nil)
+                completion()
+            }
+            return item
+        }
+        let results = CPListTemplate(title: "Voice Results", sections: [CPListSection(items: items)])
+        interfaceController.pushTemplate(results, animated: true, completion: nil)
     }
 
     // MARK: - CPSearchTemplateDelegate

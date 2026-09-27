@@ -29,7 +29,7 @@ include:
 options:
   bundleIdPrefix: guru.parso
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "27.0"
   createIntermediateGroups: true
   groupSortPosition: top
 
@@ -40,7 +40,7 @@ packages:
   # 1.1.0 ships the Internet Archive streaming cache-key fix (see Package.swift).
   ParsoAudioEngine:
     url: https://github.com/johnarleyburns/parso-audio-engine.git
-    exactVersion: 1.2.2
+    exactVersion: 1.2.3
 
 settings:
   base:
@@ -49,7 +49,7 @@ settings:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
     DEVELOPMENT_TEAM: "3264Y8YUGV"
-    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "27.0"
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
     GENERATE_INFOPLIST_FILE: "NO"
     TONEARM_DROPBOX_CLIENT_ID: ""
@@ -177,6 +177,8 @@ targets:
               NSExceptionAllowsInsecureHTTPLoads: false
         ITSAppUsesNonExemptEncryption: false
         NSSiriUsageDescription: "Siri can play songs, artists and playlists from your Platterhead library when you ask, including in CarPlay. Platterhead itself collects and sends nothing."
+        NSMicrophoneUsageDescription: "Platterhead uses the microphone in CarPlay to hear your music searches."
+        NSSpeechRecognitionUsageDescription: "Platterhead transcribes your CarPlay music search so you can find tracks hands-free."
         TonearmOAuthClientIDs:
           dropbox: "$(TONEARM_DROPBOX_CLIENT_ID)"
           googleDrive: "$(TONEARM_GOOGLE_DRIVE_CLIENT_ID)"

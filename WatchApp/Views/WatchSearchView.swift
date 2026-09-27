@@ -19,7 +19,11 @@ struct WatchSearchView: View {
 
             content
         }
+#if os(watchOS)
         .listStyle(.carousel)
+#else
+        .listStyle(.plain)
+#endif
         .navigationTitle("Search")
     }
 

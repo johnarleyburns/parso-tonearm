@@ -37,7 +37,11 @@ struct WatchRootView: View {
                 offlineDownloadRows
             }
         }
+#if os(watchOS)
         .listStyle(.carousel)
+#else
+        .listStyle(.plain)
+#endif
         .navigationTitle("Platterhead")
         .accessibilityIdentifier("watch.root")
         .task { await model.refresh() }

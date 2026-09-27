@@ -20,7 +20,11 @@ struct WatchAlbumsView: View {
                         .accessibilityIdentifier("watch.album.\(album.id)")
                     }
                 }
+#if os(watchOS)
                 .listStyle(.carousel)
+#else
+                .listStyle(.plain)
+#endif
             }
         }
         .navigationTitle("Albums")
@@ -112,7 +116,11 @@ struct WatchAlbumDetailView: View {
                 .accessibilityIdentifier("watch.track.\(track.id)")
             }
         }
+#if os(watchOS)
         .listStyle(.carousel)
+#else
+        .listStyle(.plain)
+#endif
         .navigationTitle(model.album(id: albumID)?.title ?? "Album")
         .task { await model.refresh() }
     }
@@ -142,7 +150,11 @@ struct WatchSongsView: View {
                         .accessibilityIdentifier("watch.track.\(track.id)")
                     }
                 }
+#if os(watchOS)
                 .listStyle(.carousel)
+#else
+                .listStyle(.plain)
+#endif
             }
         }
         .navigationTitle("Songs")

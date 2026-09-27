@@ -37,8 +37,6 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-	<key>NSSiriUsageDescription</key>
-	<string>Siri can play songs, artists and playlists from your Platterhead library when you ask, including in CarPlay. Platterhead itself collects and sends nothing.</string>
 	<key>JamendoClientID</key>
 	<string>$(TONEARM_JAMENDO_CLIENT_ID)</string>
 	<key>NSAppTransportSecurity</key>
@@ -72,6 +70,12 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Platterhead uses the microphone in CarPlay to hear your music searches.</string>
+	<key>NSSiriUsageDescription</key>
+	<string>Siri can play songs, artists and playlists from your Platterhead library when you ask, including in CarPlay. Platterhead itself collects and sends nothing.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Platterhead transcribes your CarPlay music search so you can find tracks hands-free.</string>
 	<key>TonearmOAuthClientIDs</key>
 	<dict>
 		<key>dropbox</key>
