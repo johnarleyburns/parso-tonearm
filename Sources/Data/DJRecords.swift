@@ -12,7 +12,6 @@ public struct DJMarkings: Codable, Equatable, Sendable {
         self.loopInSeconds = loopInSeconds; self.loopOutSeconds = loopOutSeconds
     }
 }
-
 public struct DJTrackPrep: Codable, Equatable, Sendable, FetchableRecord, MutablePersistableRecord {
     public static let databaseTableName = "dj_track_prep"
     public var trackId: Int64
@@ -55,4 +54,3 @@ public struct DJTrackPrep: Codable, Equatable, Sendable, FetchableRecord, Mutabl
                           loopOutSeconds: loopOutSeconds)
     }
 }
-

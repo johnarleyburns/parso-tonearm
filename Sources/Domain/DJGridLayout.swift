@@ -23,7 +23,6 @@ public struct DJGridLayout: Equatable, Sendable {
                       height: rowHeight)
     }
 }
-
 public enum DJPadMode: String, Codable, Sendable {
     case hotCue
     case echo
@@ -93,4 +92,3 @@ public struct DJCueTransport: Equatable, Sendable {
         }
     }
 }
-

@@ -8,7 +8,6 @@ public struct TrackIdentityKey: Equatable, Hashable, Codable, Sendable {
     public init(strength: Strength, value: String) { self.strength = strength; self.value = value }
     public var cloudValue: String { "\(strength.rawValue):\(value)" }
 }
-
 public enum TrackIdentity {
     public static func keys(track: Track, asset: Asset?, source: Source?) -> [TrackIdentityKey] {
         var result: [TrackIdentityKey] = []
@@ -53,4 +52,3 @@ public enum TrackIdentity {
         SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 }
-
