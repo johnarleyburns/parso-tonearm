@@ -893,7 +893,20 @@ private struct DiscoverySyncActivityRow: View {
         let total = activity.accepted + activity.rejectedKeepLocal + activity.rejectedRequeued
         return VStack(alignment: .leading, spacing: 4) {
             Text("Sound Index Sync").font(.system(size: 12, weight: .semibold))
-            if total == 0 {
+            if activity.pendingTrackImport > 0 {
+                Text("\(activity.pendingTrackImport) indexing results from your other devices are waiting for those tracks to be added here.")
+                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                HStack {
+                    Button("Retry matching") { Task { await engine.retryPending() } }
+                    Button("Discard waiting results", role: .destructive) {
+                        Task {
+                            try? await LibraryStore.shared.discardPendingSyncRecords()
+                            await engine.refreshPendingActivity()
+                        }
+                    }
+                }
+                .font(.system(size: 11, weight: .semibold))
+            } else if total == 0 {
                 Text("No indexing results received from another device yet.")
                     .font(.system(size: 11)).foregroundStyle(Palette.ink3)
             } else {

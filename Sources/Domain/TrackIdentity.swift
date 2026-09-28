@@ -1,54 +1,65 @@
 import CryptoKit
 import Foundation
 
+/// Stable, privacy-preserving content identities used by discovery and DJ
+/// preparation sync. The source key is preferred, while the metadata key lets
+/// a local copy match an Internet Archive or remote copy on another device.
 public struct TrackIdentityKey: Equatable, Hashable, Codable, Sendable {
     public enum Strength: String, Codable, Sendable { case source, meta }
     public let strength: Strength
     public let value: String
-    public init(strength: Strength, value: String) { self.strength = strength; self.value = value }
+
+    public init(strength: Strength, value: String) {
+        self.strength = strength; self.value = value
+    }
+
     public var cloudValue: String { "\(strength.rawValue):\(value)" }
 }
+
 public enum TrackIdentity {
-    public static func keys(track: Track, asset: Asset?, source: Source?) -> [TrackIdentityKey] {
+    public static func keys(track: Track, asset: Asset?, source: Source?, artist: String? = nil, album: String? = nil) -> [TrackIdentityKey] {
         var result: [TrackIdentityKey] = []
-        if let sourceValue = sourceValue(asset: asset, source: source) {
-            result.append(.init(strength: .source, value: digest(sourceValue)))
+        if let sourceString = sourceString(track: track, asset: asset, source: source) {
+            result.append(.init(strength: .source, value: hash(sourceString)))
         }
-        let artist = sourceArtist(track: track, source: source)
-        let meta = [artist, track.title, sourceAlbum(track: track), roundedDuration(track.durationSec)]
-            .map(normalize).joined(separator: "|")
-        result.append(.init(strength: .meta, value: digest("meta:\(meta)")))
+        let artist = ArtistNamePolicy.normalize(artist ?? "") ?? ""
+        let meta = ["meta", normalize(artist), normalize(track.title), normalize(album ?? ""),
+                    String(Int((track.durationSec ?? 0).rounded()))].joined(separator: "|")
+        result.append(.init(strength: .meta, value: hash(meta)))
         return result
     }
 
-    private static func sourceValue(asset: Asset?, source: Source?) -> String? {
-        guard let asset, let source else { return nil }
-        if source.kind == .iaItem, let identifier = source.iaIdentifier,
-           let path = URL(string: asset.remoteURL ?? "")?.path, !path.isEmpty {
-            return "ia:\(identifier)/\(URL(fileURLWithPath: path).lastPathComponent)"
+    public static func parse(_ values: [String]) -> [TrackIdentityKey] {
+        values.compactMap { value in
+            let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let strength = TrackIdentityKey.Strength(rawValue: parts[0]) else { return nil }
+            return TrackIdentityKey(strength: strength, value: parts[1])
         }
-        if let node = asset.remoteNodePath, let original = source.originalURL,
-           let host = URL(string: original)?.host {
-            return "remote:\(source.kind.rawValue):\(host):\(node)"
+    }
+
+    private static func sourceString(track: Track, asset: Asset?, source: Source?) -> String? {
+        guard let source else { return nil }
+        if source.kind == .iaItem, let identifier = source.iaIdentifier,
+           let remoteURL = asset?.remoteURL,
+           let url = URL(string: remoteURL), !url.path.isEmpty {
+            return "ia:\(identifier)/\(url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent)"
+        }
+        if let nodePath = asset?.remoteNodePath, !nodePath.isEmpty,
+           let original = source.originalURL, let host = URL(string: original)?.host {
+            return "remote:\(source.kind.rawValue):\(host)/\(nodePath)"
         }
         return nil
     }
 
-    private static func sourceArtist(track: Track, source: Source?) -> String {
-        _ = source
-        return track.artistId.map(String.init) ?? ""
-    }
-
-    private static func sourceAlbum(track: Track) -> String { track.albumId.map(String.init) ?? "" }
-    private static func roundedDuration(_ value: Double?) -> String { String(Int((value ?? 0).rounded())) }
-    private static func normalize(_ value: String) -> String {
-        var text = value.precomposedStringWithCanonicalMapping
+    private static func normalize(_ raw: String) -> String {
+        var value = raw.precomposedStringWithCanonicalMapping
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-        if text.hasPrefix("the ") { text.removeFirst(4) }
-        return text
+        if value.hasPrefix("the ") { value.removeFirst(4) }
+        return value
     }
-    private static func digest(_ value: String) -> String {
+
+    private static func hash(_ value: String) -> String {
         SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 }

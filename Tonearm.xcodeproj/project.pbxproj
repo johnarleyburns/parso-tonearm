@@ -68,6 +68,7 @@
 		2FB5EA4A4EEFB59CEBA07B8F /* WatchPlaylistsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */; };
 		30487CE5289BB55F2472813F /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB454D89725B61725520B04A /* NowPlayingView.swift */; };
 		309C4A7BE4BFBADC96076097 /* night.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 88A33FCC489E05C9B60F3ACC /* night.jpg */; };
+		32497609DA644400C38696CD /* DJV2Surface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C35D99BB8E76F9A2B873994 /* DJV2Surface.swift */; };
 		33B2A3407DBFB5D040283178 /* CreatePlaylistSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75E7A69FA687317AC246E026 /* CreatePlaylistSheet.swift */; };
 		33EBEAE2CF5C8AE33E3FCEDE /* CacheGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071CC5C8B79CC1A10F456254 /* CacheGlyph.swift */; };
 		34532A4505591A95D2765EFF /* OAuthSignInCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD5669565C3C31C5DAB9A3D3 /* OAuthSignInCoordinator.swift */; };
@@ -279,6 +280,7 @@
 		ED1E0EA3A4E2803ECD955444 /* vocab.json in Resources */ = {isa = PBXBuildFile; fileRef = 799F8E8C5C1DBA3A543B600B /* vocab.json */; };
 		EE18D34B4E395874C8840D7B /* AddServerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF21CDA1D35FD0F742088DF3 /* AddServerSheet.swift */; };
 		EEE6E8921715330311F4642B /* MyMusicView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95AC01A007801264AC4194EA /* MyMusicView.swift */; };
+		EF584784A17073B95F9A937B /* DJV2Surface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C35D99BB8E76F9A2B873994 /* DJV2Surface.swift */; };
 		EFBBDA6C054C53C43E5620CF /* ArtworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E305F0D8B7B9B42169405D1 /* ArtworkService.swift */; };
 		F1FEBCEF7BC2546437362B1D /* EQView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB44399EDF479626BC62A6F /* EQView.swift */; };
 		F23094F2C41CCEA3CDCBB5A2 /* TrackDetailCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A36CFE314EF66DE2810ECBA9 /* TrackDetailCard.swift */; };
@@ -428,6 +430,7 @@
 		39DCFD0118F0838F83219F22 /* mel_filterbank_slaney_64.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = mel_filterbank_slaney_64.bin; sourceTree = "<group>"; };
 		3AB385B4AB921E5BA4F27DB0 /* SiriSettingsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriSettingsCard.swift; sourceTree = "<group>"; };
 		3B148C78FDABC2A552953E74 /* LoopingVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopingVideoView.swift; sourceTree = "<group>"; };
+		3C35D99BB8E76F9A2B873994 /* DJV2Surface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DJV2Surface.swift; sourceTree = "<group>"; };
 		3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		3CD29E464171B12804066A29 /* dream.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = dream.jpg; sourceTree = "<group>"; };
 		3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportDevelopmentCard.swift; sourceTree = "<group>"; };
@@ -670,6 +673,7 @@
 		0B9F3C5F9BA0C753C0A32F77 /* DJ */ = {
 			isa = PBXGroup;
 			children = (
+				3C35D99BB8E76F9A2B873994 /* DJV2Surface.swift */,
 				D11856D6C0D254280B6FB831 /* DJView.swift */,
 			);
 			path = DJ;
@@ -1566,6 +1570,7 @@
 				731AE9FAAB14E8254B8881A4 /* CarPlayVoiceSearchController.swift in Sources */,
 				471860B6E4026ABBD21B2A33 /* Components.swift in Sources */,
 				40ADEDBFEE6EF20F755D9813 /* CreatePlaylistSheet.swift in Sources */,
+				32497609DA644400C38696CD /* DJV2Surface.swift in Sources */,
 				AC396BF7640568305DEFB735 /* DJView.swift in Sources */,
 				BAD974F86DA16BF1BAB12975 /* DiscoveryBackgroundTaskAdapter.swift in Sources */,
 				BEC4C5E175FF3277F27256EE /* DiscoveryModelResources.swift in Sources */,
@@ -1712,6 +1717,7 @@
 				33EBEAE2CF5C8AE33E3FCEDE /* CacheGlyph.swift in Sources */,
 				26DF89715251609608D81D09 /* Components.swift in Sources */,
 				33B2A3407DBFB5D040283178 /* CreatePlaylistSheet.swift in Sources */,
+				EF584784A17073B95F9A937B /* DJV2Surface.swift in Sources */,
 				42FC273E7F211E99D38BCBDA /* DJView.swift in Sources */,
 				C5E9C1F819525DF3B30E8E6D /* DiscoveryBackgroundTaskAdapter.swift in Sources */,
 				C02503205EC9C7FC113253AB /* DiscoveryModelResources.swift in Sources */,
@@ -2457,7 +2463,7 @@
 			repositoryURL = "https://github.com/johnarleyburns/parso-audio-engine.git";
 			requirement = {
 				kind = exactVersion;
-				version = 1.2.3;
+				version = 1.2.4;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

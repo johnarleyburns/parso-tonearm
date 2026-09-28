@@ -18,7 +18,7 @@ final class MigrationV22Tests: XCTestCase {
             try db.execute(sql: """
                 INSERT INTO source (kind, title, addedAt, followUpdates, memberCapHit,
                                     localIsFolder, syncID)
-                VALUES ('remote', 'Server', ?, 0, 0, 0, ?)
+                VALUES ('subsonic', 'Server', ?, 0, 0, 0, ?)
                 """, arguments: [Date(), UUID().uuidString])
             sourceId = db.lastInsertedRowID
             try db.execute(sql: """
@@ -69,7 +69,7 @@ final class MigrationV22Tests: XCTestCase {
             try db.execute(sql: """
                 INSERT INTO source (kind, title, addedAt, followUpdates, memberCapHit,
                                     localIsFolder, syncID)
-                VALUES ('remote', 'Server', ?, 0, 0, 0, ?)
+                VALUES ('subsonic', 'Server', ?, 0, 0, 0, ?)
                 """, arguments: [Date(), UUID().uuidString])
             sourceId = db.lastInsertedRowID
             try db.execute(sql: """

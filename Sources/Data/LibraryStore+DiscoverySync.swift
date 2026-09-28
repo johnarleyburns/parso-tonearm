@@ -33,6 +33,48 @@ extension LibraryStore {
         }
     }
 
+    /// Resolves a record using the sender's stable content keys. Same-device
+    /// restores still prefer the legacy syncID, then source identity, then
+    /// metadata identity, exactly as the DJ/discovery handoff specifies.
+    public func localTrackIds(matching keys: [TrackIdentityKey], trackSyncID: String? = nil) throws -> [Int64] {
+        try dbQueue.read { db in
+            if let trackSyncID,
+               let id = try Track.filter(Column("syncID") == trackSyncID).fetchOne(db)?.id {
+                return [id]
+            }
+            let sourceKeys = keys.filter { $0.strength == .source }.map(\.value)
+            let metaKeys = keys.filter { $0.strength == .meta }.map(\.value)
+            func ids(for values: [String]) throws -> [Int64] {
+                guard !values.isEmpty else { return [] }
+                let placeholders = Array(repeating: "?", count: values.count).joined(separator: ",")
+                return try Int64.fetchAll(db, sql: """
+                    SELECT DISTINCT trackId FROM track_identity
+                    WHERE keyHash IN (\(placeholders)) ORDER BY trackId
+                    """, arguments: StatementArguments(values))
+            }
+            let sourceMatches = try ids(for: sourceKeys)
+            return sourceMatches.isEmpty ? try ids(for: metaKeys) : sourceMatches
+        }
+    }
+
+    public func refreshTrackIdentity(trackId: Int64) throws {
+        try dbQueue.write { db in
+            try TrackIdentityStore.rebuild(trackId: trackId, db: db)
+        }
+    }
+
+    public func trackIdentityKeys(trackId: Int64) throws -> [TrackIdentityKey] {
+        try dbQueue.read { db in
+            let rows = try Row.fetchAll(db, sql: "SELECT strength, keyHash FROM track_identity WHERE trackId = ?", arguments: [trackId])
+            return rows.compactMap { row in
+                guard let strengthRaw: String = row["strength"],
+                      let strength = TrackIdentityKey.Strength(rawValue: strengthRaw),
+                      let hash: String = row["keyHash"] else { return nil }
+                return TrackIdentityKey(strength: strength, value: hash)
+            }
+        }
+    }
+
     /// The local embedding by its OWN `syncID` (not the track's) plus its
     /// track's `syncID` — what `CloudSyncEngine.nextRecordZoneChangeBatch`
     /// needs to build the real `CKRecord` for a pending push.
@@ -124,7 +166,19 @@ extension LibraryStore {
         activePipelineVersion: Int, activeModelVersion: Int,
         activePreprocessingVersion: Int, activeSamplingVersion: Int
     ) throws -> IncomingDiscoveryEmbeddingResult {
-        guard let trackSyncID, let trackId = try localTrackId(forSyncID: trackSyncID) else {
+        try applyIncomingDiscoveryEmbedding(embedding, trackSyncID: trackSyncID, trackKeys: [],
+                                             activePipelineVersion: activePipelineVersion,
+                                             activeModelVersion: activeModelVersion,
+                                             activePreprocessingVersion: activePreprocessingVersion,
+                                             activeSamplingVersion: activeSamplingVersion)
+    }
+
+    public func applyIncomingDiscoveryEmbedding(
+        _ embedding: DiscoveryEmbedding, trackSyncID: String?, trackKeys: [TrackIdentityKey],
+        activePipelineVersion: Int, activeModelVersion: Int,
+        activePreprocessingVersion: Int, activeSamplingVersion: Int
+    ) throws -> IncomingDiscoveryEmbeddingResult {
+        guard let trackId = try localTrackIds(matching: trackKeys, trackSyncID: trackSyncID).first else {
             return .trackNotYetImported
         }
         let localExists = try dbQueue.read { db in
@@ -188,7 +242,16 @@ extension LibraryStore {
         _ analysis: DiscoveryTrackAnalysis, trackSyncID: String?,
         activePipelineVersion: Int, activeAnalysisVersion: Int
     ) throws -> IncomingDiscoveryEmbeddingResult {
-        guard let trackSyncID, let trackId = try localTrackId(forSyncID: trackSyncID) else {
+        try applyIncomingDiscoveryTrackAnalysis(analysis, trackSyncID: trackSyncID, trackKeys: [],
+                                                activePipelineVersion: activePipelineVersion,
+                                                activeAnalysisVersion: activeAnalysisVersion)
+    }
+
+    public func applyIncomingDiscoveryTrackAnalysis(
+        _ analysis: DiscoveryTrackAnalysis, trackSyncID: String?, trackKeys: [TrackIdentityKey],
+        activePipelineVersion: Int, activeAnalysisVersion: Int
+    ) throws -> IncomingDiscoveryEmbeddingResult {
+        guard let trackId = try localTrackIds(matching: trackKeys, trackSyncID: trackSyncID).first else {
             return .trackNotYetImported
         }
         let localExists = try dbQueue.read { db in

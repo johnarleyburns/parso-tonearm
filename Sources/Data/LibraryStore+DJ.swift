@@ -13,11 +13,29 @@ extension LibraryStore {
         return imported
     }
 
+    public func djTrackPrepBySyncID(_ syncID: String) throws -> DJTrackPrep? {
+        try dbQueue.read { db in try DJTrackPrep.filter(Column("syncID") == syncID).fetchOne(db) }
+    }
+
+    public func trackSyncID(trackId: Int64) throws -> String? {
+        try dbQueue.read { db in try Track.fetchOne(db, key: trackId)?.syncID }
+    }
+
     public func saveDJMarkings(_ markings: DJMarkings, trackId: Int64, at date: Date = Date()) throws {
         guard trackId >= 0 else { return }
         guard (markings.loopInSeconds == nil) == (markings.loopOutSeconds == nil),
               markings.loopInSeconds == nil || markings.loopOutSeconds! > markings.loopInSeconds! else { return }
-        let json = String(data: try JSONEncoder().encode(markings.hotCues.reduce(into: [:]) { $0[String($1.key)] = $1.value }), encoding: .utf8) ?? "{}"
+        var stored: [String: DJStoredCue] = [:]
+        for (slot, time) in markings.hotCues {
+            guard (1...8).contains(slot) else { continue }
+            stored[String(slot)] = DJStoredCue(t: time, c: markings.hotCueColors[slot] ?? (slot - 1) % 8,
+                                              loopIn: nil, loopOut: nil)
+        }
+        for (slot, loop) in markings.hotLoops where (1...8).contains(slot) {
+            stored[String(slot)] = DJStoredCue(t: loop.position, c: loop.color,
+                                              loopIn: loop.loopIn, loopOut: loop.loopOut)
+        }
+        let json = String(data: try JSONEncoder().encode(stored), encoding: .utf8) ?? "{}"
         try dbQueue.write { db in
             var row = try DJTrackPrep.fetchOne(db, key: trackId) ?? DJTrackPrep(trackId: trackId)
             row.hotCuesJSON = json; row.cuePointSeconds = markings.cuePointSeconds
@@ -38,6 +56,19 @@ extension LibraryStore {
         }
     }
 
+    public func saveDJGrid(bpmOverride: Double?, firstBeatOverride: Double?, keyShiftSemitones: Int,
+                           trackId: Int64, at date: Date = Date()) throws {
+        guard trackId >= 0 else { return }
+        try dbQueue.write { db in
+            var row = try DJTrackPrep.fetchOne(db, key: trackId) ?? DJTrackPrep(trackId: trackId)
+            row.bpmOverride = bpmOverride
+            row.firstBeatOverride = firstBeatOverride
+            row.keyShiftSemitones = keyShiftSemitones
+            row.analysisUpdatedAt = date
+            try row.save(db)
+        }
+    }
+
     public func clearDJAnalysis(trackId: Int64) throws { try dbQueue.write { db in try db.execute(sql: "UPDATE dj_track_prep SET analysisPayload = NULL, analysisAlgorithm = NULL, analysisPayloadVersion = NULL, sourceSampleRate = NULL, sourceFrameCount = NULL, bpm = NULL, camelotKey = NULL, analysisUpdatedAt = NULL WHERE trackId = ?", arguments: [trackId]) } }
     public func clearDJHotCues(trackId: Int64) throws { try dbQueue.write { db in try db.execute(sql: "UPDATE dj_track_prep SET hotCuesJSON = '{}', hotCuesUpdatedAt = ? WHERE trackId = ?", arguments: [Date(), trackId]) } }
     public func clearDJLoop(trackId: Int64) throws { try dbQueue.write { db in try db.execute(sql: "UPDATE dj_track_prep SET loopInSeconds = NULL, loopOutSeconds = NULL, hotCuesUpdatedAt = ? WHERE trackId = ?", arguments: [Date(), trackId]) } }
@@ -48,4 +79,64 @@ extension LibraryStore {
             return row.syncID
         }
     }
+
+    public func djPrepStorageStats() throws -> (tracks: Int, bytes: Int64) {
+        try dbQueue.read { db in
+            let tracks = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM dj_track_prep") ?? 0
+            let bytes = try Int64.fetchOne(db, sql: "SELECT COALESCE(SUM(length(analysisPayload)), 0) FROM dj_track_prep") ?? 0
+            return (tracks, bytes)
+        }
+    }
+
+#if !os(watchOS)
+    public func applyIncomingDJTrackPrep(_ envelope: DJTrackPrepEnvelope) throws -> Int {
+        let ids = try localTrackIds(matching: envelope.trackKeys, trackSyncID: envelope.trackSyncID)
+        guard !ids.isEmpty else { return 0 }
+        var applied = 0
+        try dbQueue.write { db in
+            for id in ids {
+                var local = try DJTrackPrep.fetchOne(db, key: id) ?? DJTrackPrep(trackId: id)
+                let incoming = envelope.prep
+                if let remoteDate = incoming.hotCuesUpdatedAt,
+                   local.hotCuesUpdatedAt == nil || remoteDate > local.hotCuesUpdatedAt! {
+                    local.hotCuesJSON = incoming.hotCuesJSON
+                    local.cuePointSeconds = incoming.cuePointSeconds
+                    local.loopInSeconds = incoming.loopInSeconds
+                    local.loopOutSeconds = incoming.loopOutSeconds
+                    local.hotCuesUpdatedAt = remoteDate
+                }
+                let incomingAnalysisIsNewer: Bool = {
+                    guard incoming.analysisPayload != nil || incoming.analysisUpdatedAt != nil else { return false }
+                    guard let localDate = local.analysisUpdatedAt else { return true }
+                    if let incomingDate = incoming.analysisUpdatedAt { return incomingDate > localDate }
+                    let incomingVersion = incoming.analysisPayloadVersion ?? 0
+                    return incomingVersion > (local.analysisPayloadVersion ?? 0)
+                }()
+                if incoming.analysisPayload != nil, incomingAnalysisIsNewer {
+                    local.analysisPayload = incoming.analysisPayload
+                    local.analysisAlgorithm = incoming.analysisAlgorithm
+                    local.analysisPayloadVersion = incoming.analysisPayloadVersion
+                    local.sourceSampleRate = incoming.sourceSampleRate
+                    local.sourceFrameCount = incoming.sourceFrameCount
+                    local.bpm = incoming.bpm
+                    local.camelotKey = incoming.camelotKey
+                    local.analysisUpdatedAt = incoming.analysisUpdatedAt
+                }
+                if incomingAnalysisIsNewer {
+                    local.bpmOverride = incoming.bpmOverride
+                    local.firstBeatOverride = incoming.firstBeatOverride
+                    local.keyShiftSemitones = incoming.keyShiftSemitones
+                }
+                local.syncID = local.syncID ?? incoming.syncID
+                try local.save(db)
+                if var track = try Track.fetchOne(db, key: id), track.syncID == nil {
+                    track.syncID = envelope.prep.syncID
+                    try track.update(db)
+                }
+                applied += 1
+            }
+        }
+        return applied
+    }
+#endif
 }

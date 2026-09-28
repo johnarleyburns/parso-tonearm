@@ -147,4 +147,24 @@ final class LibraryStoreDiscoverySyncTests: XCTestCase {
             activePreprocessingVersion: 1, activeSamplingVersion: 1)
         XCTAssertEqual(result, .trackNotYetImported)
     }
+
+    func testPendingSyncRecordUpsertsPrunesAndDiscards() async throws {
+        let store = try makeStore()
+        let old = Date().addingTimeInterval(-91 * 86_400)
+        try await store.upsertPendingSyncRecord(recordName: "r", recordType: "DJTrackPrep",
+                                                payload: Data([1]),
+                                                trackKeys: [.init(strength: .meta, value: "hash")],
+                                                receivedAt: old)
+        try await store.upsertPendingSyncRecord(recordName: "r", recordType: "DJTrackPrep",
+                                                payload: Data([2]), trackKeys: [], receivedAt: Date())
+        let count = try await store.pendingSyncRecordCount()
+        let saved = try await store.pendingSyncRecords()
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(saved.first?.payload, Data([2]))
+        let pruned = try await store.prunePendingSyncRecords(olderThan: Date().addingTimeInterval(-90 * 86_400))
+        XCTAssertEqual(pruned, 0)
+        try await store.discardPendingSyncRecords()
+        let remaining = try await store.pendingSyncRecordCount()
+        XCTAssertEqual(remaining, 0)
+    }
 }

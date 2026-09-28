@@ -139,7 +139,7 @@ final class SyncMigrationTests: XCTestCase {
             try db.execute(
                 sql: """
                     INSERT INTO asset (id, trackId, kind, relPath)
-                    VALUES (1, 1, 'local', 'legacy/track.flac')
+                    VALUES (1, 1, 'localRef', 'legacy/track.flac')
                     """)
 
             try db.execute(

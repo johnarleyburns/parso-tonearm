@@ -160,6 +160,26 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
     }
 
+    func testDJTrackPrepRoundTripsIdentityAndMarkingFields() {
+        let prep = DJTrackPrep(trackId: 3, hotCuesJSON: "{\"1\":2.5}",
+                               cuePointSeconds: 1.0, loopInSeconds: 8, loopOutSeconds: 12,
+                               hotCuesUpdatedAt: Date(timeIntervalSince1970: 10),
+                               analysisAlgorithm: "pae-track-analysis-1.2", analysisPayloadVersion: 1,
+                               bpm: 128, camelotKey: "8B", analysisUpdatedAt: Date(timeIntervalSince1970: 11),
+                               syncID: "PREP-1", bpmOverride: 130, firstBeatOverride: 0.25,
+                               keyShiftSemitones: 2)
+        let keys = [TrackIdentityKey(strength: .source, value: "source-hash"),
+                    TrackIdentityKey(strength: .meta, value: "meta-hash")]
+        let record = RecordMapping.record(from: prep, trackSyncID: "TRK-1", trackKeys: keys, zoneID: zoneID)
+        let decoded = RecordMapping.djTrackPrep(from: record)
+        XCTAssertEqual(decoded?.prep.syncID, "PREP-1")
+        XCTAssertEqual(decoded?.prep.markings.loopOutSeconds, 12)
+        XCTAssertEqual(decoded?.prep.bpmOverride, 130)
+        XCTAssertEqual(decoded?.prep.keyShiftSemitones, 2)
+        XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
+        XCTAssertEqual(decoded?.trackKeys, keys)
+    }
+
     func testAppSettingsRoundTrips() {
         let settings = SyncedSettings(
             eqEnabled: true,

@@ -30,6 +30,7 @@ public enum RecordMapping {
         /// device-local (see DiscoveryMigrations.swift's header comment).
         case discoveryEmbedding = "DiscoveryEmbedding"
         case discoveryTrackAnalysis = "DiscoveryTrackAnalysis"
+        case djTrackPrep = "DJTrackPrep"
     }
 
     /// The single fixed record name for the per-account settings singleton.
@@ -300,11 +301,17 @@ public enum RecordMapping {
     /// doesn't cross devices).
     public static func record(from embedding: DiscoveryEmbedding, trackSyncID: String?,
                        zoneID: CKRecordZone.ID) -> CKRecord {
+        record(from: embedding, trackSyncID: trackSyncID, trackKeys: [], zoneID: zoneID)
+    }
+
+    public static func record(from embedding: DiscoveryEmbedding, trackSyncID: String?,
+                              trackKeys: [TrackIdentityKey], zoneID: CKRecordZone.ID) -> CKRecord {
         let syncID = embedding.syncID ?? UUID().uuidString
         let record = CKRecord(recordType: RecordType.discoveryEmbedding.rawValue,
                               recordID: recordID(type: .discoveryEmbedding, syncID: syncID, zoneID: zoneID))
         record["syncID"] = syncID as CKRecordValue
         record["trackSyncID"] = trackSyncID as CKRecordValue?
+        record["trackKeys"] = trackKeys.map(\.cloudValue) as CKRecordValue
         record["modelVersion"] = embedding.modelVersion as CKRecordValue
         record["preprocessingVersion"] = embedding.preprocessingVersion as CKRecordValue
         record["samplingVersion"] = embedding.samplingVersion as CKRecordValue
@@ -340,15 +347,25 @@ public enum RecordMapping {
         return (embedding, record["trackSyncID"] as? String)
     }
 
+    public static func discoveryTrackKeys(from record: CKRecord) -> [TrackIdentityKey] {
+        TrackIdentity.parse(record["trackKeys"] as? [String] ?? [])
+    }
+
     // MARK: - DiscoveryTrackAnalysis
 
     public static func record(from analysis: DiscoveryTrackAnalysis, trackSyncID: String?,
                        zoneID: CKRecordZone.ID) -> CKRecord {
+        record(from: analysis, trackSyncID: trackSyncID, trackKeys: [], zoneID: zoneID)
+    }
+
+    public static func record(from analysis: DiscoveryTrackAnalysis, trackSyncID: String?,
+                              trackKeys: [TrackIdentityKey], zoneID: CKRecordZone.ID) -> CKRecord {
         let syncID = analysis.syncID ?? UUID().uuidString
         let record = CKRecord(recordType: RecordType.discoveryTrackAnalysis.rawValue,
                               recordID: recordID(type: .discoveryTrackAnalysis, syncID: syncID, zoneID: zoneID))
         record["syncID"] = syncID as CKRecordValue
         record["trackSyncID"] = trackSyncID as CKRecordValue?
+        record["trackKeys"] = trackKeys.map(\.cloudValue) as CKRecordValue
         record["analysisVersion"] = analysis.analysisVersion as CKRecordValue
         record["bpm"] = analysis.bpm.map { $0 as CKRecordValue }
         record["key"] = analysis.key as CKRecordValue?

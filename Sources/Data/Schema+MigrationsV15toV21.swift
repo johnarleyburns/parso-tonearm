@@ -306,5 +306,37 @@ extension Schema {
                 }
             }
         }
+
+        if shouldRegister("v30", upTo: target) {
+            migrator.registerMigration("v30") { db in
+                // v27 shipped the basic marking/analysis cache. These
+                // overrides belong to the same track-prep record, but land in
+                // a new migration so already-installed v29 stores upgrade
+                // without rewriting a completed migration.
+                try db.alter(table: "dj_track_prep") { t in
+                    t.add(column: "bpmOverride", .double)
+                    t.add(column: "firstBeatOverride", .double)
+                    t.add(column: "keyShiftSemitones", .integer).notNull().defaults(to: 0)
+                }
+
+                // v28 created the identity table; v30 also backfills rows
+                // imported before identity keys existed. This is synchronous
+                // launch migration work, not an invisible background job.
+                let tracks = try Track.fetchAll(db)
+                for track in tracks {
+                    let asset = try Asset.filter(Column("trackId") == track.id).fetchOne(db)
+                    let source = try Source.fetchOne(db, key: track.sourceId)
+                    let artist = try track.artistId.flatMap { try Artist.fetchOne(db, key: $0) }?.name
+                    let album = try track.albumId.flatMap { try Album.fetchOne(db, key: $0) }?.title
+                    for key in TrackIdentity.keys(track: track, asset: asset, source: source,
+                                                  artist: artist, album: album) {
+                        try db.execute(sql: """
+                            INSERT OR REPLACE INTO track_identity (trackId, strength, keyHash)
+                            VALUES (?, ?, ?)
+                            """, arguments: [track.id, key.strength.rawValue, key.value])
+                    }
+                }
+            }
+        }
     }
 }

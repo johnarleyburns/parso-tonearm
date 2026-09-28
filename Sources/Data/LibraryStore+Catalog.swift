@@ -149,6 +149,7 @@ extension LibraryStore {
             if !trimmedTitle.isEmpty { track.title = trimmedTitle }
             if let resolvedArtistId { track.artistId = resolvedArtistId }
             try track.update(db)
+            try TrackIdentityStore.rebuild(trackId: trackId, db: db)
         }
     }
 
@@ -207,6 +208,7 @@ extension LibraryStore {
         try dbQueue.write { db in
             var t = track
             try t.insert(db)
+            if let id = t.id { try TrackIdentityStore.rebuild(trackId: id, db: db) }
             try self.refreshSearchIndex(trackID: t.id, db: db)
             return t
         }
@@ -308,9 +310,12 @@ extension LibraryStore {
 
                 if changed {
                     try track.update(db)
+                    if let id = track.id { try TrackIdentityStore.rebuild(trackId: id, db: db) }
                 }
                 if albumChanged, let album {
                     try album.update(db)
+                    let albumTrackIDs = try Int64.fetchAll(db, sql: "SELECT id FROM track WHERE albumId = ?", arguments: [album.id])
+                    for id in albumTrackIDs { try TrackIdentityStore.rebuild(trackId: id, db: db) }
                 }
                 if changed || albumChanged {
                     try self.refreshSearchIndex(trackID: track.id, db: db)

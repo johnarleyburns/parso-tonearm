@@ -32,6 +32,8 @@ public struct DiscoverySyncActivity: Equatable, Sendable {
         case .trackNotYetImported: pendingTrackImport += 1
         }
     }
+
+    mutating func setPendingCount(_ count: Int) { pendingTrackImport = count }
 }
 
 @available(iOS 17.0, *)
@@ -156,6 +158,11 @@ public final class CloudSyncEngine: NSObject, ObservableObject {
         enqueue(recordIDs: ids)
     }
 
+    public func enqueueDJTrackPrep(trackId: Int64) async {
+        guard let syncID = try? await store.ensureDJTrackPrepSyncID(trackId: trackId) else { return }
+        enqueue(recordIDs: [RecordMapping.recordID(type: .djTrackPrep, syncID: syncID, zoneID: zoneID)])
+    }
+
     private func accountStatus() async -> SyncGating.AccountStatus {
         do {
             switch try await container.accountStatus() {
@@ -246,11 +253,22 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
         case .discoveryEmbedding:
             guard let (embedding, trackSyncID) = try? await store.discoveryEmbedding(forSyncID: syncID)
             else { return nil }
-            return RecordMapping.record(from: embedding, trackSyncID: trackSyncID, zoneID: zoneID)
+            let keys = (try? await store.trackIdentityKeys(trackId: embedding.trackId)) ?? []
+            return RecordMapping.record(from: embedding, trackSyncID: trackSyncID, trackKeys: keys, zoneID: zoneID)
         case .discoveryTrackAnalysis:
             guard let (analysis, trackSyncID) = try? await store.discoveryTrackAnalysis(forSyncID: syncID)
             else { return nil }
-            return RecordMapping.record(from: analysis, trackSyncID: trackSyncID, zoneID: zoneID)
+            let keys = (try? await store.trackIdentityKeys(trackId: analysis.trackId)) ?? []
+            return RecordMapping.record(from: analysis, trackSyncID: trackSyncID, trackKeys: keys, zoneID: zoneID)
+        case .djTrackPrep:
+            guard let prep = try? await store.djTrackPrepBySyncID(syncID),
+                  prep.trackId >= 0 else { return nil }
+            let trackID = prep.trackId
+            let trackSyncID: String?
+            do { trackSyncID = try await store.trackSyncID(trackId: trackID) }
+            catch { trackSyncID = nil }
+            let keys = (try? await store.trackIdentityKeys(trackId: trackID)) ?? []
+            return RecordMapping.record(from: prep, trackSyncID: trackSyncID, trackKeys: keys, zoneID: zoneID)
         default:
             return nil
         }
@@ -274,27 +292,39 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
                 guard let versions else { continue }
                 guard let (embedding, trackSyncID) = RecordMapping.discoveryEmbedding(from: record)
                 else { continue }
+                let keys = RecordMapping.discoveryTrackKeys(from: record)
                 let result = (try? await store.applyIncomingDiscoveryEmbedding(
-                    embedding, trackSyncID: trackSyncID,
+                    embedding, trackSyncID: trackSyncID, trackKeys: keys,
                     activePipelineVersion: versions.pipeline, activeModelVersion: versions.model,
                     activePreprocessingVersion: versions.preprocessing,
                     activeSamplingVersion: versions.sampling)) ?? .trackNotYetImported
                 activity.record(result)
+                if result == .trackNotYetImported { await keepPending(record, keys: keys) }
 
             case .discoveryTrackAnalysis:
                 guard let versions else { continue }
                 guard let (analysis, trackSyncID) = RecordMapping.discoveryTrackAnalysis(from: record)
                 else { continue }
+                let keys = RecordMapping.discoveryTrackKeys(from: record)
                 let result = (try? await store.applyIncomingDiscoveryTrackAnalysis(
-                    analysis, trackSyncID: trackSyncID,
+                    analysis, trackSyncID: trackSyncID, trackKeys: keys,
                     activePipelineVersion: versions.pipeline,
                     activeAnalysisVersion: versions.musicalAnalysis)) ?? .trackNotYetImported
                 activity.record(result)
+                if result == .trackNotYetImported { await keepPending(record, keys: keys) }
 
+            case .djTrackPrep:
+                guard let envelope = RecordMapping.djTrackPrep(from: record) else { continue }
+                let applied = (try? await store.applyIncomingDJTrackPrep(envelope)) ?? 0
+                if applied == 0 {
+                    await keepPending(record, keys: envelope.trackKeys)
+                }
             default:
                 break
             }
         }
+        await retryPending()
+        activity.setPendingCount((try? await store.pendingSyncRecordCount()) ?? 0)
         lastSyncActivity = activity
         log.info("""
             fetched \(changes.modifications.count) modifications, \
@@ -302,6 +332,64 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
             accepted \(activity.accepted), rejectedKeepLocal \(activity.rejectedKeepLocal), \
             rejectedRequeued \(activity.rejectedRequeued), pendingTrackImport \(activity.pendingTrackImport)
             """)
+    }
+
+    private func keepPending(_ record: CKRecord, keys: [TrackIdentityKey]) async {
+        guard let payload = try? NSKeyedArchiver.archivedData(withRootObject: record,
+                                                               requiringSecureCoding: false) else { return }
+        try? await store.upsertPendingSyncRecord(recordName: record.recordID.recordName,
+                                                 recordType: record.recordType,
+                                                 payload: payload, trackKeys: keys)
+    }
+
+    /// Retries records delivered before their matching library rows existed.
+    /// The saved CKRecord goes through the same mapping and merge functions as
+    /// a fresh CloudKit delivery, then is deleted only after a match succeeds.
+    public func retryPending() async {
+        guard let rows = try? await store.pendingSyncRecords(), !rows.isEmpty else { return }
+        let versions = activePipelineVersionsProvider?()
+        for row in rows {
+            guard let record = try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKRecord.self,
+                                                                        from: row.payload) else { continue }
+            let type = RecordMapping.RecordType(rawValue: row.recordType)
+            var applied = false
+            switch type {
+            case .discoveryEmbedding:
+                guard let versions,
+                      let value = RecordMapping.discoveryEmbedding(from: record) else { continue }
+                let result = try? await store.applyIncomingDiscoveryEmbedding(
+                    value.embedding, trackSyncID: value.trackSyncID,
+                    trackKeys: RecordMapping.discoveryTrackKeys(from: record),
+                    activePipelineVersion: versions.pipeline,
+                    activeModelVersion: versions.model,
+                    activePreprocessingVersion: versions.preprocessing,
+                    activeSamplingVersion: versions.sampling)
+                if let result { applied = result != .trackNotYetImported }
+            case .discoveryTrackAnalysis:
+                guard let versions,
+                      let value = RecordMapping.discoveryTrackAnalysis(from: record) else { continue }
+                let result = try? await store.applyIncomingDiscoveryTrackAnalysis(
+                    value.analysis, trackSyncID: value.trackSyncID,
+                    trackKeys: RecordMapping.discoveryTrackKeys(from: record),
+                    activePipelineVersion: versions.pipeline,
+                    activeAnalysisVersion: versions.musicalAnalysis)
+                if let result { applied = result != .trackNotYetImported }
+            case .djTrackPrep:
+                guard let value = RecordMapping.djTrackPrep(from: record) else { continue }
+                applied = ((try? await store.applyIncomingDJTrackPrep(value)) ?? 0) > 0
+            default:
+                applied = true
+            }
+            if applied { try? await store.deletePendingSyncRecord(recordName: row.recordName) }
+        }
+        await refreshPendingActivity()
+    }
+
+    public func refreshPendingActivity() async {
+        let count = (try? await store.pendingSyncRecordCount()) ?? 0
+        var activity = lastSyncActivity
+        activity.setPendingCount(count)
+        lastSyncActivity = activity
     }
 }
 #endif

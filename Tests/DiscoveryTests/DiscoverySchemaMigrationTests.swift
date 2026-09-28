@@ -36,7 +36,7 @@ final class DiscoverySchemaMigrationTests: XCTestCase {
             try db.execute(
                 sql: """
                     INSERT INTO asset (trackId, kind, relPath, syncID)
-                    VALUES (?, 'localFile', 'song1.m4a', ?)
+                    VALUES (?, 'localRef', 'song1.m4a', ?)
                     """, arguments: [trackID, UUID().uuidString])
 
             try db.execute(
