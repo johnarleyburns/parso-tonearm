@@ -68,6 +68,15 @@ final class DJTrackPrepStoreTests: XCTestCase {
         XCTAssertNil(cleared.analysisAlgorithm)
     }
 
+    func testLoadBrowserMetadataUsesDJPrepAsFallback() async throws {
+        let (store, trackID) = try await makeStoreWithTrack()
+        try await store.saveDJAnalysis(Data([9]), meta: ("test", 1, 48_000, 123, 126, "8A"), trackId: trackID)
+
+        let info = try await store.djLoadTrackInfo(trackIds: [trackID])[trackID]
+        XCTAssertEqual(info?.bpm, 126)
+        XCTAssertEqual(info?.camelotKey, "8A")
+    }
+
     func testLoopCheckRejectsHalfSetAndReversedRows() async throws {
         let (store, trackID) = try await makeStoreWithTrack()
         do {

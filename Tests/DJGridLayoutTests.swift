@@ -17,6 +17,19 @@ final class DJGridLayoutTests: XCTestCase {
         XCTAssertEqual(landscape.frame(col: 0, row: 0, colSpan: 15).maxX, 718, accuracy: 0.001)
     }
 
+    func testPortraitActiveDeckControlsUseRequestedRows() {
+        XCTAssertEqual(DJV2PortraitLayout.transportRow, DJV2PortraitLayout.jogSectionTopRow)
+        XCTAssertEqual(DJV2PortraitLayout.jogWheelRow, 4)
+        XCTAssertEqual(DJV2PortraitLayout.jogWheelRowSpan, 3)
+        XCTAssertEqual(DJV2PortraitLayout.padModeRow, 6)
+        XCTAssertEqual(DJV2PortraitLayout.jogModeRow, 7)
+        XCTAssertEqual(DJV2PortraitLayout.mixerFirstRow, 8)
+        XCTAssertEqual(DJV2PortraitLayout.mixerVolumeRow, 9)
+        XCTAssertEqual(DJV2PortraitLayout.mixerVolumeRowSpan, 2)
+        XCTAssertEqual(DJV2PortraitLayout.mixerMeterColumns.0, 5)
+        XCTAssertEqual(DJV2PortraitLayout.mixerMeterColumns.1, 6)
+    }
+
     func testEightByEightCompatibilityLayoutFillsSurfaceWithEqualCells() {
         let layout = DJGridLayout(size: CGSize(width: 800, height: 400), gap: 8)
         XCTAssertEqual(layout.frame(col: 0, row: 0).width, layout.cellWidth)
@@ -62,6 +75,15 @@ final class DJGridLayoutTests: XCTestCase {
         XCTAssertEqual(DJJogMapper.action(angle: 0.1, isPlaying: false, vinyl: false, bpm: 128), .frameSearch(0.006))
         XCTAssertEqual(DJJogMapper.tempoStep(angle: 4, current: 0, range: 6), 6)
         XCTAssertEqual(DJJogMapper.tempoStep(angle: -4, current: 0, range: 6), -6)
+        XCTAssertEqual(DJJogMapper.pausedSeekSeconds(angle: .pi, outerRing: true, bpm: 120), 4, accuracy: 0.001)
+        XCTAssertEqual(DJJogMapper.pausedSeekSeconds(angle: .pi, outerRing: false, bpm: 120), .pi * 0.06, accuracy: 0.001)
+        XCTAssertEqual(DJWaveformSeekMapping.seconds(translation: 100, width: 1_000, duration: 180), 18, accuracy: 0.001)
+        XCTAssertEqual(DJWaveformSeekMapping.seconds(translation: -100, width: 1_000, duration: 180), -18, accuracy: 0.001)
+        XCTAssertFalse(DJWaveformPlaceholder.shouldDrawSignal(waveformCount: 0))
+        XCTAssertTrue(DJWaveformPlaceholder.shouldDrawSignal(waveformCount: 1))
+        XCTAssertEqual(DJReversePlaybackPolicy.startPosition(enabled: true, isPlaying: false, current: 0, duration: 180), 180)
+        XCTAssertEqual(DJReversePlaybackPolicy.startPosition(enabled: true, isPlaying: false, current: 40, duration: 180), 40)
+        XCTAssertEqual(DJReversePlaybackPolicy.startPosition(enabled: true, isPlaying: true, current: 0, duration: 180), 0)
     }
 
     func testEightHotCuePadsMapToTwoPAEBanks() {
@@ -130,6 +152,20 @@ final class DJGridLayoutTests: XCTestCase {
         XCTAssertEqual(DJLoadLibraryScope.albums.browseMode, .albums)
         XCTAssertEqual(DJLoadLibraryScope.songs.browseMode, .songs)
         XCTAssertEqual(DJLoadLibraryScope.genres.browseMode, .genres)
+    }
+
+    func testDJLoadTrackInfoShowsHonestMusicalMetadataAndFiltersIt() {
+        let info = DJLoadTrackInfo(bpm: 128, camelotKey: " 8a ")
+        XCTAssertEqual(info.bpmLabel, "128.0 BPM")
+        XCTAssertEqual(info.keyLabel, "KEY 8A")
+        XCTAssertEqual(DJLoadTrackInfo().bpmLabel, "— BPM")
+        XCTAssertEqual(DJLoadTrackInfo().keyLabel, "KEY —")
+
+        XCTAssertTrue(DJLoadTrackFilter(bpmMin: 120, bpmMax: 130, camelotKey: "8A").matches(info))
+        XCTAssertFalse(DJLoadTrackFilter(bpmMin: 129).matches(info))
+        XCTAssertFalse(DJLoadTrackFilter(camelotKey: "9A").matches(info))
+        XCTAssertFalse(DJLoadTrackFilter(bpmMin: 120).matches(DJLoadTrackInfo(camelotKey: "8A")))
+        XCTAssertTrue(DJLoadTrackFilter(camelotKey: "8A").matches(DJLoadTrackInfo(camelotKey: "8A")))
     }
 
     func testDJTrackPrepPayloadRoundTripsAndRejectsStaleAlgorithm() throws {

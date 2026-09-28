@@ -35,6 +35,47 @@ public struct DJGridLayout: Equatable, Sendable {
     }
 }
 
+/// Row contract for the portrait active-deck controls. Keeping this pure
+/// makes the requested control order unit-testable without a simulator.
+public enum DJV2PortraitLayout {
+    public static let jogSectionTopRow = 3
+    public static let transportRow = 3
+    public static let jogWheelRow = 4
+    public static let jogWheelRowSpan = 3
+    public static let padsRow = 4
+    public static let padModeRow = 6
+    public static let jogModeRow = 7
+    public static let mixerFirstRow = 8
+    public static let mixerVolumeRow = 9
+    public static let mixerVolumeRowSpan = 2
+    public static let mixerMeterColumns = (5, 6)
+}
+
+public enum DJWaveformSeekMapping {
+    /// Horizontal movement follows the user's finger: right is forward,
+    /// left is backward.
+    public static func seconds(translation: CGFloat, width: CGFloat, duration: Double) -> Double {
+        guard translation.isFinite, width.isFinite, duration.isFinite,
+              width > 0, duration > 0 else { return 0 }
+        return Double(translation / width) * duration
+    }
+}
+
+public enum DJWaveformPlaceholder {
+    public static func shouldDrawSignal(waveformCount: Int) -> Bool {
+        waveformCount > 0
+    }
+}
+
+public enum DJReversePlaybackPolicy {
+    public static func startPosition(enabled: Bool, isPlaying: Bool,
+                                     current: Double, duration: Double) -> Double {
+        guard enabled, !isPlaying, duration.isFinite, duration > 0,
+              current.isFinite, current <= 0 else { return current }
+        return duration
+    }
+}
+
 public enum DJGridOverride {
     public static func positions(bpm: Double, firstBeat: Double, duration: Double,
                                  beatsPerBar: Int = 1) -> [Double] {
@@ -79,12 +120,70 @@ public enum DJLoadLibraryScope: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// The compact musical metadata shown beside every candidate in the DJ load
+/// browser. Values stay optional all the way to the UI: an unanalysed track
+/// is not silently presented as 120 BPM or an invented key.
+public struct DJLoadTrackInfo: Equatable, Sendable {
+    public var bpm: Double?
+    public var camelotKey: String?
+
+    public init(bpm: Double? = nil, camelotKey: String? = nil) {
+        self.bpm = bpm
+        self.camelotKey = camelotKey
+    }
+
+    public var bpmLabel: String {
+        guard let bpm, bpm.isFinite, bpm > 0 else { return "— BPM" }
+        return String(format: "%.1f BPM", bpm)
+    }
+
+    public var keyLabel: String { "KEY \(DJKeyFormatter.format(camelotKey))" }
+}
+
+/// Pure validation/filtering for the non-semantic part of the DJ load
+/// browser. Semantic mood/sound matching is delegated to the shared
+/// DiscoverySearchViewModel; this keeps local playlist and browse filtering
+/// deterministic and unit-testable.
+public struct DJLoadTrackFilter: Equatable, Sendable {
+    public var bpmMin: Double?
+    public var bpmMax: Double?
+    public var camelotKey: String?
+
+    public init(bpmMin: Double? = nil, bpmMax: Double? = nil, camelotKey: String? = nil) {
+        self.bpmMin = bpmMin
+        self.bpmMax = bpmMax
+        self.camelotKey = camelotKey
+    }
+
+    public var isEmpty: Bool { bpmMin == nil && bpmMax == nil && camelotKey == nil }
+
+    public func matches(_ info: DJLoadTrackInfo) -> Bool {
+        if bpmMin != nil || bpmMax != nil {
+            guard let bpm = info.bpm, bpm.isFinite, bpm > 0 else { return false }
+            if let bpmMin, (!bpmMin.isFinite || bpm < bpmMin) { return false }
+            if let bpmMax, (!bpmMax.isFinite || bpm > bpmMax) { return false }
+        }
+        if let camelotKey, !camelotKey.isEmpty {
+            guard let expected = DJKeyFormatter.normalized(camelotKey),
+                  let actual = DJKeyFormatter.normalized(info.camelotKey) else { return false }
+            guard expected == actual else { return false }
+        }
+        return true
+    }
+}
+
 public enum DJKeyFormatter {
     public static func format(_ raw: String?) -> String {
-        guard let raw, raw.range(of: #"^(1[0-2]|[1-9])[AB]$"#, options: .regularExpression) != nil else {
-            return "—"
+        normalized(raw) ?? "—"
+    }
+
+    public static func normalized(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard value.range(of: #"^(1[0-2]|[1-9])[AB]$"#, options: .regularExpression) != nil else {
+            return nil
         }
-        return raw
+        return value
     }
 
     public static func shifted(_ raw: String?, semitones: Int) -> String {
@@ -187,6 +286,19 @@ public enum DJJogMapper {
         // VINYL only changes the playing behavior; the outer ring is handled
         // by the surface/model as beat-based seek.
         return .frameSearch(delta * 0.06)
+    }
+
+    /// Converts a paused platter rotation into a stateful seek. The app uses
+    /// this instead of PAE's transient frame-search command while stopped so
+    /// the displayed position and the audio engine share the same endpoint.
+    public static func pausedSeekSeconds(angle: Double, outerRing: Bool, bpm: Double) -> Double {
+        let delta = normalizedAngle(angle)
+        guard delta.isFinite else { return 0 }
+        if outerRing {
+            // One full turn is four bars / sixteen beats.
+            return delta * (60 / max(1, bpm)) * 16 / (2 * .pi)
+        }
+        return delta * 0.06
     }
 
     public static func tempoStep(angle: Double, current: Double, range: Double) -> Double {

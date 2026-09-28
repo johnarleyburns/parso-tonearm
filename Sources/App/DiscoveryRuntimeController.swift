@@ -406,7 +406,24 @@ final class DiscoveryRuntimeController {
             service: service,
             metadataSearch: { query in
                 do {
-                    var rows = try await store.search(query.text)
+                    var rows: [TrackRow]
+                    if let playlistID = query.playlistID {
+                        // Metadata search must preserve the selected scope. The
+                        // DJ LOAD browser uses this path for playlist searches;
+                        // starting with the playlist rows prevents a title
+                        // search from leaking tracks from the full library.
+                        rows = try await store.playlistItems(playlistId: playlistID)
+                        let needle = query.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !needle.isEmpty {
+                            rows = rows.filter { row in
+                                [row.track.title, row.artist?.name, row.album?.title, row.track.genre]
+                                    .compactMap { $0 }
+                                    .contains { $0.localizedCaseInsensitiveContains(needle) }
+                            }
+                        }
+                    } else {
+                        rows = try await store.search(query.text)
+                    }
                     if let ids = query.sourceIDs {
                         let set = Set(ids)
                         rows = rows.filter { set.contains($0.track.sourceId) }

@@ -1,9 +1,11 @@
 import AVFoundation
+import Combine
 import ParsoAudioCore
 import ParsoAudioAnalysis
 import ParsoDJEngine
 import SwiftUI
 import TonearmCore
+import TonearmDiscovery
 
 enum DJDeckID: String, CaseIterable, Identifiable, Hashable, Sendable {
     case a = "A"
@@ -141,11 +143,19 @@ final class DJPerformanceModel: ObservableObject {
     private var audio = DJAudioBacker()
     private var scratching: Set<DJDeckID> = []
     private var tapTimes: [DJDeckID: [Date]] = [:]
+    private var deckCancellables = Set<AnyCancellable>()
 
     init(store: LibraryStore = .shared) {
         self.store = store
+        deckA.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &deckCancellables)
+        deckB.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &deckCancellables)
         audio.setBassBlend(0.5)
         audio.setCrossfader(0.5)
+        audio.setMasterLevel(masterLevel)
+        audio.setChannelLevel(deck: .a, value: deckA.channelLevel)
+        audio.setChannelLevel(deck: .b, value: deckB.channelLevel)
         if #available(iOS 17.0, macOS 14.0, *) {
             CloudSyncEngine.shared.onDJTrackPrepApplied = { [weak self] trackID in
                 self?.refreshPrepIfLoaded(trackID: trackID)
@@ -327,6 +337,10 @@ final class DJPerformanceModel: ObservableObject {
                     analysis.tempo.downbeatPositions = stride(from: first, through: analysis.duration, by: beat * 4).map { $0 }
                 }
                 try self.audio.load(prepared, analysis: analysis, deck: id)
+                self.audio.setChannelLevel(deck: id, value: deck.channelLevel)
+                self.audio.setCrossfader(self.crossfader)
+                self.audio.setMasterLevel(self.masterLevel)
+                self.audio.setReverse(deck: id, enabled: deck.reverse)
                 self.audio.restoreHotCues(deck.hotCues, deck: id)
                 self.audio.setPitchShift(deck: id, semitones: deck.keyShiftSemitones)
                 self.audio.setKeyLock(deck: id, enabled: deck.masterTempo)
@@ -384,7 +398,10 @@ final class DJPerformanceModel: ObservableObject {
         let deck = deck(id)
         guard deck.row != nil else { return }
         deck.isPlaying.toggle()
-        if deck.isPlaying { audio.play(deck: id, position: deck.position, rate: deck.tempoRatio) }
+        if deck.isPlaying {
+            audio.setReverse(deck: id, enabled: deck.reverse)
+            audio.play(deck: id, position: deck.position, rate: deck.tempoRatio)
+        }
         else { stop(deck: id) }
     }
 
@@ -416,10 +433,14 @@ final class DJPerformanceModel: ObservableObject {
     /// paused.
     func jog(_ id: DJDeckID, angle: Double, outerRing: Bool) {
         let state = deck(id)
-        if !state.isPlaying && outerRing {
-            // One full ring turn is four bars (16 beats), independent of the
-            // track's absolute duration.
-            seek(id, by: angle * max(1, state.tempo) * 16 / (60 * 2 * .pi))
+        if !state.isPlaying {
+            // A stopped jog must update the model position as well as the
+            // engine position. Calling transient PAE frameSearch here leaves
+            // the model at the old beat, so the release-time quantize pass
+            // snaps the track back by several seconds.
+            seek(id, by: DJJogMapper.pausedSeekSeconds(angle: angle,
+                                                       outerRing: outerRing,
+                                                       bpm: state.tempo))
             return
         }
         let action = DJJogMapper.action(angle: angle, isPlaying: state.isPlaying,
@@ -442,7 +463,9 @@ final class DJPerformanceModel: ObservableObject {
         let deck = deck(id)
         guard !deck.isPlaying, deck.duration > 0, width > 0 else { return }
         cancelGlide(id)
-        seek(id, by: -Double(pixels / width) * deck.duration)
+        seek(id, by: DJWaveformSeekMapping.seconds(translation: pixels,
+                                                    width: width,
+                                                    duration: deck.duration))
     }
 
     func snapIfQuantized(_ id: DJDeckID) {
@@ -806,7 +829,14 @@ final class DJPerformanceModel: ObservableObject {
         switch mode {
         case .vinyl: deck.vinyl.toggle(); audio.setVinyl(deck: id, enabled: deck.vinyl)
         case .slip: deck.slip.toggle(); audio.setSlip(deck: id, enabled: deck.slip)
-        case .reverse: deck.reverse.toggle(); audio.setReverse(deck: id, enabled: deck.reverse)
+        case .reverse:
+            deck.reverse.toggle()
+            audio.setReverse(deck: id, enabled: deck.reverse)
+            let start = DJReversePlaybackPolicy.startPosition(enabled: deck.reverse,
+                                                               isPlaying: deck.isPlaying,
+                                                               current: deck.position,
+                                                               duration: deck.duration)
+            if start != deck.position { seek(id, to: start) }
         case .quantize: deck.quantize.toggle(); audio.setQuantize(deck: id, enabled: deck.quantize)
         }
     }
@@ -1438,7 +1468,7 @@ private final class DJAudioBacker {
     private func start() throws {
         #if os(iOS)
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        try session.setCategory(.playback, mode: .default, options: [.mixWithOthers, .defaultToSpeaker])
         try session.setActive(true)
         #endif
         try engine.start()
@@ -2608,9 +2638,16 @@ private struct DJLoadSheet: View {
     let store: LibraryStore
     let onLoad: (TrackRow) -> Void
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var player: AudioPlayer
     @Environment(\.dismiss) private var dismiss
     @State private var scope: DJLoadLibraryScope = .songs
+    @State private var inputMode: DiscoverySearchInputMode = .metadata
     @State private var query = ""
+    @State private var bpmMinText = ""
+    @State private var bpmMaxText = ""
+    @State private var compatibleKey = ""
+    @State private var searchModel: DiscoverySearchViewModel?
+    @State private var infoByTrackID: [Int64: DJLoadTrackInfo] = [:]
     @State private var selectedPlaylist: Playlist?
     @State private var playlistTracks: [TrackRow] = []
     @State private var selectedLibraryEntry: LibraryBrowse.Entry?
@@ -2619,6 +2656,42 @@ private struct DJLoadSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                Picker("Search mode", selection: $inputMode) {
+                    Text("Metadata").tag(DiscoverySearchInputMode.metadata)
+                    Text("Mood / sound").tag(DiscoverySearchInputMode.findBySound)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .accessibilityIdentifier("dj.load.searchMode")
+
+                HStack(spacing: 8) {
+                    Image(systemName: inputMode == .findBySound ? "wand.and.stars" : "magnifyingglass")
+                        .foregroundStyle(Palette.ink3)
+                    TextField(
+                        inputMode == .findBySound
+                            ? "Search by mood or sound, e.g. warm analog pads"
+                            : "Search titles, artists, albums, or genres",
+                        text: $query)
+                        .platformAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityLabel(inputMode == .findBySound ? "Search by mood or sound" : "Search your music")
+                }
+                .padding(.horizontal, 12)
+                .frame(minHeight: 42)
+                .glassSurface(cornerRadius: 14)
+                .padding(.horizontal)
+                .padding(.top, 8)
+
+                HStack(spacing: 8) {
+                    loadFilterField("Min BPM", text: $bpmMinText, numberPad: true)
+                    loadFilterField("Max BPM", text: $bpmMaxText, numberPad: true)
+                    loadFilterField("Key (8A)", text: $compatibleKey, numberPad: false)
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .accessibilityIdentifier("dj.load.musicalFilters")
+
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(DJLoadLibraryScope.allCases) { value in
@@ -2626,7 +2699,7 @@ private struct DJLoadSheet: View {
                                 scope = value
                                 selectedPlaylist = nil
                                 selectedLibraryEntry = nil
-                                query = ""
+                                searchModel?.scope = .allMusic
                             } label: {
                                 Text(value.rawValue)
                                     .font(.system(size: 13, weight: .semibold))
@@ -2656,17 +2729,61 @@ private struct DJLoadSheet: View {
             .background(Palette.bg)
             .navigationTitle("Load Deck " + deck.rawValue)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-            .task(id: query) {
-                appState.searchText = query
-                await appState.runSearch()
+            .onChange(of: inputMode) { _, value in
+                searchModel?.inputMode = value
+            }
+            .onChange(of: query) { _, value in
+                searchModel?.searchText = value
+            }
+            .onChange(of: bpmMinText) { _, value in
+                searchModel?.bpmMinText = value
+            }
+            .onChange(of: bpmMaxText) { _, value in
+                searchModel?.bpmMaxText = value
+            }
+            .onChange(of: compatibleKey) { _, value in
+                searchModel?.compatibleKey = value
+            }
+            .task {
+                guard searchModel == nil else { return }
+                let model = await DiscoveryRuntimeController.shared.makeSearchViewModel(
+                    appState: appState, player: player)
+                searchModel = model
+                model.inputMode = inputMode
+                model.searchText = query
+                model.bpmMinText = bpmMinText
+                model.bpmMaxText = bpmMaxText
+                model.compatibleKey = compatibleKey
             }
         }
     }
 
+    private func loadFilterField(_ label: String, text: Binding<String>, numberPad: Bool) -> some View {
+        TextField(label, text: text)
+            #if !os(macOS)
+            .keyboardType(numberPad ? .numberPad : .asciiCapable)
+            #endif
+            .font(.caption)
+            .padding(.horizontal, 8)
+            .frame(minHeight: 36)
+            .glassSurface(cornerRadius: 11)
+            .accessibilityLabel(label)
+    }
+
     private var libraryRows: [TrackRow] {
-        query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? tracks
-            : appState.searchResults
+        filtered(activeSearchRows ?? tracks)
+    }
+
+    private var activeSearchRows: [TrackRow]? {
+        guard let searchModel, searchModel.screen.hasResults else { return nil }
+        return searchModel.results.map(\.track)
+    }
+
+    private var localFilter: DJLoadTrackFilter {
+        DJLoadTrackFilter(
+            bpmMin: Double(bpmMinText.trimmingCharacters(in: .whitespacesAndNewlines)),
+            bpmMax: Double(bpmMaxText.trimmingCharacters(in: .whitespacesAndNewlines)),
+            camelotKey: compatibleKey)
     }
 
     private func libraryList(_ mode: LibraryBrowseMode) -> some View {
@@ -2705,12 +2822,9 @@ private struct DJLoadSheet: View {
         }
         .overlay {
             if sections.isEmpty {
-                ContentUnavailableView(query.isEmpty ? "No music" : "No matching music",
-                                       systemImage: query.isEmpty ? "music.note" : "magnifyingglass",
-                                       description: Text(query.isEmpty ? "Add music in My Music first." : "Search titles, artists, albums, or genres."))
+                loadSearchState
             }
         }
-        .searchable(text: $query, prompt: "Search all your music")
         .scrollContentBackground(.hidden)
     }
 
@@ -2730,7 +2844,7 @@ private struct DJLoadSheet: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 9)
-            trackList(filtered(entry.rows))
+            trackList(filtered(activeSearchRows ?? entry.rows))
         }
     }
 
@@ -2760,7 +2874,6 @@ private struct DJLoadSheet: View {
                 }
             }
         }
-        .searchable(text: $query, prompt: "Search playlists")
         .scrollContentBackground(.hidden)
     }
 
@@ -2789,32 +2902,48 @@ private struct DJLoadSheet: View {
                 ProgressView("Loading playlist…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                trackList(filtered(playlistTracks))
+                trackList(filtered(activeSearchRows ?? playlistTracks))
             }
+        }
+    }
+
+    @ViewBuilder
+    private var loadSearchState: some View {
+        if inputMode == .findBySound, let searchModel {
+            switch searchModel.screen {
+            case .loading:
+                ProgressView("Finding tracks by sound…")
+            case .modelMissing:
+                ContentUnavailableView("Sound search model needed", systemImage: "arrow.down.circle",
+                                       description: Text("Download the sound-search model from Settings to search by mood."))
+            case .matchingReferenceUnavailable:
+                ContentUnavailableView("Musical match unavailable", systemImage: "music.note.list",
+                                       description: Text("The selected track needs BPM and key analysis before matching."))
+            default:
+                ContentUnavailableView(query.isEmpty ? "No music" : "No matching music",
+                                       systemImage: query.isEmpty ? "music.note" : "magnifyingglass",
+                                       description: Text(query.isEmpty ? "Add music in My Music first." : "Try a broader mood or sound description."))
+            }
+        } else {
+            ContentUnavailableView(query.isEmpty ? "No music" : "No matching music",
+                                   systemImage: query.isEmpty ? "music.note" : "magnifyingglass",
+                                   description: Text(query.isEmpty ? "Add music in My Music first." : "Search titles, artists, albums, or genres."))
         }
     }
 
     private func trackList(_ rows: [TrackRow]) -> some View {
         List(rows) { row in
             Button { onLoad(row) } label: {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(row.track.title).foregroundStyle(Palette.ink)
-                    Text(trackSubtitle(row))
-                        .font(.caption).foregroundStyle(Palette.ink3)
-                }
+                DJLoadTrackRow(row: row, info: infoByTrackID[row.id], subtitle: trackSubtitle(row))
             }
+            .accessibilityIdentifier("dj.load.track.\(row.id)")
         }
         .overlay {
             if rows.isEmpty {
-                ContentUnavailableView(
-                    query.isEmpty ? "No tracks" : "No matching tracks",
-                    systemImage: query.isEmpty ? "music.note" : "magnifyingglass",
-                    description: Text(query.isEmpty
-                        ? "Add music to your library to load a DJ deck."
-                        : "Search by track, artist, or album."))
+                loadSearchState
             }
         }
-        .searchable(text: $query, prompt: "Search tracks, artists, or albums")
+        .task(id: rows.map(\.id)) { await loadInfo(for: rows) }
         .scrollContentBackground(.hidden)
     }
 
@@ -2826,18 +2955,62 @@ private struct DJLoadSheet: View {
 
     private func filtered(_ rows: [TrackRow]) -> [TrackRow] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !needle.isEmpty else { return rows }
-        return rows.filter { row in
-            [row.track.title, row.artist?.name, row.album?.title]
-                .compactMap { $0 }
-                .contains { $0.localizedCaseInsensitiveContains(needle) }
+        let textFiltered: [TrackRow]
+        if needle.isEmpty || inputMode == .findBySound && activeSearchRows != nil {
+            textFiltered = rows
+        } else {
+            textFiltered = rows.filter { row in
+                [row.track.title, row.artist?.name, row.album?.title, row.track.genre]
+                    .compactMap { $0 }
+                    .contains { $0.localizedCaseInsensitiveContains(needle) }
+            }
         }
+        guard !localFilter.isEmpty else { return textFiltered }
+        return textFiltered.filter { localFilter.matches(infoByTrackID[$0.id] ?? DJLoadTrackInfo()) }
+    }
+
+    private func loadInfo(for rows: [TrackRow]) async {
+        let ids = rows.map(\.id)
+        guard !ids.isEmpty, let values = try? await store.djLoadTrackInfo(trackIds: ids) else { return }
+        infoByTrackID.merge(values) { _, new in new }
     }
 
     private func trackSubtitle(_ row: TrackRow) -> String {
         let artist = row.artist?.name ?? "Unknown artist"
         guard let album = row.album?.title, !album.isEmpty else { return artist }
         return "\(artist) · \(album)"
+    }
+}
+
+private struct DJLoadTrackRow: View {
+    let row: TrackRow
+    let info: DJLoadTrackInfo?
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(row.track.title)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(Palette.ink3)
+                    .lineLimit(1)
+                HStack(spacing: 10) {
+                    Text(info?.bpmLabel ?? "— BPM")
+                    Text(info?.keyLabel ?? "KEY —")
+                }
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(Palette.brass)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "arrow.down.to.line.compact")
+                .foregroundStyle(Palette.brass)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(row.track.title), \(subtitle), \(info?.bpmLabel ?? "BPM unknown"), \(info?.keyLabel ?? "key unknown")")
     }
 }
 

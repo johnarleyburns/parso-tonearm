@@ -2,6 +2,39 @@ import Foundation
 import GRDB
 
 extension LibraryStore {
+    /// Returns the current, displayable musical values for the requested
+    /// tracks. Discovery analysis is preferred because it is the shared
+    /// library result; DJ prep supplies a user BPM override and remains a
+    /// fallback for tracks prepared by the DJ surface before discovery has
+    /// completed.
+    public func djLoadTrackInfo(trackIds: [Int64]) throws -> [Int64: DJLoadTrackInfo] {
+        let ids = Array(Set(trackIds.filter { $0 >= 0 }))
+        guard !ids.isEmpty else { return [:] }
+        return try dbQueue.read { db in
+            var result: [Int64: DJLoadTrackInfo] = [:]
+            for id in ids {
+                let asset = try Asset.filter(Column("trackId") == id).fetchOne(db)
+                let analysis = try DiscoveryTrackAnalysis.fetchOne(db, key: id)
+                let analysisIsCurrent: Bool = {
+                    guard let asset, let analysis else { return false }
+                    // Asset currently has no persisted content-revision field
+                    // in TonearmCore. Its stable row identity is still the
+                    // strongest local validity check available here; the
+                    // discovery worker handles revision invalidation before
+                    // writing a result.
+                    return analysis.assetId == asset.id
+                }()
+                let prep = try DJTrackPrep.fetchOne(db, key: id)
+                let bpm = prep?.bpmOverride
+                    ?? (analysisIsCurrent ? analysis?.bpm : nil)
+                    ?? prep?.bpm
+                let key = (analysisIsCurrent ? analysis?.key : nil) ?? prep?.camelotKey
+                result[id] = DJLoadTrackInfo(bpm: bpm, camelotKey: key)
+            }
+            return result
+        }
+    }
+
     public func djTrackPrep(trackId: Int64) throws -> DJTrackPrep? {
         guard trackId >= 0 else { return nil }
         if let existing = try dbQueue.read({ db in try DJTrackPrep.fetchOne(db, key: trackId) }) { return existing }
