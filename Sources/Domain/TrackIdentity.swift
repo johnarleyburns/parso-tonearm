@@ -52,7 +52,10 @@ public enum TrackIdentity {
     }
 
     private static func normalize(_ raw: String) -> String {
-        var value = raw.precomposedStringWithCanonicalMapping
+        // NFKC first makes compatibility spellings (full-width characters,
+        // ligatures, etc.) match the same track identity across devices.
+        var value = raw.decomposedStringWithCompatibilityMapping
+            .precomposedStringWithCanonicalMapping
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
         if value.hasPrefix("the ") { value.removeFirst(4) }

@@ -32,7 +32,7 @@ final class DJGridLayoutTests: XCTestCase {
         XCTAssertEqual(DJKeyFormatter.format("12B"), "12B")
         XCTAssertEqual(DJKeyFormatter.format("C major"), "—")
         XCTAssertEqual(DJKeyFormatter.format(nil), "—")
-        XCTAssertEqual(DJKeyFormatter.shifted("6B", semitones: 2), "6B +2")
+        XCTAssertEqual(DJKeyFormatter.shifted("6B", semitones: 2), "8B +2")
         XCTAssertEqual(DJKeyFormatter.shifted("6B", semitones: 0), "6B")
     }
 
@@ -59,8 +59,18 @@ final class DJGridLayoutTests: XCTestCase {
             return XCTFail("expected frame search")
         }
         XCTAssertEqual(frame, 0.006, accuracy: 0.0001)
+        XCTAssertEqual(DJJogMapper.action(angle: 0.1, isPlaying: false, vinyl: false, bpm: 128), .frameSearch(0.006))
         XCTAssertEqual(DJJogMapper.tempoStep(angle: 4, current: 0, range: 6), 6)
         XCTAssertEqual(DJJogMapper.tempoStep(angle: -4, current: 0, range: 6), -6)
+    }
+
+    func testEightHotCuePadsMapToTwoPAEBanks() {
+        XCTAssertEqual(DJHotCueMapping.slot(1), DJHotCueSlot(bank: 0, index: 0))
+        XCTAssertEqual(DJHotCueMapping.slot(4), DJHotCueSlot(bank: 0, index: 3))
+        XCTAssertEqual(DJHotCueMapping.slot(5), DJHotCueSlot(bank: 1, index: 0))
+        XCTAssertEqual(DJHotCueMapping.slot(8), DJHotCueSlot(bank: 1, index: 3))
+        XCTAssertNil(DJHotCueMapping.slot(0))
+        XCTAssertNil(DJHotCueMapping.slot(9))
     }
 
     func testKnobAndFaderMappings() {
@@ -70,6 +80,12 @@ final class DJGridLayoutTests: XCTestCase {
         XCTAssertEqual(DJKnobMapping.display(0.5), "0 dB")
         XCTAssertEqual(DJFaderMapping.value(handleCenter: 25, firstCenter: 10, lastCenter: 40), 0.5)
         XCTAssertEqual(DJFaderMapping.snapped(0.51), 0.5)
+    }
+
+    func testBassBlendAndLowKnobAreCombinedAndEitherKillWins() {
+        XCTAssertEqual(DJBassEQMapping.combined(lowKnob: 0.75, bassBlend: 0.75, deckA: true) ?? .nan, -9.0, accuracy: 0.001)
+        XCTAssertEqual(DJBassEQMapping.combined(lowKnob: 0.5, bassBlend: 0.25, deckA: false) ?? .nan, -12.0, accuracy: 0.001)
+        XCTAssertNil(DJBassEQMapping.combined(lowKnob: 0, bassBlend: 0.5, deckA: true))
     }
 
     func testLoopPadsUseCurrentBPMAndExitToggle() {

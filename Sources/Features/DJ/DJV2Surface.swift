@@ -7,6 +7,7 @@ struct DJV2Surface: View {
     let onBack: () -> Void
     let onInfo: () -> Void
     let onLoad: (DJDeckID) -> Void
+    let onReanalyze: (DJDeckID) -> Void
 
     var body: some View {
         GeometryReader { proxy in
@@ -20,7 +21,8 @@ struct DJV2Surface: View {
                 }
                 DJV2Grid(model: model, landscape: landscape, sideInset: side,
                          availableHeight: max(0, proxy.size.height - titleHeight - bottom),
-                         onBack: onBack, onInfo: onInfo, onLoad: onLoad)
+                         onBack: onBack, onInfo: onInfo, onLoad: onLoad,
+                         onReanalyze: onReanalyze)
             }
             .padding(.bottom, bottom)
             .background(Palette.bg)
@@ -42,7 +44,7 @@ private struct DJV2TitleBar: View {
             .accessibilityLabel("Close DJ")
             Spacer(minLength: 4)
             Button(action: model.toggleRecording) {
-                Label(model.recording ? "REC" : "REC", systemImage: "record.circle")
+                Label(model.recording ? "REC \(recordingTime)" : "REC", systemImage: "record.circle")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundStyle(model.recording ? .white : Palette.ink2)
                     .padding(.horizontal, 8).padding(.vertical, 5)
@@ -61,6 +63,12 @@ private struct DJV2TitleBar: View {
         .frame(height: 44)
         .background(.ultraThinMaterial)
     }
+
+    private var recordingTime: String {
+        guard let started = model.recordingStartedAt else { return "00:00" }
+        let seconds = max(0, Int(Date().timeIntervalSince(started)))
+        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
 }
 
 private struct DJV2Grid: View {
@@ -71,6 +79,7 @@ private struct DJV2Grid: View {
     let onBack: () -> Void
     let onInfo: () -> Void
     let onLoad: (DJDeckID) -> Void
+    let onReanalyze: (DJDeckID) -> Void
 
     var body: some View {
         GeometryReader { proxy in
@@ -80,7 +89,8 @@ private struct DJV2Grid: View {
             let layout = DJGridLayout(size: CGSize(width: width, height: availableHeight),
                                       columns: columns, rows: landscape ? 8 : rows, gap: 4)
             ZStack(alignment: .topLeading) {
-                DJV2DeckZone(layout: layout, active: model.activeDeck, landscape: landscape)
+                DJV2DeckZone(layout: layout, active: model.activeDeck,
+                             onAir: model.deckIsOnAir(model.activeDeck), landscape: landscape)
                 if landscape { landscapeContent(layout) } else { portraitContent(layout) }
             }
             .frame(width: width, height: availableHeight, alignment: .topLeading)
@@ -91,10 +101,10 @@ private struct DJV2Grid: View {
 
     @ViewBuilder
     private func portraitContent(_ l: DJGridLayout) -> some View {
-        cell(l, 0, 0, 4) { DJV2TrackCell(deck: model.deckA, active: model.activeDeck == .a, loadPhase: model.loadPhases[.a], onSelect: { model.selectDeck(.a) }, onLoad: { onLoad(.a) }, onClear: { model.clearHotCues(.a) }) }
+        cell(l, 0, 0, 4) { DJV2TrackCell(deck: model.deckA, active: model.activeDeck == .a, onAir: model.deckIsOnAir(.a), loadPhase: model.loadPhases[.a], onSelect: { model.selectDeck(.a) }, onLoad: { onLoad(.a) }, onReanalyze: { onReanalyze(.a) }, onClear: { model.clearHotCues(.a) }, onClearCue: { model.clearCue(.a) }, onClearLoop: { model.clearLoop(.a) }) }
         cell(l, 4, 0, 1) { DJV2LoadButton(deck: .a, onAir: model.deckIsOnAir(.a), onLoad: { onLoad(.a) }) }
         cell(l, 5, 0, 1) { DJV2LoadButton(deck: .b, onAir: model.deckIsOnAir(.b), onLoad: { onLoad(.b) }) }
-        cell(l, 6, 0, 2) { DJV2TrackCell(deck: model.deckB, active: model.activeDeck == .b, loadPhase: model.loadPhases[.b], onSelect: { model.selectDeck(.b) }, onLoad: { onLoad(.b) }, onClear: { model.clearHotCues(.b) }) }
+        cell(l, 6, 0, 2) { DJV2TrackCell(deck: model.deckB, active: model.activeDeck == .b, onAir: model.deckIsOnAir(.b), loadPhase: model.loadPhases[.b], onSelect: { model.selectDeck(.b) }, onLoad: { onLoad(.b) }, onReanalyze: { onReanalyze(.b) }, onClear: { model.clearHotCues(.b) }, onClearCue: { model.clearCue(.b) }, onClearLoop: { model.clearLoop(.b) }) }
         cell(l, 0, 1, 8) { DJV2WaveCell(deck: model.deckA, model: model, active: model.activeDeck == .a) }
         cell(l, 0, 2, 8) { DJV2WaveCell(deck: model.deckB, model: model, active: model.activeDeck == .b) }
         cell(l, 0, 3, 4, 4) { DJV2Jog(deck: model.activeDeckState, model: model) }
@@ -106,13 +116,13 @@ private struct DJV2Grid: View {
         cell(l, 4, 4, 4, 2) { DJV2Pads(model: model) }
         cell(l, 4, 6) { DJV2Button(title: "CUE", active: model.activeDeckState.cuePoint != nil, color: model.activeDeckState.accent, gesture: DJV2CueGesture(model: model, deck: model.activeDeck)) }
         cell(l, 5, 6) { DJV2Button(title: model.activeDeckState.isPlaying ? "PAUSE" : "PLAY", active: model.activeDeckState.isPlaying, color: model.activeDeckState.accent) { model.toggle(model.activeDeck) } }
-        cell(l, 6, 6) { DJV2Button(title: "SYNC", active: model.activeDeckState.syncEnabled, color: model.activeDeckState.accent) { model.toggleSync(model.activeDeck) }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.makeMaster(model.activeDeck) }) }
-        cell(l, 7, 6) { DJV2Button(title: "KEY", active: model.activeDeckState.keySync, color: model.activeDeckState.accent) { model.activeDeckState.keySync.toggle() }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.setPadMode(model.activeDeck, mode: .keyShift) }) }
+        cell(l, 6, 6) { DJV2Button(title: "SYNC", active: model.activeDeckState.syncEnabled, color: model.activeDeckState.accent) { model.toggleSync(model.activeDeck) }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.makeMaster(model.activeDeck) }).accessibilityAction(named: "Make master") { model.makeMaster(model.activeDeck) } }
+        cell(l, 7, 6) { DJV2Button(title: "KEY", active: model.activeDeckState.keySync, color: model.activeDeckState.accent) { model.toggleKeySync(model.activeDeck) }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.setPadMode(model.activeDeck, mode: .keyShift) }).accessibilityAction(named: "Key shift") { model.setPadMode(model.activeDeck, mode: .keyShift) } }
         cell(l, 0, 7, 4) { DJV2TempoFader(deck: model.activeDeckState, model: model) }
         cell(l, 4, 7) { DJV2Button(title: "RANGE", second: "±\(Int(model.activeDeckState.tempoRange))%", active: false, color: .white) { model.cycleTempoRange(model.activeDeck) } }
         cell(l, 5, 7) { DJV2Button(title: "RESET", active: false, color: .white) { model.resetTempo(model.activeDeck) } }
-        cell(l, 6, 7) { DJV2Button(title: "MT", active: model.activeDeckState.masterTempo, color: .white) { model.activeDeckState.masterTempo.toggle() } }
-        cell(l, 7, 7) { DJV2Button(title: "TAP", active: false, color: .white) { model.tapTempo(model.activeDeck) }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.setPadMode(model.activeDeck, mode: .grid) }) }
+        cell(l, 6, 7) { DJV2Button(title: "MT", active: model.activeDeckState.masterTempo, color: .white) { model.toggleMasterTempo(model.activeDeck) } }
+        cell(l, 7, 7) { DJV2Button(title: "TAP", active: false, color: .white) { model.tapTempo(model.activeDeck) }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.setPadMode(model.activeDeck, mode: .grid) }).accessibilityAction(named: "Beat grid") { model.setPadMode(model.activeDeck, mode: .grid) } }
         cell(l, 0, 8) { DJV2Knob(label: "HI", value: model.activeDeckState.eqHigh, valueText: DJKnobMapping.display(model.activeDeckState.eqHigh), color: model.activeDeckState.accent) { model.setEQ(model.activeDeck, high: $0) } }
         cell(l, 1, 8) { DJV2Knob(label: "MID", value: model.activeDeckState.eqMid, valueText: DJKnobMapping.display(model.activeDeckState.eqMid), color: model.activeDeckState.accent) { model.setEQ(model.activeDeck, mid: $0) } }
         cell(l, 2, 8) { DJV2Knob(label: "LOW", value: model.activeDeckState.eqLow, valueText: DJKnobMapping.display(model.activeDeckState.eqLow), color: model.activeDeckState.accent) { model.setEQ(model.activeDeck, low: $0) } }
@@ -132,10 +142,10 @@ private struct DJV2Grid: View {
     @ViewBuilder
     private func landscapeContent(_ l: DJGridLayout) -> some View {
         cell(l, 0, 0, 4) { DJV2LandscapeTitle(onBack: onBack, onInfo: onInfo) }
-        cell(l, 4, 0, 4) { DJV2TrackCell(deck: model.deckA, active: model.activeDeck == .a, loadPhase: model.loadPhases[.a], onSelect: { model.selectDeck(.a) }, onLoad: { onLoad(.a) }, onClear: { model.clearHotCues(.a) }) }
+        cell(l, 4, 0, 4) { DJV2TrackCell(deck: model.deckA, active: model.activeDeck == .a, onAir: model.deckIsOnAir(.a), loadPhase: model.loadPhases[.a], onSelect: { model.selectDeck(.a) }, onLoad: { onLoad(.a) }, onReanalyze: { onReanalyze(.a) }, onClear: { model.clearHotCues(.a) }, onClearCue: { model.clearCue(.a) }, onClearLoop: { model.clearLoop(.a) }) }
         cell(l, 8, 0) { DJV2LoadButton(deck: .a, onAir: model.deckIsOnAir(.a), onLoad: { onLoad(.a) }) }
         cell(l, 9, 0) { DJV2LoadButton(deck: .b, onAir: model.deckIsOnAir(.b), onLoad: { onLoad(.b) }) }
-        cell(l, 10, 0, 4) { DJV2TrackCell(deck: model.deckB, active: model.activeDeck == .b, loadPhase: model.loadPhases[.b], onSelect: { model.selectDeck(.b) }, onLoad: { onLoad(.b) }, onClear: { model.clearHotCues(.b) }) }
+        cell(l, 10, 0, 4) { DJV2TrackCell(deck: model.deckB, active: model.activeDeck == .b, onAir: model.deckIsOnAir(.b), loadPhase: model.loadPhases[.b], onSelect: { model.selectDeck(.b) }, onLoad: { onLoad(.b) }, onReanalyze: { onReanalyze(.b) }, onClear: { model.clearHotCues(.b) }, onClearCue: { model.clearCue(.b) }, onClearLoop: { model.clearLoop(.b) }) }
         cell(l, 14, 0) { DJV2InfoButton(action: onInfo) }
         cell(l, 4, 1, 11) { DJV2WaveCell(deck: model.deckA, model: model, active: model.activeDeck == .a) }
         cell(l, 4, 2, 11) { DJV2WaveCell(deck: model.deckB, model: model, active: model.activeDeck == .b) }
@@ -146,15 +156,15 @@ private struct DJV2Grid: View {
         cell(l, 0, 2, 4, 5) { DJV2Jog(deck: model.activeDeckState, model: model) }
         cell(l, 0, 7) { DJV2Button(title: "CUE", active: model.activeDeckState.cuePoint != nil, color: model.activeDeckState.accent, gesture: DJV2CueGesture(model: model, deck: model.activeDeck)) }
         cell(l, 1, 7) { DJV2Button(title: model.activeDeckState.isPlaying ? "PAUSE" : "PLAY", active: model.activeDeckState.isPlaying, color: model.activeDeckState.accent) { model.toggle(model.activeDeck) } }
-        cell(l, 2, 7) { DJV2Button(title: "SYNC", active: model.activeDeckState.syncEnabled, color: model.activeDeckState.accent) { model.toggleSync(model.activeDeck) }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.makeMaster(model.activeDeck) }) }
-        cell(l, 3, 7) { DJV2Button(title: "KEY", active: model.activeDeckState.keySync, color: model.activeDeckState.accent) { model.activeDeckState.keySync.toggle() }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.setPadMode(model.activeDeck, mode: .keyShift) }) }
+        cell(l, 2, 7) { DJV2Button(title: "SYNC", active: model.activeDeckState.syncEnabled, color: model.activeDeckState.accent) { model.toggleSync(model.activeDeck) }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.makeMaster(model.activeDeck) }).accessibilityAction(named: "Make master") { model.makeMaster(model.activeDeck) } }
+        cell(l, 3, 7) { DJV2Button(title: "KEY", active: model.activeDeckState.keySync, color: model.activeDeckState.accent) { model.toggleKeySync(model.activeDeck) }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.setPadMode(model.activeDeck, mode: .keyShift) }).accessibilityAction(named: "Key shift") { model.setPadMode(model.activeDeck, mode: .keyShift) } }
         cell(l, 4, 3, 4) { DJV2ModeRow(model: model) }
         cell(l, 4, 4, 4, 2) { DJV2Pads(model: model) }
         cell(l, 4, 6, 4) { DJV2TempoFader(deck: model.activeDeckState, model: model) }
         cell(l, 4, 7) { DJV2Button(title: "RANGE", second: "±\(Int(model.activeDeckState.tempoRange))%", active: false, color: .white) { model.cycleTempoRange(model.activeDeck) } }
         cell(l, 5, 7) { DJV2Button(title: "RESET", active: false, color: .white) { model.resetTempo(model.activeDeck) } }
-        cell(l, 6, 7) { DJV2Button(title: "MT", active: model.activeDeckState.masterTempo, color: .white) { model.activeDeckState.masterTempo.toggle() } }
-        cell(l, 7, 7) { DJV2Button(title: "TAP", active: false, color: .white) { model.tapTempo(model.activeDeck) }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.setPadMode(model.activeDeck, mode: .grid) }) }
+        cell(l, 6, 7) { DJV2Button(title: "MT", active: model.activeDeckState.masterTempo, color: .white) { model.toggleMasterTempo(model.activeDeck) } }
+        cell(l, 7, 7) { DJV2Button(title: "TAP", active: false, color: .white) { model.tapTempo(model.activeDeck) }.simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in model.setPadMode(model.activeDeck, mode: .grid) }).accessibilityAction(named: "Beat grid") { model.setPadMode(model.activeDeck, mode: .grid) } }
         landscapeMixer(l)
     }
 
@@ -206,10 +216,11 @@ private extension DJPerformanceModel {
 private struct DJV2DeckZone: View {
     let layout: DJGridLayout
     let active: DJDeckID
+    let onAir: Bool
     let landscape: Bool
     var body: some View {
         let rect = landscape ? layout.frame(col: 0, row: 1, colSpan: 4, rowSpan: 7).union(layout.frame(col: 4, row: 3, colSpan: 4, rowSpan: 5)) : layout.frame(col: 0, row: 3, colSpan: 8, rowSpan: 5)
-        RoundedRectangle(cornerRadius: 10).strokeBorder(active == .a ? Palette.brass.opacity(0.6) : Color.blue.opacity(0.65), lineWidth: 1.5)
+        RoundedRectangle(cornerRadius: 10).strokeBorder(onAir ? Color.red.opacity(0.9) : (active == .a ? Palette.brass.opacity(0.6) : Color.blue.opacity(0.65)), lineWidth: onAir ? 2 : 1.5)
             .frame(width: rect.width, height: rect.height).position(x: rect.midX, y: rect.midY)
             .allowsHitTesting(false)
     }
@@ -262,14 +273,21 @@ private struct DJV2LandscapeTitle: View {
 private struct DJV2TrackCell: View {
     @ObservedObject var deck: DJDeckState
     let active: Bool
+    let onAir: Bool
     let loadPhase: DJLoadPhase?
     let onSelect: () -> Void
     let onLoad: () -> Void
+    let onReanalyze: () -> Void
     let onClear: () -> Void
+    let onClearCue: () -> Void
+    let onClearLoop: () -> Void
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 6) {
-                Text(deck.id.rawValue).font(.system(size: 12, weight: .black, design: .monospaced)).foregroundStyle(deck.accent)
+                VStack(spacing: 1) {
+                    Text(deck.id.rawValue).font(.system(size: 12, weight: .black, design: .monospaced)).foregroundStyle(onAir ? .red : deck.accent)
+                    if onAir { Text("ON AIR").font(.system(size: 7, weight: .black, design: .monospaced)).foregroundStyle(.red) }
+                }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(deck.row == nil ? "LOAD TRACK \(deck.id.rawValue)" : deck.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
                     Text(deck.artist.isEmpty ? "Tap to load" : deck.artist).font(.system(size: 10)).foregroundStyle(Palette.ink2).lineLimit(1)
@@ -279,10 +297,12 @@ private struct DJV2TrackCell: View {
                 if let loadPhase { Text(loadPhase.label).font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(Palette.ink3) }
             }.padding(.horizontal, 6).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .background(active ? deck.accent.opacity(0.13) : Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(active ? deck.accent.opacity(0.7) : Color.white.opacity(0.1), lineWidth: active ? 1.5 : 1))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(onAir ? Color.red : (active ? deck.accent.opacity(0.7) : Color.white.opacity(0.1)), lineWidth: onAir ? 2 : (active ? 1.5 : 1)))
         }.buttonStyle(.plain).contextMenu {
-            Button("Re-analyze track", action: onLoad)
+            Button("Re-analyze track", action: onReanalyze)
             Button("Clear hot cues", role: .destructive, action: onClear)
+            Button("Clear cue point", role: .destructive, action: onClearCue)
+            Button("Clear loop", role: .destructive, action: onClearLoop)
         }.accessibilityLabel("Deck \(deck.id.rawValue), \(deck.title). Tap to select; load from the load button.")
     }
 }
@@ -291,9 +311,18 @@ private struct DJV2LoadButton: View {
     let deck: DJDeckID
     let onAir: Bool
     let onLoad: () -> Void
+    @State private var holding = false
     var body: some View {
-        DJV2Button(title: "LOAD", second: deck.rawValue, active: onAir, color: .red) { if !onAir { onLoad() } }
-            .simultaneousGesture(LongPressGesture(minimumDuration: 1).onEnded { _ in if onAir { onLoad() } })
+        ZStack(alignment: .bottomLeading) {
+            DJV2Button(title: "LOAD", second: deck.rawValue, active: onAir, color: .red) { if !onAir { onLoad() } }
+            if onAir {
+                Rectangle().fill(Color.red).frame(maxWidth: .infinity, maxHeight: 3)
+                    .scaleEffect(x: holding ? 1 : 0, y: 1, anchor: .leading)
+                    .animation(.linear(duration: 1), value: holding)
+                    .allowsHitTesting(false)
+            }
+        }
+            .simultaneousGesture(LongPressGesture(minimumDuration: 1).onChanged { _ in holding = true }.onEnded { _ in holding = false; if onAir { onLoad() } })
             .accessibilityLabel(onAir ? "Load deck \(deck.rawValue), hold for one second" : "Load deck \(deck.rawValue)")
     }
 }
@@ -315,10 +344,14 @@ private struct DJV2WaveCell: View {
                         Text("\(deck.tempoPercent >= 0 ? "+" : "")\(String(format: "%.1f", deck.tempoPercent))%")
                         Text("KEY \(DJKeyFormatter.shifted(deck.key, semitones: deck.keyShiftSemitones))")
                         if model.deckIsOnAir(deck.id) { Text("ON AIR").foregroundStyle(.red) }
+                        if deck.slip { Text("SLIP") }
+                        if deck.echoOutArmed { Text("ECHO OUT").foregroundStyle(.orange) }
                         if deck.syncEnabled { Text("SYNC") }
+                        if model.isMaster(deck.id) { Text("MASTER") }
                         if deck.masterTempo { Text("MT") }
                         Spacer()
                         Button(elapsed ? time(deck.position) : "−\(time(max(0, deck.duration - deck.position)))") { elapsed.toggle() }.buttonStyle(.plain)
+                            .foregroundStyle(!elapsed && deck.duration - deck.position < 30 ? Color.red : deck.accent)
                     }.font(.system(size: 10, weight: .semibold, design: .monospaced)).foregroundStyle(deck.accent)
                     Spacer()
                     HStack(spacing: 3) { ForEach(0..<4, id: \.self) { i in Rectangle().fill(phase(deck) == i ? deck.accent : Color.white.opacity(0.18)).frame(width: 9, height: 3) } }
@@ -469,7 +502,7 @@ private struct DJV2Pad: View {
     private var label: (title: String, second: String?) {
         switch deck.padMode {
         case .hotCue: return ("\(index + 1)", nil)
-        case .loop: return (index == 0 ? "IN" : index == 1 ? "OUT" : index == 2 ? "SET \(model.loopLengthLabel(deck.id))" : index == 3 ? (deck.loopActive ? "EXIT" : "ENTER") : index == 4 ? "½×" : index == 5 ? "2×" : index == 6 ? "◀ \(model.loopLengthLabel(deck.id))" : "\(model.loopLengthLabel(deck.id)) ▶", nil)
+        case .loop: return (index == 0 ? "IN" : index == 1 ? "OUT" : index == 2 ? "SET \(model.loopLengthLabel(deck.id))" : index == 3 ? (deck.loopActive ? "EXIT" : "ENTER") : index == 4 ? "½×" : index == 5 ? "2×" : index == 6 ? "◀ \(model.loopLengthLabel(deck.id))" : "\(model.loopLengthLabel(deck.id)) ▶", index == 3 && deck.loopExitPending ? "NEXT PASS" : nil)
         case .fx: return (index < 4 ? ["¼", "½", "1", "2"][index] : index == 4 ? "ECHO OUT" : index == 5 ? "ROLL" : index == 6 ? "REVERB" : "BRAKE", "")
         case .mix: return (index == 0 ? "A TRIM" : index == 1 ? "B TRIM" : index == 2 ? "AUTO GAIN" : index == 3 ? "REC" : index == 4 ? "ISO LOW" : index == 5 ? "ISO MID" : index == 6 ? "ISO HI" : "FLAT", "")
         case .beatFX: return (index == 0 ? "TYPE" : index == 1 ? "◀ BEAT" : index == 2 ? "BEAT ▶" : index == 3 ? "ON" : index == 4 ? "CH A" : index == 5 ? "CH B" : index == 6 ? "MASTER" : "LEVEL", "")
@@ -487,13 +520,12 @@ private struct DJV2Jog: View {
     var body: some View {
         GeometryReader { proxy in
             let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2), radius = min(proxy.size.width, proxy.size.height) * 0.38
-            ZStack { Circle().fill(Color.black.opacity(0.8)).overlay(Circle().stroke(deck.accent, lineWidth: 2)).frame(width: radius * 2, height: radius * 2); Circle().stroke(Color.white.opacity(0.12), lineWidth: 1).frame(width: radius * 1.55, height: radius * 1.55); VStack(spacing: 2) { Text(deck.id.rawValue + (model.deckIsOnAir(deck.id) ? " · ON AIR" : " · CDJ")).font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(model.deckIsOnAir(deck.id) ? .red : deck.accent); Text(format(deck.position)).font(.system(size: 16, weight: .bold, design: .monospaced)); Text("\(deck.tempoPercent >= 0 ? "+" : "")\(String(format: "%.1f", deck.tempoPercent))%").font(.system(size: 9, design: .monospaced)); Text(deck.vinyl ? "VINYL" : "CDJ").font(.system(size: 8, design: .monospaced)).foregroundStyle(Palette.ink3) } }
+            ZStack { Circle().fill(Color.black.opacity(0.8)).overlay(Circle().stroke(model.deckIsOnAir(deck.id) ? Color.red : deck.accent, lineWidth: model.deckIsOnAir(deck.id) ? 3 : 2)).frame(width: radius * 2, height: radius * 2); Circle().stroke(Color.white.opacity(0.12), lineWidth: 1).frame(width: radius * 1.55, height: radius * 1.55); VStack(spacing: 2) { Text(deck.id.rawValue + (model.deckIsOnAir(deck.id) ? " · ON AIR" : " · CDJ")).font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(model.deckIsOnAir(deck.id) ? .red : deck.accent); Text(format(deck.position)).font(.system(size: 16, weight: .bold, design: .monospaced)); Text("\(deck.tempoPercent >= 0 ? "+" : "")\(String(format: "%.1f", deck.tempoPercent))%").font(.system(size: 9, design: .monospaced)); Text(deck.isPlaying ? (deck.vinyl ? "VINYL" : "NUDGE") : (deck.vinyl ? "FRAME" : "SEEK")).font(.system(size: 8, design: .monospaced)).foregroundStyle(Palette.ink3) } }
             .frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Circle()).gesture(DragGesture(minimumDistance: 0).onChanged { value in
                 let dx = value.location.x - center.x, dy = value.location.y - center.y, angle = atan2(dy, dx)
                 if let previous = lastAngle {
                     var delta = angle - previous; if delta > .pi { delta -= 2 * .pi }; if delta < -.pi { delta += 2 * .pi }
-                    if value.location.distance(to: center) > radius * 0.78 { if deck.isPlaying { model.nudge(deck.id, direction: delta) } else { model.movePaused(deck.id, by: -delta * 40, width: 100) } }
-                    else if deck.isPlaying { model.scratch(deck.id, by: -delta * 30, width: 100) } else { model.movePaused(deck.id, by: -delta * 12, width: 100) }
+                    model.jog(deck.id, angle: delta, outerRing: value.location.distance(to: center) > radius * 0.78)
                 }
                 lastAngle = angle
             }.onEnded { _ in lastAngle = nil; model.endScratch(deck.id); model.snapIfQuantized(deck.id) })

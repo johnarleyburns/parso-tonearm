@@ -21,6 +21,8 @@ public struct DiscoverySyncActivity: Equatable, Sendable {
     public private(set) var rejectedKeepLocal = 0
     public private(set) var rejectedRequeued = 0
     public private(set) var pendingTrackImport = 0
+    public private(set) var pendingOldestDate: Date?
+    public private(set) var prunedPendingCount = 0
 
     public init() {}
 
@@ -33,7 +35,11 @@ public struct DiscoverySyncActivity: Equatable, Sendable {
         }
     }
 
-    mutating func setPendingCount(_ count: Int) { pendingTrackImport = count }
+    mutating func setPendingCount(_ count: Int, oldest: Date? = nil, pruned: Int = 0) {
+        pendingTrackImport = count
+        pendingOldestDate = oldest
+        prunedPendingCount = pruned
+    }
 }
 
 @available(iOS 17.0, *)
@@ -67,6 +73,11 @@ public final class CloudSyncEngine: NSObject, ObservableObject {
     /// case incoming discovery-embedding records are left pending rather
     /// than guessed against.
     public var activePipelineVersionsProvider: (@Sendable () -> ActivePipelineVersions?)?
+
+    /// The DJ surface installs this lightweight invalidation hook so a prep
+    /// record arriving from another device updates a deck that is already on
+    /// screen without requiring the user to leave and re-enter DJ.
+    public var onDJTrackPrepApplied: (@MainActor @Sendable (Int64) -> Void)?
 
     public struct ActivePipelineVersions: Sendable {
         public let pipeline: Int
@@ -315,16 +326,22 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
 
             case .djTrackPrep:
                 guard let envelope = RecordMapping.djTrackPrep(from: record) else { continue }
+                let matchingIDs = (try? await store.localTrackIds(matching: envelope.trackKeys,
+                                                                   trackSyncID: envelope.trackSyncID)) ?? []
                 let applied = (try? await store.applyIncomingDJTrackPrep(envelope)) ?? 0
                 if applied == 0 {
                     await keepPending(record, keys: envelope.trackKeys)
+                } else {
+                    for id in matchingIDs { onDJTrackPrepApplied?(id) }
                 }
             default:
                 break
             }
         }
         await retryPending()
-        activity.setPendingCount((try? await store.pendingSyncRecordCount()) ?? 0)
+        let pruned = (try? await store.prunePendingSyncRecords()) ?? 0
+        activity.setPendingCount((try? await store.pendingSyncRecordCount()) ?? 0,
+                                 oldest: try? await store.pendingSyncOldestDate(), pruned: pruned)
         lastSyncActivity = activity
         log.info("""
             fetched \(changes.modifications.count) modifications, \
@@ -376,7 +393,10 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
                 if let result { applied = result != .trackNotYetImported }
             case .djTrackPrep:
                 guard let value = RecordMapping.djTrackPrep(from: record) else { continue }
+                let matchingIDs = (try? await store.localTrackIds(matching: value.trackKeys,
+                                                                   trackSyncID: value.trackSyncID)) ?? []
                 applied = ((try? await store.applyIncomingDJTrackPrep(value)) ?? 0) > 0
+                if applied { for id in matchingIDs { onDJTrackPrepApplied?(id) } }
             default:
                 applied = true
             }
@@ -388,7 +408,7 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
     public func refreshPendingActivity() async {
         let count = (try? await store.pendingSyncRecordCount()) ?? 0
         var activity = lastSyncActivity
-        activity.setPendingCount(count)
+        activity.setPendingCount(count, oldest: try? await store.pendingSyncOldestDate())
         lastSyncActivity = activity
     }
 }

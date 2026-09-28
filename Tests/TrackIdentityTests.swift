@@ -20,4 +20,15 @@ final class TrackIdentityTests: XCTestCase {
         XCTAssertNotEqual(strong.first?.value, metadata.first?.value)
         XCTAssertEqual(strong.first?.strength, .source)
     }
+
+    func testCompatibilityUnicodeNormalizesToTheSameMetadataIdentity() {
+        let composed = Track(id: 1, albumId: 0, sourceId: 0, title: "ﬁancée",
+                             trackNo: nil, discNo: nil, durationSec: 120, codec: "mp3",
+                             sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "fiancee", artistId: nil)
+        let compatibility = Track(id: 2, albumId: 0, sourceId: 0, title: "fiancee",
+                                  trackNo: nil, discNo: nil, durationSec: 120, codec: "mp3",
+                                  sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "fiancee", artistId: nil)
+        XCTAssertEqual(TrackIdentity.keys(track: composed, asset: nil, source: nil),
+                       TrackIdentity.keys(track: compatibility, asset: nil, source: nil))
+    }
 }

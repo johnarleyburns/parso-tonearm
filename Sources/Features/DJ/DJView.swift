@@ -115,6 +115,7 @@ final class DJPerformanceModel: ObservableObject {
     @Published var bassFader = 0.5
     @Published var crossfader = 0.5
     @Published var activeDeck: DJDeckID = .a
+    @Published private(set) var masterDeck: DJDeckID?
     @Published var headphoneLevel = 0.7
     @Published var cueMasterMix = 0.5
     @Published var isolatorLow = 0.5
@@ -145,6 +146,11 @@ final class DJPerformanceModel: ObservableObject {
         self.store = store
         audio.setBassBlend(0.5)
         audio.setCrossfader(0.5)
+        if #available(iOS 17.0, macOS 14.0, *) {
+            CloudSyncEngine.shared.onDJTrackPrepApplied = { [weak self] trackID in
+                self?.refreshPrepIfLoaded(trackID: trackID)
+            }
+        }
         tickTask = Task { [weak self] in
             while !Task.isCancelled {
                 let active = await MainActor.run { [weak self] in
@@ -164,6 +170,39 @@ final class DJPerformanceModel: ObservableObject {
     deinit {
         tickTask?.cancel()
         glideTasks.values.forEach { $0.cancel() }
+    }
+
+    private func refreshPrepIfLoaded(trackID: Int64) {
+        guard let id = DJDeckID.allCases.first(where: { deck($0).row?.id == trackID }) else { return }
+        let state = deck(id)
+        Task { [store] in
+            guard let prep = try? await store.djTrackPrep(trackId: trackID) else { return }
+            state.hotCues = prep.markings.hotCues
+            state.hotCueColors = prep.markings.hotCueColors
+            state.hotLoops = prep.markings.hotLoops
+            state.cuePoint = prep.cuePointSeconds
+            state.loopIn = prep.loopInSeconds
+            state.loopOut = prep.loopOutSeconds
+            state.keyShiftSemitones = prep.keyShiftSemitones
+            state.bpmOverride = prep.bpmOverride
+            state.firstBeatOverride = prep.firstBeatOverride
+            if let data = prep.analysisPayload,
+               let payload = try? DJTrackPrepPayload.decoded(data) {
+                state.duration = payload.duration
+                state.bpm = prep.bpmOverride ?? payload.bpm
+                state.key = payload.key.camelot
+                state.beatPositions = payload.beatPositions
+                state.downbeatPositions = payload.downbeatPositions
+                state.waveform = payload.waveform.map { WaveformBin(min: $0.min, max: $0.max, rms: $0.rms, bandRMS: $0.bandRMS) }
+            }
+            guard state.row?.id == trackID else { return }
+            audio.restoreHotCues(state.hotCues, deck: id)
+            if let cue = state.cuePoint { audio.setCue(deck: id, position: cue) }
+            if let start = state.loopIn, let end = state.loopOut {
+                audio.setLoop(deck: id, start: start, end: end, active: state.loopActive)
+            }
+            audio.setPitchShift(deck: id, semitones: state.keyShiftSemitones)
+        }
     }
 
     func deck(_ id: DJDeckID) -> DJDeckState { id == .a ? deckA : deckB }
@@ -254,21 +293,29 @@ final class DJPerformanceModel: ObservableObject {
                 guard let self else { return }
                 guard self.loadGeneration[id] == generation else { return }
                 if cachedAnalysis == nil { self.loadPhases[id] = .analyzing }
+                let sourceURL = url
+                let sourceCodec = row.track.codec
+                let sourceBookmark = row.asset?.bookmark
+                let cachedTrackAnalysis = cachedAnalysis
+                let cachedSourceFrameCount = prep?.sourceFrameCount
                 let prepared = try await Task.detached(priority: .userInitiated) {
-                    if let bookmark = row.asset?.bookmark {
+                    if let bookmark = sourceBookmark {
                         guard let prepared = try BookmarkVault.withAccess(bookmark, {
-                            try DJAudioBacker.prepare(url: $0, codec: row.track.codec,
-                                                      cachedAnalysis: cachedAnalysis,
-                                                      cachedFrameCount: prep?.sourceFrameCount)
+                            try DJAudioBacker.prepare(url: $0, codec: sourceCodec,
+                                                      cachedAnalysis: cachedTrackAnalysis,
+                                                      cachedFrameCount: cachedSourceFrameCount)
                         }) else { throw DJAudioError.unavailable }
                         return prepared
                     }
-                    return try DJAudioBacker.prepare(url: url, codec: row.track.codec,
-                                                     cachedAnalysis: cachedAnalysis,
-                                                     cachedFrameCount: prep?.sourceFrameCount)
+                    return try DJAudioBacker.prepare(url: sourceURL, codec: sourceCodec,
+                                                     cachedAnalysis: cachedTrackAnalysis,
+                                                     cachedFrameCount: cachedSourceFrameCount)
                 }.value
                 guard self.loadGeneration[id] == generation,
                       self.deck(id).row?.id == row.id else { return }
+                if cachedAnalysis != nil && !prepared.usedCached {
+                    self.loadPhases[id] = .analyzing
+                }
                 let analyzedBPM = prepared.analysis.tempo.bpm
                 let analyzedFirstBeat = prepared.analysis.tempo.beatPositions.first ?? 0
                 var analysis = prepared.analysis
@@ -281,6 +328,8 @@ final class DJPerformanceModel: ObservableObject {
                 }
                 try self.audio.load(prepared, analysis: analysis, deck: id)
                 self.audio.restoreHotCues(deck.hotCues, deck: id)
+                self.audio.setPitchShift(deck: id, semitones: deck.keyShiftSemitones)
+                self.audio.setKeyLock(deck: id, enabled: deck.masterTempo)
                 if let cue = deck.cuePoint { self.audio.setCue(deck: id, position: cue) }
                 if let start = deck.loopIn, let end = deck.loopOut { self.audio.setLoop(deck: id, start: start, end: end, active: false) }
                 self.loadingDecks.remove(id)
@@ -359,6 +408,34 @@ final class DJPerformanceModel: ObservableObject {
     func nudge(_ id: DJDeckID, direction: Double) {
         cancelGlide(id)
         seek(id, by: direction / 75)
+    }
+
+    /// Maps the platter's outer ring and top plate to the same transport
+    /// vocabulary used by the hardware handoff: outer-ring nudge while
+    /// playing, vinyl scratch on the top plate, and frame/beat search while
+    /// paused.
+    func jog(_ id: DJDeckID, angle: Double, outerRing: Bool) {
+        let state = deck(id)
+        if !state.isPlaying && outerRing {
+            // One full ring turn is four bars (16 beats), independent of the
+            // track's absolute duration.
+            seek(id, by: angle * max(1, state.tempo) * 16 / (60 * 2 * .pi))
+            return
+        }
+        let action = DJJogMapper.action(angle: angle, isPlaying: state.isPlaying,
+                                        vinyl: state.vinyl, bpm: state.tempo)
+        switch action {
+        case .nudge(let amount):
+            nudge(id, direction: outerRing ? amount : amount * 0.35)
+        case .scratch(let samples):
+            guard !outerRing else { nudge(id, direction: samples / 48_000); return }
+            if !scratching.contains(id) { scratching.insert(id); audio.beginScratch(deck: id) }
+            audio.scratch(deck: id, seconds: -samples / 48_000)
+        case .frameSearch(let seconds):
+            audio.frameSearch(deck: id, seconds: outerRing ? seconds * 2 : seconds)
+        case .seek(let seconds):
+            seek(id, by: seconds * (outerRing ? 2 : 1))
+        }
     }
 
     func movePaused(_ id: DJDeckID, by pixels: CGFloat, width: CGFloat) {
@@ -448,10 +525,29 @@ final class DJPerformanceModel: ObservableObject {
     func toggleSync(_ id: DJDeckID) {
         let deck = deck(id)
         deck.syncEnabled.toggle()
-        if deck.syncEnabled { audio.sync(deck: id) }
+        if deck.syncEnabled {
+            audio.sync(deck: id)
+            masterDeck = id == .a ? .b : .a
+        }
     }
 
-    func makeMaster(_ id: DJDeckID) { audio.setAsMaster(deck: id); deck(id).syncEnabled = false }
+    func toggleKeySync(_ id: DJDeckID) {
+        let state = deck(id)
+        state.keySync.toggle()
+        if state.keySync {
+            audio.keySync(deck: id, to: id == .a ? .b : .a)
+        }
+    }
+
+    func toggleMasterTempo(_ id: DJDeckID) {
+        let state = deck(id)
+        state.masterTempo.toggle()
+        audio.setKeyLock(deck: id, enabled: state.masterTempo)
+    }
+
+    func makeMaster(_ id: DJDeckID) { audio.setAsMaster(deck: id); masterDeck = id; deck(id).syncEnabled = false }
+
+    func isMaster(_ id: DJDeckID) -> Bool { masterDeck == id }
 
     func activateCue(_ number: Int, deck id: DJDeckID) {
         let deck = deck(id)
@@ -468,7 +564,7 @@ final class DJPerformanceModel: ObservableObject {
         }
         if let position = deck.hotCues[number] {
             seek(id, to: position)
-            if number <= 4 { audio.jumpHotCue(number, deck: id) }
+            audio.jumpHotCue(number, deck: id)
         } else {
             if deck.loopActive, let start = deck.loopIn, let end = deck.loopOut, end > start {
                 deck.hotLoops[number] = DJHotLoop(position: deck.position, loopIn: start, loopOut: end,
@@ -476,7 +572,7 @@ final class DJPerformanceModel: ObservableObject {
             } else {
                 deck.hotCues[number] = quantizedPosition(deck, deck.position)
                 deck.hotCueColors[number] = (number - 1) % 8
-                if number <= 4 { audio.setHotCue(number, deck: id, position: deck.position) }
+                audio.setHotCue(number, deck: id, position: deck.position)
             }
             saveMarkings(deck)
         }
@@ -488,7 +584,7 @@ final class DJPerformanceModel: ObservableObject {
         deck.hotCues[number] = nil
         deck.hotLoops[number] = nil
         deck.hotCueColors[number] = nil
-        if number <= 4 { audio.deleteHotCue(number, deck: id) }
+        audio.deleteHotCue(number, deck: id)
         saveMarkings(deck)
     }
 
@@ -497,7 +593,7 @@ final class DJPerformanceModel: ObservableObject {
         deck.hotCues.removeAll()
         deck.hotCueColors.removeAll()
         deck.hotLoops.removeAll()
-        for slot in 1...4 { audio.deleteHotCue(slot, deck: id) }
+        for slot in 1...8 { audio.deleteHotCue(slot, deck: id) }
         saveMarkings(deck)
     }
 
@@ -514,6 +610,22 @@ final class DJPerformanceModel: ObservableObject {
     }
 
     func cueUp(_ id: DJDeckID) { audio.cuePlayRelease(deck: id); deck(id).position = audio.position(for: id) }
+
+    func clearCue(_ id: DJDeckID) {
+        deck(id).cuePoint = nil
+        saveMarkings(deck(id))
+    }
+
+    func clearLoop(_ id: DJDeckID) {
+        let state = deck(id)
+        if state.loopActive || state.loopExitPending { audio.reloopExit(deck: id) }
+        state.loopIn = nil
+        state.loopOut = nil
+        state.loopActive = false
+        state.loopExitPending = false
+        state.loopSetApplied = false
+        saveMarkings(state)
+    }
 
     func minimapSeek(_ id: DJDeckID, x: CGFloat, width: CGFloat) {
         let deck = deck(id)
@@ -532,7 +644,9 @@ final class DJPerformanceModel: ObservableObject {
         let deck = deck(id)
         if deck.padMode == .loop {
             deck.padMode = .hotCue
-            if deck.loopActive { audio.reloopExit(deck: id); deck.loopActive = false }
+            if deck.loopActive || deck.loopExitPending { audio.reloopExit(deck: id) }
+            deck.loopActive = false
+            deck.loopExitPending = false
         } else {
             if deck.padMode == .fx || deck.padMode == .beatFX { audio.disarmEchoOut(deck: id) }
             deck.padMode = .loop
@@ -550,21 +664,47 @@ final class DJPerformanceModel: ObservableObject {
         let deck = deck(id); guard deck.padMode == .loop else { return }
         switch pad {
         case 0:
-            deck.loopIn = quantizedPosition(deck, deck.position); deck.loopOut = nil; deck.loopActive = false; deck.loopExitPending = false; deck.loopSetApplied = false; audio.loopIn(deck: id); saveMarkings(deck)
+            deck.loopIn = quantizedPosition(deck, deck.position)
+            deck.loopOut = nil
+            deck.loopActive = false
+            deck.loopExitPending = false
+            deck.loopSetApplied = false
+            audio.loopIn(deck: id)
+            if deck.isPlaying {
+                deck.cuePoint = deck.loopIn
+                audio.setCue(deck: id, position: deck.loopIn ?? deck.position)
+            }
+            saveMarkings(deck)
         case 1:
             guard let start = deck.loopIn, deck.position > start else { return }
             deck.loopOut = quantizedPosition(deck, deck.position); deck.loopActive = false; audio.setLoop(deck: id, start: start, end: deck.loopOut ?? deck.position, active: false); saveMarkings(deck)
         case 2:
-            guard let start = deck.loopIn, let bpm = deck.bpm, bpm > 0 else { return }
+            guard let start = deck.loopIn, deck.tempo > 0 else { return }
             let lengths = DJLoopState.lengths
             if deck.loopSetApplied { deck.loopSetIndex = (deck.loopSetIndex + 1) % lengths.count }
-            let end = min(deck.duration, start + lengths[deck.loopSetIndex] * 60 / bpm)
+            let end = min(deck.duration, start + lengths[deck.loopSetIndex] * 60 / deck.tempo)
             deck.loopSetApplied = true
             deck.loopOut = end; audio.setLoop(deck: id, start: start, end: end, active: false); saveMarkings(deck)
-        default:
+        case 3:
             guard deck.loopIn != nil, deck.loopOut != nil else { return }
-            if deck.loopActive { audio.exitLoopAtEnd(deck: id); deck.loopActive = false; deck.loopExitPending = true }
+            if deck.loopExitPending {
+                audio.cancelLoopExit(deck: id)
+                deck.loopExitPending = false
+            } else if deck.loopActive {
+                audio.exitLoopAtEnd(deck: id)
+                deck.loopExitPending = true
+            }
             else { audio.setLoopActive(deck: id, active: true); deck.loopActive = true; deck.loopExitPending = false }
+        case 4:
+            loopResize(id, factor: 0.5)
+        case 5:
+            loopResize(id, factor: 2)
+        case 6:
+            beatJump(id, direction: -1)
+        case 7:
+            beatJump(id, direction: 1)
+        default:
+            break
         }
     }
 
@@ -648,11 +788,13 @@ final class DJPerformanceModel: ObservableObject {
             } else {
                 deck.padMode = .fx
             }
+        } else if mode == .loop && deck.padMode == .loop {
+            toggleLoop(id)
         } else {
             if deck.padMode == .loop, deck.loopActive {
-                audio.exitLoopAtEnd(deck: id)
+                audio.reloopExit(deck: id)
                 deck.loopActive = false
-                deck.loopExitPending = true
+                deck.loopExitPending = false
             }
             if deck.padMode == .fx || deck.padMode == .beatFX { audio.disarmEchoOut(deck: id); deck.echoOutArmed = false }
             deck.padMode = mode
@@ -714,9 +856,9 @@ final class DJPerformanceModel: ObservableObject {
             case 1: shiftKey(id, by: 1)
             case 2: shiftKey(id, by: -2)
             case 3: shiftKey(id, by: 2)
-            case 4: deck.keySync.toggle()
+            case 4: toggleKeySync(id)
             case 5: shiftKey(id, by: -deck.keyShiftSemitones)
-            case 6: deck.masterTempo.toggle()
+            case 6: toggleMasterTempo(id)
             case 7: doneTool(id)
             default: break
             }
@@ -784,6 +926,7 @@ final class DJPerformanceModel: ObservableObject {
 
     private func shiftKey(_ id: DJDeckID, by amount: Int) {
         deck(id).keyShiftSemitones = max(-12, min(12, deck(id).keyShiftSemitones + amount))
+        audio.setPitchShift(deck: id, semitones: deck(id).keyShiftSemitones)
         saveGrid(deck(id))
     }
 
@@ -923,6 +1066,7 @@ final class DJPerformanceModel: ObservableObject {
             }
             let loopActive = audio.isLoopActive(for: id)
             if deck.loopActive != loopActive { deck.loopActive = loopActive }
+            if deck.loopExitPending && !loopActive { deck.loopExitPending = false }
             deck.peakMeter = Double(audio.peakMeter(for: id))
             deck.peakHold = Double(audio.peakHold(for: id))
         }
@@ -942,6 +1086,8 @@ private final class DJAudioBacker {
     private let splitRightRouter = DJMasterOutputRouter(mode: .splitRight)
     private var prepared: [DJDeckID: PreparedDJTrack] = [:]
     private var recorder: MixRecorder?
+    private var bassBlend = 0.5
+    private var lowEQ: [DJDeckID: Double] = [.a: 0.5, .b: 0.5]
 
     struct PreparedDJTrack: Sendable {
         let buffer: PCMBuffer
@@ -1063,6 +1209,13 @@ private final class DJAudioBacker {
 
     func sync(deck: DJDeckID) { engine.decks[index(for: deck)].sync() }
     func setAsMaster(deck: DJDeckID) { engine.decks[index(for: deck)].setAsMaster() }
+    func keySync(deck: DJDeckID, to reference: DJDeckID) {
+        _ = engine.decks[index(for: deck)].keySync(to: engine.decks[index(for: reference)])
+    }
+    func setKeyLock(deck: DJDeckID, enabled: Bool) { engine.decks[index(for: deck)].keyLock = enabled }
+    func setPitchShift(deck: DJDeckID, semitones: Int) {
+        engine.decks[index(for: deck)].pitchSemitones = Double(max(-12, min(12, semitones)))
+    }
     func setVinyl(deck: DJDeckID, enabled: Bool) { engine.decks[index(for: deck)].vinylMode = enabled }
     func setSlip(deck: DJDeckID, enabled: Bool) { engine.decks[index(for: deck)].slip = enabled }
     func setReverse(deck: DJDeckID, enabled: Bool) { engine.decks[index(for: deck)].reverse = enabled }
@@ -1098,9 +1251,10 @@ private final class DJAudioBacker {
 
     func setEQ(deck: DJDeckID, high: Double, mid: Double, low: Double) {
         let target = channel(deck)
+        lowEQ[deck] = low
         target.eqHigh = DJKnobMapping.isolatorDB(high) ?? -.infinity
         target.eqMid = DJKnobMapping.isolatorDB(mid) ?? -.infinity
-        target.eqLow = DJKnobMapping.isolatorDB(low) ?? -.infinity
+        applyCombinedLowEQ(deck)
     }
 
     func setColorFX(deck: DJDeckID, value: Double) {
@@ -1137,19 +1291,28 @@ private final class DJAudioBacker {
     func restoreHotCues(_ cues: [Int: Double], deck: DJDeckID) {
         guard let track = prepared[deck] else { return }
         let player = engine.decks[index(for: deck)]
-        for slot in 0..<4 { player.deleteHotCue(slot) }
-        for (slot, position) in cues where (1...4).contains(slot) {
+        for bank in 0..<2 {
+            player.hotCueBank = bank
+            for slot in 0..<4 { player.deleteHotCue(slot) }
+        }
+        for (slot, position) in cues {
+            guard let mapped = DJHotCueMapping.slot(slot) else { continue }
+            player.hotCueBank = mapped.bank
             let frame = Int64(max(0, min(Double(track.buffer.frameCount),
                                          position * track.buffer.format.sampleRate)).rounded())
-            player.triggerHotCue(slot - 1, atSample: frame)
+            player.triggerHotCue(mapped.index, atSample: frame)
         }
+        player.hotCueBank = 0
     }
 
     func setHotCue(_ slot: Int, deck: DJDeckID, position: Double) {
-        guard let track = prepared[deck], (1...4).contains(slot) else { return }
+        guard let track = prepared[deck], let mapped = DJHotCueMapping.slot(slot) else { return }
         let frame = Int64(max(0, min(Double(track.buffer.frameCount),
                                      position * track.buffer.format.sampleRate)).rounded())
-        engine.decks[index(for: deck)].triggerHotCue(slot - 1, atSample: frame)
+        let player = engine.decks[index(for: deck)]
+        player.hotCueBank = mapped.bank
+        player.triggerHotCue(mapped.index, atSample: frame)
+        player.hotCueBank = 0
     }
 
     func setCue(deck: DJDeckID, position: Double) {
@@ -1177,6 +1340,7 @@ private final class DJAudioBacker {
     func loopIn(deck: DJDeckID) { engine.decks[index(for: deck)].loopIn() }
     func setLoopActive(deck: DJDeckID, active: Bool) { engine.decks[index(for: deck)].setActiveLoop(active) }
     func exitLoopAtEnd(deck: DJDeckID) { engine.decks[index(for: deck)].exitLoopAtEnd() }
+    func cancelLoopExit(deck: DJDeckID) { engine.decks[index(for: deck)].cancelLoopExit() }
     func reloopExit(deck: DJDeckID) { engine.decks[index(for: deck)].reloopExit() }
 
     func armEchoOut(deck: DJDeckID) { engine.decks[index(for: deck)].armEchoOut() }
@@ -1190,13 +1354,19 @@ private final class DJAudioBacker {
     }
 
     func jumpHotCue(_ slot: Int, deck: DJDeckID) {
-        guard (1...4).contains(slot) else { return }
-        engine.decks[index(for: deck)].jumpHotCue(slot - 1)
+        guard let mapped = DJHotCueMapping.slot(slot) else { return }
+        let player = engine.decks[index(for: deck)]
+        player.hotCueBank = mapped.bank
+        player.jumpHotCue(mapped.index)
+        player.hotCueBank = 0
     }
 
     func deleteHotCue(_ slot: Int, deck: DJDeckID) {
-        guard (1...4).contains(slot) else { return }
-        engine.decks[index(for: deck)].deleteHotCue(slot - 1)
+        guard let mapped = DJHotCueMapping.slot(slot) else { return }
+        let player = engine.decks[index(for: deck)]
+        player.hotCueBank = mapped.bank
+        player.deleteHotCue(mapped.index)
+        player.hotCueBank = 0
     }
 
     func beginScratch(deck: DJDeckID) {
@@ -1207,16 +1377,27 @@ private final class DJAudioBacker {
         engine.decks[index(for: deck)].fastSearch(seconds: seconds)
     }
 
+    func frameSearch(deck: DJDeckID, seconds: Double) {
+        engine.decks[index(for: deck)].fastSearch(seconds: seconds)
+    }
+
     func endScratch(deck: DJDeckID) {
         engine.decks[index(for: deck)].jogTouchEnded()
     }
 
     func setBassBlend(_ value: Double) {
-        let position = max(0, min(1, value))
-        let a = engine.mixer.channelA
-        let b = engine.mixer.channelB
-        a.eqLow = position > 0.5 ? -24 * ((position - 0.5) * 2) : 0
-        b.eqLow = position < 0.5 ? -24 * ((0.5 - position) * 2) : 0
+        bassBlend = max(0, min(1, value))
+        applyCombinedLowEQ(.a)
+        applyCombinedLowEQ(.b)
+    }
+
+    private func applyCombinedLowEQ(_ deck: DJDeckID) {
+        guard let value = DJBassEQMapping.combined(lowKnob: lowEQ[deck] ?? 0.5,
+                                                   bassBlend: bassBlend, deckA: deck == .a) else {
+            channel(deck).eqLow = -.infinity
+            return
+        }
+        channel(deck).eqLow = value
     }
 
     func setCrossfader(_ value: Double) {
@@ -1418,7 +1599,7 @@ struct DJView: View {
             DJV2Surface(model: model, onBack: {
                 appState.isPerformanceSurfaceFullScreen = false
                 appState.tab = .listen
-            }, onInfo: { showHelp = true }, onLoad: { loadTarget = $0 })
+            }, onInfo: { showHelp = true }, onLoad: { loadTarget = $0 }, onReanalyze: { reanalyze($0) })
         }
         // Keep the top safe area owned by SwiftUI so the iPhone's Dynamic
         // Island/notch cannot cover the back button. The DJ surface still
@@ -1445,7 +1626,17 @@ struct DJView: View {
                 loadTarget = nil
             })
         }
-        .sheet(isPresented: $showHelp) { DJHelpSheet() }
+        .sheet(isPresented: $showHelp) {
+            DJHelpSheet { topic in
+                showHelp = false
+                if topic.controls.contains(.loop) { model.setPadMode(model.activeDeck, mode: .loop) }
+                else if topic.controls.contains(.hotCue) { model.setPadMode(model.activeDeck, mode: .hotCue) }
+                else if topic.controls.contains(.beatFX) { model.setPadMode(model.activeDeck, mode: .fx); model.setPadMode(model.activeDeck, mode: .fx) }
+                else if topic.controls.contains(.mix) { model.setPadMode(model.activeDeck, mode: .mix) }
+                else if topic.controls.contains(.keyShift) { model.setPadMode(model.activeDeck, mode: .keyShift) }
+                else if topic.controls.contains(.grid) { model.setPadMode(model.activeDeck, mode: .grid) }
+            }
+        }
         .alert("DJ Audio", isPresented: Binding(get: { model.loadError != nil },
                                                  set: { if !$0 { model.loadError = nil } })) {
             Button("OK", role: .cancel) { model.loadError = nil }
@@ -1453,6 +1644,18 @@ struct DJView: View {
     }
 
     private var modelTracks: [TrackRow] { appState.allTracks }
+
+    private func reanalyze(_ id: DJDeckID) {
+        guard let row = model.deck(id).row else { return }
+        Task { @MainActor in
+            try? await appState.store.clearDJAnalysis(trackId: row.id)
+            model.load(row, into: id,
+                       resolve: { row in try await appState.djPlayableURL(for: row) },
+                       requestIndex: { trackID in
+                           await DiscoveryRuntimeController.shared.analyzeTrack(trackID)
+                       })
+        }
+    }
 
 }
 
@@ -2642,6 +2845,13 @@ private struct DJHelpSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
     @State private var expanded: Set<String> = []
+    @FocusState private var searchFocused
+    let onShowMe: (DJHelpTopic) -> Void
+
+    init(onShowMe: @escaping (DJHelpTopic) -> Void) {
+        self.onShowMe = onShowMe
+        _expanded = State(initialValue: Set(UserDefaults.standard.stringArray(forKey: "dj.help.expanded") ?? []))
+    }
 
     private var topics: [DJHelpTopic] {
         DJHelpSearch.filter(DJHelpContent.sections, query: query)
@@ -2654,7 +2864,13 @@ private struct DJHelpSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Control coverage") {
+                Section {
+                    HStack {
+                        Text("Control coverage").font(.headline)
+                        Spacer()
+                        Text("\(topics.count)/\(DJHelpContent.sections.count) sections")
+                            .font(.caption).foregroundStyle(Palette.ink3)
+                    }
                     ForEach(DJControlID.allCases, id: \.self) { control in
                         HStack {
                             Image(systemName: coveredControls.contains(control) ? "checkmark.circle.fill" : "exclamationmark.circle")
@@ -2665,6 +2881,12 @@ private struct DJHelpSheet: View {
                                 .font(.caption).foregroundStyle(Palette.ink3)
                         }
                     }
+                    HStack {
+                        Button("Open all") { expanded = Set(DJHelpContent.sections.map(\.title)) }
+                        Spacer()
+                        Button("Close all") { expanded.removeAll() }
+                    }
+                    .font(.caption.weight(.semibold))
                 }
                 ForEach(topics, id: \.title) { topic in
                     let isExpanded = expanded.contains(topic.title)
@@ -2682,8 +2904,8 @@ private struct DJHelpSheet: View {
                         }
                         .buttonStyle(.plain)
                         if isExpanded {
-                            Text(topic.body).font(.subheadline).foregroundStyle(Palette.ink2)
-                            Button("Show me") { expanded.insert(topic.title) }
+                            highlighted(topic.body).font(.subheadline).foregroundStyle(Palette.ink2)
+                            Button("Show me") { onShowMe(topic) }
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Palette.brass)
                         }
@@ -2696,7 +2918,28 @@ private struct DJHelpSheet: View {
             .navigationTitle("DJ Help")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .searchable(text: $query, prompt: "Search DJ controls and gestures")
+            .searchFocused($searchFocused)
+            .onAppear { searchFocused = true }
+            .onChange(of: query) { _, value in
+                if !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    expanded.formUnion(topics.map(\.title))
+                }
+                UserDefaults.standard.set(Array(expanded), forKey: "dj.help.expanded")
+            }
+            .onChange(of: expanded) { _, value in
+                UserDefaults.standard.set(Array(value), forKey: "dj.help.expanded")
+            }
         }
+    }
+
+    private func highlighted(_ body: String) -> Text {
+        let term = query.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? ""
+        guard !term.isEmpty, let range = body.range(of: term, options: [.caseInsensitive, .diacriticInsensitive]) else {
+            return Text(body)
+        }
+        return Text(body[..<range.lowerBound])
+            + Text(body[range]).bold()
+            + Text(body[range.upperBound...])
     }
 }
 

@@ -36,6 +36,9 @@ struct SettingsView: View {
     @State private var showClearConfirm = false
     @State private var showClearCustomConfirm = false
     @State private var showCustomCacheLimit = false
+    @State private var showClearDJPrepConfirm = false
+    @State private var djPrepTracks = 0
+    @State private var djPrepBytes: Int64 = 0
     @State private var customCacheLimitMB = ""
     @State private var customCacheLimitMessage: String?
     @State private var icloudSync = SyncGating.isEnabled
@@ -79,6 +82,7 @@ struct SettingsView: View {
                     sectionHeader("Library & Storage")
                     musicLibrariesCard
                     soundIndexCard
+                    djPrepCard
                     cacheSummaryCard
                     watchCard
                     syncCard
@@ -141,6 +145,16 @@ struct SettingsView: View {
             }
         } message: {
             Text("Custom artwork you've uploaded — for tracks, albums, and libraries — will be permanently lost. This cannot be undone.")
+        }
+        .confirmationDialog("Clear DJ track preparation?", isPresented: $showClearDJPrepConfirm, titleVisibility: .visible) {
+            Button("Clear Analysis", role: .destructive) {
+                Task {
+                    try? await appState.store.clearAllDJAnalysis()
+                    await refresh()
+                }
+            }
+        } message: {
+            Text("This removes cached waveform, beat-grid, BPM and key analysis. Hot cues, loops and cue points are kept.")
         }
     }
 
@@ -382,6 +396,24 @@ struct SettingsView: View {
         .accessibilityIdentifier("settings.soundIndex")
         .padding(15)
         .glassSurface(cornerRadius: 18)
+    }
+
+    private var djPrepCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("DJ track preparation").font(.system(size: 13.5))
+                    Text("\(djPrepTracks) tracks · \(TimeFmt.megabytes(djPrepBytes)) of waveform and grid analysis")
+                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                }
+                Spacer()
+                Button("Clear analysis", role: .destructive) { showClearDJPrepConfirm = true }
+                    .font(.system(size: 11, weight: .semibold))
+            }
+        }
+        .padding(15)
+        .glassSurface(cornerRadius: 18)
+        .accessibilityIdentifier("settings.djTrackPreparation")
     }
 
     private var behaviorCard: some View {
@@ -741,6 +773,10 @@ struct SettingsView: View {
         cacheLimit = await AudioCache.shared.currentLimit()
         cachedCount = await AudioCache.shared.completeEntryCount(kind: "audio")
         customArtworkBytes = customArtworkSize()
+        if let stats = try? await appState.store.djPrepStorageStats() {
+            djPrepTracks = stats.tracks
+            djPrepBytes = stats.bytes
+        }
     }
 
     private func applyCustomCacheLimit() {
@@ -896,6 +932,10 @@ private struct DiscoverySyncActivityRow: View {
             if activity.pendingTrackImport > 0 {
                 Text("\(activity.pendingTrackImport) indexing results from your other devices are waiting for those tracks to be added here.")
                     .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                if let oldest = activity.pendingOldestDate {
+                    Text("Oldest waiting result: \(oldest.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.system(size: 10)).foregroundStyle(Palette.ink3)
+                }
                 HStack {
                     Button("Retry matching") { Task { await engine.retryPending() } }
                     Button("Discard waiting results", role: .destructive) {
@@ -914,6 +954,10 @@ private struct DiscoverySyncActivityRow: View {
                     + (activity.rejectedRequeued > 0
                         ? " · \(activity.rejectedRequeued) incompatible, re-indexing here" : ""))
                     .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+            }
+            if activity.prunedPendingCount > 0 {
+                Text("Automatically removed \(activity.prunedPendingCount) waiting result(s) older than 90 days.")
+                    .font(.system(size: 10)).foregroundStyle(Palette.ink3)
             }
         }
         .padding(.top, 6)

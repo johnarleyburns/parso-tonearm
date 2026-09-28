@@ -70,6 +70,11 @@ extension LibraryStore {
     }
 
     public func clearDJAnalysis(trackId: Int64) throws { try dbQueue.write { db in try db.execute(sql: "UPDATE dj_track_prep SET analysisPayload = NULL, analysisAlgorithm = NULL, analysisPayloadVersion = NULL, sourceSampleRate = NULL, sourceFrameCount = NULL, bpm = NULL, camelotKey = NULL, analysisUpdatedAt = NULL WHERE trackId = ?", arguments: [trackId]) } }
+    public func clearAllDJAnalysis() throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE dj_track_prep SET analysisPayload = NULL, analysisAlgorithm = NULL, analysisPayloadVersion = NULL, sourceSampleRate = NULL, sourceFrameCount = NULL, bpm = NULL, camelotKey = NULL, analysisUpdatedAt = NULL")
+        }
+    }
     public func clearDJHotCues(trackId: Int64) throws { try dbQueue.write { db in try db.execute(sql: "UPDATE dj_track_prep SET hotCuesJSON = '{}', hotCuesUpdatedAt = ? WHERE trackId = ?", arguments: [Date(), trackId]) } }
     public func clearDJLoop(trackId: Int64) throws { try dbQueue.write { db in try db.execute(sql: "UPDATE dj_track_prep SET loopInSeconds = NULL, loopOutSeconds = NULL, hotCuesUpdatedAt = ? WHERE trackId = ?", arguments: [Date(), trackId]) } }
     public func ensureDJTrackPrepSyncID(trackId: Int64) throws -> String? {

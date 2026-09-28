@@ -90,8 +90,11 @@ public enum DJKeyFormatter {
     public static func shifted(_ raw: String?, semitones: Int) -> String {
         let value = format(raw)
         guard value != "—", semitones != 0 else { return value }
+        let number = Int(value.dropLast()) ?? 1
+        let letter = value.last!
+        let shiftedNumber = ((number - 1 + semitones * 7) % 12 + 12) % 12 + 1
         let sign = semitones > 0 ? "+" : ""
-        return "\(value) \(sign)\(semitones)"
+        return "\(shiftedNumber)\(letter) \(sign)\(semitones)"
     }
 }
 
@@ -180,7 +183,10 @@ public enum DJJogMapper {
         if isPlaying {
             return vinyl ? .scratch(delta * 48_000) : .nudge(max(-1, min(1, delta * 4)))
         }
-        return vinyl ? .frameSearch(delta * 0.06) : .seek(delta * max(1, bpm) * 16 / 60)
+        // The paused top plate is always the precision frame-search surface.
+        // VINYL only changes the playing behavior; the outer ring is handled
+        // by the surface/model as beat-based seek.
+        return .frameSearch(delta * 0.06)
     }
 
     public static func tempoStep(angle: Double, current: Double, range: Double) -> Double {
@@ -195,6 +201,25 @@ public enum DJJogMapper {
         while value > .pi { value -= 2 * .pi }
         while value < -.pi { value += 2 * .pi }
         return value
+    }
+}
+
+public struct DJHotCueSlot: Equatable, Sendable {
+    public let bank: Int
+    public let index: Int
+
+    public init(bank: Int, index: Int) {
+        self.bank = bank
+        self.index = index
+    }
+}
+
+public enum DJHotCueMapping {
+    /// Tonearm exposes eight pads while PAE stores four slots per hot-cue bank.
+    public static func slot(_ number: Int) -> DJHotCueSlot? {
+        guard (1...8).contains(number) else { return nil }
+        let zeroBased = number - 1
+        return DJHotCueSlot(bank: zeroBased / 4, index: zeroBased % 4)
     }
 }
 
@@ -233,6 +258,20 @@ public enum DJFaderMapping {
 
     public static func snapped(_ value: Double) -> Double {
         abs(value - 0.5) <= 0.015 ? 0.5 : max(0, min(1, value))
+    }
+}
+
+/// The bass crossfader and the channel LOW isolator share one DSP parameter.
+/// Keep their combination pure so the audio adapter cannot accidentally make
+/// the last control touched win over the other one.
+public enum DJBassEQMapping {
+    public static func combined(lowKnob: Double, bassBlend: Double, deckA: Bool) -> Double? {
+        guard let low = DJKnobMapping.isolatorDB(lowKnob) else { return nil }
+        let blend = max(0, min(1, bassBlend))
+        let attenuation: Double = deckA
+            ? (blend > 0.5 ? -24 * (blend - 0.5) * 2 : 0)
+            : (blend < 0.5 ? -24 * (0.5 - blend) * 2 : 0)
+        return max(-60, min(6, low + attenuation))
     }
 }
 
