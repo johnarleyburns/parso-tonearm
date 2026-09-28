@@ -44,6 +44,10 @@ struct SettingsView: View {
     @State private var icloudSync = SyncGating.isEnabled
     @State private var showWatchSettings = false
     @State private var advancedExpanded: Bool
+    @AppStorage("dj.surface") private var djSurface = "focus"
+    @AppStorage("dj.layout") private var djLayout = "focus"
+    @AppStorage("dj.showLayoutSwitch") private var djShowLayoutSwitch = false
+    @AppStorage("dj.coachTips") private var djCoachTips = true
 
     init(macPane: MacPreferencesPane? = nil) {
         self.macPane = macPane
@@ -71,6 +75,7 @@ struct SettingsView: View {
                     sectionHeader("Playback")
                     behaviorCard
                     keepPlayingCard
+                    djSettingsCard
                     #if os(iOS)
                     if macPane == nil {
                         SiriSettingsCard()
@@ -164,6 +169,23 @@ struct SettingsView: View {
             .foregroundStyle(Palette.ink3)
             .kerning(0.5)
             .padding(.top, 4)
+    }
+
+    private var djSettingsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("DJ").font(.system(size: 16, weight: .semibold))
+            Picker("Layout", selection: $djSurface) { Text("Focus").tag("focus"); Text("Classic").tag("classic") }
+                .pickerStyle(.segmented).accessibilityIdentifier("settings.dj.layout")
+            Toggle("Show layout switch", isOn: $djShowLayoutSwitch)
+            Toggle("Coach tips", isOn: $djCoachTips)
+            if djShowLayoutSwitch {
+                Picker("Perform layout", selection: $djLayout) { Text("Focus").tag("focus"); Text("Both decks").tag("both") }
+                    .pickerStyle(.segmented)
+            }
+            Text("Focus Deck keeps the two-deck engine playing while you move between DJ controls.")
+                .font(.caption).foregroundStyle(Palette.ink3)
+        }
+        .padding(15).glassSurface(cornerRadius: 18)
     }
 
     /// Low-frequency actions moved out of the main scroll (docs/plans/

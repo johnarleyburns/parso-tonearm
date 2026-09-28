@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Platterhead DJ — Focus Deck mockups</title>
+<!-- Generated from the "Platterhead Redesign" design canvas. The canonical spec is
+     docs/plans/dj-focus-deck/MOCKUP_TEXT.md; where this picture and that file differ, the file wins.
+     Self-contained: no network, no scripts except the pad-tab toggle at the bottom. -->
+<style>
+
+body{margin:0;background:#141416;font-family:-apple-system,"SF Pro Text","SF Pro Display",system-ui,sans-serif;color:#F5F5F7;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;color:inherit;cursor:pointer;margin:0}
+.glass{background:rgba(255,255,255,0.075);-webkit-backdrop-filter:blur(28px) saturate(170%);backdrop-filter:blur(28px) saturate(170%);border:1px solid rgba(255,255,255,0.13);box-shadow:inset 0 1px 0 rgba(255,255,255,0.16),0 10px 30px rgba(0,0,0,0.35)}
+.mono{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+.page{max-width:1400px;margin:0 auto;padding:40px 24px 80px;}
+.page>header h1{margin:0 0 6px;font-size:28px;font-weight:700;letter-spacing:-0.5px;}
+.page>header p{margin:0 0 32px;color:rgba(235,235,245,0.62);font-size:14px;line-height:1.5;max-width:760px;}
+.page>header code{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:12.5px;color:#FFD9A3;}
+.row{display:flex;flex-wrap:wrap;gap:48px;align-items:flex-start;margin-bottom:56px;}
+.board{margin:0;display:flex;flex-direction:column;gap:12px;}
+.board figcaption{display:flex;flex-direction:column;gap:2px;}
+.board .t{font-size:15px;font-weight:600;}
+.board .s{font-size:12px;color:rgba(235,235,245,0.55);font-family:"SF Mono",ui-monospace,Menlo,monospace;}
+.frame{position:relative;border-radius:44px;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,0.08),0 30px 80px rgba(0,0,0,0.55);flex:none;}
+.tab{background:transparent;color:rgba(235,235,245,0.8);}
+.tab[aria-pressed="true"]{background:rgba(255,255,255,0.92);color:#0A0A0D;}
+</style>
+</head>
+<body>
+<main class="page">
+<header>
+<h1>Platterhead DJ — Focus Deck</h1>
+<p>Five screens for the DJ surface redesign. Exact copy, gestures and bindings live in <code>docs/plans/dj-focus-deck/MOCKUP_TEXT.md</code>; the build plan is <code>docs/plans/dj-focus-deck/HANDOFF.md</code>. Placeholder track data only.</p>
+</header>
+<div class="row">
+<figure class="board">
+<figcaption><span class="t">A1 · Perform — Focus Deck</span><span class="s">MOCKUP_TEXT.md §1 — tap the pad tabs</span></figcaption>
+<div class="frame" style="width:390px;height:844px;">
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;background:#0A0A0D;">
+<div style="position:absolute;left:-130px;top:-90px;width:440px;height:440px;border-radius:50%;background:radial-gradient(circle,rgba(242,163,58,0.26),rgba(242,163,58,0) 70%);"></div>
+<div style="position:absolute;right:-150px;bottom:140px;width:460px;height:460px;border-radius:50%;background:radial-gradient(circle,rgba(74,155,255,0.18),rgba(74,155,255,0) 70%);"></div>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;padding:54px 16px 26px;display:flex;flex-direction:column;gap:10px;">
+
+<div style="height:36px;flex:none;display:flex;align-items:center;justify-content:space-between;">
+<button class="glass" aria-label="Close DJ" style="width:36px;height:36px;border-radius:18px;padding:0;display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<div style="font-size:15px;font-weight:600;letter-spacing:-0.2px;">Platterhead</div>
+<button class="glass" style="height:36px;padding:0 14px;border-radius:18px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;"><span style="width:8px;height:8px;border-radius:4px;background:#FF453A;"></span>REC</button>
+</div>
+
+<div style="display:flex;gap:10px;flex:none;">
+<button style="flex:1 1 0;min-width:0;height:64px;border-radius:20px;padding:0 12px;display:flex;align-items:center;gap:10px;text-align:left;background:rgba(242,163,58,0.16);border:1.5px solid rgba(242,163,58,0.85);box-shadow:inset 0 1px 0 rgba(255,255,255,0.18),0 8px 24px rgba(242,163,58,0.18);">
+<span style="flex:none;width:26px;height:26px;border-radius:13px;background:#F2A33A;color:#1A1204;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;">A</span>
+<span style="min-width:0;display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">African Vibe</span><span class="mono" style="font-size:12px;color:rgba(255,214,160,0.92);">116.0 · −2:48</span></span>
+</button>
+<button class="glass" style="flex:1 1 0;min-width:0;height:64px;border-radius:20px;padding:0 12px;display:flex;align-items:center;gap:10px;text-align:left;">
+<span style="flex:none;width:26px;height:26px;border-radius:13px;background:#4A9BFF;color:#04101F;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;">B</span>
+<span style="min-width:0;display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">SIELEWI</span><span class="mono" style="font-size:12px;color:rgba(170,205,255,0.92);">119.8 · cued</span></span>
+</button>
+</div>
+
+<div class="glass" style="height:190px;flex:none;border-radius:24px;padding:10px 11px;box-sizing:border-box;position:relative;display:flex;flex-direction:column;gap:6px;">
+<div style="height:13px;display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:0.4px;color:rgba(235,235,245,0.62);"><span style="color:#F2A33A;">A · DROP IN 8 BARS</span><span class="mono">BAR 33.2</span></div>
+<svg width="336" height="62" viewBox="0 0 336 62" style="display:block;" role="img" aria-label="Deck A waveform">
+<path d="M1.5 0V62M25.5 0V7M49.5 0V7M73.5 0V7M97.5 0V62M121.5 0V7M145.5 0V7M169.5 0V7M193.5 0V62M217.5 0V7M241.5 0V7M265.5 0V7M289.5 0V62M313.5 0V7" stroke="rgba(255,255,255,0.16)" stroke-width="1" fill="none"></path>
+<path d="M1.5 18.8V43.2M4.5 19.6V42.4M7.5 21.8V40.2M10.5 25.0V37.0M13.5 20.8V41.2M16.5 23.1V38.9M19.5 21.9V40.1M22.5 19.3V42.7M25.5 12.7V49.3M28.5 9.4V52.6M31.5 18.8V43.2M34.5 20.1V41.9M37.5 16.3V45.7M40.5 16.4V45.6M43.5 15.4V46.6M46.5 15.8V46.2M49.5 7.0V55.0M52.5 7.9V54.1M55.5 20.7V41.3M58.5 15.1V46.9M61.5 21.1V40.9M64.5 20.3V41.7M67.5 17.8V44.2M70.5 18.1V43.9M73.5 11.3V50.7M76.5 14.4V47.6M79.5 19.5V42.5M82.5 20.6V41.4M85.5 20.9V41.1M88.5 21.8V40.2M91.5 22.3V39.7M94.5 22.6V39.4M97.5 17.1V44.9M100.5 16.1V45.9M103.5 23.0V39.0M106.5 24.6V37.4M109.5 22.6V39.4M112.5 24.4V37.6M115.5 24.4V37.6M118.5 23.5V38.5M121.5 18.9V43.1M124.5 13.7V48.3M127.5 21.3V40.7M130.5 19.8V42.2M133.5 22.1V39.9M136.5 18.3V43.7M139.5 16.3V45.7M142.5 22.1V39.9M145.5 11.1V50.9M148.5 9.6V52.4M151.5 16.6V45.4M154.5 20.1V41.9M157.5 21.8V40.2M160.5 17.0V45.0M163.5 19.2V42.8M166.5 17.5V44.5M169.5 14.3V47.7M172.5 13.8V48.2M175.5 16.8V45.2M178.5 17.0V45.0M181.5 20.5V41.5M184.5 16.7V45.3M187.5 17.7V44.3M190.5 17.1V44.9M193.5 14.6V47.4M196.5 12.4V49.6M199.5 20.5V41.5M202.5 20.1V41.9M205.5 24.9V37.1M208.5 21.5V40.5M211.5 23.5V38.5M214.5 21.7V40.3M217.5 16.0V46.0M220.5 15.1V46.9M223.5 24.3V37.7M226.5 23.8V38.2M229.5 22.9V39.1M232.5 19.3V42.7M235.5 22.9V39.1M238.5 22.5V39.5M241.5 13.9V48.1M244.5 15.7V46.3M247.5 16.1V45.9M250.5 19.5V42.5M253.5 16.5V45.5M256.5 21.8V40.2M259.5 20.4V41.6M262.5 19.5V42.5M265.5 5.2V56.8M268.5 13.3V48.7M271.5 20.2V41.8M274.5 15.0V47.0M277.5 15.4V46.6M280.5 15.7V46.3M283.5 18.4V43.6M286.5 18.3V43.7M289.5 9.5V52.5M292.5 16.3V45.7M295.5 18.2V43.8M298.5 22.2V39.8M301.5 22.7V39.3M304.5 19.4V42.6M307.5 20.8V41.2M310.5 24.6V37.4M313.5 19.9V42.1M316.5 17.8V44.2M319.5 24.7V37.3M322.5 23.3V38.7M325.5 22.3V39.7M328.5 24.5V37.5M331.5 20.6V41.4M334.5 20.3V41.7" stroke="#F2A33A" stroke-width="2" stroke-linecap="round" fill="none"></path>
+<rect x="0" y="0" width="168" height="62" fill="rgba(10,10,13,0.45)"></rect>
+</svg>
+<svg width="336" height="62" viewBox="0 0 336 62" style="display:block;" role="img" aria-label="Deck B waveform">
+<path d="M1.5 0V62M25.5 0V7M49.5 0V7M73.5 0V7M97.5 0V62M121.5 0V7M145.5 0V7M169.5 0V7M193.5 0V62M217.5 0V7M241.5 0V7M265.5 0V7M289.5 0V62M313.5 0V7" stroke="rgba(255,255,255,0.16)" stroke-width="1" fill="none"></path>
+<path d="M1.5 17.2V44.8M4.5 13.7V48.3M7.5 23.3V38.7M10.5 22.5V39.5M13.5 22.1V39.9M16.5 19.5V42.5M19.5 22.0V40.0M22.5 22.7V39.3M25.5 15.8V46.2M28.5 10.6V51.4M31.5 19.2V42.8M34.5 20.9V41.1M37.5 21.6V40.4M40.5 21.8V40.2M43.5 21.1V40.9M46.5 22.6V39.4M49.5 15.4V46.6M52.5 12.8V49.2M55.5 19.3V42.7M58.5 21.7V40.3M61.5 20.3V41.7M64.5 21.0V41.0M67.5 20.6V41.4M70.5 25.0V37.0M73.5 20.2V41.8M76.5 21.8V40.2M79.5 22.9V39.1M82.5 23.0V39.0M85.5 23.8V38.2M88.5 22.6V39.4M91.5 25.3V36.7M94.5 22.2V39.8M97.5 20.9V41.1M100.5 20.6V41.4M103.5 20.5V41.5M106.5 23.4V38.6M109.5 22.2V39.8M112.5 22.3V39.7M115.5 20.7V41.3M118.5 21.6V40.4M121.5 12.5V49.5M124.5 13.5V48.5M127.5 20.4V41.6M130.5 21.5V40.5M133.5 19.4V42.6M136.5 22.3V39.7M139.5 19.4V42.6M142.5 22.3V39.7M145.5 10.8V51.2M148.5 18.6V43.4M151.5 19.7V42.3M154.5 19.0V43.0M157.5 24.0V38.0M160.5 21.6V40.4M163.5 21.0V41.0M166.5 20.2V41.8M169.5 20.9V41.1M172.5 16.4V45.6M175.5 24.9V37.1M178.5 22.7V39.3M181.5 24.6V37.4M184.5 25.8V36.2M187.5 26.0V36.0M190.5 25.3V36.7M193.5 19.5V42.5M196.5 18.9V43.1M199.5 23.2V38.8M202.5 23.4V38.6M205.5 23.7V38.3M208.5 21.5V40.5M211.5 23.2V38.8M214.5 19.7V42.3M217.5 10.2V51.8M220.5 14.3V47.7M223.5 20.0V42.0M226.5 22.8V39.2M229.5 19.1V42.9M232.5 23.0V39.0M235.5 20.9V41.1M238.5 22.5V39.5M241.5 12.4V49.6M244.5 16.6V45.4M247.5 21.8V40.2M250.5 19.5V42.5M253.5 17.7V44.3M256.5 20.8V41.2M259.5 20.4V41.6M262.5 23.3V38.7M265.5 18.0V44.0M268.5 13.1V48.9M271.5 24.2V37.8M274.5 20.6V41.4M277.5 21.2V40.8M280.5 24.3V37.7M283.5 25.9V36.1M286.5 25.8V36.2M289.5 22.9V39.1M292.5 17.8V44.2M295.5 22.0V40.0M298.5 25.3V36.7M301.5 21.0V41.0M304.5 21.4V40.6M307.5 22.5V39.5M310.5 21.4V40.6M313.5 11.7V50.3M316.5 13.5V48.5M319.5 22.3V39.7M322.5 17.7V44.3M325.5 22.0V40.0M328.5 21.0V41.0M331.5 21.6V40.4M334.5 19.9V42.1" stroke="#4A9BFF" stroke-width="2" stroke-linecap="round" fill="none"></path>
+<rect x="0" y="0" width="168" height="62" fill="rgba(10,10,13,0.45)"></rect>
+</svg>
+<div style="height:14px;text-align:center;font-size:11px;color:rgba(235,235,245,0.6);">Drag a waveform to nudge · press and hold to scratch</div>
+<div style="position:absolute;left:178px;top:27px;width:2px;height:132px;border-radius:1px;background:#FFFFFF;box-shadow:0 0 10px rgba(255,255,255,0.7);"></div>
+</div>
+
+<div style="height:44px;flex:none;display:flex;gap:8px;align-items:center;">
+<div class="glass" style="flex:1 1 0;height:44px;box-sizing:border-box;border-radius:22px;display:flex;align-items:center;justify-content:space-between;padding:0 3px;">
+<button aria-label="Tempo down" style="width:38px;height:38px;border-radius:19px;border:0;background:rgba(255,255,255,0.09);font-size:20px;padding:0;">−</button>
+<span class="mono" style="font-size:14px;font-weight:700;">116.0 <span style="color:rgba(235,235,245,0.62);font-weight:500;">BPM · +0.0%</span></span>
+<button aria-label="Tempo up" style="width:38px;height:38px;border-radius:19px;border:0;background:rgba(255,255,255,0.09);font-size:20px;padding:0;">+</button>
+</div>
+<button class="glass" aria-label="Key lock on, key 8A" style="height:44px;border-radius:22px;padding:0 13px;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#FFD9A3;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>8A</button>
+<button class="glass" aria-label="Deck A options" style="width:44px;height:44px;border-radius:22px;padding:0;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg></button>
+</div>
+
+<div style="height:64px;flex:none;display:flex;gap:10px;">
+<button class="glass" style="flex:1 1 0;border-radius:22px;font-size:15px;font-weight:700;letter-spacing:0.6px;">CUE</button>
+<button style="flex:1.5 1 0;border-radius:22px;border:0;background:#F2A33A;color:#1A1204;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:700;box-shadow:0 10px 26px rgba(242,163,58,0.38),inset 0 1px 0 rgba(255,255,255,0.45);"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"></rect><rect x="14" y="5" width="4" height="14" rx="1.2"></rect></svg>Pause</button>
+<button class="glass" style="flex:1 1 0;border-radius:22px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:15px;font-weight:700;letter-spacing:0.6px;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4"></path></svg>SYNC</button>
+</div>
+
+<div class="glass" style="height:40px;flex:none;border-radius:20px;padding:3px;box-sizing:border-box;display:flex;gap:2px;">
+<button data-mode="cue" aria-pressed="true" class="tab" style="flex:1 1 0;border:0;border-radius:17px;font-size:13px;font-weight:600;padding:0;">Hot Cue</button><button data-mode="loop" aria-pressed="false" class="tab" style="flex:1 1 0;border:0;border-radius:17px;font-size:13px;font-weight:600;padding:0;">Loop</button><button data-mode="fx" aria-pressed="false" class="tab" style="flex:1 1 0;border:0;border-radius:17px;font-size:13px;font-weight:600;padding:0;">Pad FX</button><button data-mode="jump" aria-pressed="false" class="tab" style="flex:1 1 0;border:0;border-radius:17px;font-size:13px;font-weight:600;padding:0;">Beat Jump</button>
+</div>
+
+<div data-page="cue" style="flex:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;">
+<button style="height:78px;border-radius:20px;background:#F2A33A;color:#161008;border:0;box-shadow:0 6px 18px #F2A33A55, inset 0 1px 0 rgba(255,255,255,0.45);display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Intro</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">1 · 0:00</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:#F26B6B;color:#161008;border:0;box-shadow:0 6px 18px #F26B6B55, inset 0 1px 0 rgba(255,255,255,0.45);display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Verse</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">2 · 0:32</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:#B98AF7;color:#161008;border:0;box-shadow:0 6px 18px #B98AF755, inset 0 1px 0 rgba(255,255,255,0.45);display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Drop</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">3 · 1:04</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:#5AA8FF;color:#161008;border:0;box-shadow:0 6px 18px #5AA8FF55, inset 0 1px 0 rgba(255,255,255,0.45);display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Break</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">4 · 2:08</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(255,255,255,0.04);color:#3DD6A5;border:1.5px dashed #3DD6A588;box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">5</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">tap to set</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(255,255,255,0.04);color:#E6D34A;border:1.5px dashed #E6D34A88;box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">6</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">tap to set</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(255,255,255,0.04);color:#F277C6;border:1.5px dashed #F277C688;box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">7</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">tap to set</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(255,255,255,0.04);color:#9FD0F5;border:1.5px dashed #9FD0F588;box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">8</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">tap to set</span>
+</button>
+</div><div data-page="loop" style="flex:none;display:none;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;">
+<button style="height:78px;border-radius:20px;background:rgba(61,214,165,0.10);color:#8BEBCB;border:1px solid rgba(61,214,165,0.35);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">¼</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">beats</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(61,214,165,0.10);color:#8BEBCB;border:1px solid rgba(61,214,165,0.35);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">½</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">beats</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(61,214,165,0.10);color:#8BEBCB;border:1px solid rgba(61,214,165,0.35);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">1</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">beats</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(61,214,165,0.10);color:#8BEBCB;border:1px solid rgba(61,214,165,0.35);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">2</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">beats</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:#3DD6A5;color:#04140E;border:0;box-shadow:0 6px 18px rgba(61,214,165,0.4), inset 0 1px 0 rgba(255,255,255,0.45);display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">4</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">looping</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(61,214,165,0.10);color:#8BEBCB;border:1px solid rgba(61,214,165,0.35);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">8</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">beats</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(61,214,165,0.10);color:#8BEBCB;border:1px solid rgba(61,214,165,0.35);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">16</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">beats</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(61,214,165,0.10);color:#8BEBCB;border:1px solid rgba(61,214,165,0.35);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">32</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">beats</span>
+</button>
+</div><div data-page="fx" style="flex:none;display:none;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;">
+<button style="height:78px;border-radius:20px;background:rgba(185,138,247,0.12);color:#D6BCFF;border:1px solid rgba(185,138,247,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Echo</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">hold · ½ beat</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(185,138,247,0.12);color:#D6BCFF;border:1px solid rgba(185,138,247,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Roll</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">hold · ¼ beat</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(185,138,247,0.12);color:#D6BCFF;border:1px solid rgba(185,138,247,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Reverb</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">hold · 1 beat</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(185,138,247,0.12);color:#D6BCFF;border:1px solid rgba(185,138,247,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Brake</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">hold · 2 beats</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(185,138,247,0.12);color:#D6BCFF;border:1px solid rgba(185,138,247,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Filter</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">hold · sweep</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(185,138,247,0.12);color:#D6BCFF;border:1px solid rgba(185,138,247,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Flanger</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">hold · 1 bar</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(185,138,247,0.12);color:#D6BCFF;border:1px solid rgba(185,138,247,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Spiral</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">hold · ½ beat</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(185,138,247,0.12);color:#D6BCFF;border:1px solid rgba(185,138,247,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">Trans</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">hold · ¼ beat</span>
+</button>
+</div><div data-page="jump" style="flex:none;display:none;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;">
+<button style="height:78px;border-radius:20px;background:rgba(90,168,255,0.12);color:#AFD3FF;border:1px solid rgba(90,168,255,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">← 1</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">beat</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(90,168,255,0.12);color:#AFD3FF;border:1px solid rgba(90,168,255,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">1 →</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">beat</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(90,168,255,0.12);color:#AFD3FF;border:1px solid rgba(90,168,255,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">← 4</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">1 bar</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(90,168,255,0.12);color:#AFD3FF;border:1px solid rgba(90,168,255,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">4 →</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">1 bar</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(90,168,255,0.12);color:#AFD3FF;border:1px solid rgba(90,168,255,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">← 16</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">4 bars</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(90,168,255,0.12);color:#AFD3FF;border:1px solid rgba(90,168,255,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">16 →</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">4 bars</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(90,168,255,0.12);color:#AFD3FF;border:1px solid rgba(90,168,255,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">← 32</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">8 bars</span>
+</button>
+
+<button style="height:78px;border-radius:20px;background:rgba(90,168,255,0.12);color:#AFD3FF;border:1px solid rgba(90,168,255,0.38);box-shadow:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:10px 11px;box-sizing:border-box;text-align:left;">
+<span style="font-size:15px;font-weight:700;">32 →</span>
+<span class="mono" style="font-size:11px;font-weight:600;opacity:0.85;">8 bars</span>
+</button>
+</div>
+
+<div style="flex:1 1 0;"></div>
+
+<div class="glass" style="height:72px;flex:none;border-radius:30px;padding:0 10px;display:flex;align-items:center;gap:12px;box-sizing:border-box;">
+<button aria-label="Library" style="flex:none;width:52px;height:52px;border-radius:26px;border:0;background:rgba(255,255,255,0.11);padding:0;display:flex;align-items:center;justify-content:center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"></path></svg></button>
+<div style="flex:1 1 0;display:flex;flex-direction:column;gap:5px;">
+<div style="display:flex;justify-content:space-between;font-size:11px;font-weight:800;"><span style="color:#F2A33A;">A</span><span style="color:rgba(235,235,245,0.6);font-weight:600;letter-spacing:0.6px;">CROSSFADER</span><span style="color:#4A9BFF;">B</span></div>
+<div style="height:28px;position:relative;">
+<div style="position:absolute;left:0;right:0;top:12px;height:4px;border-radius:2px;background:rgba(255,255,255,0.16);"></div>
+<div style="position:absolute;left:calc(50% - 1px);top:6px;width:2px;height:16px;background:rgba(255,255,255,0.3);"></div>
+<div style="position:absolute;left:0;top:0;width:44px;height:28px;border-radius:14px;background:rgba(255,255,255,0.94);box-shadow:0 3px 10px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;gap:4px;"><span style="width:2px;height:12px;background:rgba(0,0,0,0.25);"></span><span style="width:2px;height:12px;background:rgba(0,0,0,0.25);"></span></div>
+</div>
+</div>
+<button aria-label="Mixer" style="flex:none;width:52px;height:52px;border-radius:26px;border:0;background:rgba(255,255,255,0.11);padding:0;display:flex;align-items:center;justify-content:center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></svg></button>
+</div>
+
+</div>
+</div>
+</div>
+</figure>
+<figure class="board">
+<figcaption><span class="t">A2 · Mixer sheet</span><span class="s">MOCKUP_TEXT.md §3 — Channels page</span></figcaption>
+<div class="frame" style="width:390px;height:844px;">
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;background:#0A0A0D;">
+<div style="position:absolute;left:-130px;top:-90px;width:440px;height:440px;border-radius:50%;background:radial-gradient(circle,rgba(242,163,58,0.26),rgba(242,163,58,0) 70%);"></div>
+<div style="position:absolute;right:-150px;bottom:140px;width:460px;height:460px;border-radius:50%;background:radial-gradient(circle,rgba(74,155,255,0.2),rgba(74,155,255,0) 70%);"></div>
+
+<div style="position:absolute;left:16px;right:16px;top:54px;display:flex;flex-direction:column;gap:10px;">
+<div style="height:36px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;">Platterhead</div>
+<div style="display:flex;gap:10px;">
+<div style="flex:1 1 0;height:64px;border-radius:20px;background:rgba(242,163,58,0.16);border:1.5px solid rgba(242,163,58,0.85);"></div>
+<div class="glass" style="flex:1 1 0;height:64px;border-radius:20px;"></div>
+</div>
+</div>
+<div style="position:absolute;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.5);"></div>
+
+<div style="position:absolute;left:0;right:0;top:180px;bottom:0;border-radius:34px 34px 0 0;background:rgba(30,30,34,0.8);-webkit-backdrop-filter:blur(40px) saturate(180%);backdrop-filter:blur(40px) saturate(180%);border-top:1px solid rgba(255,255,255,0.16);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12);padding:8px 16px 24px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;">
+<div style="width:40px;height:5px;border-radius:3px;background:rgba(255,255,255,0.3);align-self:center;flex:none;"></div>
+
+<div style="height:40px;flex:none;display:flex;align-items:center;gap:8px;">
+<div style="font-size:22px;font-weight:700;letter-spacing:-0.4px;flex:1 1 0;">Mixer</div>
+<div class="glass" style="height:32px;border-radius:16px;padding:2px;box-sizing:border-box;display:flex;">
+<button aria-pressed="true" style="height:28px;padding:0 12px;border:0;border-radius:14px;background:rgba(255,255,255,0.92);color:#0A0A0D;font-size:12px;font-weight:600;">Channels</button>
+<button aria-pressed="false" style="height:28px;padding:0 12px;border:0;border-radius:14px;background:transparent;font-size:12px;font-weight:600;color:rgba(235,235,245,0.8);">Master</button>
+</div>
+<button class="glass" aria-pressed="true" style="height:32px;border-radius:16px;padding:0 11px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;"><span style="width:7px;height:7px;border-radius:4px;background:#30D158;"></span>Auto Gain</button>
+</div>
+
+<div style="flex:none;display:flex;gap:10px;">
+<div class="glass" style="flex:1 1 0;border-radius:22px;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;">
+<div style="height:24px;display:flex;align-items:center;gap:8px;min-width:0;"><span style="flex:none;width:22px;height:22px;border-radius:11px;background:#F2A33A;color:#1A1204;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;">A</span><span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">African Vibe</span></div>
+<div style="display:flex;gap:8px;height:284px;">
+<div style="width:62px;display:flex;flex-direction:column;gap:6px;">
+
+<div style="height:52px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+<svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="TRIM 0"><path d="M8.69 31.31A16 16 0 1 1 31.31 31.31" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><path d="M20.00 4.00A16 16 0 0 1 20.28 4.00" fill="none" stroke="#F2A33A" stroke-width="3.5" stroke-linecap="round"></path><circle cx="20" cy="20" r="11" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="20" y1="20" x2="20.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<div style="font-size:10px;font-weight:700;letter-spacing:0.3px;color:rgba(235,235,245,0.75);white-space:nowrap;">TRIM <span class="mono" style="font-weight:500;">0</span></div>
+</div>
+
+<div style="height:52px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+<svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="HI 0"><path d="M8.69 31.31A16 16 0 1 1 31.31 31.31" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><path d="M20.00 4.00A16 16 0 0 1 20.28 4.00" fill="none" stroke="#F2A33A" stroke-width="3.5" stroke-linecap="round"></path><circle cx="20" cy="20" r="11" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="20" y1="20" x2="20.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<div style="font-size:10px;font-weight:700;letter-spacing:0.3px;color:rgba(235,235,245,0.75);white-space:nowrap;">HI <span class="mono" style="font-weight:500;">0</span></div>
+</div>
+
+<div style="height:52px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+<svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="MID 0"><path d="M8.69 31.31A16 16 0 1 1 31.31 31.31" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><path d="M20.00 4.00A16 16 0 0 1 20.28 4.00" fill="none" stroke="#F2A33A" stroke-width="3.5" stroke-linecap="round"></path><circle cx="20" cy="20" r="11" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="20" y1="20" x2="20.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<div style="font-size:10px;font-weight:700;letter-spacing:0.3px;color:rgba(235,235,245,0.75);white-space:nowrap;">MID <span class="mono" style="font-weight:500;">0</span></div>
+</div>
+
+<div style="height:52px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+<svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="LOW 0"><path d="M8.69 31.31A16 16 0 1 1 31.31 31.31" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><path d="M20.00 4.00A16 16 0 0 1 20.28 4.00" fill="none" stroke="#F2A33A" stroke-width="3.5" stroke-linecap="round"></path><circle cx="20" cy="20" r="11" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="20" y1="20" x2="20.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<div style="font-size:10px;font-weight:700;letter-spacing:0.3px;color:rgba(235,235,245,0.75);white-space:nowrap;">LOW <span class="mono" style="font-weight:500;">0</span></div>
+</div>
+
+<div style="height:52px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+<svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="FILTER"><path d="M8.69 31.31A16 16 0 1 1 31.31 31.31" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><path d="M20.00 4.00A16 16 0 0 1 20.28 4.00" fill="none" stroke="#F2A33A" stroke-width="3.5" stroke-linecap="round"></path><circle cx="20" cy="20" r="11" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="20" y1="20" x2="20.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<div style="font-size:10px;font-weight:700;letter-spacing:0.3px;color:rgba(235,235,245,0.75);white-space:nowrap;">FILTER <span class="mono" style="font-weight:500;"></span></div>
+</div>
+
+</div>
+<div style="flex:1 1 0;display:flex;gap:8px;">
+<div style="width:6px;display:flex;flex-direction:column-reverse;gap:3px;padding:6px 0;box-sizing:border-box;">
+<div style="height:14px;border-radius:2px;background:#30D158;"></div><div style="height:14px;border-radius:2px;background:#30D158;"></div><div style="height:14px;border-radius:2px;background:#30D158;"></div><div style="height:14px;border-radius:2px;background:#30D158;"></div><div style="height:14px;border-radius:2px;background:#30D158;"></div><div style="height:14px;border-radius:2px;background:#30D158;"></div><div style="height:14px;border-radius:2px;background:#30D158;"></div><div style="height:14px;border-radius:2px;background:#30D158;"></div><div style="height:14px;border-radius:2px;background:#30D158;"></div><div style="height:14px;border-radius:2px;background:#30D158;"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div>
+</div>
+<div style="flex:1 1 0;position:relative;" aria-label="Channel A fader 80%">
+<div style="position:absolute;left:calc(50% - 2px);top:12px;bottom:12px;width:4px;border-radius:2px;background:rgba(255,255,255,0.14);"></div>
+<div style="position:absolute;left:calc(50% - 2px);bottom:12px;height:208px;width:4px;border-radius:2px;background:#F2A33A;"></div>
+<div style="position:absolute;left:calc(50% - 22px);top:52px;width:44px;height:24px;border-radius:12px;background:rgba(255,255,255,0.94);box-shadow:0 3px 10px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;"><span style="width:20px;height:2px;background:rgba(0,0,0,0.3);"></span></div>
+</div>
+</div>
+</div>
+<button class="glass" aria-pressed="false" style="height:44px;border-radius:16px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:14px;font-weight:600;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"></path></svg>Cue</button>
+</div>
+
+<div class="glass" style="flex:1 1 0;border-radius:22px;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;">
+<div style="height:24px;display:flex;align-items:center;gap:8px;min-width:0;"><span style="flex:none;width:22px;height:22px;border-radius:11px;background:#4A9BFF;color:#04101F;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;">B</span><span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">SIELEWI</span></div>
+<div style="display:flex;gap:8px;height:284px;">
+<div style="width:62px;display:flex;flex-direction:column;gap:6px;">
+
+<div style="height:52px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+<svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="TRIM 0"><path d="M8.69 31.31A16 16 0 1 1 31.31 31.31" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><path d="M20.00 4.00A16 16 0 0 1 20.28 4.00" fill="none" stroke="#4A9BFF" stroke-width="3.5" stroke-linecap="round"></path><circle cx="20" cy="20" r="11" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="20" y1="20" x2="20.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<div style="font-size:10px;font-weight:700;letter-spacing:0.3px;color:rgba(235,235,245,0.75);white-space:nowrap;">TRIM <span class="mono" style="font-weight:500;">0</span></div>
+</div>
+
+<div style="height:52px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+<svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="HI 0"><path d="M8.69 31.31A16 16 0 1 1 31.31 31.31" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><path d="M20.00 4.00A16 16 0 0 1 20.28 4.00" fill="none" stroke="#4A9BFF" stroke-width="3.5" stroke-linecap="round"></path><circle cx="20" cy="20" r="11" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="20" y1="20" x2="20.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<div style="font-size:10px;font-weight:700;letter-spacing:0.3px;color:rgba(235,235,245,0.75);white-space:nowrap;">HI <span class="mono" style="font-weight:500;">0</span></div>
+</div>
+
+<div style="height:52px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+<svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="MID 0"><path d="M8.69 31.31A16 16 0 1 1 31.31 31.31" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><path d="M20.00 4.00A16 16 0 0 1 20.28 4.00" fill="none" stroke="#4A9BFF" stroke-width="3.5" stroke-linecap="round"></path><circle cx="20" cy="20" r="11" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="20" y1="20" x2="20.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<div style="font-size:10px;font-weight:700;letter-spacing:0.3px;color:rgba(235,235,245,0.75);white-space:nowrap;">MID <span class="mono" style="font-weight:500;">0</span></div>
+</div>
+
+<div style="height:52px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+<svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="LOW +3.9"><path d="M8.69 31.31A16 16 0 1 1 31.31 31.31" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><path d="M20.00 4.00A16 16 0 0 1 29.20 6.91" fill="none" stroke="#4A9BFF" stroke-width="3.5" stroke-linecap="round"></path><circle cx="20" cy="20" r="11" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="20" y1="20" x2="25.8" y2="11.8" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<div style="font-size:10px;font-weight:700;letter-spacing:0.3px;color:rgba(235,235,245,0.75);white-space:nowrap;">LOW <span class="mono" style="font-weight:500;">+3.9</span></div>
+</div>
+
+<div style="height:52px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+<svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="FILTER"><path d="M8.69 31.31A16 16 0 1 1 31.31 31.31" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><path d="M20.00 4.00A16 16 0 0 1 20.28 4.00" fill="none" stroke="#4A9BFF" stroke-width="3.5" stroke-linecap="round"></path><circle cx="20" cy="20" r="11" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="20" y1="20" x2="20.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<div style="font-size:10px;font-weight:700;letter-spacing:0.3px;color:rgba(235,235,245,0.75);white-space:nowrap;">FILTER <span class="mono" style="font-weight:500;"></span></div>
+</div>
+
+</div>
+<div style="flex:1 1 0;display:flex;gap:8px;">
+<div style="width:6px;display:flex;flex-direction:column-reverse;gap:3px;padding:6px 0;box-sizing:border-box;">
+<div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div><div style="height:14px;border-radius:2px;background:rgba(255,255,255,0.08);"></div>
+</div>
+<div style="flex:1 1 0;position:relative;" aria-label="Channel B fader 60%">
+<div style="position:absolute;left:calc(50% - 2px);top:12px;bottom:12px;width:4px;border-radius:2px;background:rgba(255,255,255,0.14);"></div>
+<div style="position:absolute;left:calc(50% - 2px);bottom:12px;height:156px;width:4px;border-radius:2px;background:#4A9BFF;"></div>
+<div style="position:absolute;left:calc(50% - 22px);top:104px;width:44px;height:24px;border-radius:12px;background:rgba(255,255,255,0.94);box-shadow:0 3px 10px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;"><span style="width:20px;height:2px;background:rgba(0,0,0,0.3);"></span></div>
+</div>
+</div>
+</div>
+<button aria-pressed="true" style="height:44px;border-radius:16px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:14px;font-weight:600;background:rgba(74,155,255,0.24);border:1px solid rgba(74,155,255,0.8);color:#CFE3FF;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"></path></svg>Cue · listening</button>
+</div>
+</div>
+
+<div class="glass" style="flex:none;border-radius:22px;padding:6px 14px;box-sizing:border-box;display:flex;flex-direction:column;">
+<div style="height:44px;display:flex;align-items:center;gap:12px;">
+<div style="width:92px;font-size:14px;font-weight:600;">Master</div>
+<div style="flex:1 1 0;height:28px;position:relative;"><div style="position:absolute;left:0;right:0;top:12px;height:4px;border-radius:2px;background:rgba(255,255,255,0.14);"></div><div style="position:absolute;left:0;width:93%;top:12px;height:4px;border-radius:2px;background:#F5F5F7;"></div><div style="position:absolute;left:calc(93% - 14px);top:0;width:28px;height:28px;border-radius:14px;background:#FFFFFF;box-shadow:0 2px 8px rgba(0,0,0,0.45);"></div></div>
+<div class="mono" style="width:38px;text-align:right;font-size:13px;color:rgba(235,235,245,0.75);">93%</div>
+</div>
+<div style="height:1px;background:rgba(255,255,255,0.1);"></div>
+<div style="height:44px;display:flex;align-items:center;gap:12px;">
+<div style="width:92px;font-size:14px;font-weight:600;">Headphones</div>
+<div style="flex:1 1 0;height:28px;position:relative;"><div style="position:absolute;left:0;right:0;top:12px;height:4px;border-radius:2px;background:rgba(255,255,255,0.14);"></div><div style="position:absolute;left:0;width:70%;top:12px;height:4px;border-radius:2px;background:#F5F5F7;"></div><div style="position:absolute;left:calc(70% - 14px);top:0;width:28px;height:28px;border-radius:14px;background:#FFFFFF;box-shadow:0 2px 8px rgba(0,0,0,0.45);"></div></div>
+<div class="mono" style="width:38px;text-align:right;font-size:13px;color:rgba(235,235,245,0.75);">70%</div>
+</div>
+<div style="height:1px;background:rgba(255,255,255,0.1);"></div>
+<div style="height:44px;display:flex;align-items:center;gap:12px;">
+<div style="width:92px;font-size:14px;font-weight:600;">Cue ⇄ Master</div>
+<div style="flex:1 1 0;height:28px;position:relative;"><div style="position:absolute;left:0;right:0;top:12px;height:4px;border-radius:2px;background:rgba(255,255,255,0.14);"></div><div style="position:absolute;left:calc(50% - 1px);top:6px;width:2px;height:16px;background:rgba(255,255,255,0.3);"></div><div style="position:absolute;left:calc(50% - 14px);top:0;width:28px;height:28px;border-radius:14px;background:#FFFFFF;box-shadow:0 2px 8px rgba(0,0,0,0.45);"></div></div>
+<div class="mono" style="width:38px;text-align:right;font-size:13px;color:rgba(235,235,245,0.75);">50%</div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+</figure>
+<figure class="board">
+<figcaption><span class="t">A3 · Deck options sheet</span><span class="s">MOCKUP_TEXT.md §4</span></figcaption>
+<div class="frame" style="width:390px;height:844px;">
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;background:#0A0A0D;">
+<div style="position:absolute;left:-130px;top:-90px;width:440px;height:440px;border-radius:50%;background:radial-gradient(circle,rgba(242,163,58,0.3),rgba(242,163,58,0) 70%);"></div>
+<div style="position:absolute;right:-150px;bottom:140px;width:460px;height:460px;border-radius:50%;background:radial-gradient(circle,rgba(74,155,255,0.16),rgba(74,155,255,0) 70%);"></div>
+
+<div style="position:absolute;left:16px;right:16px;top:54px;display:flex;flex-direction:column;gap:10px;">
+<div style="height:36px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;">Platterhead</div>
+<div style="display:flex;gap:10px;">
+<div style="flex:1 1 0;height:64px;border-radius:20px;background:rgba(242,163,58,0.16);border:1.5px solid rgba(242,163,58,0.85);"></div>
+<div class="glass" style="flex:1 1 0;height:64px;border-radius:20px;"></div>
+</div>
+<div class="glass" style="height:190px;border-radius:24px;"></div>
+</div>
+<div style="position:absolute;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.5);"></div>
+
+<div style="position:absolute;left:0;right:0;top:272px;bottom:0;border-radius:34px 34px 0 0;background:rgba(30,30,34,0.82);-webkit-backdrop-filter:blur(40px) saturate(180%);backdrop-filter:blur(40px) saturate(180%);border-top:1px solid rgba(255,255,255,0.16);padding:8px 16px 24px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;">
+<div style="width:40px;height:5px;border-radius:3px;background:rgba(255,255,255,0.3);align-self:center;flex:none;"></div>
+
+<div style="height:40px;flex:none;display:flex;align-items:center;gap:10px;">
+<span style="flex:none;width:26px;height:26px;border-radius:13px;background:#F2A33A;color:#1A1204;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;">A</span>
+<div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;"><span style="font-size:17px;font-weight:700;">Deck A</span><span style="font-size:12px;color:rgba(235,235,245,0.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">African Vibe · DHDMusic</span></div>
+<button style="height:36px;padding:0 16px;border-radius:18px;border:0;background:rgba(255,255,255,0.92);color:#0A0A0D;font-size:14px;font-weight:700;">Done</button>
+</div>
+
+<div class="glass" style="flex:none;border-radius:20px;padding:0 14px;display:flex;flex-direction:column;">
+<div style="height:52px;display:flex;align-items:center;gap:12px;">
+<div style="flex:1 1 0;display:flex;flex-direction:column;gap:2px;"><span style="font-size:15px;font-weight:600;">Key lock</span><span style="font-size:12px;color:rgba(235,235,245,0.62);">Tempo changes won’t change pitch</span></div>
+<button aria-pressed="true" aria-label="Key lock" style="flex:none;width:52px;height:32px;border-radius:16px;border:0;padding:2px;background:#30D158;display:flex;justify-content:flex-end;"><span style="width:28px;height:28px;border-radius:14px;background:#FFFFFF;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></span></button>
+</div>
+<div style="height:1px;background:rgba(255,255,255,0.1);"></div>
+<div style="height:52px;display:flex;align-items:center;gap:12px;">
+<div style="flex:1 1 0;display:flex;flex-direction:column;gap:2px;"><span style="font-size:15px;font-weight:600;">Slip</span><span style="font-size:12px;color:rgba(235,235,245,0.62);">Loops and scratches snap back in time</span></div>
+<button aria-pressed="false" aria-label="Slip" style="flex:none;width:52px;height:32px;border-radius:16px;border:0;padding:2px;background:rgba(120,120,128,0.4);display:flex;justify-content:flex-start;"><span style="width:28px;height:28px;border-radius:14px;background:#FFFFFF;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></span></button>
+</div>
+<div style="height:1px;background:rgba(255,255,255,0.1);"></div>
+<div style="height:52px;display:flex;align-items:center;gap:12px;">
+<div style="flex:1 1 0;display:flex;flex-direction:column;gap:2px;"><span style="font-size:15px;font-weight:600;">Quantize</span><span style="font-size:12px;color:rgba(235,235,245,0.62);">Cues and loops land on the beat</span></div>
+<button aria-pressed="true" aria-label="Quantize" style="flex:none;width:52px;height:32px;border-radius:16px;border:0;padding:2px;background:#30D158;display:flex;justify-content:flex-end;"><span style="width:28px;height:28px;border-radius:14px;background:#FFFFFF;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></span></button>
+</div>
+</div>
+
+<div class="glass" style="flex:none;border-radius:20px;padding:0 14px;display:flex;flex-direction:column;">
+<div style="height:52px;display:flex;align-items:center;gap:10px;">
+<span style="flex:1 1 0;font-size:15px;font-weight:600;">Tempo range</span>
+<div style="height:32px;border-radius:16px;padding:2px;box-sizing:border-box;display:flex;background:rgba(255,255,255,0.08);">
+<button aria-pressed="true" class="mono" style="height:28px;padding:0 9px;border:0;border-radius:14px;background:rgba(255,255,255,0.92);color:#0A0A0D;font-size:12px;font-weight:700;">±6</button>
+<button aria-pressed="false" class="mono" style="height:28px;padding:0 9px;border:0;border-radius:14px;background:transparent;font-size:12px;font-weight:600;">±10</button>
+<button aria-pressed="false" class="mono" style="height:28px;padding:0 9px;border:0;border-radius:14px;background:transparent;font-size:12px;font-weight:600;">±16</button>
+<button aria-pressed="false" style="height:28px;padding:0 9px;border:0;border-radius:14px;background:transparent;font-size:12px;font-weight:600;">Wide</button>
+</div>
+</div>
+<div style="height:1px;background:rgba(255,255,255,0.1);"></div>
+<div style="height:60px;display:flex;align-items:center;gap:8px;">
+<button style="flex:1 1 0;height:44px;border-radius:14px;border:0;background:rgba(255,255,255,0.09);font-size:14px;font-weight:600;">Tap BPM</button>
+<button style="flex:1 1 0;height:44px;border-radius:14px;border:0;background:rgba(255,255,255,0.09);font-size:14px;font-weight:600;">Reset tempo</button>
+<button style="flex:1 1 0;height:44px;border-radius:14px;border:0;background:rgba(255,255,255,0.09);font-size:14px;font-weight:600;">Reverse</button>
+</div>
+</div>
+
+<div class="glass" style="flex:none;border-radius:20px;padding:0 14px;display:flex;flex-direction:column;">
+<div style="height:52px;display:flex;align-items:center;gap:10px;">
+<span style="flex:1 1 0;font-size:15px;font-weight:600;">Waveform touch</span>
+<div style="height:32px;border-radius:16px;padding:2px;box-sizing:border-box;display:flex;background:rgba(255,255,255,0.08);">
+<button aria-pressed="true" style="height:28px;padding:0 12px;border:0;border-radius:14px;background:rgba(255,255,255,0.92);color:#0A0A0D;font-size:12px;font-weight:700;">Nudge</button>
+<button aria-pressed="false" style="height:28px;padding:0 12px;border:0;border-radius:14px;background:transparent;font-size:12px;font-weight:600;">Scratch</button>
+</div>
+</div>
+<div style="height:1px;background:rgba(255,255,255,0.1);"></div>
+<div style="height:52px;display:flex;align-items:center;gap:8px;">
+<span style="flex:1 1 0;font-size:15px;font-weight:600;">Key</span>
+<button aria-label="Key down" style="width:36px;height:36px;border-radius:18px;border:0;background:rgba(255,255,255,0.09);font-size:18px;padding:0;">−</button>
+<span class="mono" style="width:40px;text-align:center;font-size:15px;font-weight:700;color:#FFD9A3;">8A</span>
+<button aria-label="Key up" style="width:36px;height:36px;border-radius:18px;border:0;background:rgba(255,255,255,0.09);font-size:18px;padding:0;">+</button>
+<button style="height:36px;padding:0 12px;border-radius:18px;border:1px solid rgba(74,155,255,0.7);background:rgba(74,155,255,0.18);color:#CFE3FF;font-size:13px;font-weight:600;">Match B</button>
+</div>
+<div style="height:1px;background:rgba(255,255,255,0.1);"></div>
+<a href="#" style="height:48px;display:flex;align-items:center;justify-content:space-between;color:#F5F5F7;text-decoration:none;font-size:15px;font-weight:600;">Track info &amp; beat grid<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(235,235,245,0.5)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></a>
+</div>
+
+</div>
+</div>
+</div>
+</figure>
+<figure class="board">
+<figcaption><span class="t">B · Both decks + coach</span><span class="s">MOCKUP_TEXT.md §5</span></figcaption>
+<div class="frame" style="width:390px;height:844px;">
+<div style="width:390px;height:844px;box-sizing:border-box;position:relative;overflow:hidden;background:#0A0A0D;">
+<div style="position:absolute;left:-130px;top:-60px;width:440px;height:440px;border-radius:50%;background:radial-gradient(circle,rgba(242,163,58,0.24),rgba(242,163,58,0) 70%);"></div>
+<div style="position:absolute;right:-150px;bottom:40px;width:460px;height:460px;border-radius:50%;background:radial-gradient(circle,rgba(74,155,255,0.24),rgba(74,155,255,0) 70%);"></div>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;padding:54px 16px 26px;display:flex;flex-direction:column;gap:10px;">
+
+<div style="height:36px;flex:none;display:flex;align-items:center;justify-content:space-between;">
+<button class="glass" aria-label="Library" style="width:36px;height:36px;border-radius:18px;padding:0;display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"></path></svg></button>
+<div class="glass" style="height:32px;border-radius:16px;padding:2px;box-sizing:border-box;display:flex;">
+<button aria-pressed="false" style="height:28px;padding:0 12px;border:0;border-radius:14px;background:transparent;font-size:12px;font-weight:600;color:rgba(235,235,245,0.8);">Focus</button>
+<button aria-pressed="true" style="height:28px;padding:0 12px;border:0;border-radius:14px;background:rgba(255,255,255,0.92);color:#0A0A0D;font-size:12px;font-weight:600;">Both decks</button>
+</div>
+<button class="glass" aria-label="Mixer" style="width:36px;height:36px;border-radius:18px;padding:0;display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></svg></button>
+</div>
+
+<div class="glass" style="flex:none;border-radius:26px;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;border-color:rgba(242,163,58,0.55);">
+<div style="height:36px;display:flex;align-items:center;gap:10px;">
+<span style="flex:none;width:26px;height:26px;border-radius:13px;background:#F2A33A;color:#1A1204;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;">A</span>
+<div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;"><span style="font-size:15px;font-weight:600;">African Vibe</span><span style="font-size:12px;color:rgba(235,235,245,0.62);">DHDMusic</span></div>
+<div style="display:flex;flex-direction:column;align-items:flex-end;"><span class="mono" style="font-size:16px;font-weight:700;color:#F2A33A;">116.0</span><span class="mono" style="font-size:11px;color:rgba(235,235,245,0.62);">−2:48</span></div>
+</div>
+<div style="position:relative;height:56px;">
+<svg width="334" height="56" viewBox="0 0 334 56" style="display:block;" role="img" aria-label="Deck A waveform"><path d="M1.5 0V56M25.5 0V6M49.5 0V6M73.5 0V6M97.5 0V56M121.5 0V6M145.5 0V6M169.5 0V6M193.5 0V56M217.5 0V6M241.5 0V6M265.5 0V6M289.5 0V56M313.5 0V6" stroke="rgba(255,255,255,0.16)" stroke-width="1" fill="none"></path><path d="M1.5 17.1V38.9M4.5 17.9V38.1M7.5 19.8V36.2M10.5 22.7V33.3M13.5 18.9V37.1M16.5 20.9V35.1M19.5 19.9V36.1M22.5 17.6V38.4M25.5 11.8V44.2M28.5 8.8V47.2M31.5 17.1V38.9M34.5 18.4V37.6M37.5 14.9V41.1M40.5 15.0V41.0M43.5 14.2V41.8M46.5 14.5V41.5M49.5 6.6V49.4M52.5 7.4V48.6M55.5 18.9V37.1M58.5 13.9V42.1M61.5 19.2V36.8M64.5 18.5V37.5M67.5 16.2V39.8M70.5 16.6V39.4M73.5 10.5V45.5M76.5 13.2V42.8M79.5 17.8V38.2M82.5 18.7V37.3M85.5 19.1V36.9M88.5 19.8V36.2M91.5 20.2V35.8M94.5 20.5V35.5M97.5 15.7V40.3M100.5 14.8V41.2M103.5 20.9V35.1M106.5 22.3V33.7M109.5 20.5V35.5M112.5 22.1V33.9M115.5 22.2V33.8M118.5 21.4V34.6M121.5 17.2V38.8M124.5 12.7V43.3M127.5 19.4V36.6M130.5 18.0V38.0M133.5 20.1V35.9M136.5 16.7V39.3M139.5 14.9V41.1M142.5 20.1V35.9M145.5 10.3V45.7M148.5 9.0V47.0M151.5 15.2V40.8M154.5 18.3V37.7M157.5 19.8V36.2M160.5 15.6V40.4M163.5 17.5V38.5M166.5 16.0V40.0M169.5 13.2V42.8M172.5 12.7V43.3M175.5 15.4V40.6M178.5 15.5V40.5M181.5 18.6V37.4M184.5 15.3V40.7M187.5 16.2V39.8M190.5 15.7V40.3M193.5 13.4V42.6M196.5 11.5V44.5M199.5 18.7V37.3M202.5 18.3V37.7M205.5 22.6V33.4M208.5 19.5V36.5M211.5 21.4V34.6M214.5 19.7V36.3M217.5 14.6V41.4M220.5 13.9V42.1M223.5 22.0V34.0M226.5 21.6V34.4M229.5 20.8V35.2M232.5 17.6V38.4M235.5 20.8V35.2M238.5 20.5V35.5M241.5 12.8V43.2M244.5 14.4V41.6M247.5 14.8V41.2M250.5 17.8V38.2M253.5 15.1V40.9M256.5 19.8V36.2M259.5 18.6V37.4M262.5 17.7V38.3M265.5 5.1V50.9M268.5 12.3V43.7M271.5 18.4V37.6M274.5 13.7V42.3M277.5 14.2V41.8M280.5 14.4V41.6M283.5 16.8V39.2M286.5 16.7V39.3M289.5 8.9V47.1M292.5 14.9V41.1M295.5 16.6V39.4M298.5 20.1V35.9M301.5 20.6V35.4M304.5 17.7V38.3M307.5 18.9V37.1M310.5 22.3V33.7M313.5 18.1V37.9M316.5 16.3V39.7M319.5 22.4V33.6M322.5 21.2V34.8M325.5 20.2V35.8M328.5 22.3V33.7M331.5 18.7V37.3" stroke="#F2A33A" stroke-width="2" stroke-linecap="round" fill="none"></path><rect x="0" y="0" width="167" height="56" fill="rgba(10,10,13,0.45)"></rect></svg>
+<div style="position:absolute;left:166px;top:0;width:2px;height:56px;background:#FFFFFF;box-shadow:0 0 8px rgba(255,255,255,0.7);"></div>
+</div>
+<div style="height:48px;display:flex;gap:8px;">
+<button style="flex:1 1 0;border-radius:16px;border:0;background:rgba(255,255,255,0.09);font-size:14px;font-weight:700;letter-spacing:0.5px;">CUE</button>
+<button style="flex:1.3 1 0;border-radius:16px;border:0;background:#F2A33A;color:#1A1204;display:flex;align-items:center;justify-content:center;gap:6px;font-size:15px;font-weight:700;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"></rect><rect x="14" y="5" width="4" height="14" rx="1.2"></rect></svg>Pause</button>
+<button style="flex:1 1 0;border-radius:16px;border:0;background:rgba(255,255,255,0.09);font-size:14px;font-weight:700;letter-spacing:0.5px;">SYNC</button>
+</div>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;">
+<button style="height:40px;border-radius:12px;border:0;background:#F2A33A;color:#161008;font-size:12px;font-weight:700;">Intro</button>
+<button style="height:40px;border-radius:12px;border:0;background:#F26B6B;color:#161008;font-size:12px;font-weight:700;">Verse</button>
+<button style="height:40px;border-radius:12px;border:0;background:#B98AF7;color:#161008;font-size:12px;font-weight:700;">Drop</button>
+<button style="height:40px;border-radius:12px;border:0;background:#5AA8FF;color:#161008;font-size:12px;font-weight:700;">Break</button>
+</div>
+</div>
+
+<div class="glass" style="flex:none;height:92px;border-radius:26px;padding:0 12px;box-sizing:border-box;display:flex;align-items:center;gap:12px;">
+<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+<svg width="44" height="44" viewBox="0 0 44 44" role="img" aria-label="Filter A centre"><path d="M9.27 34.73A18 18 0 1 1 34.73 34.73" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><circle cx="22" cy="22" r="12" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="22" y1="22" x2="22" y2="11" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<span style="font-size:10px;font-weight:700;color:rgba(235,235,245,0.72);letter-spacing:0.3px;">FILTER</span>
+</div>
+<div style="flex:1 1 0;display:flex;flex-direction:column;gap:6px;">
+<div style="display:flex;justify-content:space-between;font-size:11px;font-weight:800;"><span style="color:#F2A33A;">A</span><span style="color:rgba(235,235,245,0.6);font-weight:600;letter-spacing:0.6px;">CROSSFADER</span><span style="color:#4A9BFF;">B</span></div>
+<div style="height:32px;position:relative;">
+<div style="position:absolute;left:0;right:0;top:14px;height:4px;border-radius:2px;background:rgba(255,255,255,0.16);"></div>
+<div style="position:absolute;left:calc(50% - 1px);top:8px;width:2px;height:16px;background:rgba(255,255,255,0.3);"></div>
+<div style="position:absolute;left:22%;top:0;width:48px;height:32px;border-radius:16px;background:rgba(255,255,255,0.94);box-shadow:0 3px 10px rgba(0,0,0,0.45),0 0 0 4px rgba(74,155,255,0.35);display:flex;align-items:center;justify-content:center;gap:4px;"><span style="width:2px;height:14px;background:rgba(0,0,0,0.25);"></span><span style="width:2px;height:14px;background:rgba(0,0,0,0.25);"></span></div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+<svg width="44" height="44" viewBox="0 0 44 44" role="img" aria-label="Filter B centre"><path d="M9.27 34.73A18 18 0 1 1 34.73 34.73" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3.5" stroke-linecap="round"></path><circle cx="22" cy="22" r="12" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="22" y1="22" x2="22" y2="11" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></svg>
+<span style="font-size:10px;font-weight:700;color:rgba(235,235,245,0.72);letter-spacing:0.3px;">FILTER</span>
+</div>
+</div>
+
+<div class="glass" style="flex:none;border-radius:26px;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;border-color:rgba(74,155,255,0.55);">
+<div style="height:36px;display:flex;align-items:center;gap:10px;">
+<span style="flex:none;width:26px;height:26px;border-radius:13px;background:#4A9BFF;color:#04101F;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;">B</span>
+<div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;"><span style="font-size:15px;font-weight:600;">SIELEWI</span><span style="font-size:12px;color:rgba(235,235,245,0.62);">Baraka Oscar</span></div>
+<div style="display:flex;flex-direction:column;align-items:flex-end;"><span class="mono" style="font-size:16px;font-weight:700;color:#4A9BFF;">116.0</span><span class="mono" style="font-size:11px;color:rgba(235,235,245,0.62);">synced · −3.2%</span></div>
+</div>
+<div style="position:relative;height:56px;">
+<svg width="334" height="56" viewBox="0 0 334 56" style="display:block;" role="img" aria-label="Deck B waveform"><path d="M1.5 0V56M25.5 0V6M49.5 0V6M73.5 0V6M97.5 0V56M121.5 0V6M145.5 0V6M169.5 0V6M193.5 0V56M217.5 0V6M241.5 0V6M265.5 0V6M289.5 0V56M313.5 0V6" stroke="rgba(255,255,255,0.16)" stroke-width="1" fill="none"></path><path d="M1.5 15.4V40.6M4.5 12.2V43.8M7.5 21.0V35.0M10.5 20.2V35.8M13.5 19.8V36.2M16.5 17.5V38.5M19.5 19.8V36.2M22.5 20.4V35.6M25.5 14.2V41.8M28.5 9.3V46.7M31.5 17.3V38.7M34.5 18.8V37.2M37.5 19.4V36.6M40.5 19.6V36.4M43.5 19.0V37.0M46.5 20.3V35.7M49.5 13.8V42.2M52.5 11.4V44.6M55.5 17.3V38.7M58.5 19.5V36.5M61.5 18.2V37.8M64.5 18.8V37.2M67.5 18.5V37.5M70.5 22.6V33.4M73.5 18.1V37.9M76.5 19.6V36.4M79.5 20.6V35.4M82.5 20.7V35.3M85.5 21.4V34.6M88.5 20.4V35.6M91.5 22.8V33.2M94.5 19.9V36.1M97.5 18.8V37.2M100.5 18.5V37.5M103.5 18.4V37.6M106.5 21.1V34.9M109.5 20.0V36.0M112.5 20.1V35.9M115.5 18.6V37.4M118.5 19.4V36.6M121.5 11.1V44.9M124.5 12.0V44.0M127.5 18.3V37.7M130.5 19.3V36.7M133.5 17.4V38.6M136.5 20.1V35.9M139.5 17.4V38.6M142.5 20.0V36.0M145.5 9.6V46.4M148.5 16.7V39.3M151.5 17.7V38.3M154.5 17.0V39.0M157.5 21.6V34.4M160.5 19.4V36.6M163.5 18.8V37.2M166.5 18.1V37.9M169.5 18.8V37.2M172.5 14.7V41.3M175.5 22.4V33.6M178.5 20.4V35.6M181.5 22.1V33.9M184.5 23.3V32.7M187.5 23.4V32.6M190.5 22.8V33.2M193.5 17.5V38.5M196.5 17.0V39.0M199.5 20.9V35.1M202.5 21.1V34.9M205.5 21.4V34.6M208.5 19.3V36.7M211.5 20.9V35.1M214.5 17.7V38.3M217.5 9.0V47.0M220.5 12.7V43.3M223.5 18.0V38.0M226.5 20.5V35.5M229.5 17.1V38.9M232.5 20.7V35.3M235.5 18.8V37.2M238.5 20.2V35.8M241.5 11.0V45.0M244.5 14.9V41.1M247.5 19.6V36.4M250.5 17.5V38.5M253.5 15.8V40.2M256.5 18.7V37.3M259.5 18.4V37.6M262.5 21.0V35.0M265.5 16.2V39.8M268.5 11.7V44.3M271.5 21.8V34.2M274.5 18.5V37.5M277.5 19.0V37.0M280.5 21.9V34.1M283.5 23.4V32.6M286.5 23.3V32.7M289.5 20.6V35.4M292.5 16.0V40.0M295.5 19.8V36.2M298.5 22.8V33.2M301.5 18.9V37.1M304.5 19.3V36.7M307.5 20.3V35.7M310.5 19.2V36.8M313.5 10.4V45.6M316.5 12.0V44.0M319.5 20.1V35.9M322.5 15.9V40.1M325.5 19.8V36.2M328.5 18.9V37.1M331.5 19.4V36.6" stroke="#4A9BFF" stroke-width="2" stroke-linecap="round" fill="none"></path><rect x="0" y="0" width="167" height="56" fill="rgba(10,10,13,0.45)"></rect></svg>
+<div style="position:absolute;left:166px;top:0;width:2px;height:56px;background:#FFFFFF;box-shadow:0 0 8px rgba(255,255,255,0.7);"></div>
+</div>
+<div style="height:48px;display:flex;gap:8px;">
+<button style="flex:1 1 0;border-radius:16px;border:0;background:rgba(255,255,255,0.09);font-size:14px;font-weight:700;letter-spacing:0.5px;">CUE</button>
+<button style="flex:1.3 1 0;border-radius:16px;border:0;background:#4A9BFF;color:#04101F;display:flex;align-items:center;justify-content:center;gap:6px;font-size:15px;font-weight:700;box-shadow:0 0 0 4px rgba(74,155,255,0.3);"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"></path></svg>Play</button>
+<button aria-pressed="true" style="flex:1 1 0;border-radius:16px;border:1px solid rgba(74,155,255,0.8);background:rgba(74,155,255,0.22);color:#CFE3FF;font-size:14px;font-weight:700;letter-spacing:0.5px;">SYNC</button>
+</div>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;">
+<button style="height:40px;border-radius:12px;border:0;background:#F2A33A;color:#161008;font-size:12px;font-weight:700;">Intro</button>
+<button style="height:40px;border-radius:12px;border:0;background:#F26B6B;color:#161008;font-size:12px;font-weight:700;">Vox</button>
+<button style="height:40px;border-radius:12px;border:1.5px dashed rgba(185,138,247,0.6);background:transparent;color:#B98AF7;font-size:12px;font-weight:700;">3</button>
+<button style="height:40px;border-radius:12px;border:1.5px dashed rgba(90,168,255,0.6);background:transparent;color:#5AA8FF;font-size:12px;font-weight:700;">4</button>
+</div>
+</div>
+
+<div style="flex:1 1 0;"></div>
+
+<div class="glass" style="flex:none;border-radius:22px;padding:12px 12px 12px 14px;box-sizing:border-box;display:flex;align-items:center;gap:12px;background:rgba(74,155,255,0.14);">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9FC9FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"></path></svg>
+<span style="flex:1 1 0;font-size:13px;line-height:1.35;">B is synced to A. Press <b>Play</b> on the next bar, then slide the crossfader toward B.</span>
+<button style="flex:none;height:36px;padding:0 12px;border-radius:18px;border:0;background:rgba(255,255,255,0.92);color:#0A0A0D;font-size:13px;font-weight:700;">Got it</button>
+</div>
+
+</div>
+</div>
+</div>
+</figure>
+<figure class="board">
+<figcaption><span class="t">C · Landscape controller</span><span class="s">MOCKUP_TEXT.md §6</span></figcaption>
+<div class="frame" style="width:844px;height:390px;">
+<div style="width:844px;height:390px;box-sizing:border-box;position:relative;overflow:hidden;background:#0A0A0D;">
+<div style="position:absolute;left:-120px;top:60px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(242,163,58,0.24),rgba(242,163,58,0) 70%);"></div>
+<div style="position:absolute;right:-120px;top:60px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(74,155,255,0.22),rgba(74,155,255,0) 70%);"></div>
+<div style="position:relative;width:844px;height:390px;box-sizing:border-box;padding:12px 52px 14px;display:flex;flex-direction:column;gap:10px;">
+
+<div class="glass" style="height:96px;flex:none;border-radius:22px;padding:8px 12px;box-sizing:border-box;position:relative;display:flex;flex-direction:column;gap:4px;">
+<svg width="714" height="38" viewBox="0 0 714 38" style="display:block;" role="img" aria-label="Deck A waveform"><path d="M1.5 0V38M25.5 0V5M49.5 0V5M73.5 0V5M97.5 0V38M121.5 0V5M145.5 0V5M169.5 0V5M193.5 0V38M217.5 0V5M241.5 0V5M265.5 0V5M289.5 0V38M313.5 0V5M337.5 0V5M361.5 0V5M385.5 0V38M409.5 0V5M433.5 0V5M457.5 0V5M481.5 0V38M505.5 0V5M529.5 0V5M553.5 0V5M577.5 0V38M601.5 0V5M625.5 0V5M649.5 0V5M673.5 0V38M697.5 0V5" stroke="rgba(255,255,255,0.16)" stroke-width="1" fill="none"></path><path d="M1.5 11.8V26.2M4.5 12.2V25.8M7.5 13.5V24.5M10.5 15.4V22.6M13.5 13.0V25.0M16.5 14.3V23.7M19.5 13.6V24.4M22.5 12.1V25.9M25.5 8.2V29.8M28.5 6.2V31.8M31.5 11.7V26.3M34.5 12.6V25.4M37.5 10.3V27.7M40.5 10.3V27.7M43.5 9.8V28.2M46.5 10.0V28.0M49.5 4.8V33.2M52.5 5.3V32.7M55.5 12.9V25.1M58.5 9.6V28.4M61.5 13.2V24.8M64.5 12.6V25.4M67.5 11.2V26.8M70.5 11.4V26.6M73.5 7.4V30.6M76.5 9.1V28.9M79.5 12.2V25.8M82.5 12.8V25.2M85.5 13.0V25.0M88.5 13.5V24.5M91.5 13.8V24.2M94.5 14.0V24.0M97.5 10.8V27.2M100.5 10.2V27.8M103.5 14.3V23.7M106.5 15.2V22.8M109.5 14.0V24.0M112.5 15.1V22.9M115.5 15.1V22.9M118.5 14.6V23.4M121.5 11.8V26.2M124.5 8.8V29.2M127.5 13.3V24.7M130.5 12.3V25.7M133.5 13.7V24.3M136.5 11.5V26.5M139.5 10.3V27.7M142.5 13.7V24.3M145.5 7.2V30.8M148.5 6.3V31.7M151.5 10.5V27.5M154.5 12.5V25.5M157.5 13.5V24.5M160.5 10.7V27.3M163.5 12.0V26.0M166.5 11.0V27.0M169.5 9.1V28.9M172.5 8.8V29.2M175.5 10.6V27.4M178.5 10.7V27.3M181.5 12.8V25.2M184.5 10.6V27.4M187.5 11.1V26.9M190.5 10.8V27.2M193.5 9.3V28.7M196.5 8.0V30.0M199.5 12.8V25.2M202.5 12.5V25.5M205.5 15.4V22.6M208.5 13.4V24.6M211.5 14.6V23.4M214.5 13.5V24.5M217.5 10.1V27.9M220.5 9.6V28.4M223.5 15.0V23.0M226.5 14.7V23.3M229.5 14.2V23.8M232.5 12.0V26.0M235.5 14.2V23.8M238.5 14.0V24.0M241.5 8.9V29.1M244.5 9.9V28.1M247.5 10.2V27.8M250.5 12.2V25.8M253.5 10.4V27.6M256.5 13.5V24.5M259.5 12.7V25.3M262.5 12.2V25.8M265.5 3.7V34.3M268.5 8.5V29.5M271.5 12.6V25.4M274.5 9.5V28.5M277.5 9.8V28.2M280.5 10.0V28.0M283.5 11.5V26.5M286.5 11.4V26.6M289.5 6.3V31.7M292.5 10.3V27.7M295.5 11.4V26.6M298.5 13.8V24.2M301.5 14.1V23.9M304.5 12.1V25.9M307.5 13.0V25.0M310.5 15.2V22.8M313.5 12.4V25.6M316.5 11.2V26.8M319.5 15.3V22.7M322.5 14.5V23.5M325.5 13.8V24.2M328.5 15.2V22.8M331.5 12.8V25.2M334.5 12.6V25.4M337.5 6.8V31.2M340.5 8.9V29.1M343.5 12.7V25.3M346.5 13.2V24.8M349.5 13.1V24.9M352.5 12.7V25.3M355.5 11.6V26.4M358.5 12.0V26.0M361.5 5.4V32.6M364.5 9.5V28.5M367.5 12.1V25.9M370.5 13.3V24.7M373.5 11.5V26.5M376.5 11.4V26.6M379.5 10.4V27.6M382.5 9.6V28.4M385.5 8.5V29.5M388.5 9.2V28.8M391.5 13.8V24.2M394.5 13.5V24.5M397.5 10.9V27.1M400.5 14.0V24.0M403.5 13.0V25.0M406.5 14.3V23.7M409.5 9.4V28.6M412.5 9.6V28.4M415.5 14.1V23.9M418.5 15.8V22.2M421.5 15.3V22.7M424.5 15.0V23.0M427.5 13.8V24.2M430.5 13.7V24.3M433.5 8.0V30.0M436.5 7.7V30.3M439.5 11.5V26.5M442.5 11.6V26.4M445.5 13.6V24.4M448.5 10.9V27.1M451.5 12.5V25.5M454.5 13.8V24.2M457.5 5.6V32.4M460.5 10.0V28.0M463.5 10.2V27.8M466.5 13.5V24.5M469.5 12.3V25.7M472.5 9.7V28.3M475.5 13.0V25.0M478.5 11.6V26.4M481.5 5.5V32.5M484.5 7.4V30.6M487.5 9.7V28.3M490.5 11.1V26.9M493.5 12.4V25.6M496.5 13.1V24.9M499.5 13.4V24.6M502.5 13.0V25.0M505.5 7.8V30.2M508.5 7.9V30.1M511.5 12.2V25.8M514.5 12.7V25.3M517.5 13.2V24.8M520.5 15.1V22.9M523.5 13.5V24.5M526.5 14.3V23.7M529.5 9.6V28.4M532.5 10.8V27.2M535.5 13.1V24.9M538.5 14.1V23.9M541.5 11.6V26.4M544.5 13.2V24.8M547.5 11.4V26.6M550.5 11.8V26.2M553.5 9.8V28.2M556.5 5.1V32.9M559.5 13.8V24.2M562.5 11.6V26.4M565.5 9.7V28.3M568.5 11.3V26.7M571.5 10.4V27.6M574.5 12.0V26.0M577.5 6.3V31.7M580.5 8.3V29.7M583.5 11.0V27.0M586.5 11.4V26.6M589.5 11.3V26.7M592.5 13.6V24.4M595.5 10.5V27.5M598.5 13.9V24.1M601.5 10.5V27.5M604.5 5.9V32.1M607.5 14.3V23.7M610.5 13.8V24.2M613.5 14.2V23.8M616.5 14.8V23.2M619.5 12.7V25.3M622.5 15.2V22.8M625.5 11.4V26.6M628.5 12.6V25.4M631.5 15.6V22.4M634.5 13.1V24.9M637.5 14.7V23.3M640.5 13.8V24.2M643.5 13.6V24.4M646.5 12.2V25.8M649.5 8.0V30.0M652.5 7.9V30.1M655.5 12.7V25.3M658.5 13.5V24.5M661.5 10.3V27.7M664.5 11.3V26.7M667.5 12.2V25.8M670.5 10.8V27.2M673.5 4.7V33.3M676.5 5.6V32.4M679.5 12.1V25.9M682.5 12.0V26.0M685.5 11.5V26.5M688.5 12.1V25.9M691.5 10.6V27.4M694.5 12.7V25.3M697.5 9.9V28.1M700.5 8.9V29.1M703.5 12.7V25.3M706.5 14.1V23.9M709.5 12.4V25.6M712.5 13.7V24.3" stroke="#F2A33A" stroke-width="2" stroke-linecap="round" fill="none"></path><rect x="0" y="0" width="357" height="38" fill="rgba(10,10,13,0.45)"></rect></svg>
+<svg width="714" height="38" viewBox="0 0 714 38" style="display:block;" role="img" aria-label="Deck B waveform"><path d="M1.5 0V38M25.5 0V5M49.5 0V5M73.5 0V5M97.5 0V38M121.5 0V5M145.5 0V5M169.5 0V5M193.5 0V38M217.5 0V5M241.5 0V5M265.5 0V5M289.5 0V38M313.5 0V5M337.5 0V5M361.5 0V5M385.5 0V38M409.5 0V5M433.5 0V5M457.5 0V5M481.5 0V38M505.5 0V5M529.5 0V5M553.5 0V5M577.5 0V38M601.5 0V5M625.5 0V5M649.5 0V5M673.5 0V38M697.5 0V5" stroke="rgba(255,255,255,0.16)" stroke-width="1" fill="none"></path><path d="M1.5 10.6V27.4M4.5 8.5V29.5M7.5 14.3V23.7M10.5 13.8V24.2M13.5 13.6V24.4M16.5 12.0V26.0M19.5 13.5V24.5M22.5 14.0V24.0M25.5 9.8V28.2M28.5 6.6V31.4M31.5 11.8V26.2M34.5 12.9V25.1M37.5 13.2V24.8M40.5 13.4V24.6M43.5 13.0V25.0M46.5 13.9V24.1M49.5 9.5V28.5M52.5 7.9V30.1M55.5 11.9V26.1M58.5 13.3V24.7M61.5 12.5V25.5M64.5 12.9V25.1M67.5 12.7V25.3M70.5 15.4V22.6M73.5 12.4V25.6M76.5 13.4V24.6M79.5 14.1V23.9M82.5 14.1V23.9M85.5 14.6V23.4M88.5 13.9V24.1M91.5 15.5V22.5M94.5 13.6V24.4M97.5 12.8V25.2M100.5 12.7V25.3M103.5 12.6V25.4M106.5 14.4V23.6M109.5 13.7V24.3M112.5 13.7V24.3M115.5 12.7V25.3M118.5 13.3V24.7M121.5 7.7V30.3M124.5 8.3V29.7M127.5 12.5V25.5M130.5 13.2V24.8M133.5 11.9V26.1M136.5 13.7V24.3M139.5 12.0V26.0M142.5 13.7V24.3M145.5 6.7V31.3M148.5 11.4V26.6M151.5 12.1V25.9M154.5 11.7V26.3M157.5 14.8V23.2M160.5 13.3V24.7M163.5 12.9V25.1M166.5 12.4V25.6M169.5 12.9V25.1M172.5 10.1V27.9M175.5 15.3V22.7M178.5 13.9V24.1M181.5 15.1V22.9M184.5 15.8V22.2M187.5 15.9V22.1M190.5 15.5V22.5M193.5 12.0V26.0M196.5 11.6V26.4M199.5 14.2V23.8M202.5 14.4V23.6M205.5 14.6V23.4M208.5 13.2V24.8M211.5 14.2V23.8M214.5 12.1V25.9M217.5 6.4V31.6M220.5 8.8V29.2M223.5 12.3V25.7M226.5 14.0V24.0M229.5 11.7V26.3M232.5 14.1V23.9M235.5 12.8V25.2M238.5 13.8V24.2M241.5 7.7V30.3M244.5 10.3V27.7M247.5 13.4V24.6M250.5 12.0V26.0M253.5 10.9V27.1M256.5 12.8V25.2M259.5 12.6V25.4M262.5 14.3V23.7M265.5 11.1V26.9M268.5 8.1V29.9M271.5 14.9V23.1M274.5 12.6V25.4M277.5 13.0V25.0M280.5 14.9V23.1M283.5 15.9V22.1M286.5 15.8V22.2M289.5 14.0V24.0M292.5 11.0V27.0M295.5 13.5V24.5M298.5 15.5V22.5M301.5 12.9V25.1M304.5 13.2V24.8M307.5 13.9V24.1M310.5 13.2V24.8M313.5 7.3V30.7M316.5 8.3V29.7M319.5 13.7V24.3M322.5 10.9V27.1M325.5 13.5V24.5M328.5 12.9V25.1M331.5 13.3V24.7M334.5 12.2V25.8M337.5 9.0V29.0M340.5 9.9V28.1M343.5 10.6V27.4M346.5 11.9V26.1M349.5 13.3V24.7M352.5 11.0V27.0M355.5 12.4V25.6M358.5 11.7V26.3M361.5 7.2V30.8M364.5 8.7V29.3M367.5 14.2V23.8M370.5 14.6V23.4M373.5 14.6V23.4M376.5 12.4V25.6M379.5 14.8V23.2M382.5 13.8V24.2M385.5 12.0V26.0M388.5 12.0V26.0M391.5 15.0V23.0M394.5 15.8V22.2M397.5 14.6V23.4M400.5 15.2V22.8M403.5 14.4V23.6M406.5 13.7V24.3M409.5 12.6V25.4M412.5 9.1V28.9M415.5 14.6V23.4M418.5 13.0V25.0M421.5 13.3V24.7M424.5 12.7V25.3M427.5 14.4V23.6M430.5 11.0V27.0M433.5 10.2V27.8M436.5 5.5V32.5M439.5 11.7V26.3M442.5 11.8V26.2M445.5 11.4V26.6M448.5 13.9V24.1M451.5 13.6V24.4M454.5 11.3V26.7M457.5 8.0V30.0M460.5 10.1V27.9M463.5 12.6V25.4M466.5 12.6V25.4M469.5 13.6V24.4M472.5 13.6V24.4M475.5 13.5V24.5M478.5 12.8V25.2M481.5 9.6V28.4M484.5 10.3V27.7M487.5 15.6V22.4M490.5 15.7V22.3M493.5 14.5V23.5M496.5 15.2V22.8M499.5 14.3V23.7M502.5 13.8V24.2M505.5 11.0V27.0M508.5 12.4V25.6M511.5 13.6V24.4M514.5 12.7V25.3M517.5 12.2V25.8M520.5 13.7V24.3M523.5 13.1V24.9M526.5 14.1V23.9M529.5 8.8V29.2M532.5 11.6V26.4M535.5 12.7V25.3M538.5 12.4V25.6M541.5 11.0V27.0M544.5 13.5V24.5M547.5 11.4V26.6M550.5 12.7V25.3M553.5 6.5V31.5M556.5 7.6V30.4M559.5 14.0V24.0M562.5 12.1V25.9M565.5 12.4V25.6M568.5 13.5V24.5M571.5 14.1V23.9M574.5 14.7V23.3M577.5 9.8V28.2M580.5 8.5V29.5M583.5 14.0V24.0M586.5 15.2V22.8M589.5 15.6V22.4M592.5 15.5V22.5M595.5 14.8V23.2M598.5 15.9V22.1M601.5 12.3V25.7M604.5 13.7V24.3M607.5 14.2V23.8M610.5 15.0V23.0M613.5 14.3V23.7M616.5 12.5V25.5M619.5 13.7V24.3M622.5 12.7V25.3M625.5 10.2V27.8M628.5 8.4V29.6M631.5 12.8V25.2M634.5 12.8V25.2M637.5 13.3V24.7M640.5 13.7V24.3M643.5 12.2V25.8M646.5 11.4V26.6M649.5 10.4V27.6M652.5 10.8V27.2M655.5 12.5V25.5M658.5 11.1V26.9M661.5 12.5V25.5M664.5 11.3V26.7M667.5 12.0V26.0M670.5 14.0V24.0M673.5 10.6V27.4M676.5 12.0V26.0M679.5 13.3V24.7M682.5 14.5V23.5M685.5 14.1V23.9M688.5 12.6V25.4M691.5 15.5V22.5M694.5 15.5V22.5M697.5 10.3V27.7M700.5 13.5V24.5M703.5 14.9V23.1M706.5 14.1V23.9M709.5 15.5V22.5M712.5 14.7V23.3" stroke="#4A9BFF" stroke-width="2" stroke-linecap="round" fill="none"></path><rect x="0" y="0" width="357" height="38" fill="rgba(10,10,13,0.45)"></rect></svg>
+<div style="position:absolute;left:368px;top:8px;width:2px;height:80px;background:#FFFFFF;box-shadow:0 0 8px rgba(255,255,255,0.7);"></div>
+</div>
+
+<div style="flex:1 1 0;display:flex;gap:12px;min-height:0;">
+
+<div class="glass" style="width:280px;flex:none;border-radius:24px;padding:10px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;border-color:rgba(242,163,58,0.5);">
+<div style="height:18px;display:flex;align-items:center;gap:6px;font-size:12px;"><span style="font-weight:800;color:#F2A33A;">A</span><span style="font-weight:600;flex:1 1 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">African Vibe</span><span class="mono" style="color:#F2A33A;font-weight:700;">116.0</span></div>
+<div style="display:flex;gap:10px;align-items:center;">
+<svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Jog wheel A"><circle cx="70" cy="70" r="67" fill="rgba(0,0,0,0.5)" stroke="#F2A33A" stroke-width="3"></circle><circle cx="70" cy="70" r="54" fill="#0E0E12" stroke="rgba(255,255,255,0.1)" stroke-width="1"></circle><line x1="70" y1="20" x2="70" y2="30" stroke="#F2A33A" stroke-width="3" stroke-linecap="round" transform="rotate(64 70 70)"></line><text x="70" y="70" text-anchor="middle" fill="#F5F5F7" font-size="20" font-weight="700" font-family="SF Mono, ui-monospace, Menlo, monospace">1:12</text><text x="70" y="88" text-anchor="middle" fill="rgba(235,235,245,0.6)" font-size="11" font-family="SF Mono, ui-monospace, Menlo, monospace">−2:48</text></svg>
+<div style="flex:1 1 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">
+<button style="height:52px;border-radius:14px;border:0;background:#F2A33A;color:#161008;font-size:12px;font-weight:700;">Intro</button>
+<button style="height:52px;border-radius:14px;border:0;background:#F26B6B;color:#161008;font-size:12px;font-weight:700;">Verse</button>
+<button style="height:52px;border-radius:14px;border:0;background:#B98AF7;color:#161008;font-size:12px;font-weight:700;">Drop</button>
+<button style="height:52px;border-radius:14px;border:0;background:#5AA8FF;color:#161008;font-size:12px;font-weight:700;">Break</button>
+</div>
+</div>
+<div style="flex:1 1 0;display:flex;gap:6px;">
+<button style="flex:1 1 0;border-radius:14px;border:0;background:rgba(255,255,255,0.09);font-size:13px;font-weight:700;">CUE</button>
+<button style="flex:1.3 1 0;border-radius:14px;border:0;background:#F2A33A;color:#1A1204;font-size:14px;font-weight:700;">Pause</button>
+<button style="flex:1 1 0;border-radius:14px;border:0;background:rgba(255,255,255,0.09);font-size:13px;font-weight:700;">SYNC</button>
+</div>
+</div>
+
+<div class="glass" style="flex:1 1 0;border-radius:24px;padding:10px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;">
+
+<div style="height:42px;display:flex;align-items:center;justify-content:space-between;">
+<svg width="38" height="38" viewBox="0 0 38 38" role="img" aria-label="A HI"><path d="M8.39 29.61A15 15 0 1 1 29.61 29.61" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3" stroke-linecap="round"></path><path d="M19.00 4.00A15 15 0 0 1 19.26 4.00" fill="none" stroke="#F2A33A" stroke-width="3" stroke-linecap="round"></path><circle cx="19" cy="19" r="10" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="19" y1="19" x2="19.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"></line></svg>
+<span style="font-size:10px;font-weight:700;letter-spacing:0.4px;color:rgba(235,235,245,0.72);">HI</span>
+<svg width="38" height="38" viewBox="0 0 38 38" role="img" aria-label="B HI"><path d="M8.39 29.61A15 15 0 1 1 29.61 29.61" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3" stroke-linecap="round"></path><path d="M19.00 4.00A15 15 0 0 1 19.26 4.00" fill="none" stroke="#4A9BFF" stroke-width="3" stroke-linecap="round"></path><circle cx="19" cy="19" r="10" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="19" y1="19" x2="19.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"></line></svg>
+</div>
+
+<div style="height:42px;display:flex;align-items:center;justify-content:space-between;">
+<svg width="38" height="38" viewBox="0 0 38 38" role="img" aria-label="A MID"><path d="M8.39 29.61A15 15 0 1 1 29.61 29.61" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3" stroke-linecap="round"></path><path d="M19.00 4.00A15 15 0 0 1 19.26 4.00" fill="none" stroke="#F2A33A" stroke-width="3" stroke-linecap="round"></path><circle cx="19" cy="19" r="10" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="19" y1="19" x2="19.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"></line></svg>
+<span style="font-size:10px;font-weight:700;letter-spacing:0.4px;color:rgba(235,235,245,0.72);">MID</span>
+<svg width="38" height="38" viewBox="0 0 38 38" role="img" aria-label="B MID"><path d="M8.39 29.61A15 15 0 1 1 29.61 29.61" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3" stroke-linecap="round"></path><path d="M19.00 4.00A15 15 0 0 1 19.26 4.00" fill="none" stroke="#4A9BFF" stroke-width="3" stroke-linecap="round"></path><circle cx="19" cy="19" r="10" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="19" y1="19" x2="19.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"></line></svg>
+</div>
+
+<div style="height:42px;display:flex;align-items:center;justify-content:space-between;">
+<svg width="38" height="38" viewBox="0 0 38 38" role="img" aria-label="A LOW"><path d="M8.39 29.61A15 15 0 1 1 29.61 29.61" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3" stroke-linecap="round"></path><path d="M19.00 4.00A15 15 0 0 1 19.26 4.00" fill="none" stroke="#F2A33A" stroke-width="3" stroke-linecap="round"></path><circle cx="19" cy="19" r="10" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="19" y1="19" x2="19.0" y2="10.0" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"></line></svg>
+<span style="font-size:10px;font-weight:700;letter-spacing:0.4px;color:rgba(235,235,245,0.72);">LOW</span>
+<svg width="38" height="38" viewBox="0 0 38 38" role="img" aria-label="B LOW"><path d="M8.39 29.61A15 15 0 1 1 29.61 29.61" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3" stroke-linecap="round"></path><path d="M19.00 4.00A15 15 0 0 1 27.63 6.73" fill="none" stroke="#4A9BFF" stroke-width="3" stroke-linecap="round"></path><circle cx="19" cy="19" r="10" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1"></circle><line x1="19" y1="19" x2="24.2" y2="11.6" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"></line></svg>
+</div>
+
+<div style="display:flex;gap:6px;">
+<button aria-pressed="false" style="flex:1 1 0;height:32px;border-radius:12px;border:0;background:rgba(255,255,255,0.09);font-size:11px;font-weight:700;">CUE A</button>
+<button aria-pressed="true" style="flex:1 1 0;height:32px;border-radius:12px;border:1px solid rgba(74,155,255,0.8);background:rgba(74,155,255,0.22);color:#CFE3FF;font-size:11px;font-weight:700;">CUE B</button>
+</div>
+<div style="flex:1 1 0;"></div>
+<div style="height:30px;position:relative;" aria-label="Crossfader">
+<div style="position:absolute;left:0;right:0;top:13px;height:4px;border-radius:2px;background:rgba(255,255,255,0.16);"></div>
+<div style="position:absolute;left:calc(50% - 1px);top:7px;width:2px;height:16px;background:rgba(255,255,255,0.3);"></div>
+<div style="position:absolute;left:0;top:0;width:40px;height:30px;border-radius:15px;background:rgba(255,255,255,0.94);box-shadow:0 3px 10px rgba(0,0,0,0.45);"></div>
+</div>
+</div>
+
+<div class="glass" style="width:280px;flex:none;border-radius:24px;padding:10px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;border-color:rgba(74,155,255,0.5);">
+<div style="height:18px;display:flex;align-items:center;gap:6px;font-size:12px;"><span style="font-weight:800;color:#4A9BFF;">B</span><span style="font-weight:600;flex:1 1 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">SIELEWI</span><span class="mono" style="color:#4A9BFF;font-weight:700;">116.0</span></div>
+<div style="display:flex;gap:10px;align-items:center;">
+<div style="flex:1 1 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">
+<button style="height:52px;border-radius:14px;border:0;background:#F2A33A;color:#161008;font-size:12px;font-weight:700;">Intro</button>
+<button style="height:52px;border-radius:14px;border:0;background:#F26B6B;color:#161008;font-size:12px;font-weight:700;">Vox</button>
+<button style="height:52px;border-radius:14px;border:1.5px dashed rgba(185,138,247,0.6);background:transparent;color:#B98AF7;font-size:12px;font-weight:700;">3</button>
+<button style="height:52px;border-radius:14px;border:1.5px dashed rgba(90,168,255,0.6);background:transparent;color:#5AA8FF;font-size:12px;font-weight:700;">4</button>
+</div>
+<svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Jog wheel B"><circle cx="70" cy="70" r="67" fill="rgba(0,0,0,0.5)" stroke="#4A9BFF" stroke-width="3"></circle><circle cx="70" cy="70" r="54" fill="#0E0E12" stroke="rgba(255,255,255,0.1)" stroke-width="1"></circle><line x1="70" y1="20" x2="70" y2="30" stroke="#4A9BFF" stroke-width="3" stroke-linecap="round"></line><text x="70" y="70" text-anchor="middle" fill="#F5F5F7" font-size="20" font-weight="700" font-family="SF Mono, ui-monospace, Menlo, monospace">0:00</text><text x="70" y="88" text-anchor="middle" fill="rgba(235,235,245,0.6)" font-size="11" font-family="SF Mono, ui-monospace, Menlo, monospace">−4:05</text></svg>
+</div>
+<div style="flex:1 1 0;display:flex;gap:6px;">
+<button style="flex:1 1 0;border-radius:14px;border:0;background:rgba(255,255,255,0.09);font-size:13px;font-weight:700;">CUE</button>
+<button style="flex:1.3 1 0;border-radius:14px;border:0;background:#4A9BFF;color:#04101F;font-size:14px;font-weight:700;">Play</button>
+<button aria-pressed="true" style="flex:1 1 0;border-radius:14px;border:1px solid rgba(74,155,255,0.8);background:rgba(74,155,255,0.22);color:#CFE3FF;font-size:13px;font-weight:700;">SYNC</button>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+</div>
+</figure>
+</div>
+</main>
+<script>
+document.querySelectorAll('.tab').forEach(function (tab) {
+  tab.addEventListener('click', function () {
+    var mode = tab.dataset.mode;
+    document.querySelectorAll('.tab').forEach(function (t) { t.setAttribute('aria-pressed', String(t === tab)); });
+    document.querySelectorAll('[data-page]').forEach(function (g) { g.style.display = g.dataset.page === mode ? 'grid' : 'none'; });
+  });
+});
+</script>
+</body>
+</html>

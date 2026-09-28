@@ -572,6 +572,10 @@ final class DJPerformanceModel: ObservableObject {
         }
     }
 
+    func shiftKey(_ id: DJDeckID, by amount: Int) {
+        shiftKeyInternal(id, by: amount)
+    }
+
     func toggleMasterTempo(_ id: DJDeckID) {
         let state = deck(id)
         state.masterTempo.toggle()
@@ -684,6 +688,29 @@ final class DJPerformanceModel: ObservableObject {
             if deck.padMode == .fx || deck.padMode == .beatFX { audio.disarmEchoOut(deck: id) }
             deck.padMode = .loop
         }
+    }
+
+    /// Starts or exits an automatically quantized loop from the Focus Deck
+    /// beat-loop page. The audio engine remains the source of truth for the
+    /// loop; this method only supplies the page-level interaction contract.
+    func autoLoop(_ id: DJDeckID, beats: Double) {
+        let state = deck(id)
+        guard state.row != nil, beats.isFinite, beats > 0, state.tempo > 0 else { return }
+        if state.loopActive {
+            audio.reloopExit(deck: id)
+            state.loopActive = false
+            state.loopExitPending = false
+            return
+        }
+        let start = quantizedPosition(state, state.position)
+        let end = min(state.duration, start + beats * 60 / state.tempo)
+        guard end > start else { return }
+        state.loopIn = start
+        state.loopOut = end
+        state.loopActive = true
+        state.loopExitPending = false
+        audio.setLoop(deck: id, start: start, end: end, active: true)
+        saveMarkings(state)
     }
 
     func echoPad(_ value: Double, deck id: DJDeckID, pressed: Bool) {
@@ -861,8 +888,15 @@ final class DJPerformanceModel: ObservableObject {
         case .hotCue:
             guard (0..<8).contains(index) else { return }
             activateCue(index + 1, deck: id)
+        case .beatLoop:
+            guard DJPerformPages.autoLoopBeats.indices.contains(index) else { return }
+            autoLoop(id, beats: DJPerformPages.autoLoopBeats[index])
         case .loop:
             if index < 8 { loopPad(index, deck: id) }
+        case .beatJump:
+            guard DJPerformPages.beatJumpBeats.indices.contains(index) else { return }
+            let beats = DJPerformPages.beatJumpBeats[index]
+            beatJump(id, direction: beats / max(1, abs(beats)))
         case .fx:
             let beats = [0.25, 0.5, 1.0, 2.0]
             if index < 4 { echoPad(beats[index], deck: id, pressed: pressed) }
@@ -896,12 +930,12 @@ final class DJPerformanceModel: ObservableObject {
             }
         case .keyShift:
             switch index {
-            case 0: shiftKey(id, by: -1)
-            case 1: shiftKey(id, by: 1)
-            case 2: shiftKey(id, by: -2)
-            case 3: shiftKey(id, by: 2)
+            case 0: shiftKeyInternal(id, by: -1)
+            case 1: shiftKeyInternal(id, by: 1)
+            case 2: shiftKeyInternal(id, by: -2)
+            case 3: shiftKeyInternal(id, by: 2)
             case 4: toggleKeySync(id)
-            case 5: shiftKey(id, by: -deck.keyShiftSemitones)
+            case 5: shiftKeyInternal(id, by: -deck.keyShiftSemitones)
             case 6: toggleMasterTempo(id)
             case 7: doneTool(id)
             default: break
@@ -968,7 +1002,7 @@ final class DJPerformanceModel: ObservableObject {
         setBPMOverride(id, value: 60 / average)
     }
 
-    private func shiftKey(_ id: DJDeckID, by amount: Int) {
+    private func shiftKeyInternal(_ id: DJDeckID, by amount: Int) {
         deck(id).keyShiftSemitones = max(-12, min(12, deck(id).keyShiftSemitones + amount))
         audio.setPitchShift(deck: id, semitones: deck(id).keyShiftSemitones)
         saveGrid(deck(id))
@@ -1636,13 +1670,23 @@ struct DJView: View {
     private var model: DJPerformanceModel { appState.djPerformanceModel }
     @State private var loadTarget: DJDeckID?
     @State private var showHelp = false
+    @AppStorage("dj.surface") private var surface = "focus"
 
     var body: some View {
         VStack(spacing: 0) {
-            DJV2Surface(model: model, onBack: {
-                appState.isPerformanceSurfaceFullScreen = false
-                appState.tab = .listen
-            }, onInfo: { showHelp = true }, onLoad: { loadTarget = $0 }, onReanalyze: { reanalyze($0) })
+            Group {
+                if surface == "classic" {
+                    DJV2Surface(model: model, onBack: {
+                        appState.isPerformanceSurfaceFullScreen = false
+                        appState.tab = .listen
+                    }, onInfo: { showHelp = true }, onLoad: { loadTarget = $0 }, onReanalyze: { reanalyze($0) })
+                } else {
+                    DJFocusSurface(model: model, onBack: {
+                        appState.isPerformanceSurfaceFullScreen = false
+                        appState.tab = .listen
+                    }, onInfo: { showHelp = true }, onLoad: { loadTarget = $0 }, onReanalyze: { reanalyze($0) })
+                }
+            }
         }
         // Keep the top safe area owned by SwiftUI so the iPhone's Dynamic
         // Island/notch cannot cover the back button. The DJ surface still
@@ -1661,8 +1705,8 @@ struct DJView: View {
                         tracks: modelTracks,
                         playlists: appState.playlists,
                         store: appState.store,
-                        onLoad: { row in
-                model.load(row, into: deck,
+                        onLoad: { target, row in
+                model.load(row, into: target,
                            resolve: { row in try await appState.djPlayableURL(for: row) },
                            requestIndex: { trackID in
                                await DiscoveryRuntimeController.shared.analyzeTrack(trackID)
@@ -2425,7 +2469,7 @@ private struct DJWaveform: View {
     }
 }
 
-private struct WaveformCanvas: View {
+struct WaveformCanvas: View {
     let bins: [WaveformBin]
     let position: Double
     let duration: Double
@@ -2437,6 +2481,7 @@ private struct WaveformCanvas: View {
 
     var body: some View {
         Canvas { context, size in
+            guard !bins.isEmpty else { return }
             let count = max(1, bins.count)
             let mid = size.height * 0.48
             let secondsPerBin = duration > 0 ? duration / Double(count) : displayWindowSeconds
@@ -2506,7 +2551,7 @@ private struct WaveformCanvas: View {
     }
 }
 
-private struct MiniMap: View {
+struct MiniMap: View {
     let bins: [WaveformBin]
     let position: Double
     let duration: Double
@@ -2515,6 +2560,7 @@ private struct MiniMap: View {
 
     var body: some View {
         Canvas { context, size in
+            guard !bins.isEmpty else { return }
             // The source overview has 2048 bins. A phone-width minimap cannot
             // display that many independent strokes; cap the redraw to 512
             // samples so playhead updates do not repeatedly rasterize a full
@@ -2650,7 +2696,7 @@ private struct DJLoadSheet: View {
     let tracks: [TrackRow]
     let playlists: [Playlist]
     let store: LibraryStore
-    let onLoad: (TrackRow) -> Void
+    let onLoad: (DJDeckID, TrackRow) -> Void
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var player: AudioPlayer
     @Environment(\.dismiss) private var dismiss
@@ -2666,10 +2712,36 @@ private struct DJLoadSheet: View {
     @State private var playlistTracks: [TrackRow] = []
     @State private var selectedLibraryEntry: LibraryBrowse.Entry?
     @State private var isLoadingPlaylist = false
+    @State private var targetDeck: DJDeckID
+
+    init(deck: DJDeckID, tracks: [TrackRow], playlists: [Playlist], store: LibraryStore,
+         onLoad: @escaping (DJDeckID, TrackRow) -> Void) {
+        self.deck = deck
+        self.tracks = tracks
+        self.playlists = playlists
+        self.store = store
+        self.onLoad = onLoad
+        _targetDeck = State(initialValue: deck)
+    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                HStack {
+                    Picker("Load target", selection: $targetDeck) {
+                        Text("A").tag(DJDeckID.a)
+                        Text("B").tag(DJDeckID.b)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 110)
+                    .accessibilityIdentifier("dj.load.target")
+                    Spacer()
+                    Text("Load to Deck \(targetDeck.rawValue)")
+                        .font(.headline)
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+
                 Picker("Search mode", selection: $inputMode) {
                     Text("Metadata").tag(DiscoverySearchInputMode.metadata)
                     Text("Mood / sound").tag(DiscoverySearchInputMode.findBySound)
@@ -2808,7 +2880,7 @@ private struct DJLoadSheet: View {
                     ForEach(section.entries) { entry in
                         Button {
                             if entry.kind == .song, let row = entry.rows.first {
-                                onLoad(row)
+                                onLoad(targetDeck, row)
                             } else {
                                 selectedLibraryEntry = entry
                                 query = ""
@@ -2946,10 +3018,20 @@ private struct DJLoadSheet: View {
     }
 
     private func trackList(_ rows: [TrackRow]) -> some View {
-        List(rows) { row in
-            Button { onLoad(row) } label: {
-                DJLoadTrackRow(row: row, info: infoByTrackID[row.id], subtitle: trackSubtitle(row))
-            }
+        let requiresHold = appState.djPerformanceModel.deckIsOnAir(targetDeck)
+        return List(rows) { row in
+            let rowView = DJLoadTrackRow(row: row, info: infoByTrackID[row.id], subtitle: trackSubtitle(row),
+                                         compatibility: compatibility(for: infoByTrackID[row.id]),
+                                         requiresHold: requiresHold)
+            Button {
+                if !requiresHold { onLoad(targetDeck, row) }
+            } label: { rowView }
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 1)
+                    .onEnded { _ in
+                        if requiresHold { onLoad(targetDeck, row) }
+                    }
+            )
             .accessibilityIdentifier("dj.load.track.\(row.id)")
         }
         .overlay {
@@ -2994,12 +3076,32 @@ private struct DJLoadSheet: View {
         guard let album = row.album?.title, !album.isEmpty else { return artist }
         return "\(artist) · \(album)"
     }
+
+    private func compatibility(for info: DJLoadTrackInfo?) -> String? {
+        guard let info else { return nil }
+        let other = targetDeck == .a ? appState.djPerformanceModel.deckB : appState.djPerformanceModel.deckA
+        var badges: [String] = []
+        if let targetKey = other.key,
+           let reference = CamelotKey(code: targetKey),
+           let candidate = info.camelotKey.flatMap(CamelotKey.init(code:)),
+           MusicalMatchPolicy.compatibleKeys(for: reference).contains(candidate) {
+            badges.append("Key match")
+        }
+        if let targetBPM = other.bpm, let candidateBPM = info.bpm,
+           let ratio = MusicalMatchPolicy.bpmDifferenceRatio(candidate: candidateBPM, reference: targetBPM),
+           ratio <= 0.02 {
+            badges.append("±2%")
+        }
+        return badges.isEmpty ? nil : badges.joined(separator: " · ")
+    }
 }
 
 private struct DJLoadTrackRow: View {
     let row: TrackRow
     let info: DJLoadTrackInfo?
     let subtitle: String
+    let compatibility: String?
+    let requiresHold: Bool
 
     var body: some View {
         HStack(spacing: 10) {
@@ -3017,10 +3119,22 @@ private struct DJLoadTrackRow: View {
                 }
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(Palette.brass)
+                if let compatibility {
+                    Text(compatibility)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.green)
+                }
             }
             Spacer(minLength: 4)
-            Image(systemName: "arrow.down.to.line.compact")
-                .foregroundStyle(Palette.brass)
+            VStack(alignment: .trailing, spacing: 4) {
+                Image(systemName: requiresHold ? "hand.tap" : "arrow.down.to.line.compact")
+                    .foregroundStyle(Palette.brass)
+                if requiresHold {
+                    Text("Hold to replace")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Palette.danger)
+                }
+            }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)

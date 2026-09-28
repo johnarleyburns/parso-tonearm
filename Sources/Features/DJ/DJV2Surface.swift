@@ -630,10 +630,12 @@ private struct DJV2Pad: View {
     private var label: (title: String, second: String?) {
         switch deck.padMode {
         case .hotCue: return ("\(index + 1)", nil)
+        case .beatLoop: return (DJPerformPages.padLabel(mode: .beatLoop, index: index, state: DJPadLabelState(activeLoopBeats: deck.loopActive ? deck.loopOut.flatMap { out in deck.loopIn.map { max(0, (out - $0) * deck.tempo / 60) } } : nil)).title, "beats")
         case .loop: return (index == 0 ? "IN" : index == 1 ? "OUT" : index == 2 ? "SET \(model.loopLengthLabel(deck.id))" : index == 3 ? (deck.loopActive ? "EXIT" : "ENTER") : index == 4 ? "½×" : index == 5 ? "2×" : index == 6 ? "◀ \(model.loopLengthLabel(deck.id))" : "\(model.loopLengthLabel(deck.id)) ▶", index == 3 && deck.loopExitPending ? "NEXT PASS" : nil)
         case .fx: return (index < 4 ? ["¼", "½", "1", "2"][index] : index == 4 ? "ECHO OUT" : index == 5 ? "ROLL" : index == 6 ? "REVERB" : "BRAKE", "")
         case .mix: return (index == 0 ? "A TRIM" : index == 1 ? "B TRIM" : index == 2 ? "AUTO GAIN" : index == 3 ? "REC" : index == 4 ? "ISO LOW" : index == 5 ? "ISO MID" : index == 6 ? "ISO HI" : "FLAT", "")
         case .beatFX: return (index == 0 ? "TYPE" : index == 1 ? "◀ BEAT" : index == 2 ? "BEAT ▶" : index == 3 ? "ON" : index == 4 ? "CH A" : index == 5 ? "CH B" : index == 6 ? "MASTER" : "LEVEL", "")
+        case .beatJump: return (DJPerformPages.padLabel(mode: .beatJump, index: index, state: DJPadLabelState()).title, DJPerformPages.padLabel(mode: .beatJump, index: index, state: DJPadLabelState()).caption)
         case .keyShift: return (["♭ −1", "♯ +1", "♭♭ −2", "♯♯ +2", "KEY SYNC", "RESET", "MT", "DONE"][index], "")
         case .grid: return (["◀ GRID", "▶ GRID", "1.1 HERE", "TAP", "BPM ÷2", "BPM ×2", "RESET", "DONE"][index], "")
         case .echo: return ("ECHO", "")
