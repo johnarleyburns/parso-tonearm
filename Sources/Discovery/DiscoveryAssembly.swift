@@ -195,6 +195,10 @@ public actor DiscoveryAssembly {
         RemoteSparseAssetResolver.sweepStaleEphemeralDirectories()
         let staleLeases = try await jobs.recoverStaleLeasesAtLaunch()
         let interruptedImports = try await importJobs.recoverInterruptedAtLaunch()
+        // Migrate pre-v22 remote assets before eligibility reconciliation. This
+        // gives older/onboarded rows the provider node reference needed for
+        // remote sampling and the mandatory BPM/key analysis stage.
+        _ = await reconciler.backfillRemoteNodeReferences()
         // Before creating any new jobs, drop existing ones for tracks that
         // are not (and were never) eligible under the "downloaded/on-device
         // only" rule below — otherwise an install from before this change

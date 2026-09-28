@@ -121,6 +121,38 @@ public actor IndexJobRepository {
         }
     }
 
+    /// Re-queue only musical analysis after an algorithm/version migration.
+    /// Completed embeddings remain valid and are deliberately preserved.
+    @discardableResult
+    public func requeueMusicalAnalysis(
+        trackId: Int64,
+        selectedAssetId: Int64?,
+        assetRevision: Int64?,
+        pipelineVersion: Int
+    ) throws -> DiscoveryIndexJob? {
+        try writer.write { db in
+            guard var job = try DiscoveryIndexJob
+                .filter(Column("trackId") == trackId)
+                .filter(Column("pipelineVersion") == pipelineVersion)
+                .fetchOne(db)
+            else { return nil }
+
+            job.selectedAssetId = selectedAssetId
+            job.assetRevision = assetRevision
+            job.musicalAnalysisStageState = .pending
+            job.state = .queued
+            job.nextAttemptAt = nil
+            job.attemptCount = 0
+            job.leaseToken = nil
+            job.leaseExpiresAt = nil
+            job.errorCode = nil
+            job.errorMessage = nil
+            job.updatedAt = self.clock()
+            try job.update(db)
+            return job
+        }
+    }
+
     /// A claimed job plus the lease token the caller must present back for
     /// every subsequent mutation of this job.
     public struct Claim: Equatable, Sendable {

@@ -30,7 +30,9 @@ public enum DiscoveryPipelineVersion {
 
     /// BPM/key/energy musical analysis scope/algorithm version, checkpointed
     /// independently of the embedding stage (plan §6).
-    public static let musicalAnalysis = 1
+    /// Bumped when BPM/key became mandatory indexed output and old analysis
+    /// rows began being migrated by startup reconciliation.
+    public static let musicalAnalysis = 2
 }
 
 /// Fixed v1 sampling policy (plan §6): "at most 12 windows, evenly

@@ -39,10 +39,11 @@ public actor DiscoveryReconciler {
         self.remoteIndexingEnabled = remoteIndexingEnabled
     }
 
-    /// Bootstrap every existing core track that has no job yet for the
-    /// current pipeline version, in ascending-id keyset pages of 200. Safe
-    /// to call repeatedly (idempotent: `enqueueOrRestart` is a no-op for a
-    /// track that already has a job). A track whose assets are all
+    /// Bootstrap every existing core track that has no job yet, or whose
+    /// musical-analysis result is absent/stale, for the current pipeline
+    /// version, in ascending-id keyset pages of 200. Safe to call repeatedly:
+    /// current completed analysis is left untouched, while an old job is
+    /// re-queued for the musical stage only. A track whose assets are all
     /// remote/cloud (never downloaded) is skipped entirely — see
     /// `assetSelection` — so it never occupies a permanent `waitingForAsset`
     /// slot; it becomes eligible on its own the next time this runs, the
@@ -57,12 +58,36 @@ public actor DiscoveryReconciler {
             for trackId in page {
                 let selection = try await assetSelection(trackId: trackId)
                 guard selection.eligible else { continue }
-                try await jobs.enqueueOrRestart(
-                    trackId: trackId,
-                    selectedAssetId: selection.assetId,
-                    assetRevision: selection.assetId == nil ? nil : 1,
-                    pipelineVersion: pipelineVersion)
-                enqueued += 1
+                let revision = selection.assetId == nil ? nil : Int64(1)
+                if let existing = try await jobs.job(trackId: trackId, pipelineVersion: pipelineVersion) {
+                    guard existing.musicalAnalysisStageState != .pending else { continue }
+                    if existing.selectedAssetId == selection.assetId,
+                       (existing.embeddingStageState == .complete
+                        || existing.embeddingStageState == .unsupported),
+                       let requeued = try await jobs.requeueMusicalAnalysis(
+                           trackId: trackId, selectedAssetId: selection.assetId,
+                           assetRevision: existing.assetRevision ?? revision,
+                           pipelineVersion: pipelineVersion),
+                       requeued.state == .queued {
+                        enqueued += 1
+                    } else {
+                        // A different preferred asset is a content revision,
+                        // so the embedding and musical stages must restart
+                        // together rather than preserving an old vector.
+                        try await jobs.enqueueOrRestart(
+                            trackId: trackId, selectedAssetId: selection.assetId,
+                            assetRevision: revision, pipelineVersion: pipelineVersion,
+                            restart: true)
+                        enqueued += 1
+                    }
+                } else {
+                    try await jobs.enqueueOrRestart(
+                        trackId: trackId,
+                        selectedAssetId: selection.assetId,
+                        assetRevision: revision,
+                        pipelineVersion: pipelineVersion)
+                    enqueued += 1
+                }
             }
             lastID = page.last!
             if page.count < Self.bootstrapPageSize { break }
@@ -146,9 +171,9 @@ public actor DiscoveryReconciler {
         return pruned
     }
 
-    /// One page of trackIds with `id > afterId` that do not yet have a job
-    /// for `pipelineVersion`, using indexed keyset pagination (no OFFSET
-    /// scan). The preferred asset is resolved per track by `preferredAssetId`.
+    /// One page of track IDs with `id > afterId` that do not yet have a job or
+    /// do not have current, successful musical analysis. This lets a version
+    /// migration converge through the same bounded startup path.
     private func pageOfTracksNeedingJobs(afterId: Int64) async throws -> [Int64] {
         try await writer.read { db in
             try Int64.fetchAll(
@@ -157,14 +182,32 @@ public actor DiscoveryReconciler {
                     SELECT t.id
                     FROM track t
                     WHERE t.id > ?
-                      AND NOT EXISTS (
-                          SELECT 1 FROM discovery_index_job j
-                          WHERE j.trackId = t.id AND j.pipelineVersion = ?
+                      AND (
+                          NOT EXISTS (
+                              SELECT 1 FROM discovery_index_job j
+                              WHERE j.trackId = t.id AND j.pipelineVersion = ?
+                          )
+                          OR EXISTS (
+                              SELECT 1
+                              FROM discovery_index_job j
+                              LEFT JOIN discovery_track_analysis a ON a.trackId = t.id
+                              WHERE j.trackId = t.id
+                                AND j.pipelineVersion = ?
+                                AND (
+                                    j.musicalAnalysisStageState != 'complete'
+                                    OR a.trackId IS NULL
+                                    OR a.analysisVersion != ?
+                                    OR a.assetId IS NOT j.selectedAssetId
+                                    OR a.assetRevision IS NOT COALESCE(j.assetRevision, 1)
+                                )
+                          )
                       )
                     ORDER BY t.id
                     LIMIT ?
                     """,
-                arguments: [afterId, pipelineVersion, DiscoveryReconciler.bootstrapPageSize])
+                arguments: [afterId, pipelineVersion, pipelineVersion,
+                            DiscoveryPipelineVersion.musicalAnalysis,
+                            DiscoveryReconciler.bootstrapPageSize])
         }
     }
 

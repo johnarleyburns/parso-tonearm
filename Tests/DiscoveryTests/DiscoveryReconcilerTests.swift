@@ -69,6 +69,34 @@ final class DiscoveryReconcilerTests: XCTestCase {
         XCTAssertEqual(second, 0, "re-running bootstrap must not duplicate jobs")
     }
 
+    func testBootstrapMigratesMissingMusicalAnalysisWithoutResettingEmbedding() async throws {
+        let queue = try makeQueue()
+        let trackID = try await insertTrack(queue, title: "Needs BPM and key")
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(
+            writer: queue, jobs: repo, pipelineVersion: DiscoveryPipelineVersion.pipeline)
+        _ = try await reconciler.bootstrapAllTracks()
+
+        try await queue.write { db in
+            try db.execute(
+                sql: """
+                    UPDATE discovery_index_job
+                    SET state = 'complete', embeddingStageState = 'complete',
+                        musicalAnalysisStageState = 'unsupported'
+                    WHERE trackId = ?
+                    """, arguments: [trackID])
+        }
+
+        let migrated = try await reconciler.bootstrapAllTracks()
+        XCTAssertEqual(migrated, 1)
+        let loadedJob = try await repo.job(
+            trackId: trackID, pipelineVersion: DiscoveryPipelineVersion.pipeline)
+        let job = try XCTUnwrap(loadedJob)
+        XCTAssertEqual(job.state, .queued)
+        XCTAssertEqual(job.embeddingStageState, .complete)
+        XCTAssertEqual(job.musicalAnalysisStageState, .pending)
+    }
+
     func testTrackInsertedChangeCreatesJobAndDrainsOutbox() async throws {
         let queue = try makeQueue()
         // The v19 `discovery_change_track_inserted` trigger already wrote the

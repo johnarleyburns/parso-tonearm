@@ -309,13 +309,23 @@ final class DJPerformanceModel: ObservableObject {
                 let cachedTrackAnalysis = cachedAnalysis
                 let cachedSourceFrameCount = prep?.sourceFrameCount
                 let prepared = try await Task.detached(priority: .userInitiated) {
-                    if let bookmark = sourceBookmark {
-                        guard let prepared = try BookmarkVault.withAccess(bookmark, {
-                            try DJAudioBacker.prepare(url: $0, codec: sourceCodec,
-                                                      cachedAnalysis: cachedTrackAnalysis,
-                                                      cachedFrameCount: cachedSourceFrameCount)
-                        }) else { throw DJAudioError.unavailable }
-                        return prepared
+                    if let bookmark = sourceBookmark,
+                       let bookmarkURL = BookmarkVault.resolve(bookmark)?.url,
+                       DJLoadSourcePolicy.shouldUseBookmark(bookmarkURL: bookmarkURL,
+                                                            sourceURL: sourceURL) {
+                        do {
+                            if let prepared = try BookmarkVault.withAccess(bookmark, { _ in
+                                try DJAudioBacker.prepare(url: sourceURL, codec: sourceCodec,
+                                                          cachedAnalysis: cachedTrackAnalysis,
+                                                          cachedFrameCount: cachedSourceFrameCount)
+                            }) {
+                                return prepared
+                            }
+                        } catch {
+                            // The resolver already verified sourceURL. If the
+                            // bookmark scope cannot be reopened, prepare that
+                            // verified URL directly instead of failing a valid load.
+                        }
                     }
                     return try DJAudioBacker.prepare(url: sourceURL, codec: sourceCodec,
                                                      cachedAnalysis: cachedTrackAnalysis,
@@ -1577,7 +1587,6 @@ private extension DJTrackPrepPayload {
     }
 }
 
-private enum DJAudioError: Error { case unavailable }
 
 private final class DJMasterOutputRouter: RealtimeInsert {
     private let mode: DJOutputMode
