@@ -18,12 +18,26 @@ public struct DJTrackPrepPayload: Codable, Equatable, Sendable {
         public var camelot: String
         public var openKey: String
         public var confidence: Double
+
+        public init(tonic: Int, mode: String, camelot: String, openKey: String, confidence: Double) {
+            self.tonic = tonic
+            self.mode = mode
+            self.camelot = camelot
+            self.openKey = openKey
+            self.confidence = confidence
+        }
     }
 
     public struct Section: Codable, Equatable, Sendable {
         public var start: Double
         public var kind: String
         public var bar: Int
+
+        public init(start: Double, kind: String, bar: Int) {
+            self.start = start
+            self.kind = kind
+            self.bar = bar
+        }
     }
 
     public struct WaveformBin: Codable, Equatable, Sendable {
@@ -31,6 +45,13 @@ public struct DJTrackPrepPayload: Codable, Equatable, Sendable {
         public var max: Float
         public var rms: Float
         public var bandRMS: [Float]
+
+        public init(min: Float, max: Float, rms: Float, bandRMS: [Float]) {
+            self.min = min
+            self.max = max
+            self.rms = rms
+            self.bandRMS = bandRMS
+        }
     }
 
     public var version: Int

@@ -244,7 +244,7 @@ final class DJPerformanceModel: ObservableObject {
                         deck.waveform = payload.waveform.map {
                             WaveformBin(min: $0.min, max: $0.max, rms: $0.rms, bandRMS: $0.bandRMS)
                         }
-                        self.loadPhases[id] = .decoding
+                        self?.loadPhases[id] = .decoding
                     }
                 }
                 // Resolution may download a remote asset into the local cache.
@@ -576,9 +576,9 @@ final class DJPerformanceModel: ObservableObject {
 
     private func saveMarkings(_ deck: DJDeckState) {
         guard let id = deck.row?.id, id >= 0 else { return }
-        let markings = DJMarkings(hotCues: deck.hotCues, cuePointSeconds: deck.cuePoint,
-                                  loopInSeconds: deck.loopIn, loopOutSeconds: deck.loopOut,
-                                  hotCueColors: deck.hotCueColors, hotLoops: deck.hotLoops)
+        let markings = DJMarkings(hotCues: deck.hotCues, hotCueColors: deck.hotCueColors,
+                                  hotLoops: deck.hotLoops, cuePointSeconds: deck.cuePoint,
+                                  loopInSeconds: deck.loopIn, loopOutSeconds: deck.loopOut)
         Task { try? await store.saveDJMarkings(markings, trackId: id) }
         Task { await CloudSyncEngine.shared.enqueueDJTrackPrep(trackId: id) }
     }
@@ -1328,7 +1328,7 @@ private extension DJTrackPrepPayload {
     }
 
     func trackAnalysis() -> TrackAnalysis {
-        let kind: (String) -> Section.Kind = { raw in
+        let kind: (String) -> ParsoAudioAnalysis.Section.Kind = { raw in
             switch raw {
             case "intro": return .intro
             case "buildup": return .buildup
@@ -1358,7 +1358,7 @@ private extension DJTrackPrepPayload {
                            mode: key.mode == "minor" ? .minor : .major,
                            camelot: key.camelot, openKey: key.openKey,
                            confidence: key.confidence),
-            sections: sections.map { Section(start: $0.start, kind: kind($0.kind), bar: $0.bar) },
+            sections: sections.map { ParsoAudioAnalysis.Section(start: $0.start, kind: kind($0.kind), bar: $0.bar) },
             waveform: Waveform(overviewMinMax: bins, detailRMS: rms,
                                bandEnergy: bands),
             loudness: LoudnessResult(integratedLUFS: loud[0], truePeakDBTP: loud[1],
@@ -2418,7 +2418,7 @@ private struct DJLoadSheet: View {
             VStack(spacing: 0) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(LibraryScope.allCases) { value in
+                        ForEach(DJLoadLibraryScope.allCases) { value in
                             Button {
                                 scope = value
                                 selectedPlaylist = nil

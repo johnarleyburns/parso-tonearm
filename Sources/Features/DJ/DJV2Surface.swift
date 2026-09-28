@@ -1,4 +1,6 @@
 import SwiftUI
+import ParsoAudioAnalysis
+import TonearmCore
 
 struct DJV2Surface: View {
     @ObservedObject var model: DJPerformanceModel
