@@ -7,6 +7,12 @@ struct GlassDock: View {
 
     var body: some View {
         VStack(spacing: 9) {
+            if appState.tab != .dj, hasDJTrack {
+                DJMiniPlayer(model: appState.djPerformanceModel)
+                    .onTapGesture {
+                        appState.tab = .dj
+                    }
+            }
             if player.currentTrack != nil && !appState.showNowPlaying {
                 MiniPlayer()
                     .onTapGesture { appState.showNowPlaying = true }
@@ -16,6 +22,45 @@ struct GlassDock: View {
         }
         .padding(.horizontal, 12)
     }
+
+    private var hasDJTrack: Bool {
+        appState.djPerformanceModel.deckA.row != nil || appState.djPerformanceModel.deckB.row != nil
+    }
+}
+
+private struct DJMiniPlayer: View {
+    @ObservedObject var model: DJPerformanceModel
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "slider.horizontal.3")
+                .foregroundStyle(Palette.brass)
+                .frame(width: 36, height: 36)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 9))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                Text(subtitle).font(.system(size: 10.5)).foregroundStyle(Palette.ink3).lineLimit(1)
+            }
+            Spacer(minLength: 6)
+            Image(systemName: playing ? "pause.fill" : "play.fill")
+                .foregroundStyle(Palette.ink)
+        }
+        .padding(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 14))
+        .adaptiveGlass(cornerRadius: 22)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Return to DJ")
+        .accessibilityValue(subtitle)
+    }
+
+    private var title: String {
+        let a = model.deckA.row?.track.title
+        let b = model.deckB.row?.track.title
+        if let a, let b { return "A " + a + " · B " + b }
+        return a ?? b ?? "Platterhead DJ"
+    }
+
+    private var playing: Bool { model.deckA.isPlaying || model.deckB.isPlaying }
+    private var subtitle: String { playing ? "DJ playing · tap to return" : "DJ paused · tap to return" }
 }
 
 /// Watch rearchitecture Phase 8 (P5): compact transfer progress with a failure affordance. Never

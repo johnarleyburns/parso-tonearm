@@ -77,6 +77,27 @@ final class DJTrackPrepStoreTests: XCTestCase {
         XCTAssertEqual(info?.camelotKey, "8A")
     }
 
+    func testLoadBrowserMetadataPrefersCurrentDiscoveryAnalysisAndOverride() async throws {
+        let (store, trackID) = try await makeStoreWithTrack()
+        let asset = try await store.insertAsset(Asset(
+            id: nil, trackId: trackID, kind: .localRef, bookmark: nil,
+            relPath: "prepared.wav", remoteURL: nil, altRemoteURL: nil,
+            sizeBytes: 1, unsupportedReason: nil))
+        let assetID = try XCTUnwrap(asset.id)
+        try await store.dbQueue.write { db in
+            var analysis = DiscoveryTrackAnalysis(
+                trackId: trackID, assetId: assetID, assetRevision: 1,
+                analysisVersion: 2, bpm: 128, key: "8B")
+            try analysis.insert(db)
+            var prep = DJTrackPrep(trackId: trackID, bpm: 124, camelotKey: "7A", bpmOverride: 130)
+            try prep.insert(db)
+        }
+
+        let info = try await store.djLoadTrackInfo(trackIds: [trackID])[trackID]
+        XCTAssertEqual(info?.bpm, 130)
+        XCTAssertEqual(info?.camelotKey, "8B")
+    }
+
     func testLoopCheckRejectsHalfSetAndReversedRows() async throws {
         let (store, trackID) = try await makeStoreWithTrack()
         do {

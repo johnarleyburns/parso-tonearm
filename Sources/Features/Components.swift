@@ -200,6 +200,9 @@ struct TrackRowView: View {
         var parts: [String] = []
         if let d = row.track.durationSec { parts.append(TimeFmt.mmss(d)) }
         if let codec = row.track.codec { parts.append(codec) }
+        let musical = appState.musicalInfo[row.id] ?? DJLoadTrackInfo()
+        parts.append(musical.bpmLabel)
+        parts.append(musical.keyLabel)
         if let reason = row.asset?.unsupportedReason { parts.append(reason) }
         return parts.joined(separator: " · ")
     }

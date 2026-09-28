@@ -20,10 +20,15 @@ import TonearmDiscovery
 final class IndexStatusModel: ObservableObject {
     @Published private(set) var presentation: IndexStatusPresentation?
     @Published private(set) var snapshot: IndexStatusSnapshot?
+    @Published private(set) var errorMessage: String?
     @Published var isBusy = false
 
     private let controller: DiscoveryRuntimeController
     private var pollTask: Task<Void, Never>?
+
+    private enum RefreshError: Error {
+        case timedOut
+    }
 
     init(controller: DiscoveryRuntimeController = .shared) {
         self.controller = controller
@@ -33,9 +38,31 @@ final class IndexStatusModel: ObservableObject {
     var showsBanner: Bool { presentation?.showsBanner ?? false }
 
     func refresh() async {
-        guard let snap = await controller.statusSnapshot() else { return }
-        snapshot = snap
-        presentation = IndexStatusPresentation.make(from: snap)
+        do {
+            guard let snap = try await statusSnapshotWithTimeout() else {
+                errorMessage = controller.lastStatusError ?? "The Sound Index status could not be read."
+                return
+            }
+            errorMessage = nil
+            snapshot = snap
+            presentation = IndexStatusPresentation.make(from: snap)
+        } catch RefreshError.timedOut {
+            errorMessage = "The Sound Index status timed out. Try again."
+        } catch {
+            errorMessage = "The Sound Index status could not be read: \(error.localizedDescription)"
+        }
+    }
+
+    private func statusSnapshotWithTimeout() async throws -> IndexStatusSnapshot? {
+        try await withThrowingTaskGroup(of: IndexStatusSnapshot?.self) { group in
+            group.addTask { await self.controller.statusSnapshot() }
+            group.addTask {
+                try await Task.sleep(for: .seconds(5))
+                throw RefreshError.timedOut
+            }
+            defer { group.cancelAll() }
+            return try await group.next()!
+        }
     }
 
     /// Begin a light poll while a status view is on screen (plan §10.5:

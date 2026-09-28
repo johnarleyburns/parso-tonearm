@@ -314,8 +314,8 @@ final class DJPerformanceModel: ObservableObject {
                        DJLoadSourcePolicy.shouldUseBookmark(bookmarkURL: bookmarkURL,
                                                             sourceURL: sourceURL) {
                         do {
-                            if let prepared = try BookmarkVault.withAccess(bookmark, { _ in
-                                try DJAudioBacker.prepare(url: sourceURL, codec: sourceCodec,
+                            if let prepared = try BookmarkVault.withAccess(bookmark, { bookmarkURL in
+                                try DJAudioBacker.prepare(url: bookmarkURL, codec: sourceCodec,
                                                           cachedAnalysis: cachedTrackAnalysis,
                                                           cachedFrameCount: cachedSourceFrameCount)
                             }) {
@@ -758,6 +758,10 @@ final class DJPerformanceModel: ObservableObject {
 
     func setBass(_ value: Double) {
         bassFader = value
+        deckA.eqLow = value
+        deckB.eqLow = value
+        audio.setEQ(deck: .a, high: deckA.eqHigh, mid: deckA.eqMid, low: value)
+        audio.setEQ(deck: .b, high: deckB.eqHigh, mid: deckB.eqMid, low: value)
         audio.setBassBlend(value)
     }
 
@@ -1629,7 +1633,7 @@ private final class DJHotCueStore {
 
 struct DJView: View {
     @EnvironmentObject private var appState: AppState
-    @StateObject private var model = DJPerformanceModel()
+    private var model: DJPerformanceModel { appState.djPerformanceModel }
     @State private var loadTarget: DJDeckID?
     @State private var showHelp = false
 
@@ -1648,7 +1652,8 @@ struct DJView: View {
             appState.isPerformanceSurfaceFullScreen = true
         }
         .onDisappear {
-            model.stopAll()
+            // Deck state and audio are owned by AppState, so changing tabs
+            // does not stop playback or reset loaded tracks/positions.
             appState.isPerformanceSurfaceFullScreen = false
         }
         .sheet(item: $loadTarget) { deck in

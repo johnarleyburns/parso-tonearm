@@ -1,5 +1,6 @@
 import SwiftUI
 import TonearmCore
+import TonearmDiscovery
 
 /// The unified collection surface — replaces the former standalone
 /// Playlists and Music (Library) root tabs (see
@@ -26,6 +27,12 @@ struct MyMusicView: View {
     /// `LibraryBrowse.Entry.self` from `LibraryView` — `NavigationPath`
     /// accepts any `Hashable` without unifying them under one shared type.
     @State private var navigationPath = NavigationPath()
+    @State private var bpmMinText = ""
+    @State private var bpmMaxText = ""
+    @State private var keyText = ""
+    @State private var mixBPMText = ""
+    @State private var mixKeyText = ""
+    @State private var showSoundSearch = false
 
     enum Scope: String, CaseIterable, Identifiable {
         case playlists = "Playlists"
@@ -72,7 +79,9 @@ struct MyMusicView: View {
                     PlaylistsView(ownsNavigationStack: false)
                         .accessibilityIdentifier("mymusic.content.playlists")
                 case .artists, .albums, .songs, .genres:
-                    LibraryView(ownsNavigationStack: false, externalMode: libraryModeBinding)
+                    filterBar
+                    LibraryView(ownsNavigationStack: false, externalMode: libraryModeBinding,
+                                filter: currentFilter)
                         .accessibilityIdentifier("mymusic.content.music")
                 }
             }
@@ -82,6 +91,68 @@ struct MyMusicView: View {
             #endif
         }
         .task { consumePendingArtistFilter() }
+    }
+
+    private var currentFilter: MyMusicFilter {
+        let key = keyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mixKey = mixKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return MyMusicFilter(
+            bpmMin: Double(bpmMinText.trimmingCharacters(in: .whitespaces)),
+            bpmMax: Double(bpmMaxText.trimmingCharacters(in: .whitespaces)),
+            key: key.isEmpty ? nil : key,
+            mixBPM: Double(mixBPMText.trimmingCharacters(in: .whitespaces)),
+            mixKey: mixKey.isEmpty ? nil : mixKey)
+    }
+
+    private var filterBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                filterField("Min BPM", text: $bpmMinText, numeric: true)
+                filterField("Max BPM", text: $bpmMaxText, numeric: true)
+                filterField("Key", text: $keyText)
+            }
+            HStack(spacing: 8) {
+                filterField("Mix BPM", text: $mixBPMText, numeric: true)
+                filterField("Mix key", text: $mixKeyText)
+                Button { showSoundSearch = true } label: {
+                    Label("Sound / mood", systemImage: "waveform.and.magnifyingglass")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Palette.brass)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+            }
+            if !currentFilter.isEmpty {
+                Button {
+                    bpmMinText = ""; bpmMaxText = ""; keyText = ""
+                    mixBPMText = ""; mixKeyText = ""
+                } label: {
+                    Label("Clear musical filters", systemImage: "xmark.circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.ink3)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 6)
+        .sheet(isPresented: $showSoundSearch) { DiscoverySearchView() }
+        .accessibilityIdentifier("mymusic.musicalFilters")
+    }
+
+    private func filterField(_ title: String, text: Binding<String>, numeric: Bool = false) -> some View {
+        TextField(title, text: text)
+            .font(.system(size: 11.5))
+            .padding(.horizontal, 9)
+            .frame(height: 32)
+            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
+            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.white.opacity(0.1)))
+            .platformAutocapitalization(numeric ? .never : .characters)
+            .autocorrectionDisabled()
+            #if !os(macOS)
+            .keyboardType(numeric ? .decimalPad : .default)
+            #endif
+            .accessibilityLabel(title)
     }
 
     /// One-shot launch-intent consumption for a Top Artist row's tap on the

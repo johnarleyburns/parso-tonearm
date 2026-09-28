@@ -2,6 +2,7 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
+import TonearmDiscovery
 #if !os(macOS)
 import UIKit
 #endif
@@ -60,6 +61,11 @@ final class AppState: ObservableObject {
     @Published var listeningStats: ListeningStats.Summary = .empty
     @Published var searchText: String = ""
     @Published var searchResults: [TrackRow] = []
+    /// Shared musical metadata for My Music and the DJ load browser.  This is
+    /// refreshed from the same persisted discovery/DJ-prep records after a
+    /// catalog reload, so existing and newly onboarded tracks get BPM and key
+    /// without requiring the user to open DJ first.
+    @Published private(set) var musicalInfo: [Int64: DJLoadTrackInfo] = [:]
     /// True while a full-screen performance surface owns the display (§42.6,
     /// §42.7a). The DJ decks put the crossfader on the true bottom edge and the
     /// spec is explicit that it is always visible and never occluded — but the
@@ -134,12 +140,26 @@ final class AppState: ObservableObject {
     lazy var watchRuntime = PhoneWatchRuntime(store: store, player: AudioPlayer.shared)
     #endif
 
+    /// DJ audio and deck state outlive the tab view.  Recreating the view must
+    /// not stop playback, clear loads, or reset positions.
+    lazy var djPerformanceModel = DJPerformanceModel(store: store)
+    private var musicalInfoObserver: NSObjectProtocol?
+
     init(store: LibraryStore = .shared) {
         self.store = store
         if let saved = UserDefaults.standard.object(forKey: Self.lastTabKey) as? Int,
             let restored = AppTab(rawValue: saved)
         {
             tab = restored
+        }
+        musicalInfoObserver = NotificationCenter.default.addObserver(
+            forName: .tonearmMusicalMetadataDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.refreshMusicalInfo()
+            }
         }
     }
 
@@ -243,16 +263,34 @@ final class AppState: ObservableObject {
             sources = loadedSources
             playlists = loadedPlaylists
             allTracks = loadedTracks
+            musicalInfo = (try? await store.djLoadTrackInfo(trackIds: loadedTracks.map(\.id))) ?? [:]
             recentlyPlayed = loadedRecentlyPlayed
             recentlyAdded = loadedRecentlyAdded
             favoriteRows = loadedFavoriteRows
             favoriteIds = loadedFavoriteIds
-            listeningStats = ListeningStats.summarize(events: playEvents, tracks: loadedTracks, rankLimit: 10)
+            let stats = await Task.detached(priority: .utility) {
+                ListeningStats.summarize(events: playEvents, tracks: loadedTracks, rankLimit: 10)
+            }.value
+            listeningStats = stats
             WidgetSnapshotPublisher.publish(appState: self, player: AudioPlayer.shared)
         } catch {
             print("reload error: \(error)")
         }
         didLoadLibraryOnce = true
+    }
+
+    /// Refresh only the derived BPM/key projection after the discovery worker
+    /// commits a completed analysis. A full catalog reload here would rebuild
+    /// every library array and make My Music visibly stutter on large catalogs.
+    func refreshMusicalInfo() async {
+        let ids = allTracks.map(\.id)
+        guard !ids.isEmpty else {
+            if !musicalInfo.isEmpty { musicalInfo = [:] }
+            return
+        }
+        guard let updated = try? await store.djLoadTrackInfo(trackIds: ids),
+              updated != musicalInfo else { return }
+        musicalInfo = updated
     }
 
     func runSearch() async {
@@ -267,4 +305,9 @@ final class AppState: ObservableObject {
         guard let id = source.id else { return [] }
         return (try? await store.tracks(forSource: id)) ?? []
     }
+}
+
+extension Notification.Name {
+    static let tonearmMusicalMetadataDidChange = Notification.Name(
+        "tonearm.musicalMetadataDidChange")
 }

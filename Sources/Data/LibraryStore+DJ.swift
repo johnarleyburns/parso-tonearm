@@ -11,25 +11,43 @@ extension LibraryStore {
         let ids = Array(Set(trackIds.filter { $0 >= 0 }))
         guard !ids.isEmpty else { return [:] }
         return try dbQueue.read { db in
+            let placeholders = ids.map { _ in "?" }.joined(separator: ",")
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT t.id AS trackID,
+                       a.id AS assetID,
+                       analysis.assetId AS analysisAssetID,
+                       analysis.bpm AS analysisBPM,
+                       analysis.key AS analysisKey,
+                       prep.bpmOverride AS bpmOverride,
+                       prep.bpm AS prepBPM,
+                       prep.camelotKey AS prepKey
+                FROM track t
+                LEFT JOIN asset a
+                  ON a.id = (
+                      SELECT MIN(a2.id) FROM asset a2 WHERE a2.trackId = t.id
+                  )
+                LEFT JOIN discovery_track_analysis analysis
+                  ON analysis.trackId = t.id
+                LEFT JOIN dj_track_prep prep
+                  ON prep.trackId = t.id
+                WHERE t.id IN (\(placeholders))
+                """, arguments: StatementArguments(ids))
+
             var result: [Int64: DJLoadTrackInfo] = [:]
-            for id in ids {
-                let asset = try Asset.filter(Column("trackId") == id).fetchOne(db)
-                let analysis = try DiscoveryTrackAnalysis.fetchOne(db, key: id)
-                let analysisIsCurrent: Bool = {
-                    guard let asset, let analysis else { return false }
-                    // Asset currently has no persisted content-revision field
-                    // in TonearmCore. Its stable row identity is still the
-                    // strongest local validity check available here; the
-                    // discovery worker handles revision invalidation before
-                    // writing a result.
-                    return analysis.assetId == asset.id
-                }()
-                let prep = try DJTrackPrep.fetchOne(db, key: id)
-                let bpm = prep?.bpmOverride
-                    ?? (analysisIsCurrent ? analysis?.bpm : nil)
-                    ?? prep?.bpm
-                let key = (analysisIsCurrent ? analysis?.key : nil) ?? prep?.camelotKey
-                result[id] = DJLoadTrackInfo(bpm: bpm, camelotKey: key)
+            result.reserveCapacity(rows.count)
+            for row in rows {
+                let id: Int64 = row["trackID"]
+                let assetID: Int64? = row["assetID"]
+                let analysisAssetID: Int64? = row["analysisAssetID"]
+                let analysisIsCurrent = assetID != nil && assetID == analysisAssetID
+                let analysisBPM: Double? = row["analysisBPM"]
+                let analysisKey: String? = row["analysisKey"]
+                let bpmOverride: Double? = row["bpmOverride"]
+                let prepBPM: Double? = row["prepBPM"]
+                let prepKey: String? = row["prepKey"]
+                result[id] = DJLoadTrackInfo(
+                    bpm: bpmOverride ?? (analysisIsCurrent ? analysisBPM : nil) ?? prepBPM,
+                    camelotKey: (analysisIsCurrent ? analysisKey : nil) ?? prepKey)
             }
             return result
         }

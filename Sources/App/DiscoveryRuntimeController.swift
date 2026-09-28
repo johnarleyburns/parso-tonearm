@@ -40,6 +40,7 @@ final class DiscoveryRuntimeController {
     private let sampler = SchedulingSampler()
 
     private var assembly: DiscoveryAssembly?
+    private(set) var lastStatusError: String?
     private var background: DiscoveryBackgroundController?
     private var searchVM: DiscoverySearchViewModel?
     private var didRegisterBackgroundTask = false
@@ -246,6 +247,8 @@ final class DiscoveryRuntimeController {
                     if completed > 0 {
                         try? await assembly.settings.updateRuntime(
                             lastRunAt: Date(), lastSuccessfulWorkAt: Date())
+                        NotificationCenter.default.post(
+                            name: .tonearmMusicalMetadataDidChange, object: nil)
                     }
                 } catch {
                     NSLog("[Discovery] foreground drain error: \(error)")
@@ -539,7 +542,13 @@ final class DiscoveryRuntimeController {
     /// banner + screen. `nil` only if the DB read genuinely failed.
     func statusSnapshot() async -> IndexStatusSnapshot? {
         let assembly = await makeAssembly()
-        return try? await assembly.statusSnapshot()
+        do {
+            lastStatusError = nil
+            return try await assembly.statusSnapshot()
+        } catch {
+            lastStatusError = String(describing: error)
+            return nil
+        }
     }
 
     /// "Retry failed" action (plan §10 action 4).

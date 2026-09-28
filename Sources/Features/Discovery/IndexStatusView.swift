@@ -45,8 +45,22 @@ struct IndexStatusView: View {
                         .padding(.horizontal, 4)
                         countsCard(p)
                         actionsCard(p)
+                    } else if let error = model.errorMessage {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Sound Index unavailable", systemImage: "exclamationmark.triangle")
+                                .font(.system(size: 16, weight: .bold))
+                            Text(error)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Palette.ink2)
+                            Button("Retry") { Task { await model.refresh() } }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Palette.brass)
+                        }
+                        .padding(15)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .glassSurface(cornerRadius: 18)
                     } else {
-                        ProgressView().padding(.top, 40)
+                        ProgressView("Reading Sound Index…").padding(.top, 40)
                     }
                     if let detail = model.snapshot?.modelDiagnostics {
                         modelsCard(detail)

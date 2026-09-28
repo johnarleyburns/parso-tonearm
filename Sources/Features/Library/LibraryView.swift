@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import TonearmCore
+import TonearmDiscovery
 
 struct LibraryView: View {
     @EnvironmentObject var appState: AppState
@@ -16,10 +17,13 @@ struct LibraryView: View {
     /// this view's own segmented picker is hidden and `mode` reads/writes
     /// through this binding instead of `internalMode`.
     private let externalMode: Binding<LibraryBrowseMode>?
+    private let filter: MyMusicFilter
 
-    init(ownsNavigationStack: Bool = true, externalMode: Binding<LibraryBrowseMode>? = nil) {
+    init(ownsNavigationStack: Bool = true, externalMode: Binding<LibraryBrowseMode>? = nil,
+         filter: MyMusicFilter = .init()) {
         self.ownsNavigationStack = ownsNavigationStack
         self.externalMode = externalMode
+        self.filter = filter
     }
 
     private var mode: LibraryBrowseMode {
@@ -30,15 +34,9 @@ struct LibraryView: View {
     }
 
     private var rows: [TrackRow] {
-        appState.searchText.isEmpty ? appState.allTracks : appState.searchResults
-    }
-
-    private var sections: [LibraryBrowse.Section] {
-        LibraryBrowse.sections(for: mode, rows: rows)
-    }
-
-    private var playbackRows: [TrackRow] {
-        sections.flatMap(\.entries).flatMap(\.rows)
+        let source = appState.searchText.isEmpty ? appState.allTracks : appState.searchResults
+        guard !filter.isEmpty else { return source }
+        return source.filter { filter.matches(appState.musicalInfo[$0.id] ?? DJLoadTrackInfo()) }
     }
 
     var body: some View {
@@ -53,7 +51,11 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var content: some View {
-            ScrollViewReader { proxy in
+        let renderedRows = rows
+        let renderedSections = LibraryBrowse.sections(for: mode, rows: renderedRows)
+        let renderedPlaybackRows = renderedSections.flatMap(\.entries).flatMap(\.rows)
+
+        ScrollViewReader { proxy in
                 ZStack(alignment: .trailing) {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
@@ -61,9 +63,6 @@ struct LibraryView: View {
                             SearchField(text: $appState.searchText, placeholder: "Search all your music…")
                                 .padding(.top, 12)
                                 .padding(.bottom, 12)
-                                .onChange(of: appState.searchText) { _, _ in
-                                    Task { await appState.runSearch() }
-                                }
 
                             if externalMode == nil {
                                 Picker("Music View", selection: Binding(get: { mode }, set: { mode = $0 })) {
@@ -75,7 +74,7 @@ struct LibraryView: View {
                                 .padding(.bottom, 16)
                             }
 
-                            if rows.isEmpty, !appState.didLoadLibraryOnce {
+                            if renderedRows.isEmpty, !appState.didLoadLibraryOnce {
                                 // Real report: "My Music says I have no
                                 // music, then a few seconds later loads it
                                 // all in" — show a real loading state until
@@ -89,7 +88,7 @@ struct LibraryView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 60)
-                            } else if rows.isEmpty {
+                            } else if renderedRows.isEmpty {
                                 VStack(spacing: 14) {
                                     EmptyStateView(icon: "music.note",
                                                    title: appState.searchText.isEmpty ? "Your music is empty" : "No matches",
@@ -103,34 +102,43 @@ struct LibraryView: View {
                                 }
                                 .padding(.top, 60)
                             } else {
-                                ForEach(sections) { section in
+                                ForEach(renderedSections) { section in
                                     SectionHeader(title: section.indexTitle,
                                                   trailing: "\(section.entries.count)")
                                         .id(section.indexTitle)
                                         .padding(.top, 6)
                                     ForEach(section.entries) { entry in
-                                        entryRow(entry)
+                                        entryRow(entry, playbackRows: renderedPlaybackRows)
                                         Divider().overlay(Palette.hairline)
                                     }
                                 }
                             }
                         }
                         .padding(.horizontal, 18)
-                        .padding(.trailing, sections.count > 1 ? 22 : 0)
+                        .padding(.trailing, renderedSections.count > 1 ? 22 : 0)
                         .padding(.bottom, 160)
                     }
-                    indexRail(proxy)
+                    indexRail(proxy, sections: renderedSections)
                 }
             }
             .navigationDestination(for: LibraryBrowse.Entry.self) { entry in
                 LibraryGroupDetailView(entry: entry)
             }
         .foregroundStyle(Palette.ink)
+        .task(id: appState.searchText) {
+            guard LibrarySearchPolicy.shouldSearch(appState.searchText) else {
+                await appState.runSearch()
+                return
+            }
+            try? await Task.sleep(for: LibrarySearchPolicy.debounce)
+            guard !Task.isCancelled else { return }
+            await appState.runSearch()
+        }
         .task { await appState.reload() }
     }
 
     @ViewBuilder
-    private func entryRow(_ entry: LibraryBrowse.Entry) -> some View {
+    private func entryRow(_ entry: LibraryBrowse.Entry, playbackRows: [TrackRow]) -> some View {
         if entry.kind == .song, let row = entry.rows.first {
             Button {
                 if let idx = playbackRows.firstIndex(where: { $0.id == row.id }) {
@@ -150,7 +158,8 @@ struct LibraryView: View {
     }
 
     @ViewBuilder
-    private func indexRail(_ proxy: ScrollViewProxy) -> some View {
+    private func indexRail(_ proxy: ScrollViewProxy,
+                           sections: [LibraryBrowse.Section]) -> some View {
         if sections.count > 1 {
             VStack(spacing: 2) {
                 ForEach(sections.map(\.indexTitle), id: \.self) { index in
@@ -174,6 +183,7 @@ struct LibraryView: View {
 
 private struct LibraryBrowseEntryRow: View {
     let entry: LibraryBrowse.Entry
+    @EnvironmentObject var appState: AppState
 
     var body: some View {
         HStack(spacing: 11) {
@@ -200,6 +210,11 @@ private struct LibraryBrowseEntryRow: View {
                         .foregroundStyle(Palette.ink3)
                         .lineLimit(1)
                 }
+                if let averageBPM {
+                    Text("AVG " + String(format: "%.1f", averageBPM) + " BPM")
+                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Palette.brass)
+                }
             }
             Spacer(minLength: 8)
             Text("\(entry.rows.count)")
@@ -217,6 +232,14 @@ private struct LibraryBrowseEntryRow: View {
         case .song: return "music.note"
         case .genre: return "tag"
         }
+    }
+
+    private var averageBPM: Double? {
+        guard entry.kind == .album else { return nil }
+        let values = entry.rows.compactMap { appState.musicalInfo[$0.id]?.bpm }
+            .filter { $0.isFinite && $0 > 0 }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
     }
 }
 
@@ -247,6 +270,12 @@ private struct LibraryGroupDetailView: View {
                         .font(.system(size: 14))
                         .foregroundStyle(Palette.brass)
                         .padding(.top, 4)
+                }
+                if entry.kind == .album, let averageBPM {
+                    Text("Average " + String(format: "%.1f", averageBPM) + " BPM")
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Palette.brass)
+                        .padding(.top, 3)
                 }
                 cta.padding(.top, 14).padding(.bottom, 12)
                 ForEach(Array(entry.rows.enumerated()), id: \.element.id) { idx, row in
@@ -335,6 +364,13 @@ private struct LibraryGroupDetailView: View {
                 ctaLabel(icon: "shuffle", title: "Shuffle")
             }
         }
+    }
+
+    private var averageBPM: Double? {
+        let values = entry.rows.compactMap { appState.musicalInfo[$0.id]?.bpm }
+            .filter { $0.isFinite && $0 > 0 }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
     }
 
     private func ctaLabel(icon: String, title: String) -> some View {
