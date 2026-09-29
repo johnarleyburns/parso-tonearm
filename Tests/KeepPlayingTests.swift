@@ -17,6 +17,9 @@ import XCTest
 @MainActor
 final class KeepPlayingTests: XCTestCase {
 
+    nonisolated(unsafe) private var playbackStateDirectory: URL?
+    nonisolated(unsafe) private var playbackStateSuiteName: String?
+
     private let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                               originalURL: nil, title: "Test Source",
                               addedAt: Date(), lastResolvedAt: nil,
@@ -35,16 +38,57 @@ final class KeepPlayingTests: XCTestCase {
         return TrackRow(track: t, album: album, source: src, asset: a)
     }
 
-    nonisolated override func tearDown() {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tonearm-keep-playing-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        playbackStateDirectory = directory
+        PlaybackStateFileStore.fileURLOverride = directory.appendingPathComponent("playback-state.v2.json")
+
+        let suiteName = "test.keep-playing.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        playbackStateSuiteName = suiteName
+        PlaybackStateStore.defaultsProvider = { defaults }
+
         MainActor.assumeIsolated {
-            let player = AudioPlayer.shared
-            player.keepPlayingProvider = nil
-            player.keepPlayingEnabled = true
-            player.keepPlayingBatchSize = 15
-            player.repeatMode = .off
-            player.shuffle = false
+            Self.resetPlayerForTest(AudioPlayer.shared)
         }
+    }
+
+    nonisolated override func tearDown() {
+        let directory = playbackStateDirectory
+        let suiteName = playbackStateSuiteName
+        MainActor.assumeIsolated {
+            Self.resetPlayerForTest(AudioPlayer.shared)
+            PlaybackStateStore.defaultsProvider = { PlaybackStateStore.sharedDefaults() }
+            PlaybackStateFileStore.fileURLOverride = nil
+            if let directory {
+                try? FileManager.default.removeItem(at: directory)
+            }
+        }
+        if let suiteName {
+            UserDefaults().removePersistentDomain(forName: suiteName)
+        }
+        playbackStateDirectory = nil
+        playbackStateSuiteName = nil
         super.tearDown()
+    }
+
+    private static func resetPlayerForTest(_ player: AudioPlayer) {
+        player.keepPlayingEnabled = false
+        player.keepPlayingProvider = nil
+        player.keepPlayingExtensionTask?.cancel()
+        player.resetRestoreForTesting()
+        if !player.queue.isEmpty {
+            player.removeFromQueue(atOffsets: IndexSet(0..<player.queue.count))
+        }
+        player.keepPlayingBatchSize = 15
+        player.repeatMode = .off
+        player.shuffle = false
+        player.keepPlayingEnabled = true
     }
 
     // MARK: - KeepPlayingPicker (pure) — dedup / no-immediate-repeat

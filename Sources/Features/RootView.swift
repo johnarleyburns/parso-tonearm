@@ -11,31 +11,7 @@ struct RootView: View {
         ZStack(alignment: .bottom) {
             backgroundLayer.ignoresSafeArea()
 
-            TabView(selection: $appState.tab) {
-                ListenView()
-                    .tabItem { Label("Listen", systemImage: "play.circle.fill") }
-                    .tag(AppTab.listen)
-                MyMusicView()
-                    .tabItem { Label("My Music", systemImage: "music.note.list") }
-                    .tag(AppTab.myMusic)
-                SettingsView()
-                    .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-                    .tag(AppTab.settings)
-            }
-            .tabViewBottomAccessory {
-                if player.currentTrack != nil && !appState.showNowPlaying {
-                    VStack(spacing: 2) {
-                        MiniPlayerAccessory()
-                        if appState.watchManagement.banner != nil {
-                            TransferPill()
-                        }
-                    }
-                } else if appState.watchManagement.banner != nil {
-                    TransferPill()
-                }
-            }
-            .tabBarMinimizeBehavior(.onScrollDown)
-            .sensoryFeedback(.selection, trigger: appState.tab)
+            rootTabs
 
             if let title = appState.backgroundTitle {
                 backgroundBanner(title)
@@ -174,6 +150,47 @@ struct RootView: View {
             try? await Task.sleep(nanoseconds: 400_000_000)
         }
         ToastCenter.shared.info("Apple Watch not reachable", icon: "applewatch.slash", tag: "watch.link")
+    }
+
+    @ViewBuilder
+    private var rootTabs: some View {
+        if #available(iOS 26.0, *) {
+            baseTabs
+                .tabViewBottomAccessory { tabAccessory }
+                .tabBarMinimizeBehavior(.onScrollDown)
+                .sensoryFeedback(.selection, trigger: appState.tab)
+        } else {
+            baseTabs
+                .sensoryFeedback(.selection, trigger: appState.tab)
+        }
+    }
+
+    private var baseTabs: some View {
+        TabView(selection: $appState.tab) {
+            ListenView()
+                .tabItem { Label("Listen", systemImage: "play.circle.fill") }
+                .tag(AppTab.listen)
+            MyMusicView()
+                .tabItem { Label("My Music", systemImage: "music.note.list") }
+                .tag(AppTab.myMusic)
+            SettingsView()
+                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+                .tag(AppTab.settings)
+        }
+    }
+
+    @ViewBuilder
+    private var tabAccessory: some View {
+        if player.currentTrack != nil && !appState.showNowPlaying {
+            VStack(spacing: 2) {
+                MiniPlayerAccessory()
+                if appState.watchManagement.banner != nil {
+                    TransferPill()
+                }
+            }
+        } else if appState.watchManagement.banner != nil {
+            TransferPill()
+        }
     }
 
     private var backgroundLayer: some View {
