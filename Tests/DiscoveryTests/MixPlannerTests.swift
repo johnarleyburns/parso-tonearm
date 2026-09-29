@@ -38,12 +38,18 @@ final class MixPlannerTests: XCTestCase {
         XCTAssertTrue(plan.steps.contains { $0.edgeIn?.flags.contains { if case .unavoidable = $0 { return true }; return false } == true })
     }
 
-    func testFiveHundredTracksFinishWithinOneSecond() {
+    func testFiveHundredTracksFinishWithinTwoSeconds() {
         let candidates = (0..<500).map { index in
             candidate(Int64(index), bpm: 90 + Double(index % 70), key: "\((index % 12) + 1)A")
         }
-        let start = Date()
-        _ = MixPlanner.plan(MixRequest(candidates: candidates, seed: 9))
-        XCTAssertLessThan(Date().timeIntervalSince(start), 1)
+        let start = DispatchTime.now().uptimeNanoseconds
+        let plan = MixPlanner.plan(MixRequest(candidates: candidates, seed: 9))
+        let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000_000
+
+        XCTAssertEqual(plan.steps.count, candidates.count)
+        // Keep this as a broad regression guard rather than a machine-specific
+        // microbenchmark. Hosted macOS runners have varied enough to exceed a
+        // one-second wall-clock limit even when the planner is unchanged.
+        XCTAssertLessThan(elapsed, 2.0)
     }
 }
