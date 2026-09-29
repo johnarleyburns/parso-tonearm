@@ -55,6 +55,26 @@ final class DJFocusPolicyTests: XCTestCase {
         XCTAssertEqual(DJWaveformTouchPolicy.action(phase: .infinity, isPlaying: false, touchMode: .nudge, heldFor: 0, translation: 1, width: 300), .none)
     }
 
+    func testStoppedWaveformOnlyFlicksWhenPredictedMovementShowsVelocity() {
+        XCTAssertFalse(DJWaveformTouchPolicy.shouldFlick(translation: 80, predictedTranslation: 90))
+        XCTAssertTrue(DJWaveformTouchPolicy.shouldFlick(translation: 80, predictedTranslation: 120))
+        XCTAssertFalse(DJWaveformTouchPolicy.shouldFlick(translation: .infinity, predictedTranslation: 120))
+    }
+
+    func testLayoutSwitchIsAutomaticForFirstThreeSessionsAndManualAfterward() {
+        XCTAssertTrue(DJLayoutSwitchPolicy.shouldShow(manualSetting: false, sessionCount: 0))
+        XCTAssertTrue(DJLayoutSwitchPolicy.shouldShow(manualSetting: false, sessionCount: 2))
+        XCTAssertFalse(DJLayoutSwitchPolicy.shouldShow(manualSetting: false, sessionCount: 3))
+        XCTAssertTrue(DJLayoutSwitchPolicy.shouldShow(manualSetting: true, sessionCount: 99))
+    }
+
+    func testRecordingStorageGuardrails() {
+        XCTAssertEqual(DJRecordingStoragePolicy.decision(availableBytes: nil), .allow)
+        XCTAssertEqual(DJRecordingStoragePolicy.decision(availableBytes: 600 * 1_024 * 1_024), .allow)
+        XCTAssertEqual(DJRecordingStoragePolicy.decision(availableBytes: 400 * 1_024 * 1_024), .warn)
+        XCTAssertEqual(DJRecordingStoragePolicy.decision(availableBytes: 100 * 1_024 * 1_024), .stop)
+    }
+
     func testCoachPolicyUsesPriorityAndDismissal() {
         XCTAssertEqual(DJCoachPolicy.tip(for: DJCoachSnapshot())?.id, "load-a")
         XCTAssertEqual(DJCoachPolicy.tip(for: DJCoachSnapshot(loadedA: true, playingA: true))?.id, "load-b")

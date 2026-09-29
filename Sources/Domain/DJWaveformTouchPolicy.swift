@@ -7,6 +7,13 @@ public enum DJWaveformTouchAction: Sendable, Equatable {
 }
 
 public enum DJWaveformTouchPolicy {
+    public static func shouldFlick(translation: CGFloat, predictedTranslation: CGFloat,
+                                   minimumDistance: CGFloat = 24) -> Bool {
+        guard translation.isFinite, predictedTranslation.isFinite,
+              minimumDistance.isFinite, minimumDistance > 0 else { return false }
+        return abs(predictedTranslation - translation) >= minimumDistance
+    }
+
     public static func action(phase: Double, isPlaying: Bool, touchMode: DJWaveformTouchMode,
                               heldFor: Double, translation: CGFloat, predictedTranslation: CGFloat = 0,
                               width: CGFloat) -> DJWaveformTouchAction {

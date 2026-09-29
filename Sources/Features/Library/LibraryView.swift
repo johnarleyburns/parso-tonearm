@@ -18,15 +18,20 @@ struct LibraryView: View {
     /// through this binding instead of `internalMode`.
     private let externalMode: Binding<LibraryBrowseMode>?
     private let filter: MyMusicFilter
+    private let searchRows: [TrackRow]?
+    private let searchRowsRevision: Int
     @State private var renderedSections: [LibraryBrowse.Section] = []
     @State private var renderedPlaybackRows: [TrackRow] = []
     @State private var isRendering = true
 
     init(ownsNavigationStack: Bool = true, externalMode: Binding<LibraryBrowseMode>? = nil,
-         filter: MyMusicFilter = .init()) {
+         filter: MyMusicFilter = .init(), searchRows: [TrackRow]? = nil,
+         searchRowsRevision: Int = 0) {
         self.ownsNavigationStack = ownsNavigationStack
         self.externalMode = externalMode
         self.filter = filter
+        self.searchRows = searchRows
+        self.searchRowsRevision = searchRowsRevision
     }
 
     private var mode: LibraryBrowseMode {
@@ -40,8 +45,8 @@ struct LibraryView: View {
         LibraryRenderToken(
             mode: mode,
             query: appState.searchText,
-            trackIDs: appState.allTracks.map(\.id),
-            searchResultIDs: appState.searchResults.map(\.id),
+            libraryRevision: appState.libraryRevision,
+            searchRowsRevision: searchRowsRevision,
             musicalInfoRevision: appState.musicalInfoRevision,
             filter: filter)
     }
@@ -138,7 +143,7 @@ struct LibraryView: View {
             await appState.runSearch()
         }
         .task(id: renderToken) {
-            let source = appState.searchText.isEmpty ? appState.allTracks : appState.searchResults
+            let source = searchRows ?? (appState.searchText.isEmpty ? appState.allTracks : appState.searchResults)
             let info = appState.musicalInfo
             let selectedMode = mode
             let selectedFilter = filter
@@ -227,8 +232,8 @@ struct LibraryView: View {
 private struct LibraryRenderToken: Equatable {
     let mode: LibraryBrowseMode
     let query: String
-    let trackIDs: [Int64]
-    let searchResultIDs: [Int64]
+    let libraryRevision: Int
+    let searchRowsRevision: Int
     let musicalInfoRevision: Int
     let filter: MyMusicFilter
 }

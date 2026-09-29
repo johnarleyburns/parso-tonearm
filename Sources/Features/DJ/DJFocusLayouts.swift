@@ -23,6 +23,7 @@ struct DJBothDecksLayout: View {
                         Text("Both decks").tag("both")
                     }
                     .pickerStyle(.segmented)
+                    .accessibilityIdentifier("dj.both.layout")
                     Spacer()
                     Button("Mixer", action: onMixer)
                         .accessibilityIdentifier("dj.both.mixer")
@@ -112,6 +113,7 @@ private struct DJBothDeckPanel: View {
                 Button(deck.isPlaying ? "Pause" : "Play") { model.toggle(deckID) }
                     .accessibilityIdentifier("dj.both.play.\(deckID.rawValue.lowercased())")
                 Button("SYNC") { model.toggleSync(deckID) }
+                    .disabled(!DJSyncAvailabilityPolicy.canSync(bpm: deck.bpm))
                     .accessibilityIdentifier("dj.both.sync.\(deckID.rawValue.lowercased())")
             }
             .buttonStyle(.bordered)
@@ -124,6 +126,7 @@ private struct DJBothDeckPanel: View {
                     .background(deck.hotCues[slot] == nil ? Color.white.opacity(0.06) : deck.accent,
                                 in: RoundedRectangle(cornerRadius: 10))
                     .foregroundStyle(deck.hotCues[slot] == nil ? Palette.ink2 : Palette.bg)
+                    .accessibilityIdentifier("dj.both.pad.\(deckID.rawValue.lowercased()).\(slot)")
                 }
             }
         }

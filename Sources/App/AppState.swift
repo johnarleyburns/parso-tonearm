@@ -69,6 +69,9 @@ final class AppState: ObservableObject {
     /// Bumps when BPM/key metadata changes so large My Music renders can be
     /// recomputed off the main actor without comparing the whole dictionary.
     @Published private(set) var musicalInfoRevision = 0
+    /// Monotonic catalog/search revision. Views use this scalar as their
+    /// render key instead of hashing or mapping the full track array in body.
+    @Published private(set) var libraryRevision = 0
     /// True while a full-screen performance surface owns the display (§42.6,
     /// §42.7a). The DJ decks put the crossfader on the true bottom edge and the
     /// spec is explicit that it is always visible and never occluded — but the
@@ -266,6 +269,7 @@ final class AppState: ObservableObject {
             sources = loadedSources
             playlists = loadedPlaylists
             allTracks = loadedTracks
+            libraryRevision &+= 1
             musicalInfo = (try? await store.djLoadTrackInfo(trackIds: loadedTracks.map(\.id))) ?? [:]
             musicalInfoRevision &+= 1
             recentlyPlayed = loadedRecentlyPlayed
@@ -305,6 +309,7 @@ final class AppState: ObservableObject {
             return
         }
         searchResults = (try? await store.search(searchText)) ?? []
+        libraryRevision &+= 1
     }
 
     func tracks(for source: Source) async -> [TrackRow] {

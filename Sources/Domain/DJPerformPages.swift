@@ -91,7 +91,8 @@ public struct DJPadLabelState: Sendable, Equatable {
 
 public enum DJChipReadout {
     public static func text(bpm: Double?, remaining: Double, isPlaying: Bool, synced: Bool,
-                            loadPhase: String?, onAir: Bool) -> String {
+                            loadPhase: String?, onAir: Bool, loadError: String? = nil) -> String {
+        if loadError != nil { return "Couldn't load" }
         if let loadPhase { return loadPhase.capitalized + "…" }
         guard let bpm, bpm.isFinite, bpm > 0 else { return isPlaying ? "— · playing" : "— · cued" }
         if synced { return "\(String(format: "%.1f", bpm)) · SYNC" }

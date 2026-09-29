@@ -33,6 +33,8 @@ struct MyMusicView: View {
     @State private var mixBPMText = ""
     @State private var mixKeyText = ""
     @State private var showSoundSearch = false
+    @State private var soundSearchRows: [TrackRow]?
+    @State private var soundSearchRevision = 0
 
     enum Scope: String, CaseIterable, Identifiable {
         case playlists = "Playlists"
@@ -86,7 +88,8 @@ struct MyMusicView: View {
                 case .artists, .albums, .songs, .genres:
                     filterBar
                     LibraryView(ownsNavigationStack: false, externalMode: libraryModeBinding,
-                                filter: currentFilter)
+                                filter: currentFilter, searchRows: soundSearchRows,
+                                searchRowsRevision: soundSearchRevision)
                         .accessibilityIdentifier("mymusic.content.music")
                 }
             }
@@ -126,6 +129,17 @@ struct MyMusicView: View {
                         .lineLimit(1)
                 }
                 .buttonStyle(.plain)
+                if soundSearchRows != nil {
+                    Button {
+                        soundSearchRows = nil
+                        soundSearchRevision &+= 1
+                    } label: {
+                        Label("Clear sound results", systemImage: "xmark.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Palette.ink3)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             if !currentFilter.isEmpty {
                 Button {
@@ -141,7 +155,13 @@ struct MyMusicView: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 6)
-        .sheet(isPresented: $showSoundSearch) { DiscoverySearchView() }
+        .sheet(isPresented: $showSoundSearch) {
+            DiscoverySearchView(onUseResults: { rows in
+                soundSearchRows = rows
+                soundSearchRevision &+= 1
+                showSoundSearch = false
+            })
+        }
         .accessibilityIdentifier("mymusic.musicalFilters")
     }
 

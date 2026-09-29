@@ -47,6 +47,7 @@ private struct DJLandscapeDeck: View {
                 Button(deck.isPlaying ? "Pause" : "Play") { model.toggle(deckID) }
                     .accessibilityIdentifier("dj.focus.landscape.play.\(deckID.rawValue.lowercased())")
                 Button("SYNC") { model.toggleSync(deckID) }
+                    .disabled(!DJSyncAvailabilityPolicy.canSync(bpm: deck.bpm))
                     .accessibilityIdentifier("dj.focus.landscape.sync.\(deckID.rawValue.lowercased())")
             }
             .buttonStyle(.bordered)
@@ -86,13 +87,17 @@ private struct DJLandscapeMiddle: View {
             }
             HStack {
                 Button("CUE A") { model.toggleCue(.a) }
+                    .accessibilityIdentifier("dj.focus.landscape.cue.a")
                 Button("CUE B") { model.toggleCue(.b) }
+                    .accessibilityIdentifier("dj.focus.landscape.cue.b")
             }
             .buttonStyle(.bordered)
             Button("Mixer", action: onMixer)
                 .accessibilityIdentifier("dj.focus.landscape.mixer")
             Slider(value: binding)
                 .tint(Palette.brass)
+                .accessibilityLabel("Crossfader")
+                .accessibilityIdentifier("dj.focus.landscape.crossfader")
         }
         .padding(12)
         .frame(width: 150)

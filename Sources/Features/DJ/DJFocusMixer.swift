@@ -14,12 +14,14 @@ struct DJMixerSheet: View {
                     .toggleStyle(.button)
                     .accessibilityIdentifier("dj.focus.mixer.autoGain")
                 Button("Done") { dismiss() }
+                    .accessibilityIdentifier("dj.focus.mixer.done")
             }
             Picker("Mixer page", selection: $page) {
                 Text("Channels").tag(0)
                 Text("Master").tag(1)
             }
             .pickerStyle(.segmented)
+            .accessibilityIdentifier("dj.focus.mixer.page")
             if page == 0 {
                 DJMixerChannels(model: model)
             } else {
@@ -113,6 +115,8 @@ private struct DJMixerChannel: View {
                     .tint(deck.accent)
                     .rotationEffect(.degrees(-90))
                     .frame(width: 78, height: 28)
+                    .accessibilityLabel("Deck (deckID.rawValue) volume")
+                    .accessibilityIdentifier("dj.focus.mixer.volume.\(deckID.rawValue.lowercased())")
             }
             Button {
                 model.toggleCue(deckID)
@@ -157,6 +161,8 @@ private struct DJMixerMaster: View {
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("dj.focus.mixer.master.reset")
             Slider(value: bassBinding)
+                .accessibilityLabel("Bass blend")
+                .accessibilityIdentifier("dj.focus.mixer.bass")
             Text("Swap basslines without touching the crossfader")
                 .font(.caption2)
                 .foregroundStyle(Palette.ink3)
@@ -166,8 +172,10 @@ private struct DJMixerMaster: View {
                 }
             }
             .pickerStyle(.segmented)
+            .accessibilityIdentifier("dj.focus.mixer.output")
             Text(model.outputMode.helpText).font(.caption2).foregroundStyle(Palette.ink3)
             Toggle("Record mix", isOn: recordingBinding)
+                .accessibilityIdentifier("dj.focus.mixer.record")
             Text("Saved to Files › Platterhead").font(.caption2).foregroundStyle(Palette.ink3)
         }
     }
@@ -252,6 +260,7 @@ struct DJFocusKnob: View {
                 }
                 .accessibilityLabel(label)
                 .accessibilityValue(DJKnobMapping.display(value))
+                .accessibilityIdentifier("dj.focus.mixer.knob.\(label.lowercased())")
                 .accessibilityAdjustableAction { direction in
                     let step = direction == .increment ? 0.01 : -0.01
                     onChange(max(0, min(1, value + step)))

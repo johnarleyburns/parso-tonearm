@@ -12,6 +12,7 @@ struct DJPadTabsAndGrid: View {
                     Text(deck.padMode == .keyShift ? "Key shift — Deck \(deck.id.rawValue)" : "Beat grid — Deck \(deck.id.rawValue)")
                     Spacer()
                     Button("Done") { model.setPadMode(deck.id, mode: deck.previousPadMode) }
+                        .accessibilityIdentifier("dj.focus.pad.done")
                 }
                 .font(.system(size: 13, weight: .semibold)).padding(.horizontal, 13).frame(height: 40)
                 .djFocusGlass(cornerRadius: 20)
@@ -31,6 +32,7 @@ struct DJPadTabsAndGrid: View {
                 ForEach(0..<8, id: \.self) { index in pad(index, deck: deck) }
             }
             .opacity(deck.row == nil ? 0.4 : 1)
+            .disabled(deck.row == nil)
         }
         .animation(.easeInOut(duration: 0.18), value: deck.padMode)
     }

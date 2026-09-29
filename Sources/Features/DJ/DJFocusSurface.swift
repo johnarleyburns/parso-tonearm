@@ -8,6 +8,9 @@ struct DJFocusSurface: View {
     let onLoad: (DJDeckID) -> Void
     let onReanalyze: (DJDeckID) -> Void
     @AppStorage("dj.layout") private var layout = "focus"
+    @AppStorage("dj.showLayoutSwitch") private var showLayoutSwitch = false
+    @AppStorage("dj.focus.sessions") private var sessionCount = 0
+    @State private var countedSession = false
     @State private var mixerPresented = false
     @State private var optionsDeck: DJDeckID?
 
@@ -27,6 +30,11 @@ struct DJFocusSurface: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Palette.bg)
         }
+        .onAppear {
+            guard !countedSession else { return }
+            countedSession = true
+            sessionCount += 1
+        }
         .sheet(isPresented: $mixerPresented) {
             DJMixerSheet(model: model)
         }
@@ -38,7 +46,10 @@ struct DJFocusSurface: View {
     private func portrait(_ bottomInset: CGFloat) -> some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 10) {
-                DJFocusTitleBar(model: model, onBack: onBack)
+                DJFocusTitleBar(model: model, onBack: onBack,
+                                showLayoutSwitch: DJLayoutSwitchPolicy.shouldShow(
+                                    manualSetting: showLayoutSwitch, sessionCount: sessionCount),
+                                layout: $layout)
                 DJDeckChips(model: model, onLoad: onLoad, onReanalyze: onReanalyze)
                 DJFocusWaveformCard(model: model, onBrowse: { onLoad(model.activeDeck) })
                 DJFocusTempoRow(model: model, onOptions: { optionsDeck = model.activeDeck })
@@ -63,12 +74,26 @@ struct DJFocusSurface: View {
 struct DJFocusTitleBar: View {
     @ObservedObject var model: DJPerformanceModel
     let onBack: () -> Void
+    let showLayoutSwitch: Bool
+    @Binding var layout: String
     var body: some View {
         HStack {
             Button(action: onBack) { Image(systemName: "chevron.down").frame(width: 36, height: 36) }
                 .djFocusControl(label: "Close DJ", id: "close")
             Spacer()
-            Text("Platterhead").font(.system(size: 15, weight: .semibold))
+            Group {
+                if showLayoutSwitch {
+                    Picker("Layout", selection: $layout) {
+                        Text("Focus").tag("focus")
+                        Text("Both decks").tag("both")
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 170)
+                    .accessibilityIdentifier("dj.focus.layout")
+                } else {
+                    Text("Platterhead").font(.system(size: 15, weight: .semibold))
+                }
+            }
                 .accessibilityAddTraits(.isHeader)
             Spacer()
             Button(action: model.toggleRecording) {
@@ -114,9 +139,14 @@ struct DJDeckChips: View {
                     .foregroundStyle(Palette.bg).frame(width: 26, height: 26).background(deck.accent, in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
                     Text(deck.row == nil ? "Load a track" : deck.title).font(.system(size: 14, weight: .semibold)).lineLimit(1)
-                    Text(deck.row == nil ? "Tap to browse" : DJChipReadout.text(bpm: deck.bpm, remaining: deck.duration - deck.position,
-                        isPlaying: deck.isPlaying, synced: deck.syncEnabled, loadPhase: model.loadPhases[id]?.label, onAir: model.deckIsOnAir(id)))
-                        .font(.system(size: 12, design: .monospaced)).foregroundStyle(deck.accent.opacity(0.92)).lineLimit(1)
+                    Text(deck.row == nil ? "Tap to browse" : DJChipReadout.text(
+                        bpm: deck.bpm, remaining: deck.duration - deck.position,
+                        isPlaying: deck.isPlaying, synced: deck.syncEnabled,
+                        loadPhase: model.loadPhases[id]?.label,
+                        onAir: model.deckIsOnAir(id), loadError: model.loadErrors[id]))
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(model.loadErrors[id] == nil ? deck.accent.opacity(0.92) : Palette.danger)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
@@ -139,11 +169,34 @@ struct DJDeckChips: View {
 
 extension View {
     func djFocusGlass(cornerRadius: CGFloat = 18, fill: Color = Color.white.opacity(0.075), stroke: Color = Color.white.opacity(0.13)) -> some View {
-        glassSurface(cornerRadius: cornerRadius, strokeOpacity: 0.13, fill: fill)
-            .overlay(RoundedRectangle(cornerRadius: cornerRadius).stroke(stroke, lineWidth: 1).allowsHitTesting(false))
+        modifier(DJFocusGlass(cornerRadius: cornerRadius, fill: fill, stroke: stroke))
     }
 
     func djFocusControl(label: String, id: String) -> some View {
         djFocusGlass(cornerRadius: 18).accessibilityLabel(label).accessibilityIdentifier("dj.focus.\(id)")
+    }
+}
+
+private struct DJFocusGlass: ViewModifier {
+    let cornerRadius: CGFloat
+    let fill: Color
+    let stroke: Color
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, macOS 26.0, *), !reduceTransparency {
+            content
+                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(fill).allowsHitTesting(false))
+                .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(stroke, lineWidth: 1).allowsHitTesting(false))
+        } else {
+            content
+                .glassSurface(cornerRadius: cornerRadius, strokeOpacity: 0.13, fill: fill)
+                .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(stroke, lineWidth: 1).allowsHitTesting(false))
+        }
     }
 }

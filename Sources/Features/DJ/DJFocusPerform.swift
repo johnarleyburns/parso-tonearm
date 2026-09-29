@@ -119,7 +119,9 @@ private struct DJFocusWaveformRow: View {
                 apply(action: action)
             }
             .onEnded { value in
-                if !deck.isPlaying {
+                if !deck.isPlaying, DJWaveformTouchPolicy.shouldFlick(
+                    translation: value.translation.width,
+                    predictedTranslation: value.predictedEndTranslation.width) {
                     model.flick(deckID, translation: value.translation.width,
                                 predictedTranslation: value.predictedEndTranslation.width, width: 300)
                 }

@@ -21,12 +21,17 @@ struct DiscoverySearchView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var model: DiscoverySearchViewModel?
+    let onUseResults: (([TrackRow]) -> Void)?
+
+    init(onUseResults: (([TrackRow]) -> Void)? = nil) {
+        self.onUseResults = onUseResults
+    }
 
     var body: some View {
         NavigationStack {
             Group {
                 if let model {
-                    DiscoverySearchContent(model: model)
+                    DiscoverySearchContent(model: model, onUseResults: onUseResults)
                 } else {
                     ProgressView("Preparing search…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -51,6 +56,7 @@ struct DiscoverySearchView: View {
 
 private struct DiscoverySearchContent: View {
     @ObservedObject var model: DiscoverySearchViewModel
+    let onUseResults: (([TrackRow]) -> Void)?
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @State private var refinementDraft: String = ""
@@ -259,6 +265,16 @@ private struct DiscoverySearchContent: View {
                         .font(.caption).foregroundStyle(Palette.ink3)
                 }
                 if stillIndexing { indexingNote }
+                if let onUseResults {
+                    Button {
+                        onUseResults(model.results.map(\.track))
+                    } label: {
+                        Label("Use these results in My Music", systemImage: "music.note.list")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Palette.brass)
+                    .accessibilityIdentifier("search.useResultsInMyMusic")
+                }
                 ForEach(model.results, id: \.trackID) { result in
                     DiscoverySearchResultRow(
                         result: result, kind: kind,

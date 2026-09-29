@@ -12,6 +12,7 @@ struct DJFocusDock: View {
             Text("CROSSFADER")
                 .font(.caption2.monospaced())
             Slider(value: crossfaderBinding)
+                .accessibilityLabel("Crossfader")
                 .onChange(of: model.crossfader) { _, value in
                     let atCenter = abs(value - 0.5) < 0.0001
                     if atCenter != crossedCenter { crossedCenter = atCenter }

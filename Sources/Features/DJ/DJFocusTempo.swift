@@ -62,6 +62,8 @@ struct DJFocusTempoRow: View {
                     VStack(spacing: 10) {
                         Text("Fine tempo").font(.caption.monospaced())
                         Slider(value: fineBinding, in: -activeDeck.tempoRange...activeDeck.tempoRange)
+                            .accessibilityLabel("Fine tempo")
+                            .accessibilityIdentifier("dj.focus.fineTempo")
                         Text(String(format: "%+.2f%%", fineDraft)).font(.caption.monospaced())
                     }
                     .padding(16)
@@ -81,6 +83,8 @@ struct DJFocusTempoRow: View {
                 Image(systemName: "ellipsis")
                     .frame(width: 44, height: 44)
             }
+            .accessibilityLabel("Deck options")
+            .accessibilityIdentifier("dj.focus.options")
         }
         .accessibilityIdentifier("dj.focus.tempo")
     }

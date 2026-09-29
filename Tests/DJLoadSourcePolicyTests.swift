@@ -47,4 +47,11 @@ final class DJLoadSourcePolicyTests: XCTestCase {
         XCTAssertTrue(message.contains("invalid MP3 frame"))
         XCTAssertTrue(message.contains("Codec hint: unknown"))
     }
+
+    func testChipReadoutSurfacesDeckSpecificLoadFailure() {
+        XCTAssertEqual(
+            DJChipReadout.text(bpm: 128, remaining: 100, isPlaying: false, synced: false,
+                               loadPhase: nil, onAir: false, loadError: "decode failed"),
+            "Couldn't load")
+    }
 }
