@@ -46,7 +46,9 @@ final class WatchAVPlayerItemTests: XCTestCase {
     }
 
     private func waitForStatus(of item: AVPlayerItem) async -> AVPlayerItem.Status {
-        let deadline = ContinuousClock.now + .seconds(10)
+        // Keep this a bounded readiness assertion, but leave room for the
+        // host suite's Core ML and media tests to contend for AVFoundation.
+        let deadline = ContinuousClock.now + .seconds(60)
         while ContinuousClock.now < deadline {
             if item.status != .unknown { return item.status }
             try? await Task.sleep(for: .milliseconds(50))

@@ -97,31 +97,34 @@ public struct MixPlanner: Sendable {
                 continue
             }
 
-            let candidates = pool.filter { candidate in
-                !used.contains(candidate.trackID)
-                    && !lockedByPosition.values.contains(candidate.trackID)
-            }
-            guard !candidates.isEmpty else { break }
+            let positionTarget = target(position, Double(pool.count))
+            let previous = ordered.last
+            var selected: MixCandidate?
+            var selectedCost = Double.infinity
+            for candidate in pool {
+                guard !used.contains(candidate.trackID),
+                      !lockedByPosition.values.contains(candidate.trackID) else { continue }
 
-            if ordered.isEmpty {
-                let selected = candidates.min { lhs, rhs in
-                    startCost(lhs, shape: request.shape, target: target(position, Double(pool.count)), seed: request.seed)
-                        < startCost(rhs, shape: request.shape, target: target(position, Double(pool.count)), seed: request.seed)
-                }!
-                ordered.append(selected)
-                used.insert(selected.trackID)
-                continue
-            }
+                let cost: Double
+                if let previous {
+                    cost = edge(from: previous, to: candidate, target: positionTarget,
+                                shape: request.shape, isFirst: false).total
+                        + seededTieBreak(candidate.trackID, seed: request.seed)
+                } else {
+                    cost = startCost(candidate, shape: request.shape, target: positionTarget,
+                                     seed: request.seed)
+                }
 
-            let previous = ordered[ordered.count - 1]
-            let selected = candidates.min { lhs, rhs in
-                edge(from: previous, to: lhs, target: target(position, Double(pool.count)),
-                     shape: request.shape, isFirst: false).total
-                    + seededTieBreak(lhs.trackID, seed: request.seed)
-                    < edge(from: previous, to: rhs, target: target(position, Double(pool.count)),
-                          shape: request.shape, isFirst: false).total
-                    + seededTieBreak(rhs.trackID, seed: request.seed)
-            }!
+                // Evaluate each candidate once. The previous `min` comparator
+                // recalculated both edge scores on every comparison, which
+                // made a 500-track plan sensitive to host load.
+                if cost < selectedCost
+                    || (cost == selectedCost && candidate.trackID < selected?.trackID ?? .max) {
+                    selected = candidate
+                    selectedCost = cost
+                }
+            }
+            guard let selected else { break }
             ordered.append(selected)
             used.insert(selected.trackID)
         }
@@ -171,8 +174,9 @@ public struct MixPlanner: Sendable {
                                                     pool: pool, position: position,
                                                     target: target(position, Double(ordered.count)),
                                                     shape: request.shape) } ?? []
-            let relation = previous.map { effectiveBPM(from: $0.bpm!, to: candidate.bpm!).relation } ?? .same
-            let effective = previous.map { effectiveBPM(from: $0.bpm!, to: candidate.bpm!).bpm } ?? candidate.bpm!
+            let effectiveMatch = previous.map { effectiveBPM(from: $0.bpm!, to: candidate.bpm!) }
+            let relation = effectiveMatch?.relation ?? .same
+            let effective = effectiveMatch?.bpm ?? candidate.bpm!
             steps.append(MixStep(trackID: candidate.trackID, position: position,
                                  effectiveBPM: effective, tempoRelation: relation,
                                 reasons: reasons.sorted { String(describing: $0) < String(describing: $1) },

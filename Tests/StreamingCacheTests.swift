@@ -77,7 +77,10 @@ final class StreamingCacheTests: XCTestCase {
     }
 
     private func poll(_ c: @Sendable () async -> Bool) async {
-        let deadline = Date().addingTimeInterval(15)
+        // The package suite also exercises Core ML and AVFoundation. Allow the
+        // streaming task a full minute to receive its first range under that
+        // load while retaining a bounded failure.
+        let deadline = Date().addingTimeInterval(60)
         while Date() < deadline {
             if await c() { return }
             try? await Task.sleep(nanoseconds: 20_000_000)
