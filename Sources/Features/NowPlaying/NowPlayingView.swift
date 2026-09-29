@@ -1,7 +1,5 @@
 import SwiftUI
-#if !os(macOS)
 import UIKit
-#endif
 import PhotosUI
 import TonearmCore
 
@@ -26,7 +24,7 @@ struct NowPlayingView: View {
         ZStack {
             npBackground.ignoresSafeArea()
             VStack(spacing: 0) {
-                Capsule().fill(Color.white.opacity(0.35))
+                Capsule().fill(Color.primary.opacity(0.35))
                     .frame(width: 36, height: 5).padding(.top, 8)
 
                 ArtworkView(
@@ -146,10 +144,10 @@ struct NowPlayingView: View {
 
     private var npBackground: some View {
         LinearGradient(stops: [
-            .init(color: Color(hex: 0x8A5A24), location: 0),
-            .init(color: Color(hex: 0x59391A), location: 0.34),
-            .init(color: Color(hex: 0x241708), location: 0.78),
-            .init(color: Color(hex: 0x120B05), location: 1)
+            .init(color: Palette.accent, location: 0),
+            .init(color: Palette.accent, location: 0.34),
+            .init(color: Palette.surface, location: 0.78),
+            .init(color: Palette.background, location: 1)
         ], startPoint: .top, endPoint: .bottom)
     }
 
@@ -171,10 +169,10 @@ struct NowPlayingView: View {
                 let w = geo.size.width
                 let playedFrac = player.duration > 0 ? min(1, player.currentTime / player.duration) : 0
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.16))
-                    Capsule().fill(Color.white.opacity(0.30))
+                    Capsule().fill(Color.primary.opacity(0.16))
+                    Capsule().fill(Color.primary.opacity(0.30))
                         .frame(width: w * player.cachedFraction)
-                    Capsule().fill(Color.white.opacity(0.9))
+                    Capsule().fill(Color.primary.opacity(0.9))
                         .frame(width: w * (isScrubbing ? scrubValue : playedFrac))
                 }
                 .frame(height: 7)
@@ -236,12 +234,15 @@ struct NowPlayingView: View {
             .accessibilityLabel("Previous Track")
             .accessibilityIdentifier("np.prev")
             Button { player.togglePlayPause() } label: {
-                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 26))
+                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 26))
+                    .contentTransition(.symbolEffect(.replace))
                     .frame(width: 66, height: 66).background(.ultraThinMaterial, in: Circle())
             }
             .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
             .accessibilityIdentifier("np.playpause")
             .accessibilityValue(player.isPlaying ? "playing" : "paused")
+            .sensoryFeedback(.impact(weight: .light), trigger: player.isPlaying)
             Button { player.next() } label: {
                 Image(systemName: "forward.fill").font(.system(size: 20))
                     .frame(width: 52, height: 52).background(.ultraThinMaterial, in: Circle())
@@ -256,7 +257,7 @@ struct NowPlayingView: View {
             .accessibilityIdentifier("np.repeat")
             Button { player.shuffle.toggle() } label: {
                 Image(systemName: "shuffle").font(.system(size: 17))
-                    .foregroundStyle(player.shuffle ? Palette.brass : .white.opacity(0.6))
+                    .foregroundStyle(player.shuffle ? Palette.accent : .white.opacity(0.6))
                     .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
             }
             .disabled(player.isAmbient)
@@ -279,6 +280,8 @@ struct NowPlayingView: View {
             .disabled(player.currentTrack == nil)
             .accessibilityLabel("Favorite")
             .accessibilityIdentifier("np.favorite")
+            .sensoryFeedback(.success, trigger: appState.favoriteIds)
+            .symbolEffect(.bounce, value: player.currentTrack.map { appState.isFavorite($0) } == true)
 
             Button { showAddToPlaylist = true } label: {
                 Image(systemName: "text.badge.plus").font(.system(size: 16))
@@ -288,16 +291,12 @@ struct NowPlayingView: View {
             .accessibilityLabel("Add to Playlist")
             .accessibilityIdentifier("np.addToPlaylist")
 
-            #if !os(macOS)
             AirPlayButton()
                 .frame(width: 44, height: 44)
                 .accessibilityIdentifier("np.airplay")
-            #endif
 
             phoneDownloadButton(for: player.currentTrack)
-            #if !os(macOS)
             watchButton(for: player.currentTrack)
-            #endif
 
             Menu {
                 if !player.isAmbient, player.currentTrack != nil {
@@ -320,7 +319,7 @@ struct NowPlayingView: View {
             } label: {
                 Image(systemName: player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack ? "moon.zzz.fill" : "moon.zzz")
                     .font(.system(size: 16))
-                    .foregroundStyle((player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack) ? Palette.brass : .white.opacity(0.6))
+                    .foregroundStyle((player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack) ? Palette.accent : .white.opacity(0.6))
                     .frame(width: 44, height: 44)
                     .background(.ultraThinMaterial, in: Circle())
             }
@@ -381,7 +380,6 @@ struct NowPlayingView: View {
         .contentShape(Circle())
     }
 
-    #if !os(macOS)
     @ViewBuilder
     private func watchButton(for row: TrackRow?) -> some View {
         let state = row.map { appState.watchGlyphState(for: $0) } ?? .notOnWatch
@@ -429,7 +427,6 @@ struct NowPlayingView: View {
         .background(.ultraThinMaterial, in: Circle())
         .contentShape(Circle())
     }
-    #endif
 
     private func cacheGlyphState(from state: PhoneDownloadState) -> CacheGlyphState {
         switch state {

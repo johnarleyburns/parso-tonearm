@@ -3,19 +3,28 @@ import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
 import TonearmDiscovery
-#if !os(macOS)
-import UIKit
-#endif
 
-/// Five root tabs — Playlists/Library unify into My Music,
-/// Sources moves under Settings. See
-/// docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md.
+/// Three root tabs — Playlists/Library unify into My Music and Sources moves
+/// under Settings. Mixes are entered from Listen and playlist actions.
 enum AppTab: Int, CaseIterable {
-    case listen, myMusic, dj, settings
+    case listen, myMusic, settings
 }
 
 enum PendingImport: Equatable {
     case folder, files, smbFolder
+}
+
+struct MixBuilderRequest: Identifiable {
+    let id = UUID()
+    let rows: [TrackRow]
+    let lockedFirst: Int64?
+    let sourcePlaylist: Playlist?
+
+    init(rows: [TrackRow], lockedFirst: Int64?, sourcePlaylist: Playlist? = nil) {
+        self.rows = rows
+        self.lockedFirst = lockedFirst
+        self.sourcePlaylist = sourcePlaylist
+    }
 }
 
 @MainActor
@@ -35,15 +44,10 @@ final class AppState: ObservableObject {
             UserDefaults.standard.set(tab.rawValue, forKey: Self.lastTabKey)
         }
     }
-    // v2: AppTab's cases/raw-values changed (six tabs -> four) — a stale v1
-    // integer must never be reinterpreted under the new enum (e.g. old
-    // `.sources` == 3 must not silently resolve to new `.settings` == 3).
-    // v3: DJ/Transition Lab removed (four tabs -> three) — old `.settings`
-    // == 3 must not silently resolve to a now out-of-range/wrong case.
-    // v4: the real DJ surface is back as a first-class tab immediately before
-    // Settings; reset the persisted raw value rather than reopening Settings
-    // as DJ on an upgrade.
-    private static let lastTabKey = "lastActiveTab.v4"
+    // v5: DJ removed for good (award-and-mix-plan.md); four tabs → three.
+    // The versioned key prevents an old stored DJ raw value from reopening a
+    // different surface after the removal.
+    private static let lastTabKey = "lastActiveTab.v5"
     @Published var sources: [Source] = []
     @Published var playlists: [Playlist] = []
     @Published var allTracks: [TrackRow] = []
@@ -72,18 +76,12 @@ final class AppState: ObservableObject {
     /// Monotonic catalog/search revision. Views use this scalar as their
     /// render key instead of hashing or mapping the full track array in body.
     @Published private(set) var libraryRevision = 0
-    /// True while a full-screen performance surface owns the display (§42.6,
-    /// §42.7a). The DJ decks put the crossfader on the true bottom edge and the
-    /// spec is explicit that it is always visible and never occluded — but the
-    /// app's dock (mini player + tabs) is a root-level overlay, so it sat on top
-    /// of the crossfader, REC and Crate, and a tap on any of them reached the
-    /// dock instead. The surface raises this while it is on screen.
-    @Published var isPerformanceSurfaceFullScreen = false
     @Published var showAddMenu = false
     @Published var showNowPlaying = false
     @Published var showAddSource = false
     @Published var showAddRemoteLibrary = false
     @Published var showCreatePlaylist = false
+    @Published var mixBuilderRequest: MixBuilderRequest?
     /// Set by a Top Artist row's tap on the Listen tab (docs/plans/mood-
     /// based-listening-plan.md §3.5): the artist name to land on. Consumed
     /// once by `MyMusicView` on appear (switches to the Artists scope,
@@ -138,17 +136,11 @@ final class AppState: ObservableObject {
     // The following are declared here (rather than in AppState+Watch.swift,
     // where they are used) because Swift extensions cannot hold stored
     // instance properties. `watchRuntime` is also used by `bootstrap()`
-    // below and by AppState+CustomArtwork.swift. Not compiled on macOS: no
-    // paired watch reachable from a Mac (native Mac app,
-    // docs/plans/native-mac-app-plan.md §1 — no Watch extension embed).
-    #if !os(macOS)
+    // below and by AppState+CustomArtwork.swift. The product ships on iPhone
+    // with an Apple Watch companion.
     var tickTask: Task<Void, Never>?
     lazy var watchRuntime = PhoneWatchRuntime(store: store, player: AudioPlayer.shared)
-    #endif
 
-    /// DJ audio and deck state outlive the tab view.  Recreating the view must
-    /// not stop playback, clear loads, or reset positions.
-    lazy var djPerformanceModel = DJPerformanceModel(store: store)
     private var musicalInfoObserver: NSObjectProtocol?
 
     init(store: LibraryStore = .shared) {
@@ -185,11 +177,9 @@ final class AppState: ObservableObject {
         await reload()
         await AudioCache.shared.garbageCollectStalePartials()
         Task { await warmLocalSourceArtwork() }
-        #if !os(macOS)
         watchRuntime.onChange = { [weak self] in self?.refreshWatchStateFromRuntime() }
         await watchRuntime.activate()
         startWatchTransferTick()
-        #endif
     }
 
     private func repairDuplicatePlaylistsOnce() async {
@@ -282,7 +272,7 @@ final class AppState: ObservableObject {
             listeningStats = stats
             WidgetSnapshotPublisher.publish(appState: self, player: AudioPlayer.shared)
         } catch {
-            print("reload error: \(error)")
+            AppLogger.app.error("Reload failed: \(error.localizedDescription, privacy: .public)")
         }
         didLoadLibraryOnce = true
     }

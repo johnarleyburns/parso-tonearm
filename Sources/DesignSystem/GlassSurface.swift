@@ -3,7 +3,7 @@ import SwiftUI
 struct GlassSurface: ViewModifier {
     var cornerRadius: CGFloat = 18
     var strokeOpacity: Double = 0.13
-    var fill: Color = Color.white.opacity(0.085)
+    var fill: Color = Palette.surface.opacity(0.45)
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
@@ -11,7 +11,7 @@ struct GlassSurface: ViewModifier {
         content
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(reduceTransparency ? AnyShapeStyle(Color(hex: 0x1B1D22)) : AnyShapeStyle(.ultraThinMaterial))
+                    .fill(reduceTransparency ? AnyShapeStyle(Palette.surfaceRaised) : AnyShapeStyle(.ultraThinMaterial))
                     .overlay(
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .fill(fill)
@@ -27,7 +27,7 @@ struct GlassSurface: ViewModifier {
                 // from the outside rather than living inside the label. Chrome must
                 // never be hit-testable.
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(strokeOpacity), lineWidth: 1)
+                    .strokeBorder(Palette.hairline.opacity(strokeOpacity), lineWidth: 1)
                     .allowsHitTesting(false)
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
@@ -37,7 +37,7 @@ struct GlassSurface: ViewModifier {
 extension View {
     func glassSurface(cornerRadius: CGFloat = 18,
                       strokeOpacity: Double = 0.13,
-                      fill: Color = Color.white.opacity(0.085)) -> some View {
+                      fill: Color = Palette.surface.opacity(0.45)) -> some View {
         modifier(GlassSurface(cornerRadius: cornerRadius, strokeOpacity: strokeOpacity, fill: fill))
     }
 }

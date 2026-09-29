@@ -93,7 +93,7 @@ private struct DiscoverySearchContent: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: model.referenceTrackID == nil ? "magnifyingglass" : "wand.and.stars")
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
             if model.referenceTrackID == nil {
                 TextField(
                     model.inputMode == .findBySound
@@ -105,7 +105,7 @@ private struct DiscoverySearchContent: View {
                     .accessibilityLabel("Search text")
             } else {
                 Text("Finding tracks that sound similar")
-                    .foregroundStyle(Palette.ink2)
+                    .foregroundStyle(Palette.inkSecondary)
                 Spacer()
                 Button("Clear") { model.exitSimilarMode() }
                     .font(.footnote)
@@ -168,7 +168,7 @@ private struct DiscoverySearchContent: View {
 
     private var musicalFilters: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Musical filters").font(.caption).foregroundStyle(Palette.ink3)
+            Text("Musical filters").font(.caption).foregroundStyle(Palette.inkTertiary)
             HStack(spacing: 10) {
                 bpmField("Min BPM", text: $model.bpmMinText)
                 bpmField("Max BPM", text: $model.bpmMaxText)
@@ -180,7 +180,7 @@ private struct DiscoverySearchContent: View {
                     get: { model.matchingTracksOnly },
                     set: { model.setMatchingTracksOnly($0) }))
                     .font(.callout)
-                    .tint(Palette.brass)
+                    .tint(Palette.accent)
                     .accessibilityIdentifier("search.matchingTracks")
             }
         }
@@ -188,9 +188,7 @@ private struct DiscoverySearchContent: View {
 
     private func bpmField(_ label: String, text: Binding<String>) -> some View {
         TextField(label, text: text)
-            #if !os(macOS)
             .keyboardType(.numberPad)
-            #endif
             .modifier(FilterFieldStyle())
             .accessibilityLabel(label)
     }
@@ -205,9 +203,9 @@ private struct DiscoverySearchContent: View {
 
     private var refinements: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("More like / Less like").font(.caption).foregroundStyle(Palette.ink3)
+            Text("More like / Less like").font(.caption).foregroundStyle(Palette.inkTertiary)
             Text("Soft preferences — they nudge results, they do not guarantee exclusions.")
-                .font(.caption2).foregroundStyle(Palette.ink3)
+                .font(.caption2).foregroundStyle(Palette.inkTertiary)
             FlowChips(
                 positives: model.positiveRefinements, negatives: model.negativeRefinements,
                 onRemovePositive: model.removeMoreLike, onRemoveNegative: model.removeLessLike)
@@ -246,23 +244,23 @@ private struct DiscoverySearchContent: View {
                 libraryBrowseList
             }
         case .loading:
-            HStack { ProgressView(); Text("Searching…").foregroundStyle(Palette.ink3) }
+            HStack { ProgressView(); Text("Searching…").foregroundStyle(Palette.inkTertiary) }
                 .font(.callout)
         case .validationError(let issues):
             VStack(alignment: .leading, spacing: 6) {
                 Label("Check your filters", systemImage: "exclamationmark.triangle")
                     .font(.callout).foregroundStyle(Palette.danger)
                 ForEach(Array(issues.enumerated()), id: \.offset) { _, issue in
-                    Text("• \(issue.description)").font(.footnote).foregroundStyle(Palette.ink2)
+                    Text("• \(issue.description)").font(.footnote).foregroundStyle(Palette.inkSecondary)
                 }
             }
         case .results(let kind, let count, let stillIndexing):
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text(kindLabel(kind)).font(.caption).foregroundStyle(Palette.ink3)
+                    Text(kindLabel(kind)).font(.caption).foregroundStyle(Palette.inkTertiary)
                     Spacer()
                     Text("\(count) result\(count == 1 ? "" : "s")")
-                        .font(.caption).foregroundStyle(Palette.ink3)
+                        .font(.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 if stillIndexing { indexingNote }
                 if let onUseResults {
@@ -272,8 +270,17 @@ private struct DiscoverySearchContent: View {
                         Label("Use these results in My Music", systemImage: "music.note.list")
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(Palette.brass)
+                    .tint(Palette.accent)
                     .accessibilityIdentifier("search.useResultsInMyMusic")
+                }
+                if !model.results.isEmpty {
+                    Button {
+                        appState.mixBuilderRequest = MixBuilderRequest(
+                            rows: model.results.map(\.track), lockedFirst: nil)
+                    } label: {
+                        Label("Make a Mix", systemImage: "waveform.path.ecg")
+                    }
+                    .buttonStyle(.bordered)
                 }
                 ForEach(model.results, id: \.trackID) { result in
                     DiscoverySearchResultRow(
@@ -337,10 +344,10 @@ private struct DiscoverySearchContent: View {
     private var libraryBrowseList: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Your Music").font(.caption).foregroundStyle(Palette.ink3)
+                Text("Your Music").font(.caption).foregroundStyle(Palette.inkTertiary)
                 Spacer()
                 Text("\(appState.allTracks.count) track\(appState.allTracks.count == 1 ? "" : "s")")
-                    .font(.caption).foregroundStyle(Palette.ink3)
+                    .font(.caption).foregroundStyle(Palette.inkTertiary)
             }
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(appState.allTracks.enumerated()), id: \.element.id) { idx, row in
@@ -361,7 +368,7 @@ private struct DiscoverySearchContent: View {
         Label(
             "Still building the sound index — results may be incomplete.",
             systemImage: "clock.arrow.circlepath")
-            .font(.caption).foregroundStyle(Palette.ink3)
+            .font(.caption).foregroundStyle(Palette.inkTertiary)
     }
 
     private func kindLabel(_ kind: DiscoverySearchResultKind) -> String {
@@ -374,7 +381,7 @@ private struct DiscoverySearchContent: View {
     }
 
     private func hint(_ text: String) -> some View {
-        Text(text).font(.callout).foregroundStyle(Palette.ink3)
+        Text(text).font(.callout).foregroundStyle(Palette.inkTertiary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -407,10 +414,10 @@ private struct FlowChips: View {
         } else {
             HStack(spacing: 6) {
                 ForEach(positives, id: \.self) { term in
-                    chip(term, systemImage: "plus", tint: Palette.brass) { onRemovePositive(term) }
+                    chip(term, systemImage: "plus", tint: Palette.accent) { onRemovePositive(term) }
                 }
                 ForEach(negatives, id: \.self) { term in
-                    chip(term, systemImage: "minus", tint: Palette.ink3) { onRemoveNegative(term) }
+                    chip(term, systemImage: "minus", tint: Palette.inkTertiary) { onRemoveNegative(term) }
                 }
             }
         }
@@ -454,13 +461,13 @@ private struct DiscoverySearchResultRow: View {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(track.title).font(.body).lineLimit(2)
-                    Text(subtitle).font(.caption).foregroundStyle(Palette.ink3).lineLimit(1)
+                    Text(subtitle).font(.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
                     if let musical = musicalLine {
-                        Text(musical).font(.caption2).foregroundStyle(Palette.ink3)
+                        Text(musical).font(.caption2).foregroundStyle(Palette.inkTertiary)
                     }
                     Text(djLine)
                         .font(.caption2.monospacedDigit())
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                 }
                 Spacer(minLength: 6)
                 Button(action: onPlay) {
@@ -480,7 +487,7 @@ private struct DiscoverySearchResultRow: View {
                 .font(.caption)
                 if kind.showsSemanticScore, !components.isEmpty {
                     Button {
-                        withAnimation { showScore.toggle() }
+                        Motion.perform { showScore.toggle() }
                     } label: {
                         Label("Score details", systemImage: showScore ? "chevron.up" : "chevron.down")
                     }
@@ -488,16 +495,16 @@ private struct DiscoverySearchResultRow: View {
                 }
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Palette.brass)
+            .foregroundStyle(Palette.accent)
 
             if showScore {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(components) { component in
                         HStack {
-                            Text(component.label).font(.caption2).foregroundStyle(Palette.ink3)
+                            Text(component.label).font(.caption2).foregroundStyle(Palette.inkTertiary)
                             Spacer()
                             Text(component.formattedValue)
-                                .font(.caption2.monospacedDigit()).foregroundStyle(Palette.ink2)
+                                .font(.caption2.monospacedDigit()).foregroundStyle(Palette.inkSecondary)
                         }
                     }
                 }
@@ -513,8 +520,8 @@ private struct DiscoverySearchResultRow: View {
         }
         .sheet(isPresented: $showPlaylistPicker) {
             AddToPlaylistDialog(
-                title: "Add to DJ playlist",
-                subtitle: "Choose a playlist to keep this track in your crate.") { target in
+                title: "Add to playlist",
+                subtitle: "Choose a playlist to keep this track in your library.") { target in
                     switch target {
                     case .existing(let playlist):
                         await appState.addToPlaylist(result.track, playlist: playlist)

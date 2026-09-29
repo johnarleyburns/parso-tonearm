@@ -29,7 +29,7 @@ struct TrackDetailCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Capsule()
-                .fill(Color.white.opacity(0.18))
+                .fill(Color.primary.opacity(0.18))
                 .frame(width: 34, height: 4)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 8)
@@ -44,7 +44,7 @@ struct TrackDetailCard: View {
                         .lineLimit(1)
                     Text(subtitle)
                         .font(.system(size: 12))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                         .lineLimit(1)
                     // Plan §3.6 lists artwork/title/artist-album/duration/
                     // source as the card's fields — `subtitle` above already
@@ -54,7 +54,7 @@ struct TrackDetailCard: View {
                     // had an artist. This line always carries both.
                     Text(durationAndSource)
                         .font(.system(size: 11))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                         .lineLimit(1)
                 }
                 Spacer()
@@ -96,7 +96,7 @@ struct TrackDetailCard: View {
 
                 Button("Dismiss") { dismiss() }
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
                     .padding(.top, 4)
                     .accessibilityIdentifier("trackDetail.dismiss")
             }
@@ -127,12 +127,12 @@ struct TrackDetailCard: View {
     private func backgroundStyle(for style: ActionStyle) -> AnyShapeStyle {
         switch style {
         case .primary:
-            return AnyShapeStyle(LinearGradient(colors: [Palette.brass, Palette.brassDeep],
+            return AnyShapeStyle(LinearGradient(colors: [Palette.accent, Palette.accent],
                                                 startPoint: .top, endPoint: .bottom))
         case .mood:
-            return AnyShapeStyle(Palette.brass.opacity(0.12))
+            return AnyShapeStyle(Palette.accent.opacity(0.12))
         case .secondary:
-            return AnyShapeStyle(Color.white.opacity(0.07))
+            return AnyShapeStyle(Color.primary.opacity(0.07))
         }
     }
 
@@ -145,11 +145,11 @@ struct TrackDetailCard: View {
             .font(.system(size: 14, weight: .semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .foregroundStyle(style == .primary ? Color.black : (style == .mood ? Palette.brass : Palette.ink))
+            .foregroundStyle(style == .primary ? Color.primary : (style == .mood ? Palette.accent : Palette.ink))
             .background(backgroundStyle(for: style), in: RoundedRectangle(cornerRadius: 13))
             .overlay(
                 RoundedRectangle(cornerRadius: 13)
-                    .stroke(style == .mood ? Palette.brass.opacity(0.3) : Color.clear, lineWidth: 1)
+                    .stroke(style == .mood ? Palette.accent.opacity(0.3) : Color.clear, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

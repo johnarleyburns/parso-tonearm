@@ -63,17 +63,6 @@ final class TonearmSmokeUITests: XCTestCase {
         XCTAssertTrue(waitForLabel(miniTitle, equals: "Ocean Waves", timeout: 5),
                       "Skipping forward should advance to the next built-in track")
 
-        // The DJ tab now opens Transition Lab directly — no home/menu screen,
-        // no mixer (docs/plans/unified-my-music-transition-lab-status.md).
-        app.buttons["DJ"].firstMatch.tap()
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10),
-                      "App should still be in the foreground after opening the DJ tab")
-        XCTAssertTrue(element("dj.transitionLab").waitForExistence(timeout: 10),
-                      "DJ tab should open Transition Lab directly.\n\(app.debugDescription)")
-        XCTAssertTrue(element("dj.transition.outgoing").waitForExistence(timeout: 10),
-                      "Transition Lab should show the outgoing-track slot.\n\(app.debugDescription)")
-        XCTAssertTrue(element("dj.transition.incoming").waitForExistence(timeout: 10),
-                      "Transition Lab should show the incoming-track slot.\n\(app.debugDescription)")
     }
 
     private func launch(arguments: [String] = []) {

@@ -53,11 +53,11 @@ private struct MenuItem: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: locked ? "lock.fill" : icon)
-                    .font(.system(size: 17)).foregroundStyle(Palette.brass)
+                    .font(.system(size: 17)).foregroundStyle(Palette.accent)
                     .frame(width: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Palette.ink)
-                    Text(subtitle).font(.system(size: 10.5)).foregroundStyle(Palette.ink3)
+                    Text(subtitle).font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
             }

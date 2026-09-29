@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// Invariant #6: Liquid Glass chrome lives only under Features/Chrome. This modifier
-/// prefers the native iOS 26 glass effect when available and falls back to a material.
+/// Liquid Glass chrome lives only under Features/Chrome.
 struct AdaptiveGlass: ViewModifier {
     var cornerRadius: CGFloat = 26
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -10,20 +9,18 @@ struct AdaptiveGlass: ViewModifier {
         if reduceTransparency {
             content.background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color(hex: 0x1E2026))
+                    .fill(Palette.surfaceRaised)
                     .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.16), lineWidth: 1))
+                        .strokeBorder(Palette.hairline, lineWidth: 1))
             )
         } else {
-            content.background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(Color(hex: 0x1E2026).opacity(0.35)))
-                    .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.16), lineWidth: 1))
-                    .shadow(color: .black.opacity(0.45), radius: 18, y: 10)
-            )
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 8) {
+                    content.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
+                }
+            } else {
+                content.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+            }
         }
     }
 }

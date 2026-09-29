@@ -1,0 +1,9 @@
+# Ratchet baselines measured after C2/C3 on 2026-09-28.
+system_size=448
+color_literals=84
+preferred_dark=0
+print_calls=39
+animation_calls=14
+
+# Temporary exceptions are explicit and must carry a reason.
+allowlist|Sources/Tools/BuiltInEmbedder/main.swift|print|CLI progress output is intentionally terminal-facing

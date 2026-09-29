@@ -18,6 +18,40 @@ cd "$(git rev-parse --show-toplevel)"
 
 status=0
 
+# ── Design ratchet ─────────────────────────────────────────────────────────
+echo "==> Design ratchet"
+ratchet_file=scripts/design-ratchet.txt
+ratchet_ok=1
+count_matches() {
+  local pattern="$1"
+  rg -n --glob '*.swift' "$pattern" Sources 2>/dev/null | wc -l | tr -d ' '
+}
+check_ratchet() {
+  local key="$1" pattern="$2" label="$3"
+  local baseline current
+  baseline=$(grep -E "^${key}=" "$ratchet_file" | cut -d= -f2)
+  current=$(count_matches "$pattern")
+  if [ -z "$baseline" ] || [ "$current" -gt "$baseline" ]; then
+    echo "    ${label}: ${current} (baseline ${baseline:-missing})"
+    status=1; ratchet_ok=0
+  else
+    echo "    ${label}: ${current}/${baseline}"
+  fi
+}
+check_ratchet system_size 'system\(size:' 'fixed fonts'
+check_ratchet color_literals 'Color\.(white|black)|Color\(hex:' 'color literals'
+check_ratchet preferred_dark 'preferredColorScheme\(\.dark\)' 'forced dark mode'
+check_ratchet print_calls 'print\(' 'print calls'
+check_ratchet animation_calls 'withAnimation|\.animation\(' 'animation calls'
+while IFS='|' read -r kind file token reason; do
+  [ "$kind" = "allowlist" ] || continue
+  if [ -z "$file" ] || [ -z "$token" ] || [ -z "$reason" ]; then
+    echo "    allowlisted design line is missing a reason: $file"
+    status=1; ratchet_ok=0
+  fi
+done < "$ratchet_file"
+[ "$ratchet_ok" = "1" ] && echo "    OK"
+
 # ── Watch app icon catalog ─────────────────────────────────────────────────
 #
 # The iOS app embeds a watchOS app. Its icon catalog must be validated with

@@ -10,7 +10,7 @@ struct ToastBanner: View {
         HStack(spacing: 9) {
             icon
             Text(toast.text)
-                .font(.system(size: 13, weight: .medium))
+                .font(Typography.callout)
                 .foregroundStyle(Palette.ink)
                 .lineLimit(2)
         }
@@ -28,13 +28,13 @@ struct ToastBanner: View {
     private var icon: some View {
         switch toast.kind {
         case .progress:
-            ProgressView().tint(Palette.brass).scaleEffect(0.8).frame(width: 16, height: 16)
+            ProgressView().tint(Palette.accent).scaleEffect(0.8).frame(width: 16, height: 16)
         case .info:
-            Image(systemName: toast.icon).font(.system(size: 14)).foregroundStyle(Palette.brass)
+            Image(systemName: toast.icon).font(Typography.callout).foregroundStyle(Palette.accent)
         case .success:
-            Image(systemName: toast.icon).font(.system(size: 14)).foregroundStyle(Palette.ok)
+            Image(systemName: toast.icon).font(Typography.callout).foregroundStyle(Palette.success)
         case .error:
-            Image(systemName: toast.icon).font(.system(size: 14)).foregroundStyle(Palette.danger)
+            Image(systemName: toast.icon).font(Typography.callout).foregroundStyle(Palette.danger)
         }
     }
 }
@@ -59,6 +59,6 @@ private struct ToastLayer: ViewModifier {
                     .id(toast.id)
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: center.current)
+        .motion(Motion.emphasized, value: center.current)
     }
 }

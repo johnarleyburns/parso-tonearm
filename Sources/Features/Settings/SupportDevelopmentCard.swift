@@ -19,7 +19,7 @@ struct SupportDevelopmentCard: View {
                 if store.isSupporter {
                     Label("Supporter", systemImage: "heart.fill")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                         .accessibilityIdentifier("settings.support.badge")
                 }
             }
@@ -28,12 +28,12 @@ struct SupportDevelopmentCard: View {
                  + "this is a purely optional, one-time contribution — it doesn't unlock anything, "
                  + "it just marks your account as a supporter.")
                 .font(.system(size: 11.5))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
 
             if store.isSupporter {
                 Text("Thank you for your support.")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Palette.ink2)
+                    .foregroundStyle(Palette.inkSecondary)
                     .accessibilityIdentifier("settings.support.thanks")
             } else {
                 Button {

@@ -11,7 +11,7 @@ extension SourceDetailView {
         VStack(alignment: .leading, spacing: 0) {
             Text("Library Settings")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
                 .padding(.top, 24)
                 .padding(.bottom, 10)
 
@@ -42,9 +42,9 @@ extension SourceDetailView {
                             HStack {
                                 Text("Stats")
                                     .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(Palette.ink3)
+                                    .foregroundStyle(Palette.inkTertiary)
                                 Spacer()
-                                ProgressView().tint(Palette.brass).scaleEffect(0.7)
+                                ProgressView().tint(Palette.accent).scaleEffect(0.7)
                             }
                         } else if let _ = statsError {
                             managementRow(label: "Stats", value: "Tap to retry", chevron: false)
@@ -105,25 +105,25 @@ extension SourceDetailView {
                 HStack {
                     Text("Make Offline")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                     Spacer()
                     if progress.isDone {
                         Text("✓ \(progress.completed) of \(progress.total)")
-                            .font(.system(size: 12)).foregroundStyle(Palette.ok)
+                            .font(.system(size: 12)).foregroundStyle(Palette.success)
                     } else if let msg = progress.message {
                         Text(msg)
                             .font(.system(size: 11)).foregroundStyle(Palette.danger)
                     } else {
                         Text("\(progress.completed) / \(progress.total)")
-                            .font(.system(size: 12)).foregroundStyle(Palette.ink2)
+                            .font(.system(size: 12)).foregroundStyle(Palette.inkSecondary)
                             .monospacedDigit()
                     }
                 }
                 if !progress.isDone {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Color.white.opacity(0.1))
-                            Capsule().fill(Palette.brass)
+                            Capsule().fill(Color.primary.opacity(0.1))
+                            Capsule().fill(Palette.accent)
                                 .frame(width: geo.size.width * progress.fraction)
                         }
                     }
@@ -144,14 +144,14 @@ extension SourceDetailView {
                 HStack {
                     Text("Make Offline")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                     Spacer()
                     Text("Download for offline playback")
                         .font(.system(size: 12))
-                        .foregroundStyle(Palette.ink2)
+                        .foregroundStyle(Palette.inkSecondary)
                     Image(systemName: "arrow.down.circle")
                         .font(.system(size: 14))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                 }
                 .contentShape(Rectangle())
             }
@@ -164,17 +164,17 @@ extension SourceDetailView {
         HStack {
             Text(label)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
             Spacer()
             Text(value)
                 .font(.system(size: 12, weight: .regular, design: label == "URL" ? .monospaced : .default))
-                .foregroundStyle(Palette.ink2)
+                .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
             if chevron {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
                     .padding(.leading, 4)
             }
         }

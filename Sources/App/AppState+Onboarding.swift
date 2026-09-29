@@ -2,9 +2,7 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
-#if !os(macOS)
 import UIKit
-#endif
 
 extension AppState {
     // MARK: - Onboarding (TF5, TF9)
@@ -24,7 +22,7 @@ extension AppState {
                     addedTrackIds.append(contentsOf: rows.map { $0.id })
                 }
             } catch {
-                print("onboarding add error for \(raw): \(error)")
+                AppLogger.onboarding.error("Onboarding add failed for \(raw, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
         if !addedTrackIds.isEmpty {

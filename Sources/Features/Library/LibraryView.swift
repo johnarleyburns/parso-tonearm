@@ -89,10 +89,10 @@ struct LibraryView: View {
                                 // the first reload() actually finishes,
                                 // never the empty state prematurely.
                                 VStack(spacing: 14) {
-                                    ProgressView().tint(Palette.brass)
+                                    ProgressView().tint(Palette.accent)
                                     Text("Loading your music…")
                                         .font(.system(size: 13))
-                                        .foregroundStyle(Palette.ink3)
+                                        .foregroundStyle(Palette.inkTertiary)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 60)
@@ -212,13 +212,13 @@ struct LibraryView: View {
             VStack(spacing: 2) {
                 ForEach(sections.map(\.indexTitle), id: \.self) { index in
                     Button {
-                        withAnimation(.snappy) {
+                        Motion.perform(Motion.emphasized) {
                             proxy.scrollTo(index, anchor: .top)
                         }
                     } label: {
                         Text(index)
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(Palette.brass)
+                            .foregroundStyle(Palette.accent)
                             .frame(width: 18, height: 16)
                     }
                     .buttonStyle(.plain)
@@ -263,19 +263,19 @@ private struct LibraryBrowseEntryRow: View {
                 if let subtitle = entry.subtitle {
                     Text(subtitle)
                         .font(.system(size: 11.5))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                         .lineLimit(1)
                 }
                 if let averageBPM = entry.averageBPM {
                     Text("AVG " + String(format: "%.1f", averageBPM) + " BPM")
                         .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                 }
             }
             Spacer(minLength: 8)
             Text("\(entry.rows.count)")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
         }
         .padding(.vertical, 9)
         .contentShape(Rectangle())
@@ -317,13 +317,13 @@ private struct LibraryGroupDetailView: View {
                 if let subtitle = entry.subtitle {
                     Text(subtitle)
                         .font(.system(size: 14))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                         .padding(.top, 4)
                 }
                 if entry.kind == .album, let averageBPM {
                     Text("Average " + String(format: "%.1f", averageBPM) + " BPM")
                         .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                         .padding(.top, 3)
                 }
                 cta.padding(.top, 14).padding(.bottom, 12)
@@ -351,7 +351,7 @@ private struct LibraryGroupDetailView: View {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 15))
-                    .foregroundStyle(Palette.brass)
+                    .foregroundStyle(Palette.accent)
                     .frame(width: 33, height: 33)
                     .glassSurface(cornerRadius: 16.5)
             }
@@ -371,7 +371,7 @@ private struct LibraryGroupDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 15))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                         .frame(width: 33, height: 33)
                         .glassSurface(cornerRadius: 16.5)
                 }
@@ -428,7 +428,7 @@ private struct LibraryGroupDetailView: View {
             Text(title)
         }
         .font(.system(size: 14.5, weight: .semibold))
-        .foregroundStyle(Palette.brass)
+        .foregroundStyle(Palette.accent)
         .frame(maxWidth: .infinity)
         .frame(height: 42)
         .glassSurface(cornerRadius: 21)
@@ -444,7 +444,7 @@ struct SectionHeader: View {
             Text(title).font(.system(size: 18, weight: .bold))
             Spacer()
             if let trailing {
-                Text(trailing).font(.system(size: 13)).foregroundStyle(Palette.brass)
+                Text(trailing).font(.system(size: 13)).foregroundStyle(Palette.accent)
             }
         }
         .padding(.horizontal, 2)
@@ -468,7 +468,7 @@ struct AlbumCell: View {
                 .padding(.top, 7)
             Text(subtitle)
                 .font(.system(size: 11))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
                 .lineLimit(1)
                 .padding(.top, 1)
         }

@@ -66,11 +66,10 @@ struct ToolsView: View {
             .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.tint(Palette.brass)
+                    Button("Done") { dismiss() }.tint(Palette.accent)
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private var playlistsPanel: some View {
@@ -102,11 +101,11 @@ struct ToolsView: View {
                     Button { toggle(row.id) } label: {
                         HStack(spacing: 10) {
                             Image(systemName: selectedTrackIDs.contains(row.id) ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(selectedTrackIDs.contains(row.id) ? Palette.brass : Palette.ink3)
+                                .foregroundStyle(selectedTrackIDs.contains(row.id) ? Palette.accent : Palette.inkTertiary)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(row.track.title).font(.system(size: 13.5)).lineLimit(1)
                                 Text(row.album?.title ?? "Local file")
-                                    .font(.system(size: 11)).foregroundStyle(Palette.ink3).lineLimit(1)
+                                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary).lineLimit(1)
                             }
                             Spacer()
                         }
@@ -132,19 +131,19 @@ struct ToolsView: View {
             slider("Frequency", value: bandFrequency, range: 20...20_000, display: "\(Int(bandFrequency.wrappedValue)) Hz")
             slider("Gain", value: bandGain, range: -12...12, display: String(format: "%.1f dB", bandGain.wrappedValue))
             slider("Q", value: bandQ, range: 0.2...10, display: String(format: "%.1f", bandQ.wrappedValue))
-            Toggle("Crossfeed", isOn: crossfeedEnabled).tint(Palette.brassDeep)
+            Toggle("Crossfeed", isOn: crossfeedEnabled).tint(Palette.accent)
             slider("Crossfeed level", value: crossfeedLevel, range: -24...0, display: String(format: "%.0f dB", crossfeedLevel.wrappedValue))
                 .disabled(!proAudio.crossfeedEnabled)
                 .opacity(proAudio.crossfeedEnabled ? 1 : 0.45)
             Stepper("Convolution taps \(proAudio.convolutionTaps)", value: convolutionTaps, in: 0...ProAudioSettings.maxConvolutionTaps, step: 64)
                 .font(.system(size: 13.5))
-            Toggle("Bit-perfect requested", isOn: bitPerfectRequested).tint(Palette.brassDeep)
+            Toggle("Bit-perfect requested", isOn: bitPerfectRequested).tint(Palette.accent)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(bitPerfectPlan.canUseBitPerfect ? "Bit-perfect available" : "Bit-perfect blocked")
                     .font(.system(size: 13.5, weight: .semibold))
                 Text(blockerText)
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
             .padding(.top, 2)
         }
@@ -177,7 +176,7 @@ struct ToolsView: View {
                     ForEach(group.candidates, id: \.id) { candidate in
                         Text(candidate.id)
                             .font(.system(size: 11.5))
-                            .foregroundStyle(Palette.ink3)
+                            .foregroundStyle(Palette.inkTertiary)
                             .lineLimit(1)
                     }
                 }
@@ -332,15 +331,15 @@ struct ToolsView: View {
     private func textField(_ label: String, text: Binding<String>, prompt: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
-                .foregroundStyle(Palette.ink3)
-            TextField("", text: text, prompt: Text(prompt).foregroundStyle(Palette.ink3))
+                .foregroundStyle(Palette.inkTertiary)
+            TextField("", text: text, prompt: Text(prompt).foregroundStyle(Palette.inkTertiary))
                 .font(.system(size: 12.5))
                 .platformAutocapitalization(.never)
                 .autocorrectionDisabled()
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
-        .background(Color.black.opacity(0.24), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.12)))
+        .background(Color.primary.opacity(0.24), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.12)))
     }
 
     private func pickerRow<T: CaseIterable & Hashable & RawRepresentable>(
@@ -350,14 +349,14 @@ struct ToolsView: View {
     ) -> some View where T.RawValue == String, T.AllCases: RandomAccessCollection {
         HStack {
             Text(title).font(.system(size: 10, weight: .semibold)).kerning(1)
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
             Spacer()
             Picker(title, selection: selection) {
                 ForEach(Array(values), id: \.self) { value in
                     Text(value.rawValue).tag(value)
                 }
             }
-            .tint(Palette.brass)
+            .tint(Palette.accent)
         }
     }
 
@@ -369,9 +368,9 @@ struct ToolsView: View {
             HStack {
                 Text(title).font(.system(size: 13.5))
                 Spacer()
-                Text(display).font(.system(size: 12).monospacedDigit()).foregroundStyle(Palette.ink3)
+                Text(display).font(.system(size: 12).monospacedDigit()).foregroundStyle(Palette.inkTertiary)
             }
-            Slider(value: value, in: range).tint(Palette.brass)
+            Slider(value: value, in: range).tint(Palette.accent)
         }
     }
 
@@ -382,9 +381,9 @@ struct ToolsView: View {
                 Text(title)
             }
             .font(.system(size: 13.5, weight: .bold))
-            .foregroundStyle(Color(hex: 0x221503))
+            .foregroundStyle(Palette.accentOnFill)
             .frame(maxWidth: .infinity).frame(height: 42)
-            .background(Palette.brass, in: RoundedRectangle(cornerRadius: 12))
+            .background(Palette.accent, in: RoundedRectangle(cornerRadius: 12))
         }
     }
 
@@ -393,7 +392,7 @@ struct ToolsView: View {
         if let message {
             Text(message)
                 .font(.system(size: 11.5))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
         }
     }
 }

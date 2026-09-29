@@ -63,7 +63,7 @@ extension AppState {
             }
             await reload()
         } catch {
-            print("seedBuiltInLibraryContentIfNeeded error: \(error)")
+            AppLogger.app.error("Seeding built-in library failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 

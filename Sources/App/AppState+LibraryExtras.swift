@@ -2,9 +2,7 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
-#if !os(macOS)
 import UIKit
-#endif
 
 extension AppState {
     @discardableResult
@@ -62,7 +60,7 @@ extension AppState {
                     try await store.deleteTrack(id: trackId)
                     deletedCount += 1
                 } catch {
-                    print("eliminateDuplicates: failed to delete track \(trackId): \(error)")
+                    AppLogger.app.error("Duplicate cleanup failed for track \(trackId): \(error.localizedDescription, privacy: .public)")
                 }
             }
         }

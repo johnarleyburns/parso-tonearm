@@ -1,6 +1,4 @@
-#if !os(macOS)
 import UIKit
-#endif
 import CoreImage
 
 /// "Phase 2" fallback artwork for a track with no real cover: a bundled
@@ -138,16 +136,9 @@ private extension PlatformColor {
     /// just a value that changes whenever the color meaningfully does.
     /// `NSColor.getRed(...)` traps if the receiver isn't already in an
     /// RGB-compatible color space (unlike `UIColor`, which always is) —
-    /// converting explicitly first is required on macOS (native Mac app,
-    /// docs/plans/native-mac-app-plan.md §2b).
     var tonearmHex: String {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        #if os(macOS)
-        let rgb = usingColorSpace(.deviceRGB) ?? self
-        rgb.getRed(&r, green: &g, blue: &b, alpha: &a)
-        #else
         getRed(&r, green: &g, blue: &b, alpha: &a)
-        #endif
         return String(format: "%02x%02x%02x", Int(r * 255), Int(g * 255), Int(b * 255))
     }
 }
@@ -160,25 +151,15 @@ extension PlatformImage {
     /// loop). Returns `nil` (never a partially-processed or wrong-color
     /// image) if the filter pipeline fails for any reason.
     func duotone(dark: PlatformColor, base: PlatformColor) -> PlatformImage? {
-        #if os(macOS)
-        guard let cgSource = tonearmCGImage else { return nil }
-        let ciImage = CIImage(cgImage: cgSource)
-        guard let filter = CIFilter(name: "CIFalseColor") else { return nil }
-        #else
         guard let ciImage = CIImage(image: self),
               let filter = CIFilter(name: "CIFalseColor")
         else { return nil }
-        #endif
         filter.setValue(ciImage, forKey: kCIInputImageKey)
         filter.setValue(CIColor(color: dark), forKey: "inputColor0")
         filter.setValue(CIColor(color: base), forKey: "inputColor1")
         guard let output = filter.outputImage else { return nil }
         let context = CIContext()
         guard let cgImage = context.createCGImage(output, from: output.extent) else { return nil }
-        #if os(macOS)
-        return PlatformImage(cgImage: cgImage, size: size)
-        #else
         return PlatformImage(cgImage: cgImage, scale: scale, orientation: .up)
-        #endif
     }
 }

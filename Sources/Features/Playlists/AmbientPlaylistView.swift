@@ -16,7 +16,7 @@ struct AmbientPlaylistView: View {
                     .padding(.top, 16)
                 Text("Continuous nature sounds for focus, relaxation, or sleep.")
                     .font(.system(size: 13))
-                    .foregroundStyle(Palette.ink2)
+                    .foregroundStyle(Palette.inkSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 4)
 
@@ -35,7 +35,7 @@ struct AmbientPlaylistView: View {
         HStack {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 15)).foregroundStyle(Palette.brass)
+                    .font(.system(size: 15)).foregroundStyle(Palette.accent)
                     .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
             }
             Spacer()
@@ -68,22 +68,22 @@ struct AmbientPlaylistView: View {
                         .foregroundStyle(Palette.ink)
                     Text(ambient.artist)
                         .font(.system(size: 12))
-                        .foregroundStyle(Palette.ink2)
+                        .foregroundStyle(Palette.inkSecondary)
                     HStack(spacing: 4) {
-                        Circle().fill(Palette.ok).frame(width: 5, height: 5)
+                        Circle().fill(Palette.success).frame(width: 5, height: 5)
                         Text("CC0 Public Domain")
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Palette.ink3)
+                            .foregroundStyle(Palette.inkTertiary)
                         Text("· built-in")
                             .font(.system(size: 10))
-                            .foregroundStyle(Palette.ink3)
+                            .foregroundStyle(Palette.inkTertiary)
                     }
                     .padding(.top, 2)
                 }
                 Spacer()
                 Image(systemName: "play.circle.fill")
                     .font(.system(size: 28))
-                    .foregroundStyle(Palette.brass)
+                    .foregroundStyle(Palette.accent)
             }
             .padding(12)
             .glassSurface(cornerRadius: 18)

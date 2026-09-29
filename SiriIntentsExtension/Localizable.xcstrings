@@ -1,0 +1,7 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Platterhead Siri" : { "localizations" : { "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead Siri" } } } }
+  },
+  "version" : "1.0"
+}

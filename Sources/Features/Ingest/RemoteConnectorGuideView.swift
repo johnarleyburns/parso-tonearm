@@ -15,7 +15,7 @@ struct RemoteConnectorGuideView: View {
                                 .font(.system(size: 13, weight: .bold))
                             Text(section.body)
                                 .font(.system(size: 12.5))
-                                .foregroundStyle(Palette.ink2)
+                                .foregroundStyle(Palette.inkSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }

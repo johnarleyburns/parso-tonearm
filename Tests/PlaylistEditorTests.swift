@@ -126,20 +126,6 @@ final class PlaylistEditorTests: XCTestCase {
         XCTAssertEqual(rows.map(\.item.position), [0, 1, 2])
     }
 
-    func testCrateMembershipRoundTripsThroughThePlaylistRecord() async throws {
-        let store = try LibraryStore(inMemory: true)
-        let playlist = try await store.insertPlaylist(
-            Playlist(id: nil, title: "DJ Set", kind: .manual, folderBookmark: nil, watch: false))
-        let id = try XCTUnwrap(playlist.id)
-
-        try await store.setPlaylistInCrate(id: id, isInCrate: true)
-        let inCrate = try await store.playlist(id: id)?.isInCrate
-        XCTAssertEqual(inCrate, true)
-        try await store.setPlaylistInCrate(id: id, isInCrate: false)
-        let outOfCrate = try await store.playlist(id: id)?.isInCrate
-        XCTAssertEqual(outOfCrate, false)
-    }
-
     private func items(_ trackIDs: [Int64]) -> [PlaylistItem] {
         trackIDs.enumerated().map { offset, trackID in
             item(id: Int64(offset + 1), position: offset, trackId: trackID)

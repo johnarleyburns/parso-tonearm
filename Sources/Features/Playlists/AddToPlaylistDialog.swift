@@ -13,9 +13,9 @@ struct AddToPlaylistDialog: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Capsule().fill(Color.white.opacity(0.35)).frame(width: 36, height: 5)
+            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5)
             Text(title).font(.headline)
-            if let subtitle { Text(subtitle).font(.caption).foregroundStyle(Palette.ink3) }
+            if let subtitle { Text(subtitle).font(.caption).foregroundStyle(Palette.inkTertiary) }
             Picker("Playlist", selection: $selection) {
                 ForEach(appState.playlists) { playlist in
                     Text(playlist.title).tag(playlist.id ?? -2)

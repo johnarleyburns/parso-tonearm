@@ -2,9 +2,7 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
-#if !os(macOS)
 import UIKit
-#endif
 
 extension AppState {
     func renamePlaylist(_ playlist: Playlist, title: String) async {
@@ -12,12 +10,6 @@ extension AppState {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         try? await store.renamePlaylist(id: id, title: name)
-        await reload()
-    }
-
-    func setPlaylistInCrate(_ playlist: Playlist, isInCrate: Bool) async {
-        guard let id = playlist.id else { return }
-        try? await store.setPlaylistInCrate(id: id, isInCrate: isInCrate)
         await reload()
     }
 

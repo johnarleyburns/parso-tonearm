@@ -338,5 +338,20 @@ extension Schema {
                 }
             }
         }
+
+        if shouldRegister("v31", upTo: target) {
+            migrator.registerMigration("v31") { db in
+                try db.create(table: "playlist_mix") { t in
+                    t.column("playlistId", .integer).primaryKey()
+                        .references("playlist", onDelete: .cascade)
+                    t.column("shape", .text).notNull().defaults(to: "risingBPM")
+                    t.column("seed", .integer).notNull().defaults(to: 0)
+                    t.column("lockedJSON", .blob).notNull().defaults(to: "{}")
+                    t.column("transitionOverridesJSON", .blob).notNull().defaults(to: "{}")
+                    t.column("updatedAt", .datetime).notNull()
+                    t.column("syncID", .text).unique()
+                }
+            }
+        }
     }
 }

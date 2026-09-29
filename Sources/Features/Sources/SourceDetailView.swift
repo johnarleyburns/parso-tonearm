@@ -68,7 +68,7 @@ struct SourceDetailView: View {
             localTrackList
                 Text("Streams from archive.org · played tracks stay in the cache\nand work offline until space is needed")
                 .font(.system(size: 11))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
                 .multilineTextAlignment(.center)
                 .padding(.top, 16)
         }
@@ -99,7 +99,7 @@ struct SourceDetailView: View {
             }
 
             if isLoadingRemote {
-                ProgressView().tint(Palette.brass).padding(.top, 26)
+                ProgressView().tint(Palette.accent).padding(.top, 26)
             } else if let remoteError {
                 Text(remoteError)
                     .font(.system(size: 12.5))
@@ -109,7 +109,7 @@ struct SourceDetailView: View {
             } else if remoteNodes.isEmpty {
                 Text("No music found")
                     .font(.system(size: 12.5))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
                     .padding(.top, 20)
             } else {
                 ForEach(remoteNodes) { node in
@@ -131,7 +131,7 @@ struct SourceDetailView: View {
 
             Text("Streams from your server · played tracks stay in the cache\nand work offline until space is needed")
                 .font(.system(size: 11))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
                 .multilineTextAlignment(.center)
                 .padding(.top, 16)
         }
@@ -141,7 +141,7 @@ struct SourceDetailView: View {
         HStack {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 15)).foregroundStyle(Palette.brass)
+                    .font(.system(size: 15)).foregroundStyle(Palette.accent)
                     .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
             }
             .accessibilityIdentifier("source.back")
@@ -149,7 +149,7 @@ struct SourceDetailView: View {
             if isRemoteLibrary {
                 Button { showAddToPlaylist = true } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 15)).foregroundStyle(Palette.brass)
+                        .font(.system(size: 15)).foregroundStyle(Palette.accent)
                         .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
                 }
                 .accessibilityLabel("Add tracks to playlist")
@@ -161,7 +161,6 @@ struct SourceDetailView: View {
                 } label: {
                     Label("Download All", systemImage: "arrow.down.circle")
                 }
-                #if !os(macOS)
                 Button {
                     Task { await appState.downloadToWatch(rows: tracks) }
                 } label: {
@@ -172,7 +171,6 @@ struct SourceDetailView: View {
                 } label: {
                     Label("Remove All from Apple Watch", systemImage: "applewatch.slash")
                 }
-                #endif
                 Divider()
                 Button {
                     showArtworkPicker = true
@@ -190,7 +188,7 @@ struct SourceDetailView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 15)).foregroundStyle(Palette.brass)
+                    .font(.system(size: 15)).foregroundStyle(Palette.accent)
                     .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
             }
         }
@@ -236,7 +234,7 @@ struct SourceDetailView: View {
                 .multilineTextAlignment(.center)
                 .padding(.top, 13)
             if let artist = tracks.first?.album?.artist {
-                Text(artist).font(.system(size: 14)).foregroundStyle(Palette.brass).padding(.top, 3)
+                Text(artist).font(.system(size: 14)).foregroundStyle(Palette.accent).padding(.top, 3)
             }
             badge.padding(.top, 9)
             cta.padding(.top, 14)
@@ -249,7 +247,7 @@ struct SourceDetailView: View {
                         Text("View on archive.org")
                     }
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
                 }
                 .padding(.top, 10)
             }
@@ -259,10 +257,10 @@ struct SourceDetailView: View {
 
     private var badge: some View {
         HStack(spacing: 6) {
-            Circle().fill(Palette.ok).frame(width: 6, height: 6)
+            Circle().fill(Palette.success).frame(width: 6, height: 6)
             Text(badgeText).font(.system(size: 10.5, weight: .semibold)).kerning(0.5)
         }
-        .foregroundStyle(Palette.ink2)
+        .foregroundStyle(Palette.inkSecondary)
         .padding(.horizontal, 11).padding(.vertical, 5)
         .glassSurface(cornerRadius: 12)
     }
@@ -307,7 +305,7 @@ struct SourceDetailView: View {
             Text(title)
         }
         .font(.system(size: 14.5, weight: .semibold))
-        .foregroundStyle(Palette.brass)
+        .foregroundStyle(Palette.accent)
         .frame(maxWidth: .infinity).frame(height: 42)
         .glassSurface(cornerRadius: 21)
     }

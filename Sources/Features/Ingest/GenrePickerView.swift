@@ -39,7 +39,7 @@ public struct GenrePickerSheet: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Color.white.opacity(0.35)).frame(width: 36, height: 5)
+            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5)
                 .padding(.top, 14)
             header.padding(.top, 14)
 
@@ -95,7 +95,7 @@ public struct GenrePickerSheet: View {
                     .font(.system(size: 14.5, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
-                    .background(Color.white.opacity(0.08), in: Capsule())
+                    .background(Color.primary.opacity(0.08), in: Capsule())
             }
             .buttonStyle(.plain)
 
@@ -203,7 +203,7 @@ public struct GenrePickerContent: View {
 
                 if !node.children.isEmpty {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.18)) {
+                        Motion.perform(Motion.standard) {
                             if expanded { expandedPaths.remove(node.path) }
                             else { expandedPaths.insert(node.path) }
                             Task { await model.loadCount(for: node) }
@@ -237,7 +237,7 @@ public struct GenrePickerContent: View {
                                 .background(
                                     childSelected
                                         ? Color(red: 0.93, green: 0.70, blue: 0.36)
-                                        : Color.white.opacity(0.07),
+                                        : Color.primary.opacity(0.07),
                                     in: Capsule())
                         }
                         .buttonStyle(.plain)
@@ -249,8 +249,8 @@ public struct GenrePickerContent: View {
                 .padding(.bottom, 12)
             }
         }
-        .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.07), lineWidth: 1))
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.07), lineWidth: 1))
     }
 
     private var summaryCard: some View {
@@ -279,7 +279,7 @@ public struct GenrePickerContent: View {
                                 in: Capsule())
             }
 
-            Divider().overlay(Color.white.opacity(0.1))
+            Divider().overlay(Color.primary.opacity(0.1))
 
             HStack(spacing: 9) {
                 Image(systemName: model.showsAccountOption
@@ -310,8 +310,8 @@ public struct GenrePickerContent: View {
                 .lineSpacing(2)
         }
         .padding(14)
-        .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.07), lineWidth: 1))
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.07), lineWidth: 1))
         .accessibilityIdentifier("genre.summary")
     }
 }

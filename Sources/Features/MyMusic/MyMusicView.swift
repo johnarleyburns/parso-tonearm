@@ -94,9 +94,7 @@ struct MyMusicView: View {
                 }
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
-            #if !os(macOS)
             .toolbar(.hidden, for: .navigationBar)
-            #endif
         }
         .task { consumePendingArtistFilter() }
     }
@@ -125,7 +123,7 @@ struct MyMusicView: View {
                 Button { showSoundSearch = true } label: {
                     Label("Sound / mood", systemImage: "waveform.and.magnifyingglass")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                         .lineLimit(1)
                 }
                 .buttonStyle(.plain)
@@ -136,7 +134,7 @@ struct MyMusicView: View {
                     } label: {
                         Label("Clear sound results", systemImage: "xmark.circle")
                             .font(.system(size: 11))
-                            .foregroundStyle(Palette.ink3)
+                            .foregroundStyle(Palette.inkTertiary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -148,7 +146,7 @@ struct MyMusicView: View {
                 } label: {
                     Label("Clear musical filters", systemImage: "xmark.circle")
                         .font(.system(size: 11))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                 }
                 .buttonStyle(.plain)
             }
@@ -170,13 +168,11 @@ struct MyMusicView: View {
             .font(.system(size: 11.5))
             .padding(.horizontal, 9)
             .frame(height: 32)
-            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
-            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.white.opacity(0.1)))
+            .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
+            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.primary.opacity(0.1)))
             .platformAutocapitalization(numeric ? .never : .characters)
             .autocorrectionDisabled()
-            #if !os(macOS)
             .keyboardType(numeric ? .decimalPad : .default)
-            #endif
             .accessibilityLabel(title)
     }
 
@@ -208,10 +204,10 @@ struct MyMusicView: View {
                     Button { scope = candidate } label: {
                         Text(candidate.rawValue)
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(selected ? .white : Palette.ink2)
+                            .foregroundStyle(selected ? .white : Palette.inkSecondary)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(selected ? Palette.brassDeep : Color.white.opacity(0.07),
+                            .background(selected ? Palette.accent : Color.primary.opacity(0.07),
                                         in: Capsule())
                     }
                     .buttonStyle(.plain)

@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Platterhead Mixes Mockups</title>
+<style>
+  :root{
+    --ts:1;
+    --page:#0a0b0d;--page-ink:#f2f4f6;--page-ink2:rgba(235,235,235,.62);
+    --bg:#0a0b0d;--surface:#16181c;--raised:#1f2227;--ink:#f2f4f6;--ink2:rgba(235,235,235,.66);--ink3:rgba(235,235,235,.52);
+    --hair:rgba(255,255,255,.10);--accent:#e3a44b;--accent-fill:#e3a44b;--on-accent:#1a1206;--ok:#4cd471;--warn:#f0b54a;--danger:#ff6b5e;
+    --glass:rgba(40,42,48,.55);--glass-stroke:rgba(255,255,255,.16);--chart-line:#e3a44b;--chart-energy:rgba(235,235,235,.45);
+    --wave-a:#e3a44b;--wave-b:#8fb8d8;
+    --body:system-ui,-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;--mono:ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  :root[data-theme="light"]{
+    --page:#eef0f3;--page-ink:#15171a;--page-ink2:rgba(20,22,26,.66);
+    --bg:#f5f5f7;--surface:#ffffff;--raised:#f0f1f3;--ink:#15171a;--ink2:rgba(20,22,26,.70);--ink3:rgba(20,22,26,.58);
+    --hair:rgba(0,0,0,.10);--accent:#9a6420;--accent-fill:#e3a44b;--on-accent:#1a1206;--ok:#1f8a3f;--warn:#9a6420;--danger:#c7372b;
+    --glass:rgba(255,255,255,.62);--glass-stroke:rgba(0,0,0,.10);--chart-line:#9a6420;--chart-energy:rgba(20,22,26,.40);
+    --wave-a:#b97f2e;--wave-b:#3f7aa6;
+  }
+  :root[data-text="ax"]{--ts:1.55}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--page);color:var(--page-ink);font-family:var(--body)}
+  body{padding:20px 16px 64px}
+  .wrap{max-width:1240px;margin:0 auto}
+  header.page{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;margin-bottom:22px}
+  .eyebrow{font:12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+  h1{font:700 clamp(24px,4vw,34px)/1.15 var(--body);margin:0 0 8px;letter-spacing:-.02em}
+  .dek{margin:0;max-width:72ch;color:var(--page-ink2);font-size:14px;line-height:1.55}
+  .toggles{display:flex;gap:8px;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--surface)}
+  .seg button{appearance:none;border:0;background:transparent;color:var(--ink2);font:600 13px var(--body);padding:8px 12px;cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--accent-fill);color:var(--on-accent)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:28px 22px}
+  figure{margin:0;display:grid;gap:10px}
+  figcaption{font-size:13px;line-height:1.5;color:var(--page-ink2)}
+  figcaption b{color:var(--page-ink);display:block;font-size:14px;margin-bottom:2px}
+  figcaption code{font:12px var(--mono);color:var(--accent)}
+  .device{width:100%;max-width:375px;height:760px;padding:8px;border-radius:44px;background:linear-gradient(160deg,#2a2c31,#131417);box-shadow:0 30px 70px -30px rgba(0,0,0,.7)}
+  .screen{position:relative;height:100%;border-radius:36px;overflow:hidden;background:var(--bg);color:var(--ink);font-size:calc(15px*var(--ts));display:flex;flex-direction:column}
+  .status{height:44px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font:600 14px var(--body)}
+  .scroll{flex:1;overflow:auto;padding:4px 16px 150px}
+  .scroll.tight{padding-bottom:24px}
+  .large-title{font-weight:800;font-size:calc(32px*var(--ts));letter-spacing:-.02em;margin:6px 0 14px;line-height:1.1}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 16px 8px;flex:none}
+  .nav .t{font-weight:700;font-size:calc(17px*var(--ts));text-align:center;flex:1}
+  .nav .btn{color:var(--accent);font-weight:600;font-size:calc(16px*var(--ts));min-width:44px;min-height:44px;display:flex;align-items:center}
+  .nav .btn.r{justify-content:flex-end}
+  .glass-btn{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border-radius:22px;background:var(--glass);border:1px solid var(--glass-stroke);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);color:var(--ink);font-weight:600;padding:0 14px;font-size:calc(15px*var(--ts))}
+  .sec-h{font-size:calc(13px*var(--ts));color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;margin:20px 4px 8px;font-weight:600}
+  .card{background:var(--surface);border-radius:14px;border:1px solid var(--hair);overflow:hidden}
+  .row{display:flex;align-items:center;gap:12px;padding:11px 14px;min-height:48px;border-bottom:1px solid var(--hair)}
+  .row:last-child{border-bottom:0}
+  .row .grow{flex:1;min-width:0}
+  .row .title{font-weight:600;line-height:1.25}
+  .row .sub{color:var(--ink2);font-size:.87em;line-height:1.3;margin-top:2px}
+  .chev{color:var(--ink3)}
+  .art{width:calc(44px*var(--ts));height:calc(44px*var(--ts));max-width:64px;max-height:64px;border-radius:8px;flex:none;background:linear-gradient(140deg,#6a5134,#1b1510)}
+  .art.b{background:linear-gradient(140deg,#35506a,#10151b)}.art.c{background:linear-gradient(140deg,#5a3550,#1b1018)}.art.d{background:linear-gradient(140deg,#3f5a35,#121b10)}
+  .meta{font:600 calc(12.5px*var(--ts))/1.2 var(--mono);color:var(--ink2);white-space:nowrap}
+  .hero{border-radius:20px;padding:18px;background:linear-gradient(150deg,color-mix(in srgb,var(--accent-fill) 32%,var(--surface)),var(--surface));border:1px solid var(--hair)}
+  .hero h3{margin:0 0 6px;font-size:calc(22px*var(--ts));letter-spacing:-.01em}
+  .hero p{margin:0 0 14px;color:var(--ink2);line-height:1.4}
+  .pill{font:inherit;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 18px;border-radius:22px;background:var(--accent-fill);color:var(--on-accent);font-weight:700;border:0}
+  .pill.ghost{background:var(--raised);color:var(--ink);border:1px solid var(--hair)}
+  .hstack{display:flex;gap:10px;flex-wrap:wrap}
+  .tabbar{position:absolute;left:12px;right:12px;bottom:14px;display:grid;gap:8px}
+  .accessory,.tabs{background:var(--glass);border:1px solid var(--glass-stroke);backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);box-shadow:0 10px 30px -12px rgba(0,0,0,.45)}
+  .accessory{border-radius:26px;display:flex;align-items:center;gap:10px;padding:7px 12px 7px 7px;min-height:52px}
+  .accessory .art{width:38px;height:38px;border-radius:19px}
+  .accessory .t{font-weight:600;font-size:calc(14px*var(--ts));line-height:1.2}
+  .accessory .s{font-size:calc(12px*var(--ts));color:var(--ink2)}
+  .tabs{border-radius:32px;display:grid;grid-template-columns:repeat(3,1fr);padding:6px}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:24px;font-size:calc(11px*var(--ts));font-weight:600;color:var(--ink2);min-height:48px;justify-content:center}
+  .tab.on{color:var(--accent);background:color-mix(in srgb,var(--accent-fill) 16%,transparent)}
+  .tab svg{width:22px;height:22px}
+  .sheet-grabber{width:36px;height:5px;border-radius:3px;background:var(--ink3);opacity:.5;margin:8px auto 4px;flex:none}
+  .dim{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;top:52px;border-radius:26px 26px 0 0;background:var(--bg);display:flex;flex-direction:column;box-shadow:0 -10px 40px rgba(0,0,0,.35)}
+  .shape-row{display:flex;align-items:center;gap:12px}
+  .shape-row svg{flex:none;width:56px;height:28px}
+  .check{color:var(--accent);font-weight:800}
+  .segctl{display:grid;grid-template-columns:repeat(4,1fr);background:var(--raised);border-radius:9px;padding:2px;gap:2px}
+  .segctl span{text-align:center;padding:7px 0;border-radius:7px;font-weight:600;font-size:.87em;color:var(--ink2)}
+  .segctl span.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .chart{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:12px 10px 8px}
+  .chart svg{width:100%;height:auto;display:block}
+  .chart .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.8em;color:var(--ink2);padding:4px 4px 0}
+  .chart .legend i{display:inline-block;width:14px;height:0;border-top:3px solid var(--chart-line);vertical-align:middle;margin-right:5px}
+  .chart .legend i.e{border-top:2px dashed var(--chart-energy)}
+  .summary{margin:12px 2px 8px;line-height:1.4;color:var(--ink2)}
+  .summary b{color:var(--ink)}
+  .why{display:flex;align-items:center;gap:8px;min-height:44px;color:var(--accent);font-weight:700}
+  .why svg{width:18px;height:18px}
+  .mixlist{display:grid}
+  .mixrow{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--hair);border-radius:12px}
+  .mixrow .pos{font:700 calc(12px*var(--ts)) var(--mono);color:var(--ink3);width:1.6em;text-align:right;flex:none}
+  .mixrow .lock{color:var(--accent);font-size:.8em;font-weight:700}
+  .edge{display:flex;align-items:center;gap:8px;padding:5px 0 5px calc(1.6em + 22px)}
+  .edge::before{content:'';width:2px;align-self:stretch;background:var(--hair);margin-left:-12px;margin-right:4px}
+  .chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:4px 11px;border-radius:16px;font-size:calc(12.5px*var(--ts));font-weight:600;border:1px solid var(--hair);background:var(--raised);color:var(--ink)}
+  .chip .ic{font-weight:800}
+  .chip.blend .ic{color:var(--ok)}.chip.phrase .ic{color:var(--warn)}.chip.plain .ic{color:var(--ink3)}
+  .chip .dot{opacity:.5}
+  .notplaced .row .title{font-weight:600}
+  .tag{display:inline-block;font:600 calc(11px*var(--ts)) var(--mono);padding:2px 6px;border-radius:6px;background:var(--raised);color:var(--ink2);border:1px solid var(--hair)}
+  .toolbar{position:absolute;left:12px;right:12px;bottom:16px;display:flex;gap:8px;justify-content:space-between;align-items:center;padding:6px;border-radius:30px}
+  .toolbar.glass{background:var(--glass);border:1px solid var(--glass-stroke);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
+  .toolbar .pill{flex:1}
+  .prose{line-height:1.5}
+  .prose p{margin:0 0 10px}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(calc(96px*var(--ts)),1fr));gap:8px;margin:10px 0}
+  .stat{background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:10px}
+  .stat .n{font-weight:800;font-size:calc(20px*var(--ts));font-variant-numeric:tabular-nums}
+  .stat .l{color:var(--ink2);font-size:.8em;line-height:1.25}
+  .tradeoff{border-left:3px solid var(--warn);padding:8px 10px;background:var(--surface);border-radius:0 10px 10px 0;margin-bottom:8px;line-height:1.4}
+  .tradeoff b{display:block}
+  details{background:var(--surface);border:1px solid var(--hair);border-radius:12px;margin-bottom:8px}
+  summary{padding:12px 14px;font-weight:600;cursor:pointer;min-height:44px;list-style-position:inside}
+  details .body{padding:0 14px 12px;color:var(--ink2);line-height:1.45}
+  details .body b{color:var(--ink)}
+  .waves{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:10px}
+  .waves svg{width:100%;height:auto;display:block}
+  .waves .cap{display:flex;justify-content:space-between;font-size:.78em;color:var(--ink2);padding:4px 2px 0;gap:8px}
+  .hear{background:color-mix(in srgb,var(--accent-fill) 14%,var(--surface));border:1px solid var(--hair);border-radius:14px;padding:12px 14px;line-height:1.45;margin:12px 0}
+  .hear .k{font-size:.8em;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+  .reason{display:flex;gap:12px;padding:11px 14px;border-bottom:1px solid var(--hair);line-height:1.4}
+  .reason:last-child{border-bottom:0}
+  .reason .i{flex:none;width:1.6em;text-align:center;font-weight:800;color:var(--accent)}
+  .reason .d{color:var(--ink2);font-size:.9em;margin-top:2px}
+  .np-art{aspect-ratio:1;border-radius:18px;background:linear-gradient(140deg,#6a5134,#1b1510 70%);margin:8px 8px 18px;box-shadow:0 20px 50px -20px rgba(0,0,0,.6)}
+  .np-t{font-weight:800;font-size:calc(22px*var(--ts));line-height:1.15}
+  .np-s{color:var(--ink2);margin-top:2px}
+  .scrub{height:6px;border-radius:3px;background:var(--raised);margin:16px 0 6px;position:relative;overflow:hidden}
+  .scrub i{position:absolute;inset:0 38% 0 0;background:var(--ink)}
+  .times{display:flex;justify-content:space-between;font:600 calc(12px*var(--ts)) var(--mono);color:var(--ink2)}
+  .transport{display:flex;justify-content:space-around;align-items:center;margin:16px 0}
+  .transport span{font-size:calc(30px*var(--ts));min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
+  .next-chip{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:var(--surface);border:1px solid var(--hair)}
+  .next-chip .grow{flex:1;min-width:0;line-height:1.3}
+  .next-chip .s{color:var(--ink2);font-size:.85em}
+  .toggle{width:51px;height:31px;border-radius:16px;background:var(--ok);position:relative;flex:none}
+  .toggle::after{content:'';position:absolute;right:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25)}
+  .toggle.off{background:var(--raised);border:1px solid var(--hair)}
+  .toggle.off::after{right:auto;left:2px}
+  .prog{height:4px;border-radius:2px;background:var(--raised);overflow:hidden;margin-top:6px}
+  .prog i{display:block;height:100%;background:var(--accent-fill)}
+  .state{font-size:.82em;color:var(--ink2)}
+  .state.warn{color:var(--warn)}.state.bad{color:var(--danger)}.state.ok{color:var(--ok)}
+  .act{color:var(--accent);font-weight:600;min-height:44px;display:flex;align-items:center}
+  .foot{font-size:.82em;color:var(--ink3);margin:8px 4px 0;line-height:1.4}
+  .notes{margin-top:34px;display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .note{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.5;color:var(--page-ink2)}
+  .note h3{margin:0 0 6px;font-size:14px;color:var(--page-ink)}
+  .note ul{margin:0;padding-left:18px}
+  /* Accessibility sizes: stack rows instead of truncating */
+  :root[data-text="ax"] .row,:root[data-text="ax"] .mixrow{flex-wrap:wrap}
+  :root[data-text="ax"] .meta{white-space:normal}
+  :root[data-text="ax"] .row>.grow{flex:1 1 60%}
+  :root[data-text="ax"] .row>.sub{flex:1 1 100%}
+  :root[data-text="ax"] .tabs .tab span.lbl{display:none}
+  :root[data-text="ax"] .segctl{grid-template-columns:1fr 1fr}
+  @media (prefers-reduced-motion:no-preference){.pill,.chip,.seg button{transition:filter .15s}.pill:hover,.chip:hover{filter:brightness(1.06)}}
+  @media (max-width:420px){body{padding:14px 12px 48px}.device{height:720px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <div>
+      <div class="eyebrow">Platterhead · award-and-mix-plan.md</div>
+      <h1>Mixes, and the award design bar</h1>
+      <p class="dek">Seven screens for plan tasks A5 and M4–M8. Every screen has to work in <b>both appearances</b> and at <b>accessibility text sizes</b>. Use the toggles: rows re-flow instead of truncating, and meaning is always carried in text, never by color alone.</p>
+    </div>
+    <div class="toggles" role="group" aria-label="Preview options">
+      <div class="seg" role="group" aria-label="Appearance"><button data-theme-set="dark" aria-pressed="true">Dark</button><button data-theme-set="light" aria-pressed="false">Light</button></div>
+      <div class="seg" role="group" aria-label="Text size"><button data-text-set="default" aria-pressed="true">Default text</button><button data-text-set="ax" aria-pressed="false">AX text</button></div>
+    </div>
+  </header>
+
+  <main class="grid">
+
+    <!-- 1 LISTEN -->
+    <figure>
+      <div class="device"><div class="screen">
+        <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+        <div class="scroll">
+          <div class="large-title">Listen</div>
+          <div class="hero" role="group" aria-label="Build a Mix">
+            <h3>Build a Mix</h3>
+            <p>Pick some music and a shape. Platterhead puts it in order, blends it on the beat, and shows you why.</p>
+            <div class="hstack"><button class="pill">Build a Mix</button><button class="pill ghost">From a Playlist</button></div>
+          </div>
+          <div class="sec-h">Your mixes</div>
+          <div class="card">
+            <div class="row"><div class="art"></div><div class="grow"><div class="title">Sunday Warm-Up</div><div class="sub">20 tracks · Rising BPM · 1 h 12 min</div></div><span class="meta">112→134</span></div>
+            <div class="row"><div class="art b"></div><div class="grow"><div class="title">Late Train Home</div><div class="sub">14 tracks · Wind down · 52 min</div></div><span class="meta">124→96</span></div>
+          </div>
+          <div class="sec-h">What's the mood?</div>
+          <div class="hstack"><span class="chip">Focused</span><span class="chip">Warm</span><span class="chip">Driving</span><span class="chip">Late night</span></div>
+        </div>
+        <div class="tabbar">
+          <div class="accessory" role="button" aria-label="Now playing: Glasshouse by Mira Vale. Next: blend in 42 seconds.">
+            <div class="art"></div><div class="grow"><div class="t">Glasshouse</div><div class="s">Mira Vale · Blend next in 0:42</div></div><span aria-hidden="true">❚❚</span>
+          </div>
+          <nav class="tabs" aria-label="Tabs">
+            <div class="tab on"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm-2 13V8l6 4-6 4z"/></svg><span class="lbl">Listen</span></div>
+            <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 18a3 3 0 1 1-2-2.8V5l12-2v12a3 3 0 1 1-2-2.8V7l-8 1.3V18z"/></svg><span class="lbl">My Music</span></div>
+            <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.4 5-1.9-.3a6.7 6.7 0 0 1-.6 1.5l1.1 1.6-1.9 1.9-1.6-1.1a6.7 6.7 0 0 1-1.5.6l-.3 1.9h-2.7l-.3-1.9a6.7 6.7 0 0 1-1.5-.6l-1.6 1.1-1.9-1.9 1.1-1.6a6.7 6.7 0 0 1-.6-1.5l-1.9-.3v-2.7l1.9-.3c.1-.5.3-1 .6-1.5L4.7 6.9l1.9-1.9 1.6 1.1c.5-.3 1-.5 1.5-.6l.3-1.9h2.7l.3 1.9c.5.1 1 .3 1.5.6l1.6-1.1 1.9 1.9-1.1 1.6c.3.5.5 1 .6 1.5l1.9.3z"/></svg><span class="lbl">Settings</span></div>
+          </nav>
+        </div>
+      </div></div>
+      <figcaption><b>1 · Listen: native TabView, three tabs (A5, M6)</b>The system <code>TabView</code> with the mini player as <code>.tabViewBottomAccessory</code>, in real Liquid Glass. The DJ tab is gone. "Build a Mix" is the first thing you see, and the accessory already shows the next transition.</figcaption>
+    </figure>
+
+    <!-- 2 BUILD SHEET -->
+    <figure>
+      <div class="device"><div class="screen">
+        <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+        <div class="dim"></div>
+        <div class="sheet">
+          <div class="sheet-grabber"></div>
+          <div class="nav"><span class="btn">Cancel</span><span class="t">Build a Mix</span><span class="btn r">Generate</span></div>
+          <div class="scroll tight">
+            <div class="sec-h">Music</div>
+            <div class="card"><div class="row"><div class="grow"><div class="title">Source</div></div><span class="sub">Sunday playlist · 26 tracks</span><span class="chev">›</span></div></div>
+            <div class="sec-h">Shape</div>
+            <div class="card" role="radiogroup" aria-label="Mix shape">
+              <div class="row shape-row" role="radio" aria-checked="true"><svg viewBox="0 0 56 28" aria-hidden="true"><polyline points="2,25 16,20 30,14 44,9 54,4" fill="none" stroke="var(--chart-line)" stroke-width="2.5" stroke-linecap="round"/></svg><div class="grow"><div class="title">Rising BPM</div><div class="sub">Tempo climbs steadily so the energy builds.</div></div><span class="check" aria-hidden="true">✓</span></div>
+              <div class="row shape-row" role="radio" aria-checked="false"><svg viewBox="0 0 56 28" aria-hidden="true"><polyline points="2,14 54,14" fill="none" stroke="var(--ink3)" stroke-width="2.5" stroke-linecap="round"/></svg><div class="grow"><div class="title">Steady</div><div class="sub">Holds one tempo: good for work or a run.</div></div></div>
+              <div class="row shape-row" role="radio" aria-checked="false"><svg viewBox="0 0 56 28" aria-hidden="true"><polyline points="2,24 20,14 38,4 46,10 54,15" fill="none" stroke="var(--ink3)" stroke-width="2.5" stroke-linecap="round"/></svg><div class="grow"><div class="title">Warm up · Peak · Cool down</div><div class="sub">Builds to a peak about 70% of the way in, then eases off.</div></div></div>
+              <div class="row shape-row" role="radio" aria-checked="false"><svg viewBox="0 0 56 28" aria-hidden="true"><polyline points="2,4 18,10 34,16 54,24" fill="none" stroke="var(--ink3)" stroke-width="2.5" stroke-linecap="round"/></svg><div class="grow"><div class="title">Wind down</div><div class="sub">Slower and calmer as it goes.</div></div></div>
+            </div>
+            <div class="sec-h">Length</div>
+            <div class="card"><div class="row"><div class="segctl grow" role="radiogroup" aria-label="Length"><span>30 min</span><span class="on">1 hour</span><span>90 min</span><span>All</span></div></div></div>
+            <p class="foot">Uses the BPM, key and energy your library has already analyzed. Tracks that aren't analyzed yet are listed separately, never silently dropped.</p>
+          </div>
+        </div>
+      </div></div>
+      <figcaption><b>2 · Build sheet (M6)</b>A plain <code>Form</code> in a sheet with medium and large detents. Each shape has a sparkline and a one-line description; the sparkline is decorative and hidden from VoiceOver, and the words carry the meaning.</figcaption>
+    </figure>
+
+    <!-- 3 PREVIEW -->
+    <figure>
+      <div class="device"><div class="screen">
+        <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+        <div class="nav"><span class="btn">‹ Listen</span><span class="t">Sunday Warm-Up</span><span class="btn r">↻</span></div>
+        <div class="scroll">
+          <div class="chart" role="img" aria-label="Mix arc: tempo rises from 112 to 134 BPM over 8 tracks; keys move 8A, 8A, 9A, 9B, 10B, 10B, 11B, 11B.">
+            <svg viewBox="0 0 320 130" aria-hidden="true">
+              <g stroke="var(--hair)"><line x1="20" y1="20" x2="315" y2="20"/><line x1="20" y1="60" x2="315" y2="60"/><line x1="20" y1="100" x2="315" y2="100"/></g>
+              <g fill="var(--ink3)" font-size="9" font-family="ui-monospace,monospace"><text x="0" y="23">135</text><text x="0" y="63">123</text><text x="0" y="103">111</text></g>
+              <polyline points="30,98 70,92 110,85 150,78 190,72 230,65 270,40 310,34" fill="none" stroke="var(--chart-energy)" stroke-width="2" stroke-dasharray="4 4"/>
+              <polyline points="30,97 70,91 110,85 150,79 190,72 230,66 270,36 310,30" fill="none" stroke="var(--chart-line)" stroke-width="3" stroke-linejoin="round"/>
+              <g fill="var(--chart-line)"><circle cx="30" cy="97" r="4"/><circle cx="70" cy="91" r="4"/><circle cx="110" cy="85" r="4"/><circle cx="150" cy="79" r="4"/><circle cx="190" cy="72" r="4"/><circle cx="230" cy="66" r="4"/><circle cx="270" cy="36" r="5" fill="var(--warn)"/><circle cx="310" cy="30" r="4"/></g>
+              <g fill="var(--ink2)" font-size="9" font-weight="700" font-family="ui-monospace,monospace" text-anchor="middle"><text x="30" y="118">8A</text><text x="70" y="118">8A</text><text x="110" y="118">9A</text><text x="150" y="118">9B</text><text x="190" y="118">10B</text><text x="230" y="118">10B</text><text x="270" y="118">11B</text><text x="310" y="118">11B</text></g>
+              <text x="262" y="26" font-size="9" fill="var(--warn)" font-weight="700" font-family="system-ui">jump</text>
+            </svg>
+            <div class="legend"><span><i></i>Tempo (BPM)</span><span><i class="e"></i>Energy</span><span>Labels: key</span></div>
+          </div>
+          <p class="summary"><b>8 tracks · 112 → 134 BPM · 41 min.</b> 6 of 7 transitions in key; 1 tempo jump it couldn't avoid.</p>
+          <div class="why" role="button"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm1.1-6.1-.9.9c-.7.7-1.2 1.3-1.2 2.7h-2v-.5c0-1.1.5-2.1 1.2-2.8l1.2-1.3A1.9 1.9 0 0 0 12 7a2 2 0 0 0-2 2H8a4 4 0 1 1 6.1 3.4z"/></svg>Why This Mix?</div>
+
+          <div class="mixlist">
+            <div class="mixrow" aria-label="1. Low Tide, Harbor Lights, 112 BPM, key 8A, locked first"><span class="pos">1</span><div class="art"></div><div class="grow"><div class="title">Low Tide</div><div class="sub">Harbor Lights <span class="lock">· Locked</span></div></div><span class="meta">112 · 8A</span></div>
+            <div class="edge"><span class="chip blend" role="button" aria-label="Transition: beat-matched blend, 16 bars, same key 8A. Why?"><span class="ic">≈</span>Blend · 16 bars <span class="dot">·</span> 8A → 8A</span></div>
+            <div class="mixrow"><span class="pos">2</span><div class="art b"></div><div class="grow"><div class="title">Paper Moons</div><div class="sub">Juniper</div></div><span class="meta">114 · 8A</span></div>
+            <div class="edge"><span class="chip blend"><span class="ic">≈</span>Blend · 16 bars <span class="dot">·</span> 8A → 9A</span></div>
+            <div class="mixrow"><span class="pos">3</span><div class="art c"></div><div class="grow"><div class="title">Glasshouse</div><div class="sub">Mira Vale</div></div><span class="meta">116 · 9A</span></div>
+            <div class="edge"><span class="chip blend"><span class="ic">≈</span>Blend · 32 bars <span class="dot">·</span> 9A → 9B</span></div>
+            <div class="mixrow"><span class="pos">4</span><div class="art d"></div><div class="grow"><div class="title">Northbound</div><div class="sub">The Quiet Hours</div></div><span class="meta">118 · 9B</span></div>
+            <div class="edge"><span class="chip blend"><span class="ic">≈</span>Blend · 16 bars <span class="dot">·</span> 9B → 10B</span></div>
+            <div class="mixrow"><span class="pos">5</span><div class="art"></div><div class="grow"><div class="title">Soft Focus</div><div class="sub">Paper Planes</div></div><span class="meta">120 · 10B</span></div>
+            <div class="edge"><span class="chip plain" aria-label="Transition: plain fade, beat grid not ready, downloading 42 percent. Why?"><span class="ic">∿</span>Plain fade · grid 42%</span></div>
+            <div class="mixrow"><span class="pos">6</span><div class="art b"></div><div class="grow"><div class="title">Midnight Static</div><div class="sub">Cassette Youth</div></div><span class="meta">122 · 10B</span></div>
+            <div class="edge"><span class="chip phrase" aria-label="Transition: phrase fade, tempo jump 8.2 percent, 10B to 11B. Why?"><span class="ic">⌒</span>Phrase fade · +8.2% tempo</span></div>
+            <div class="mixrow"><span class="pos">7</span><div class="art c"></div><div class="grow"><div class="title">Night Bus</div><div class="sub">Static Bloom</div></div><span class="meta">132 · 11B</span></div>
+            <div class="edge"><span class="chip blend"><span class="ic">≈</span>Blend · 16 bars <span class="dot">·</span> 11B → 11B</span></div>
+            <div class="mixrow"><span class="pos">8</span><div class="art d"></div><div class="grow"><div class="title">Voyager</div><div class="sub">Nu Aeon</div></div><span class="meta">134 · 11B</span></div>
+          </div>
+
+          <div class="sec-h">Not placed (2)</div>
+          <div class="card notplaced">
+            <div class="row"><div class="grow"><div class="title">Field Recording 3</div><div class="sub">No BPM yet: not analyzed</div></div><span class="act">Analyze now</span></div>
+            <div class="row"><div class="grow"><div class="title">Interlude</div><div class="sub">No clear key detected</div></div><span class="act">Add at end</span></div>
+          </div>
+        </div>
+        <div class="toolbar glass"><button class="pill ghost">Save</button><button class="pill">▶ Play Mix</button></div>
+      </div></div>
+      <figcaption><b>3 · Mix preview (M6)</b>The arc chart (Swift Charts) comes with an audio-graph description. Each chip's text names the style, so the icon and color never carry meaning alone. Swipe a row to Lock, Swap (shows the runners-up) or Remove. "Not placed" is always visible.</figcaption>
+    </figure>
+
+    <!-- 4 WHY THIS MIX -->
+    <figure>
+      <div class="device"><div class="screen">
+        <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+        <div class="dim"></div>
+        <div class="sheet">
+          <div class="sheet-grabber"></div>
+          <div class="nav"><span class="btn"></span><span class="t">Why This Mix?</span><span class="btn r">Done</span></div>
+          <div class="scroll tight prose">
+            <p><b>Rising BPM.</b> Tempo climbs steadily from 112 to 134 so the energy builds without sudden lurches. From your <b>Sunday</b> playlist (26 tracks), 8 fit one hour best.</p>
+            <p><b>Why it starts with Low Tide:</b> at 112 BPM it's the slowest analyzed track, and you locked it first.</p>
+            <div class="stat-grid">
+              <div class="stat"><div class="n">6 / 7</div><div class="l">transitions in a compatible key</div></div>
+              <div class="stat"><div class="n">+2.9%</div><div class="l">average tempo step</div></div>
+              <div class="stat"><div class="n">0</div><div class="l">steps against the shape</div></div>
+            </div>
+            <div class="sec-h">Trade-offs</div>
+            <div class="tradeoff"><b>6 → 7 · Midnight Static → Night Bus: +8.2% tempo</b>Only 2 tracks in this playlist are faster than 124 BPM, so this step couldn't be smaller. It's a phrase fade instead of a beat-matched blend, because stretching tempo by more than 8% sounds unnatural.</div>
+            <div class="tradeoff"><b>5 → 6 · plain fade</b>Midnight Static's beat grid is still downloading (42%). This becomes a blend automatically once it's ready. <span class="act" style="display:inline">Prepare now</span></div>
+            <div class="sec-h">Each position</div>
+            <details open><summary>3 · Glasshouse, why here?</summary><div class="body"><b>Best key neighbor:</b> 8A → 9A is one step up the key wheel, a gentle lift.<br><b>Follows the shape:</b> 116 BPM is right on the curve here.<br><br><b>Runners-up</b><br>Soft Focus (120 · 10B): 8A → 10B clashes, and the tempo step would be +5.3%.<br>Northbound (118 · 9B): fine, but it fits better after Glasshouse (9A → 9B is the relative key).</div></details>
+            <details><summary>4 · Northbound, why here?</summary><div class="body">…</div></details>
+            <div class="sec-h">Left out (18)</div>
+            <p class="foot">16 over the one-hour length (the ones that fit the curve worst), 1 without a BPM, and 1 without a clear key. Change the length to "All" to include them.</p>
+          </div>
+        </div>
+      </div></div>
+      <figcaption><b>4 · Why This Mix? (M7)</b>Every sentence is rendered from structured <code>PlacementReason</code>/<code>EdgeFlag</code> values, so it's localizable and testable. Trade-offs come first and are honest about what couldn't be avoided. Each position expands to show its runners-up and why they lost.</figcaption>
+    </figure>
+
+    <!-- 5 WHY THIS TRANSITION -->
+    <figure>
+      <div class="device"><div class="screen">
+        <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+        <div class="dim"></div>
+        <div class="sheet">
+          <div class="sheet-grabber"></div>
+          <div class="nav"><span class="btn"></span><span class="t">Why This Transition?</span><span class="btn r">Done</span></div>
+          <div class="scroll tight">
+            <div class="row" style="padding:4px 2px 10px;border:0"><div class="grow"><div class="title">Glasshouse → Northbound</div><div class="sub">Beat-matched blend · 32 bars · confidence high</div></div></div>
+            <div class="waves" role="img" aria-label="Overlap: the last 32 bars of Glasshouse, its outro, play over the first 32 bars of Northbound, its intro. Beats are aligned.">
+              <svg viewBox="0 0 320 120" aria-hidden="true">
+                <rect x="120" y="0" width="200" height="120" fill="var(--accent-fill)" opacity=".10"/>
+                <g id="wa" fill="var(--wave-a)"></g><g id="wb" fill="var(--wave-b)"></g>
+                <g stroke="var(--ink3)" stroke-dasharray="2 3"><line x1="120" y1="0" x2="120" y2="120"/><line x1="220" y1="0" x2="220" y2="120"/></g>
+                <g font-size="9" font-family="ui-monospace,monospace" fill="var(--ink2)"><text x="4" y="12">A · Glasshouse</text><text x="4" y="72">B · Northbound</text><text x="124" y="56">outro · bar 97</text><text x="124" y="116">intro · bar 1</text></g>
+              </svg>
+              <div class="cap"><span>Blend starts 4:02</span><span>32 bars · 66 s</span></div>
+            </div>
+            <div class="hear"><div class="k">What you'll hear</div>Northbound fades in over 32 bars as Glasshouse's outro begins, <b>sped up 1.7%</b> to match its beat. Then it eases back to its own 118 BPM over the next 4 bars.</div>
+            <div class="card">
+              <div class="reason"><span class="i">♯</span><div><div class="title">9A → 9B: relative key</div><div class="d">Same notes, brighter mood. On the key wheel it's the inner-to-outer ring, one of the smoothest moves there is.</div></div></div>
+              <div class="reason"><span class="i">♩</span><div><div class="title">116 → 118 BPM (+1.7%)</div><div class="d">Small enough to match tempo without changing pitch.</div></div></div>
+              <div class="reason"><span class="i">⌗</span><div><div class="title">Starts on a phrase</div><div class="d">Glasshouse's outro is a 32-bar phrase from bar 97; Northbound's intro is also 32 bars, so they line up end to end.</div></div></div>
+              <div class="reason"><span class="i">⏵</span><div><div class="title">Skipped 0.8 s of silence</div><div class="d">Northbound starts at its first downbeat, not its first sample.</div></div></div>
+              <div class="reason"><span class="i">◐</span><div><div class="title">Loudness matched (−1.2 dB)</div><div class="d">Northbound is mastered louder, so it's turned down slightly.</div></div></div>
+            </div>
+            <div class="sec-h">Why not something else here?</div>
+            <div class="card"><div class="row"><div class="grow"><div class="title">Soft Focus</div><div class="sub">9A → 10B isn't a key neighbor, and +3.4% tempo</div></div></div></div>
+            <div class="hstack" style="margin-top:14px"><button class="pill">▶ Audition</button><button class="pill ghost">Use a Plain Fade Here</button></div>
+          </div>
+        </div>
+      </div></div>
+      <figcaption><b>5 · Why This Transition? (M7)</b>Both waveforms, aligned, with the overlap shaded and phrase markers. A plain-language "What you'll hear", every reason with a one-line explanation, and why the runners-up lost. <b>Audition</b> plays from 10 s before the blend.</figcaption>
+    </figure>
+
+    <!-- 6 NOW PLAYING -->
+    <figure>
+      <div class="device"><div class="screen">
+        <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+        <div class="nav"><span class="btn">⌄</span><span class="t" style="font-size:.85em;color:var(--ink2)">Sunday Warm-Up · 3 of 8</span><span class="btn r">•••</span></div>
+        <div class="scroll tight">
+          <div class="np-art" aria-hidden="true"></div>
+          <div class="np-t">Glasshouse</div><div class="np-s">Mira Vale · <span class="meta">116 · 9A</span></div>
+          <div class="scrub" role="slider" aria-label="Position" aria-valuetext="3 minutes 20 seconds of 5 minutes 22"><i></i></div>
+          <div class="times"><span>3:20</span><span>−2:02</span></div>
+          <div class="transport" aria-label="Playback controls"><span aria-label="Previous">⏮</span><span aria-label="Pause">⏸</span><span aria-label="Next">⏭</span></div>
+          <div class="next-chip" role="button" aria-label="Next: Northbound. Beat-matched blend in 42 seconds. Why?">
+            <span class="chip blend" style="pointer-events:none"><span class="ic">≈</span>Blend in 0:42</span>
+            <div class="grow"><div class="title">Next: Northbound</div><div class="s">32 bars · 9A → 9B · +1.7%</div></div><span class="act">Why?</span>
+          </div>
+          <div class="next-chip" style="margin-top:8px" role="status">
+            <span class="chip plain" style="pointer-events:none"><span class="ic">↓</span>Preparing</span>
+            <div class="grow"><div class="title">Midnight Static (track 6)</div><div class="s">Downloading for beat analysis · 42%</div><div class="prog"><i style="width:42%"></i></div></div><span class="act">Stop</span>
+          </div>
+        </div>
+      </div></div>
+      <figcaption><b>6 · Now Playing (A5, M8)</b>Opens with a zoom transition from the accessory. The next transition has a live countdown and a Why? link. Background grid prep is <b>visible, specific and stoppable</b> right here (the CLAUDE.md no-magic rule). The scrubber is an adjustable VoiceOver element that seeks ±15 s.</figcaption>
+    </figure>
+
+    <!-- 7 SETTINGS -->
+    <figure>
+      <div class="device"><div class="screen">
+        <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+        <div class="nav"><span class="btn">‹ Playback</span><span class="t">Smart Transitions</span><span class="btn r"></span></div>
+        <div class="scroll tight">
+          <div class="card">
+            <div class="row"><div class="grow"><div class="title">For mixes</div><div class="sub">Blend on the beat when both tracks are analyzed</div></div><span class="toggle" role="switch" aria-checked="true" aria-label="Smart transitions for mixes"></span></div>
+            <div class="row"><div class="grow"><div class="title">For everything</div><div class="sub">Also for albums, playlists and Keep Playing</div></div><span class="toggle off" role="switch" aria-checked="false" aria-label="Smart transitions for everything"></span></div>
+          </div>
+          <div class="sec-h">Preparing now</div>
+          <div class="card">
+            <div class="row"><div class="grow"><div class="title">Midnight Static</div><div class="state">Downloading · 42% · since 9:39</div><div class="prog"><i style="width:42%"></i></div></div><span class="act">Stop</span></div>
+            <div class="row"><div class="grow"><div class="title">Night Bus</div><div class="state warn">Waiting for Wi-Fi (Wi-Fi only is on) · since 9:38</div></div><span class="act">Use cellular</span></div>
+            <div class="row"><div class="grow"><div class="title">Interlude</div><div class="state bad">Failed: file couldn't be decoded · 9:31</div></div><span class="act">Retry</span></div>
+            <div class="row"><div class="grow"><div class="title">Northbound</div><div class="state ok">Ready</div></div></div>
+          </div>
+          <div class="hstack" style="margin-top:12px"><button class="pill ghost">Prepare Whole Mix Now</button><button class="pill ghost">Stop All</button></div>
+          <div class="sec-h">Storage</div>
+          <div class="card">
+            <div class="row"><div class="grow"><div class="title">Transition analysis</div><div class="sub">Beat grids and phrase maps for 214 tracks · 38 MB. Rebuilt when needed.</div></div></div>
+            <div class="row"><span class="act" style="color:var(--danger)">Clear Transition Analysis…</span></div>
+          </div>
+          <p class="foot">Analysis runs on this iPhone only. Nothing is uploaded.</p>
+        </div>
+      </div></div>
+      <figcaption><b>7 · Settings › Playback › Smart Transitions (A6, M4)</b>A native <code>Form</code>. Every job shows a real state, the reason and "since" time, and its own control: Stop, Retry, or Use cellular. No generic spinner and no count that isn't moving.</figcaption>
+    </figure>
+
+  </main>
+
+  <section class="notes">
+    <div class="note"><h3>Design bar shown here (plan §1)</h3><ul><li>Text tokens scale: switch to AX and rows re-flow rather than truncating.</li><li>Semantic colors in both appearances; the light accent is darkened to <code>#9A6420</code> for AA contrast.</li><li>The style is always spelled out on chips ("Blend", "Phrase fade", "Plain fade"), never icon or color alone.</li><li>44 pt minimum targets everywhere.</li></ul></div>
+    <div class="note"><h3>What's intentionally absent</h3><ul><li>The DJ tab, decks, jog wheels, Crate.</li><li>The splash screen (A4); launch goes straight to Listen.</li><li>Bass-swap EQ and stems (plan §4).</li><li>iPad and Mac: iPhone and Apple Watch only (plan C3).</li></ul></div>
+    <div class="note"><h3>Sample data</h3><p>English is shown here; every string also ships in zh-Hans, es, fr, de, ja and pt-BR (plan A9), so layouts must survive German length and CJK line breaking.</p><p>Track names, artists and numbers are invented to exercise the explanations: one unavoidable tempo jump, one grid still downloading, one key-less track and one un-analyzed track.</p></div>
+  </section>
+</div>
+<script>
+(()=>{
+  const root=document.documentElement;
+  const set=(attr,val,sel)=>{root.setAttribute(attr,val);document.querySelectorAll(sel).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset[sel.includes('theme')?'themeSet':'textSet']===val)))};
+  try{if(matchMedia('(prefers-color-scheme: light)').matches)set('data-theme','light','[data-theme-set]')}catch(e){}
+  document.querySelectorAll('[data-theme-set]').forEach(b=>b.addEventListener('click',()=>set('data-theme',b.dataset.themeSet,'[data-theme-set]')));
+  document.querySelectorAll('[data-text-set]').forEach(b=>b.addEventListener('click',()=>set('data-text',b.dataset.textSet,'[data-text-set]')));
+  // waveform bars: A fades out across the overlap (x 120-320), B fades in from x 120
+  const wa=document.getElementById('wa'),wb=document.getElementById('wb');let a='',b='';
+  for(let i=0;i<64;i++){const x=i*5,n=.35+.65*Math.abs(Math.sin(i*.9)*Math.cos(i*.23));
+    const fa=x<120?1:Math.max(.08,1-(x-120)/200), fb=x<120?0:Math.min(1,(x-120)/120+.1);
+    const ha=n*44*fa, hb=n*44*fb;
+    a+=`<rect x="${x}" y="${(34-ha/2).toFixed(1)}" width="3" height="${ha.toFixed(1)}" rx="1"/>`;
+    if(hb>0)b+=`<rect x="${x}" y="${(94-hb/2).toFixed(1)}" width="3" height="${hb.toFixed(1)}" rx="1"/>`;}
+  wa.innerHTML=a;wb.innerHTML=b;
+})();
+</script>
+</body>
+</html>

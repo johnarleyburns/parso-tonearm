@@ -84,7 +84,7 @@ extension AppState {
             }
             await reload()
         } catch {
-            print("seedBuiltInMoodIndexIfNeeded error: \(error)")
+            AppLogger.app.error("Seeding built-in mood index failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -116,7 +116,7 @@ extension AppState {
                 }
             }
         } catch {
-            print("backfillMoodIndexArtworkIfNeeded error: \(error)")
+            AppLogger.app.error("Backfilling mood artwork failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -201,7 +201,7 @@ extension AppState {
             }
             await reload()
         } catch {
-            print("backfillNewMoodIndexTracksIfNeeded error: \(error)")
+            AppLogger.app.error("Backfilling new mood tracks failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

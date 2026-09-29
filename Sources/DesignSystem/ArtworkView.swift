@@ -86,9 +86,8 @@ struct ArtworkView: View {
                 } else if let icon = fallbackIcon {
                     GeometryReader { geo in
                         Image(systemName: icon)
-                            .font(.system(size: min(geo.size.width, geo.size.height) * 0.36,
-                                          weight: .medium))
-                            .foregroundStyle(.white.opacity(0.85))
+                            .font(Typography.headline)
+                            .foregroundStyle(Palette.ink.opacity(0.85))
                             .frame(width: geo.size.width, height: geo.size.height)
                     }
                 }

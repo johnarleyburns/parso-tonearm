@@ -27,7 +27,7 @@ public enum WidgetSnapshotStore {
 
     private static func sharedDefaults() -> UserDefaults? {
         guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
-            print("WidgetSnapshotStore: App Group suite \(appGroupIdentifier) unavailable — check entitlements")
+            TonearmLog.widgets.error("App Group suite unavailable — check entitlements")
             return nil
         }
         return defaults

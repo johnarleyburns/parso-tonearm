@@ -2,9 +2,7 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
-#if !os(macOS)
 import UIKit
-#endif
 
 extension AppState {
     /// Resolves a track to bytes that the DJ engine can read. The normal player
@@ -12,11 +10,11 @@ extension AppState {
     /// before it can build its PCM buffer and waveform. Reuse the durable audio
     /// cache when possible and fetch the track on demand when it is not there.
     ///
-    /// This is deliberately separate from `phoneDownloadState`: selecting a
-    /// track in DJ is an explicit request to make it playable now, not a reason
+    /// This is deliberately separate from `phoneDownloadState`: transition
+    /// analysis is an explicit request to make a track playable now, not a reason
     /// to reject the track because it has not been pre-downloaded.
-    func djPlayableURL(for row: TrackRow) async throws -> URL {
-        guard let asset = row.asset else { throw DJPlayableAssetError.missingAsset }
+    func analysisPlayableURL(for row: TrackRow) async throws -> URL {
+        guard let asset = row.asset else { throw AnalysisAssetError.missingAsset }
 
         if asset.kind == .builtIn, let channel = asset.relPath,
            let url = BuiltInContentProvider.bundledAudioURL(forChannelId: channel),
@@ -45,7 +43,7 @@ extension AppState {
             if FileManager.default.fileExists(atPath: url.path) { return url }
         }
 
-        guard asset.kind == .remote else { throw DJPlayableAssetError.noLocalBytes }
+        guard asset.kind == .remote else { throw AnalysisAssetError.noLocalBytes }
 
         let remoteURLs = [asset.remoteURL, asset.altRemoteURL]
             .compactMap { $0.flatMap(URL.init(string:)) }
@@ -59,16 +57,16 @@ extension AppState {
         }
 
         guard let request = await fetchRequest(for: asset, source: row.source) else {
-            throw DJPlayableAssetError.remoteRequestUnavailable
+            throw AnalysisAssetError.remoteRequestUnavailable
         }
         let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse,
            !(200..<300).contains(http.statusCode) {
-            throw DJPlayableAssetError.remoteRequestFailed(http.statusCode)
+            throw AnalysisAssetError.remoteRequestFailed(http.statusCode)
         }
 
         guard let remote = asset.remoteURL.flatMap(URL.init(string:)) else {
-            throw DJPlayableAssetError.missingRemoteURL
+            throw AnalysisAssetError.missingRemoteURL
         }
         let key = AudioCache.key(for: remote)
         let destination = AudioCache.fileURL(for: key)
@@ -327,7 +325,7 @@ extension AppState {
 
 }
 
-private enum DJPlayableAssetError: Error {
+private enum AnalysisAssetError: Error {
     case missingAsset
     case noLocalBytes
     case missingRemoteURL

@@ -1,0 +1,42 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Build a Mix" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Build a Mix" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "创建混音" } },
+      "es" : { "stringUnit" : { "state" : "needs_review", "value" : "Crear una mezcla" } },
+      "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Créer un mix" } },
+      "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Mix erstellen" } },
+      "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "ミックスを作成" } },
+      "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Criar uma mixagem" } }
+    } },
+    "Why This Mix?" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Why This Mix?" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "为什么这样混音？" } },
+      "es" : { "stringUnit" : { "state" : "needs_review", "value" : "¿Por qué esta mezcla?" } },
+      "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Pourquoi ce mix ?" } },
+      "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Warum dieser Mix?" } },
+      "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "なぜこのミックス？" } },
+      "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Por que esta mixagem?" } }
+    } },
+    "Why This Transition?" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Why This Transition?" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "为什么这样过渡？" } },
+      "es" : { "stringUnit" : { "state" : "needs_review", "value" : "¿Por qué esta transición?" } },
+      "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Pourquoi cette transition ?" } },
+      "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Warum dieser Übergang?" } },
+      "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "なぜこのトランジション？" } },
+      "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Por que esta transição?" } }
+    } },
+    "Appearance" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Appearance" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "外观" } },
+      "es" : { "stringUnit" : { "state" : "needs_review", "value" : "Apariencia" } },
+      "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Apparence" } },
+      "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Darstellung" } },
+      "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "外観" } },
+      "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Aparência" } }
+    } }
+  },
+  "version" : "1.0"
+}

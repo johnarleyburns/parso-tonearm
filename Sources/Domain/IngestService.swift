@@ -82,7 +82,7 @@ public struct IngestService {
                 summary.record(outcome)
             }
         } catch {
-            print("addFiles error: \(error)")
+            TonearmLog.ingest.error("Adding files failed: \(error.localizedDescription, privacy: .public)")
         }
         return summary
     }
@@ -109,7 +109,7 @@ public struct IngestService {
                 }
             }
         } catch {
-            print("addFiles(toSourceId:) error: \(error)")
+            TonearmLog.ingest.error("Adding files to source failed: \(error.localizedDescription, privacy: .public)")
         }
         return summary
     }
@@ -118,7 +118,7 @@ public struct IngestService {
                           watch: Bool, into store: LibraryStore) async throws -> IngestSummary {
         let files = scanFolder(folderURL, includeSubfolders: includeSubfolders)
         guard !files.isEmpty else {
-            print("[IngestService] addFolder: no audio files found in \(folderURL.lastPathComponent)")
+            TonearmLog.ingest.debug("No audio files found in \(folderURL.lastPathComponent, privacy: .public)")
             throw IngestError.noAudioFiles
         }
         let ordered = keepOrder ? files
@@ -152,7 +152,7 @@ public struct IngestService {
                                 folderBookmark: folderBookmark, watch: watch)
         playlist = try await store.insertPlaylist(playlist)
 
-        print("[IngestService] importing \(ordered.count) files from \(folderURL.lastPathComponent)")
+        TonearmLog.ingest.debug("Importing \(ordered.count) files from \(folderURL.lastPathComponent, privacy: .public)")
         var summary = IngestSummary()
         for (i, file) in ordered.enumerated() {
             let outcome = try await ingestOne(file.url, sourceId: sid, albumId: album.id,
@@ -163,8 +163,7 @@ public struct IngestService {
                                               sectionTitle: file.relativeSection)
             }
         }
-        print("[IngestService] addFolder complete: \(summary.imported) imported, "
-            + "\(summary.skippedDuplicates) skipped (already in library)")
+        TonearmLog.ingest.debug("Folder import complete: \(summary.imported) imported, \(summary.skippedDuplicates) skipped")
         return summary
     }
 
@@ -172,14 +171,14 @@ public struct IngestService {
         let accessed = folderURL.startAccessingSecurityScopedResource()
         defer { if accessed { folderURL.stopAccessingSecurityScopedResource() } }
         if !accessed {
-            print("[IngestService] scanFolder: cannot access \(folderURL.path) — security scope denied")
+            TonearmLog.ingest.error("Cannot access folder: security scope denied")
         }
         let fm = FileManager.default
         var results: [ScannedFile] = []
         let options: FileManager.DirectoryEnumerationOptions = includeSubfolders ? [] : [.skipsSubdirectoryDescendants]
         guard let en = fm.enumerator(at: folderURL, includingPropertiesForKeys: [.isRegularFileKey],
                                      options: options.union(.skipsHiddenFiles)) else {
-            print("[IngestService] scanFolder: cannot enumerate \(folderURL.path)")
+            TonearmLog.ingest.error("Cannot enumerate folder")
             return []
         }
         for case let url as URL in en {
@@ -188,7 +187,7 @@ public struct IngestService {
             let section = parent == folderURL.lastPathComponent ? nil : parent
             results.append(ScannedFile(url: url, relativeSection: section))
         }
-        print("[IngestService] scanFolder: found \(results.count) audio files in \(folderURL.lastPathComponent)")
+        TonearmLog.ingest.debug("Found \(results.count) audio files in \(folderURL.lastPathComponent, privacy: .public)")
         return results
     }
 

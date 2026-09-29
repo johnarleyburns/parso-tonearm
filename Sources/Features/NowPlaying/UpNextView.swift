@@ -4,9 +4,7 @@ import TonearmCore
 struct UpNextView: View {
     @EnvironmentObject var player: AudioPlayer
     @EnvironmentObject var appState: AppState
-    #if !os(macOS)
     @State private var editMode: EditMode = .inactive
-    #endif
 
     /// The first queue offset Keep Playing appended, if any — where the
     /// "Extended by Keep Playing" marker renders. `nil` when nothing in the
@@ -47,7 +45,6 @@ struct UpNextView: View {
                     .accessibilityIdentifier("np.keepPlaying.clearAutoAdded")
                 }
 
-                #if !os(macOS)
                 if !player.isAmbient, player.queue.count > 1 {
                     Button {
                         editMode = editMode == .active ? .inactive : .active
@@ -59,9 +56,11 @@ struct UpNextView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                #endif
             }
             .padding(.bottom, 8)
+
+            TransitionChip()
+                .padding(.bottom, 6)
 
             if player.queue.isEmpty || player.isAmbient {
                 Text(player.isAmbient ? "Continuous ambient loop" : "Nothing up next")
@@ -100,9 +99,7 @@ struct UpNextView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-                #if !os(macOS)
                 .environment(\.editMode, $editMode)
-                #endif
                 .frame(height: queueListHeight)
             }
         }
@@ -131,10 +128,10 @@ struct UpNextView: View {
                 Image(systemName: "infinity").font(.system(size: 11, weight: .semibold))
                 Text("Keep Playing").font(.system(size: 10, weight: .semibold))
             }
-            .foregroundStyle(player.keepPlayingEnabled ? Palette.brass : .white.opacity(0.5))
+            .foregroundStyle(player.keepPlayingEnabled ? Palette.accent : .white.opacity(0.5))
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(player.keepPlayingEnabled ? Palette.brass.opacity(0.16) : .white.opacity(0.06),
+            .background(player.keepPlayingEnabled ? Palette.accent.opacity(0.16) : .white.opacity(0.06),
                         in: Capsule())
         }
         .buttonStyle(.plain)
@@ -165,7 +162,7 @@ struct UpNextView: View {
                     .foregroundStyle(.white.opacity(0.4))
             }
         }
-        .foregroundStyle(Palette.brass.opacity(0.85))
+        .foregroundStyle(Palette.accent.opacity(0.85))
         .padding(.top, 2)
     }
 
@@ -199,7 +196,7 @@ private struct QueueRow: View {
                         .font(.system(size: 11, weight: .medium, design: .monospaced))
                 }
             }
-            .foregroundStyle(isCurrent ? Palette.brass : .white.opacity(0.4))
+            .foregroundStyle(isCurrent ? Palette.accent : .white.opacity(0.4))
             .frame(width: 20, alignment: .leading)
 
             ArtworkView(trackRow: row,

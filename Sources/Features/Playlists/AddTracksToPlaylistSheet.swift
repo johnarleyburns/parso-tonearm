@@ -21,7 +21,7 @@ struct AddTracksToPlaylistSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Color.white.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
+            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
             Text("Add to \(playlist.title)").font(.system(size: 19, weight: .bold)).padding(.vertical, 12)
             SearchField(text: $filter, placeholder: "Search all your music…")
                 .padding(.horizontal, 20).padding(.bottom, 10)
@@ -29,11 +29,11 @@ struct AddTracksToPlaylistSheet: View {
                 Button { toggle(row.id) } label: {
                     HStack(spacing: 11) {
                         Image(systemName: selected.contains(row.id) ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(selected.contains(row.id) ? Palette.brass : Palette.ink3)
+                            .foregroundStyle(selected.contains(row.id) ? Palette.accent : Palette.inkTertiary)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(row.track.title).lineLimit(1)
                             Text(row.album?.artist ?? row.album?.title ?? "")
-                                .font(.caption).foregroundStyle(Palette.ink3).lineLimit(1)
+                                .font(.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
                         }
                         Spacer()
                     }.contentShape(Rectangle())
@@ -44,7 +44,7 @@ struct AddTracksToPlaylistSheet: View {
             }
             .listStyle(.plain).scrollContentBackground(.hidden)
             HStack {
-                Text("\(selected.count) selected").font(.caption).foregroundStyle(Palette.ink2)
+                Text("\(selected.count) selected").font(.caption).foregroundStyle(Palette.inkSecondary)
                 Spacer()
                 Button {
                     Task {
@@ -56,9 +56,9 @@ struct AddTracksToPlaylistSheet: View {
                     }
                 } label: {
                     Text(selected.isEmpty ? "Add tracks" : "Add \(selected.count) tracks")
-                        .font(.system(size: 15, weight: .bold)).foregroundStyle(Color(hex: 0x221503))
+                        .font(.system(size: 15, weight: .bold)).foregroundStyle(Palette.accentOnFill)
                         .padding(.horizontal, 20).frame(height: 44)
-                        .background(Palette.brass, in: Capsule())
+                        .background(Palette.accent, in: Capsule())
                 }
                 .disabled(selected.isEmpty)
                 .accessibilityIdentifier("playlist.add.confirm")

@@ -3,16 +3,11 @@
 // Tonearm (Platterhead DJ) — Copyright (C) 2026 John Arley Burns.
 // See ../../LICENSE.
 
-#if !os(watchOS)
 import Foundation
 import Network
 import TonearmCore
 import TonearmDiscovery
-#if os(macOS)
-import AppKit
-#else
 import UIKit
-#endif
 
 /// Thread-safe cache of REAL device power/thermal/playback signals, refreshed
 /// from `UIDevice`/`ProcessInfo`/`AudioPlayer` on the main actor and read
@@ -101,7 +96,6 @@ final class SchedulingSampler: @unchecked Sendable {
 
         let nc = NotificationCenter.default
         let mainQueue = OperationQueue.main
-        #if !os(macOS)
         UIDevice.current.isBatteryMonitoringEnabled = true
         nc.addObserver(forName: UIDevice.batteryLevelDidChangeNotification,
                        object: nil, queue: mainQueue) { _ in
@@ -111,7 +105,6 @@ final class SchedulingSampler: @unchecked Sendable {
                        object: nil, queue: mainQueue) { _ in
             MainActor.assumeIsolated { SchedulingSampler.refreshBattery(on: self) }
         }
-        #endif
         nc.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification,
                        object: nil, queue: mainQueue) { _ in
             self.setThermalState(Self.mapThermal(ProcessInfo.processInfo.thermalState))
@@ -120,10 +113,6 @@ final class SchedulingSampler: @unchecked Sendable {
                        object: nil, queue: mainQueue) { _ in
             self.setLowPowerMode(ProcessInfo.processInfo.isLowPowerModeEnabled)
         }
-        #if !os(macOS)
-        // No `UIApplication.didReceiveMemoryWarningNotification` equivalent
-        // on macOS (native-mac-app-plan.md §2c) — same reasoning as
-        // `DiscoveryRuntimeController.observeMemoryWarnings()`.
         nc.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification,
                        object: nil, queue: mainQueue) { _ in
             self.setMemoryWarning(true)
@@ -134,7 +123,6 @@ final class SchedulingSampler: @unchecked Sendable {
                 self.setMemoryWarning(false)
             }
         }
-        #endif
 
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
@@ -148,15 +136,12 @@ final class SchedulingSampler: @unchecked Sendable {
 
     @MainActor
     private func refreshAllFromSystem() {
-        #if !os(macOS)
         Self.refreshBattery(on: self)
-        #endif
         setThermalState(Self.mapThermal(ProcessInfo.processInfo.thermalState))
         setLowPowerMode(ProcessInfo.processInfo.isLowPowerModeEnabled)
         setPlaybackActive(AudioPlayer.shared.isPlaying)
     }
 
-    #if !os(macOS)
     @MainActor
     private static func refreshBattery(on sampler: SchedulingSampler) {
         let device = UIDevice.current
@@ -164,7 +149,6 @@ final class SchedulingSampler: @unchecked Sendable {
         let charging = device.batteryState == .charging || device.batteryState == .full
         sampler.setBattery(level: level, charging: charging)
     }
-    #endif
 
     static func mapThermal(_ state: ProcessInfo.ThermalState) -> DiscoveryThermalState {
         switch state {
@@ -253,4 +237,3 @@ final class SchedulingSampler: @unchecked Sendable {
         body()
     }
 }
-#endif

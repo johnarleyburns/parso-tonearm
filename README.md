@@ -1,11 +1,11 @@
-# Tonearm
+# Platterhead
 
 [![iOS Build & TestFlight](https://github.com/johnarleyburns/parso-tonearm/actions/workflows/ios.yml/badge.svg)](https://github.com/johnarleyburns/parso-tonearm/actions/workflows/ios.yml)
 
-A privacy-first music player for people who own their music.
+Platterhead is a privacy-first music player for people who own their music.
 
 Local files, referenced in place — never copied, never uploaded. Plus stream-only playback
-of archive.org audio from links you paste. No account. No ads. No telemetry. Tonearm never
+of archive.org audio from links you paste. No account. No ads. No telemetry. Platterhead never
 phones home; it talks only to services you explicitly connect.
 
 **FLAC · Opus · ALAC · MP3 · AAC · WAV/AIFF · gapless · 10-band EQ · ReplayGain**
@@ -15,13 +15,13 @@ there when you're offline. There is no download button, because you don't need o
 
 ---
 
-## Tonearm is free
+## Platterhead is free
 
 Everything about listening, organizing, analyzing, searching, playlist building, and
-Transition Lab is included. There is no account, no subscription, no feature paywall, and
+Mixes are included. There is no account, no subscription, no feature paywall, and
 no telemetry.
 
-If Tonearm is useful to you, Settings includes an optional one-time contribution to
+If Platterhead is useful to you, Settings includes an optional one-time contribution to
 development. It unlocks nothing; it simply adds a Supporter badge as a thank-you.
 
 ### Everything, free
@@ -35,26 +35,25 @@ bit-perfect output · smart playlists · tag editor · bulk edits · duplicate d
 **all 11 remote-library providers (archive.org, Dropbox, Google Drive, OneDrive, pCloud,
 Subsonic/Navidrome, WebDAV, Jellyfin, Plex, SMB and Jamendo genre libraries)** · semantic vibe search ·
 auto-generated playlists · analysis stages 1–2 (BPM, key, energy) ·
-**Transition Lab** — choose two tracks from your music, get phrase-aware transition
-suggestions from on-device analysis, and audition them before you play a transition for
-anyone else · zero telemetry, no account.
+**Mixes** — build an explainable order from your own music with phrase-aware transitions · zero telemetry, no account.
+
+## Mixes
+
+Mixes plan order, tempo shape, key relationships, and transition preparation from your library. They do not use bass-swap EQ or stems; the regular crossfade remains the honest fallback.
 
 ## Roadmap
 
-- **A live Transition Lab practice loop** — audition a suggested transition today; a
-  real-time practice session (arm it, mix along, feel it) is next.
 - **CarPlay** — *planned, pending Apple's entitlement approval.* It is deliberately absent
   from this list until it is real.
-- **iPad and Mac** apps.
 
 The remote connector OAuth handoff plan lives in
 [`docs/plans/remote-oauth-connectors-handoff.md`](docs/plans/remote-oauth-connectors-handoff.md).
 
 ## Remote library connectors
 
-Remote libraries are free, but they still follow Tonearm's privacy rule: Tonearm
+Remote libraries are free, but they still follow Platterhead's privacy rule: Platterhead
 talks only to services you explicitly connect, stores credentials in Keychain, and never
-routes your music through a Tonearm server.
+routes your music through a Platterhead server.
 
 | Connector | Tier | Sign-in | Setup |
 | --- | --- | --- | --- |
@@ -63,13 +62,13 @@ routes your music through a Tonearm server.
 | Dropbox | Guided | OAuth + PKCE | Sign in, approve read-only file access, browse folders. |
 | Google Drive | Guided | OAuth + PKCE | Sign in with Drive readonly access, browse folders. |
 | OneDrive | Guided | OAuth + PKCE | Sign in with Microsoft `Files.Read`, browse folders. |
-| pCloud | Guided | OAuth | Sign in, then Tonearm uses the correct pCloud API host. |
+| pCloud | Guided | OAuth | Sign in, then Platterhead uses the correct pCloud API host. |
 | Subsonic/Navidrome | Guided | URL + username/password | Enter your server URL and account credentials. |
 | WebDAV | Guided | URL + username/password | Use a WebDAV endpoint for Nextcloud, ownCloud, rclone, or a NAS. |
 | Jellyfin | Guided | URL + username/password | Enter the Jellyfin URL and an account with music-library access. |
 | Jamendo genre libraries | Guided | none | Pick a genre (free, Creative-Commons music); each becomes its own library. Requires a Jamendo application `client_id` in `TONEARM_JAMENDO_CLIENT_ID`. |
 | Plex | Advanced | URL + Plex token | Enter the direct Plex server URL and account token. |
-| SMB | Advanced | iOS Files folder grant | Connect SMB in Files first, then choose the shared folder in Tonearm. |
+| SMB | Advanced | iOS Files folder grant | Connect SMB in Files first, then choose the shared folder in Platterhead. |
 
 Cloud OAuth requires provider client IDs in app builds. Configure these Xcode build settings
 before using the production sign-in buttons:
@@ -133,7 +132,7 @@ tested type instead.
 
 ```
 Sources/
-  App/          AppState, TonearmApp
+  App/          AppState, PlatterheadApp
   Domain/       entities + policy (no UIKit/SwiftUI)
   Data/         LibraryStore (GRDB + FTS5), ArtworkStore, BookmarkVault
   Audio/        AudioPlayer, CacheStore, CachingResourceLoader, EQ/, Opus/
@@ -162,7 +161,9 @@ plays downloaded music completely off-grid — no iPhone required.
 
 ## Terms
 
-Tonearm is free software, licensed under the GNU General Public License v3.0 or later, with an
+Tonearm is the historical codename used by the source project.
+
+Platterhead is free software, licensed under the GNU General Public License v3.0 or later, with an
 additional permission under GPLv3 §7 allowing distribution through Apple's App Store — see
-[`LICENSE`](LICENSE). Tonearm is a clean-room app inspired by foobar2000's *values* — format
+[`LICENSE`](LICENSE). Platterhead is a clean-room app inspired by foobar2000's *values* — format
 breadth, gapless, zero telemetry, power-user transparency. It shares no code with it.

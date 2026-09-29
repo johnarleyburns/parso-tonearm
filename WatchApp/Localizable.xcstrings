@@ -1,0 +1,7 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Platterhead" : { "localizations" : { "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } } } }
+  },
+  "version" : "1.0"
+}

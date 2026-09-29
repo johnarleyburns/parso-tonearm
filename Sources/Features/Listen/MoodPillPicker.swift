@@ -20,10 +20,10 @@ struct MoodPillPicker: View {
                     } label: {
                         Text(pill.label)
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(selected ? .white : Palette.ink2)
+                            .foregroundStyle(selected ? .white : Palette.inkSecondary)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(selected ? Palette.brassDeep : Color.white.opacity(0.07),
+                            .background(selected ? Palette.accent : Color.primary.opacity(0.07),
                                         in: Capsule())
                     }
                     .buttonStyle(.plain)

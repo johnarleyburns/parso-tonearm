@@ -5,70 +5,58 @@ import TonearmCore
 struct RootView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
-    @State private var showSplash = !ProcessInfo.processInfo.arguments.contains("UI_TESTING")
     @State private var artworkPickerItem: PhotosPickerItem?
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // AnimatedSplashView's own opacity fades in from 0, and it used to
-            // sit as an overlay directly above the real content (tabs + dock),
-            // both already built and rendering underneath — during that
-            // fade-in, the real content was genuinely visible through it
-            // (reported as "briefly seeing my last-used tab, very wide, then
-            // the splash"). Building the real content only once the splash is
-            // done removes anything for it to fade in over.
-            if showSplash && appState.didOnboard {
-                AnimatedSplashView(isPresented: $showSplash)
-                    .zIndex(10)
-            } else {
-                backgroundLayer.ignoresSafeArea()
+            backgroundLayer.ignoresSafeArea()
 
-                Group {
-                    switch appState.tab {
-                    case .listen: ListenView()
-                    case .myMusic: MyMusicView()
-                    case .dj: DJView()
-                    case .settings: SettingsView()
+            TabView(selection: $appState.tab) {
+                ListenView()
+                    .tabItem { Label("Listen", systemImage: "play.circle.fill") }
+                    .tag(AppTab.listen)
+                MyMusicView()
+                    .tabItem { Label("My Music", systemImage: "music.note.list") }
+                    .tag(AppTab.myMusic)
+                SettingsView()
+                    .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+                    .tag(AppTab.settings)
+            }
+            .tabViewBottomAccessory {
+                if player.currentTrack != nil && !appState.showNowPlaying {
+                    VStack(spacing: 2) {
+                        MiniPlayerAccessory()
+                        if appState.watchManagement.banner != nil {
+                            TransferPill()
+                        }
                     }
+                } else if appState.watchManagement.banner != nil {
+                    TransferPill()
                 }
+            }
+            .tabBarMinimizeBehavior(.onScrollDown)
+            .sensoryFeedback(.selection, trigger: appState.tab)
 
-                // The dock steps aside for a performance surface: the decks own
-                // the bottom edge (§42.7a), and an overlay there is not merely
-                // untidy — it swallows the crossfader's touches.
-                if !appState.isPerformanceSurfaceFullScreen {
-                    GlassDock()
-                        .padding(.bottom, 8)
-                }
+            if let title = appState.backgroundTitle {
+                backgroundBanner(title)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .motion(Motion.standard, value: appState.backgroundTitle)
+            }
 
-                if let title = appState.backgroundTitle {
-                    backgroundBanner(title)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .animation(.easeInOut(duration: 0.3), value: appState.backgroundTitle)
-                }
-
-                if let message = player.networkSkipMessage {
-                    skipBanner(message)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .animation(.easeInOut(duration: 0.3), value: player.networkSkipMessage)
-                }
+            if let message = player.networkSkipMessage {
+                skipBanner(message)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .motion(Motion.standard, value: player.networkSkipMessage)
             }
         }
         .toastLayer(bottomInset: 96)
         .task { await announceWatchConnection() }
-        .tint(Palette.brass)
-        #if os(macOS)
-        .sheet(isPresented: Binding(
-            get: { !appState.didOnboard },
-            set: { if $0 == false { appState.didOnboard = true } })) {
-            OnboardingView()
-        }
-        #else
+        .tint(Palette.accent)
         .fullScreenCover(isPresented: Binding(
             get: { !appState.didOnboard },
             set: { if $0 == false { appState.didOnboard = true } })) {
             OnboardingView()
         }
-        #endif
         .sheet(isPresented: $appState.showAddMenu) {
             AddMenuSheet()
                 .presentationDetents([.height(365)])
@@ -79,6 +67,10 @@ struct RootView: View {
         }
         .sheet(isPresented: $appState.showNowPlaying) {
             NowPlayingView()
+        }
+        .sheet(item: $appState.mixBuilderRequest) { request in
+            MixBuilderSheet(rows: request.rows, lockedFirst: request.lockedFirst,
+                            sourcePlaylist: request.sourcePlaylist)
         }
         .sheet(isPresented: $appState.showWatchSettings) {
             WatchSettingsView()
@@ -193,16 +185,13 @@ struct RootView: View {
             HStack(spacing: 10) {
                 if appState.backgroundDone {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Palette.ok)
+                        .foregroundStyle(Palette.success)
                 } else if appState.backgroundFailed {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(Palette.danger)
                 } else {
                     ProgressView()
-        .tint(Palette.brass)
-        .onAppear {
-            if !appState.didOnboard { showSplash = false }
-        }
+                        .tint(Palette.accent)
                 }
                 Text(appState.backgroundDone ? "Added \"\(title)\""
                      : appState.backgroundFailed ? "Failed to add \"\(title)\""
@@ -225,7 +214,7 @@ struct RootView: View {
         VStack {
             HStack(spacing: 10) {
                 Image(systemName: "wifi.slash")
-                    .foregroundStyle(Palette.brass)
+                    .foregroundStyle(Palette.accent)
                 Text(message)
                     .font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(Palette.ink)

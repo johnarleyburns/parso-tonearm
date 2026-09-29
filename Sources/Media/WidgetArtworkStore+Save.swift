@@ -1,14 +1,10 @@
 import Foundation
-#if !os(macOS)
 import UIKit
 import TonearmCore
 
 /// The UIKit half of `WidgetArtworkStore`: downscales and JPEG-encodes the now-
 /// playing artwork into the shared App Group directory. Kept app-side so Core
-/// (the snapshot builder) stays host-compilable. No `TonearmMac` counterpart:
-/// the native Mac app ships no Home Screen widget extension
-/// (docs/plans/native-mac-app-plan.md §1 — "No Share/Widgets/Watch extension
-/// embeds").
+/// (the snapshot builder) stays host-compilable.
 extension WidgetArtworkStore {
     @discardableResult
     static func save(image: UIImage, for artworkID: String) -> String? {
@@ -31,9 +27,8 @@ extension WidgetArtworkStore {
             try data.write(to: url, options: .atomic)
             return name
         } catch {
-            print("WidgetArtworkStore: failed to write artwork: \(error)")
+            AppLogger.artwork.error("Failed to write artwork: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
 }
-#endif

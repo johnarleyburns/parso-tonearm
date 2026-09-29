@@ -19,7 +19,7 @@ struct ScreenHeader: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 15))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                         .frame(width: 33, height: 33)
                         .glassSurface(cornerRadius: 16.5)
                 }
@@ -38,8 +38,8 @@ struct SearchField: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(Palette.ink3)
-            TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Palette.ink3))
+                .foregroundStyle(Palette.inkTertiary)
+            TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Palette.inkTertiary))
                 .foregroundStyle(Palette.ink)
                 .autocorrectionDisabled()
                 .platformAutocapitalization(.never)
@@ -62,7 +62,7 @@ struct AddRemoteLibraryButton: View {
             HStack(spacing: 11) {
                 Image(systemName: "server.rack")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Palette.brass)
+                    .foregroundStyle(Palette.accent)
                     .frame(width: compact ? 30 : 36, height: compact ? 30 : 36)
                     .glassSurface(cornerRadius: compact ? 15 : 18)
                 VStack(alignment: .leading, spacing: 2) {
@@ -71,18 +71,18 @@ struct AddRemoteLibraryButton: View {
                         .foregroundStyle(Palette.ink)
                     Text(RemoteConnectorCatalog.proDisplayList)
                         .font(.system(size: compact ? 10.5 : 11))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                         .lineLimit(1)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
             }
             .padding(.horizontal, compact ? 12 : 14)
             .padding(.vertical, compact ? 10 : 12)
-            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.1)))
+            .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.1)))
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
@@ -126,7 +126,7 @@ struct ProvenanceChip: View {
         .kerning(0.5)
         .foregroundStyle(.white)
         .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(Color.black.opacity(0.45), in: Capsule())
+        .background(Color.primary.opacity(0.45), in: Capsule())
     }
 
     private var badge: (String, String) {
@@ -163,11 +163,11 @@ struct TrackRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(titleLine)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(row.asset?.unsupportedReason != nil ? Palette.ink3 : Palette.ink)
+                    .foregroundStyle(row.asset?.unsupportedReason != nil ? Palette.inkTertiary : Palette.ink)
                     .lineLimit(1)
                 Text(subtitle)
                     .font(.system(size: 11.5))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
@@ -176,7 +176,7 @@ struct TrackRowView: View {
             } label: {
                 Image(systemName: appState.isFavorite(row) ? "heart.fill" : "heart")
                     .font(.system(size: 12))
-                    .foregroundStyle(appState.isFavorite(row) ? Color.red : Palette.ink3)
+                    .foregroundStyle(appState.isFavorite(row) ? Color.red : Palette.inkTertiary)
             }
             .buttonStyle(.plain)
             let watchState = appState.watchGlyphState(for: row)
@@ -248,6 +248,14 @@ struct TrackContextMenu: ViewModifier {
             Button { player.appendToQueue(row) } label: {
                 Label("Add to Queue", systemImage: "text.badge.plus")
             }
+            Button {
+                let seed = row.track.id.map { id in
+                    [row] + appState.allTracks.filter { $0.track.id != id }
+                } ?? appState.allTracks
+                appState.mixBuilderRequest = MixBuilderRequest(rows: seed, lockedFirst: row.track.id)
+            } label: {
+                Label("Start a Mix From This Track", systemImage: "waveform.path.ecg")
+            }
             Divider()
             Button {
                 appState.artworkChangeTrackRow = row
@@ -268,13 +276,10 @@ struct TrackContextMenu: ViewModifier {
                 Label(fav ? "Remove from Favorites" : "Add to Favorites",
                       systemImage: fav ? "heart.slash" : "heart")
             }
-            #if !os(macOS)
             watchMenuItems
-            #endif
         }
     }
 
-    #if !os(macOS)
     @ViewBuilder
     private var watchMenuItems: some View {
         let state = appState.watchGlyphState(for: row)
@@ -301,7 +306,6 @@ struct TrackContextMenu: ViewModifier {
             EmptyView()
         }
     }
-    #endif
 
     @ViewBuilder
     private var phoneMenuItems: some View {

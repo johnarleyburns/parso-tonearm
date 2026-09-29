@@ -110,10 +110,8 @@ struct OnboardingView: View {
                     localPage.tag(intros.count)
                     sourcesPage.tag(intros.count + 1)
                 }
-                #if !os(macOS)
                 .tabViewStyle(.page(indexDisplayMode: .always))
                 .indexViewStyle(.page(backgroundDisplayMode: .always))
-                #endif
 
                 footer
             }
@@ -153,11 +151,11 @@ struct OnboardingView: View {
         VStack(spacing: 20) {
             Spacer()
             Image(systemName: intro.icon)
-                .font(.system(size: 62)).foregroundStyle(Palette.brass)
+                .font(.system(size: 62)).foregroundStyle(Palette.accent)
             Text(intro.title).font(.system(size: 26, weight: .heavy)).kerning(-0.5)
                 .multilineTextAlignment(.center)
             Text(intro.body)
-                .font(.system(size: 15)).foregroundStyle(Palette.ink2)
+                .font(.system(size: 15)).foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 34)
             Spacer(); Spacer()
@@ -168,12 +166,12 @@ struct OnboardingView: View {
         VStack(spacing: 18) {
             Spacer()
             Image(systemName: "folder.badge.plus")
-                .font(.system(size: 58)).foregroundStyle(Palette.brass)
+                .font(.system(size: 58)).foregroundStyle(Palette.accent)
             Text("Add your own music")
                 .font(.system(size: 24, weight: .heavy)).kerning(-0.5)
                 .multilineTextAlignment(.center)
             Text("Import a local folder or individual files.\nThey stay where they are — Platterhead reads them in place.")
-                .font(.system(size: 14)).foregroundStyle(Palette.ink2)
+                .font(.system(size: 14)).foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.center).padding(.horizontal, 30)
 
             VStack(spacing: 10) {
@@ -188,7 +186,7 @@ struct OnboardingView: View {
 
             if localAddedCount > 0 {
                 Text("Added \(localAddedCount) file\(localAddedCount == 1 ? "" : "s")")
-                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Palette.ok)
+                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Palette.success)
             }
             Spacer(); Spacer()
         }
@@ -196,10 +194,10 @@ struct OnboardingView: View {
 
     private func localButton(icon: String, title: String) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: icon).font(.system(size: 16)).foregroundStyle(Palette.brass)
+            Image(systemName: icon).font(.system(size: 16)).foregroundStyle(Palette.accent)
             Text(title).font(.system(size: 14.5, weight: .semibold)).foregroundStyle(Palette.ink)
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
+            Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
         }
         .padding(14).glassSurface(cornerRadius: 14)
     }
@@ -210,7 +208,7 @@ struct OnboardingView: View {
                 .font(.system(size: 24, weight: .heavy)).kerning(-0.5)
                 .padding(.top, 40)
             Text("These are verified public-domain / CC0 recordings,\nplus Subsonic and Jellyfin demo servers to hear full libraries.\nWe’ll add the ones you keep checked.")
-                .font(.system(size: 13)).foregroundStyle(Palette.ink2)
+                .font(.system(size: 13)).foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.center).padding(.top, 6)
 
             ScrollView {
@@ -224,10 +222,10 @@ struct OnboardingView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: option.selected ? "checkmark.circle.fill" : "circle")
                                     .font(.system(size: 20))
-                                    .foregroundStyle(option.selected ? Palette.brass : Palette.ink3)
+                                    .foregroundStyle(option.selected ? Palette.accent : Palette.inkTertiary)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(option.title).font(.system(size: 14, weight: .semibold)).lineLimit(1)
-                                    Text(option.subtitle).font(.system(size: 11.5)).foregroundStyle(Palette.ink3).lineLimit(1)
+                                    Text(option.subtitle).font(.system(size: 11.5)).foregroundStyle(Palette.inkTertiary).lineLimit(1)
                                 }
                                 Spacer()
                             }
@@ -245,7 +243,7 @@ struct OnboardingView: View {
     private var footer: some View {
         VStack(spacing: 10) {
             if page < lastPage {
-                Button { withAnimation { page += 1 } } label: {
+                Button { Motion.perform { page += 1 } } label: {
                     primaryLabel("Continue")
                 }
             } else {
@@ -259,7 +257,7 @@ struct OnboardingView: View {
                 .disabled(isFinishing)
             }
             Button("Skip for now") { Task { await skip() } }
-                .font(.system(size: 12.5)).foregroundStyle(Palette.ink3)
+                .font(.system(size: 12.5)).foregroundStyle(Palette.inkTertiary)
                 .disabled(isFinishing)
         }
         .padding(.horizontal, 24).padding(.bottom, 20)
@@ -275,14 +273,14 @@ struct OnboardingView: View {
     private var jamendoGenreSectionHeader: some View {
         HStack {
             Text("JAMENDO GENRES").font(.system(size: 11, weight: .bold)).kerning(0.5)
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
             Spacer()
             Button("Select All") { setAllJamendoGenres(selected: true) }
-                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.brass)
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.accent)
                 .accessibilityIdentifier("onboarding.jamendoGenres.selectAll")
-            Text("·").foregroundStyle(Palette.ink3)
+            Text("·").foregroundStyle(Palette.inkTertiary)
             Button("Select None") { setAllJamendoGenres(selected: false) }
-                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.brass)
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.accent)
                 .accessibilityIdentifier("onboarding.jamendoGenres.selectNone")
         }
         .padding(.top, 12)
@@ -315,7 +313,7 @@ struct OnboardingView: View {
                                                          username: option.username ?? "",
                                                          password: option.password ?? "")
                 } catch {
-                    print("onboarding add subsonic demo error: \(error)")
+                    AppLogger.onboarding.error("Adding Subsonic demo failed: \(error.localizedDescription, privacy: .public)")
                 }
             case .jellyfinDemo:
                 do {
@@ -323,13 +321,13 @@ struct OnboardingView: View {
                                                          username: option.username ?? "",
                                                          password: option.password ?? "")
                 } catch {
-                    print("onboarding add jellyfin demo error: \(error)")
+                    AppLogger.onboarding.error("Adding Jellyfin demo failed: \(error.localizedDescription, privacy: .public)")
                 }
             case .jamendoGenre:
                 do {
                     try await appState.addGenreLibrary(path: option.url, name: option.title)
                 } catch {
-                    print("onboarding add jamendo genre error: \(error)")
+                    AppLogger.onboarding.error("Adding Jamendo genre failed: \(error.localizedDescription, privacy: .public)")
                 }
             case .archiveOrg:
                 break
@@ -349,9 +347,9 @@ struct PrimaryLabelStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(.system(size: 15.5, weight: .bold))
-            .foregroundStyle(Color(hex: 0x221503))
+            .foregroundStyle(Palette.accentOnFill)
             .frame(maxWidth: .infinity).frame(height: 50)
-            .background(LinearGradient(colors: [Color(hex: 0xEEB35B), Color(hex: 0xCF8F34)],
+            .background(LinearGradient(colors: [Palette.accent, Palette.accent],
                                        startPoint: .top, endPoint: .bottom), in: Capsule())
     }
 }

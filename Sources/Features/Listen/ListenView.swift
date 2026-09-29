@@ -39,6 +39,7 @@ struct ListenView: View {
     /// re-auditing against the plan — the first pass shipped one static
     /// placeholder instead.
     @State private var placeholderIndex = 0
+    @State private var showMixBuilder = false
     /// `fileprivate` (not `private`) — `MoodEntryPointSection` below, a
     /// separate type in this same file, reads it too.
     fileprivate static let promptPlaceholders = [
@@ -60,6 +61,8 @@ struct ListenView: View {
                 if !appState.recentlyPlayed.isEmpty {
                     cardRow(title: "Jump Back In", rows: appState.recentlyPlayed)
                 }
+                MixEntryCard { showMixBuilder = true }
+                    .padding(.bottom, 14)
                 // "Recently Added" removed at the user's request — it duplicated "Jump Back In"
                 // in practice and wasn't used. `appState.recentlyAdded` is left in place (still
                 // populated by `reload()`) in case another surface wants it later.
@@ -121,12 +124,16 @@ struct ListenView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3))
                 guard !Task.isCancelled else { return }
-                withAnimation(.easeInOut(duration: 0.25)) {
+                Motion.perform(Motion.standard) {
                     placeholderIndex = (placeholderIndex + 1) % Self.promptPlaceholders.count
                 }
             }
         }
         .trackDetailSheet(for: $selectedTrackForDetail)
+        .sheet(isPresented: $showMixBuilder) {
+            MixBuilderSheet(rows: player.queue.isEmpty ? appState.recentlyPlayed : player.queue)
+                .environmentObject(appState)
+        }
         .sheet(isPresented: $showIndexStatus, onDismiss: {
             // Real report: going to Sound Index, doing something there, then
             // returning to Listen must re-check readiness — this view's
@@ -174,7 +181,7 @@ struct ListenView: View {
     private var supporterBadge: some View {
         Label("Supporter", systemImage: "heart.fill")
             .font(.system(size: 11.5, weight: .semibold))
-            .foregroundStyle(Palette.brass)
+            .foregroundStyle(Palette.accent)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .glassSurface(cornerRadius: 12)
@@ -219,7 +226,7 @@ struct ListenView: View {
             Text("Once you download the mood models and index your tracks, "
                 + "you can come back and search by mood here.")
                 .font(.system(size: 13))
-                .foregroundStyle(Palette.ink2)
+                .foregroundStyle(Palette.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
                 showIndexStatus = true
@@ -229,10 +236,10 @@ struct ListenView: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 11)
                     .background(
-                        LinearGradient(colors: [Palette.brass, Palette.brassDeep],
+                        LinearGradient(colors: [Palette.accent, Palette.accent],
                                       startPoint: .top, endPoint: .bottom),
                         in: Capsule())
-                    .foregroundStyle(Color.black)
+                    .foregroundStyle(Color.primary)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("listen.mood.indexYourTracks")
@@ -269,7 +276,7 @@ struct ListenView: View {
             if appState.favoriteRows.isEmpty {
                 Text("Favorite a track and it will show up here.")
                     .font(.system(size: 13))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
                     .padding(.vertical, 18)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -301,7 +308,7 @@ struct ListenView: View {
                     ShareLink(item: stats.yearInReview.shareText) {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 13))
-                            .foregroundStyle(Palette.brass)
+                            .foregroundStyle(Palette.accent)
                     }
                     .accessibilityLabel("Share")
                 }
@@ -329,14 +336,14 @@ struct ListenView: View {
                     if !stats.topArtists.isEmpty {
                         topArtistsList(stats.topArtists)
                     }
-                    Button("Show Less") { withAnimation { showTopLists = false } }
+                    Button("Show Less") { Motion.perform(Motion.standard) { showTopLists = false } }
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                         .accessibilityIdentifier("listen.stats.showLess")
                 } else {
-                    Button("Show More…") { withAnimation { showTopLists = true } }
+                    Button("Show More…") { Motion.perform(Motion.standard) { showTopLists = true } }
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                         .accessibilityIdentifier("listen.stats.showMore")
                 }
             }
@@ -350,7 +357,7 @@ struct ListenView: View {
                 .font(.system(size: 18, weight: .bold))
             Text(title)
                 .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -383,13 +390,13 @@ struct ListenView: View {
                 VStack(spacing: 4) {
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(LinearGradient(
-                            colors: [Palette.brass, Palette.brass.opacity(0.7)],
+                            colors: [Palette.accent, Palette.accent.opacity(0.7)],
                             startPoint: .top, endPoint: .bottom))
                         .frame(height: max(3, CGFloat(bar.seconds / maxSeconds) * 44))
                         .accessibilityHidden(true)
                     Text(bar.label)
                         .font(.system(size: 8.5, weight: .semibold))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                 }
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .ignore)
@@ -416,7 +423,7 @@ struct ListenView: View {
                         HStack(spacing: 10) {
                             Text("\(index + 1)")
                                 .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Palette.ink3)
+                                .foregroundStyle(Palette.inkTertiary)
                                 .frame(width: 18, alignment: .leading)
                             Text(rank.row.track.title)
                                 .font(.system(size: 13, weight: .medium))
@@ -424,7 +431,7 @@ struct ListenView: View {
                             Spacer()
                             Text("\(rank.playCount) plays")
                                 .font(.system(size: 11.5))
-                                .foregroundStyle(Palette.ink3)
+                                .foregroundStyle(Palette.inkTertiary)
                         }
                         .padding(.vertical, 8)
                         .contentShape(Rectangle())
@@ -458,7 +465,7 @@ struct ListenView: View {
                         HStack(spacing: 10) {
                             Text("\(index + 1)")
                                 .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Palette.ink3)
+                                .foregroundStyle(Palette.inkTertiary)
                                 .frame(width: 18, alignment: .leading)
                             Text(rank.name)
                                 .font(.system(size: 13, weight: .medium))
@@ -466,7 +473,7 @@ struct ListenView: View {
                             Spacer()
                             Text("\(rank.playCount) plays")
                                 .font(.system(size: 11.5))
-                                .foregroundStyle(Palette.ink3)
+                                .foregroundStyle(Palette.inkTertiary)
                         }
                         .padding(.vertical, 8)
                         .contentShape(Rectangle())
@@ -493,6 +500,7 @@ struct ListenView: View {
 /// `DiscoverySearchView` → `DiscoverySearchContent`'s existing split in
 /// this codebase for exactly the same reason.
 private struct MoodEntryPointSection: View {
+    @EnvironmentObject private var appState: AppState
     @ObservedObject var moodModel: DiscoverySearchViewModel
     @Binding var selectedPillIDs: Set<MoodPill.ID>
     let eraVibePills: [MoodPill]
@@ -554,17 +562,26 @@ private struct MoodEntryPointSection: View {
             MoodPillPicker(pills: allMoodPills, selection: pillSelectionBinding)
 
             if moodModel.matchingReferenceTrackID != nil {
-                Toggle("DJ-compatible tracks", isOn: Binding(
+                Toggle("Mix-compatible tracks", isOn: Binding(
                     get: { moodModel.matchingTracksOnly },
                     set: { moodModel.setMatchingTracksOnly($0) }))
                     .font(.system(size: 12.5, weight: .medium))
-                    .tint(Palette.brass)
+                    .tint(Palette.accent)
                     .accessibilityIdentifier("listen.mood.matchingTracks")
             }
 
             Group {
                 if !moodModel.results.isEmpty {
-                    moodResultsRow
+                    VStack(alignment: .leading, spacing: 10) {
+                        Button {
+                            appState.mixBuilderRequest = MixBuilderRequest(
+                                rows: moodModel.results.map(\.track), lockedFirst: nil)
+                        } label: {
+                            Label("Make a Mix", systemImage: "waveform.path.ecg")
+                        }
+                        .buttonStyle(.bordered)
+                        moodResultsRow
+                    }
                 } else {
                     moodStatusHint
                 }
@@ -602,7 +619,7 @@ private struct MoodEntryPointSection: View {
         case .loading:
             HStack(spacing: 8) {
                 ProgressView()
-                Text("Searching…").foregroundStyle(Palette.ink3)
+                Text("Searching…").foregroundStyle(Palette.inkTertiary)
             }
             .font(.callout)
         case .modelMissing:
@@ -628,7 +645,7 @@ private struct MoodEntryPointSection: View {
             }
         case .noMatches:
             hint(moodModel.matchingTracksOnly
-                ? "No DJ-compatible tracks matched this mood. Turn off DJ-compatible tracks or try different pills."
+                ? "No mix-compatible tracks matched this mood. Turn off Mix-compatible tracks or try different pills."
                 : "No tracks matched that mood yet. Try different pills or fewer of them.")
         case .emptyLibrary:
             hint("Your library is empty. Add music to try a mood.")
@@ -640,14 +657,14 @@ private struct MoodEntryPointSection: View {
                 Button("Retry") { moodModel.retry() }.buttonStyle(.bordered)
             }
         case .matchingReferenceUnavailable:
-            hint("DJ-compatible mood results need BPM and key analysis for the current track.")
+                hint("Mix-compatible mood results need BPM and key analysis for the current track.")
         case .validationError, .analyzeReference, .staleSuppressed, .results:
             EmptyView()
         }
     }
 
     private func hint(_ text: String) -> some View {
-        Text(text).font(.callout).foregroundStyle(Palette.ink3)
+        Text(text).font(.callout).foregroundStyle(Palette.inkTertiary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -684,7 +701,7 @@ struct RecentCard: View {
                 .padding(.top, 7)
             Text(row.artist?.name ?? row.album?.artist ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : "On device"))
                 .font(.system(size: 11))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
                 .lineLimit(1)
                 .padding(.top, 1)
         }

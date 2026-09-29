@@ -20,14 +20,9 @@ enum SettingsSheet: Identifiable {
 /// existing sections... become four preference panes unchanged") — matches
 /// `SettingsView.body`'s own four groupings exactly. `nil` on iOS/iPadOS,
 /// where `SettingsView` still renders every section in one scroll.
-enum MacPreferencesPane {
-    case playback, library, account, advanced
-}
-
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
-    var macPane: MacPreferencesPane?
-
+    @EnvironmentObject var player: AudioPlayer
     @State private var cacheUsed: Int64 = 0
     @State private var cacheLimit: Int64 = SparseCacheStore.defaultLimit
     @State private var cachedCount: Int = 0
@@ -36,24 +31,17 @@ struct SettingsView: View {
     @State private var showClearConfirm = false
     @State private var showClearCustomConfirm = false
     @State private var showCustomCacheLimit = false
-    @State private var showClearDJPrepConfirm = false
-    @State private var djPrepTracks = 0
-    @State private var djPrepBytes: Int64 = 0
+    @State private var showClearAnalysisConfirm = false
+    @State private var analysisTracks = 0
+    @State private var analysisBytes: Int64 = 0
     @State private var customCacheLimitMB = ""
     @State private var customCacheLimitMessage: String?
     @State private var icloudSync = SyncGating.isEnabled
     @State private var showWatchSettings = false
     @State private var advancedExpanded: Bool
-    @AppStorage("dj.surface") private var djSurface = "focus"
-    @AppStorage("dj.layout") private var djLayout = "focus"
-    @AppStorage("dj.showLayoutSwitch") private var djShowLayoutSwitch = false
-    @AppStorage("dj.coachTips") private var djCoachTips = true
-
-    init(macPane: MacPreferencesPane? = nil) {
-        self.macPane = macPane
-        // A dedicated Advanced pane IS the disclosure's content — start
-        // expanded rather than making the whole pane one collapsed row.
-        _advancedExpanded = State(initialValue: macPane == .advanced)
+    @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
+    init() {
+        _advancedExpanded = State(initialValue: false)
     }
 
     private let presets: [(String, Int64)] = [
@@ -64,50 +52,35 @@ struct SettingsView: View {
     ]
 
     var body: some View {
-        ScrollView {
+        NavigationStack {
+        Form {
             VStack(alignment: .leading, spacing: 14) {
-                if macPane == nil {
-                    Text("Settings").font(.system(size: 31, weight: .heavy)).kerning(-0.5)
-                        .padding(.top, 8)
-                }
-
-                if macPane == nil || macPane == .playback {
-                    sectionHeader("Playback")
-                    behaviorCard
-                    keepPlayingCard
-                    djSettingsCard
-                    #if os(iOS)
-                    if macPane == nil {
-                        SiriSettingsCard()
-                    }
-                    #endif
-                }
-
-                if macPane == nil || macPane == .library {
-                    sectionHeader("Library & Storage")
-                    musicLibrariesCard
-                    soundIndexCard
-                    djPrepCard
-                    cacheSummaryCard
-                    watchCard
-                    syncCard
-                }
-
-                if macPane == nil || macPane == .account {
-                    sectionHeader("Account & About")
-                    privacyCard
-                    SupportDevelopmentCard()
-                    aboutCard
-                }
-
-                if macPane == nil || macPane == .advanced {
-                    advancedSection
-                }
+                Text("Settings").font(Typography.display).kerning(-0.5)
+                    .padding(.top, 8)
+                sectionHeader("Playback")
+                behaviorCard
+                SmartTransitionsView()
+                keepPlayingCard
+                SiriSettingsCard()
+                sectionHeader("Library & Storage")
+                musicLibrariesCard
+                soundIndexCard
+                analysisCard
+                cacheSummaryCard
+                watchCard
+                syncCard
+                sectionHeader("Account & About")
+                appearanceCard
+                privacyCard
+                SupportDevelopmentCard()
+                aboutCard
+                advancedSection
             }
-            .padding(.horizontal, 18)
-            .padding(.bottom, macPane == nil ? 160 : 18)
+            .padding(.bottom, 160)
         }
         .foregroundStyle(Palette.ink)
+        .navigationTitle("Settings")
+        }
         .task { await refresh() }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
@@ -151,7 +124,7 @@ struct SettingsView: View {
         } message: {
             Text("Custom artwork you've uploaded — for tracks, albums, and libraries — will be permanently lost. This cannot be undone.")
         }
-        .confirmationDialog("Clear DJ track preparation?", isPresented: $showClearDJPrepConfirm, titleVisibility: .visible) {
+        .confirmationDialog("Clear transition analysis?", isPresented: $showClearAnalysisConfirm, titleVisibility: .visible) {
             Button("Clear Analysis", role: .destructive) {
                 Task {
                     try? await appState.store.clearAllDJAnalysis()
@@ -159,33 +132,28 @@ struct SettingsView: View {
                 }
             }
         } message: {
-            Text("This removes cached waveform, beat-grid, BPM and key analysis. Hot cues, loops and cue points are kept.")
+            Text("This removes cached waveform, beat-grid, BPM and key analysis. It will be rebuilt when needed.")
+        }
+    }
+
+    private var appearanceCard: some View {
+        Section("Appearance") {
+            Picker("Theme", selection: $appearanceMode) {
+                Text("System").tag(AppearanceMode.system.rawValue)
+                Text("Light").tag(AppearanceMode.light.rawValue)
+                Text("Dark").tag(AppearanceMode.dark.rawValue)
+            }
+            .pickerStyle(.menu)
+            .sensoryFeedback(.selection, trigger: appearanceMode)
         }
     }
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title.uppercased())
             .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(Palette.ink3)
+            .foregroundStyle(Palette.inkTertiary)
             .kerning(0.5)
             .padding(.top, 4)
-    }
-
-    private var djSettingsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("DJ").font(.system(size: 16, weight: .semibold))
-            Picker("Layout", selection: $djSurface) { Text("Focus").tag("focus"); Text("Classic").tag("classic") }
-                .pickerStyle(.segmented).accessibilityIdentifier("settings.dj.layout")
-            Toggle("Show layout switch", isOn: $djShowLayoutSwitch)
-            Toggle("Coach tips", isOn: $djCoachTips)
-            if djShowLayoutSwitch {
-                Picker("Perform layout", selection: $djLayout) { Text("Focus").tag("focus"); Text("Both decks").tag("both") }
-                    .pickerStyle(.segmented)
-            }
-            Text("Focus Deck keeps the two-deck engine playing while you move between DJ controls.")
-                .font(.caption).foregroundStyle(Palette.ink3)
-        }
-        .padding(15).glassSurface(cornerRadius: 18)
     }
 
     /// Low-frequency actions moved out of the main scroll (docs/plans/
@@ -199,7 +167,7 @@ struct SettingsView: View {
                     Spacer()
                     Image(systemName: advancedExpanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 12))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                 }
                 .padding(15)
                 // Real report: tapping this (and other Spacer-based row
@@ -247,15 +215,13 @@ struct SettingsView: View {
             .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { activeSheet = nil }.tint(Palette.brass)
+                    Button("Done") { activeSheet = nil }.tint(Palette.accent)
                 }
             }
         }
         .alert("Custom Cache Limit", isPresented: $showCustomCacheLimit) {
             TextField("MB", text: $customCacheLimitMB)
-                #if !os(macOS)
                 .keyboardType(.numberPad)
-                #endif
             Button("Cancel", role: .cancel) {}
             Button("Set") { applyCustomCacheLimit() }
         } message: {
@@ -272,12 +238,12 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Streaming Cache").font(.system(size: 13.5))
                     Text("\(TimeFmt.megabytes(cacheUsed)) of \(TimeFmt.megabytes(cacheLimit)) used")
-                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
@@ -293,14 +259,14 @@ struct SettingsView: View {
                 Text("Streaming Cache").font(.system(size: 13, weight: .bold))
                 Spacer()
                 Text("\(TimeFmt.megabytes(cacheUsed)) of \(TimeFmt.megabytes(cacheLimit))")
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
             .padding(.bottom, 11)
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.1))
-                    Capsule().fill(LinearGradient(colors: [Color(hex: 0xCF8F34), Palette.brass],
+                    Capsule().fill(Color.primary.opacity(0.1))
+                    Capsule().fill(LinearGradient(colors: [Palette.accent, Palette.accent],
                                                   startPoint: .leading, endPoint: .trailing))
                         .frame(width: geo.size.width * fillFraction)
                 }
@@ -312,7 +278,7 @@ struct SettingsView: View {
                 Spacer()
                 Text("oldest evicted first").font(.system(size: 10.5))
             }
-            .foregroundStyle(Palette.ink3)
+            .foregroundStyle(Palette.inkTertiary)
             .padding(.top, 8)
 
             HStack(spacing: 6) {
@@ -326,7 +292,7 @@ struct SettingsView: View {
             if let customCacheLimitMessage {
                 Text(customCacheLimitMessage)
                     .font(.system(size: 10.5))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
                     .padding(.top, 8)
             }
         }
@@ -343,9 +309,9 @@ struct SettingsView: View {
         } label: {
             Text(label)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(selected ? .white : Palette.ink2)
+            .foregroundStyle(selected ? .white : Palette.inkSecondary)
             .frame(maxWidth: .infinity).padding(.vertical, 8)
-            .background(selected ? Palette.brassDeep : Color.white.opacity(0.07),
+            .background(selected ? Palette.accent : Color.primary.opacity(0.07),
                         in: RoundedRectangle(cornerRadius: 11))
         }
     }
@@ -361,9 +327,9 @@ struct SettingsView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .foregroundStyle(selected ? .white : Palette.ink2)
+                .foregroundStyle(selected ? .white : Palette.inkSecondary)
                 .frame(maxWidth: .infinity).padding(.vertical, 8)
-                .background(selected ? Palette.brassDeep : Color.white.opacity(0.07),
+                .background(selected ? Palette.accent : Color.primary.opacity(0.07),
                             in: RoundedRectangle(cornerRadius: 11))
         }
     }
@@ -382,12 +348,12 @@ struct SettingsView: View {
                             ? "Local folders, servers & cloud"
                             : "\(appState.sources.count) connected"
                     )
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
             }
             .padding(.vertical, 4)
             .contentShape(Rectangle())
@@ -409,7 +375,7 @@ struct SettingsView: View {
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
             }
             .padding(.vertical, 4)
             .contentShape(Rectangle())
@@ -420,22 +386,22 @@ struct SettingsView: View {
         .glassSurface(cornerRadius: 18)
     }
 
-    private var djPrepCard: some View {
+    private var analysisCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("DJ track preparation").font(.system(size: 13.5))
-                    Text("\(djPrepTracks) tracks · \(TimeFmt.megabytes(djPrepBytes)) of waveform and grid analysis")
-                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    Text("Transition analysis").font(.system(size: 13.5))
+                    Text("Beat grids and phrase maps used to plan transitions. Rebuilt when needed. \(analysisTracks) tracks · \(TimeFmt.megabytes(analysisBytes))")
+                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
-                Button("Clear analysis", role: .destructive) { showClearDJPrepConfirm = true }
+                Button("Clear analysis", role: .destructive) { showClearAnalysisConfirm = true }
                     .font(.system(size: 11, weight: .semibold))
             }
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
-        .accessibilityIdentifier("settings.djTrackPreparation")
+        .accessibilityIdentifier("settings.transitionAnalysis")
     }
 
     private var behaviorCard: some View {
@@ -468,7 +434,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Prefetch next tracks").font(.system(size: 13.5))
                 Text("Cache ahead while playing")
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
             Spacer()
             // Real report: "the +/- does nothing, I don't see any number
@@ -492,12 +458,12 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("10-band EQ").font(.system(size: 13.5))
                     Text("Presets and custom curves")
-                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "slider.vertical.3")
                     .font(.system(size: 14))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
             }
             .padding(.vertical, 8)
             .contentShape(Rectangle())
@@ -514,7 +480,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("iCloud Sync").font(.system(size: 13.5))
                     Text("Music, playlists & settings across your devices, using your own iCloud")
-                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Toggle("", isOn: Binding(
@@ -527,7 +493,7 @@ struct SettingsView: View {
                         }
                     }
                 ))
-                .labelsHidden().tint(Palette.brassDeep)
+                .labelsHidden().tint(Palette.accent)
                 .accessibilityIdentifier("settings.icloudSync")
             }
             .padding(.vertical, 8)
@@ -558,12 +524,12 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Apple Watch").font(.system(size: 13.5))
                     Text("Download music for offline playback on your watch")
-                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "applewatch")
                     .font(.system(size: 16))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
@@ -586,12 +552,12 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Jamendo key").font(.system(size: 13.5))
                     Text("Use your own application key for genre libraries")
-                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "key")
                     .font(.system(size: 14))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
@@ -607,12 +573,12 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Tools").font(.system(size: 13.5))
                     Text("Smart playlists, tags, duplicates, parametric EQ and more")
-                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "wrench.and.screwdriver")
                     .font(.system(size: 14))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
@@ -628,7 +594,7 @@ struct SettingsView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 13.5))
-                Text(sub).font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                Text(sub).font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
             Spacer()
             // The identifier belongs on the Toggle itself, not the row — an
@@ -637,7 +603,7 @@ struct SettingsView: View {
             // row's own (a StaticText), not the switch's, so UI-test taps
             // land on the row but state reads/writes never see the switch.
             Toggle("", isOn: binding)
-                .labelsHidden().tint(Palette.brassDeep)
+                .labelsHidden().tint(Palette.accent)
                 .modifier(OptionalAccessibilityIdentifier(id: id))
         }
         .padding(.vertical, 8)
@@ -663,7 +629,7 @@ struct SettingsView: View {
                     Text("Tracks added per extension").font(.system(size: 13.5))
                     Text("Picked by sound similarity to what you just played, "
                         + "when the sound index is ready — otherwise shuffled from the same library/playlist")
-                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 // Same fix as `prefetchControl` — a Stepper's label closure
@@ -691,7 +657,7 @@ struct SettingsView: View {
             HStack {
                 Text("Clear Cache").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Palette.danger)
                 Spacer()
-                Text(TimeFmt.megabytes(cacheUsed)).font(.system(size: 13)).foregroundStyle(Palette.ink3)
+                Text(TimeFmt.megabytes(cacheUsed)).font(.system(size: 13)).foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
@@ -707,12 +673,12 @@ struct SettingsView: View {
                 Text("Custom Artwork").font(.system(size: 13, weight: .bold))
                 Spacer()
                 Text(TimeFmt.megabytes(customArtworkBytes))
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
             .padding(.bottom, 4)
 
             Text("Images you attach to tracks, albums, and libraries. Never auto-deleted.")
-                .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 .padding(.bottom, 12)
 
             Button {
@@ -736,10 +702,10 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Privacy").font(.system(size: 13.5))
                     Text("No accounts of ours; optional Apple iCloud sync · no ads · no analytics · talks only to archive.org (URL only for public; Keychain for private lists), Apple artwork search, and libraries you explicitly connect")
-                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
+                Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
@@ -754,7 +720,7 @@ struct SettingsView: View {
             Button { activeSheet = .thirdPartyNotices } label: {
                 HStack {
                     aboutRow("Terms", "GPLv3+ · third-party notices")
-                    Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
+                    Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
                 }
                 .contentShape(Rectangle())
             }
@@ -764,13 +730,19 @@ struct SettingsView: View {
             Link(destination: URL(string: "https://github.com/johnarleyburns/parso-tonearm")!) {
                 HStack {
                     aboutRow("Source", "View on GitHub")
-                    Image(systemName: "arrow.up.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
+                    Image(systemName: "arrow.up.right").font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             Divider().overlay(Palette.hairline)
             aboutRow("About", "Platterhead \(appVersionString) — you bring the records")
+#if DEBUG
+            Divider().overlay(Palette.hairline)
+            Link(destination: URL(string: "app-settings:")!) {
+                aboutRow("Language", "Open iPhone Settings")
+            }
+#endif
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
@@ -780,7 +752,7 @@ struct SettingsView: View {
         HStack {
             Text(title).font(.system(size: 13.5))
             Spacer()
-            Text(value).font(.system(size: 12)).foregroundStyle(Palette.ink3)
+            Text(value).font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
         }
         .padding(.vertical, 8)
     }
@@ -796,8 +768,8 @@ struct SettingsView: View {
         cachedCount = await AudioCache.shared.completeEntryCount(kind: "audio")
         customArtworkBytes = customArtworkSize()
         if let stats = try? await appState.store.djPrepStorageStats() {
-            djPrepTracks = stats.tracks
-            djPrepBytes = stats.bytes
+            analysisTracks = stats.tracks
+            analysisBytes = stats.bytes
         }
     }
 
@@ -853,17 +825,16 @@ struct PrivacyView: View {
             .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.tint(Palette.brass)
+                    Button("Done") { dismiss() }.tint(Palette.accent)
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func privacyPoint(_ title: String, _ body: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.brass)
-            Text(body).font(.system(size: 13)).foregroundStyle(Palette.ink2)
+            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.accent)
+            Text(body).font(.system(size: 13)).foregroundStyle(Palette.inkSecondary)
         }
     }
 }
@@ -882,7 +853,7 @@ struct ThirdPartyNoticesView: View {
                     Text("Third-party notices")
                         .font(.system(size: 20, weight: .bold))
                     privacyPoint("License — GNU GPL v3.0 or later",
-                        "Platterhead DJ is free software: the complete source code is public at github.com/johnarleyburns/parso-tonearm, under the GNU General Public License v3.0 or later. Because the GPL's own terms conflict with the App Store's distribution terms, an additional permission under GPLv3 §7 specifically allows distributing Platterhead DJ through the App Store, provided the source of the exact version distributed stays publicly available under this License — which it does, at the address above. Full text, including that permission: the LICENSE file in the repository.")
+                        "Platterhead is free software: the complete source code is public at github.com/johnarleyburns/parso-tonearm, under the GNU General Public License v3.0 or later. Because the GPL's own terms conflict with the App Store's distribution terms, an additional permission under GPLv3 §7 specifically allows distributing Platterhead through the App Store, provided the source of the exact version distributed stays publicly available under this License — which it does, at the address above. Full text, including that permission: the LICENSE file in the repository.")
                     privacyPoint("Semantic / vibe search",
                         "Vibe search uses LAION CLAP (music_audioset_epoch_15_esc_90.14, HTSAT-base), licensed Apache-2.0.")
                     privacyPoint("Stem separation — Demucs (current default)",
@@ -903,17 +874,16 @@ struct ThirdPartyNoticesView: View {
             .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.tint(Palette.brass)
+                    Button("Done") { dismiss() }.tint(Palette.accent)
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func privacyPoint(_ title: String, _ body: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.brass)
-            Text(body).font(.system(size: 13)).foregroundStyle(Palette.ink2)
+            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.accent)
+            Text(body).font(.system(size: 13)).foregroundStyle(Palette.inkSecondary)
         }
     }
 }
@@ -953,10 +923,10 @@ private struct DiscoverySyncActivityRow: View {
             Text("Sound Index Sync").font(.system(size: 12, weight: .semibold))
             if activity.pendingTrackImport > 0 {
                 Text("\(activity.pendingTrackImport) indexing results from your other devices are waiting for those tracks to be added here.")
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 if let oldest = activity.pendingOldestDate {
                     Text("Oldest waiting result: \(oldest.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.system(size: 10)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 10)).foregroundStyle(Palette.inkTertiary)
                 }
                 HStack {
                     Button("Retry matching") { Task { await engine.retryPending() } }
@@ -970,16 +940,16 @@ private struct DiscoverySyncActivityRow: View {
                 .font(.system(size: 11, weight: .semibold))
             } else if total == 0 {
                 Text("No indexing results received from another device yet.")
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             } else {
                 Text("\(activity.accepted) received · \(activity.rejectedKeepLocal) already indexed here"
                     + (activity.rejectedRequeued > 0
                         ? " · \(activity.rejectedRequeued) incompatible, re-indexing here" : ""))
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
             if activity.prunedPendingCount > 0 {
                 Text("Automatically removed \(activity.prunedPendingCount) waiting result(s) older than 90 days.")
-                    .font(.system(size: 10)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 10)).foregroundStyle(Palette.inkTertiary)
             }
         }
         .padding(.top, 6)

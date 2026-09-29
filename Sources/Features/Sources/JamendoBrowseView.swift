@@ -57,7 +57,7 @@ struct JamendoBrowseView: View {
             if allowsImport {
                 Text(JamendoImportPolicy.explanation)
                     .font(.system(size: 12.5))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
                     .padding(.top, 8)
@@ -71,7 +71,7 @@ struct JamendoBrowseView: View {
             if let importMessage {
                 Text(importMessage)
                     .font(.system(size: 12))
-                    .foregroundStyle(Palette.brass)
+                    .foregroundStyle(Palette.accent)
                     .padding(.horizontal, 18)
                     .padding(.bottom, 8)
             }
@@ -99,7 +99,7 @@ struct JamendoBrowseView: View {
                 Button { dismiss() } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 15))
-                        .foregroundStyle(Palette.brass)
+                        .foregroundStyle(Palette.accent)
                         .frame(width: 33, height: 33)
                         .glassSurface(cornerRadius: 16.5)
                 }
@@ -147,7 +147,7 @@ struct JamendoBrowseView: View {
                 Text(selectedGenre.name).font(.system(size: 14, weight: .semibold))
                 Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
             }
-            .foregroundStyle(Palette.brass)
+            .foregroundStyle(Palette.accent)
             .padding(.horizontal, 14)
             .frame(height: 36)
             .glassSurface(cornerRadius: 18)
@@ -162,7 +162,7 @@ struct JamendoBrowseView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if isLoading {
-                    ProgressView().tint(Palette.brass).padding(.top, 30)
+                    ProgressView().tint(Palette.accent).padding(.top, 30)
                 } else if let errorText {
                     Text(errorText)
                         .font(.system(size: 12.5))
@@ -172,7 +172,7 @@ struct JamendoBrowseView: View {
                 } else if nodes.isEmpty {
                     Text(activeQuery == nil ? "No tracks found for \(selectedGenre.name)." : "No matches for \u{201c}\(activeQuery ?? "")\u{201d}.")
                         .font(.system(size: 12.5))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                         .padding(.top, 24)
                 } else {
                     ForEach(Array(nodes.enumerated()), id: \.element.id) { index, node in
@@ -184,7 +184,7 @@ struct JamendoBrowseView: View {
                         Divider().overlay(Palette.hairline)
                     }
                     if isLoadingMore {
-                        ProgressView().tint(Palette.brass).padding(.vertical, 16)
+                        ProgressView().tint(Palette.accent).padding(.vertical, 16)
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -259,7 +259,7 @@ struct JamendoBrowseView: View {
                 Button { Task { await importNode(node) } } label: {
                     Image(systemName: importedIDs.contains(node.id) ? "checkmark.circle.fill" : "plus.circle")
                         .font(.system(size: 21))
-                        .foregroundStyle(importedIDs.contains(node.id) ? .green : Palette.brass)
+                        .foregroundStyle(importedIDs.contains(node.id) ? .green : Palette.accent)
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
@@ -378,14 +378,14 @@ private struct JamendoTrackRow: View {
                     .lineLimit(1)
                 Text(subtitle)
                     .font(.system(size: 11.5))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
             if let durationSec = node.durationSec {
                 Text(formattedDuration(durationSec))
                     .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
             }
         }
         .padding(.vertical, 9)

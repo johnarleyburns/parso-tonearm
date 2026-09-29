@@ -19,9 +19,9 @@ struct AddRemoteTracksSheet: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Capsule().fill(Color.white.opacity(0.35)).frame(width: 36, height: 5)
+            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5)
             Text("Add tracks to playlist").font(.headline)
-            Text(scopeTitle).font(.caption).foregroundStyle(Palette.ink3)
+            Text(scopeTitle).font(.caption).foregroundStyle(Palette.inkTertiary)
             Stepper("Add \(count) of \(available) tracks", value: $count,
                     in: 1...max(1, available))
                 .accessibilityIdentifier("remoteAdd.count")
@@ -42,7 +42,7 @@ struct AddRemoteTracksSheet: View {
             }
             if isAdding { ProgressView("Adding \(done) of \(count)…", value: Double(done), total: Double(count)) }
             if let resultText {
-                Text(resultText).font(.caption).foregroundStyle(Palette.ink2)
+                Text(resultText).font(.caption).foregroundStyle(Palette.inkSecondary)
                     .accessibilityIdentifier("remoteAdd.result")
             }
             Spacer()

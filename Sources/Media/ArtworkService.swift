@@ -1,9 +1,5 @@
 import Foundation
-#if os(macOS)
-import AppKit
-#else
 import UIKit
-#endif
 import AVFoundation
 import CoreImage
 import TonearmCore
@@ -132,24 +128,24 @@ actor ArtworkService {
             do {
                 imageData = try await IAClient.shared.data(from: coverURL)
             } catch {
-                print("[ArtworkService] cover download error for \(identifier)/\(coverFilename): \(error.localizedDescription)")
+                AppLogger.artwork.error("Cover download failed for \(identifier, privacy: .public)/\(coverFilename, privacy: .public): \(error.localizedDescription, privacy: .public)")
                 return nil
             }
 
             guard imageData.count > 2048, let image = PlatformImage(data: imageData) else {
-                print("[ArtworkService] data too small or invalid image for: \(identifier) (\(imageData.count) bytes)")
+            AppLogger.artwork.debug("Artwork data too small or invalid for \(identifier, privacy: .public) (\(imageData.count) bytes)")
                 return nil
             }
 
             let w = image.size.width, h = image.size.height
             if w > 0, h > 0, max(w, h) / min(w, h) >= 2.0 {
-                print("[ArtworkService] extreme aspect for: \(identifier) (\(Int(w))×\(Int(h)))")
+            AppLogger.artwork.debug("Artwork has extreme aspect for \(identifier, privacy: .public) (\(Int(w))×\(Int(h)))")
                 memCache.setObject(Self.notFoundSentinel, forKey: key)
                 return nil
             }
 
             if let cgImage = image.tonearmCGImage, SpectrogramDetector().isSpectrogram(cgImage) {
-                print("[ArtworkService] probable spectrogram for: \(identifier) (\(Int(w))×\(Int(h)))")
+            AppLogger.artwork.debug("Artwork looks like a spectrogram for \(identifier, privacy: .public) (\(Int(w))×\(Int(h)))")
                 memCache.setObject(Self.notFoundSentinel, forKey: key)
                 return nil
             }
@@ -158,7 +154,7 @@ actor ArtworkService {
             writeDiskCache(image, key: identifier)
             return image
         } catch {
-            print("[ArtworkService] fetch error for \(identifier): \(error.localizedDescription)")
+            AppLogger.artwork.error("Artwork fetch failed for \(identifier, privacy: .public): \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
@@ -189,13 +185,7 @@ actor ArtworkService {
         // UIScreen.main/NSScreen.main are MainActor-isolated; hop over rather
         // than making this whole actor method require a caller-supplied
         // pixel size.
-        let screenScale = await MainActor.run { () -> CGFloat in
-            #if os(macOS)
-            NSScreen.main?.backingScaleFactor ?? 2
-            #else
-            UIScreen.main.scale
-            #endif
-        }
+        let screenScale = await MainActor.run { UIScreen.main.scale }
         let pixelDimension = maxDimension * screenScale
         let cacheKey = "track-\(trackId)-\(Int(pixelDimension))" as NSString
 
@@ -225,7 +215,7 @@ actor ArtworkService {
     /// and is cached forever after (both in memory and on disk), never per
     /// frame. `UIGraphicsImageRenderer` has no macOS equivalent (native Mac
     /// app, docs/plans/native-mac-app-plan.md §2b) — the Mac branch uses
-    /// `NSImage(size:flipped:drawingHandler:)`, the modern AppKit analog.
+    /// The renderer keeps list thumbnails independent from full-size artwork.
     private static func downsampled(_ image: PlatformImage, maxPixelDimension: CGFloat) -> PlatformImage {
         let scale = image.platformScale
         let pixelSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
@@ -233,12 +223,6 @@ actor ArtworkService {
         let downscale = min(1, maxPixelDimension / max(pixelSize.width, pixelSize.height))
         guard downscale < 1 else { return image }
         let targetPointSize = CGSize(width: image.size.width * downscale, height: image.size.height * downscale)
-        #if os(macOS)
-        return PlatformImage(size: targetPointSize, flipped: false) { rect in
-            image.draw(in: rect, from: .zero, operation: .copy, fraction: 1)
-            return true
-        }
-        #else
         let format = UIGraphicsImageRendererFormat()
         format.scale = scale
         format.opaque = true
@@ -246,7 +230,6 @@ actor ArtworkService {
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: targetPointSize))
         }
-        #endif
     }
 
     private func thumbnailDiskCacheURL(key: String) -> URL {
@@ -487,16 +470,7 @@ actor ArtworkService {
 
     @MainActor
     static func dominantColor(from image: PlatformImage) -> PlatformColor {
-        // `CIImage(image:)` only takes a `UIImage` on iOS — macOS's CoreImage
-        // has no `NSImage`-taking initializer, so route through `CGImage`
-        // there instead (native Mac app, docs/plans/native-mac-app-plan.md
-        // §2b).
-        #if os(macOS)
-        guard let cgImage = image.tonearmCGImage else { return .systemBlue }
-        let ciImage = CIImage(cgImage: cgImage)
-        #else
         guard let ciImage = CIImage(image: image) else { return .systemBlue }
-        #endif
         let filter = CIFilter(
             name: "CIAreaAverage",
             parameters: [

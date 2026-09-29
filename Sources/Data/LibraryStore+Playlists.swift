@@ -9,6 +9,27 @@ extension LibraryStore {
 
     // MARK: - Playlists
 
+    public func playlistMix(playlistId: Int64) throws -> PlaylistMixRecord? {
+        try dbQueue.read { db in
+            try PlaylistMixRecord.fetchOne(db, key: playlistId)
+        }
+    }
+
+    @discardableResult
+    public func savePlaylistMix(_ record: PlaylistMixRecord) throws -> PlaylistMixRecord {
+        try dbQueue.write { db in
+            var record = record
+            try record.save(db)
+            return record
+        }
+    }
+
+    public func deletePlaylistMix(playlistId: Int64) throws {
+        try dbQueue.write { db in
+            _ = try PlaylistMixRecord.deleteOne(db, key: playlistId)
+        }
+    }
+
     @discardableResult
     public func insertPlaylist(_ playlist: Playlist) throws -> Playlist {
         try dbQueue.write { db in
@@ -33,14 +54,6 @@ extension LibraryStore {
                     sql: "UPDATE source SET title = ? WHERE id = ?",
                     arguments: [title, sourceId])
             }
-        }
-    }
-
-    public func setPlaylistInCrate(id playlistId: Int64, isInCrate: Bool) throws {
-        try dbQueue.write { db in
-            try db.execute(
-                sql: "UPDATE playlist SET isInCrate = ? WHERE id = ?",
-                arguments: [isInCrate, playlistId])
         }
     }
 
@@ -119,6 +132,29 @@ extension LibraryStore {
             let original = try playlistItemRecords(playlistId: playlistId, db: db)
             let edited = PlaylistEditor.move(original, fromOffsets: offsets, toOffset: destination)
             try self.persistPlaylistItems(original: original, edited: edited, db: db)
+        }
+    }
+
+    /// Applies an explicit track order while retaining any tracks not present
+    /// in the proposed order at the end. Existing playlist-item rows are
+    /// reused so CloudKit identity and per-item metadata remain stable.
+    public func applyPlaylistOrder(id playlistId: Int64, orderedTrackIDs: [Int64]) throws {
+        try dbQueue.write { db in
+            let original = try playlistItemRecords(playlistId: playlistId, db: db)
+            var remaining = original
+            var edited: [PlaylistItem] = []
+            for trackID in orderedTrackIDs {
+                guard let index = remaining.firstIndex(where: { $0.trackId == trackID }) else { continue }
+                edited.append(remaining.remove(at: index))
+            }
+            edited.append(contentsOf: remaining)
+            for (position, var item) in edited.enumerated() {
+                item.position = position
+                if let id = item.id {
+                    try db.execute(sql: "UPDATE playlist_item SET position = ? WHERE id = ?",
+                                   arguments: [position, id])
+                }
+            }
         }
     }
 

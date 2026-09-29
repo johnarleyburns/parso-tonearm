@@ -29,11 +29,10 @@ struct EQView: View {
             .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.tint(Palette.brass)
+                    Button("Done") { dismiss() }.tint(Palette.accent)
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private var controls: some View {
@@ -45,7 +44,7 @@ struct EQView: View {
                     commit(settings)
                 }
             ))
-            .tint(Palette.brassDeep)
+            .tint(Palette.accent)
             .padding(.vertical, 8)
 
             Divider().overlay(Palette.hairline)
@@ -67,7 +66,7 @@ struct EQView: View {
             if store.isModifiedFromPreset(settings) {
                 Text("Modified from preset")
                     .font(.system(size: 11))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.bottom, 8)
             }
@@ -82,7 +81,7 @@ struct EQView: View {
                 VStack(spacing: 8) {
                     Text(gainLabel(settings.bands[index]))
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Palette.ink2)
+                        .foregroundStyle(Palette.inkSecondary)
                         .frame(height: 14)
                         .monospacedDigit()
                     Slider(value: Binding(
@@ -95,10 +94,10 @@ struct EQView: View {
                     .rotationEffect(.degrees(-90))
                     .frame(width: 144, height: 28)
                     .frame(width: 30, height: 150)
-                    .tint(Palette.brass)
+                    .tint(Palette.accent)
                     Text(frequencyLabel(EQEngine.bandFrequencies[index]))
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                         .frame(width: 34)
                         .minimumScaleFactor(0.7)
                 }
@@ -116,7 +115,7 @@ struct EQView: View {
                 .platformAutocapitalization(.words)
                 .padding(.horizontal, 12)
                 .frame(height: 42)
-                .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
+                .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
 
             Button {
                 guard let preset = store.userPreset(named: presetName, settings: settings) else { return }
@@ -130,7 +129,7 @@ struct EQView: View {
                     .font(.system(size: 13.5, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .frame(height: 42)
-                    .background(Palette.brassDeep, in: RoundedRectangle(cornerRadius: 10))
+                    .background(Palette.accent, in: RoundedRectangle(cornerRadius: 10))
             }
             .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .opacity(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)

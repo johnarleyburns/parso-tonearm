@@ -41,7 +41,7 @@ struct IndexStatusView: View {
                                     + "from a remote library is included once you download it."
                         )
                         .font(.system(size: 11))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                         .padding(.horizontal, 4)
                         countsCard(p)
                         actionsCard(p)
@@ -51,10 +51,10 @@ struct IndexStatusView: View {
                                 .font(.system(size: 16, weight: .bold))
                             Text(error)
                                 .font(.system(size: 12))
-                                .foregroundStyle(Palette.ink2)
+                                .foregroundStyle(Palette.inkSecondary)
                             Button("Retry") { Task { await model.refresh() } }
                                 .buttonStyle(.borderedProminent)
-                                .tint(Palette.brass)
+                                .tint(Palette.accent)
                         }
                         .padding(15)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -122,8 +122,8 @@ struct IndexStatusView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(p.headline).font(.system(size: 17, weight: .heavy))
             ProgressView(value: p.modelDownloadFraction ?? p.fractionComplete)
-                .tint(Palette.brass)
-            Text(p.detail).font(.system(size: 13)).foregroundStyle(Palette.ink2)
+                .tint(Palette.accent)
+            Text(p.detail).font(.system(size: 13)).foregroundStyle(Palette.inkSecondary)
         }
         .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -160,11 +160,11 @@ struct IndexStatusView: View {
             HStack {
                 Text(label).font(.system(size: 14)).foregroundStyle(Palette.ink)
                 Spacer()
-                Text("\(value)").font(.system(size: 14, weight: .semibold)).foregroundStyle(Palette.ink2)
+                Text("\(value)").font(.system(size: 14, weight: .semibold)).foregroundStyle(Palette.inkSecondary)
                 if value > 0 {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                 }
             }
             .padding(.vertical, 10)
@@ -185,7 +185,7 @@ struct IndexStatusView: View {
     /// showing one of those two facts would have hidden that gap again.
     private func modelsCard(_ detail: ModelDiagnosticsDetail) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Models").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.ink3)
+            Text("Models").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.inkTertiary)
 
             if let error = detail.downloadError {
                 Text("Download error: \(error)")
@@ -216,24 +216,24 @@ struct IndexStatusView: View {
                 Spacer()
                 Text(downloadStateLabel(tag.state))
                     .font(.system(size: 12))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
             }
             if tag.state == .inProgress {
                 if tag.bytesAreTrustworthy {
                     let doneMB = Int((Double(tag.completedBytes) / 1_048_576).rounded())
                     let totalMB = Int((Double(tag.totalBytes) / 1_048_576).rounded())
                     ProgressView(value: tag.fractionComplete)
-                        .tint(Palette.brass)
+                        .tint(Palette.accent)
                     Text("\(doneMB) of \(totalMB) MB"
                         + (tag.fractionComplete.map { " (\(Int(($0 * 100).rounded()))%)" } ?? ""))
-                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 } else {
                     // NSBundleResourceRequest's unit isn't guaranteed to be
                     // real bytes (confirmed on a real device: a literal
                     // totalUnitCount of 1) — never show a fabricated MB
                     // count or percentage here.
                     Text("Downloading — no byte count reported yet")
-                        .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                 }
             }
         }
@@ -251,8 +251,8 @@ struct IndexStatusView: View {
     private func downloadStateColor(_ state: ModelDiagnosticsDetail.DownloadTag.State) -> Color {
         switch state {
         case .finished: return .green
-        case .inProgress: return Palette.brass
-        case .notStarted: return Palette.ink3
+        case .inProgress: return Palette.accent
+        case .notStarted: return Palette.inkTertiary
         }
     }
 
@@ -273,7 +273,7 @@ struct IndexStatusView: View {
             Spacer()
             Text(artifact.isResolved ? (artifact.resolvedName ?? "Found") : "Not found")
                 .font(.system(size: 12))
-                .foregroundStyle(artifact.isResolved ? Palette.ink3 : .orange)
+                .foregroundStyle(artifact.isResolved ? Palette.inkTertiary : .orange)
         }
         .padding(.vertical, 4)
     }
@@ -341,7 +341,7 @@ struct IndexStatusView: View {
             Text("Samples just enough of each track from your remote libraries to index it — "
                 + "the audio is never downloaded or kept.")
                 .font(.system(size: 11))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
 
             if model.snapshot?.isRemoteIndexingEnabled == true {
                 Toggle(
@@ -389,12 +389,12 @@ struct IndexStatusView: View {
     private var activityCard: some View {
         let r = model.snapshot?.runtime
         return VStack(alignment: .leading, spacing: 6) {
-            Text("Activity").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.ink3)
+            Text("Activity").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.inkTertiary)
             line("Last run", r?.lastRunAt)
             line("Last successful work", r?.lastSuccessfulWorkAt)
             line("Last background submit", r?.lastBackgroundSubmissionAt)
             if let reason = r?.lastStopReason {
-                Text(reason).font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                Text(reason).font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
         }
         .padding(15)
@@ -404,10 +404,10 @@ struct IndexStatusView: View {
 
     private func line(_ label: String, _ date: Date?) -> some View {
         HStack {
-            Text(label).font(.system(size: 12)).foregroundStyle(Palette.ink3)
+            Text(label).font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
             Spacer()
             Text(date.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "—")
-                .font(.system(size: 12)).foregroundStyle(Palette.ink2)
+                .font(.system(size: 12)).foregroundStyle(Palette.inkSecondary)
         }
     }
 }
@@ -427,18 +427,18 @@ private struct IndexTrackListSheet: View {
                 if let tracks {
                     if tracks.isEmpty {
                         Text("Nothing here right now.")
-                            .font(.system(size: 14)).foregroundStyle(Palette.ink3)
+                            .font(.system(size: 14)).foregroundStyle(Palette.inkTertiary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         List(tracks) { track in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(track.title).font(.system(size: 14)).lineLimit(1)
                                 if let artist = track.artistName {
-                                    Text(artist).font(.system(size: 12)).foregroundStyle(Palette.ink3)
+                                    Text(artist).font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
                                         .lineLimit(1)
                                 }
                                 if let detail = track.detail {
-                                    Text(detail).font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                                    Text(detail).font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                                         .lineLimit(2)
                                 }
                             }

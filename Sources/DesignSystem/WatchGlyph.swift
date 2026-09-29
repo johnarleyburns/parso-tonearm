@@ -9,18 +9,18 @@ struct WatchGlyphView: View {
             switch state {
             case .notOnWatch:
                 Image(systemName: "applewatch")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Palette.ink3)
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.inkTertiary)
 
             case .transferring(let progress):
                 ZStack {
                     Image(systemName: "applewatch")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Palette.ink3)
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.inkTertiary)
                     if let progress = progress, progress > 0 {
                         Circle()
                             .trim(from: 0, to: max(0.02, min(1, progress)))
-                            .stroke(Palette.brass, lineWidth: 1.5)
+                            .stroke(Palette.accent, lineWidth: 1.5)
                             .frame(width: 17, height: 17)
                             .rotationEffect(.degrees(-90))
                     } else {
@@ -32,12 +32,12 @@ struct WatchGlyphView: View {
 
             case .onWatch:
                 Image(systemName: "applewatch")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Palette.brass)
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.accent)
 
             case .failed:
                 Image(systemName: "applewatch")
-                    .font(.system(size: 12))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.danger)
             }
         }

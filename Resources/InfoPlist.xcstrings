@@ -1,0 +1,15 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
+      "es" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
+      "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
+      "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
+      "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
+      "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } }
+    } }
+  },
+  "version" : "1.0"
+}

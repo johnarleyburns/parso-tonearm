@@ -1,7 +1,6 @@
 import SwiftUI
 import TonearmCore
 
-#if !os(macOS)
 /// Watch rearchitecture Phase 8 — Settings › Apple Watch (§9 P2/P3/P4).
 ///
 /// The iPhone owns desired downloads and makes every transfer understandable without opening the
@@ -36,12 +35,11 @@ struct WatchSettingsView: View {
             .compactNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.tint(Palette.brass)
+                    Button("Done") { dismiss() }.tint(Palette.accent)
                 }
             }
             .accessibilityIdentifier("settings.watch")
         }
-        .preferredColorScheme(.dark)
         .task { await appState.refreshWatchState() }
     }
 
@@ -60,7 +58,7 @@ struct WatchSettingsView: View {
             if let detail = statusDetail {
                 Text(detail)
                     .font(.system(size: 12))
-                    .foregroundStyle(Palette.ink3)
+                    .foregroundStyle(Palette.inkTertiary)
             }
             if let storage = snapshot.storage {
                 Divider().overlay(Palette.hairline).padding(.vertical, 2)
@@ -69,16 +67,16 @@ struct WatchSettingsView: View {
                 if let fraction = storage.usedFraction {
                     VStack(alignment: .leading, spacing: 4) {
                         ProgressView(value: fraction)
-                            .tint(fraction > 0.9 ? Palette.danger : Palette.brass)
+                            .tint(fraction > 0.9 ? Palette.danger : Palette.accent)
                         Text("Watch storage used \(Int((fraction * 100).rounded()))%")
                             .font(.system(size: 11))
-                            .foregroundStyle(Palette.ink3)
+                            .foregroundStyle(Palette.inkTertiary)
                     }
                     .padding(.top, 2)
                 } else if storage.freeBytes > 0 {
                     Text("\(bytes(storage.freeBytes)) free on Apple Watch")
                         .font(.system(size: 11))
-                        .foregroundStyle(Palette.ink3)
+                        .foregroundStyle(Palette.inkTertiary)
                 }
             }
         }
@@ -95,7 +93,7 @@ struct WatchSettingsView: View {
             }
             Text("The remaining downloads need about \(bytes(shortfall.requiredBytes)) plus a \(bytes(shortfall.reserveBytes)) reserve; \(bytes(shortfall.freeBytes)) is free. Remove a collection below to make room.")
                 .font(.system(size: 11.5))
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
@@ -111,7 +109,7 @@ struct WatchSettingsView: View {
                 NavigationLink {
                     WatchDownloadQueueView()
                 } label: {
-                    Text("Queue").font(.system(size: 11.5)).foregroundStyle(Palette.brass)
+                    Text("Queue").font(.system(size: 11.5)).foregroundStyle(Palette.accent)
                 }
                 .accessibilityIdentifier("settings.watch.queue")
             }
@@ -125,7 +123,7 @@ struct WatchSettingsView: View {
             }
             if snapshot.activity.count > 4 {
                 Text("+ \(snapshot.activity.count - 4) more")
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                     .padding(.top, 8)
             }
         }
@@ -162,7 +160,7 @@ struct WatchSettingsView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("No downloads yet").font(.system(size: 13.5, weight: .semibold))
             Text("Use “Download to Apple Watch” from a track, album, or playlist to keep music for offline playback.")
-                .font(.system(size: 11.5)).foregroundStyle(Palette.ink3)
+                .font(.system(size: 11.5)).foregroundStyle(Palette.inkTertiary)
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
@@ -175,7 +173,7 @@ struct WatchSettingsView: View {
             Button {
                 Task { await appState.resendCatalogToWatch() }
             } label: {
-                managementRow(icon: "arrow.triangle.2.circlepath", tint: Palette.brass,
+                managementRow(icon: "arrow.triangle.2.circlepath", tint: Palette.accent,
                               title: "Reconcile with Apple Watch", chevron: true)
             }
             .buttonStyle(.plain)
@@ -212,7 +210,7 @@ struct WatchSettingsView: View {
             Text(title).font(.system(size: 13.5)).foregroundStyle(tint == Palette.danger ? Palette.danger : Palette.ink)
             Spacer()
             if chevron {
-                Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
+                Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
             }
         }
         .padding(.vertical, 10)
@@ -231,9 +229,9 @@ struct WatchSettingsView: View {
 
     private var statusColor: Color {
         switch appState.watchSessionState {
-        case .reachable: return Palette.ok
-        case .installedNotReachable: return Palette.brass
-        case .notInstalled, .unsupported: return Palette.ink3
+        case .reachable: return Palette.success
+        case .installedNotReachable: return Palette.accent
+        case .notInstalled, .unsupported: return Palette.inkTertiary
         }
     }
 
@@ -298,8 +296,8 @@ enum WatchStageCopy {
     static func tint(_ stage: PhoneWatchManagementPresenter.ActivityStage) -> Color {
         switch stage {
         case .failed: return Palette.danger
-        case .waitingForWiFi, .paused: return Palette.brass
-        default: return Palette.ink2
+        case .waitingForWiFi, .paused: return Palette.accent
+        default: return Palette.inkSecondary
         }
     }
 }
@@ -323,21 +321,21 @@ private struct WatchActivityRowView: View {
                     .foregroundStyle(WatchStageCopy.tint(row.stage))
             }
             if let message = row.failureMessage {
-                Text(message).font(.system(size: 10.5)).foregroundStyle(Palette.ink3).lineLimit(2)
+                Text(message).font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary).lineLimit(2)
             }
             HStack(spacing: 14) {
                 if row.canRetry {
                     Button("Try Again") { Task { await appState.retryWatchJob(row.requestID) } }
-                        .font(.system(size: 11, weight: .semibold)).tint(Palette.brass)
+                        .font(.system(size: 11, weight: .semibold)).tint(Palette.accent)
                 }
                 if row.canCancel {
                     Button("Cancel", role: .destructive) { Task { await appState.cancelWatchJob(row.requestID) } }
-                        .font(.system(size: 11)).tint(Palette.ink3)
+                        .font(.system(size: 11)).tint(Palette.inkTertiary)
                 } else if row.canRetry {
                     Button("Remove from Queue", role: .destructive) {
                         Task { await appState.cancelWatchJob(row.requestID) }
                     }
-                    .font(.system(size: 11)).tint(Palette.ink3)
+                    .font(.system(size: 11)).tint(Palette.inkTertiary)
                 }
             }
             .buttonStyle(.plain)
@@ -370,13 +368,13 @@ private struct WatchCollectionRowView: View {
         HStack(spacing: 10) {
             Image(systemName: row.paused ? "pause.circle" : iconName)
                 .font(.system(size: 14))
-                .foregroundStyle(row.paused ? Palette.brass : Palette.ink2)
+                .foregroundStyle(row.paused ? Palette.accent : Palette.inkSecondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.title).font(.system(size: 13)).lineLimit(1)
-                Text(subtitle).font(.system(size: 10.5)).foregroundStyle(Palette.ink3).lineLimit(1)
+                Text(subtitle).font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary).lineLimit(1)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.ink3)
+            Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
         }
         .contentShape(Rectangle())
     }
@@ -389,35 +387,3 @@ private struct WatchCollectionRowView: View {
         }
     }
 }
-#else
-/// Mac's Apple Watch surface is an explainer, not a management screen: the
-/// paired watch — and every transfer/download/storage concept above — is
-/// only ever reachable from the iPhone (native Mac app,
-/// docs/plans/native-mac-app-plan.md §1/§3 — "Apple Watch as explainer not
-/// management").
-struct WatchSettingsView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                Image(systemName: "applewatch")
-                    .font(.system(size: 44))
-                    .foregroundStyle(Palette.ink2)
-                Text("Apple Watch")
-                    .font(.system(size: 17, weight: .semibold))
-                Text("Manage Apple Watch downloads from Platterhead on your iPhone — the watch pairs with iPhone, not Mac.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Palette.ink2)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 320)
-            }
-            .padding(32)
-            .frame(minWidth: 380, minHeight: 280)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-            }
-        }
-    }
-}
-#endif

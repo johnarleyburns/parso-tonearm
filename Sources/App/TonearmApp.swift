@@ -18,6 +18,7 @@ struct TonearmApp: App {
     @StateObject private var player = AudioPlayer.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var didCompleteBootstrap = false
+    @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
 
     init() {
         let launchArguments = ProcessInfo.processInfo.arguments
@@ -59,7 +60,7 @@ struct TonearmApp: App {
             RootView()
                 .environmentObject(appState)
                 .environmentObject(player)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(AppearanceMode(rawValue: appearanceMode)?.colorScheme)
                 .task {
                     await appState.bootstrap()
                     didCompleteBootstrap = true

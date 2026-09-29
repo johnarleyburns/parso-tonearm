@@ -3,7 +3,13 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-IOS_DESTINATION="${TONEARM_IOS_TEST_DESTINATION:-platform=iOS Simulator,name=${TONEARM_IOS_SIMULATOR_NAME:-iPhone 16}}"
+IOS_SIMULATOR_NAME="${TONEARM_IOS_SIMULATOR_NAME:-iPhone 17}"
+if [[ -z "${TONEARM_IOS_TEST_DESTINATION:-}" ]] &&
+   ! xcrun simctl list devices available | grep -Fq " ${IOS_SIMULATOR_NAME} ("; then
+  IOS_SIMULATOR_NAME="$(xcrun simctl list devices available |
+    sed -nE 's/^[[:space:]]+(iPhone[^ (]*( [^ (]+)*) \([A-F0-9-]+\).*/\1/p' | head -1)"
+fi
+IOS_DESTINATION="${TONEARM_IOS_TEST_DESTINATION:-platform=iOS Simulator,name=${IOS_SIMULATOR_NAME}}"
 WATCH_DESTINATION="${TONEARM_WATCH_TEST_DESTINATION:-platform=watchOS Simulator,name=${TONEARM_WATCH_SIMULATOR_NAME:-Watch-Large}}"
 TEST_RESULTS_DIR="${TONEARM_TEST_RESULTS_DIR:-$PWD/.test-results}"
 
@@ -31,7 +37,7 @@ run_iphone_smoke() {
   echo "==> running iPhone UI smoke test on ${IOS_DESTINATION}"
   mkdir -p "$TEST_RESULTS_DIR"
   if [[ -z "${TONEARM_IOS_TEST_DESTINATION:-}" ]]; then
-    prepare_named_simulator iOS "${TONEARM_IOS_SIMULATOR_NAME:-iPhone 16}"
+    prepare_named_simulator iOS "$IOS_SIMULATOR_NAME"
   fi
   xcodebuild test \
     -project Tonearm.xcodeproj \

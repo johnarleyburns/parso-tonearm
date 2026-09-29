@@ -18,9 +18,9 @@ struct AddFolderSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Color.white.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
+            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
             Text("Add Local Folder").font(.system(size: 19, weight: .bold)).padding(.top, 12)
-            Text(folderURL.lastPathComponent).font(.system(size: 12.5)).foregroundStyle(Palette.ink2).padding(.top, 5)
+            Text(folderURL.lastPathComponent).font(.system(size: 12.5)).foregroundStyle(Palette.inkSecondary).padding(.top, 5)
 
                 HStack(spacing: 12) {
                 ArtworkView(seed: folderURL.lastPathComponent, cornerRadius: 12).frame(width: 56, height: 56)
@@ -30,7 +30,7 @@ struct AddFolderSheet: View {
                         Text(err).font(.system(size: 11.5)).foregroundStyle(Palette.danger)
                     } else {
                         Text("\(fileCount) audio files\(subfolderCount > 0 ? " · \(subfolderCount) subfolders" : "")")
-                            .font(.system(size: 11.5)).foregroundStyle(Palette.ink2)
+                            .font(.system(size: 11.5)).foregroundStyle(Palette.inkSecondary)
                     }
                 }
                 Spacer()
@@ -51,9 +51,9 @@ struct AddFolderSheet: View {
                     if isImporting { ProgressView().tint(.black) }
                     else { Text("Import \(fileCount) Files") }
                 }
-                .font(.system(size: 15.5, weight: .bold)).foregroundStyle(Color(hex: 0x221503))
+                .font(.system(size: 15.5, weight: .bold)).foregroundStyle(Palette.accentOnFill)
                 .frame(maxWidth: .infinity).frame(height: 48)
-                .background(LinearGradient(colors: [Color(hex: 0xEEB35B), Color(hex: 0xCF8F34)],
+                .background(LinearGradient(colors: [Palette.accent, Palette.accent],
                                            startPoint: .top, endPoint: .bottom), in: Capsule())
             }
             .disabled(isImporting)
@@ -63,7 +63,7 @@ struct AddFolderSheet: View {
             }
 
             Text("Files stay where they are — Platterhead keeps a secure\nbookmark and reads them in place.")
-                .font(.system(size: 10.5)).foregroundStyle(Palette.ink3)
+                .font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary)
                 .multilineTextAlignment(.center).padding(.top, 11)
         }
         .padding(.horizontal, 20).padding(.bottom, 24)
@@ -79,10 +79,10 @@ struct AddFolderSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Watch folder for changes").font(.system(size: 13.5, weight: .medium))
                 Text("New files appear automatically")
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
             Spacer()
-            Toggle("", isOn: $watch).labelsHidden().tint(Palette.brassDeep)
+            Toggle("", isOn: $watch).labelsHidden().tint(Palette.accent)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .glassSurface(cornerRadius: 14)
@@ -92,10 +92,10 @@ struct AddFolderSheet: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 13.5, weight: .medium))
-                Text(sub).font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                Text(sub).font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
             Spacer()
-            Toggle("", isOn: binding).labelsHidden().tint(Palette.brassDeep)
+            Toggle("", isOn: binding).labelsHidden().tint(Palette.accent)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .glassSurface(cornerRadius: 14)
@@ -130,7 +130,7 @@ struct AddFolderSheet: View {
         defer { isImporting = false }
         guard let url = resolvedURL() else {
             importError = "Lost access to folder"
-            print("[AddFolderSheet] importFolder failed: cannot resolve bookmark")
+            AppLogger.ingest.error("Import folder failed: cannot resolve bookmark")
             return
         }
         defer { url.stopAccessingSecurityScopedResource() }
@@ -148,7 +148,7 @@ struct AddFolderSheet: View {
             }
         } catch {
             importError = error.localizedDescription
-            print("[AddFolderSheet] import error: \(error)")
+            AppLogger.ingest.error("Import folder failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

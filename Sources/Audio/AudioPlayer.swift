@@ -105,6 +105,8 @@ public final class AudioPlayer: ObservableObject {
     @Published public internal(set) var pathIsExpensive = false
     @Published public var networkSkipMessage: String?
     @Published public var queueSource: QueueSource = .none
+    @Published public internal(set) var transitionPlan: TransitionPlan?
+    @Published public internal(set) var transitionPrepState: GridPrepState = .ready
 
     public var streamOnCellular = true
     public var prefetchDepth = 2
@@ -155,6 +157,7 @@ public final class AudioPlayer: ObservableObject {
     var crossfadeNextIndex: Int?
     var crossfadeNextLoader: CachingResourceLoader?
     var crossfadeCompletionInFlight = false
+    var transitionTask: Task<Void, Never>?
     /// EQ (T4.1): a single tap engine shared across items; reattached to the
     /// preloaded next item so EQ survives near-gapless swaps.
     var eqTap: EQAudioTap?

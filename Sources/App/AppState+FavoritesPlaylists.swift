@@ -2,9 +2,7 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
-#if !os(macOS)
 import UIKit
-#endif
 
 extension AppState {
     // MARK: - Favorites (TF7)

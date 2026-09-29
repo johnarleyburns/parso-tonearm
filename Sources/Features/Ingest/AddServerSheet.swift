@@ -1,7 +1,5 @@
 import SwiftUI
-#if !os(macOS)
 import UIKit
-#endif
 import UniformTypeIdentifiers
 import TonearmCore
 
@@ -25,11 +23,11 @@ struct AddServerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Color.white.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
+            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
             Text("Add Remote Library")
                 .font(.system(size: 19, weight: .bold)).padding(.top, 12)
             Text(connector.subtitle)
-                .font(.system(size: 12.5)).foregroundStyle(Palette.ink2)
+                .font(.system(size: 12.5)).foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.center).padding(.top, 5)
 
             providerPicker.padding(.top, 16)
@@ -65,7 +63,7 @@ struct AddServerSheet: View {
             }
 
             Text(footerText)
-                .font(.system(size: 10.5)).foregroundStyle(Palette.ink3)
+                .font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary)
                 .multilineTextAlignment(.center).padding(.top, 11)
         }
         .padding(.horizontal, 20).padding(.bottom, 24)
@@ -159,10 +157,10 @@ struct AddServerSheet: View {
                             }
                         }
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(option.id == selectedConnectorID ? Color(hex: 0x221503) : Palette.ink2)
+                        .foregroundStyle(option.id == selectedConnectorID ? Palette.accentOnFill : Palette.inkSecondary)
                         .padding(.horizontal, 11)
                         .frame(height: 34)
-                        .background(option.id == selectedConnectorID ? Palette.brass : Color.white.opacity(0.08),
+                        .background(option.id == selectedConnectorID ? Palette.accent : Color.primary.opacity(0.08),
                                     in: Capsule())
                     }
                     .buttonStyle(.plain)
@@ -180,13 +178,13 @@ struct AddServerSheet: View {
                 Spacer()
                 Text(connector.tier.title)
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(connector.tier == .advanced ? Palette.brass : Palette.ink3)
+                    .foregroundStyle(connector.tier == .advanced ? Palette.accent : Palette.inkTertiary)
             }
             .font(.system(size: 12.5, weight: .semibold))
-            .foregroundStyle(Palette.ink2)
+            .foregroundStyle(Palette.inkSecondary)
             .padding(.horizontal, 13)
             .frame(height: 38)
-            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+            .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(.plain)
     }
@@ -196,18 +194,18 @@ struct AddServerSheet: View {
             if isJamendoGenre {
                 HStack(spacing: 10) {
                     Image(systemName: "music.note.list")
-                        .font(.system(size: 15)).foregroundStyle(Palette.brass)
+                        .font(.system(size: 15)).foregroundStyle(Palette.accent)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Free Creative-Commons music by genre")
                             .font(.system(size: 13.5))
                         Text("Pick one or more genres. Each becomes its own library. No account needed.")
-                            .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                            .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12)))
+                .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
             }
             if needsURL {
                 textField(label: isIAConnector ? "ARCHIVE.ORG URL" : "SERVER URL",
@@ -230,34 +228,34 @@ struct AddServerSheet: View {
             if authKind == .oauth {
                 HStack(spacing: 10) {
                     Image(systemName: "person.crop.circle.badge.checkmark")
-                        .font(.system(size: 15)).foregroundStyle(Palette.brass)
+                        .font(.system(size: 15)).foregroundStyle(Palette.accent)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Sign in with \(connector.title)")
                             .font(.system(size: 13.5))
                         Text("Platterhead requests read-only access for browsing and streaming.")
-                            .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                            .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12)))
+                .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
             }
             if connectorKind == .smb {
                 HStack(spacing: 10) {
                     Image(systemName: "folder")
-                        .font(.system(size: 15)).foregroundStyle(Palette.brass)
+                        .font(.system(size: 15)).foregroundStyle(Palette.accent)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Choose a shared music folder")
                             .font(.system(size: 13.5))
                         Text("Platterhead saves folder access and streams files in place.")
-                            .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                            .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12)))
+                .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
             }
         }
     }
@@ -268,7 +266,7 @@ struct AddServerSheet: View {
                            keyboardType: TextFieldKeyboardHint) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
             PasteCapableTextField(
                 text: text,
                 prompt: prompt,
@@ -279,14 +277,14 @@ struct AddServerSheet: View {
                 .frame(height: 28)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
-        .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12)))
+        .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
     }
 
     private func secureField(label: String, prompt: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
-                .foregroundStyle(Palette.ink3)
+                .foregroundStyle(Palette.inkTertiary)
             PasteCapableTextField(
                 text: text,
                 prompt: prompt,
@@ -297,8 +295,8 @@ struct AddServerSheet: View {
                 .frame(height: 28)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
-        .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12)))
+        .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
     }
 
     private func actionLabel(title: String, icon: String) -> some View {
@@ -307,9 +305,9 @@ struct AddServerSheet: View {
             Text(title)
         }
         .font(.system(size: 15.5, weight: .bold))
-        .foregroundStyle(Color(hex: 0x221503))
+        .foregroundStyle(Palette.accentOnFill)
         .frame(maxWidth: .infinity).frame(height: 48)
-        .background(LinearGradient(colors: [Color(hex: 0xEEB35B), Color(hex: 0xCF8F34)],
+        .background(LinearGradient(colors: [Palette.accent, Palette.accent],
                                    startPoint: .top, endPoint: .bottom),
                     in: Capsule())
     }
@@ -454,7 +452,6 @@ public enum TextFieldKeyboardHint {
     case `default`
 }
 
-#if !os(macOS)
 struct PasteCapableTextField: UIViewRepresentable {
     @Binding var text: String
     var prompt: String
@@ -471,8 +468,8 @@ struct PasteCapableTextField: UIViewRepresentable {
         textField.autocapitalizationType = .none
         textField.keyboardType = keyboardType == .url ? .URL : .default
         textField.font = .monospacedSystemFont(ofSize: 12.5, weight: .regular)
-        textField.textColor = UIColor.white.withAlphaComponent(0.92)
-        textField.tintColor = UIColor(Color(hex: 0xEEB35B))
+        textField.textColor = UIColor.label.withAlphaComponent(0.92)
+        textField.tintColor = UIColor(Palette.accent)
         textField.accessibilityIdentifier = accessibilityIdentifier
         textField.addTarget(
             context.coordinator,
@@ -490,7 +487,7 @@ struct PasteCapableTextField: UIViewRepresentable {
         textField.accessibilityIdentifier = accessibilityIdentifier
         textField.attributedPlaceholder = NSAttributedString(
             string: prompt,
-            attributes: [.foregroundColor: UIColor.white.withAlphaComponent(0.35)]
+            attributes: [.foregroundColor: UIColor.label.withAlphaComponent(0.35)]
         )
     }
 
@@ -545,36 +542,3 @@ final class PasteEnabledTextField: UITextField {
         pasteCoordinator?.textDidChange(self)
     }
 }
-#else
-struct PasteCapableTextField: View {
-    @Binding var text: String
-    var prompt: String
-    var isSecure: Bool
-    var keyboardType: TextFieldKeyboardHint
-    var accessibilityIdentifier: String? = nil
-
-    var body: some View {
-        Group {
-            if isSecure {
-                SecureField(prompt, text: $text)
-            } else {
-                TextField(prompt, text: $text)
-            }
-        }
-        .font(.system(size: 12.5, design: .monospaced))
-        .textFieldStyle(.plain)
-        .modifier(OptionalAccessibilityID(id: accessibilityIdentifier))
-    }
-}
-
-private struct OptionalAccessibilityID: ViewModifier {
-    let id: String?
-    func body(content: Content) -> some View {
-        if let id {
-            content.accessibilityIdentifier(id)
-        } else {
-            content
-        }
-    }
-}
-#endif

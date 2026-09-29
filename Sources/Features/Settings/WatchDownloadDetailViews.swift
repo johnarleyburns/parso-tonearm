@@ -1,4 +1,3 @@
-#if !os(macOS)
 import SwiftUI
 import TonearmCore
 
@@ -16,11 +15,11 @@ struct WatchDownloadQueueView: View {
             VStack(alignment: .leading, spacing: 12) {
                 if let banner = appState.watchManagement.banner {
                     Text(queueSummary(banner))
-                        .font(.system(size: 12)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
                 }
                 if activity.isEmpty {
                     Text("Nothing in the queue. Every download has been installed or removed.")
-                        .font(.system(size: 12.5)).foregroundStyle(Palette.ink3)
+                        .font(.system(size: 12.5)).foregroundStyle(Palette.inkTertiary)
                         .padding(.top, 8)
                 }
                 ForEach(activity) { row in
@@ -36,7 +35,6 @@ struct WatchDownloadQueueView: View {
         .background(Palette.libraryBackground.ignoresSafeArea())
         .navigationTitle("Download Queue")
         .compactNavigationTitle()
-        .preferredColorScheme(.dark)
         .task { await appState.refreshWatchState() }
     }
 
@@ -63,21 +61,21 @@ private struct WatchQueueRow: View {
                     .font(.system(size: 11)).foregroundStyle(WatchStageCopy.tint(row.stage))
             }
             if let message = row.failureMessage {
-                Text(message).font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                Text(message).font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
             HStack(spacing: 16) {
                 if row.canRetry {
                     Button("Try Again") { Task { await appState.retryWatchJob(row.requestID) } }
-                        .font(.system(size: 12, weight: .semibold)).tint(Palette.brass)
+                        .font(.system(size: 12, weight: .semibold)).tint(Palette.accent)
                 }
                 if row.canCancel {
                     Button("Cancel", role: .destructive) { Task { await appState.cancelWatchJob(row.requestID) } }
-                        .font(.system(size: 12)).tint(Palette.ink3)
+                        .font(.system(size: 12)).tint(Palette.inkTertiary)
                 } else if row.canRetry {
                     Button("Remove from Queue", role: .destructive) {
                         Task { await appState.cancelWatchJob(row.requestID) }
                     }
-                    .font(.system(size: 12)).tint(Palette.ink3)
+                    .font(.system(size: 12)).tint(Palette.inkTertiary)
                 }
                 Spacer()
             }
@@ -106,7 +104,7 @@ struct WatchDownloadedCollectionDetailView: View {
                     statusCard(detail)
                     removeCard(detail)
                 } else {
-                    ProgressView().tint(Palette.brass).padding(.top, 40)
+                    ProgressView().tint(Palette.accent).padding(.top, 40)
                 }
             }
             .padding(.horizontal, 18)
@@ -116,7 +114,6 @@ struct WatchDownloadedCollectionDetailView: View {
         .background(Palette.libraryBackground.ignoresSafeArea())
         .navigationTitle(title)
         .compactNavigationTitle()
-        .preferredColorScheme(.dark)
         .task { await reload() }
         .accessibilityIdentifier("watchRoot.\(rootID)")
     }
@@ -140,15 +137,15 @@ struct WatchDownloadedCollectionDetailView: View {
                     Text("Keep this \(kindWord(d.kind)) on Apple Watch")
                         .font(.system(size: 13.5, weight: .medium))
                 }
-                .tint(Palette.brass)
+                .tint(Palette.accent)
 
             if d.autoSyncs {
                 Text("New playlist tracks download automatically.")
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
             if d.estimatedRemainingCount > 0 {
                 Text("Estimated download · \(d.estimatedRemainingCount) \(d.estimatedRemainingCount == 1 ? "track" : "tracks")\(d.estimatedRemainingBytes > 0 ? " · \(WatchByteFormat.string(d.estimatedRemainingBytes))" : "")")
-                    .font(.system(size: 11)).foregroundStyle(Palette.ink3)
+                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
             }
         }
         .padding(15)
@@ -158,10 +155,10 @@ struct WatchDownloadedCollectionDetailView: View {
     private func statusCard(_ d: PhoneWatchManagementPresenter.CollectionDetail) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Status").font(.system(size: 13, weight: .bold))
-            statusRow(color: Palette.ok, text: "Ready on Apple Watch",
+            statusRow(color: Palette.success, text: "Ready on Apple Watch",
                       count: d.readyCount, suffix: d.readyCount == 1 ? "track" : "tracks")
             if d.waitingForWiFiCount > 0 {
-                statusRow(color: Palette.brass, text: "Waiting for Wi-Fi",
+                statusRow(color: Palette.accent, text: "Waiting for Wi-Fi",
                           count: d.waitingForWiFiCount, suffix: d.waitingForWiFiCount == 1 ? "track" : "tracks")
             }
             if d.failedCount > 0 {
@@ -173,7 +170,7 @@ struct WatchDownloadedCollectionDetailView: View {
                     statusRow(color: Palette.danger, text: "Unavailable at source",
                               count: d.unavailableCount, suffix: d.unavailableCount == 1 ? "track" : "tracks")
                     if let reason = d.unavailableReason {
-                        Text(reason).font(.system(size: 10.5)).foregroundStyle(Palette.ink3)
+                        Text(reason).font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary)
                             .padding(.leading, 16)
                     }
                 }
@@ -189,7 +186,7 @@ struct WatchDownloadedCollectionDetailView: View {
             Circle().fill(color).frame(width: 7, height: 7)
             Text(text).font(.system(size: 12))
             Spacer()
-            Text("\(count) \(suffix)").font(.system(size: 11)).foregroundStyle(Palette.ink3)
+            Text("\(count) \(suffix)").font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
         }
     }
 
@@ -207,7 +204,7 @@ struct WatchDownloadedCollectionDetailView: View {
             }
             .buttonStyle(.plain)
             Text(removalNote(d))
-                .font(.system(size: 10.5)).foregroundStyle(Palette.ink3)
+                .font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary)
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
@@ -238,4 +235,3 @@ struct WatchDownloadedCollectionDetailView: View {
         }
     }
 }
-#endif
