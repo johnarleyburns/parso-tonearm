@@ -11,8 +11,7 @@ struct DJFocusLandscape: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            DJFocusWaveformCard(model: model)
-                .frame(height: 96)
+            DJFocusWaveformCard(model: model, compact: true)
             HStack(spacing: 12) {
                 DJLandscapeDeck(model: model, deckID: .a, onOptions: onOptions)
                 DJLandscapeMiddle(model: model, onMixer: onMixer)
@@ -70,6 +69,26 @@ private struct DJLandscapeMiddle: View {
     var body: some View {
         VStack(spacing: 12) {
             Text("MIXER").font(.caption.monospaced())
+            landscapeEQ(label: "HI", a: model.deckA.eqHigh, b: model.deckB.eqHigh) { value in
+                model.setEQ(.a, high: value)
+            } onB: { value in
+                model.setEQ(.b, high: value)
+            }
+            landscapeEQ(label: "MID", a: model.deckA.eqMid, b: model.deckB.eqMid) { value in
+                model.setEQ(.a, mid: value)
+            } onB: { value in
+                model.setEQ(.b, mid: value)
+            }
+            landscapeEQ(label: "LOW", a: model.deckA.eqLow, b: model.deckB.eqLow) { value in
+                model.setEQ(.a, low: value)
+            } onB: { value in
+                model.setEQ(.b, low: value)
+            }
+            HStack {
+                Button("CUE A") { model.toggleCue(.a) }
+                Button("CUE B") { model.toggleCue(.b) }
+            }
+            .buttonStyle(.bordered)
             Button("Mixer", action: onMixer)
                 .accessibilityIdentifier("dj.focus.landscape.mixer")
             Slider(value: binding)
@@ -82,5 +101,15 @@ private struct DJLandscapeMiddle: View {
 
     private var binding: Binding<Double> {
         Binding(get: { model.crossfader }, set: { model.setCrossfader($0) })
+    }
+
+    private func landscapeEQ(label: String, a: Double, b: Double,
+                             onA: @escaping (Double) -> Void,
+                             onB: @escaping (Double) -> Void) -> some View {
+        HStack(spacing: 2) {
+            DJFocusKnob(label: "A", value: a, color: model.deckA.accent, onChange: onA)
+            Text(label).font(.caption2.monospaced()).frame(maxWidth: .infinity)
+            DJFocusKnob(label: "B", value: b, color: model.deckB.accent, onChange: onB)
+        }
     }
 }

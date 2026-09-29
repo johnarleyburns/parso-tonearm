@@ -11,7 +11,16 @@ import TonearmCore
 /// remote-library pipeline already shapes a played row.
 struct JamendoBrowseView: View {
     @EnvironmentObject var player: AudioPlayer
+    @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
+
+    let allowsImport: Bool
+    let showsBackButton: Bool
+
+    init(allowsImport: Bool = false, showsBackButton: Bool = true) {
+        self.allowsImport = allowsImport
+        self.showsBackButton = showsBackButton
+    }
 
     @State private var selectedGenre: JamendoGenreNode = JamendoBrowseView.defaultGenre
     @State private var searchText = ""
@@ -22,6 +31,9 @@ struct JamendoBrowseView: View {
     @State private var isLoading = false
     @State private var isLoadingMore = false
     @State private var errorText: String?
+    @State private var importingIDs: Set<String> = []
+    @State private var importedIDs: Set<String> = []
+    @State private var importMessage: String?
 
     /// "Dance" isn't a literal node in the curated tree's original set — it's
     /// added alongside Techno/House/etc. under Electronic specifically for
@@ -42,11 +54,27 @@ struct JamendoBrowseView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            if allowsImport {
+                Text(JamendoImportPolicy.explanation)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Palette.ink3)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                    .accessibilityIdentifier("mymusic.jamendo.explanation")
+            }
             searchField
             if activeQuery == nil {
                 genrePicker
             }
             content
+            if let importMessage {
+                Text(importMessage)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.brass)
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 8)
+            }
         }
         .background(Palette.sourcesBackground.ignoresSafeArea())
         .foregroundStyle(Palette.ink)
@@ -67,12 +95,16 @@ struct JamendoBrowseView: View {
     // underneath, it's never recreated.
     private var header: some View {
         HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Palette.brass)
-                    .frame(width: 33, height: 33)
-                    .glassSurface(cornerRadius: 16.5)
+            if showsBackButton {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Palette.brass)
+                        .frame(width: 33, height: 33)
+                        .glassSurface(cornerRadius: 16.5)
+                }
+            } else {
+                Color.clear.frame(width: 33, height: 33)
             }
             Spacer()
             Text("Jamendo").font(.system(size: 17, weight: .bold))
@@ -144,12 +176,7 @@ struct JamendoBrowseView: View {
                         .padding(.top, 24)
                 } else {
                     ForEach(Array(nodes.enumerated()), id: \.element.id) { index, node in
-                        Button {
-                            Task { await play(node: node, index: index) }
-                        } label: {
-                            JamendoTrackRow(node: node)
-                        }
-                        .buttonStyle(.plain)
+                        resultRow(node: node, index: index)
                         .onAppear {
                             guard index == nodes.count - 1 else { return }
                             Task { await loadMore() }
@@ -218,6 +245,45 @@ struct JamendoBrowseView: View {
             player.play(tracks: [row], startAt: 0, source: .continuation(continuation))
         } catch {
             errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    @ViewBuilder
+    private func resultRow(node: RemoteNode, index: Int) -> some View {
+        if allowsImport {
+            HStack(spacing: 8) {
+                Button { Task { await play(node: node, index: index) } } label: {
+                    JamendoTrackRow(node: node)
+                }
+                .buttonStyle(.plain)
+                Button { Task { await importNode(node) } } label: {
+                    Image(systemName: importedIDs.contains(node.id) ? "checkmark.circle.fill" : "plus.circle")
+                        .font(.system(size: 21))
+                        .foregroundStyle(importedIDs.contains(node.id) ? .green : Palette.brass)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .disabled(importingIDs.contains(node.id) || importedIDs.contains(node.id))
+                .accessibilityLabel(importedIDs.contains(node.id) ? "Added to My Music" : "Add to My Music")
+                .accessibilityIdentifier("mymusic.jamendo.import.\(node.id)")
+            }
+        } else {
+            Button { Task { await play(node: node, index: index) } } label: {
+                JamendoTrackRow(node: node)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func importNode(_ node: RemoteNode) async {
+        guard importingIDs.insert(node.id).inserted else { return }
+        importMessage = nil
+        defer { importingIDs.remove(node.id) }
+        if await appState.importJamendoTrack(node: node) {
+            importedIDs.insert(node.id)
+            importMessage = "Added to My Music and queued for indexing."
+        } else {
+            importMessage = "Couldn't add this Jamendo track. Try again."
         }
     }
 }

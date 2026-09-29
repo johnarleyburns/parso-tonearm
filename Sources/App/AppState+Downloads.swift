@@ -257,6 +257,40 @@ extension AppState {
         return persisted
     }
 
+    /// Persist one ad-hoc Jamendo result into a durable library source, cache
+    /// its bytes for immediate DJ use, and queue its full analysis.
+    @discardableResult
+    func importJamendoTrack(node: RemoteNode) async -> Bool {
+        guard node.kind == .audio else { return false }
+        let source: Source
+        if let existing = (try? await store.allSources())?.first(where: {
+            $0.kind == .jamendoGenre && $0.iaIdentifier == JamendoImportPolicy.sourceIdentifier
+        }) {
+            source = existing
+        } else {
+            guard let inserted = try? await store.insertSource(Source(
+                id: nil, kind: .jamendoGenre, iaIdentifier: JamendoImportPolicy.sourceIdentifier,
+                originalURL: nil, title: JamendoImportPolicy.sourceTitle, addedAt: Date(),
+                lastResolvedAt: Date(), followUpdates: false,
+                licenseText: "Creative Commons — attribution kept", memberCapHit: false
+            )) else { return false }
+            source = inserted
+        }
+
+        let provider = JamendoGenreProvider(clientID: JamendoAppConfig.clientID)
+        let result = await RemotePlaylistIngest.persist(
+            nodes: [node], resolve: { try await provider.resolve(node: $0) },
+            source: source, store: store)
+        guard let trackID = result.trackIDs.first,
+              let row = try? await store.tracks(forSource: source.id ?? -1)
+                .first(where: { $0.id == trackID }) else { return false }
+
+        _ = await download(rows: [row])
+        await DiscoveryRuntimeController.shared.analyzeTrack(trackID)
+        await reload()
+        return true
+    }
+
     func insertRemoteSource(kind: SourceKind,
                                     title: String,
                                     originalURL: String?,

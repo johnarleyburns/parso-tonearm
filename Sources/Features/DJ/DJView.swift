@@ -269,6 +269,9 @@ final class DJPerformanceModel: ObservableObject {
         loadError = nil
 
         Task { [weak self, store] in
+            var stage: DJLoadFailureStage = .loadRecord
+            var diagnosticURL: URL?
+            var diagnosticCodec: String?
             do {
                 let prep = try await store.djTrackPrep(trackId: row.id)
                 var cachedAnalysis: TrackAnalysis?
@@ -299,15 +302,19 @@ final class DJPerformanceModel: ObservableObject {
                 // Resolution may download a remote asset into the local cache.
                 // It is part of loading, so a track that was not pre-indexed or
                 // pre-downloaded remains a valid DJ selection.
+                stage = .resolveSource
                 let url = try await resolve(row)
                 guard let self else { return }
                 guard self.loadGeneration[id] == generation else { return }
                 if cachedAnalysis == nil { self.loadPhases[id] = .analyzing }
+                diagnosticURL = url
                 let sourceURL = url
-                let sourceCodec = row.track.codec
+                let sourceCodec = row.track.codec ?? row.asset?.remoteURL ?? row.asset?.altRemoteURL
+                diagnosticCodec = sourceCodec
                 let sourceBookmark = row.asset?.bookmark
                 let cachedTrackAnalysis = cachedAnalysis
                 let cachedSourceFrameCount = prep?.sourceFrameCount
+                stage = .decodeAndAnalyze
                 let prepared = try await Task.detached(priority: .userInitiated) {
                     if let bookmark = sourceBookmark,
                        let bookmarkURL = BookmarkVault.resolve(bookmark)?.url,
@@ -346,6 +353,7 @@ final class DJPerformanceModel: ObservableObject {
                     analysis.tempo.beatPositions = stride(from: first, through: analysis.duration, by: beat).map { $0 }
                     analysis.tempo.downbeatPositions = stride(from: first, through: analysis.duration, by: beat * 4).map { $0 }
                 }
+                stage = .loadEngine
                 try self.audio.load(prepared, analysis: analysis, deck: id)
                 self.audio.setChannelLevel(deck: id, value: deck.channelLevel)
                 self.audio.setCrossfader(self.crossfader)
@@ -375,16 +383,18 @@ final class DJPerformanceModel: ObservableObject {
                 }
                 if !prepared.usedCached, row.id >= 0 {
                     let payload = DJTrackPrepPayload(analysis: analysis, sourceFrameCount: Int64(prepared.buffer.frameCount))
-                    let data = try payload.encoded()
-                    try? await store.saveDJAnalysis(data,
-                                                    meta: (DJTrackPrepPayload.currentAlgorithmID,
-                                                           DJTrackPrepPayload.currentVersion,
-                                                           prepared.buffer.format.sampleRate,
-                                                           Int64(prepared.buffer.frameCount),
-                                                           analysis.tempo.bpm,
-                                                           analysis.key.camelot),
-                                                    trackId: row.id)
-                    await CloudSyncEngine.shared.enqueueDJTrackPrep(trackId: row.id)
+                    stage = .persistAnalysis
+                    if let data = try? payload.encoded() {
+                        try? await store.saveDJAnalysis(data,
+                                                        meta: (DJTrackPrepPayload.currentAlgorithmID,
+                                                               DJTrackPrepPayload.currentVersion,
+                                                               prepared.buffer.format.sampleRate,
+                                                               Int64(prepared.buffer.frameCount),
+                                                               analysis.tempo.bpm,
+                                                               analysis.key.camelot),
+                                                        trackId: row.id)
+                        await CloudSyncEngine.shared.enqueueDJTrackPrep(trackId: row.id)
+                    }
                 }
                 if indexed == nil, row.id >= 0 {
                     // Queue the durable library index as soon as the track has
@@ -398,8 +408,10 @@ final class DJPerformanceModel: ObservableObject {
                 self.loadingDecks.remove(id)
                 self.loadPhases[id] = nil
                 deck.duration = 0
-        deck.waveform = []
-                self.loadError = "This track could not be prepared for DJ playback. Check the file or connection and try again."
+                deck.waveform = []
+                self.loadError = DJLoadFailurePresentation.message(
+                    stage: stage, error: error, trackTitle: row.track.title,
+                    sourceURL: diagnosticURL, codec: diagnosticCodec)
             }
         }
     }
@@ -557,6 +569,10 @@ final class DJPerformanceModel: ObservableObject {
 
     func toggleSync(_ id: DJDeckID) {
         let deck = deck(id)
+        guard DJSyncAvailabilityPolicy.canSync(bpm: deck.bpm) else {
+            ToastCenter.shared.info("Sync needs a BPM — analysis is still running")
+            return
+        }
         deck.syncEnabled.toggle()
         if deck.syncEnabled {
             audio.sync(deck: id)
@@ -1185,19 +1201,31 @@ private final class DJAudioBacker {
     }
 
     private nonisolated static func container(codec: String?, url: URL) -> AudioContainer {
-        let queryFormat = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
-            .first(where: { ["format", "audioformat", "audiodlformat"].contains($0.name.lowercased()) })?.value
-        let value = (codec ?? queryFormat ?? url.pathExtension).lowercased()
+        let value = DJLoadSourcePolicy.containerHint(codec: codec, sourceURL: url) ?? ""
         if value.contains("flac") { return .flac }
         if value.contains("opus") { return .opus }
         if value.contains("ogg") { return .oggVorbis }
-        if value.contains("mp3") || value.contains("mpeg") { return .mp3 }
+        if value.contains("mp3") || value.contains("mpeg") || value.contains("mp32") { return .mp3 }
         if value.contains("aac") { return .aac }
         if value.contains("m4b") { return .m4b }
         if value.contains("m4a") || value.contains("alac") || value.contains("mp4") { return .m4a }
         if value.contains("aiff") || value == "aif" { return .aiff }
         if value.contains("caf") { return .caf }
         if value.contains("wav") { return .wav }
+
+        // AudioCache stores complete remote blobs without an extension. A
+        // signature probe is the final fallback for imported rows whose
+        // metadata was incomplete at ingestion time.
+        if let data = try? Data(contentsOf: url, options: [.mappedIfSafe]), data.count >= 12 {
+            let bytes = [UInt8](data.prefix(12))
+            if bytes.starts(with: [0x66, 0x4C, 0x61, 0x43]) { return .flac }
+            if bytes.starts(with: [0x4F, 0x67, 0x67, 0x53]) { return .oggVorbis }
+            if bytes.starts(with: [0x52, 0x49, 0x46, 0x46]) && bytes[8..<12].elementsEqual([0x57, 0x41, 0x56, 0x45]) { return .wav }
+            if bytes.starts(with: [0x63, 0x61, 0x66, 0x66]) { return .caf }
+            if bytes.starts(with: [0x46, 0x4F, 0x52, 0x4D]) { return .aiff }
+            if bytes[4..<8].elementsEqual([0x66, 0x74, 0x79, 0x70]) { return .m4a }
+            if bytes.starts(with: [0x49, 0x44, 0x33]) || (bytes[0] == 0xFF && bytes[1] & 0xE0 == 0xE0) { return .mp3 }
+        }
         return .auto
     }
 
@@ -1981,10 +2009,12 @@ private struct DJDeckWaveform: View {
             WaveformCanvas(bins: deck.waveform, position: deck.position, duration: deck.duration,
                            hotCues: deck.hotCues, isPlaying: deck.isPlaying,
                            accent: deck.id == .a ? Palette.brass : Color.blue)
-            Rectangle()
-                .fill(deck.id == .a ? Palette.brass : Color.blue)
-                .frame(width: 1.5)
-                .allowsHitTesting(false)
+            if !deck.waveform.isEmpty {
+                Rectangle()
+                    .fill(deck.id == .a ? Palette.brass : Color.blue)
+                    .frame(width: 1.5)
+                    .allowsHitTesting(false)
+            }
             HStack {
                 Text("\(deck.bpm.map { String(format: "%.1f", $0) } ?? "—") BPM")
                 Spacer()
@@ -2476,26 +2506,25 @@ struct WaveformCanvas: View {
     let hotCues: [Int: Double]
     let isPlaying: Bool
     let accent: Color
-
-    private let displayWindowSeconds = 4.0
+    var window: Double = 4.0
 
     var body: some View {
         Canvas { context, size in
             guard !bins.isEmpty else { return }
             let count = max(1, bins.count)
             let mid = size.height * 0.48
-            let secondsPerBin = duration > 0 ? duration / Double(count) : displayWindowSeconds
+            let secondsPerBin = duration > 0 ? duration / Double(count) : window
             let firstIndex = duration > 0
-                ? max(0, Int(floor((position - displayWindowSeconds / 2) / secondsPerBin)) - 1)
+                ? max(0, Int(floor((position - window / 2) / secondsPerBin)) - 1)
                 : 0
             let lastIndex = duration > 0
-                ? min(count - 1, Int(ceil((position + displayWindowSeconds / 2) / secondsPerBin)) + 1)
+                ? min(count - 1, Int(ceil((position + window / 2) / secondsPerBin)) + 1)
                 : count - 1
-            let barWidth = max(1.2, CGFloat(secondsPerBin / displayWindowSeconds) * size.width * 0.78)
+            let barWidth = max(1.2, CGFloat(secondsPerBin / window) * size.width * 0.78)
             for index in firstIndex...max(firstIndex, lastIndex) {
                 let bin = bins.isEmpty ? WaveformBin(min: -0.15, max: 0.15, rms: 0.1) : bins[index]
                 let time = (Double(index) + 0.5) * secondsPerBin
-                let x = size.width / 2 + CGFloat((time - position) / displayWindowSeconds) * size.width
+                let x = size.width / 2 + CGFloat((time - position) / window) * size.width
                 guard x + barWidth >= 0, x - barWidth <= size.width else { continue }
                 drawRGBBin(bin, at: x, mid: mid, height: size.height,
                            width: barWidth, context: &context,
@@ -2506,7 +2535,7 @@ struct WaveformCanvas: View {
             // centered, while each cue is drawn at its exact time position.
             guard duration > 0 else { return }
             for cue in hotCues.values {
-                let x = size.width / 2 + CGFloat((cue - position) / displayWindowSeconds) * size.width
+                let x = size.width / 2 + CGFloat((cue - position) / window) * size.width
                 guard x >= -1, x <= size.width + 1 else { continue }
                 var marker = Path()
                 marker.move(to: CGPoint(x: x, y: 8))
@@ -2813,7 +2842,7 @@ private struct DJLoadSheet: View {
                 }
             }
             .background(Palette.bg)
-            .navigationTitle("Load Deck " + deck.rawValue)
+            .navigationTitle("Load to Deck " + targetDeck.rawValue)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
             .onChange(of: inputMode) { _, value in
                 searchModel?.inputMode = value

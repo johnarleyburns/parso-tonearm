@@ -12,6 +12,11 @@ import XCTest
 /// and slow, matching this codebase's existing convention of keeping
 /// pure/structural logic unit-tested and live-network behavior separate).
 final class JamendoGenreTreeTests: XCTestCase {
+    func testMyMusicJamendoImportPolicyUsesADurableSearchSource() {
+        XCTAssertEqual(JamendoImportPolicy.sourceIdentifier, "catalog-search")
+        XCTAssertEqual(JamendoImportPolicy.sourceTitle, "Jamendo Search")
+        XCTAssertTrue(JamendoImportPolicy.explanation.contains("index it"))
+    }
 
     func testNoDuplicatePathsAcrossTheWholeTree() {
         let paths = JamendoGenreTree.all.map(\.path)

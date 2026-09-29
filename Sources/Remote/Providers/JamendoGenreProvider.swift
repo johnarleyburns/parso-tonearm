@@ -50,6 +50,12 @@ public enum JamendoGenreError: LocalizedError, Equatable, Sendable {
     }
 }
 
+public enum JamendoImportPolicy {
+    public static let sourceIdentifier = "catalog-search"
+    public static let sourceTitle = "Jamendo Search"
+    public static let explanation = "Search and import music from Jamendo and we will index it and add it to your collection."
+}
+
 /// The application-level Jamendo configuration. `client_id` is an application
 /// credential — it travels in the build and is read from the app's Info.plist,
 /// exactly like the OAuth client IDs. It is not a user login (§18A.2).

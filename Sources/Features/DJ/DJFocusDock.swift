@@ -5,12 +5,18 @@ struct DJFocusDock: View {
     @ObservedObject var model: DJPerformanceModel
     let onLoad: () -> Void
     let onMixer: () -> Void
+    @State private var crossedCenter = false
 
     var body: some View {
         VStack(spacing: 6) {
             Text("CROSSFADER")
                 .font(.caption2.monospaced())
             Slider(value: crossfaderBinding)
+                .onChange(of: model.crossfader) { _, value in
+                    let atCenter = abs(value - 0.5) < 0.0001
+                    if atCenter != crossedCenter { crossedCenter = atCenter }
+                }
+                .sensoryFeedback(.selection, trigger: crossedCenter)
                 .accessibilityIdentifier("dj.focus.crossfader")
             HStack {
                 Button("Library", action: onLoad)
@@ -28,7 +34,7 @@ struct DJFocusDock: View {
     private var crossfaderBinding: Binding<Double> {
         Binding(
             get: { model.crossfader },
-            set: { value in model.setCrossfader(value) }
+            set: { value in model.setCrossfader(DJFaderMapping.snapped(value)) }
         )
     }
 }

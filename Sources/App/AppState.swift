@@ -66,6 +66,9 @@ final class AppState: ObservableObject {
     /// catalog reload, so existing and newly onboarded tracks get BPM and key
     /// without requiring the user to open DJ first.
     @Published private(set) var musicalInfo: [Int64: DJLoadTrackInfo] = [:]
+    /// Bumps when BPM/key metadata changes so large My Music renders can be
+    /// recomputed off the main actor without comparing the whole dictionary.
+    @Published private(set) var musicalInfoRevision = 0
     /// True while a full-screen performance surface owns the display (§42.6,
     /// §42.7a). The DJ decks put the crossfader on the true bottom edge and the
     /// spec is explicit that it is always visible and never occluded — but the
@@ -264,6 +267,7 @@ final class AppState: ObservableObject {
             playlists = loadedPlaylists
             allTracks = loadedTracks
             musicalInfo = (try? await store.djLoadTrackInfo(trackIds: loadedTracks.map(\.id))) ?? [:]
+            musicalInfoRevision &+= 1
             recentlyPlayed = loadedRecentlyPlayed
             recentlyAdded = loadedRecentlyAdded
             favoriteRows = loadedFavoriteRows
@@ -286,11 +290,13 @@ final class AppState: ObservableObject {
         let ids = allTracks.map(\.id)
         guard !ids.isEmpty else {
             if !musicalInfo.isEmpty { musicalInfo = [:] }
+            musicalInfoRevision &+= 1
             return
         }
         guard let updated = try? await store.djLoadTrackInfo(trackIds: ids),
               updated != musicalInfo else { return }
         musicalInfo = updated
+        musicalInfoRevision &+= 1
     }
 
     func runSearch() async {

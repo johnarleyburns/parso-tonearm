@@ -52,9 +52,19 @@ private struct DJMixerChannels: View {
                 DJMixerChannel(model: model, deckID: .b)
             }
             Text("Master").font(.caption.monospaced())
-            Slider(value: masterBinding)
+            mixerSlider("Master", value: masterBinding)
             Text("Headphones").font(.caption.monospaced())
-            Slider(value: headphoneBinding)
+            mixerSlider("Headphones", value: headphoneBinding)
+            mixerSlider("Cue ⇄ Master", value: cueMasterBinding)
+        }
+    }
+
+    private func mixerSlider(_ label: String, value: Binding<Double>) -> some View {
+        HStack {
+            Text(label).font(.caption.monospaced()).frame(width: 100, alignment: .leading)
+            Slider(value: value)
+            Text(String(format: "%d%%", Int(value.wrappedValue * 100)))
+                .font(.caption.monospacedDigit()).frame(width: 48, alignment: .trailing)
         }
     }
 
@@ -65,6 +75,10 @@ private struct DJMixerChannels: View {
     private var headphoneBinding: Binding<Double> {
         Binding(get: { model.headphoneLevel }, set: { model.setHeadphoneLevel($0) })
     }
+
+    private var cueMasterBinding: Binding<Double> {
+        Binding(get: { model.cueMasterMix }, set: { model.setCueMasterMix(DJFaderMapping.snapped($0)) })
+    }
 }
 
 private struct DJMixerChannel: View {
@@ -74,7 +88,10 @@ private struct DJMixerChannel: View {
     var body: some View {
         let deck = model.deck(deckID)
         VStack(spacing: 8) {
-            Text(deckID.rawValue).foregroundStyle(deck.accent).fontWeight(.black)
+            HStack {
+                Text(deckID.rawValue).foregroundStyle(deck.accent).fontWeight(.black)
+                Text(deck.title).lineLimit(1).font(.caption)
+            }
             DJFocusKnob(label: "TRIM", value: deck.trim, color: deck.accent) { value in
                 model.setTrim(deckID, value: value)
             }
@@ -87,8 +104,26 @@ private struct DJMixerChannel: View {
             DJFocusKnob(label: "LOW", value: deck.eqLow, color: deck.accent) { value in
                 model.setEQ(deckID, low: value)
             }
-            Slider(value: channelBinding(deck), in: 0...1)
-                .tint(deck.accent)
+            DJFocusKnob(label: "FILTER", value: deck.colorFX, color: deck.accent) { value in
+                model.setColorFX(deckID, value: value)
+            }
+            HStack(alignment: .center, spacing: 8) {
+                DJFocusMeter(value: deck.peakMeter, hold: deck.peakHold)
+                Slider(value: channelBinding(deck), in: 0...1)
+                    .tint(deck.accent)
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 78, height: 28)
+            }
+            Button {
+                model.toggleCue(deckID)
+            } label: {
+                Label((deckID == .a ? model.cueA : model.cueB) ? "Cue · listening" : "Cue", systemImage: "headphones")
+                    .font(.caption2.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 40)
+            }
+            .buttonStyle(.bordered)
+            .tint(deck.accent)
+            .accessibilityIdentifier("dj.focus.mixer.cue.\(deckID.rawValue.lowercased())")
         }
         .padding(10)
         .frame(maxWidth: .infinity)
@@ -118,14 +153,22 @@ private struct DJMixerMaster: View {
             }
             .padding(10)
             .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+            Button("Reset") { model.flatMix() }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("dj.focus.mixer.master.reset")
             Slider(value: bassBinding)
+            Text("Swap basslines without touching the crossfader")
+                .font(.caption2)
+                .foregroundStyle(Palette.ink3)
             Picker("Output", selection: outputBinding) {
                 ForEach(DJOutputMode.allCases, id: \.self) { mode in
                     Text(mode.rawValue).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
+            Text(model.outputMode.helpText).font(.caption2).foregroundStyle(Palette.ink3)
             Toggle("Record mix", isOn: recordingBinding)
+            Text("Saved to Files › Platterhead").font(.caption2).foregroundStyle(Palette.ink3)
         }
     }
 
@@ -139,6 +182,30 @@ private struct DJMixerMaster: View {
 
     private var recordingBinding: Binding<Bool> {
         Binding(get: { model.recording }, set: { _ in model.toggleRecording() })
+    }
+}
+
+private struct DJFocusMeter: View {
+    let value: Double
+    let hold: Double
+
+    var body: some View {
+        VStack(spacing: 1) {
+            ForEach((0..<16).reversed(), id: \.self) { index in
+                let threshold = Double(index + 1) / 16
+                Capsule()
+                    .fill(color(for: index).opacity(threshold <= max(value, hold) ? 0.95 : 0.15))
+                    .frame(width: 8, height: 4)
+            }
+        }
+        .accessibilityLabel("Peak meter")
+        .accessibilityValue(String(format: "%d%%", Int(max(value, hold) * 100)))
+    }
+
+    private func color(for index: Int) -> Color {
+        if index >= 14 { return .red }
+        if index >= 11 { return .yellow }
+        return .green
     }
 }
 

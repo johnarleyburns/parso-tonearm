@@ -6,15 +6,24 @@ struct DJFocusTransportRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Button("CUE") { cue() }
+            Button { } label: {
+                Label("CUE", systemImage: "headphones")
+                    .frame(maxWidth: .infinity, minHeight: 64)
+            }
                 .frame(maxWidth: .infinity, minHeight: 64)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in model.cueDown(model.activeDeck) }
+                        .onEnded { _ in model.cueUp(model.activeDeck) }
+                )
+                .accessibilityAction { cue() }
                 .accessibilityIdentifier("dj.focus.cue")
             Button("PLAY") { model.toggle(model.activeDeck) }
                 .frame(maxWidth: .infinity, minHeight: 64)
                 .accessibilityIdentifier("dj.focus.play")
             Button("SYNC") { model.toggleSync(model.activeDeck) }
                 .frame(maxWidth: .infinity, minHeight: 64)
-                .disabled(model.deck(model.activeDeck).bpm == nil)
+                .disabled(!DJSyncAvailabilityPolicy.canSync(bpm: model.deck(model.activeDeck).bpm))
                 .simultaneousGesture(
                     LongPressGesture(minimumDuration: 0.6)
                         .onEnded { _ in model.makeMaster(model.activeDeck) }

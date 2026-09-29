@@ -18,6 +18,9 @@ struct LibraryView: View {
     /// through this binding instead of `internalMode`.
     private let externalMode: Binding<LibraryBrowseMode>?
     private let filter: MyMusicFilter
+    @State private var renderedSections: [LibraryBrowse.Section] = []
+    @State private var renderedPlaybackRows: [TrackRow] = []
+    @State private var isRendering = true
 
     init(ownsNavigationStack: Bool = true, externalMode: Binding<LibraryBrowseMode>? = nil,
          filter: MyMusicFilter = .init()) {
@@ -33,10 +36,14 @@ struct LibraryView: View {
         }
     }
 
-    private var rows: [TrackRow] {
-        let source = appState.searchText.isEmpty ? appState.allTracks : appState.searchResults
-        guard !filter.isEmpty else { return source }
-        return source.filter { filter.matches(appState.musicalInfo[$0.id] ?? DJLoadTrackInfo()) }
+    private var renderToken: LibraryRenderToken {
+        LibraryRenderToken(
+            mode: mode,
+            query: appState.searchText,
+            trackIDs: appState.allTracks.map(\.id),
+            searchResultIDs: appState.searchResults.map(\.id),
+            musicalInfoRevision: appState.musicalInfoRevision,
+            filter: filter)
     }
 
     var body: some View {
@@ -51,10 +58,6 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var content: some View {
-        let renderedRows = rows
-        let renderedSections = LibraryBrowse.sections(for: mode, rows: renderedRows)
-        let renderedPlaybackRows = renderedSections.flatMap(\.entries).flatMap(\.rows)
-
         ScrollViewReader { proxy in
                 ZStack(alignment: .trailing) {
                     ScrollView {
@@ -74,7 +77,7 @@ struct LibraryView: View {
                                 .padding(.bottom, 16)
                             }
 
-                            if renderedRows.isEmpty, !appState.didLoadLibraryOnce {
+                            if renderedPlaybackRows.isEmpty, isRendering || !appState.didLoadLibraryOnce {
                                 // Real report: "My Music says I have no
                                 // music, then a few seconds later loads it
                                 // all in" — show a real loading state until
@@ -88,7 +91,7 @@ struct LibraryView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 60)
-                            } else if renderedRows.isEmpty {
+                            } else if renderedPlaybackRows.isEmpty {
                                 VStack(spacing: 14) {
                                     EmptyStateView(icon: "music.note",
                                                    title: appState.searchText.isEmpty ? "Your music is empty" : "No matches",
@@ -134,7 +137,47 @@ struct LibraryView: View {
             guard !Task.isCancelled else { return }
             await appState.runSearch()
         }
-        .task { await appState.reload() }
+        .task(id: renderToken) {
+            let source = appState.searchText.isEmpty ? appState.allTracks : appState.searchResults
+            let info = appState.musicalInfo
+            let selectedMode = mode
+            let selectedFilter = filter
+            isRendering = true
+            let result = await Task.detached(priority: .userInitiated) {
+                let filtered = selectedFilter.isEmpty
+                    ? source
+                    : source.filter { selectedFilter.matches(info[$0.id] ?? DJLoadTrackInfo()) }
+                var sections = LibraryBrowse.sections(for: selectedMode, rows: filtered)
+                if selectedMode == .albums {
+                    sections = sections.map { section in
+                        LibraryBrowse.Section(
+                            indexTitle: section.indexTitle,
+                            entries: section.entries.map { entry in
+                                var entry = entry
+                                let values = entry.rows.compactMap { info[$0.id]?.bpm }
+                                    .filter { $0.isFinite && $0 > 0 }
+                                entry.averageBPM = values.isEmpty
+                                    ? nil
+                                    : values.reduce(0, +) / Double(values.count)
+                                return entry
+                            })
+                    }
+                }
+                return (filtered, sections)
+            }.value
+            guard !Task.isCancelled else { return }
+            renderedPlaybackRows = result.0
+            renderedSections = result.1
+            isRendering = false
+        }
+        .task {
+            // My Music recreates this child when its scope changes. Do not
+            // re-read the entire catalog on every scope switch; the root
+            // app state owns the initial load and publishes targeted musical
+            // metadata refreshes thereafter.
+            guard !appState.didLoadLibraryOnce else { return }
+            await appState.reload()
+        }
     }
 
     @ViewBuilder
@@ -181,9 +224,17 @@ struct LibraryView: View {
     }
 }
 
+private struct LibraryRenderToken: Equatable {
+    let mode: LibraryBrowseMode
+    let query: String
+    let trackIDs: [Int64]
+    let searchResultIDs: [Int64]
+    let musicalInfoRevision: Int
+    let filter: MyMusicFilter
+}
+
 private struct LibraryBrowseEntryRow: View {
     let entry: LibraryBrowse.Entry
-    @EnvironmentObject var appState: AppState
 
     var body: some View {
         HStack(spacing: 11) {
@@ -210,7 +261,7 @@ private struct LibraryBrowseEntryRow: View {
                         .foregroundStyle(Palette.ink3)
                         .lineLimit(1)
                 }
-                if let averageBPM {
+                if let averageBPM = entry.averageBPM {
                     Text("AVG " + String(format: "%.1f", averageBPM) + " BPM")
                         .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                         .foregroundStyle(Palette.brass)
@@ -234,13 +285,6 @@ private struct LibraryBrowseEntryRow: View {
         }
     }
 
-    private var averageBPM: Double? {
-        guard entry.kind == .album else { return nil }
-        let values = entry.rows.compactMap { appState.musicalInfo[$0.id]?.bpm }
-            .filter { $0.isFinite && $0 > 0 }
-        guard !values.isEmpty else { return nil }
-        return values.reduce(0, +) / Double(values.count)
-    }
 }
 
 private struct LibraryGroupDetailView: View {

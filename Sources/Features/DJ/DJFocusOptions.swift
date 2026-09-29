@@ -47,7 +47,9 @@ struct DJDeckOptionsSheet: View {
                 }
             }
             .navigationTitle("Deck \(deck.rawValue)")
+            #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)

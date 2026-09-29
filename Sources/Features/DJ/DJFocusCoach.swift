@@ -1,5 +1,7 @@
 import SwiftUI
+import ParsoAudioAnalysis
 import TonearmCore
+import TonearmDiscovery
 
 struct DJCoachCard: View {
     @ObservedObject var model: DJPerformanceModel
@@ -36,6 +38,7 @@ struct DJCoachCard: View {
 
     private var keyCompatibility: Bool? {
         guard let a = model.deckA.key, let b = model.deckB.key else { return nil }
-        return a == b
+        guard let reference = CamelotKey(code: a), let candidate = CamelotKey(code: b) else { return nil }
+        return MusicalMatchPolicy.compatibleKeys(for: reference).contains(candidate)
     }
 }

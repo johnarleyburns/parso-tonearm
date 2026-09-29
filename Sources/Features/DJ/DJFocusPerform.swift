@@ -4,6 +4,7 @@ import TonearmCore
 struct DJFocusWaveformCard: View {
     @ObservedObject var model: DJPerformanceModel
     var onBrowse: (() -> Void)? = nil
+    var compact = false
 
     var body: some View {
         VStack(spacing: 6) {
@@ -14,20 +15,24 @@ struct DJFocusWaveformCard: View {
             }
             .font(.caption.monospaced())
             emptyState
-            DJFocusWaveformRow(model: model, deckID: .a)
-            DJFocusWaveformRow(model: model, deckID: .b)
-            Text("Drag a waveform to nudge · press and hold to scratch")
+            DJFocusWaveformRow(model: model, deckID: .a, compact: compact)
+            DJFocusWaveformRow(model: model, deckID: .b, compact: compact)
+            if !compact {
+                Text("Drag a waveform to nudge · press and hold to scratch")
                 .font(.caption2)
                 .foregroundStyle(Palette.ink3)
+            }
         }
         .padding(10)
-        .frame(height: 190)
+        .frame(height: compact ? 104 : 190)
         .djFocusGlass(cornerRadius: 24)
         .overlay(alignment: .center) {
-            Rectangle()
-                .fill(Palette.ink)
-                .frame(width: 2, height: 132)
-                .allowsHitTesting(false)
+            if model.deckA.waveform.isEmpty == false || model.deckB.waveform.isEmpty == false {
+                Rectangle()
+                    .fill(Palette.ink)
+                    .frame(width: 2, height: compact ? 76 : 132)
+                    .allowsHitTesting(false)
+            }
         }
         .accessibilityIdentifier("dj.focus.waveform")
     }
@@ -58,8 +63,11 @@ struct DJFocusWaveformCard: View {
 private struct DJFocusWaveformRow: View {
     @ObservedObject var model: DJPerformanceModel
     let deckID: DJDeckID
+    let compact: Bool
     @State private var dragStart = Date()
     @State private var lastTranslation: CGFloat = 0
+    @State private var window = 4.0
+    @State private var scratchStarted = false
 
     private var deck: DJDeckState { model.deck(deckID) }
 
@@ -70,11 +78,17 @@ private struct DJFocusWaveformRow: View {
             duration: deck.duration,
             hotCues: deck.hotCues,
             isPlaying: deck.isPlaying,
-            accent: deck.accent
+            accent: deck.accent,
+            window: window
         )
-        .frame(height: 62)
+        .frame(height: compact ? 38 : 62)
         .contentShape(Rectangle())
         .gesture(waveformGesture)
+        .simultaneousGesture(
+            MagnificationGesture().onChanged { value in
+                window = max(2, min(16, 4 / value))
+            }
+        )
         .onTapGesture { model.selectDeck(deckID) }
         .accessibilityLabel("Deck \(deckID.rawValue) waveform")
         .accessibilityIdentifier("dj.focus.waveform.\(deckID.rawValue.lowercased())")
@@ -88,6 +102,10 @@ private struct DJFocusWaveformRow: View {
                     lastTranslation = 0
                 }
                 let held = Date().timeIntervalSince(dragStart)
+                if held >= 0.35, deck.isPlaying, !scratchStarted {
+                    scratchStarted = true
+                    model.beginScratch(deckID)
+                }
                 let delta = value.translation.width - lastTranslation
                 lastTranslation = value.translation.width
                 let action = DJWaveformTouchPolicy.action(
@@ -106,6 +124,7 @@ private struct DJFocusWaveformRow: View {
                                 predictedTranslation: value.predictedEndTranslation.width, width: 300)
                 }
                 model.endScratch(deckID)
+                scratchStarted = false
                 lastTranslation = 0
                 model.selectDeck(deckID)
             }

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum LibraryBrowseMode: String, CaseIterable, Identifiable {
+public enum LibraryBrowseMode: String, CaseIterable, Identifiable, Sendable {
     case artists = "Artists"
     case albums = "Albums"
     case songs = "Songs"
@@ -10,14 +10,19 @@ public enum LibraryBrowseMode: String, CaseIterable, Identifiable {
 }
 
 public enum LibraryBrowse {
-    public struct Section: Identifiable, Equatable {
+    public struct Section: Identifiable, Equatable, Sendable {
         public var indexTitle: String
         public var entries: [Entry]
         public var id: String { indexTitle }
+
+        public init(indexTitle: String, entries: [Entry]) {
+            self.indexTitle = indexTitle
+            self.entries = entries
+        }
     }
 
-    public struct Entry: Identifiable, Equatable, Hashable {
-        public enum Kind: String {
+    public struct Entry: Identifiable, Equatable, Hashable, Sendable {
+        public enum Kind: String, Sendable {
             case artist
             case album
             case song
@@ -30,6 +35,10 @@ public enum LibraryBrowse {
         public var subtitle: String?
         public var rows: [TrackRow]
         public var indexTitle: String
+        /// Derived off the view's render path for album rows. Keeping it on
+        /// the value avoids walking every album's tracks during SwiftUI body
+        /// evaluation.
+        public var averageBPM: Double? = nil
 
         public static func == (lhs: Entry, rhs: Entry) -> Bool {
             lhs.id == rhs.id
@@ -38,6 +47,7 @@ public enum LibraryBrowse {
                 && lhs.subtitle == rhs.subtitle
                 && lhs.rows == rhs.rows
                 && lhs.indexTitle == rhs.indexTitle
+                && lhs.averageBPM == rhs.averageBPM
         }
 
         public func hash(into hasher: inout Hasher) {

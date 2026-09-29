@@ -46,11 +46,19 @@ private struct DJBothCrossfader: View {
     @ObservedObject var model: DJPerformanceModel
 
     var body: some View {
-        VStack(spacing: 4) {
-            Text("CROSSFADER").font(.caption2.monospaced())
-            Slider(value: binding)
-                .tint(Palette.brass)
-                .accessibilityIdentifier("dj.both.crossfader")
+        HStack(spacing: 8) {
+            DJFocusKnob(label: "FILTER A", value: model.deckA.colorFX, color: model.deckA.accent) {
+                model.setColorFX(.a, value: $0)
+            }
+            VStack(spacing: 4) {
+                Text("A     CROSSFADER     B").font(.caption2.monospaced())
+                Slider(value: binding)
+                    .tint(Palette.brass)
+                    .accessibilityIdentifier("dj.both.crossfader")
+            }
+            DJFocusKnob(label: "FILTER B", value: model.deckB.colorFX, color: model.deckB.accent) {
+                model.setColorFX(.b, value: $0)
+            }
         }
         .padding(12)
         .djFocusGlass(cornerRadius: 18)
@@ -72,8 +80,18 @@ private struct DJBothDeckPanel: View {
         VStack(spacing: 8) {
             HStack {
                 Text(deckID.rawValue).fontWeight(.black).foregroundStyle(deck.accent)
-                Text(deck.title).lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(deck.title).lineLimit(1)
+                    Text(deck.artist.isEmpty ? "Unknown artist" : deck.artist)
+                        .font(.caption2).foregroundStyle(Palette.ink3).lineLimit(1)
+                }
                 Spacer()
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(deck.bpm.map { String(format: "%.1f BPM", $0) } ?? "— BPM")
+                        .font(.caption.monospacedDigit()).foregroundStyle(deck.accent)
+                    Text("−" + remaining(deck.duration - deck.position))
+                        .font(.caption2.monospacedDigit()).foregroundStyle(Palette.ink3)
+                }
                 Button("Load") { onLoad(deckID) }
                     .accessibilityIdentifier("dj.both.load.\(deckID.rawValue.lowercased())")
                 Button("•••") { onOptions(deckID) }
@@ -97,6 +115,17 @@ private struct DJBothDeckPanel: View {
                     .accessibilityIdentifier("dj.both.sync.\(deckID.rawValue.lowercased())")
             }
             .buttonStyle(.bordered)
+            HStack(spacing: 6) {
+                ForEach(1...4, id: \.self) { slot in
+                    Button(deck.hotCues[slot] == nil ? "(slot)" : "●") {
+                        model.activateCue(slot, deck: deckID)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .background(deck.hotCues[slot] == nil ? Color.white.opacity(0.06) : deck.accent,
+                                in: RoundedRectangle(cornerRadius: 10))
+                    .foregroundStyle(deck.hotCues[slot] == nil ? Palette.ink2 : Palette.bg)
+                }
+            }
         }
         .padding(12)
         .djFocusGlass(cornerRadius: 22)
@@ -105,5 +134,10 @@ private struct DJBothDeckPanel: View {
     private func cue() {
         model.cueDown(deckID)
         model.cueUp(deckID)
+    }
+
+    private func remaining(_ value: Double) -> String {
+        let total = max(0, Int(value))
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
