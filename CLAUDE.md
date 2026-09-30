@@ -79,6 +79,22 @@ watch smoke tests one after the other. `make test-integration` should likewise
 use the default parallel SwiftPM test execution. Do not run multiple
 independent `swift test` processes concurrently against the same checkout.
 
+After a pushed change has green CI, regularly clean local build products so
+stale DerivedData and SwiftPM artifacts do not accumulate or mask a clean-build
+problem. Only remove the exact repository `.build` directory and this
+repository's `Tonearm-*` DerivedData directory; do not remove shared
+`ModuleCache.noindex` or other projects' caches. Cache cleanup may run in the
+background only after all local builds/tests have exited, and its completion
+must be verified before starting another build:
+
+```sh
+find .build -mindepth 1 -depth -delete 2>/dev/null || true
+rmdir .build 2>/dev/null || true
+find "$HOME/Library/Developer/Xcode/DerivedData/Tonearm-<exact-id>" \
+  -mindepth 1 -depth -delete
+rmdir "$HOME/Library/Developer/Xcode/DerivedData/Tonearm-<exact-id>"
+```
+
 ## No silent/magic background work — always visible, always in the user's control
 
 Any background or automatic behavior (indexing, downloading a model, syncing, migrating data, retrying) must tell the user what is happening in the moment it's happening, not just eventually succeed or fail silently. Concretely:
