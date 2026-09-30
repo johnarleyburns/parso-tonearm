@@ -5,13 +5,20 @@ import OSLog
 extension AudioPlayer {
     private static let transitionLog = Logger(subsystem: "guru.parso.platterhead", category: "transition")
 
-    /// Publishes the planned edge for the currently playing mix queue. The
-    /// existing AVPlayer crossfade remains the transport-safe executor, while
-    /// the mix plan supplies the edge style, overlap, and countdown shown to
-    /// the user. This keeps playback and the preview on one source of truth.
+    /// Resolves the exact stored grids for the current edge and runs the same
+    /// planner used by Mix Preview. There is deliberately no BPM/key/overlap
+    /// fallback based on a step number: an unavailable grid is reported as a
+    /// plain fade with an honest preparation reason.
     func scheduleTransitionPlan() {
+        transitionPlanningTask?.cancel()
+        guard smartTransitionsEnabled else {
+            transitionPlan = nil
+            transitionPrepState = .cancelled
+            return
+        }
         let globalTransitions = UserDefaults.standard.bool(forKey: "smartTransitionsEverywhere")
-        guard let currentID = currentTrack?.track.id,
+        guard let current = currentTrack, let currentID = current.track.id,
+              let next = queue.indices.contains(index + 1) ? queue[index + 1] : nil,
               let nextID = queue.indices.contains(index + 1) ? queue[index + 1].track.id : nil else {
             transitionPlan = nil
             transitionPrepState = .ready
@@ -29,45 +36,82 @@ extension AudioPlayer {
             return
         }
 
-        guard let nextStep = mix?.steps.first(where: { $0.trackID == nextID }) else {
+        if mix != nil && mix?.steps.first(where: { $0.trackID == nextID }) == nil {
             guard globalTransitions else {
                 transitionPlan = nil
                 transitionPrepState = .ready
                 return
             }
-            transitionPlan = TransitionPlan(fromTrackID: currentID, toTrackID: nextID,
-                                            style: .plainCrossfade,
-                                            overlapSeconds: normalizedCrossfadeSeconds,
-                                            confidence: 0.2,
-                                            reasons: [.gridNotReady(.ready)])
+        }
+
+        if let stored = mix?.transitionPlans.first(where: {
+            $0.fromTrackID == currentID && $0.toTrackID == nextID
+        }) {
+            transitionPlan = stored
             transitionPrepState = .ready
             return
         }
 
-        let edge = nextStep.edgeIn
-        let bpm = max(1, nextStep.effectiveBPM)
-        let overlapBeats = max(4, min(32, edge?.flags.contains(.keyClash) == true ? 4 : 8))
-        let overlapSeconds = min(30, Double(overlapBeats) * 60 / bpm)
-        let style: TransitionStyle = edge?.flags.contains(.keyClash) == true
-            ? .phraseFade : .beatmatchedBlend
-        let delta = edge?.bpmDeltaPct
-        let currentBPM = mix?.steps.first(where: { $0.trackID == currentID })?.effectiveBPM ?? bpm
-        let blendRate = max(0.5, min(2, bpm / max(1, currentBPM)))
-        transitionPlan = TransitionPlan(
-            fromTrackID: currentID,
-            toTrackID: nextID,
-            style: style,
-            exitTime: max(0, duration - overlapSeconds),
-            entryTime: 0,
-            overlapBeats: overlapBeats,
-            overlapSeconds: overlapSeconds,
-            blendRate: style == .beatmatchedBlend ? blendRate : 1,
-            rateRampBeats: style == .beatmatchedBlend ? 16 : nil,
-            keyRelation: edge?.key ?? .unknown,
-            bpmDeltaPct: delta,
-            confidence: edge == nil ? 0.4 : 0.8,
-            reasons: edge.map { [.keyCompatible($0.key), .tempoMatched(pct: $0.bpmDeltaPct)] } ?? [])
+            transitionPlan = nil
+            transitionPrepState = .notPrepared
+        let context = TransitionPlanningContext(
+            fromTrackID: currentID, toTrackID: nextID,
+            fromDuration: duration > 0 ? duration : (current.track.durationSec ?? 0),
+            toDuration: next.track.durationSec ?? 0,
+            sameAlbumInOrder: CrossfadeCurve.suppressesForGaplessAlbum(
+                current: CrossfadeCurve.AlbumContinuity(
+                    albumID: current.album?.id, sourceID: current.source?.id,
+                    albumTitle: current.album?.title, albumArtist: current.album?.artist,
+                    discNumber: current.track.discNo, trackNumber: current.track.trackNo),
+                next: CrossfadeCurve.AlbumContinuity(
+                    albumID: next.album?.id, sourceID: next.source?.id,
+                    albumTitle: next.album?.title, albumArtist: next.album?.artist,
+                    discNumber: next.track.discNo, trackNumber: next.track.trackNo)),
+            incomingBuffered: true)
+        transitionPlanningTask = Task { [weak self] in
+            let fromPayload = try? await LibraryStore.shared.transitionPrepPayload(trackId: currentID)
+            let toPayload = try? await LibraryStore.shared.transitionPrepPayload(trackId: nextID)
+            guard !Task.isCancelled, let self else { return }
+            var resolved = TransitionPlanner.plan(from: fromPayload, to: toPayload, context: context)
+            if resolved.style == .plainCrossfade && resolved.overlapSeconds == 0 {
+                resolved.overlapSeconds = self.normalizedCrossfadeSeconds
+            }
+            self.transitionPlan = resolved
+            self.transitionPrepState = fromPayload != nil && toPayload != nil ? .ready : .notPrepared
+        }
+    }
+
+    /// Starts a real two-item audition instead of seeking the unrelated live
+    /// queue. The outgoing edge is cued ten seconds before its analyzed exit;
+    /// the normal transition executor then loads, aligns, and blends the
+    /// incoming item using the same stored plan shown in the sheet.
+    public func auditionTransition(outgoing: TrackRow, incoming: TrackRow,
+                                   plan: TransitionPlan) {
+        let outgoingID = outgoing.track.id ?? plan.fromTrackID
+        let incomingID = incoming.track.id ?? plan.toTrackID
+        let steps = [
+            MixStep(trackID: outgoingID, position: 0,
+                    effectiveBPM: outgoing.track.durationSec ?? 0),
+            MixStep(trackID: incomingID, position: 1,
+                    effectiveBPM: incoming.track.durationSec ?? 0)
+        ]
+        let source = MixPlan(steps: steps, excluded: [], summary: MixSummary(),
+                             request: MixRequest(candidates: []), transitionPlans: [plan])
+        play(tracks: [outgoing, incoming], startAt: 0, source: .mix(source))
+        transitionPlan = plan
         transitionPrepState = .ready
+        Task { [weak self] in
+            for _ in 0..<20 {
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                guard !Task.isCancelled, let self,
+                      self.currentTrack?.id == outgoing.id else { return }
+                if self.duration > 0 || self.player.currentItem != nil {
+                    self.seek(to: max(0, plan.exitTime - 10))
+                    self.resumePlayback()
+                    return
+                }
+            }
+        }
     }
 
     /// Shared math used by the executor and by deterministic tests. Host time
@@ -111,27 +155,6 @@ extension AudioPlayer {
         item.automaticallyPreservesTimeOffsetFromLive = false
     }
 
-    static func transitionAudioMix(for item: AVPlayerItem,
-                                   fadeStart: CMTime,
-                                   fadeDuration: CMTime,
-                                   incoming: Bool,
-                                   gainMatchDB: Double = 0) -> AVAudioMix? {
-        guard let track = item.asset.tracks(withMediaType: .audio).first,
-              fadeDuration.isValid, fadeDuration.seconds > 0 else { return nil }
-        let params = AVMutableAudioMixInputParameters(track: track)
-        let gain = Float(pow(10, gainMatchDB / 20))
-        if incoming {
-            params.setVolumeRamp(fromStartVolume: 0, toEndVolume: gain,
-                                 timeRange: CMTimeRange(start: fadeStart, duration: fadeDuration))
-        } else {
-            params.setVolumeRamp(fromStartVolume: gain, toEndVolume: 0,
-                                 timeRange: CMTimeRange(start: fadeStart, duration: fadeDuration))
-        }
-        let mix = AVMutableAudioMix()
-        mix.inputParameters = [params]
-        return mix
-    }
-
     func publishTransition(_ plan: TransitionPlan?) {
         transitionPlan = plan
     }
@@ -139,6 +162,8 @@ extension AudioPlayer {
     func cancelTransition() {
         transitionTask?.cancel()
         transitionTask = nil
+        transitionPlanningTask?.cancel()
+        transitionPlanningTask = nil
         transitionPlan = nil
         transitionPrepState = .ready
     }

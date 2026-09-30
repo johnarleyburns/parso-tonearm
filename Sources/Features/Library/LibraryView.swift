@@ -256,10 +256,16 @@ private struct LibraryBrowseEntryRow: View {
                         cornerRadius: 8, fallbackIcon: icon, thumbnailMaxDimension: 28)
                 .frame(width: 28, height: 28)
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title)
-                    .font(Typography.callout)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
+                ViewThatFits(in: .horizontal) {
+                    Text(entry.title)
+                        .font(Typography.callout)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    Text(entry.title)
+                        .font(Typography.callout)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(2)
+                }
                 if let subtitle = entry.subtitle {
                     Text(subtitle)
                         .font(Typography.caption)
@@ -355,6 +361,7 @@ private struct LibraryGroupDetailView: View {
                     .frame(width: 33, height: 33)
                     .glassSurface(cornerRadius: 16.5)
             }
+            .accessibilityLabel("Back")
             Spacer()
             if let albumId {
                 Menu {
@@ -375,6 +382,7 @@ private struct LibraryGroupDetailView: View {
                         .frame(width: 33, height: 33)
                         .glassSurface(cornerRadius: 16.5)
                 }
+                .accessibilityLabel("Album actions")
                 .photosPicker(isPresented: $showArtworkPicker, selection: $artworkPickerItem, matching: .images)
                 .onChange(of: artworkPickerItem) { _, item in
                     guard let item else { return }

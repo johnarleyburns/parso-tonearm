@@ -1,5 +1,9 @@
-# Platterhead icon brief
+# Platterhead icon
 
-The icon is a periodic-table tile for platinum: a dark field, warm brass glow, large `Pt`, and `78` in the upper-left. It must remain legible at 29 pt and ship with Any, Dark, and Tinted iOS appearances. Source art lives in `Resources/IconSource/`; `scripts/render-app-icon.sh` renders the fallback PNG set.
+**Delivered 2026-09-30.** The human-designer TODO is closed. The icon is the Parso family "Pt" glyph (Platinum):
+platinum white on a near-black gradient, ending in a thin brass band. No tile, number or words.
 
-TODO (human designer): replace the agent-made icon.
+- Shipping file: `Resources/AppIcon.icon` (Icon Composer; iOS + watchOS circle).
+- Watch: the same `.icon`'s watchOS circle (1088 canvas); there is no Watch appiconset.
+- Sources: `design/icon/` (`layers/`, `mono/`, `FAMILY_README.md`, `style-guide.pdf`).
+- Exact colours, metrics and Icon Composer settings: A11 in `award-and-mix-plan.md`.

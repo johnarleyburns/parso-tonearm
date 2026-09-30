@@ -6,21 +6,29 @@ struct TransitionChip: View {
     let planned: TransitionPlan?
     let onUsePlainFade: (() -> Void)?
     let onPrepareNow: (() -> Void)?
+    let onAudition: (() -> Void)?
+    let outgoingPayload: DJTrackPrepPayload?
+    let incomingPayload: DJTrackPrepPayload?
     let preparationState: GridPrepState?
     @State private var showWhy = false
 
     init(plan: TransitionPlan? = nil, onUsePlainFade: (() -> Void)? = nil,
-         onPrepareNow: (() -> Void)? = nil, preparationState: GridPrepState? = nil) {
+         onPrepareNow: (() -> Void)? = nil, onAudition: (() -> Void)? = nil,
+         outgoingPayload: DJTrackPrepPayload? = nil, incomingPayload: DJTrackPrepPayload? = nil,
+         preparationState: GridPrepState? = nil) {
         self.planned = plan
         self.onUsePlainFade = onUsePlainFade
         self.onPrepareNow = onPrepareNow
+        self.onAudition = onAudition
+        self.outgoingPayload = outgoingPayload
+        self.incomingPayload = incomingPayload
         self.preparationState = preparationState
     }
 
     var body: some View {
         if let plan = planned ?? player.transitionPlan {
             Button { showWhy = true } label: {
-                Label("\(plan.style.rawValue) · \(preparationState?.shortLabel ?? "Why?")",
+                Label("\(plan.displayName) · \(preparationState?.shortLabel ?? "Why?")",
                       systemImage: "waveform.path")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.accent)
@@ -32,11 +40,25 @@ struct TransitionChip: View {
             .accessibilityValue("Confidence \(Int(plan.confidence * 100)) percent")
             .sheet(isPresented: $showWhy) {
                 NavigationStack {
-                    WhyThisTransitionView(plan: plan, onUsePlainFade: onUsePlainFade,
+                    WhyThisTransitionView(plan: plan, outgoingPayload: outgoingPayload,
+                                         incomingPayload: incomingPayload,
+                                         onAudition: onAudition,
+                                         onUsePlainFade: onUsePlainFade,
                                          onPrepareNow: onPrepareNow,
                                          preparationState: preparationState)
                 }
             }
+        }
+    }
+}
+
+private extension TransitionPlan {
+    var displayName: String {
+        switch style {
+        case .gapless: String(localized: "Gapless continuation")
+        case .beatmatchedBlend: String(localized: "Beat-matched blend")
+        case .phraseFade: String(localized: "Phrase-aware fade")
+        case .plainCrossfade: String(localized: "Plain crossfade")
         }
     }
 }

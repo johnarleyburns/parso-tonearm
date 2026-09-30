@@ -30,9 +30,12 @@ the iOS SDK; `actool` then reports the misleading error:
 The stickers icon set, app icon set, or icon stack named "AppIcon" did not have any applicable content.
 ```
 
-The catalog at `WatchApp/Assets.xcassets/AppIcon.appiconset` is intentionally
-watchOS-specific. Do not add iOS icon idioms or replace its watch entries just
-to silence an iOS-SDK build. Use destinations so Xcode selects each target's
+Both apps get `AppIcon` from the designer's Icon Composer file
+`Resources/AppIcon.icon`: iOS uses its squares, and `TonearmWatch` (which lists
+it in its `project.yml` sources) uses its watchOS circle, the 1088 canvas. There
+is intentionally **no** `WatchApp/Assets.xcassets/AppIcon.appiconset`; do not
+re-add one or any PNG icon set, because two icons named `AppIcon` clash. Edit
+the icon only in Icon Composer. Use destinations so Xcode selects each target's
 platform correctly:
 
 **Absolute command rule: never run `xcodebuild -scheme Tonearm ... -sdk
@@ -49,17 +52,19 @@ xcodebuild build -project Tonearm.xcodeproj -scheme TonearmWatch \
   -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO
 ```
 
-Before changing the catalog, run `bash scripts/verify-watch-icon-catalog.sh`.
-It invokes the real watchOS `actool` compiler and fails if the icon set is
-missing, malformed, references a missing PNG, or has no applicable watchOS
-content. `swift test` also runs `WatchAppIconCatalogTests`, which checks the
-catalog contents and invokes watchOS `actool`; therefore a catalog regression
+Before changing the icon or the Watch catalog, run
+`bash scripts/verify-watch-icon-catalog.sh`. It fails if a Watch appiconset
+reappears, then compiles `WatchApp/Assets.xcassets` + `Resources/AppIcon.icon`
+with the real watchOS `actool` and fails unless it writes
+`CFBundleIconName = AppIcon`. `swift test` also runs `WatchAppIconCatalogTests`,
+which checks the `.icon` declares the watchOS circle, is in the `TonearmWatch`
+sources, and compiles with watchOS `actool`; therefore an icon regression
 fails the normal commit test with the repair instructions in the failure text.
 `make ci-guards` and CI run the standalone compiler check automatically. If the error
 appears again, first inspect the logged `actool` command: if it says
 `--platform iphonesimulator` while compiling `WatchApp/Assets.xcassets`, fix
 the build invocation to use a destination; only if it says `--platform
-watchos` should the JSON or icon files be repaired. If `project.yml` changes,
+watchos` should `AppIcon.icon` be repaired (in Icon Composer, with watchOS enabled). If `project.yml` changes,
 regenerate with `make project` and rerun both platform-specific builds.
 
 Run every iOS/watchOS build and simulator test command sequentially, never

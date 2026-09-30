@@ -152,6 +152,7 @@ struct OnboardingView: View {
             Spacer()
             Image(systemName: intro.icon)
                 .font(Typography.display).foregroundStyle(Palette.accent)
+                .accessibilityHidden(true)
             Text(intro.title).font(Typography.title).kerning(-0.5)
                 .multilineTextAlignment(.center)
             Text(intro.body)
@@ -167,6 +168,7 @@ struct OnboardingView: View {
             Spacer()
             Image(systemName: "folder.badge.plus")
                 .font(Typography.display).foregroundStyle(Palette.accent)
+                .accessibilityHidden(true)
             Text("Add your own music")
                 .font(Typography.title).kerning(-0.5)
                 .multilineTextAlignment(.center)
@@ -195,7 +197,11 @@ struct OnboardingView: View {
     private func localButton(icon: String, title: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon).font(Typography.body).foregroundStyle(Palette.accent)
-            Text(title).font(Typography.body).foregroundStyle(Palette.ink)
+            ViewThatFits(in: .horizontal) {
+                Text(title).font(Typography.body).foregroundStyle(Palette.ink).lineLimit(1)
+                Text(title).font(Typography.body).foregroundStyle(Palette.ink)
+                    .multilineTextAlignment(.leading)
+            }
             Spacer()
             Image(systemName: "chevron.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
         }
@@ -233,6 +239,9 @@ struct OnboardingView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(option.title)
+                        .accessibilityValue(option.selected ? "Selected" : "Not selected")
+                        .accessibilityHint("Double-tap to \(option.selected ? "remove" : "add") this source")
                     }
                 }
                 .padding(.horizontal, 20).padding(.top, 18)

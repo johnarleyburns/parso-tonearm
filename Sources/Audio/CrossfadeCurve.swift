@@ -44,11 +44,24 @@ public enum CrossfadeCurve: String, CaseIterable, Codable, Equatable {
 
         let fadeWindow = min(duration, fadeSeconds)
         let fadeStart = max(0, duration - fadeWindow)
+        return gains(position: position, fadeStart: fadeStart, fadeSeconds: fadeWindow, curve: curve)
+    }
+
+    /// Calculates a fade at an analyzed phrase boundary rather than always
+    /// pinning it to the file's final seconds.
+    public static func gains(position: TimeInterval,
+                             fadeStart: TimeInterval,
+                             fadeSeconds: TimeInterval,
+                             curve: CrossfadeCurve) -> Gains {
+        guard fadeStart.isFinite, fadeSeconds.isFinite, fadeSeconds > 0 else {
+            return Gains(outgoing: 1, incoming: 0, active: false)
+        }
+        let fadeWindow = fadeSeconds
         guard position >= fadeStart else {
             return Gains(outgoing: 1, incoming: 0, active: false)
         }
 
-        let clampedPosition = min(max(position, fadeStart), duration)
+        let clampedPosition = min(max(position, fadeStart), fadeStart + fadeWindow)
         let progress = fadeWindow > 0 ? (clampedPosition - fadeStart) / fadeWindow : 1
         if progress <= 0 {
             return Gains(outgoing: 1, incoming: 0, active: true)

@@ -44,8 +44,8 @@ accessibility and platform fit, and (c) having one idea that is clearly new.
   Chinese for mainland China (`zh-Hans`), Spanish, French, German, Japanese and Brazilian
   Portuguese. Native speakers review them in TestFlight. Machine-quality text in a TestFlight build
   is acceptable; the App Store release waits for the review (R-phase).
-- **App icon: the agent makes the best layered icon it can now (A11).** A human designer replaces
-  it later; that is tracked as a TODO and does not block release.
+- **App icon: the commissioned designer icon is in (A11, 2026-09-30).** The Parso family "Pt" glyph,
+  platinum with a brass glint, as an Icon Composer `.icon`. Exact colours and settings are in A11.
 - **Release (Phase R) runs last**, only after every other commit in this plan is done.
 
 **Starting point.** Measured with `grep` over `Sources/` on 2026-09-28. Re-measure; don't trust
@@ -374,29 +374,58 @@ must land before M6.
   the default and AX text sizes, attached to the commit body as paths under
   `build/l10n-screens/`. The files themselves are not committed.
 
-**A11 `feat(brand): layered app icon, best effort (human designer TODO)`**
-- Make a layered icon for iOS 27. **Keep the current concept**: a periodic-table tile for
-  platinum, with "78" and "Pt" on a dark background with a warm brass glow (see the current
-  `AppIcon-1024.png`).
-  - Drop the small "Platterhead" and "195.08" lines. They can't be read at small sizes, and Apple's
-    guidelines advise against words in icons. The name already shows under the icon.
-  - Enlarge and centre "Pt" and keep "78" top-left.
-  - Give the brass glow and a subtle platinum sheen to the glyph layer, so the glass rendering has
-    something to catch.
-  - **Preferred:** an Icon Composer `.icon` bundle (`Resources/AppIcon.icon`) with separate
-    background and glyph layers ("Pt", "78"), so the system can render the default, dark, tinted
-    and clear looks.
-  - **Fallback**, if a valid `.icon` bundle can't be produced without the Icon Composer app:
-    `AppIcon.appiconset` with 1024 px **Any**, **Dark** and **Tinted** appearances (a grayscale
-    glyph on a transparent background for Tinted). Draw the art as SVG in `Resources/IconSource/`, render it to PNG with a
-    script checked into `scripts/render-app-icon.sh`, and commit both.
-- Check it at small sizes (Settings row, Spotlight): "Pt" must still read at 29 pt.
-- Leave the Watch catalog alone. Run `bash scripts/verify-watch-icon-catalog.sh`, and confirm the
-  build's `actool` output lists all three iOS appearances.
-- Add to §4 and to `docs/plans/icon-designer-brief.md`: **"TODO (human designer): replace the
-  agent-made icon."** The brief covers the motif, the brass palette, the required appearances, the
-  source file locations, and "must read at 29 pt". It may propose a new concept. This is not a
-  release blocker.
+**A11 `feat(brand): designer app icon (Icon Composer)`** — **designer icon delivered and wired 2026-09-30 (uncommitted).**
+
+The human-designer TODO is closed. One designer (with input from Claude) drew all three Parso apps as a family of periodic-table element
+symbols: Voxglass = **V**, Platterhead = **Pt** (Platinum), Cladiron = **Fe**. The three share one grid, one
+letterform family and one layer recipe; only the letterform and metal colour differ. The designer's package is
+`parso-icons-v1.0`; Platterhead's parts are in `design/icon/` (`FAMILY_README.md` is the full spec,
+`style-guide.pdf` the construction and palette).
+
+- **Glyph:** a custom-drawn "Pt" and nothing else. No tile, no "78", no name or mass (the atomic number falls below
+  2 px at 58 px). The P bowl is a squircle like a platter seen edge-on; the gradient ends in a thin brass band, the
+  warm glint on cool metal.
+- **Layers:** document fill (background gradient) + one glyph layer (`glyph.svg`). No accent layer.
+- **Metrics (1024 canvas):** cap height 432 px (cap top 288, baseline 720), x-height 324, stem 90.7 px,
+  superellipse curves n = 3.0, corners convex 10 / concave 8 px, ink radius 362 px inside the 380 px watchOS safe
+  circle.
+- **Worst greyscale contrast (Tinted):** 6.91 : 1.
+
+Exact colours (authored in Display P3; sRGB is the clipped conversion for anything outside Icon Composer):
+
+| Use | Stop | Name | Display P3 | sRGB |
+|---|---|---|---|---|
+| Background · Default | 0.00 | `pt-bg-top` | `0.1176 0.1216 0.1373` | `#1E1F23` |
+| Background · Default | 1.00 | `pt-bg-bottom` | `0.0353 0.0353 0.0431` | `#09090B` |
+| Background · Dark | 0.00 | `pt-bg-top-dark` | `0.0667 0.0667 0.0784` | `#111114` |
+| Background · Dark | 1.00 | `pt-bg-bottom-dark` | `0.0118 0.0118 0.0157` | `#030304` |
+| Glyph | 0.00 | `pt-white` | `0.9725 0.9686 0.9529` | `#F8F7F3` |
+| Glyph | 0.62 | `pt-platinum` | `0.7922 0.8039 0.8157` | `#C9CDD0` |
+| Glyph | 0.84 | `pt-steel` | `0.6902 0.7020 0.7176` | `#AFB3B7` |
+| Glyph | 1.00 | `pt-brass` | `0.7529 0.5765 0.3451` | `#C8914D` |
+
+Icon Composer settings: top-to-bottom linear-gradient fill (Default and Dark as above); group "Glyph" with Liquid
+Glass on, specular on, blur off, translucency off, shadow layer-colour 45 %; Tinted glyph fill "Automatic"; Clear
+uses the system default; platforms: squares shared + watchOS circle.
+
+What was done:
+- `Resources/AppIcon.icon` added; the `Resources` source path picks it up (XcodeGen writes
+  `lastKnownFileType = wrapper.icon` in the app's Resources phase). `actool` compiles it for iOS and watchOS
+  without warnings.
+- `Resources/Assets.xcassets/AppIcon.appiconset` deleted (two icons named `AppIcon` would clash).
+  `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon` is unchanged.
+- The agent-made art (`Resources/IconSource/platterhead-icon.svg`) and `scripts/render-app-icon.sh` are removed;
+  `scripts/make_icon.py` is marked superseded.
+- Watch: `TonearmWatch` takes `AppIcon` from the same `Resources/AppIcon.icon` (its watchOS circle, the 1088 Icon
+  Composer canvas), listed in the Watch sources in `project.yml`. The 11-PNG
+  `WatchApp/Assets.xcassets/AppIcon.appiconset` is deleted. `scripts/verify-watch-icon-catalog.sh` and
+  `WatchAppIconCatalogTests` now fail if that appiconset returns, and require watchOS `actool` to write
+  `CFBundleIconName = AppIcon` from the `.icon`. CLAUDE.md's Watch icon section is updated to match.
+- Icon Composer: the `.icon` was opened, all six appearances tuned, and re-saved; Tinted and 1088 watchOS PNGs were
+  exported from Icon Composer (`design/icon/png/`).
+
+Still to do (owner):
+- [ ] On device: "Pt" reads at 29 pt (Settings row) and in Spotlight; the Watch app grid shows the new icon.
 
 **A10 `chore: hygiene`**
 - Delete the deprecated `Palette` aliases.
@@ -641,8 +670,7 @@ Steps:
   - Submit for review, and release.
   - Submit a featuring nomination in App Store Connect for the Mixes launch.
   - Publish a press page with the privacy story in one paragraph.
-- **Not part of release (future TODO):** a human designer replaces the A11 icon
-  (`docs/plans/icon-designer-brief.md`).
+- **Icon:** the designer icon is wired in (A11) for iPhone and Watch. Before release, check it on device.
 
 ---
 
@@ -654,4 +682,3 @@ Steps:
 - iPad support of any kind, and any macOS app (native, Catalyst, or "Designed for iPhone").
 - Shipping to the App Store while any string is still `needs_review` (TestFlight is fine).
 - New remote-library providers.
-- **TODO (human designer, later):** replace the agent-made app icon from A11.

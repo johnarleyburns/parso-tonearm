@@ -13,15 +13,22 @@ device, a native speaker, or App Store Connect access.
 - Dynamic Type tokens, Watch-local Dynamic Type tokens, accessibility scrubber
   actions, haptics, symbol effects, and numeric transitions are wired into the
   active UI surfaces.
-- Smart transitions publish a plan, prepare a bounded AVPlayer item, use time
-  domain pitch preservation, exact seek/preroll, audio-mix ramps, host-time
-  math, bounded drift correction, and an explicit fallback path.
-- Mix planning, schema v31, preview/explanations, transition preparation, and
-  visible Now Playing/up-next transition state are covered by package tests.
-- Localization catalogs are present for the app and every extension. The
-  localization guard requires all seven configured locales, non-empty values,
-  the Platterhead display name, and a ratchet against new hand-written plural
-  branches.
+- Smart transitions use the stored beat grids and phrase maps through one
+  `TransitionPlanner` implementation shared by preview and playback. The
+  executor cues the incoming AVPlayer item at its analyzed entry, schedules it
+  against the outgoing item's host clock, applies one player-volume gain ramp,
+  returns the temporary tempo change to 1.0, and applies bounded drift
+  correction. Missing grids and unavailable buffering are visible downgrade
+  states rather than invented confidence.
+- Mix planning, schema v31, energy/embedding inputs, real waveform preview,
+  phrase/Camelot explanations, two-track audition, shared preparation state,
+  whole-mix preparation, apply-order error handling, and apply-order undo are
+  implemented in the app path. The Listen entry point seeds from the library.
+- The app catalog is now generated from SwiftUI interface literals and the
+  guard requires all seven configured locales and non-empty values. Newly
+  extracted values are explicitly marked `needs_review`; native-speaker
+  translation review remains a release gate rather than being represented as
+  completed by a catalog-count check.
 - iOS/watchOS build and test runners are single-flight and sequential. The
   policy is recorded in `CLAUDE.md`, and all local xcodebuild lanes disable
   parallel testing.
@@ -42,7 +49,7 @@ These cannot honestly be completed by source changes alone:
    Connect metadata and submission.
 
 The first four are release-blocking evidence, not reasons to weaken the
-automated guards. The app icon remains the documented human-designer TODO.
+automated guards. The designer app icon was delivered and wired in on 2026-09-30 (A11).
 
 ## Vendored TODO triage
 

@@ -4,8 +4,8 @@ import TonearmCore
 struct UpNextView: View {
     @EnvironmentObject var player: AudioPlayer
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject private var transitionPrep: TransitionPrepService
     @State private var editMode: EditMode = .inactive
-    @StateObject private var transitionPrep = TransitionPrepService()
 
     private var transitionRows: [TrackRow] {
         Array(([player.currentTrack].compactMap { $0 } + player.upNextTracks).prefix(3))
@@ -67,6 +67,12 @@ struct UpNextView: View {
             TransitionChip(
                 onPrepareNow: {
                     transitionPrep.prepare(rows: transitionRows, appState: appState)
+                },
+                onAudition: {
+                    guard let outgoing = player.currentTrack,
+                          let incoming = player.upNextTracks.first,
+                          let plan = player.transitionPlan else { return }
+                    player.auditionTransition(outgoing: outgoing, incoming: incoming, plan: plan)
                 },
                 preparationState: player.upNextTracks.first?.track.id.flatMap {
                     transitionPrep.transitionPrepState(for: $0)

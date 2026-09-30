@@ -4,13 +4,13 @@ import TonearmCore
 struct SmartTransitionsView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var player: AudioPlayer
-    @StateObject private var prep = TransitionPrepService()
+    @EnvironmentObject private var prep: TransitionPrepService
     @AppStorage("smartTransitionsEnabled") private var enabled = true
     @AppStorage("smartTransitionsEverywhere") private var everywhere = false
     @AppStorage("smartTransitionsWiFiOnly") private var wifiOnly = true
 
     private var prepWindow: [TrackRow] {
-        Array(([player.currentTrack].compactMap { $0 } + player.upNextTracks).prefix(3))
+        Array(player.queue.dropFirst(max(0, player.index)))
     }
 
     var body: some View {
@@ -20,7 +20,7 @@ struct SmartTransitionsView: View {
                 .disabled(!enabled)
             Toggle("Prepare remote tracks on Wi-Fi only", isOn: $wifiOnly)
                 .disabled(!enabled)
-            Text("On for mixes by default. Platterhead prepares the current track and the next two one at a time.")
+            Text("On for mixes by default. Platterhead prepares every track in the current queue one at a time.")
                 .font(Typography.caption)
                 .foregroundStyle(Palette.inkSecondary)
             ForEach(prepWindow, id: \.id) { row in
@@ -39,9 +39,11 @@ struct SmartTransitionsView: View {
         }
         .task {
             prep.wifiOnly = wifiOnly
+            player.smartTransitionsEnabled = enabled
             if enabled { prep.prepare(rows: prepWindow, appState: appState) }
         }
         .onChange(of: enabled) { _, isEnabled in
+            player.smartTransitionsEnabled = isEnabled
             guard isEnabled else { prep.stop(); return }
             prep.prepare(rows: prepWindow, appState: appState)
         }
@@ -55,6 +57,7 @@ struct SmartTransitionsView: View {
     private func stateLabel(_ state: GridPrepState, since: Date?) -> String {
         let age = since.map { " · \(relativeAge($0))" } ?? ""
         return switch state {
+        case .notPrepared: "Not prepared"
         case .ready: "Ready\(age)"
         case .queued: "Queued\(age)"
         case .downloading(let progress), .analyzing(let progress): "\(Int(progress * 100))%\(age)"

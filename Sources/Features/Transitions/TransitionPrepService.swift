@@ -46,7 +46,11 @@ final class TransitionPrepService: ObservableObject {
 
     func prepare(rows: [TrackRow], appState: AppState) {
         task?.cancel()
-        let window = Array(rows.prefix(3))
+        var seen = Set<Int64>()
+        let window = rows.filter { row in
+            guard let id = row.track.id else { return false }
+            return seen.insert(id).inserted
+        }
         waitingRows = window
         waitingAppState = appState
         task = Task { [weak self] in
@@ -77,7 +81,7 @@ final class TransitionPrepService: ObservableObject {
     }
 
     func transitionPrepState(for trackID: Int64) -> GridPrepState {
-        states[trackID] ?? .queued
+        states[trackID] ?? .notPrepared
     }
 
     func transitionPrepSince(for trackID: Int64) -> Date? {
@@ -114,12 +118,13 @@ final class TransitionPrepService: ObservableObject {
         do {
             let url = try await resolver(row, appState)
             guard !Task.isCancelled else { setState(.cancelled, for: id); return }
-            setState(.analyzing(0.15), for: id)
+            setState(.analyzing(0.1), for: id)
             let analyze = analyzer
             let result = try await Task.detached(priority: .utility) {
                 try analyze(url, row.track.codec)
             }.value
             guard !Task.isCancelled else { setState(.cancelled, for: id); return }
+            setState(.analyzing(0.8), for: id)
             try await appState.store.saveDJAnalysis(
                 result.payload.encoded(),
                 meta: (result.payload.algorithmID, result.payload.version,
@@ -127,6 +132,7 @@ final class TransitionPrepService: ObservableObject {
                        result.payload.bpm, result.payload.key.camelot),
                 trackId: id)
             preparedTrackIDs.insert(id)
+            setState(.analyzing(1), for: id)
             setState(.ready, for: id)
         } catch is CancellationError {
             setState(.cancelled, for: id)

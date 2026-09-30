@@ -49,8 +49,28 @@ for path in catalogs:
         if missing:
             errors.append(f"{path}: {key!r} missing {', '.join(sorted(missing))}")
         for locale, localization in entry.get("localizations", {}).items():
-            if not any(str(value).strip() for value in values_for(localization)):
-                errors.append(f"{path}: {key!r} has an empty {locale} value")
+                if not any(str(value).strip() for value in values_for(localization)):
+                    errors.append(f"{path}: {key!r} has an empty {locale} value")
+
+# SwiftUI literals are extractable at build time, but a manually maintained
+# catalog can otherwise pass while silently omitting newly added interface
+# copy. Keep the app catalog at least as complete as the source literals.
+call_pattern = re.compile(r'(?:Text|Button|Section|Label|Toggle|Picker|NavigationLink|LabeledContent)\s*\(\s*"((?:\\.|[^"\\])*)"')
+source_literals = set()
+for root in (pathlib.Path("Sources/Features/Mix"),):
+    for path in root.rglob("*.swift"):
+        if path.name == "LocalizedCopy.swift":
+            continue
+        for match in call_pattern.finditer(path.read_text(errors="ignore")):
+            key = match.group(1)
+            # Interpolated SwiftUI strings are format keys and are extracted
+            # separately by Xcode; this guard only checks literal copy that
+            # can be represented by a catalog key.
+            if key and "\\(" not in key:
+                source_literals.add(key)
+catalog_keys = set(json.loads(pathlib.Path("Resources/Localizable.xcstrings").read_text()).get("strings", {}))
+for key in sorted(source_literals - catalog_keys):
+    errors.append(f"Resources/Localizable.xcstrings: extracted interface string missing {key!r}")
 
 info = pathlib.Path("Resources/InfoPlist.xcstrings")
 if info.is_file():

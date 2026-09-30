@@ -4,18 +4,30 @@ enum Motion {
     static let standard = Animation.easeInOut(duration: 0.22)
     static let emphasized = Animation.easeInOut(duration: 0.36)
 
-    static func perform(_ animation: Animation = standard, _ changes: () -> Void) {
-        withAnimation(UIAccessibility.isReduceMotionEnabled ? nil : animation, changes)
+    @MainActor static func perform(_ animation: Animation = standard, _ changes: () -> Void) {
+        withAnimation(animation, changes)
     }
 }
 
 extension View {
-    @ViewBuilder
     func motion<Value: Equatable>(_ animation: Animation = Motion.standard, value: Value) -> some View {
-        if UIAccessibility.isReduceMotionEnabled {
-            self.animation(nil, value: value)
-        } else {
-            self.animation(animation, value: value)
-        }
+        modifier(MotionModifier(animation: animation, value: value))
+    }
+}
+
+private struct MotionModifier<Value: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let animation: Animation
+    let value: Value
+
+    func body(content: Content) -> some View {
+        content
+            .animation(reduceMotion ? nil : animation, value: value)
+            .contentTransition(.opacity)
+            .transaction { transaction in
+                if reduceMotion {
+                    transaction.animation = nil
+                }
+            }
     }
 }

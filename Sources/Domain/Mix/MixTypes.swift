@@ -214,13 +214,32 @@ public struct MixPlan: Codable, Sendable, Equatable {
     public var excluded: [MixExclusion]
     public var summary: MixSummary
     public var request: MixRequest
+    /// Fully resolved transition decisions used by both preview and playback.
+    /// Empty is valid for old persisted plans; the player resolves missing
+    /// edges from the stored analysis payload before the fade begins.
+    public var transitionPlans: [TransitionPlan]
 
     public init(steps: [MixStep], excluded: [MixExclusion], summary: MixSummary,
-                request: MixRequest) {
+                request: MixRequest, transitionPlans: [TransitionPlan] = []) {
         self.steps = steps
         self.excluded = excluded
         self.summary = summary
         self.request = request
+        self.transitionPlans = transitionPlans
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case steps, excluded, summary, request, transitionPlans
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        steps = try container.decode([MixStep].self, forKey: .steps)
+        excluded = try container.decode([MixExclusion].self, forKey: .excluded)
+        summary = try container.decode(MixSummary.self, forKey: .summary)
+        request = try container.decode(MixRequest.self, forKey: .request)
+        transitionPlans = try container.decodeIfPresent([TransitionPlan].self,
+                                                        forKey: .transitionPlans) ?? []
     }
 }
 
@@ -232,6 +251,7 @@ public enum TransitionStyle: String, Codable, Sendable, Equatable {
 }
 
 public enum GridPrepState: Codable, Sendable, Equatable {
+    case notPrepared
     case ready
     case queued
     case downloading(Double)

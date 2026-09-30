@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Generate the Tonearm app icon: periodic-table tile for Pt (Platinum).
+"""SUPERSEDED 2026-09-30: the shipping icon is the designer's Icon Composer file at
+`Resources/AppIcon.icon` (sources in `design/icon/`). Kept only for history; do not run it.
+
+Generate the Tonearm app icon: periodic-table tile for Pt (Platinum).
 Brass (#E3A44B) on a dark radial-gradient field, matching the design system.
 """
 from PIL import Image, ImageDraw, ImageFont

@@ -2,6 +2,28 @@ import Foundation
 import GRDB
 
 extension LibraryStore {
+    /// The complete, version-checked transition analysis used by both the
+    /// preview and the playback executor. A missing or stale payload is nil;
+    /// callers must show the preparation state instead of inventing values.
+    public func transitionPrepPayload(trackId: Int64) throws -> DJTrackPrepPayload? {
+        guard trackId >= 0,
+              let row = try dbQueue.read({ db in try DJTrackPrep.fetchOne(db, key: trackId) }),
+              let data = row.analysisPayload else { return nil }
+        return try DJTrackPrepPayload.decoded(data)
+    }
+
+    /// Reads the authoritative discovery embedding in planner-friendly form.
+    /// Quantization is intentionally decoded here so the UI never manufactures
+    /// a similarity score from a track id or a random seed.
+    public func discoveryEmbeddingVector(trackId: Int64) throws -> [Float]? {
+        guard trackId >= 0,
+              let row = try dbQueue.read({ db in try DiscoveryEmbedding.fetchOne(db, key: trackId) }),
+              row.dimensions > 0,
+              row.quantizedVector.count == row.dimensions,
+              row.scale.isFinite else { return nil }
+        return row.quantizedVector.map { Float(Int8(bitPattern: $0)) * Float(row.scale) }
+    }
+
     /// Returns the current, displayable musical values for the requested
     /// tracks. Discovery analysis is preferred because it is the shared
     /// library result; DJ prep supplies a user BPM override and remains a

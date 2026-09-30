@@ -5,90 +5,84 @@ final class WatchAppIconCatalogTests: XCTestCase {
     /*
      GUARD — do not delete or weaken this test.
 
-     WatchApp/Assets.xcassets belongs to the TonearmWatch watchOS target. If
-     its AppIcon set is changed to iOS/universal content, or a referenced PNG
-     is removed, Xcode eventually fails with:
+     The TonearmWatch icon is the watchOS circle (Icon Composer's 1088 canvas)
+     of the shared Resources/AppIcon.icon, compiled with WatchApp/Assets.xcassets.
+     If the .icon stops declaring watchOS, or a second icon named AppIcon comes
+     back as WatchApp/Assets.xcassets/AppIcon.appiconset, Xcode eventually fails
+     with:
 
        The stickers icon set, app icon set, or icon stack named "AppIcon"
        did not have any applicable content.
 
-     The fix is to keep the catalog watchOS-specific, run
+     or archive export fails with a missing CFBundleIconName. The fix is to
+     re-enable watchOS for AppIcon.icon in Icon Composer, keep it in the
+     TonearmWatch sources in project.yml, run
      `bash scripts/verify-watch-icon-catalog.sh`, and build with destinations:
        xcodebuild ... -scheme Tonearm -destination 'generic/platform=iOS Simulator'
        xcodebuild ... -scheme TonearmWatch -destination 'generic/platform=watchOS Simulator'
-     Never silence this by adding iOS idioms to the Watch catalog or by using
-     `-sdk iphonesimulator` on the multi-platform Tonearm scheme.
+     Never use `-sdk iphonesimulator` on the multi-platform Tonearm scheme.
      */
-    func testWatchAppIconCatalogIsWatchOSValid() throws {
+    func testWatchAppIconIsWatchOSValid() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let iconSet = repositoryRoot
-            .appendingPathComponent("WatchApp/Assets.xcassets/AppIcon.appiconset")
-        let contentsURL = iconSet.appendingPathComponent("Contents.json")
+        let icon = repositoryRoot.appendingPathComponent("Resources/AppIcon.icon")
         let fileManager = FileManager.default
 
-        guard fileManager.fileExists(atPath: contentsURL.path) else {
-            XCTFail("WATCH APPICON GUARD FAILED: WatchApp/Assets.xcassets/AppIcon.appiconset/Contents.json is missing. Restore the watchOS AppIcon catalog and run bash scripts/verify-watch-icon-catalog.sh.")
+        XCTAssertFalse(
+            fileManager.fileExists(atPath: repositoryRoot
+                .appendingPathComponent("WatchApp/Assets.xcassets/AppIcon.appiconset").path),
+            "WATCH APPICON GUARD FAILED: WatchApp/Assets.xcassets/AppIcon.appiconset exists. The Watch icon comes from Resources/AppIcon.icon; two icons named AppIcon clash. Delete the appiconset and run bash scripts/verify-watch-icon-catalog.sh.")
+
+        let manifestURL = icon.appendingPathComponent("icon.json")
+        guard fileManager.fileExists(atPath: manifestURL.path) else {
+            XCTFail("WATCH APPICON GUARD FAILED: Resources/AppIcon.icon/icon.json is missing. Restore the Icon Composer file and run bash scripts/verify-watch-icon-catalog.sh.")
             return
         }
-
-        let contents = try Data(contentsOf: contentsURL)
-        let object = try XCTUnwrap(
-            try JSONSerialization.jsonObject(with: contents) as? [String: Any],
-            "WATCH APPICON GUARD FAILED: Contents.json is not a JSON object. Restore valid Xcode asset-catalog JSON, then run bash scripts/verify-watch-icon-catalog.sh.")
-        let images = try XCTUnwrap(
-            object["images"] as? [[String: Any]],
-            "WATCH APPICON GUARD FAILED: Contents.json has no images array. Keep the complete watchOS AppIcon entries and run bash scripts/verify-watch-icon-catalog.sh.")
-
+        let manifest = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any],
+            "WATCH APPICON GUARD FAILED: AppIcon.icon/icon.json is not a JSON object. Re-save it from Icon Composer.")
+        let platforms = manifest["supported-platforms"] as? [String: Any]
         XCTAssertTrue(
-            images.contains { $0["idiom"] as? String == "watch-marketing" },
-            "WATCH APPICON GUARD FAILED: the catalog has no watch-marketing icon. Keep the 1024x1024 watchOS marketing icon; do not replace it with an iOS/universal entry.")
+            (platforms?["circles"] as? [String] ?? []).contains("watchOS"),
+            "WATCH APPICON GUARD FAILED: AppIcon.icon does not declare the watchOS circle. Enable watchOS in Icon Composer and re-save.")
+
+        let project = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("project.yml"), encoding: .utf8)
+        let watchTarget = project.components(separatedBy: "\n  TonearmWatch:\n").dropFirst().first?
+            .components(separatedBy: "\n  Tonearm").first ?? ""
         XCTAssertTrue(
-            images.contains { $0["idiom"] as? String == "watch" },
-            "WATCH APPICON GUARD FAILED: the catalog has no watch icon entries. Keep the watch launcher, notification, settings, and Quick Look entries.")
-
-        for image in images {
-            let idiom = image["idiom"] as? String ?? "<missing>"
-            XCTAssertTrue(
-                idiom == "watch" || idiom == "watch-marketing",
-                "WATCH APPICON GUARD FAILED: AppIcon contains '$idiom' content. This catalog is watchOS-only; remove iOS/universal entries and run bash scripts/verify-watch-icon-catalog.sh.")
-
-            guard let filename = image["filename"] as? String else {
-                XCTFail("WATCH APPICON GUARD FAILED: a watch AppIcon entry has no filename. Restore the referenced PNG and run bash scripts/verify-watch-icon-catalog.sh.")
-                continue
-            }
-            XCTAssertTrue(
-                fileManager.fileExists(atPath: iconSet.appendingPathComponent(filename).path),
-                "WATCH APPICON GUARD FAILED: '$filename' is referenced by Contents.json but is missing. Restore that PNG or remove its complete catalog entry, then run bash scripts/verify-watch-icon-catalog.sh.")
-        }
+            watchTarget.contains("path: Resources/AppIcon.icon"),
+            "WATCH APPICON GUARD FAILED: project.yml no longer lists Resources/AppIcon.icon in the TonearmWatch sources. Add it back and run make project.")
 
         #if os(macOS)
-        try assertActoolCompilesWatchOSCatalog(
-            iconCatalog: repositoryRoot.appendingPathComponent("WatchApp/Assets.xcassets"))
+        try assertActoolCompilesWatchOSIcon(
+            inputs: [
+                repositoryRoot.appendingPathComponent("WatchApp/Assets.xcassets"),
+                icon,
+            ])
         #endif
     }
 
     #if os(macOS)
-    private func assertActoolCompilesWatchOSCatalog(iconCatalog: URL) throws {
+    private func assertActoolCompilesWatchOSIcon(inputs: [URL]) throws {
         let fileManager = FileManager.default
         let output = fileManager.temporaryDirectory
             .appendingPathComponent("tonearm-watch-icon-test-\(UUID().uuidString)")
-        try fileManager.createDirectory(at: output, withIntermediateDirectories: true)
         try fileManager.createDirectory(
             at: output.appendingPathComponent("compiled"),
             withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: output) }
+        let partialPlist = output.appendingPathComponent("asset-info.plist")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = [
-            "actool", iconCatalog.path,
+        process.arguments = ["actool"] + inputs.map(\.path) + [
             "--compile", output.appendingPathComponent("compiled").path,
             "--output-format", "human-readable-text",
             "--notices",
             "--warnings",
-            "--output-partial-info-plist", output.appendingPathComponent("asset-info.plist").path,
+            "--output-partial-info-plist", partialPlist.path,
             "--app-icon", "AppIcon",
             "--compress-pngs",
             "--enable-on-demand-resources", "YES",
@@ -107,13 +101,21 @@ final class WatchAppIconCatalogTests: XCTestCase {
             XCTFail("WATCH APPICON GUARD FAILED: could not run watchOS actool (\(error)). Install/select Xcode, then run bash scripts/verify-watch-icon-catalog.sh.")
             return
         }
+        let outputText = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "<no actool output>"
         process.waitUntilExit()
 
-        let outputText = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "<no actool output>"
         XCTAssertEqual(
             process.terminationStatus,
             0,
-            "WATCH APPICON GUARD FAILED: watchOS actool rejected the catalog. Why: the Watch AppIcon has no applicable watchOS content or references invalid assets. Fix: keep WatchApp/Assets.xcassets/AppIcon.appiconset watchOS-only, restore every referenced PNG, run bash scripts/verify-watch-icon-catalog.sh, and use destination-based builds instead of -sdk iphonesimulator. actool output:\n\(outputText)")
+            "WATCH APPICON GUARD FAILED: watchOS actool rejected the Watch icon inputs. Fix: keep Resources/AppIcon.icon valid with watchOS enabled, run bash scripts/verify-watch-icon-catalog.sh, and use destination-based builds instead of -sdk iphonesimulator. actool output:\n\(outputText)")
+
+        let plist = (try? PropertyListSerialization.propertyList(
+            from: Data(contentsOf: partialPlist), format: nil)) as? [String: Any]
+        let primary = (plist?["CFBundleIcons"] as? [String: Any])?["CFBundlePrimaryIcon"] as? [String: Any]
+        XCTAssertEqual(
+            primary?["CFBundleIconName"] as? String,
+            "AppIcon",
+            "WATCH APPICON GUARD FAILED: watchOS actool did not write CFBundleIconName=AppIcon, so archive export would fail with a missing Watch icon. Enable watchOS for Resources/AppIcon.icon in Icon Composer.")
     }
     #endif
 }

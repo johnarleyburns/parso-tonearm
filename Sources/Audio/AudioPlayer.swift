@@ -108,6 +108,18 @@ public final class AudioPlayer: ObservableObject {
     @Published public internal(set) var transitionPlan: TransitionPlan?
     @Published public internal(set) var transitionPrepState: GridPrepState = .ready
 
+    /// Smart transitions is a playback setting, not just a Settings toggle.
+    /// The app mirrors the preference here at launch and whenever the toggle
+    /// changes so a disabled feature cannot still alter the audio queue.
+    @Published public var smartTransitionsEnabled: Bool =
+        UserDefaults.standard.object(forKey: "smartTransitionsEnabled") as? Bool ?? true {
+        didSet {
+            guard smartTransitionsEnabled != oldValue else { return }
+            if smartTransitionsEnabled { scheduleTransitionPlan() }
+            else { cancelTransition() }
+        }
+    }
+
     public var streamOnCellular = true
     public var prefetchDepth = 2
     public var preferFLAC = false
@@ -157,7 +169,9 @@ public final class AudioPlayer: ObservableObject {
     var crossfadeNextIndex: Int?
     var crossfadeNextLoader: CachingResourceLoader?
     var crossfadeCompletionInFlight = false
+    var transitionStartedForCurrentEdge = false
     var transitionTask: Task<Void, Never>?
+    var transitionPlanningTask: Task<Void, Never>?
     /// EQ (T4.1): a single tap engine shared across items; reattached to the
     /// preloaded next item so EQ survives near-gapless swaps.
     var eqTap: EQAudioTap?

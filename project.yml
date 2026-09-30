@@ -364,6 +364,8 @@ targets:
     platform: watchOS
     sources:
       - path: WatchApp
+      # The Watch icon is the shared Icon Composer file's watchOS circle (1088 canvas).
+      - path: Resources/AppIcon.icon
     resources:
       - path: WatchApp/Localizable.xcstrings
       # The deterministic smoke fixture's audio. §16: "Replace with … SwiftData
