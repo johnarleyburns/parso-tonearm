@@ -394,6 +394,14 @@ else
   [ "$cell_ok" = "1" ] && echo "    OK"
 fi
 
+# ── Localization catalog contract ─────────────────────────────────────────
+echo "==> Localization catalogs"
+if bash scripts/check-localization-catalogs.sh; then
+  :
+else
+  status=1
+fi
+
 if [ "$status" != "0" ]; then
   echo
   echo "one or more guards failed — this is what CI would have told you, sooner"

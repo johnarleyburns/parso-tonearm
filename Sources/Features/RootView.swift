@@ -6,12 +6,19 @@ struct RootView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @State private var artworkPickerItem: PhotosPickerItem?
+    @Namespace private var nowPlayingTransition
 
     var body: some View {
         ZStack(alignment: .bottom) {
             backgroundLayer.ignoresSafeArea()
 
-            rootTabs
+            NavigationStack {
+                rootTabs
+                    .navigationDestination(isPresented: $appState.showNowPlaying) {
+                        NowPlayingView()
+                            .navigationTransition(.zoom(sourceID: "now-playing", in: nowPlayingTransition))
+                    }
+            }
 
             if let title = appState.backgroundTitle {
                 backgroundBanner(title)
@@ -40,9 +47,6 @@ struct RootView: View {
         }
         .sheet(isPresented: $appState.showCreatePlaylist) {
             CreatePlaylistSheet()
-        }
-        .sheet(isPresented: $appState.showNowPlaying) {
-            NowPlayingView()
         }
         .sheet(item: $appState.mixBuilderRequest) { request in
             MixBuilderSheet(rows: request.rows, lockedFirst: request.lockedFirst,
@@ -183,7 +187,7 @@ struct RootView: View {
     private var tabAccessory: some View {
         if player.currentTrack != nil && !appState.showNowPlaying {
             VStack(spacing: 2) {
-                MiniPlayerAccessory()
+                MiniPlayerAccessory(transitionNamespace: nowPlayingTransition)
                 if appState.watchManagement.banner != nil {
                     TransferPill()
                 }

@@ -34,7 +34,7 @@ struct WatchUpNextView: View {
                             HStack(spacing: 8) {
                                 if absoluteIndex == state.queueIndex {
                                     Image(systemName: state.isPlaying ? "play.fill" : "pause.fill")
-                                        .font(.system(size: 10)).foregroundStyle(.tint)
+                                        .font(WatchTypography.micro).foregroundStyle(.tint)
                                         .accessibilityLabel(state.isPlaying ? "Now playing" : "Paused here")
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
@@ -78,7 +78,7 @@ struct WatchUpNextView: View {
                         HStack {
                             if track.id == player.currentTrack?.id {
                                 Image(systemName: player.isPlaying ? "play.fill" : "pause.fill")
-                                    .font(.system(size: 10)).foregroundStyle(.tint)
+                                    .font(WatchTypography.micro).foregroundStyle(.tint)
                                     .accessibilityLabel(player.isPlaying ? "Now playing" : "Paused here")
                             }
                             WatchTrackRow(track: track)

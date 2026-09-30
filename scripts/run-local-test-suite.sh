@@ -42,7 +42,7 @@ prepare_named_simulator() {
 
 run_swift_tests() {
   echo "==> running Swift package tests"
-  swift test --no-parallel
+  swift test
 }
 
 run_iphone_smoke() {

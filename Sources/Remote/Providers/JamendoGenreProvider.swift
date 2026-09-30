@@ -139,7 +139,7 @@ public struct JamendoGenreNode: Codable, Equatable, Hashable, Sendable, Identifi
 /// intermittently return zero results for a real tag under repeat identical
 /// queries, already documented on `JamendoAPI.tracks(tag:offset:limit:)`'s own
 /// retry). Every path below is a tag confirmed to return real, CC-licensed
-/// tracks. The prior TODO's five "dead" tags were a spelling problem, not a
+/// tracks. The prior five "dead" tags were a spelling problem, not a
 /// content problem: Jamendo's real tag values have no hyphens
 /// ("nujazz"/"postrock"/"dreampop"/"musiqueconcrete", not "nu-jazz" etc.) —
 /// four of five now resolve correctly under their real spelling; only

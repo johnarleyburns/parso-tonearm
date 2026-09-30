@@ -202,6 +202,7 @@ struct WatchSettingsView: View {
         } message: {
             Text("Music remains in Platterhead on this iPhone. Only the watch copies are removed.")
         }
+        .sensoryFeedback(.warning, trigger: confirmRemoveAll)
     }
 
     private func managementRow(icon: String, tint: Color, title: String, chevron: Bool) -> some View {

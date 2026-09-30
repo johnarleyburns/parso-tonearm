@@ -275,7 +275,7 @@ private struct ArtworkBadge: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6)
-                .fill(track.hasArtwork ? Color.green.opacity(0.45) : Color.white.opacity(0.12))
+                .fill(track.hasArtwork ? Color.accentColor.opacity(0.45) : Color.primary.opacity(0.12))
             if let filename = track.artworkFilename,
                let url = WidgetArtworkStore.imageURL(for: filename),
                let data = try? Data(contentsOf: url),

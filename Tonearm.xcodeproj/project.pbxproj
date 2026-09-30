@@ -13,6 +13,7 @@
 		0630A202DEA82E067F243939 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 292C3AA06CBE9E58AA7418FF /* ArtworkView.swift */; };
 		06A4098AC331C6CC12BED218 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A0276083E383EDE2C36699 /* AppLogger.swift */; };
 		09BA5404F865447289CD7A3D /* WatchPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37E434F82159D7C687895D77 /* WatchPlayer.swift */; };
+		0A99AC2E93E3D1582A89179C /* WatchDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12734EAA48DB8BA67EE6C976 /* WatchDesign.swift */; };
 		0BAE4D620A0105E3C4FC19BA /* AddMenuSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA48CEED5AEAFB50D5AB50F /* AddMenuSheet.swift */; };
 		0D63AA1F7F6CE64D03115BD9 /* CarPlaySearchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7139EA5E3E1CE0C5ED8EF05 /* CarPlaySearchController.swift */; };
 		0DB386E87B8049811A552D94 /* PlayerAccessory.swift in Sources */ = {isa = PBXBuildFile; fileRef = F74EB823E51BC2AF0A66C437 /* PlayerAccessory.swift */; };
@@ -293,6 +294,7 @@
 		0FBCA2D6B9A0DD6D886269DF /* MixExperienceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MixExperienceView.swift; sourceTree = "<group>"; };
 		0FFCDEBB114755DD71B0E074 /* WatchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WatchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		11F034B4AB152DB439603498 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		12734EAA48DB8BA67EE6C976 /* WatchDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchDesign.swift; sourceTree = "<group>"; };
 		12BE4175EE11F1CFC76A3575 /* PhoneWatchDownloadAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchDownloadAdapter.swift; sourceTree = "<group>"; };
 		1348A12821BE0F3A575DD9AC /* KeywordArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeywordArtwork.swift; sourceTree = "<group>"; };
 		14EEEDA2B8FDE22EF9533817 /* PhoneWatchRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchRuntime.swift; sourceTree = "<group>"; };
@@ -704,6 +706,7 @@
 				F264152278DB935FBFB188F5 /* WatchComponents.swift */,
 				4DEABC4B2EE4B6BECF37202B /* WatchConnectedViews.swift */,
 				4FA71918C2C0556DD804C456 /* WatchConnectionBanner.swift */,
+				12734EAA48DB8BA67EE6C976 /* WatchDesign.swift */,
 				645D617838A06D3AE39AD11B /* WatchDiagnosticsView.swift */,
 				73C123D981D52AC1C9DE3751 /* WatchNowPlayingView.swift */,
 				0BE0365BEA36A8F016F03E83 /* WatchPlaylistsView.swift */,
@@ -1549,6 +1552,7 @@
 				549A1230D744E47360C31C8A /* WatchConnectionBanner.swift in Sources */,
 				A44043A17124189F1AB84D88 /* WatchConnectivityObservers.swift in Sources */,
 				4FAC5A9709F7937D3BFBA535 /* WatchDefaultsSyncStateStore.swift in Sources */,
+				0A99AC2E93E3D1582A89179C /* WatchDesign.swift in Sources */,
 				83C6C3AFB6460B1E19995D71 /* WatchDiagnosticsView.swift in Sources */,
 				A874CDAAE6139A6C31115E30 /* WatchFixtureSeeder.swift in Sources */,
 				C85F03E2D591668E95D27F9B /* WatchLibraryModel.swift in Sources */,

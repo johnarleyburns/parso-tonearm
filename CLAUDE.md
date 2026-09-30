@@ -62,15 +62,22 @@ the build invocation to use a destination; only if it says `--platform
 watchos` should the JSON or icon files be repaired. If `project.yml` changes,
 regenerate with `make project` and rerun both platform-specific builds.
 
-Run the required iOS and watchOS `xcodebuild` commands sequentially, never
-concurrently. They resolve shared SwiftPM packages and can otherwise race while
-creating or replacing the same DerivedData/checkouts, producing misleading
-package checkout or permission failures.
+Run every iOS/watchOS build and simulator test command sequentially, never
+concurrently: do not background an `xcodebuild`, use `&`, launch two
+destinations, or use a parallel build/test wrapper. They resolve shared
+SwiftPM packages and can otherwise race while creating or replacing the same
+DerivedData/checkouts, producing misleading package checkout or permission
+failures. The only valid order is iOS build/test first, then watchOS build/test,
+then any package tests.
 
-The local test runner (`scripts/run-local-test-suite.sh`) is also a single-flight
-runner: it waits for any existing invocation to finish, runs Swift tests with
-`--no-parallel`, and runs the iPhone and watch smoke tests one after the other.
-Do not change it to launch test phases concurrently.
+SwiftPM package tests are the exception: run `swift test` with its normal
+parallel test execution so the suite finishes in a reasonable time. The local
+test runner (`scripts/run-local-test-suite.sh`) remains single-flight at the
+runner level—it waits for any existing invocation to finish—but its Swift test
+phase must not add `--no-parallel`. The runner still executes the iPhone and
+watch smoke tests one after the other. `make test-integration` should likewise
+use the default parallel SwiftPM test execution. Do not run multiple
+independent `swift test` processes concurrently against the same checkout.
 
 ## No silent/magic background work — always visible, always in the user's control
 

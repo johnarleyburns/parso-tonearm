@@ -149,7 +149,7 @@ public struct GenrePickerContent: View {
                     .foregroundStyle(.orange)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
-                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                    .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
                     .accessibilityIdentifier("genre.error")
             }
 

@@ -45,6 +45,16 @@ extension AudioPlayer {
         }
 
         guard prepareCrossfadePlayer(for: next, at: nextIndex) else { return }
+        if let plan = transitionPlan,
+           let currentItem = player.currentItem,
+           let mix = AudioPlayer.transitionAudioMix(
+               for: currentItem,
+               fadeStart: CMTime(seconds: max(0, currentDuration - fadeSeconds), preferredTimescale: 600),
+               fadeDuration: CMTime(seconds: fadeSeconds, preferredTimescale: 600),
+               incoming: false,
+               gainMatchDB: plan.gainMatchDB ?? 0) {
+            currentItem.audioMix = mix
+        }
         player.volume = Float(min(max(gains.outgoing, 0), 1))
         let gainMatch = transitionPlan?.gainMatchDB.map { pow(10, $0 / 20) } ?? 1
         crossfadePlayer?.volume = Float(min(max(gains.incoming * gainMatch, 0), 1.5))
@@ -85,16 +95,32 @@ extension AudioPlayer {
         }
 
         guard let built else { return false }
-        built.item.preferredForwardBufferDuration = 120
-        built.item.automaticallyPreservesTimeOffsetFromLive = false
+        AudioPlayer.configureTransitionItem(built.item)
         applyEQ(to: built.item, row: row)
 
         let nextPlayer = AVPlayer(playerItem: built.item)
+        nextPlayer.automaticallyWaitsToMinimizeStalling = false
+        let entry = CMTime(seconds: transitionPlan?.entryTime ?? 0, preferredTimescale: 600)
+        nextPlayer.seek(to: entry, toleranceBefore: .zero, toleranceAfter: .zero)
+        if let plan = transitionPlan, plan.style == .beatmatchedBlend {
+            nextPlayer.preroll(atRate: Float(plan.blendRate)) { _ in }
+        } else {
+            nextPlayer.preroll(atRate: 1) { _ in }
+        }
         nextPlayer.volume = 0
         crossfadePlayer = nextPlayer
         crossfadeNextTrackId = row.track.id
         crossfadeNextIndex = nextIndex
         crossfadeNextLoader = built.loader
+        if let plan = transitionPlan,
+           let mix = AudioPlayer.transitionAudioMix(
+               for: built.item,
+               fadeStart: entry,
+               fadeDuration: CMTime(seconds: plan.overlapSeconds, preferredTimescale: 600),
+               incoming: true,
+               gainMatchDB: plan.gainMatchDB ?? 0) {
+            built.item.audioMix = mix
+        }
         nextPlayer.play()
         return true
     }

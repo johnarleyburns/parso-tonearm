@@ -86,7 +86,7 @@ struct WatchSearchView: View {
     private func rowLabel(_ row: WatchResultRow) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon(for: row.kind))
-                .font(.system(size: 13)).foregroundStyle(.tint).frame(width: 20)
+                    .font(WatchTypography.iconSmall).foregroundStyle(.tint).frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.title).font(.system(.body)).lineLimit(1)
                 if let subtitle = row.subtitle {
@@ -96,7 +96,7 @@ struct WatchSearchView: View {
             Spacer(minLength: 4)
             if row.isDownloadedOnWatch {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 11)).foregroundStyle(.green)
+                    .font(WatchTypography.micro).foregroundStyle(WatchPalette.success)
                     .accessibilityLabel("Downloaded on watch")
             }
         }

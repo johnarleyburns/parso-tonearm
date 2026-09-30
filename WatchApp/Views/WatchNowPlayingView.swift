@@ -54,7 +54,7 @@ struct WatchNowPlayingView: View {
     private var ownerLabel: some View {
         Label(coordinator.target == .iPhone ? "On iPhone" : "On Apple Watch",
               systemImage: coordinator.target == .iPhone ? "iphone" : "applewatch")
-            .font(.system(.caption2, design: .rounded)).foregroundStyle(.secondary)
+            .font(WatchTypography.micro).foregroundStyle(.secondary)
             .accessibilityIdentifier("watch.now.target")
             .accessibilityValue(coordinator.target == .iPhone ? "iPhone" : "Apple Watch")
     }
@@ -78,7 +78,7 @@ struct WatchNowPlayingView: View {
                 Text("error \(code)").accessibilityIdentifier("watch.now.debugError")
             }
         }
-        .font(.system(size: 9)).foregroundStyle(.secondary)
+        .font(WatchTypography.micro).foregroundStyle(.secondary)
         .accessibilityElement(children: .contain)
     }
 
@@ -107,20 +107,20 @@ struct WatchNowPlayingView: View {
                     Spacer()
                     if state.isStale(at: now) {
                         Label("Updating…", systemImage: "arrow.triangle.2.circlepath")
-                            .font(.system(.caption2)).foregroundStyle(.orange)
+                            .font(WatchTypography.micro).foregroundStyle(.tint)
                             .labelStyle(.titleAndIcon)
                     }
                 }
             }
         } else {
             VStack(spacing: 6) {
-                Image(systemName: "iphone").font(.system(size: 26)).foregroundStyle(.secondary)
+                Image(systemName: "iphone").font(WatchTypography.iconLarge).foregroundStyle(.secondary)
                 Text("Nothing Playing on iPhone")
                     .font(.system(.headline)).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 if !model.phoneReachable {
                     Text("Your iPhone isn't reachable.")
-                        .font(.system(.caption2)).foregroundStyle(.secondary)
+                        .font(WatchTypography.micro).foregroundStyle(.secondary)
                 }
             }
             .padding(.top, 24)
@@ -130,14 +130,14 @@ struct WatchNowPlayingView: View {
     /// §7.5 — the phone dropped mid-playback and its track is downloaded here.
     private var continueOnWatchCard: some View {
         VStack(spacing: 8) {
-            Image(systemName: "iphone.slash").font(.system(size: 24)).foregroundStyle(.orange)
+            Image(systemName: "iphone.slash").font(WatchTypography.iconLarge).foregroundStyle(.tint)
             Text("iPhone Unavailable")
                 .font(.system(.headline)).multilineTextAlignment(.center)
             if let title = coordinator.continuePrompt.flatMap({ _ in remote.state?.currentItem?.title }) {
-                Text(title).font(.system(.caption2)).foregroundStyle(.secondary).lineLimit(2)
+                Text(title).font(WatchTypography.micro).foregroundStyle(.secondary).lineLimit(2)
             }
             Text("This track is downloaded.")
-                .font(.system(.caption2)).foregroundStyle(.secondary)
+                .font(WatchTypography.micro).foregroundStyle(.secondary)
             Button {
                 coordinator.acceptContinue()
             } label: {
@@ -146,7 +146,7 @@ struct WatchNowPlayingView: View {
             }
             .accessibilityIdentifier("watch.now.continue")
             Button("Keep Waiting") { coordinator.dismissContinue() }
-                .font(.system(.caption2))
+                .font(WatchTypography.micro)
         }
         .padding(.top, 6)
     }
@@ -162,7 +162,7 @@ struct WatchNowPlayingView: View {
 
                 // Local playback means the file is on the watch — show it, solid (§7 polish).
                 Label("Downloaded", systemImage: "checkmark.circle.fill")
-                    .font(.system(.caption2, design: .rounded)).foregroundStyle(.green)
+                    .font(WatchTypography.micro).foregroundStyle(WatchPalette.success)
                     .labelStyle(.titleAndIcon)
                     .accessibilityIdentifier("watch.now.download")
                     .accessibilityValue("downloaded")
@@ -174,7 +174,7 @@ struct WatchNowPlayingView: View {
                 } else {
                     if let hint = player.routeHint {
                         Label(hint, systemImage: "exclamationmark.triangle")
-                            .font(.system(.caption2)).foregroundStyle(.orange)
+                            .font(WatchTypography.micro).foregroundStyle(.tint)
                             .labelStyle(.titleAndIcon).multilineTextAlignment(.center)
                             .accessibilityIdentifier("watch.now.routeHint")
                     }
@@ -193,7 +193,7 @@ struct WatchNowPlayingView: View {
             .onChange(of: crownValue) { _, newValue in player.volume = newValue }
         } else {
             VStack(spacing: 6) {
-                Image(systemName: "music.note").font(.system(size: 26)).foregroundStyle(.secondary)
+                Image(systemName: "music.note").font(WatchTypography.iconLarge).foregroundStyle(.secondary)
                 Text("Nothing Playing").font(.system(.headline)).foregroundStyle(.secondary)
             }
             .padding(.top, 28)
@@ -206,7 +206,7 @@ struct WatchNowPlayingView: View {
                 .font(.system(.headline)).labelStyle(.titleAndIcon)
                 .multilineTextAlignment(.center)
             Text(problem)
-                .font(.system(.caption2)).foregroundStyle(.secondary)
+                .font(WatchTypography.micro).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button {
                 player.retryAudioRoute()
@@ -216,7 +216,7 @@ struct WatchNowPlayingView: View {
             }
             .accessibilityIdentifier("watch.now.chooseRoute")
             Text("Playback stays paused. Your queue is safe.")
-                .font(.system(.caption2)).foregroundStyle(.secondary)
+                .font(WatchTypography.micro).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .padding(.top, 4)
@@ -228,7 +228,7 @@ struct WatchNowPlayingView: View {
                 .font(.system(.headline)).labelStyle(.titleAndIcon)
                 .multilineTextAlignment(.center)
             Text(problem)
-                .font(.system(.caption2)).foregroundStyle(.secondary)
+                .font(WatchTypography.micro).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button {
                 player.retryAudioRoute()
@@ -249,7 +249,7 @@ struct WatchNowPlayingView: View {
     private func downloadRow(for item: WatchTrackSummary) -> some View {
         if item.isDownloadedOnWatch {
             Label("Downloaded", systemImage: "checkmark.circle.fill")
-                .font(.system(.caption2, design: .rounded)).foregroundStyle(.green)
+                .font(WatchTypography.micro).foregroundStyle(WatchPalette.success)
                 .labelStyle(.titleAndIcon)
                 .accessibilityIdentifier("watch.now.download")
                 .accessibilityValue("downloaded")
@@ -273,7 +273,7 @@ struct WatchNowPlayingView: View {
     private func downloadingRing(fraction: Double?) -> some View {
         HStack(spacing: 8) {
             ZStack {
-                Circle().stroke(.secondary.opacity(0.25), lineWidth: 3)
+                Circle().stroke(Color.secondary.opacity(0.25), lineWidth: 3)
                 if let fraction {
                     Circle().trim(from: 0, to: max(0.02, min(1, fraction)))
                         .stroke(.tint, style: StrokeStyle(lineWidth: 3, lineCap: .round))
@@ -285,7 +285,7 @@ struct WatchNowPlayingView: View {
             }
             .frame(width: 20, height: 20)
             Text(fraction.map { "Downloading \(Int($0 * 100))%" } ?? "Downloading…")
-                .font(.system(.caption2)).foregroundStyle(.secondary)
+                .font(WatchTypography.micro).foregroundStyle(.secondary)
         }
         .accessibilityIdentifier("watch.now.download")
         .accessibilityValue(fraction.map { "downloading \(Int($0 * 100)) percent" } ?? "downloading")
@@ -311,9 +311,9 @@ struct WatchNowPlayingView: View {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
                 ZStack {
-                    LinearGradient(colors: [.blue.opacity(0.35), .purple.opacity(0.35)],
+                    LinearGradient(colors: [Color.accentColor.opacity(0.35), Color.primary.opacity(0.22)],
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
-                    Image(systemName: "music.note").font(.system(size: 28)).foregroundStyle(.white.opacity(0.8))
+                    Image(systemName: "music.note").font(WatchTypography.iconLarge).foregroundStyle(Color.primary.opacity(0.8))
                 }
             }
         }
@@ -331,7 +331,7 @@ struct WatchNowPlayingView: View {
                 .accessibilityIdentifier("watch.now.title")
             if !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(.system(.caption2)).foregroundStyle(.secondary)
+                    .font(WatchTypography.micro).foregroundStyle(.secondary)
                     .lineLimit(1).multilineTextAlignment(.center)
             }
         }
@@ -341,7 +341,7 @@ struct WatchNowPlayingView: View {
         VStack(spacing: 3) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.secondary.opacity(0.3))
+                    Capsule().fill(Color.secondary.opacity(0.3))
                     Capsule().fill(.tint)
                         .frame(width: max(0, geo.size.width * fraction(elapsed, duration)))
                 }
@@ -354,7 +354,7 @@ struct WatchNowPlayingView: View {
                 Text("-\(WatchTimeFmt.mmss(max(0, duration - elapsed)))")
                     .accessibilityIdentifier("watch.now.remaining")
             }
-            .font(.system(.caption2)).foregroundStyle(.secondary).monospacedDigit()
+            .font(WatchTypography.micro).foregroundStyle(.secondary).monospacedDigit()
         }
     }
 
@@ -362,20 +362,20 @@ struct WatchNowPlayingView: View {
                            toggle: @escaping () -> Void, next: @escaping () -> Void) -> some View {
         HStack(spacing: 26) {
             Button(action: previous) {
-                Image(systemName: "backward.fill").font(.system(size: 22))
+                Image(systemName: "backward.fill").font(WatchTypography.iconLarge)
             }
             .accessibilityIdentifier("watch.now.previous")
             .accessibilityLabel("Previous")
 
             Button(action: toggle) {
-                Image(systemName: isPlaying ? "pause.fill" : "play.fill").font(.system(size: 34))
+                Image(systemName: isPlaying ? "pause.fill" : "play.fill").font(WatchTypography.display)
             }
             .accessibilityIdentifier("watch.now.playPause")
             .accessibilityLabel(isPlaying ? "Pause" : "Play")
             .accessibilityValue(isPlaying ? "playing" : "paused")
 
             Button(action: next) {
-                Image(systemName: "forward.fill").font(.system(size: 22))
+                Image(systemName: "forward.fill").font(WatchTypography.iconLarge)
             }
             .accessibilityIdentifier("watch.now.next")
             .accessibilityLabel("Next")
@@ -387,7 +387,7 @@ struct WatchNowPlayingView: View {
 
     private var upNextLink: some View {
         NavigationLink(destination: WatchUpNextView()) {
-            Image(systemName: "list.bullet").font(.system(size: 15))
+            Image(systemName: "list.bullet").font(WatchTypography.iconSmall)
         }
         .accessibilityIdentifier("watch.now.upNext")
         .accessibilityLabel("Up Next")

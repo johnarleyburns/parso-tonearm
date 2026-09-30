@@ -74,7 +74,7 @@ struct WatchPlaylistDetailView: View {
                         Task { await WatchAppAssembly.shared.playOnPhone(.playCollection(ref)) }
                     } label: {
                         HStack {
-                            Image(systemName: "iphone").font(.system(size: 14))
+                            Image(systemName: "iphone").font(WatchTypography.iconSmall)
                             Text("Play on iPhone").font(.system(.body, design: .default))
                             Spacer()
                         }
@@ -108,7 +108,7 @@ struct WatchPlaylistDetailView: View {
 
     private var playAllLabel: some View {
         HStack {
-            Image(systemName: "play.fill").font(.system(size: 14))
+            Image(systemName: "play.fill").font(WatchTypography.iconSmall)
             Text("Play All").font(.system(.body, design: .default)).fontWeight(.semibold)
             Spacer()
         }
@@ -118,7 +118,7 @@ struct WatchPlaylistDetailView: View {
 
     private var shuffleLabel: some View {
         HStack {
-            Image(systemName: "shuffle").font(.system(size: 14))
+            Image(systemName: "shuffle").font(WatchTypography.iconSmall)
             Text("Shuffle").font(.system(.body, design: .default))
             Spacer()
         }

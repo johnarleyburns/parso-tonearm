@@ -31,4 +31,11 @@ final class TransitionExecutionTests: XCTestCase {
         XCTAssertFalse(AudioPlayer.shouldDowngradeTransition(isRemote: true, likelyBufferedByExit: true))
         XCTAssertTrue(AudioPlayer.shouldDowngradeTransition(isRemote: true, likelyBufferedByExit: false))
     }
+
+    func testDriftCorrectionIsBoundedToHalfPercentForOneBeat() {
+        XCTAssertEqual(AudioPlayer.transitionDriftCorrection(driftSeconds: 0.015), 0)
+        XCTAssertEqual(AudioPlayer.transitionDriftCorrection(driftSeconds: 0.016), -0.005)
+        XCTAssertEqual(AudioPlayer.transitionDriftCorrection(driftSeconds: -0.016), 0.005)
+        XCTAssertEqual(AudioPlayer.transitionDriftCorrection(driftSeconds: .nan), 0)
+    }
 }

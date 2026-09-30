@@ -84,4 +84,6 @@ xcodebuild test \
   -scheme TonearmUIRegression \
   -configuration Release \
   -destination "$IOS_DESTINATION" \
+  -parallel-testing-enabled NO \
+  -maximum-concurrent-test-simulator-destinations 1 \
   "${FILTER[@]}"

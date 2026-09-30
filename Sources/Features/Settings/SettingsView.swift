@@ -1,6 +1,9 @@
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Real report: "clicking Settings -> Music Libraries does nothing" — tapping
 /// worked and set its own `@State` bool, but the sheet never presented.
@@ -12,7 +15,7 @@ import TonearmCore
 /// A single `.sheet(item:)` bound to one optional value doesn't have this
 /// failure mode, since there is only ever one sheet identity to track.
 enum SettingsSheet: Identifiable {
-    case privacy, thirdPartyNotices, musicLibraries, eq, tools, jamendoKey, cacheManagement, soundIndex
+    case privacy, thirdPartyNotices, musicLibraries, eq, tools, jamendoKey, cacheManagement, soundIndex, advanced
     var id: Self { self }
 }
 
@@ -38,12 +41,7 @@ struct SettingsView: View {
     @State private var customCacheLimitMessage: String?
     @State private var icloudSync = SyncGating.isEnabled
     @State private var showWatchSettings = false
-    @State private var advancedExpanded: Bool
     @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
-    init() {
-        _advancedExpanded = State(initialValue: false)
-    }
-
     private let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
         ("500 MB", 500 * 1024 * 1024),
@@ -92,6 +90,7 @@ struct SettingsView: View {
             case .jamendoKey: JamendoCredentialView()
             case .cacheManagement: cacheManagementSheet
             case .soundIndex: IndexStatusView(model: IndexStatusModel())
+            case .advanced: advancedForm
             }
         }
         .confirmationDialog("Clear \(TimeFmt.megabytes(cacheUsed)) of cached audio?",
@@ -105,6 +104,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .sensoryFeedback(.warning, trigger: showClearConfirm)
         .alert("Delete all custom artwork?", isPresented: $showClearCustomConfirm) {
             Button("Cancel", role: .cancel) {}
             Button("Delete All", role: .destructive) {
@@ -124,6 +124,7 @@ struct SettingsView: View {
         } message: {
             Text("Custom artwork you've uploaded — for tracks, albums, and libraries — will be permanently lost. This cannot be undone.")
         }
+        .sensoryFeedback(.warning, trigger: showClearCustomConfirm)
         .confirmationDialog("Clear transition analysis?", isPresented: $showClearAnalysisConfirm, titleVisibility: .visible) {
             Button("Clear Analysis", role: .destructive) {
                 Task {
@@ -134,6 +135,7 @@ struct SettingsView: View {
         } message: {
             Text("This removes cached waveform, beat-grid, BPM and key analysis. It will be rebuilt when needed.")
         }
+        .sensoryFeedback(.warning, trigger: showClearAnalysisConfirm)
     }
 
     private var appearanceCard: some View {
@@ -156,45 +158,49 @@ struct SettingsView: View {
             .padding(.top, 4)
     }
 
-    /// Low-frequency actions moved out of the main scroll (docs/plans/
+    /// Low-frequency actions moved into their own Form (docs/plans/
     /// ui-simplification-plan.md item 1) — everything here is still
     /// reachable, just behind one extra tap instead of always visible.
     private var advancedSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button { advancedExpanded.toggle() } label: {
-                HStack {
-                    Text("Advanced").font(Typography.callout)
-                    Spacer()
-                    Image(systemName: advancedExpanded ? "chevron.up" : "chevron.down")
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.inkTertiary)
-                }
-                .padding(15)
-                // Real report: tapping this (and other Spacer-based row
-                // labels below) did nothing at all on a real device. A
-                // Button's plain-style label with a Spacer only makes its
-                // VISIBLY DRAWN content (the Text/Image glyphs) tappable by
-                // default — the Spacer's own flexible empty space, which is
-                // most of a normal-width row, is not part of the hit area
-                // unless explicitly claimed. `.contentShape(Rectangle())`
-                // claims the whole padded frame instead.
-                .contentShape(Rectangle())
+        Button { activeSheet = .advanced } label: {
+            HStack {
+                Text("Advanced").font(Typography.callout)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.inkTertiary)
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("settings.advanced")
+            .padding(15)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.advanced")
+        .glassSurface(cornerRadius: 18)
+    }
 
-            if advancedExpanded {
-                VStack(spacing: 14) {
+    private var advancedForm: some View {
+        NavigationStack {
+            Form {
+                Section("Preparation") {
                     toolsCard
                     jamendoCard
+                }
+                Section("Storage") {
                     clearCard
                     customArtworkCard
                 }
-                .padding(.horizontal, 15)
-                .padding(.bottom, 15)
+            }
+            .foregroundStyle(Palette.ink)
+            .scrollContentBackground(.hidden)
+            .background(Palette.libraryBackground.ignoresSafeArea())
+            .navigationTitle("Advanced")
+            .compactNavigationTitle()
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { activeSheet = nil }.tint(Palette.accent)
+                }
             }
         }
-        .glassSurface(cornerRadius: 18)
     }
 
     private var appVersionString: String {
@@ -239,6 +245,7 @@ struct SettingsView: View {
                     Text("Streaming Cache").font(Typography.callout)
                     Text("\(TimeFmt.megabytes(cacheUsed)) of \(TimeFmt.megabytes(cacheLimit)) used")
                         .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                        .contentTransition(.numericText())
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -260,6 +267,7 @@ struct SettingsView: View {
                 Spacer()
                 Text("\(TimeFmt.megabytes(cacheUsed)) of \(TimeFmt.megabytes(cacheLimit))")
                     .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                    .contentTransition(.numericText())
             }
             .padding(.bottom, 11)
 
@@ -275,6 +283,7 @@ struct SettingsView: View {
 
             HStack {
                 Text("\(cachedCount) tracks cached").font(Typography.caption)
+                    .contentTransition(.numericText())
                 Spacer()
                 Text("oldest evicted first").font(Typography.caption)
             }
@@ -393,6 +402,7 @@ struct SettingsView: View {
                     Text("Transition analysis").font(Typography.callout)
                     Text("Beat grids and phrase maps used to plan transitions. Rebuilt when needed. \(analysisTracks) tracks · \(TimeFmt.megabytes(analysisBytes))")
                         .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                        .contentTransition(.numericText())
                 }
                 Spacer()
                 Button("Clear analysis", role: .destructive) { showClearAnalysisConfirm = true }
@@ -739,7 +749,7 @@ struct SettingsView: View {
             aboutRow("About", "Platterhead \(appVersionString) — you bring the records")
 #if DEBUG
             Divider().overlay(Palette.hairline)
-            Link(destination: URL(string: "app-settings:")!) {
+            Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
                 aboutRow("Language", "Open iPhone Settings")
             }
 #endif

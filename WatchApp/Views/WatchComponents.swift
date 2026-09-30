@@ -54,7 +54,7 @@ struct WatchCollectionRow: View {
         HStack(spacing: 10) {
             if let img = systemImage {
                 Image(systemName: img)
-                    .font(.system(size: 20))
+                    .font(WatchTypography.iconMedium)
                     .foregroundStyle(.tint)
                     .frame(width: 28)
             }
@@ -81,7 +81,7 @@ struct WatchEmptyStateView: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 32))
+                .font(WatchTypography.iconLarge)
                 .foregroundStyle(.secondary)
             Text(title)
                 .font(.system(.headline, design: .default))

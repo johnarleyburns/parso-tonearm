@@ -39,10 +39,10 @@ struct WatchAlbumRow: View {
         HStack(spacing: 10) {
             ZStack {
                 LinearGradient(
-                    colors: [.blue.opacity(0.3), .purple.opacity(0.3)],
+                    colors: [Color.accentColor.opacity(0.3), Color.primary.opacity(0.18)],
                     startPoint: .topLeading, endPoint: .bottomTrailing)
                 Image(systemName: "music.note")
-                    .font(.system(size: 13))
+                    .font(WatchTypography.caption)
                     .foregroundStyle(.secondary)
             }
             .frame(width: 32, height: 32)
@@ -79,7 +79,7 @@ struct WatchAlbumDetailView: View {
                     player.play(tracks: tracks, startAt: 0)
                 } label: {
                     HStack {
-                        Image(systemName: "play.fill").font(.system(size: 14))
+                        Image(systemName: "play.fill").font(WatchTypography.iconSmall)
                         Text("Play All").font(.system(.body, design: .default)).fontWeight(.semibold)
                         Spacer()
                     }
@@ -95,7 +95,7 @@ struct WatchAlbumDetailView: View {
                     player.play(tracks: shuffled, startAt: 0)
                 } label: {
                     HStack {
-                        Image(systemName: "shuffle").font(.system(size: 14))
+                    Image(systemName: "shuffle").font(WatchTypography.iconSmall)
                         Text("Shuffle").font(.system(.body, design: .default))
                         Spacer()
                     }

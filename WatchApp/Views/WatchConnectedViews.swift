@@ -127,7 +127,7 @@ struct WatchPhoneCollectionView: View {
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: track.isDownloadedOnWatch ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 11))
+                                .font(WatchTypography.micro)
                                 .foregroundStyle(track.isDownloadedOnWatch ? .green : .secondary)
                                 .accessibilityLabel(track.isDownloadedOnWatch ? "Downloaded on watch" : "Not downloaded")
                             VStack(alignment: .leading, spacing: 2) {
@@ -168,7 +168,7 @@ struct WatchPhoneCollectionView: View {
 
     private func actionLabel(_ icon: String, _ title: String, bold: Bool = false) -> some View {
         HStack {
-            Image(systemName: icon).font(.system(size: 14))
+            Image(systemName: icon).font(WatchTypography.iconSmall)
             Text(title).font(.system(.body, design: .default)).fontWeight(bold ? .semibold : .regular)
             Spacer()
         }
@@ -188,7 +188,7 @@ struct WatchRecoveryView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Image(systemName: symbol).font(.system(size: 32)).foregroundStyle(.tint)
+            Image(systemName: symbol).font(WatchTypography.iconLarge).foregroundStyle(.tint)
             Text(title).font(.system(.headline, design: .default)).multilineTextAlignment(.center)
             if let notice = model.recoveryNotice {
                 Text(notice)

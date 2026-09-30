@@ -104,7 +104,7 @@ struct WatchNowPlayingChip: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: chip.glyph)
-                        .font(.system(size: 16))
+                        .font(WatchTypography.iconMedium)
                         .foregroundStyle(.tint)
                         .frame(width: 28)
                         .accessibilityHidden(true)
@@ -120,7 +120,7 @@ struct WatchNowPlayingChip: View {
                     }
                     Spacer(minLength: 4)
                     Image(systemName: chip.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 12))
+                        .font(WatchTypography.iconSmall)
                         .accessibilityHidden(true)
                 }
                 .padding(.vertical, 8)

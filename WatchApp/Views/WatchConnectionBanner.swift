@@ -10,7 +10,7 @@ struct WatchConnectionBanner: View {
         if banner != .connected {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 12))
+                    .font(WatchTypography.iconSmall)
                     .foregroundStyle(tint)
                 Text(text)
                     .font(.system(.caption2))

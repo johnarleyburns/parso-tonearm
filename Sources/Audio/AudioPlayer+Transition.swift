@@ -1,17 +1,45 @@
 import Foundation
 import AVFoundation
+import OSLog
 
 extension AudioPlayer {
+    private static let transitionLog = Logger(subsystem: "guru.parso.platterhead", category: "transition")
+
     /// Publishes the planned edge for the currently playing mix queue. The
     /// existing AVPlayer crossfade remains the transport-safe executor, while
     /// the mix plan supplies the edge style, overlap, and countdown shown to
     /// the user. This keeps playback and the preview on one source of truth.
     func scheduleTransitionPlan() {
-        guard case .mix(let mix) = queueSource,
-              let currentID = currentTrack?.track.id,
-              let nextID = queue.indices.contains(index + 1) ? queue[index + 1].track.id : nil,
-              let nextStep = mix.steps.first(where: { $0.trackID == nextID }) else {
+        let globalTransitions = UserDefaults.standard.bool(forKey: "smartTransitionsEverywhere")
+        guard let currentID = currentTrack?.track.id,
+              let nextID = queue.indices.contains(index + 1) ? queue[index + 1].track.id : nil else {
             transitionPlan = nil
+            transitionPrepState = .ready
+            return
+        }
+
+        let mix: MixPlan?
+        if case .mix(let queuedMix) = queueSource {
+            mix = queuedMix
+        } else if globalTransitions {
+            mix = nil
+        } else {
+            transitionPlan = nil
+            transitionPrepState = .ready
+            return
+        }
+
+        guard let nextStep = mix?.steps.first(where: { $0.trackID == nextID }) else {
+            guard globalTransitions else {
+                transitionPlan = nil
+                transitionPrepState = .ready
+                return
+            }
+            transitionPlan = TransitionPlan(fromTrackID: currentID, toTrackID: nextID,
+                                            style: .plainCrossfade,
+                                            overlapSeconds: normalizedCrossfadeSeconds,
+                                            confidence: 0.2,
+                                            reasons: [.gridNotReady(.ready)])
             transitionPrepState = .ready
             return
         }
@@ -23,7 +51,7 @@ extension AudioPlayer {
         let style: TransitionStyle = edge?.flags.contains(.keyClash) == true
             ? .phraseFade : .beatmatchedBlend
         let delta = edge?.bpmDeltaPct
-        let currentBPM = mix.steps.first(where: { $0.trackID == currentID })?.effectiveBPM ?? bpm
+        let currentBPM = mix?.steps.first(where: { $0.trackID == currentID })?.effectiveBPM ?? bpm
         let blendRate = max(0.5, min(2, bpm / max(1, currentBPM)))
         transitionPlan = TransitionPlan(
             fromTrackID: currentID,
@@ -65,6 +93,45 @@ extension AudioPlayer {
         isRemote && !likelyBufferedByExit
     }
 
+    /// The device executor uses a bounded one-beat correction after its first
+    /// drift sample. Keeping this pure makes the safety limit testable without
+    /// requiring an audio route or a real-time clock.
+    static func transitionDriftCorrection(driftSeconds: Double) -> Double {
+        guard driftSeconds.isFinite, abs(driftSeconds) > 0.015 else { return 0 }
+        return driftSeconds > 0 ? -0.005 : 0.005
+    }
+
+    /// Configure an item for beat-matched playback. AVPlayer's regular
+    /// buffering policy is intentionally disabled here: the transition
+    /// scheduler owns the hand-over deadline and will downgrade a remote edge
+    /// when it cannot meet it.
+    static func configureTransitionItem(_ item: AVPlayerItem) {
+        item.audioTimePitchAlgorithm = .timeDomain
+        item.preferredForwardBufferDuration = 20
+        item.automaticallyPreservesTimeOffsetFromLive = false
+    }
+
+    static func transitionAudioMix(for item: AVPlayerItem,
+                                   fadeStart: CMTime,
+                                   fadeDuration: CMTime,
+                                   incoming: Bool,
+                                   gainMatchDB: Double = 0) -> AVAudioMix? {
+        guard let track = item.asset.tracks(withMediaType: .audio).first,
+              fadeDuration.isValid, fadeDuration.seconds > 0 else { return nil }
+        let params = AVMutableAudioMixInputParameters(track: track)
+        let gain = Float(pow(10, gainMatchDB / 20))
+        if incoming {
+            params.setVolumeRamp(fromStartVolume: 0, toEndVolume: gain,
+                                 timeRange: CMTimeRange(start: fadeStart, duration: fadeDuration))
+        } else {
+            params.setVolumeRamp(fromStartVolume: gain, toEndVolume: 0,
+                                 timeRange: CMTimeRange(start: fadeStart, duration: fadeDuration))
+        }
+        let mix = AVMutableAudioMix()
+        mix.inputParameters = [params]
+        return mix
+    }
+
     func publishTransition(_ plan: TransitionPlan?) {
         transitionPlan = plan
     }
@@ -82,5 +149,11 @@ extension AudioPlayer {
         publishTransition(plan)
         guard plan.style != .gapless else { return }
         crossfadeSeconds = max(crossfadeSeconds, plan.overlapSeconds)
+    }
+
+    func logTransitionDrift(_ driftSeconds: Double, trackID: Int64) {
+#if DEBUG
+        Self.transitionLog.debug("transition alignment track=\(trackID, privacy: .public) drift=\(driftSeconds, privacy: .public)s")
+#endif
     }
 }

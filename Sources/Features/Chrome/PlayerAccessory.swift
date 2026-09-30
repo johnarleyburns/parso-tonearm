@@ -5,6 +5,7 @@ import TonearmCore
 struct MiniPlayerAccessory: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
+    let transitionNamespace: Namespace.ID
 
     var body: some View {
         HStack(spacing: 10) {
@@ -15,6 +16,7 @@ struct MiniPlayerAccessory: View {
                     .frame(width: Metrics.artworkSmall, height: Metrics.artworkSmall)
             }
             .buttonStyle(.plain)
+            .matchedTransitionSource(id: "now-playing", in: transitionNamespace)
             Button { appState.showNowPlaying = true } label: {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(player.currentTrack?.track.title ?? "")

@@ -217,6 +217,7 @@ struct WatchDownloadedCollectionDetailView: View {
         } message: {
             Text(removalNote(d))
         }
+        .sensoryFeedback(.warning, trigger: confirmRemove)
     }
 
     private func removalNote(_ d: PhoneWatchManagementPresenter.CollectionDetail) -> String {
