@@ -180,7 +180,7 @@ struct ListenView: View {
     /// gated, so this badge unlocks nothing either).
     private var supporterBadge: some View {
         Label("Supporter", systemImage: "heart.fill")
-            .font(.system(size: 11.5, weight: .semibold))
+            .font(Typography.caption)
             .foregroundStyle(Palette.accent)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -225,21 +225,21 @@ struct ListenView: View {
             SectionHeader(title: "What's the mood?")
             Text("Once you download the mood models and index your tracks, "
                 + "you can come back and search by mood here.")
-                .font(.system(size: 13))
+                .font(Typography.callout)
                 .foregroundStyle(Palette.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
                 showIndexStatus = true
             } label: {
                 Label("Index your tracks", systemImage: "waveform.badge.magnifyingglass")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(Typography.callout)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 11)
                     .background(
                         LinearGradient(colors: [Palette.accent, Palette.accent],
                                       startPoint: .top, endPoint: .bottom),
                         in: Capsule())
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(Palette.ink)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("listen.mood.indexYourTracks")
@@ -275,7 +275,7 @@ struct ListenView: View {
                           trailing: appState.favoriteRows.isEmpty ? nil : "\(appState.favoriteRows.count)")
             if appState.favoriteRows.isEmpty {
                 Text("Favorite a track and it will show up here.")
-                    .font(.system(size: 13))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.inkTertiary)
                     .padding(.vertical, 18)
             } else {
@@ -307,7 +307,7 @@ struct ListenView: View {
                 if stats.totalPlayCount > 0 {
                     ShareLink(item: stats.yearInReview.shareText) {
                         Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 13))
+                            .font(Typography.callout)
                             .foregroundStyle(Palette.accent)
                     }
                     .accessibilityLabel("Share")
@@ -337,12 +337,12 @@ struct ListenView: View {
                         topArtistsList(stats.topArtists)
                     }
                     Button("Show Less") { Motion.perform(Motion.standard) { showTopLists = false } }
-                        .font(.system(size: 12.5, weight: .semibold))
+                        .font(Typography.callout)
                         .foregroundStyle(Palette.accent)
                         .accessibilityIdentifier("listen.stats.showLess")
                 } else {
                     Button("Show More…") { Motion.perform(Motion.standard) { showTopLists = true } }
-                        .font(.system(size: 12.5, weight: .semibold))
+                        .font(Typography.callout)
                         .foregroundStyle(Palette.accent)
                         .accessibilityIdentifier("listen.stats.showMore")
                 }
@@ -354,9 +354,9 @@ struct ListenView: View {
     private func statTile(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
-                .font(.system(size: 18, weight: .bold))
+                .font(Typography.headline)
             Text(title)
-                .font(.system(size: 10.5, weight: .semibold))
+                .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -395,7 +395,7 @@ struct ListenView: View {
                         .frame(height: max(3, CGFloat(bar.seconds / maxSeconds) * 44))
                         .accessibilityHidden(true)
                     Text(bar.label)
-                        .font(.system(size: 8.5, weight: .semibold))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                 }
                 .frame(maxWidth: .infinity)
@@ -422,15 +422,15 @@ struct ListenView: View {
                     } label: {
                         HStack(spacing: 10) {
                             Text("\(index + 1)")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(Typography.caption)
                                 .foregroundStyle(Palette.inkTertiary)
                                 .frame(width: 18, alignment: .leading)
                             Text(rank.row.track.title)
-                                .font(.system(size: 13, weight: .medium))
+                                .font(Typography.callout)
                                 .lineLimit(1)
                             Spacer()
                             Text("\(rank.playCount) plays")
-                                .font(.system(size: 11.5))
+                                .font(Typography.caption)
                                 .foregroundStyle(Palette.inkTertiary)
                         }
                         .padding(.vertical, 8)
@@ -464,15 +464,15 @@ struct ListenView: View {
                     } label: {
                         HStack(spacing: 10) {
                             Text("\(index + 1)")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(Typography.caption)
                                 .foregroundStyle(Palette.inkTertiary)
                                 .frame(width: 18, alignment: .leading)
                             Text(rank.name)
-                                .font(.system(size: 13, weight: .medium))
+                                .font(Typography.callout)
                                 .lineLimit(1)
                             Spacer()
                             Text("\(rank.playCount) plays")
-                                .font(.system(size: 11.5))
+                                .font(Typography.caption)
                                 .foregroundStyle(Palette.inkTertiary)
                         }
                         .padding(.vertical, 8)
@@ -553,7 +553,7 @@ private struct MoodEntryPointSection: View {
 
             TextField(ListenView.promptPlaceholders[placeholderIndex], text: promptBinding)
                 .textFieldStyle(.plain)
-                .font(.system(size: 14))
+                .font(Typography.callout)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
                 .glassSurface(cornerRadius: 12)
@@ -565,7 +565,7 @@ private struct MoodEntryPointSection: View {
                 Toggle("Mix-compatible tracks", isOn: Binding(
                     get: { moodModel.matchingTracksOnly },
                     set: { moodModel.setMatchingTracksOnly($0) }))
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(Typography.callout)
                     .tint(Palette.accent)
                     .accessibilityIdentifier("listen.mood.matchingTracks")
             }
@@ -696,11 +696,11 @@ struct RecentCard: View {
                         cornerRadius: 14)
                 .frame(width: 132, height: 132)
             Text(row.track.title)
-                .font(.system(size: 12.5, weight: .semibold))
+                .font(Typography.callout)
                 .lineLimit(1)
                 .padding(.top, 7)
             Text(row.artist?.name ?? row.album?.artist ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : "On device"))
-                .font(.system(size: 11))
+                .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
                 .lineLimit(1)
                 .padding(.top, 1)

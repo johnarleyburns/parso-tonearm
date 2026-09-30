@@ -21,8 +21,8 @@ struct AddTracksToPlaylistSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
-            Text("Add to \(playlist.title)").font(.system(size: 19, weight: .bold)).padding(.vertical, 12)
+            Capsule().fill(Palette.ink.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
+            Text("Add to \(playlist.title)").font(Typography.headline).padding(.vertical, 12)
             SearchField(text: $filter, placeholder: "Search all your music…")
                 .padding(.horizontal, 20).padding(.bottom, 10)
             List(filteredTracks) { row in
@@ -56,7 +56,7 @@ struct AddTracksToPlaylistSheet: View {
                     }
                 } label: {
                     Text(selected.isEmpty ? "Add tracks" : "Add \(selected.count) tracks")
-                        .font(.system(size: 15, weight: .bold)).foregroundStyle(Palette.accentOnFill)
+                        .font(Typography.body).foregroundStyle(Palette.accentOnFill)
                         .padding(.horizontal, 20).frame(height: 44)
                         .background(Palette.accent, in: Capsule())
                 }

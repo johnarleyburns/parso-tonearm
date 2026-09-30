@@ -10,7 +10,7 @@ struct ScreenHeader: View {
     var body: some View {
         HStack {
             Text(title)
-                .font(.system(size: 31, weight: .heavy, design: .default))
+                .font(Typography.title)
                 .kerning(-0.5)
             Spacer()
             if showAdd {
@@ -18,7 +18,7 @@ struct ScreenHeader: View {
                     if let addAction { addAction() } else { appState.showAddMenu = true }
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 15))
+                        .font(Typography.body)
                         .foregroundStyle(Palette.accent)
                         .frame(width: 33, height: 33)
                         .glassSurface(cornerRadius: 16.5)
@@ -44,7 +44,7 @@ struct SearchField: View {
                 .autocorrectionDisabled()
                 .platformAutocapitalization(.never)
         }
-        .font(.system(size: 15))
+        .font(Typography.body)
         .padding(.horizontal, 14)
         .frame(height: 40)
         .glassSurface(cornerRadius: 20)
@@ -61,28 +61,28 @@ struct AddRemoteLibraryButton: View {
         } label: {
             HStack(spacing: 11) {
                 Image(systemName: "server.rack")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.accent)
                     .frame(width: compact ? 30 : 36, height: compact ? 30 : 36)
                     .glassSurface(cornerRadius: compact ? 15 : 18)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Add Remote Library")
-                        .font(.system(size: compact ? 13 : 13.5, weight: .semibold))
+                        .font(Typography.calloutStrong)
                         .foregroundStyle(Palette.ink)
                     Text(RemoteConnectorCatalog.proDisplayList)
-                        .font(.system(size: compact ? 10.5 : 11))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                         .lineLimit(1)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
             }
             .padding(.horizontal, compact ? 12 : 14)
             .padding(.vertical, compact ? 10 : 12)
-            .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.1)))
+            .background(Palette.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.ink.opacity(0.1)))
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
@@ -119,10 +119,10 @@ struct ProvenanceChip: View {
     var body: some View {
         let (icon, text) = badge
         HStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 8))
+            Image(systemName: icon).font(Typography.caption)
             Text(text)
         }
-        .font(.system(size: 8.5, weight: .bold))
+        .font(Typography.caption)
         .kerning(0.5)
         .foregroundStyle(Palette.accentOnFill)
         .padding(.horizontal, 7).padding(.vertical, 3)
@@ -162,11 +162,11 @@ struct TrackRowView: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(titleLine)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(Typography.callout)
                     .foregroundStyle(row.asset?.unsupportedReason != nil ? Palette.inkTertiary : Palette.ink)
                     .lineLimit(1)
                 Text(subtitle)
-                    .font(.system(size: 11.5))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
                     .lineLimit(1)
             }
@@ -175,7 +175,7 @@ struct TrackRowView: View {
                 Task { await appState.toggleFavorite(row) }
             } label: {
                 Image(systemName: appState.isFavorite(row) ? "heart.fill" : "heart")
-                    .font(.system(size: 12))
+                    .font(Typography.caption)
                     .foregroundStyle(appState.isFavorite(row) ? Color.red : Palette.inkTertiary)
             }
             .buttonStyle(.plain)

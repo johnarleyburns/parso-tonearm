@@ -29,7 +29,7 @@ struct TrackDetailCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Capsule()
-                .fill(Color.primary.opacity(0.18))
+                .fill(Palette.ink.opacity(0.18))
                 .frame(width: 34, height: 4)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 8)
@@ -40,10 +40,10 @@ struct TrackDetailCard: View {
                     .frame(width: 52, height: 52)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(row.track.title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(Typography.body)
                         .lineLimit(1)
                     Text(subtitle)
-                        .font(.system(size: 12))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                         .lineLimit(1)
                     // Plan §3.6 lists artwork/title/artist-album/duration/
@@ -53,7 +53,7 @@ struct TrackDetailCard: View {
                     // never shown, and source was invisible whenever a track
                     // had an artist. This line always carries both.
                     Text(durationAndSource)
-                        .font(.system(size: 11))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                         .lineLimit(1)
                 }
@@ -95,7 +95,7 @@ struct TrackDetailCard: View {
                 }
 
                 Button("Dismiss") { dismiss() }
-                    .font(.system(size: 13, weight: .medium))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.inkTertiary)
                     .padding(.top, 4)
                     .accessibilityIdentifier("trackDetail.dismiss")
@@ -132,7 +132,7 @@ struct TrackDetailCard: View {
         case .mood:
             return AnyShapeStyle(Palette.accent.opacity(0.12))
         case .secondary:
-            return AnyShapeStyle(Color.primary.opacity(0.07))
+            return AnyShapeStyle(Palette.ink.opacity(0.07))
         }
     }
 
@@ -142,10 +142,10 @@ struct TrackDetailCard: View {
                 Image(systemName: icon)
                 Text(title)
             }
-            .font(.system(size: 14, weight: .semibold))
+            .font(Typography.callout)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .foregroundStyle(style == .primary ? Color.primary : (style == .mood ? Palette.accent : Palette.ink))
+            .foregroundStyle(style == .primary ? Palette.ink : (style == .mood ? Palette.accent : Palette.ink))
             .background(backgroundStyle(for: style), in: RoundedRectangle(cornerRadius: 13))
             .overlay(
                 RoundedRectangle(cornerRadius: 13)

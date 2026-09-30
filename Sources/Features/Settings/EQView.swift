@@ -65,7 +65,7 @@ struct EQView: View {
 
             if store.isModifiedFromPreset(settings) {
                 Text("Modified from preset")
-                    .font(.system(size: 11))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.bottom, 8)
@@ -80,7 +80,7 @@ struct EQView: View {
             ForEach(0..<EQEngine.bandCount, id: \.self) { index in
                 VStack(spacing: 8) {
                     Text(gainLabel(settings.bands[index]))
-                        .font(.system(size: 10, weight: .medium))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkSecondary)
                         .frame(height: 14)
                         .monospacedDigit()
@@ -96,7 +96,7 @@ struct EQView: View {
                     .frame(width: 30, height: 150)
                     .tint(Palette.accent)
                     Text(frequencyLabel(EQEngine.bandFrequencies[index]))
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                         .frame(width: 34)
                         .minimumScaleFactor(0.7)
@@ -115,7 +115,7 @@ struct EQView: View {
                 .platformAutocapitalization(.words)
                 .padding(.horizontal, 12)
                 .frame(height: 42)
-                .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
+                .background(Palette.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
 
             Button {
                 guard let preset = store.userPreset(named: presetName, settings: settings) else { return }
@@ -126,7 +126,7 @@ struct EQView: View {
                 commit(settings)
             } label: {
                 Label("Save preset", systemImage: "square.and.arrow.down")
-                    .font(.system(size: 13.5, weight: .semibold))
+                    .font(Typography.callout)
                     .frame(maxWidth: .infinity)
                     .frame(height: 42)
                     .background(Palette.accent, in: RoundedRectangle(cornerRadius: 10))

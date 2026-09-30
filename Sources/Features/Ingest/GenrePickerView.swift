@@ -39,7 +39,7 @@ public struct GenrePickerSheet: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5)
+            Capsule().fill(Palette.ink.opacity(0.35)).frame(width: 36, height: 5)
                 .padding(.top, 14)
             header.padding(.top, 14)
 
@@ -69,18 +69,18 @@ public struct GenrePickerSheet: View {
         VStack(spacing: 6) {
             if context == .firstRun {
                 Text("Step 2 · optional")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.inkSecondary)
             }
             Text("Want some music to practise with?")
-                .font(.system(size: 22, weight: .heavy)).kerning(-0.4)
+                .font(Typography.headline).kerning(-0.4)
                 .multilineTextAlignment(.center)
             Text("Pick the genres you want to mix. Each one becomes its own "
                  + "library, ordered by what's most interesting right now — so "
                  + "you can build a set from techno without wading through "
                  + "everything else.")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .font(Typography.callout)
+                .foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 8)
         }
@@ -92,10 +92,10 @@ public struct GenrePickerSheet: View {
                 dismiss()
             } label: {
                 Text(context == .firstRun ? "Skip — I have my own music" : "Cancel")
-                    .font(.system(size: 14.5, weight: .semibold))
+                    .font(Typography.body)
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
-                    .background(Color.primary.opacity(0.08), in: Capsule())
+                    .background(Palette.ink.opacity(0.08), in: Capsule())
             }
             .buttonStyle(.plain)
 
@@ -113,7 +113,7 @@ public struct GenrePickerSheet: View {
                         Text("Add \(model.selectedGenres.count) \(model.selectedGenres.count == 1 ? "library" : "libraries")")
                     }
                 }
-                .font(.system(size: 14.5, weight: .bold))
+                .font(Typography.body)
                 .foregroundStyle(Palette.accentOnFill)
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
@@ -145,7 +145,7 @@ public struct GenrePickerContent: View {
         VStack(spacing: 14) {
             if let error = model.catalogueError {
                 Label(error, systemImage: "wifi.exclamationmark")
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(Typography.callout)
                     .foregroundStyle(.orange)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
@@ -176,16 +176,16 @@ public struct GenrePickerContent: View {
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 20))
+                            .font(Typography.headline)
                             .foregroundStyle(selected ? Palette.accent : Palette.inkSecondary)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(node.name)
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(Typography.body)
                                 .foregroundStyle(Palette.ink)
                             if let count {
                                 Text("about \(count) tracks")
-                                    .font(.system(size: 11.5))
-                                    .foregroundStyle(.secondary)
+                                    .font(Typography.caption)
+                                    .foregroundStyle(Palette.inkSecondary)
                             }
                         }
                     }
@@ -208,8 +208,8 @@ public struct GenrePickerContent: View {
                         }
                     } label: {
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .font(Typography.caption)
+                            .foregroundStyle(Palette.inkSecondary)
                             .rotationEffect(.degrees(expanded ? 180 : 0))
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
@@ -228,7 +228,7 @@ public struct GenrePickerContent: View {
                             model.toggle(child)
                         } label: {
                             Text(child.name)
-                                .font(.system(size: 11.5, weight: .semibold))
+                                .font(Typography.caption)
                                 .foregroundStyle(childSelected ? Palette.accentOnFill : Palette.ink)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 7)
@@ -247,8 +247,8 @@ public struct GenrePickerContent: View {
                 .padding(.bottom, 12)
             }
         }
-        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.07), lineWidth: 1))
+        .background(Palette.ink.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Palette.ink.opacity(0.07), lineWidth: 1))
     }
 
     private var summaryCard: some View {
@@ -260,29 +260,29 @@ public struct GenrePickerContent: View {
                          ? "No genres picked"
                          : "\(selections.count) \(selections.count == 1 ? "library" : "libraries") · "
                            + selections.map(\.name).joined(separator: ", "))
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(Typography.callout)
                         .foregroundStyle(Palette.ink)
                     Text("We'll fetch the track lists now — that's quick. Audio "
                          + "downloads only when you actually play or prepare a "
                          + "track, so nothing fills your disk in the background.")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
+                        .font(Typography.caption)
+                            .foregroundStyle(Palette.inkSecondary)
                 }
                 Spacer()
                 Text("Free")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.accent)
                     .padding(.horizontal, 9).padding(.vertical, 4)
                     .background(Palette.accent.opacity(0.14),
                                 in: Capsule())
             }
 
-            Divider().overlay(Color.primary.opacity(0.1))
+            Divider().overlay(Palette.ink.opacity(0.1))
 
             HStack(spacing: 9) {
                 Image(systemName: model.showsAccountOption
                       ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 17))
+                    .font(Typography.headline)
                     .foregroundStyle(model.showsAccountOption
                                      ? Palette.accent
                                      : Palette.inkSecondary)
@@ -292,8 +292,8 @@ public struct GenrePickerContent: View {
                 Text("I have a catalogue account (optional) — signing in adds "
                      + "your favourites and playlists. **Browsing and playing "
                      + "work without it.**")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.inkSecondary)
                 Spacer()
             }
             .accessibilityElement(children: .combine)
@@ -303,13 +303,13 @@ public struct GenrePickerContent: View {
                  + "each track's artist and licence with it, and adds them to "
                  + "your mix's tracklist automatically — so a set you post is "
                  + "properly credited.")
-                .font(.system(size: 10.5))
+                .font(Typography.caption)
                 .foregroundStyle(.tertiary)
                 .lineSpacing(2)
         }
         .padding(14)
-        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.07), lineWidth: 1))
+        .background(Palette.ink.opacity(0.03), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Palette.ink.opacity(0.07), lineWidth: 1))
         .accessibilityIdentifier("genre.summary")
     }
 }

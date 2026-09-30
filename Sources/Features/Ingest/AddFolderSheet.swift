@@ -18,19 +18,19 @@ struct AddFolderSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
-            Text("Add Local Folder").font(.system(size: 19, weight: .bold)).padding(.top, 12)
-            Text(folderURL.lastPathComponent).font(.system(size: 12.5)).foregroundStyle(Palette.inkSecondary).padding(.top, 5)
+            Capsule().fill(Palette.ink.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
+            Text("Add Local Folder").font(Typography.headline).padding(.top, 12)
+            Text(folderURL.lastPathComponent).font(Typography.callout).foregroundStyle(Palette.inkSecondary).padding(.top, 5)
 
                 HStack(spacing: 12) {
                 ArtworkView(seed: folderURL.lastPathComponent, cornerRadius: 12).frame(width: 56, height: 56)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(folderURL.lastPathComponent).font(.system(size: 13.5, weight: .semibold))
+                    Text(folderURL.lastPathComponent).font(Typography.callout)
                     if let err = scanError {
-                        Text(err).font(.system(size: 11.5)).foregroundStyle(Palette.danger)
+                        Text(err).font(Typography.caption).foregroundStyle(Palette.danger)
                     } else {
                         Text("\(fileCount) audio files\(subfolderCount > 0 ? " · \(subfolderCount) subfolders" : "")")
-                            .font(.system(size: 11.5)).foregroundStyle(Palette.inkSecondary)
+                            .font(Typography.caption).foregroundStyle(Palette.inkSecondary)
                     }
                 }
                 Spacer()
@@ -51,7 +51,7 @@ struct AddFolderSheet: View {
                     if isImporting { ProgressView().tint(Palette.accentOnFill) }
                     else { Text("Import \(fileCount) Files") }
                 }
-                .font(.system(size: 15.5, weight: .bold)).foregroundStyle(Palette.accentOnFill)
+                .font(Typography.body).foregroundStyle(Palette.accentOnFill)
                 .frame(maxWidth: .infinity).frame(height: 48)
                 .background(LinearGradient(colors: [Palette.accent, Palette.accent],
                                            startPoint: .top, endPoint: .bottom), in: Capsule())
@@ -59,11 +59,11 @@ struct AddFolderSheet: View {
             .disabled(isImporting)
 
             if let err = importError {
-                Text(err).font(.system(size: 11.5)).foregroundStyle(Palette.danger).padding(.top, 8)
+                Text(err).font(Typography.caption).foregroundStyle(Palette.danger).padding(.top, 8)
             }
 
             Text("Files stay where they are — Platterhead keeps a secure\nbookmark and reads them in place.")
-                .font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary)
+                .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 .multilineTextAlignment(.center).padding(.top, 11)
         }
         .padding(.horizontal, 20).padding(.bottom, 24)
@@ -77,9 +77,9 @@ struct AddFolderSheet: View {
     private var watchToggle: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Watch folder for changes").font(.system(size: 13.5, weight: .medium))
+                Text("Watch folder for changes").font(Typography.callout)
                 Text("New files appear automatically")
-                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             Spacer()
             Toggle("", isOn: $watch).labelsHidden().tint(Palette.accent)
@@ -91,8 +91,8 @@ struct AddFolderSheet: View {
     private func toggle(_ title: String, _ sub: String, _ binding: Binding<Bool>) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13.5, weight: .medium))
-                Text(sub).font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                Text(title).font(Typography.callout)
+                Text(sub).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             Spacer()
             Toggle("", isOn: binding).labelsHidden().tint(Palette.accent)

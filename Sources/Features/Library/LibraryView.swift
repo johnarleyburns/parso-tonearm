@@ -91,7 +91,7 @@ struct LibraryView: View {
                                 VStack(spacing: 14) {
                                     ProgressView().tint(Palette.accent)
                                     Text("Loading your music…")
-                                        .font(.system(size: 13))
+                                        .font(Typography.callout)
                                         .foregroundStyle(Palette.inkTertiary)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -217,7 +217,7 @@ struct LibraryView: View {
                         }
                     } label: {
                         Text(index)
-                            .font(.system(size: 10, weight: .bold))
+                            .font(Typography.caption)
                             .foregroundStyle(Palette.accent)
                             .frame(width: 18, height: 16)
                     }
@@ -257,24 +257,24 @@ private struct LibraryBrowseEntryRow: View {
                 .frame(width: 28, height: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.title)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 if let subtitle = entry.subtitle {
                     Text(subtitle)
-                        .font(.system(size: 11.5))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                         .lineLimit(1)
                 }
                 if let averageBPM = entry.averageBPM {
                     Text("AVG " + String(format: "%.1f", averageBPM) + " BPM")
-                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                        .font(Typography.monoStrong)
                         .foregroundStyle(Palette.accent)
                 }
             }
             Spacer(minLength: 8)
             Text("\(entry.rows.count)")
-                .font(.system(size: 12, weight: .semibold))
+                .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
         }
         .padding(.vertical, 9)
@@ -311,18 +311,18 @@ private struct LibraryGroupDetailView: View {
             VStack(alignment: .leading, spacing: 0) {
                 navRow
                 Text(entry.title)
-                    .font(.system(size: 25, weight: .heavy))
+                    .font(Typography.title)
                     .lineLimit(3)
                     .padding(.top, 10)
                 if let subtitle = entry.subtitle {
                     Text(subtitle)
-                        .font(.system(size: 14))
+                        .font(Typography.callout)
                         .foregroundStyle(Palette.accent)
                         .padding(.top, 4)
                 }
                 if entry.kind == .album, let averageBPM {
                     Text("Average " + String(format: "%.1f", averageBPM) + " BPM")
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .font(Typography.monoStrong)
                         .foregroundStyle(Palette.accent)
                         .padding(.top, 3)
                 }
@@ -350,7 +350,7 @@ private struct LibraryGroupDetailView: View {
         HStack {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 15))
+                    .font(Typography.body)
                     .foregroundStyle(Palette.accent)
                     .frame(width: 33, height: 33)
                     .glassSurface(cornerRadius: 16.5)
@@ -370,7 +370,7 @@ private struct LibraryGroupDetailView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 15))
+                        .font(Typography.body)
                         .foregroundStyle(Palette.accent)
                         .frame(width: 33, height: 33)
                         .glassSurface(cornerRadius: 16.5)
@@ -427,7 +427,7 @@ private struct LibraryGroupDetailView: View {
             Image(systemName: icon)
             Text(title)
         }
-        .font(.system(size: 14.5, weight: .semibold))
+        .font(Typography.body)
         .foregroundStyle(Palette.accent)
         .frame(maxWidth: .infinity)
         .frame(height: 42)
@@ -441,10 +441,10 @@ struct SectionHeader: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title).font(.system(size: 18, weight: .bold))
+            Text(title).font(Typography.headline)
             Spacer()
             if let trailing {
-                Text(trailing).font(.system(size: 13)).foregroundStyle(Palette.accent)
+                Text(trailing).font(Typography.callout).foregroundStyle(Palette.accent)
             }
         }
         .padding(.horizontal, 2)
@@ -463,11 +463,11 @@ struct AlbumCell: View {
                     ProvenanceChip(source: source).padding(8)
                 }
             Text(source.title)
-                .font(.system(size: 12.5, weight: .semibold))
+                .font(Typography.callout)
                 .lineLimit(1)
                 .padding(.top, 7)
             Text(subtitle)
-                .font(.system(size: 11))
+                .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
                 .lineLimit(1)
                 .padding(.top, 1)

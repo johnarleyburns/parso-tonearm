@@ -24,20 +24,20 @@ struct CreatePlaylistSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
-            Text("New Playlist").font(.system(size: 19, weight: .bold)).padding(.top, 12)
+            Capsule().fill(Palette.ink.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
+            Text("New Playlist").font(Typography.headline).padding(.top, 12)
 
             TextField("", text: $name, prompt: Text("Playlist name").foregroundStyle(Palette.inkTertiary))
-                .font(.system(size: 15, weight: .medium))
+                .font(Typography.body)
                 .platformAutocapitalization(.words)
                 .padding(.horizontal, 14).frame(height: 46)
-                .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
+                .background(Palette.ink.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.ink.opacity(0.12)))
                 .padding(.top, 16)
 
             HStack {
                 Text(selected.isEmpty ? "Add tracks (optional)" : "\(selected.count) selected")
-                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Palette.inkSecondary)
+                    .font(Typography.callout).foregroundStyle(Palette.inkSecondary)
                 Spacer()
             }
             .padding(.top, 16).padding(.bottom, 8)
@@ -52,9 +52,9 @@ struct CreatePlaylistSheet: View {
                             Image(systemName: selected.contains(row.id) ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(selected.contains(row.id) ? Palette.accent : Palette.inkTertiary)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(row.track.title).font(.system(size: 14, weight: .medium)).lineLimit(1)
+                                Text(row.track.title).font(Typography.callout).lineLimit(1)
                                 Text(row.album?.artist ?? row.album?.title ?? "")
-                                    .font(.system(size: 11.5)).foregroundStyle(Palette.inkTertiary).lineLimit(1)
+                                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
                             }
                             Spacer()
                         }
@@ -75,7 +75,7 @@ struct CreatePlaylistSheet: View {
                 }
             } label: {
                 Text("Create Playlist")
-                    .font(.system(size: 15.5, weight: .bold))
+                    .font(Typography.body)
                     .foregroundStyle(Palette.accentOnFill)
                     .frame(maxWidth: .infinity).frame(height: 48)
                     .background(LinearGradient(colors: [Palette.accent, Palette.accent],

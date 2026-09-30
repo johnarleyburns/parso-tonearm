@@ -55,7 +55,7 @@ struct PlaylistsView: View {
                     .padding(.bottom, 12)
 
                 Text("Your Playlists")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
                     .kerning(0.6)
                     .padding(.horizontal, 18)
@@ -201,14 +201,14 @@ struct PlaylistDetailView: View {
             HStack(spacing: 10) {
                 Button { dismiss() } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.accent)
+                        .font(Typography.body).foregroundStyle(Palette.accent)
                         .frame(width: 44, height: 44).glassSurface(cornerRadius: 22)
                 }
                 .accessibilityLabel("Back")
                 .accessibilityIdentifier("playlist.back")
                 Spacer()
                 EditButton()
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(Typography.callout)
                     .frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("playlist.edit")
                 if editMode?.wrappedValue == .active {
@@ -219,7 +219,7 @@ struct PlaylistDetailView: View {
                         }
                     } label: {
                         Image(systemName: "arrow.up.arrow.down")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(Typography.callout)
                             .foregroundStyle(Palette.accent)
                             .frame(width: 44, height: 44)
                     }
@@ -230,7 +230,7 @@ struct PlaylistDetailView: View {
                 }
                 Button { showAddTracks = true } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.accent)
+                        .font(Typography.body).foregroundStyle(Palette.accent)
                         .frame(width: 44, height: 44).glassSurface(cornerRadius: 22)
                 }
                 .accessibilityIdentifier("playlist.add")
@@ -285,7 +285,7 @@ struct PlaylistDetailView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 14)).foregroundStyle(Palette.accent)
+                        .font(Typography.callout).foregroundStyle(Palette.accent)
                         .frame(width: 44, height: 44).glassSurface(cornerRadius: 22)
                 }
                 .accessibilityLabel("More")
@@ -295,11 +295,11 @@ struct PlaylistDetailView: View {
             .padding(.horizontal, 18)
 
             Text(currentPlaylist.title)
-                .font(.system(size: 26, weight: .heavy)).kerning(-0.5)
+                .font(Typography.title).kerning(-0.5)
                 .padding(.top, 12)
                 .padding(.horizontal, 18)
             Text("\(tracks.count) tracks")
-                .font(.system(size: 12.5)).foregroundStyle(Palette.inkTertiary)
+                .font(Typography.callout).foregroundStyle(Palette.inkTertiary)
                 .padding(.top, 2).padding(.bottom, 8)
                 .padding(.horizontal, 18)
 
@@ -449,22 +449,22 @@ struct NavigationRow: View {
                     .frame(width: 42, height: 42)
             } else {
                 Image(systemName: icon)
-                    .font(.system(size: 16))
+                    .font(Typography.body)
                     .foregroundStyle(Palette.accent)
                     .frame(width: 42, height: 42)
                     .glassSurface(cornerRadius: 10)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 14, weight: .medium))
-                Text(subtitle).font(.system(size: 11.5)).foregroundStyle(Palette.inkTertiary)
+                Text(title).font(Typography.callout)
+                Text(subtitle).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             Spacer()
             if isPinned {
                 Image(systemName: "pin.fill")
-                    .font(.system(size: 11))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.accent)
             }
-            Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Palette.inkTertiary)
+            Image(systemName: "chevron.right").font(Typography.callout).foregroundStyle(Palette.inkTertiary)
         }
         .padding(.vertical, 8)
         // Now that this is plain content (not wrapped directly in
@@ -486,11 +486,11 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 42))
+                .font(Typography.display)
                 .foregroundStyle(Palette.inkTertiary)
-            Text(title).font(.system(size: 17, weight: .semibold))
+            Text(title).font(Typography.headline)
             Text(message)
-                .font(.system(size: 13))
+                .font(Typography.callout)
                 .foregroundStyle(Palette.inkTertiary)
                 .multilineTextAlignment(.center)
         }

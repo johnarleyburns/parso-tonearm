@@ -40,7 +40,7 @@ struct IndexStatusView: View {
                                 : "Only downloaded, on-device tracks are indexed. A track streamed "
                                     + "from a remote library is included once you download it."
                         )
-                        .font(.system(size: 11))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                         .padding(.horizontal, 4)
                         countsCard(p)
@@ -48,9 +48,9 @@ struct IndexStatusView: View {
                     } else if let error = model.errorMessage {
                         VStack(alignment: .leading, spacing: 10) {
                             Label("Sound Index unavailable", systemImage: "exclamationmark.triangle")
-                                .font(.system(size: 16, weight: .bold))
+                                .font(Typography.body)
                             Text(error)
-                                .font(.system(size: 12))
+                                .font(Typography.caption)
                                 .foregroundStyle(Palette.inkSecondary)
                             Button("Retry") { Task { await model.refresh() } }
                                 .buttonStyle(.borderedProminent)
@@ -120,10 +120,10 @@ struct IndexStatusView: View {
 
     private func summaryCard(_ p: IndexStatusPresentation) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(p.headline).font(.system(size: 17, weight: .heavy))
+            Text(p.headline).font(Typography.headline)
             ProgressView(value: p.modelDownloadFraction ?? p.fractionComplete)
                 .tint(Palette.accent)
-            Text(p.detail).font(.system(size: 13)).foregroundStyle(Palette.inkSecondary)
+            Text(p.detail).font(Typography.callout).foregroundStyle(Palette.inkSecondary)
         }
         .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -158,12 +158,12 @@ struct IndexStatusView: View {
             trackListBucket = bucket
         } label: {
             HStack {
-                Text(label).font(.system(size: 14)).foregroundStyle(Palette.ink)
+                Text(label).font(Typography.callout).foregroundStyle(Palette.ink)
                 Spacer()
-                Text("\(value)").font(.system(size: 14, weight: .semibold)).foregroundStyle(Palette.inkSecondary)
+                Text("\(value)").font(Typography.callout).foregroundStyle(Palette.inkSecondary)
                 if value > 0 {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                 }
             }
@@ -185,11 +185,11 @@ struct IndexStatusView: View {
     /// showing one of those two facts would have hidden that gap again.
     private func modelsCard(_ detail: ModelDiagnosticsDetail) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Models").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.inkTertiary)
+            Text("Models").font(Typography.callout).foregroundStyle(Palette.inkTertiary)
 
             if let error = detail.downloadError {
                 Text("Download error: \(error)")
-                    .font(.system(size: 12))
+                    .font(Typography.caption)
                     .foregroundStyle(.red)
             }
 
@@ -211,11 +211,11 @@ struct IndexStatusView: View {
             HStack {
                 Image(systemName: downloadStateIcon(tag.state))
                     .foregroundStyle(downloadStateColor(tag.state))
-                    .font(.system(size: 13, weight: .semibold))
-                Text(tag.tag).font(.system(size: 13, weight: .semibold))
+                    .font(Typography.callout)
+                Text(tag.tag).font(Typography.callout)
                 Spacer()
                 Text(downloadStateLabel(tag.state))
-                    .font(.system(size: 12))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
             }
             if tag.state == .inProgress {
@@ -226,14 +226,14 @@ struct IndexStatusView: View {
                         .tint(Palette.accent)
                     Text("\(doneMB) of \(totalMB) MB"
                         + (tag.fractionComplete.map { " (\(Int(($0 * 100).rounded()))%)" } ?? ""))
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 } else {
                     // NSBundleResourceRequest's unit isn't guaranteed to be
                     // real bytes (confirmed on a real device: a literal
                     // totalUnitCount of 1) — never show a fabricated MB
                     // count or percentage here.
                     Text("Downloading — no byte count reported yet")
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
             }
         }
@@ -268,11 +268,11 @@ struct IndexStatusView: View {
         HStack {
             Image(systemName: artifact.isResolved ? "doc.fill" : "questionmark.folder")
                 .foregroundStyle(artifact.isResolved ? .green : .orange)
-                .font(.system(size: 13, weight: .semibold))
-            Text(artifact.name).font(.system(size: 13))
+                .font(Typography.callout)
+            Text(artifact.name).font(Typography.callout)
             Spacer()
             Text(artifact.isResolved ? (artifact.resolvedName ?? "Found") : "Not found")
-                .font(.system(size: 12))
+                .font(Typography.caption)
                 .foregroundStyle(artifact.isResolved ? Palette.inkTertiary : .orange)
         }
         .padding(.vertical, 4)
@@ -296,7 +296,7 @@ struct IndexStatusView: View {
                     get: { model.snapshot?.isChargingOnly ?? false },
                     set: { on in Task { await model.setChargingOnly(on) } })
             )
-            .font(.system(size: 14))
+            .font(Typography.callout)
             .padding(.vertical, 4)
 
             Divider().overlay(Palette.hairline)
@@ -336,11 +336,11 @@ struct IndexStatusView: View {
                     get: { model.snapshot?.isRemoteIndexingEnabled ?? true },
                     set: { on in Task { await model.setRemoteIndexingEnabled(on) } })
             )
-            .font(.system(size: 14))
+            .font(Typography.callout)
             .padding(.vertical, 4)
             Text("Samples just enough of each track from your remote libraries to index it — "
                 + "the audio is never downloaded or kept.")
-                .font(.system(size: 11))
+                .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
 
             if model.snapshot?.isRemoteIndexingEnabled == true {
@@ -359,7 +359,7 @@ struct IndexStatusView: View {
                             }
                         })
                 )
-                .font(.system(size: 14))
+                .font(Typography.callout)
                 .padding(.vertical, 4)
                 .padding(.leading, 14)
             }
@@ -377,7 +377,7 @@ struct IndexStatusView: View {
                 Text(title)
                 Spacer()
             }
-            .font(.system(size: 14, weight: .semibold))
+            .font(Typography.callout)
             .padding(.vertical, 10)
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -389,12 +389,12 @@ struct IndexStatusView: View {
     private var activityCard: some View {
         let r = model.snapshot?.runtime
         return VStack(alignment: .leading, spacing: 6) {
-            Text("Activity").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.inkTertiary)
+            Text("Activity").font(Typography.callout).foregroundStyle(Palette.inkTertiary)
             line("Last run", r?.lastRunAt)
             line("Last successful work", r?.lastSuccessfulWorkAt)
             line("Last background submit", r?.lastBackgroundSubmissionAt)
             if let reason = r?.lastStopReason {
-                Text(reason).font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                Text(reason).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
         }
         .padding(15)
@@ -404,10 +404,10 @@ struct IndexStatusView: View {
 
     private func line(_ label: String, _ date: Date?) -> some View {
         HStack {
-            Text(label).font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
+            Text(label).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             Spacer()
             Text(date.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "—")
-                .font(.system(size: 12)).foregroundStyle(Palette.inkSecondary)
+                .font(Typography.caption).foregroundStyle(Palette.inkSecondary)
         }
     }
 }
@@ -427,18 +427,18 @@ private struct IndexTrackListSheet: View {
                 if let tracks {
                     if tracks.isEmpty {
                         Text("Nothing here right now.")
-                            .font(.system(size: 14)).foregroundStyle(Palette.inkTertiary)
+                            .font(Typography.callout).foregroundStyle(Palette.inkTertiary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         List(tracks) { track in
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(track.title).font(.system(size: 14)).lineLimit(1)
+                                Text(track.title).font(Typography.callout).lineLimit(1)
                                 if let artist = track.artistName {
-                                    Text(artist).font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
+                                    Text(artist).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                                         .lineLimit(1)
                                 }
                                 if let detail = track.detail {
-                                    Text(detail).font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                                    Text(detail).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                                         .lineLimit(2)
                                 }
                             }
@@ -499,7 +499,7 @@ private struct DiagnosticsShareSheet: View {
         NavigationStack {
             ScrollView {
                 Text(text)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(Typography.mono)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(18)

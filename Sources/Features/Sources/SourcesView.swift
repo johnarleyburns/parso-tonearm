@@ -174,17 +174,17 @@ struct LibraryServiceRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "dot.radiowaves.left.and.right")
-                .font(.system(size: 15, weight: .semibold))
+                .font(Typography.body)
                 .foregroundStyle(Palette.accent)
                 .frame(width: 42, height: 42)
                 .glassSurface(cornerRadius: 9)
             VStack(alignment: .leading, spacing: 2) {
-                Text(service.title).font(.system(size: 14, weight: .medium)).lineLimit(1)
+                Text(service.title).font(Typography.callout).lineLimit(1)
                 Text("Browse by genre or search · streams from Jamendo")
-                    .font(.system(size: 11.5)).foregroundStyle(Palette.inkTertiary).lineLimit(1)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Palette.inkTertiary)
+            Image(systemName: "chevron.right").font(Typography.callout).foregroundStyle(Palette.inkTertiary)
         }
         .padding(.vertical, 9)
         .contentShape(Rectangle())
@@ -199,11 +199,11 @@ struct SourceRow: View {
             SourceArtworkView(source: source, cornerRadius: 9)
                 .frame(width: 42, height: 42)
             VStack(alignment: .leading, spacing: 2) {
-                Text(source.title).font(.system(size: 14, weight: .medium)).lineLimit(1)
-                Text(subtitle).font(.system(size: 11.5)).foregroundStyle(Palette.inkTertiary).lineLimit(1)
+                Text(source.title).font(Typography.callout).lineLimit(1)
+                Text(subtitle).font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Palette.inkTertiary)
+            Image(systemName: "chevron.right").font(Typography.callout).foregroundStyle(Palette.inkTertiary)
         }
         .padding(.vertical, 9)
         .contentShape(Rectangle())

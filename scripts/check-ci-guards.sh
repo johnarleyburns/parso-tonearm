@@ -66,6 +66,28 @@ else
   echo "    OK"
 fi
 
+# ── Palette appearance coverage ────────────────────────────────────────────
+# A missing asset or an invalid runtime name can make every semantic foreground
+# clear. Require every semantic token to have a universal value and an explicit
+# dark appearance, so both sides of the System/Light/Dark setting stay visible.
+echo "==> Palette appearance coverage"
+palette_ok=1
+for token in background surface surfaceRaised ink inkSecondary inkTertiary hairline accent accentOnFill success danger; do
+  asset="Resources/Assets.xcassets/Palette/${token}.colorset/Contents.json"
+  if [ ! -f "$asset" ]; then
+    echo "    missing palette asset: $asset"
+    status=1; palette_ok=0
+    continue
+  fi
+  if ! grep -q '"idiom":"universal"' "$asset" ||
+     ! grep -q '"appearance":"luminosity"' "$asset" ||
+     ! grep -q '"value":"dark"' "$asset"; then
+    echo "    palette asset lacks universal + dark appearances: $asset"
+    status=1; palette_ok=0
+  fi
+done
+[ "$palette_ok" = "1" ] && echo "    OK"
+
 # ── Watch app icon catalog ─────────────────────────────────────────────────
 #
 # The iOS app embeds a watchOS app. Its icon catalog must be validated with

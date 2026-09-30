@@ -3,7 +3,9 @@ import AVKit
 
 struct AirPlayButton: UIViewRepresentable {
     var activeTintColor: UIColor = .systemBlue
-    var inactiveTintColor: UIColor = .white
+    var inactiveTintColor: UIColor = UIColor { traits in
+        traits.userInterfaceStyle == .dark ? .white : .black
+    }
 
     func makeUIView(context: Context) -> AVRoutePickerView {
         let v = AVRoutePickerView()

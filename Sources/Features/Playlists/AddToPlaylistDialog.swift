@@ -10,10 +10,11 @@ struct AddToPlaylistDialog: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selection: Int64 = -1
     @State private var name = ""
+    @State private var didComplete = false
 
     var body: some View {
         VStack(spacing: 14) {
-            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5)
+            Capsule().fill(Palette.ink.opacity(0.35)).frame(width: 36, height: 5)
             Text(title).font(.headline)
             if let subtitle { Text(subtitle).font(.caption).foregroundStyle(Palette.inkTertiary) }
             Picker("Playlist", selection: $selection) {
@@ -24,6 +25,7 @@ struct AddToPlaylistDialog: View {
             }
             .pickerStyle(.menu)
             .accessibilityIdentifier("addToPlaylist.picker")
+            .sensoryFeedback(.selection, trigger: selection)
             if selection == -1 {
                 TextField("Playlist name", text: $name)
                     .textFieldStyle(.roundedBorder)
@@ -39,6 +41,7 @@ struct AddToPlaylistDialog: View {
                         else if let playlist = appState.playlists.first(where: { $0.id == selection }) {
                             await confirm(.existing(playlist))
                         }
+                        didComplete = true
                         dismiss()
                     }
                 }
@@ -49,5 +52,6 @@ struct AddToPlaylistDialog: View {
         .padding(20).foregroundStyle(Palette.ink)
         .presentationDetents([.height(280)])
         .presentationBackground(.ultraThinMaterial)
+        .sensoryFeedback(.success, trigger: didComplete)
     }
 }

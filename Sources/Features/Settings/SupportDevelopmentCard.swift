@@ -14,11 +14,11 @@ struct SupportDevelopmentCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Contribute to Development").font(.system(size: 13, weight: .bold))
+                Text("Contribute to Development").font(Typography.callout)
                 Spacer()
                 if store.isSupporter {
                     Label("Supporter", systemImage: "heart.fill")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.accent)
                         .accessibilityIdentifier("settings.support.badge")
                 }
@@ -27,12 +27,12 @@ struct SupportDevelopmentCard: View {
             Text("Everything here is free, forever. If you'd like to help fund development, "
                  + "this is a purely optional, one-time contribution — it doesn't unlock anything, "
                  + "it just marks your account as a supporter.")
-                .font(.system(size: 11.5))
+                .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
 
             if store.isSupporter {
                 Text("Thank you for your support.")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkSecondary)
                     .accessibilityIdentifier("settings.support.thanks")
             } else {
@@ -50,7 +50,7 @@ struct SupportDevelopmentCard: View {
                             ProgressView().controlSize(.small)
                         }
                         Text(store.purchasing ? "Purchasing…" : "Contribute · \(store.displayPrice)")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(Typography.callout)
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 40)
@@ -61,7 +61,7 @@ struct SupportDevelopmentCard: View {
 
                 if let lastError {
                     Text(lastError)
-                        .font(.system(size: 11))
+                        .font(Typography.caption)
                         .foregroundStyle(Color.red.opacity(0.9))
                 }
             }

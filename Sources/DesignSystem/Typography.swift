@@ -6,8 +6,15 @@ enum Typography {
     static let headline = Font.headline
     static let body = Font.body
     static let callout = Font.callout
+    static let calloutStrong = Font.callout.weight(.semibold)
     static let caption = Font.caption
+    static let captionStrong = Font.caption.weight(.semibold)
+    static let micro = Font.caption2
+    static let microStrong = Font.caption2.weight(.semibold)
     static let mono = Font.caption.monospacedDigit()
+    static let monoStrong = Font.caption.weight(.semibold).monospacedDigit()
+    static let bodyStrong = Font.body.weight(.semibold)
+    static let titleStrong = Font.title2.weight(.bold)
 }
 
 struct Metrics {

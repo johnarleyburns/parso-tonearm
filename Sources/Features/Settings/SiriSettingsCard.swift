@@ -19,9 +19,9 @@ struct SiriSettingsCard: View {
     var body: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Siri & CarPlay").font(.system(size: 13.5))
+                Text("Siri & CarPlay").font(Typography.callout)
                 Text(detail)
-                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             Spacer()
             if status == .notDetermined {
@@ -38,7 +38,7 @@ struct SiriSettingsCard: View {
                 .accessibilityIdentifier("settings.siri.allow")
             } else {
                 Text(status == .authorized ? "On" : "Off")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(Typography.callout)
                     .foregroundStyle(status == .authorized ? Palette.ink : Palette.inkTertiary)
                     .accessibilityIdentifier("settings.siri.status")
             }

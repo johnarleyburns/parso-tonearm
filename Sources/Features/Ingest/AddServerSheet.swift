@@ -23,11 +23,11 @@ struct AddServerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
+            Capsule().fill(Palette.ink.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
             Text("Add Remote Library")
-                .font(.system(size: 19, weight: .bold)).padding(.top, 12)
+                .font(Typography.headline).padding(.top, 12)
             Text(connector.subtitle)
-                .font(.system(size: 12.5)).foregroundStyle(Palette.inkSecondary)
+                .font(Typography.callout).foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.center).padding(.top, 5)
 
             providerPicker.padding(.top, 16)
@@ -35,7 +35,7 @@ struct AddServerSheet: View {
             fields.padding(.top, 16)
 
             if let error {
-                Text(error).font(.system(size: 12.5)).foregroundStyle(Palette.danger)
+                Text(error).font(Typography.callout).foregroundStyle(Palette.danger)
                     .multilineTextAlignment(.center).padding(.top, 14)
             }
 
@@ -63,7 +63,7 @@ struct AddServerSheet: View {
             }
 
             Text(footerText)
-                .font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary)
+                .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 .multilineTextAlignment(.center).padding(.top, 11)
         }
         .padding(.horizontal, 20).padding(.bottom, 24)
@@ -75,7 +75,7 @@ struct AddServerSheet: View {
                 appState.showAddRemoteLibrary = false
                 dismiss()
             }
-            .font(.system(size: 12, weight: .semibold))
+            .font(Typography.caption)
             .accessibilityIdentifier("Close Add Remote Library")
             .padding(.top, 12)
         }
@@ -153,14 +153,14 @@ struct AddServerSheet: View {
                             Text(option.title)
                             if option.tier == .advanced {
                                 Image(systemName: "wrench.and.screwdriver")
-                                    .font(.system(size: 10, weight: .bold))
+                                    .font(Typography.caption)
                             }
                         }
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(Typography.caption)
                         .foregroundStyle(option.id == selectedConnectorID ? Palette.accentOnFill : Palette.inkSecondary)
                         .padding(.horizontal, 11)
                         .frame(height: 34)
-                        .background(option.id == selectedConnectorID ? Palette.accent : Color.primary.opacity(0.08),
+                        .background(option.id == selectedConnectorID ? Palette.accent : Palette.ink.opacity(0.08),
                                     in: Capsule())
                     }
                     .buttonStyle(.plain)
@@ -177,14 +177,14 @@ struct AddServerSheet: View {
                 Text("How To: \(connector.title)")
                 Spacer()
                 Text(connector.tier.title)
-                    .font(.system(size: 10, weight: .bold))
+                    .font(Typography.caption)
                     .foregroundStyle(connector.tier == .advanced ? Palette.accent : Palette.inkTertiary)
             }
-            .font(.system(size: 12.5, weight: .semibold))
+            .font(Typography.callout)
             .foregroundStyle(Palette.inkSecondary)
             .padding(.horizontal, 13)
             .frame(height: 38)
-            .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+            .background(Palette.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(.plain)
     }
@@ -194,18 +194,18 @@ struct AddServerSheet: View {
             if isJamendoGenre {
                 HStack(spacing: 10) {
                     Image(systemName: "music.note.list")
-                        .font(.system(size: 15)).foregroundStyle(Palette.accent)
+                        .font(Typography.body).foregroundStyle(Palette.accent)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Free Creative-Commons music by genre")
-                            .font(.system(size: 13.5))
+                            .font(Typography.callout)
                         Text("Pick one or more genres. Each becomes its own library. No account needed.")
-                            .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                            .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
+                .background(Palette.ink.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.ink.opacity(0.12)))
             }
             if needsURL {
                 textField(label: isIAConnector ? "ARCHIVE.ORG URL" : "SERVER URL",
@@ -228,34 +228,34 @@ struct AddServerSheet: View {
             if authKind == .oauth {
                 HStack(spacing: 10) {
                     Image(systemName: "person.crop.circle.badge.checkmark")
-                        .font(.system(size: 15)).foregroundStyle(Palette.accent)
+                        .font(Typography.body).foregroundStyle(Palette.accent)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Sign in with \(connector.title)")
-                            .font(.system(size: 13.5))
+                            .font(Typography.callout)
                         Text("Platterhead requests read-only access for browsing and streaming.")
-                            .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                            .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
+                .background(Palette.ink.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.ink.opacity(0.12)))
             }
             if connectorKind == .smb {
                 HStack(spacing: 10) {
                     Image(systemName: "folder")
-                        .font(.system(size: 15)).foregroundStyle(Palette.accent)
+                        .font(Typography.body).foregroundStyle(Palette.accent)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Choose a shared music folder")
-                            .font(.system(size: 13.5))
+                            .font(Typography.callout)
                         Text("Platterhead saves folder access and streams files in place.")
-                            .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                            .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
+                .background(Palette.ink.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.ink.opacity(0.12)))
             }
         }
     }
@@ -265,7 +265,7 @@ struct AddServerSheet: View {
                            text: Binding<String>,
                            keyboardType: TextFieldKeyboardHint) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
+            Text(label).font(Typography.caption).kerning(1)
                 .foregroundStyle(Palette.inkTertiary)
             PasteCapableTextField(
                 text: text,
@@ -277,13 +277,13 @@ struct AddServerSheet: View {
                 .frame(height: 28)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
-        .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
+        .background(Palette.ink.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.ink.opacity(0.12)))
     }
 
     private func secureField(label: String, prompt: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
+            Text(label).font(Typography.caption).kerning(1)
                 .foregroundStyle(Palette.inkTertiary)
             PasteCapableTextField(
                 text: text,
@@ -295,8 +295,8 @@ struct AddServerSheet: View {
                 .frame(height: 28)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
-        .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
+        .background(Palette.ink.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.ink.opacity(0.12)))
     }
 
     private func actionLabel(title: String, icon: String) -> some View {
@@ -304,7 +304,7 @@ struct AddServerSheet: View {
             Image(systemName: icon)
             Text(title)
         }
-        .font(.system(size: 15.5, weight: .bold))
+        .font(Typography.body)
         .foregroundStyle(Palette.accentOnFill)
         .frame(maxWidth: .infinity).frame(height: 48)
         .background(LinearGradient(colors: [Palette.accent, Palette.accent],

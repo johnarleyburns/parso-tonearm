@@ -14,11 +14,11 @@ struct AddSourceSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
+            Capsule().fill(Palette.ink.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
             Text("Add archive.org Library")
-                .font(.system(size: 19, weight: .bold)).padding(.top, 12)
+                .font(Typography.headline).padding(.top, 12)
             Text("Paste a link to an item, a public list or\nfavorites page, or a collection.")
-                .font(.system(size: 12.5)).foregroundStyle(Palette.inkSecondary)
+                .font(Typography.callout).foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.center).padding(.top, 5)
 
             urlField.padding(.top, 16)
@@ -26,7 +26,7 @@ struct AddSourceSheet: View {
             if isResolving {
                 ProgressView().tint(Palette.accent).padding(.top, 20)
             } else if let error {
-                Text(error).font(.system(size: 12.5)).foregroundStyle(Palette.danger)
+                Text(error).font(Typography.callout).foregroundStyle(Palette.danger)
                     .multilineTextAlignment(.center).padding(.top, 14)
             } else if let preview {
                 previewCard(preview).padding(.top, 13)
@@ -44,7 +44,7 @@ struct AddSourceSheet: View {
                         if isAdding { ProgressView().tint(Palette.accentOnFill) }
                         else { Text("Add to Music") }
                 }
-                .font(.system(size: 15.5, weight: .bold))
+                .font(Typography.body)
                 .foregroundStyle(Palette.accentOnFill)
                 .frame(maxWidth: .infinity).frame(height: 48)
                 .background(LinearGradient(colors: [Palette.accent, Palette.accent],
@@ -55,7 +55,7 @@ struct AddSourceSheet: View {
             .opacity(preview == nil ? 0.5 : 1)
 
             Text("Platterhead streams this music and keeps a temporary cache.\nNothing is stored permanently and nothing is searched for you.")
-                .font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary)
+                .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 .multilineTextAlignment(.center).padding(.top, 11)
         }
         .padding(.horizontal, 20).padding(.bottom, 24)
@@ -66,7 +66,7 @@ struct AddSourceSheet: View {
 
     private var urlField: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("URL").font(.system(size: 10, weight: .semibold)).kerning(1)
+            Text("URL").font(Typography.caption).kerning(1)
                 .foregroundStyle(Palette.inkTertiary)
             PasteCapableTextField(text: $urlText, prompt: "https://archive.org/details/…", isSecure: false, keyboardType: .url)
                 .frame(height: 28)
@@ -75,24 +75,24 @@ struct AddSourceSheet: View {
                 }
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
-        .background(Color.primary.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12)))
+        .background(Palette.ink.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.ink.opacity(0.12)))
     }
 
     private func previewCard(_ p: SourcePreview) -> some View {
         HStack(spacing: 12) {
             ArtworkView(seed: p.title, cornerRadius: 12).frame(width: 56, height: 56)
             VStack(alignment: .leading, spacing: 3) {
-                Text(p.title).font(.system(size: 13.5, weight: .semibold)).lineLimit(2)
-                Text(p.subtitle).font(.system(size: 11.5)).foregroundStyle(Palette.inkSecondary)
+                Text(p.title).font(Typography.callout).lineLimit(2)
+                Text(p.subtitle).font(Typography.caption).foregroundStyle(Palette.inkSecondary)
                 if let lic = p.licenseText {
-                    Text("✓ \(lic)").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Palette.success)
+                    Text("✓ \(lic)").font(Typography.caption).foregroundStyle(Palette.success)
                 } else if p.licensePermitsStreaming {
-                    Text("✓ streams permitted").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Palette.success)
+                    Text("✓ streams permitted").font(Typography.caption).foregroundStyle(Palette.success)
                 }
                 if p.capHit, let total = p.totalCount {
                     Text("Adds first \(p.memberCount ?? 0) of \(total)")
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
             }
             Spacer()
@@ -104,8 +104,8 @@ struct AddSourceSheet: View {
     private var followToggle: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Follow list updates").font(.system(size: 13.5, weight: .medium))
-                Text("Re-check on pull-to-refresh only").font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                Text("Follow list updates").font(Typography.callout)
+                Text("Re-check on pull-to-refresh only").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             Spacer()
             Toggle("", isOn: $followUpdates).labelsHidden().tint(Palette.accent)

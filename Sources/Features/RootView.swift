@@ -213,7 +213,7 @@ struct RootView: View {
                 Text(appState.backgroundDone ? "Added \"\(title)\""
                      : appState.backgroundFailed ? "Failed to add \"\(title)\""
                      : "Adding \"\(title)\"…")
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.ink)
                 Spacer()
             }
@@ -233,7 +233,7 @@ struct RootView: View {
                 Image(systemName: "wifi.slash")
                     .foregroundStyle(Palette.accent)
                 Text(message)
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(2)
                 Spacer()

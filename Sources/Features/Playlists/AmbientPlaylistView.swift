@@ -10,12 +10,12 @@ struct AmbientPlaylistView: View {
             VStack(spacing: 0) {
                 navRow
                 Text("Ambient")
-                    .font(.system(size: 26, weight: .bold))
+                    .font(Typography.title)
                     .foregroundStyle(Palette.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 16)
                 Text("Continuous nature sounds for focus, relaxation, or sleep.")
-                    .font(.system(size: 13))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 4)
@@ -35,7 +35,7 @@ struct AmbientPlaylistView: View {
         HStack {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 15)).foregroundStyle(Palette.accent)
+                    .font(Typography.body).foregroundStyle(Palette.accent)
                     .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
             }
             Spacer()
@@ -60,29 +60,29 @@ struct AmbientPlaylistView: View {
                     }
                 }
                 .frame(width: 68, height: 68)
-                .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+                .shadow(color: Palette.ink.opacity(0.3), radius: 8, y: 4)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(ambient.title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(Typography.body)
                         .foregroundStyle(Palette.ink)
                     Text(ambient.artist)
-                        .font(.system(size: 12))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkSecondary)
                     HStack(spacing: 4) {
                         Circle().fill(Palette.success).frame(width: 5, height: 5)
                         Text("CC0 Public Domain")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(Typography.caption)
                             .foregroundStyle(Palette.inkTertiary)
                         Text("· built-in")
-                            .font(.system(size: 10))
+                            .font(Typography.caption)
                             .foregroundStyle(Palette.inkTertiary)
                     }
                     .padding(.top, 2)
                 }
                 Spacer()
                 Image(systemName: "play.circle.fill")
-                    .font(.system(size: 28))
+                    .font(Typography.title)
                     .foregroundStyle(Palette.accent)
             }
             .padding(12)

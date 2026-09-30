@@ -35,8 +35,8 @@ struct JamendoCredentialView: View {
                              + "You can use your own instead."
                            : "This build ships without a Jamendo key, so genre libraries are "
                              + "unavailable until you add one.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(Typography.callout)
+                        .foregroundStyle(Palette.inkSecondary)
                         .accessibilityIdentifier("jamendo.credential.status")
                 }
 
@@ -53,8 +53,8 @@ struct JamendoCredentialView: View {
                          + "application key, not a Jamendo account — browsing and playback "
                          + "still need no sign-in. The secret is optional and unused today; "
                          + "it is kept for the authorised flows Jamendo requires it for.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
 
                 Section {
@@ -69,14 +69,14 @@ struct JamendoCredentialView: View {
 
                 if let errorMessage {
                     Section {
-                        Text(errorMessage).font(.footnote).foregroundStyle(.red)
+                        Text(errorMessage).font(Typography.callout).foregroundStyle(Palette.danger)
                             .accessibilityIdentifier("jamendo.credential.error")
                     }
                 }
                 if saved {
                     Section {
                         Text("Saved to the keychain on this device.")
-                            .font(.footnote).foregroundStyle(.green)
+                        .font(Typography.callout).foregroundStyle(Palette.success)
                     }
                 }
             }

@@ -24,7 +24,7 @@ struct NowPlayingView: View {
         ZStack {
             npBackground.ignoresSafeArea()
             VStack(spacing: 0) {
-                Capsule().fill(Color.primary.opacity(0.35))
+                Capsule().fill(Palette.ink.opacity(0.35))
                     .frame(width: 36, height: 5).padding(.top, 8)
 
                 ArtworkView(
@@ -35,7 +35,7 @@ struct NowPlayingView: View {
                 )
                 .frame(maxWidth: 360)
                 .aspectRatio(1, contentMode: .fit)
-                .shadow(color: .black.opacity(0.55), radius: 30, y: 16)
+                .shadow(color: Palette.ink.opacity(0.55), radius: 30, y: 16)
                 .padding(.top, 22)
                 .overlay {
                     if player.isAmbient, let channelId = player.ambientChannelId,
@@ -155,9 +155,9 @@ struct NowPlayingView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(player.currentTrack?.track.title ?? "Nothing playing")
-                    .font(.system(size: 17, weight: .bold)).lineLimit(1)
+                    .font(Typography.headline).lineLimit(1)
                 Text(player.currentTrack.flatMap { $0.artist?.name ?? $0.album?.artist } ?? "")
-                    .font(.system(size: 14)).foregroundStyle(Palette.inkSecondary)
+                    .font(Typography.callout).foregroundStyle(Palette.inkSecondary)
             }
             Spacer()
         }
@@ -196,15 +196,31 @@ struct NowPlayingView: View {
                     .accessibilityIdentifier("np.elapsed")
                 Spacer()
                 Text(qualityChip)
-                    .font(.system(size: 9.5, weight: .bold)).kerning(0.8)
+                    .font(Typography.caption).kerning(0.8)
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.hairline))
                 Spacer()
                 Text("-" + TimeFmt.mmss(max(0, player.duration - player.currentTime)))
             }
-            .font(.system(size: 11, weight: .medium))
+            .font(Typography.caption)
             .foregroundStyle(Palette.inkSecondary)
             .monospacedDigit()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Playback position")
+        .accessibilityValue("\(TimeFmt.mmss(player.currentTime)) of \(TimeFmt.mmss(player.duration))")
+        .accessibilityAdjustableAction { direction in
+            let step: TimeInterval = 15
+            let next: TimeInterval
+            switch direction {
+            case .increment:
+                next = min(player.duration, player.currentTime + step)
+            case .decrement:
+                next = max(0, player.currentTime - step)
+            @unknown default:
+                return
+            }
+            player.seek(to: next)
         }
     }
 
@@ -228,14 +244,14 @@ struct NowPlayingView: View {
     private var transport: some View {
         HStack(spacing: 10) {
             Button { player.previous() } label: {
-                Image(systemName: "backward.fill").font(.system(size: 20))
+                Image(systemName: "backward.fill").font(Typography.headline)
                     .frame(width: 52, height: 52).background(.ultraThinMaterial, in: Circle())
             }
             .accessibilityLabel("Previous Track")
             .accessibilityIdentifier("np.prev")
             Button { player.togglePlayPause() } label: {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 26))
+                    .font(Typography.title)
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: 66, height: 66).background(.ultraThinMaterial, in: Circle())
             }
@@ -244,19 +260,19 @@ struct NowPlayingView: View {
             .accessibilityValue(player.isPlaying ? "playing" : "paused")
             .sensoryFeedback(.impact(weight: .light), trigger: player.isPlaying)
             Button { player.next() } label: {
-                Image(systemName: "forward.fill").font(.system(size: 20))
+                Image(systemName: "forward.fill").font(Typography.headline)
                     .frame(width: 52, height: 52).background(.ultraThinMaterial, in: Circle())
             }
             .accessibilityLabel("Next Track")
             .accessibilityIdentifier("np.next")
             Button { player.cycleRepeatMode() } label: {
-                Image(systemName: repeatIcon).font(.system(size: 17))
+                Image(systemName: repeatIcon).font(Typography.headline)
                     .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
             }
             .accessibilityLabel("Repeat")
             .accessibilityIdentifier("np.repeat")
             Button { player.shuffle.toggle() } label: {
-                Image(systemName: "shuffle").font(.system(size: 17))
+                Image(systemName: "shuffle").font(Typography.headline)
                     .foregroundStyle(player.shuffle ? Palette.accent : Palette.inkSecondary)
                     .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
             }
@@ -274,7 +290,7 @@ struct NowPlayingView: View {
             } label: {
                 Image(systemName: player.currentTrack.map { appState.isFavorite($0) } == true ? "heart.fill" : "heart")
                     .foregroundStyle(player.currentTrack.map { appState.isFavorite($0) } == true ? Palette.danger : Palette.inkSecondary)
-                    .font(.system(size: 16)).frame(width: 44, height: 44)
+                    .font(Typography.body).frame(width: 44, height: 44)
                     .background(.ultraThinMaterial, in: Circle())
             }
             .disabled(player.currentTrack == nil)
@@ -284,7 +300,7 @@ struct NowPlayingView: View {
             .symbolEffect(.bounce, value: player.currentTrack.map { appState.isFavorite($0) } == true)
 
             Button { showAddToPlaylist = true } label: {
-                Image(systemName: "text.badge.plus").font(.system(size: 16))
+                Image(systemName: "text.badge.plus").font(Typography.body)
                     .frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
             }
             .disabled(player.currentTrack == nil || player.isAmbient)
@@ -318,7 +334,7 @@ struct NowPlayingView: View {
                 }
             } label: {
                 Image(systemName: player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack ? "moon.zzz.fill" : "moon.zzz")
-                    .font(.system(size: 16))
+                    .font(Typography.body)
                     .foregroundStyle((player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack) ? Palette.accent : Palette.inkSecondary)
                     .frame(width: 44, height: 44)
                     .background(.ultraThinMaterial, in: Circle())

@@ -1,7 +1,15 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Add to Platterhead" : { "localizations" : { "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Add to Platterhead" } } } }
+    "Add to Platterhead" : { "localizations" : {
+      "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Add to Platterhead" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "添加到 Platterhead" } },
+      "es" : { "stringUnit" : { "state" : "needs_review", "value" : "Añadir a Platterhead" } },
+      "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Ajouter à Platterhead" } },
+      "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Zu Platterhead hinzufügen" } },
+      "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterheadに追加" } },
+      "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Adicionar ao Platterhead" } }
+    } }
   },
   "version" : "1.0"
 }

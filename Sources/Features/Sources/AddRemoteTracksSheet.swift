@@ -19,7 +19,7 @@ struct AddRemoteTracksSheet: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Capsule().fill(Color.primary.opacity(0.35)).frame(width: 36, height: 5)
+            Capsule().fill(Palette.ink.opacity(0.35)).frame(width: 36, height: 5)
             Text("Add tracks to playlist").font(.headline)
             Text(scopeTitle).font(.caption).foregroundStyle(Palette.inkTertiary)
             Stepper("Add \(count) of \(available) tracks", value: $count,

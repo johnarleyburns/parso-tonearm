@@ -79,7 +79,7 @@ struct ToolsView: View {
             pickerRow("MATCH", selection: $smartOperator, values: SmartPlaylistOperator.allCases)
             textField("VALUE", text: $smartValue, prompt: smartField.kind == .number ? "0" : "text")
             Stepper("Limit \(smartLimit)", value: $smartLimit, in: 1...500)
-                .font(.system(size: 13.5))
+                .font(Typography.callout)
             primaryButton("Create Playlist", icon: "text.badge.plus") {
                 Task { await createSmartPlaylist() }
             }
@@ -103,9 +103,9 @@ struct ToolsView: View {
                             Image(systemName: selectedTrackIDs.contains(row.id) ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(selectedTrackIDs.contains(row.id) ? Palette.accent : Palette.inkTertiary)
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(row.track.title).font(.system(size: 13.5)).lineLimit(1)
+                                Text(row.track.title).font(Typography.callout).lineLimit(1)
                                 Text(row.album?.title ?? "Local file")
-                                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary).lineLimit(1)
+                                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
                             }
                             Spacer()
                         }
@@ -136,14 +136,14 @@ struct ToolsView: View {
                 .disabled(!proAudio.crossfeedEnabled)
                 .opacity(proAudio.crossfeedEnabled ? 1 : 0.45)
             Stepper("Convolution taps \(proAudio.convolutionTaps)", value: convolutionTaps, in: 0...ProAudioSettings.maxConvolutionTaps, step: 64)
-                .font(.system(size: 13.5))
+                .font(Typography.callout)
             Toggle("Bit-perfect requested", isOn: bitPerfectRequested).tint(Palette.accent)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(bitPerfectPlan.canUseBitPerfect ? "Bit-perfect available" : "Bit-perfect blocked")
-                    .font(.system(size: 13.5, weight: .semibold))
+                    .font(Typography.callout)
                 Text(blockerText)
-                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             .padding(.top, 2)
         }
@@ -172,10 +172,10 @@ struct ToolsView: View {
             ForEach(Array(duplicateGroups.enumerated()), id: \.offset) { _, group in
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(group.candidates.count) matches — keeping the first, removing the rest")
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(Typography.callout)
                     ForEach(group.candidates, id: \.id) { candidate in
                         Text(candidate.id)
-                            .font(.system(size: 11.5))
+                            .font(Typography.caption)
                             .foregroundStyle(Palette.inkTertiary)
                             .lineLimit(1)
                     }
@@ -330,16 +330,16 @@ struct ToolsView: View {
 
     private func textField(_ label: String, text: Binding<String>, prompt: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.system(size: 10, weight: .semibold)).kerning(1)
+            Text(label).font(Typography.caption).kerning(1)
                 .foregroundStyle(Palette.inkTertiary)
             TextField("", text: text, prompt: Text(prompt).foregroundStyle(Palette.inkTertiary))
-                .font(.system(size: 12.5))
+                .font(Typography.callout)
                 .platformAutocapitalization(.never)
                 .autocorrectionDisabled()
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
-        .background(Color.primary.opacity(0.24), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.12)))
+        .background(Palette.ink.opacity(0.24), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.ink.opacity(0.12)))
     }
 
     private func pickerRow<T: CaseIterable & Hashable & RawRepresentable>(
@@ -348,7 +348,7 @@ struct ToolsView: View {
         values: T.AllCases
     ) -> some View where T.RawValue == String, T.AllCases: RandomAccessCollection {
         HStack {
-            Text(title).font(.system(size: 10, weight: .semibold)).kerning(1)
+            Text(title).font(Typography.caption).kerning(1)
                 .foregroundStyle(Palette.inkTertiary)
             Spacer()
             Picker(title, selection: selection) {
@@ -366,9 +366,9 @@ struct ToolsView: View {
                         display: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack {
-                Text(title).font(.system(size: 13.5))
+                Text(title).font(Typography.callout)
                 Spacer()
-                Text(display).font(.system(size: 12).monospacedDigit()).foregroundStyle(Palette.inkTertiary)
+                Text(display).font(Typography.caption.monospacedDigit()).foregroundStyle(Palette.inkTertiary)
             }
             Slider(value: value, in: range).tint(Palette.accent)
         }
@@ -380,7 +380,7 @@ struct ToolsView: View {
                 Image(systemName: icon)
                 Text(title)
             }
-            .font(.system(size: 13.5, weight: .bold))
+            .font(Typography.callout)
             .foregroundStyle(Palette.accentOnFill)
             .frame(maxWidth: .infinity).frame(height: 42)
             .background(Palette.accent, in: RoundedRectangle(cornerRadius: 12))
@@ -391,7 +391,7 @@ struct ToolsView: View {
     private func messageText(_ message: String?) -> some View {
         if let message {
             Text(message)
-                .font(.system(size: 11.5))
+                .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
         }
     }

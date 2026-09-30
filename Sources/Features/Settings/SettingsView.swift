@@ -150,7 +150,7 @@ struct SettingsView: View {
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.system(size: 11, weight: .bold))
+            .font(Typography.caption)
             .foregroundStyle(Palette.inkTertiary)
             .kerning(0.5)
             .padding(.top, 4)
@@ -163,10 +163,10 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             Button { advancedExpanded.toggle() } label: {
                 HStack {
-                    Text("Advanced").font(.system(size: 13.5, weight: .semibold))
+                    Text("Advanced").font(Typography.callout)
                     Spacer()
                     Image(systemName: advancedExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                 }
                 .padding(15)
@@ -236,13 +236,13 @@ struct SettingsView: View {
         Button { activeSheet = .cacheManagement } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Streaming Cache").font(.system(size: 13.5))
+                    Text("Streaming Cache").font(Typography.callout)
                     Text("\(TimeFmt.megabytes(cacheUsed)) of \(TimeFmt.megabytes(cacheLimit)) used")
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
@@ -256,16 +256,16 @@ struct SettingsView: View {
     private var cacheCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Streaming Cache").font(.system(size: 13, weight: .bold))
+                Text("Streaming Cache").font(Typography.callout)
                 Spacer()
                 Text("\(TimeFmt.megabytes(cacheUsed)) of \(TimeFmt.megabytes(cacheLimit))")
-                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             .padding(.bottom, 11)
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.primary.opacity(0.1))
+                    Capsule().fill(Palette.ink.opacity(0.1))
                     Capsule().fill(LinearGradient(colors: [Palette.accent, Palette.accent],
                                                   startPoint: .leading, endPoint: .trailing))
                         .frame(width: geo.size.width * fillFraction)
@@ -274,9 +274,9 @@ struct SettingsView: View {
             .frame(height: 10)
 
             HStack {
-                Text("\(cachedCount) tracks cached").font(.system(size: 10.5))
+                Text("\(cachedCount) tracks cached").font(Typography.caption)
                 Spacer()
-                Text("oldest evicted first").font(.system(size: 10.5))
+                Text("oldest evicted first").font(Typography.caption)
             }
             .foregroundStyle(Palette.inkTertiary)
             .padding(.top, 8)
@@ -291,7 +291,7 @@ struct SettingsView: View {
 
             if let customCacheLimitMessage {
                 Text(customCacheLimitMessage)
-                    .font(.system(size: 10.5))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
                     .padding(.top, 8)
             }
@@ -308,10 +308,10 @@ struct SettingsView: View {
             Task { await AudioCache.setLimit(bytes); await refresh() }
         } label: {
             Text(label)
-            .font(.system(size: 11, weight: .semibold))
+            .font(Typography.caption)
             .foregroundStyle(selected ? Palette.accentOnFill : Palette.inkSecondary)
             .frame(maxWidth: .infinity).padding(.vertical, 8)
-            .background(selected ? Palette.accent : Color.primary.opacity(0.07),
+            .background(selected ? Palette.accent : Palette.ink.opacity(0.07),
                         in: RoundedRectangle(cornerRadius: 11))
         }
     }
@@ -324,12 +324,12 @@ struct SettingsView: View {
             showCustomCacheLimit = true
         } label: {
             Text(selected ? TimeFmt.megabytes(cacheLimit) : "Custom")
-                .font(.system(size: 11, weight: .semibold))
+                .font(Typography.caption)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .foregroundStyle(selected ? Palette.accentOnFill : Palette.inkSecondary)
                 .frame(maxWidth: .infinity).padding(.vertical, 8)
-                .background(selected ? Palette.accent : Color.primary.opacity(0.07),
+                .background(selected ? Palette.accent : Palette.ink.opacity(0.07),
                             in: RoundedRectangle(cornerRadius: 11))
         }
     }
@@ -342,17 +342,17 @@ struct SettingsView: View {
         Button { activeSheet = .musicLibraries } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Music Libraries").font(.system(size: 13.5))
+                    Text("Music Libraries").font(Typography.callout)
                     Text(
                         appState.sources.isEmpty
                             ? "Local folders, servers & cloud"
                             : "\(appState.sources.count) connected"
                     )
-                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.inkTertiary)
             }
             .padding(.vertical, 4)
@@ -371,10 +371,10 @@ struct SettingsView: View {
     private var soundIndexCard: some View {
         Button { activeSheet = .soundIndex } label: {
             HStack {
-                Text("Sound Index").font(.system(size: 13.5))
+                Text("Sound Index").font(Typography.callout)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.inkTertiary)
             }
             .padding(.vertical, 4)
@@ -390,13 +390,13 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Transition analysis").font(.system(size: 13.5))
+                    Text("Transition analysis").font(Typography.callout)
                     Text("Beat grids and phrase maps used to plan transitions. Rebuilt when needed. \(analysisTracks) tracks · \(TimeFmt.megabytes(analysisBytes))")
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Button("Clear analysis", role: .destructive) { showClearAnalysisConfirm = true }
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(Typography.caption)
             }
         }
         .padding(15)
@@ -432,9 +432,9 @@ struct SettingsView: View {
     private var prefetchControl: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Prefetch next tracks").font(.system(size: 13.5))
+                Text("Prefetch next tracks").font(Typography.callout)
                 Text("Cache ahead while playing")
-                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             Spacer()
             // Real report: "the +/- does nothing, I don't see any number
@@ -442,7 +442,7 @@ struct SettingsView: View {
             // iOS; it is never rendered inline next to the control, however
             // it's used here (this was true before this change too — not a
             // new regression). The value needs its own always-visible Text.
-            Text("\(appState.prefetchDepth)").font(.system(size: 13, weight: .semibold))
+            Text("\(appState.prefetchDepth)").font(Typography.callout)
                 .monospacedDigit()
             Stepper("", value: $appState.prefetchDepth,
                     in: PrefetchDepthPolicy.minimum...PrefetchDepthPolicy.maximum)
@@ -456,13 +456,13 @@ struct SettingsView: View {
         Button { activeSheet = .eq } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("10-band EQ").font(.system(size: 13.5))
+                    Text("10-band EQ").font(Typography.callout)
                     Text("Presets and custom curves")
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "slider.vertical.3")
-                    .font(.system(size: 14))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.inkTertiary)
             }
             .padding(.vertical, 8)
@@ -478,9 +478,9 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("iCloud Sync").font(.system(size: 13.5))
+                    Text("iCloud Sync").font(Typography.callout)
                     Text("Music, playlists & settings across your devices, using your own iCloud")
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Toggle("", isOn: Binding(
@@ -522,13 +522,13 @@ struct SettingsView: View {
         Button { showWatchSettings = true } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Apple Watch").font(.system(size: 13.5))
+                    Text("Apple Watch").font(Typography.callout)
                     Text("Download music for offline playback on your watch")
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "applewatch")
-                    .font(.system(size: 16))
+                    .font(Typography.body)
                     .foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
@@ -550,13 +550,13 @@ struct SettingsView: View {
         Button { activeSheet = .jamendoKey } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Jamendo key").font(.system(size: 13.5))
+                    Text("Jamendo key").font(Typography.callout)
                     Text("Use your own application key for genre libraries")
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "key")
-                    .font(.system(size: 14))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
@@ -571,13 +571,13 @@ struct SettingsView: View {
         Button { activeSheet = .tools } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Tools").font(.system(size: 13.5))
+                    Text("Tools").font(Typography.callout)
                     Text("Smart playlists, tags, duplicates, parametric EQ and more")
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 Image(systemName: "wrench.and.screwdriver")
-                    .font(.system(size: 14))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
@@ -593,8 +593,8 @@ struct SettingsView: View {
     ) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13.5))
-                Text(sub).font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                Text(title).font(Typography.callout)
+                Text(sub).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             Spacer()
             // The identifier belongs on the Toggle itself, not the row — an
@@ -626,16 +626,16 @@ struct SettingsView: View {
             Divider().overlay(Palette.hairline)
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Tracks added per extension").font(.system(size: 13.5))
+                    Text("Tracks added per extension").font(Typography.callout)
                     Text("Picked by sound similarity to what you just played, "
                         + "when the sound index is ready — otherwise shuffled from the same library/playlist")
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
                 // Same fix as `prefetchControl` — a Stepper's label closure
                 // never renders inline on iOS, so the value needs its own
                 // visible Text.
-                Text("\(appState.keepPlayingBatchSize)").font(.system(size: 13, weight: .semibold))
+                Text("\(appState.keepPlayingBatchSize)").font(Typography.callout)
                     .monospacedDigit()
                 Stepper("", value: $appState.keepPlayingBatchSize, in: 5...30, step: 5)
                 .labelsHidden()
@@ -655,9 +655,9 @@ struct SettingsView: View {
     private var clearCard: some View {
         Button { showClearConfirm = true } label: {
             HStack {
-                Text("Clear Cache").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Palette.danger)
+                Text("Clear Cache").font(Typography.callout).foregroundStyle(Palette.danger)
                 Spacer()
-                Text(TimeFmt.megabytes(cacheUsed)).font(.system(size: 13)).foregroundStyle(Palette.inkTertiary)
+                Text(TimeFmt.megabytes(cacheUsed)).font(Typography.callout).foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
@@ -670,22 +670,22 @@ struct SettingsView: View {
     private var customArtworkCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Custom Artwork").font(.system(size: 13, weight: .bold))
+                Text("Custom Artwork").font(Typography.callout)
                 Spacer()
                 Text(TimeFmt.megabytes(customArtworkBytes))
-                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             .padding(.bottom, 4)
 
             Text("Images you attach to tracks, albums, and libraries. Never auto-deleted.")
-                .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 .padding(.bottom, 12)
 
             Button {
                 showClearCustomConfirm = true
             } label: {
                 Text("Clear Custom Artwork")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.danger)
                     .frame(maxWidth: .infinity)
             }
@@ -700,12 +700,12 @@ struct SettingsView: View {
         Button { activeSheet = .privacy } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Privacy").font(.system(size: 13.5))
+                    Text("Privacy").font(Typography.callout)
                     Text("No accounts of ours; optional Apple iCloud sync · no ads · no analytics · talks only to archive.org (URL only for public; Keychain for private lists), Apple artwork search, and libraries you explicitly connect")
-                        .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
+                Image(systemName: "chevron.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             .padding(15)
             .glassSurface(cornerRadius: 18)
@@ -720,7 +720,7 @@ struct SettingsView: View {
             Button { activeSheet = .thirdPartyNotices } label: {
                 HStack {
                     aboutRow("Terms", "GPLv3+ · third-party notices")
-                    Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
+                    Image(systemName: "chevron.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 .contentShape(Rectangle())
             }
@@ -730,7 +730,7 @@ struct SettingsView: View {
             Link(destination: URL(string: "https://github.com/johnarleyburns/parso-tonearm")!) {
                 HStack {
                     aboutRow("Source", "View on GitHub")
-                    Image(systemName: "arrow.up.right").font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
+                    Image(systemName: "arrow.up.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 .contentShape(Rectangle())
             }
@@ -750,9 +750,9 @@ struct SettingsView: View {
 
     private func aboutRow(_ title: String, _ value: String) -> some View {
         HStack {
-            Text(title).font(.system(size: 13.5))
+            Text(title).font(Typography.callout)
             Spacer()
-            Text(value).font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
+            Text(value).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
         }
         .padding(.vertical, 8)
     }
@@ -809,7 +809,7 @@ struct PrivacyView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Platterhead collects nothing.")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(Typography.headline)
                     privacyPoint("No accounts", "There is no sign-in and no server that belongs to Platterhead.")
                     privacyPoint("Optional iCloud sync", "Free for everyone, off by default. When you turn it on, your Music, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Platterhead server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
                     privacyPoint("No ads, no analytics", "No tracking of any kind. OAuth tokens are used only for services you explicitly connect.")
@@ -833,8 +833,8 @@ struct PrivacyView: View {
 
     private func privacyPoint(_ title: String, _ body: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.accent)
-            Text(body).font(.system(size: 13)).foregroundStyle(Palette.inkSecondary)
+            Text(title).font(Typography.body).foregroundStyle(Palette.accent)
+            Text(body).font(Typography.callout).foregroundStyle(Palette.inkSecondary)
         }
     }
 }
@@ -851,7 +851,7 @@ struct ThirdPartyNoticesView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Third-party notices")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(Typography.headline)
                     privacyPoint("License — GNU GPL v3.0 or later",
                         "Platterhead is free software: the complete source code is public at github.com/johnarleyburns/parso-tonearm, under the GNU General Public License v3.0 or later. Because the GPL's own terms conflict with the App Store's distribution terms, an additional permission under GPLv3 §7 specifically allows distributing Platterhead through the App Store, provided the source of the exact version distributed stays publicly available under this License — which it does, at the address above. Full text, including that permission: the LICENSE file in the repository.")
                     privacyPoint("Semantic / vibe search",
@@ -882,8 +882,8 @@ struct ThirdPartyNoticesView: View {
 
     private func privacyPoint(_ title: String, _ body: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.accent)
-            Text(body).font(.system(size: 13)).foregroundStyle(Palette.inkSecondary)
+            Text(title).font(Typography.body).foregroundStyle(Palette.accent)
+            Text(body).font(Typography.callout).foregroundStyle(Palette.inkSecondary)
         }
     }
 }
@@ -920,13 +920,13 @@ private struct DiscoverySyncActivityRow: View {
         let activity = engine.lastSyncActivity
         let total = activity.accepted + activity.rejectedKeepLocal + activity.rejectedRequeued
         return VStack(alignment: .leading, spacing: 4) {
-            Text("Sound Index Sync").font(.system(size: 12, weight: .semibold))
+            Text("Sound Index Sync").font(Typography.caption)
             if activity.pendingTrackImport > 0 {
                 Text("\(activity.pendingTrackImport) indexing results from your other devices are waiting for those tracks to be added here.")
-                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 if let oldest = activity.pendingOldestDate {
                     Text("Oldest waiting result: \(oldest.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.system(size: 10)).foregroundStyle(Palette.inkTertiary)
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 HStack {
                     Button("Retry matching") { Task { await engine.retryPending() } }
@@ -937,19 +937,19 @@ private struct DiscoverySyncActivityRow: View {
                         }
                     }
                 }
-                .font(.system(size: 11, weight: .semibold))
+                .font(Typography.caption)
             } else if total == 0 {
                 Text("No indexing results received from another device yet.")
-                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             } else {
                 Text("\(activity.accepted) received · \(activity.rejectedKeepLocal) already indexed here"
                     + (activity.rejectedRequeued > 0
                         ? " · \(activity.rejectedRequeued) incompatible, re-indexing here" : ""))
-                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             if activity.prunedPendingCount > 0 {
                 Text("Automatically removed \(activity.prunedPendingCount) waiting result(s) older than 90 days.")
-                    .font(.system(size: 10)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
         }
         .padding(.top, 6)

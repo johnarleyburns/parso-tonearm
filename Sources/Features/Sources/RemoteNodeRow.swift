@@ -18,15 +18,15 @@ struct RemoteNodeRow: View {
                     .frame(width: 36, height: 36)
             } else {
                 Image(systemName: icon)
-                    .font(.system(size: 15))
+                    .font(Typography.body)
                     .foregroundStyle(Palette.accent)
                     .frame(width: 36, height: 36)
                     .glassSurface(cornerRadius: 18)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13.5, weight: .medium)).lineLimit(1)
+                Text(title).font(Typography.callout).lineLimit(1)
                 if let subtitle {
-                    Text(subtitle).font(.system(size: 11)).foregroundStyle(Palette.inkTertiary).lineLimit(1)
+                    Text(subtitle).font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
                 }
             }
             Spacer()

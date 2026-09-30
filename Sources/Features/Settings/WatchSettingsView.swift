@@ -49,33 +49,33 @@ struct WatchSettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: statusIcon)
-                    .font(.system(size: 18))
+                    .font(Typography.headline)
                     .foregroundStyle(statusColor)
                 Text(statusText)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(Typography.body)
                 Spacer()
             }
             if let detail = statusDetail {
                 Text(detail)
-                    .font(.system(size: 12))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
             }
             if let storage = snapshot.storage {
                 Divider().overlay(Palette.hairline).padding(.vertical, 2)
                 Text("Downloaded \(storage.trackCount) \(storage.trackCount == 1 ? "track" : "tracks") · \(bytes(storage.installedBytes))")
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(Typography.callout)
                 if let fraction = storage.usedFraction {
                     VStack(alignment: .leading, spacing: 4) {
                         ProgressView(value: fraction)
                             .tint(fraction > 0.9 ? Palette.danger : Palette.accent)
                         Text("Watch storage used \(Int((fraction * 100).rounded()))%")
-                            .font(.system(size: 11))
+                            .font(Typography.caption)
                             .foregroundStyle(Palette.inkTertiary)
                     }
                     .padding(.top, 2)
                 } else if storage.freeBytes > 0 {
                     Text("\(bytes(storage.freeBytes)) free on Apple Watch")
-                        .font(.system(size: 11))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                 }
             }
@@ -89,10 +89,10 @@ struct WatchSettingsView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Palette.danger)
-                Text("Not enough space on Apple Watch").font(.system(size: 13.5, weight: .semibold))
+                Text("Not enough space on Apple Watch").font(Typography.callout)
             }
             Text("The remaining downloads need about \(bytes(shortfall.requiredBytes)) plus a \(bytes(shortfall.reserveBytes)) reserve; \(bytes(shortfall.freeBytes)) is free. Remove a collection below to make room.")
-                .font(.system(size: 11.5))
+                .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
         }
         .padding(15)
@@ -104,12 +104,12 @@ struct WatchSettingsView: View {
     private var downloadingCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Downloading").font(.system(size: 13, weight: .bold))
+                Text("Downloading").font(Typography.callout)
                 Spacer()
                 NavigationLink {
                     WatchDownloadQueueView()
                 } label: {
-                    Text("Queue").font(.system(size: 11.5)).foregroundStyle(Palette.accent)
+                    Text("Queue").font(Typography.caption).foregroundStyle(Palette.accent)
                 }
                 .accessibilityIdentifier("settings.watch.queue")
             }
@@ -123,7 +123,7 @@ struct WatchSettingsView: View {
             }
             if snapshot.activity.count > 4 {
                 Text("+ \(snapshot.activity.count - 4) more")
-                    .font(.system(size: 11)).foregroundStyle(Palette.inkTertiary)
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                     .padding(.top, 8)
             }
         }
@@ -136,7 +136,7 @@ struct WatchSettingsView: View {
     private var collectionsCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Downloaded Collections")
-                .font(.system(size: 13, weight: .bold))
+                .font(Typography.callout)
                 .padding(.bottom, 10)
 
             ForEach(snapshot.collections) { row in
@@ -158,9 +158,9 @@ struct WatchSettingsView: View {
 
     private var emptyCard: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("No downloads yet").font(.system(size: 13.5, weight: .semibold))
+            Text("No downloads yet").font(Typography.callout)
             Text("Use “Download to Apple Watch” from a track, album, or playlist to keep music for offline playback.")
-                .font(.system(size: 11.5)).foregroundStyle(Palette.inkTertiary)
+                .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
@@ -206,11 +206,11 @@ struct WatchSettingsView: View {
 
     private func managementRow(icon: String, tint: Color, title: String, chevron: Bool) -> some View {
         HStack {
-            Image(systemName: icon).font(.system(size: 14)).foregroundStyle(tint)
-            Text(title).font(.system(size: 13.5)).foregroundStyle(tint == Palette.danger ? Palette.danger : Palette.ink)
+            Image(systemName: icon).font(Typography.callout).foregroundStyle(tint)
+            Text(title).font(Typography.callout).foregroundStyle(tint == Palette.danger ? Palette.danger : Palette.ink)
             Spacer()
             if chevron {
-                Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
+                Image(systemName: "chevron.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
         }
         .padding(.vertical, 10)
@@ -312,30 +312,30 @@ private struct WatchActivityRowView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: WatchStageCopy.icon(row.stage))
-                    .font(.system(size: 12))
+                    .font(Typography.caption)
                     .foregroundStyle(WatchStageCopy.tint(row.stage))
-                Text(row.title).font(.system(size: 12.5)).lineLimit(1)
+                Text(row.title).font(Typography.callout).lineLimit(1)
                 Spacer()
                 Text(WatchStageCopy.text(row.stage))
-                    .font(.system(size: 10.5))
+                    .font(Typography.caption)
                     .foregroundStyle(WatchStageCopy.tint(row.stage))
             }
             if let message = row.failureMessage {
-                Text(message).font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary).lineLimit(2)
+                Text(message).font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(2)
             }
             HStack(spacing: 14) {
                 if row.canRetry {
                     Button("Try Again") { Task { await appState.retryWatchJob(row.requestID) } }
-                        .font(.system(size: 11, weight: .semibold)).tint(Palette.accent)
+                        .font(Typography.caption).tint(Palette.accent)
                 }
                 if row.canCancel {
                     Button("Cancel", role: .destructive) { Task { await appState.cancelWatchJob(row.requestID) } }
-                        .font(.system(size: 11)).tint(Palette.inkTertiary)
+                        .font(Typography.caption).tint(Palette.inkTertiary)
                 } else if row.canRetry {
                     Button("Remove from Queue", role: .destructive) {
                         Task { await appState.cancelWatchJob(row.requestID) }
                     }
-                    .font(.system(size: 11)).tint(Palette.inkTertiary)
+                    .font(Typography.caption).tint(Palette.inkTertiary)
                 }
             }
             .buttonStyle(.plain)
@@ -367,14 +367,14 @@ private struct WatchCollectionRowView: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: row.paused ? "pause.circle" : iconName)
-                .font(.system(size: 14))
+                .font(Typography.callout)
                 .foregroundStyle(row.paused ? Palette.accent : Palette.inkSecondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text(row.title).font(.system(size: 13)).lineLimit(1)
-                Text(subtitle).font(.system(size: 10.5)).foregroundStyle(Palette.inkTertiary).lineLimit(1)
+                Text(row.title).font(Typography.callout).lineLimit(1)
+                Text(subtitle).font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.inkTertiary)
+            Image(systemName: "chevron.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
         }
         .contentShape(Rectangle())
     }

@@ -10,7 +10,7 @@ extension SourceDetailView {
     var remoteManagementSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Library Settings")
-                .font(.system(size: 12, weight: .bold))
+                .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
                 .padding(.top, 24)
                 .padding(.bottom, 10)
@@ -41,7 +41,7 @@ extension SourceDetailView {
                         if isLoadingStats {
                             HStack {
                                 Text("Stats")
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(Typography.caption)
                                     .foregroundStyle(Palette.inkTertiary)
                                 Spacer()
                                 ProgressView().tint(Palette.accent).scaleEffect(0.7)
@@ -104,25 +104,25 @@ extension SourceDetailView {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text("Make Offline")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                     Spacer()
                     if progress.isDone {
                         Text("✓ \(progress.completed) of \(progress.total)")
-                            .font(.system(size: 12)).foregroundStyle(Palette.success)
+                            .font(Typography.caption).foregroundStyle(Palette.success)
                     } else if let msg = progress.message {
                         Text(msg)
-                            .font(.system(size: 11)).foregroundStyle(Palette.danger)
+                            .font(Typography.caption).foregroundStyle(Palette.danger)
                     } else {
                         Text("\(progress.completed) / \(progress.total)")
-                            .font(.system(size: 12)).foregroundStyle(Palette.inkSecondary)
+                            .font(Typography.caption).foregroundStyle(Palette.inkSecondary)
                             .monospacedDigit()
                     }
                 }
                 if !progress.isDone {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Color.primary.opacity(0.1))
+                            Capsule().fill(Palette.ink.opacity(0.1))
                             Capsule().fill(Palette.accent)
                                 .frame(width: geo.size.width * progress.fraction)
                         }
@@ -132,7 +132,7 @@ extension SourceDetailView {
                     Button("Cancel") {
                         appState.cancelOffline()
                     }
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.danger)
                 }
             }
@@ -143,14 +143,14 @@ extension SourceDetailView {
             } label: {
                 HStack {
                     Text("Make Offline")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                     Spacer()
                     Text("Download for offline playback")
-                        .font(.system(size: 12))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkSecondary)
                     Image(systemName: "arrow.down.circle")
-                        .font(.system(size: 14))
+                        .font(Typography.callout)
                         .foregroundStyle(Palette.accent)
                 }
                 .contentShape(Rectangle())
@@ -163,17 +163,17 @@ extension SourceDetailView {
     private func managementRow(label: String, value: String, chevron: Bool = false) -> some View {
         HStack {
             Text(label)
-                .font(.system(size: 12, weight: .medium))
+                .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
             Spacer()
             Text(value)
-                .font(.system(size: 12, weight: .regular, design: label == "URL" ? .monospaced : .default))
+                .font(Typography.caption)
                 .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
             if chevron {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
                     .padding(.leading, 4)
             }

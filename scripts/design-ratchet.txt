@@ -1,9 +1,10 @@
-# Ratchet baselines measured after C2/C3 on 2026-09-28.
-system_size=448
-color_literals=84
+# Ratchet baselines measured after the light/dark and Dynamic Type sweep on
+# 2026-09-29. These are ceilings: every later change must keep reducing them.
+system_size=0
+color_literals=0
 preferred_dark=0
-print_calls=39
-animation_calls=14
+print_calls=12
+animation_calls=3
 
 # Temporary exceptions are explicit and must carry a reason.
 allowlist|Sources/Tools/BuiltInEmbedder/main.swift|print|CLI progress output is intentionally terminal-facing

@@ -23,14 +23,14 @@ struct UpNextView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("Queue")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.ink)
 
                 Spacer()
 
                 if player.queueSource != .none {
                     Text(player.queueSource.label)
-                        .font(.system(size: 11))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkSecondary)
                 }
 
@@ -41,7 +41,7 @@ struct UpNextView: View {
                         player.removeUnplayedKeepPlayingTracks()
                     } label: {
                         Image(systemName: "xmark.circle")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(Typography.caption)
                             .foregroundStyle(Palette.inkSecondary)
                             .frame(width: 28, height: 28)
                     }
@@ -55,7 +55,7 @@ struct UpNextView: View {
                         editMode = editMode == .active ? .inactive : .active
                     } label: {
                         Image(systemName: editMode == .active ? "checkmark" : "line.3.horizontal")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(Typography.caption)
                             .foregroundStyle(Palette.inkSecondary)
                             .frame(width: 28, height: 28)
                     }
@@ -75,7 +75,7 @@ struct UpNextView: View {
 
             if player.queue.isEmpty || player.isAmbient {
                 Text(player.isAmbient ? "Continuous ambient loop" : "Nothing up next")
-                    .font(.system(size: 12))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
                     .padding(.vertical, 8)
             } else {
@@ -145,8 +145,8 @@ struct UpNextView: View {
             appState.applySettingsToPlayer()
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: "infinity").font(.system(size: 11, weight: .semibold))
-                Text("Keep Playing").font(.system(size: 10, weight: .semibold))
+                Image(systemName: "infinity").font(Typography.caption)
+                Text("Keep Playing").font(Typography.caption)
             }
             .foregroundStyle(player.keepPlayingEnabled ? Palette.accent : Palette.inkTertiary)
             .padding(.horizontal, 8)
@@ -170,15 +170,15 @@ struct UpNextView: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Image(systemName: player.keepPlayingLastExtensionWasFallback ? "shuffle" : "waveform")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(Typography.caption)
                 Text("Extended by Keep Playing")
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(Typography.caption)
                     .textCase(.uppercase)
                     .kerning(0.3)
             }
             if player.keepPlayingLastExtensionWasFallback {
                 Text(keepPlayingFallbackDetail)
-                    .font(.system(size: 9.5))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
             }
         }
@@ -210,10 +210,10 @@ private struct QueueRow: View {
             Group {
                 if isCurrent {
                     Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(Typography.caption)
                 } else {
                     Text("\(position)")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .font(Typography.monoStrong)
                 }
             }
             .foregroundStyle(isCurrent ? Palette.accent : Palette.inkTertiary)
@@ -226,18 +226,18 @@ private struct QueueRow: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.track.title)
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(Typography.callout)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text(row.artist?.name ?? row.album?.artist ?? "")
-                    .font(.system(size: 10.5))
+                    .font(Typography.caption)
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
             }
             Spacer()
             if let dur = row.track.durationSec, dur > 0 {
                 Text(TimeFmt.mmss(dur))
-                    .font(.system(size: 10.5, design: .monospaced))
+                    .font(Typography.mono)
                     .foregroundStyle(Palette.inkTertiary)
             }
         }

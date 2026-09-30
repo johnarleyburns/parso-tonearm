@@ -12,9 +12,9 @@ struct RemoteConnectorGuideView: View {
                     ForEach(guide.sections, id: \.title) { section in
                         VStack(alignment: .leading, spacing: 6) {
                             Text(section.title)
-                                .font(.system(size: 13, weight: .bold))
+                                .font(Typography.callout)
                             Text(section.body)
-                                .font(.system(size: 12.5))
+                                .font(Typography.callout)
                                 .foregroundStyle(Palette.inkSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }

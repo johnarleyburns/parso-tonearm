@@ -122,7 +122,7 @@ struct MyMusicView: View {
                 filterField("Mix key", text: $mixKeyText)
                 Button { showSoundSearch = true } label: {
                     Label("Sound / mood", systemImage: "waveform.and.magnifyingglass")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.accent)
                         .lineLimit(1)
                 }
@@ -133,7 +133,7 @@ struct MyMusicView: View {
                         soundSearchRevision &+= 1
                     } label: {
                         Label("Clear sound results", systemImage: "xmark.circle")
-                            .font(.system(size: 11))
+                            .font(Typography.caption)
                             .foregroundStyle(Palette.inkTertiary)
                     }
                     .buttonStyle(.plain)
@@ -145,7 +145,7 @@ struct MyMusicView: View {
                     mixBPMText = ""; mixKeyText = ""
                 } label: {
                     Label("Clear musical filters", systemImage: "xmark.circle")
-                        .font(.system(size: 11))
+                        .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
                 }
                 .buttonStyle(.plain)
@@ -165,11 +165,11 @@ struct MyMusicView: View {
 
     private func filterField(_ title: String, text: Binding<String>, numeric: Bool = false) -> some View {
         TextField(title, text: text)
-            .font(.system(size: 11.5))
+            .font(Typography.caption)
             .padding(.horizontal, 9)
             .frame(height: 32)
-            .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
-            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.primary.opacity(0.1)))
+            .background(Palette.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
+            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Palette.ink.opacity(0.1)))
             .platformAutocapitalization(numeric ? .never : .characters)
             .autocorrectionDisabled()
             .keyboardType(numeric ? .decimalPad : .default)
@@ -203,11 +203,11 @@ struct MyMusicView: View {
                     let selected = candidate == scope
                     Button { scope = candidate } label: {
                         Text(candidate.rawValue)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(Typography.callout)
                             .foregroundStyle(selected ? Palette.accentOnFill : Palette.inkSecondary)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(selected ? Palette.accent : Color.primary.opacity(0.07),
+                            .background(selected ? Palette.accent : Palette.ink.opacity(0.07),
                                         in: Capsule())
                     }
                     .buttonStyle(.plain)
