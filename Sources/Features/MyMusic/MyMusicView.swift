@@ -204,7 +204,7 @@ struct MyMusicView: View {
                     Button { scope = candidate } label: {
                         Text(candidate.rawValue)
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(selected ? .white : Palette.inkSecondary)
+                            .foregroundStyle(selected ? Palette.accentOnFill : Palette.inkSecondary)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .background(selected ? Palette.accent : Color.primary.opacity(0.07),

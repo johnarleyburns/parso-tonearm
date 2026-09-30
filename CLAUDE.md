@@ -62,6 +62,16 @@ the build invocation to use a destination; only if it says `--platform
 watchos` should the JSON or icon files be repaired. If `project.yml` changes,
 regenerate with `make project` and rerun both platform-specific builds.
 
+Run the required iOS and watchOS `xcodebuild` commands sequentially, never
+concurrently. They resolve shared SwiftPM packages and can otherwise race while
+creating or replacing the same DerivedData/checkouts, producing misleading
+package checkout or permission failures.
+
+The local test runner (`scripts/run-local-test-suite.sh`) is also a single-flight
+runner: it waits for any existing invocation to finish, runs Swift tests with
+`--no-parallel`, and runs the iPhone and watch smoke tests one after the other.
+Do not change it to launch test phases concurrently.
+
 ## No silent/magic background work — always visible, always in the user's control
 
 Any background or automatic behavior (indexing, downloading a model, syncing, migrating data, retrying) must tell the user what is happening in the moment it's happening, not just eventually succeed or fail silently. Concretely:

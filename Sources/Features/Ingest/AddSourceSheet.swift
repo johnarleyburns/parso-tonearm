@@ -41,7 +41,7 @@ struct AddSourceSheet: View {
                 Task { await add() }
             } label: {
                 Group {
-                        if isAdding { ProgressView().tint(.black) }
+                        if isAdding { ProgressView().tint(Palette.accentOnFill) }
                         else { Text("Add to Music") }
                 }
                 .font(.system(size: 15.5, weight: .bold))

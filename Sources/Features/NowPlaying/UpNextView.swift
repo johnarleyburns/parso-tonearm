@@ -19,14 +19,14 @@ struct UpNextView: View {
             HStack {
                 Text("Queue")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Palette.ink)
 
                 Spacer()
 
                 if player.queueSource != .none {
                     Text(player.queueSource.label)
                         .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(Palette.inkSecondary)
                 }
 
                 keepPlayingToggle
@@ -37,7 +37,7 @@ struct UpNextView: View {
                     } label: {
                         Image(systemName: "xmark.circle")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(Palette.inkSecondary)
                             .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
@@ -51,7 +51,7 @@ struct UpNextView: View {
                     } label: {
                         Image(systemName: editMode == .active ? "checkmark" : "line.3.horizontal")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(Palette.inkSecondary)
                             .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
@@ -65,7 +65,7 @@ struct UpNextView: View {
             if player.queue.isEmpty || player.isAmbient {
                 Text(player.isAmbient ? "Continuous ambient loop" : "Nothing up next")
                     .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(Palette.inkTertiary)
                     .padding(.vertical, 8)
             } else {
                 List {
@@ -81,7 +81,7 @@ struct UpNextView: View {
                         }
                             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                             .listRowBackground(Color.clear)
-                            .listRowSeparatorTint(.white.opacity(0.08))
+                            .listRowSeparatorTint(Palette.hairline)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
                                     player.removeFromQueue(at: offset)
@@ -105,8 +105,8 @@ struct UpNextView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.white.opacity(0.08)))
+        .background(Palette.surfaceRaised, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairline))
     }
 
     private var queueListHeight: CGFloat {
@@ -128,10 +128,10 @@ struct UpNextView: View {
                 Image(systemName: "infinity").font(.system(size: 11, weight: .semibold))
                 Text("Keep Playing").font(.system(size: 10, weight: .semibold))
             }
-            .foregroundStyle(player.keepPlayingEnabled ? Palette.accent : .white.opacity(0.5))
+            .foregroundStyle(player.keepPlayingEnabled ? Palette.accent : Palette.inkTertiary)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(player.keepPlayingEnabled ? Palette.accent.opacity(0.16) : .white.opacity(0.06),
+            .background(player.keepPlayingEnabled ? Palette.accent.opacity(0.16) : Palette.ink.opacity(0.06),
                         in: Capsule())
         }
         .buttonStyle(.plain)
@@ -159,7 +159,7 @@ struct UpNextView: View {
             if player.keepPlayingLastExtensionWasFallback {
                 Text(keepPlayingFallbackDetail)
                     .font(.system(size: 9.5))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(Palette.inkTertiary)
             }
         }
         .foregroundStyle(Palette.accent.opacity(0.85))
@@ -196,7 +196,7 @@ private struct QueueRow: View {
                         .font(.system(size: 11, weight: .medium, design: .monospaced))
                 }
             }
-            .foregroundStyle(isCurrent ? Palette.accent : .white.opacity(0.4))
+            .foregroundStyle(isCurrent ? Palette.accent : Palette.inkTertiary)
             .frame(width: 20, alignment: .leading)
 
             ArtworkView(trackRow: row,
@@ -207,18 +207,18 @@ private struct QueueRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.track.title)
                     .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text(row.artist?.name ?? row.album?.artist ?? "")
                     .font(.system(size: 10.5))
-                    .foregroundStyle(.white.opacity(0.45))
+                    .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
             }
             Spacer()
             if let dur = row.track.durationSec, dur > 0 {
                 Text(TimeFmt.mmss(dur))
                     .font(.system(size: 10.5, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.35))
+                    .foregroundStyle(Palette.inkTertiary)
             }
         }
         .padding(.vertical, 4)

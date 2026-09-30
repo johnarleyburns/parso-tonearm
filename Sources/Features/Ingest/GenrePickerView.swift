@@ -54,8 +54,8 @@ public struct GenrePickerSheet: View {
                 .padding(.top, 4)
                 .padding(.bottom, 22)
         }
-        .foregroundStyle(Color.primary)
-        .background(Color(red: 0.07, green: 0.085, blue: 0.12).ignoresSafeArea())
+        .foregroundStyle(Palette.ink)
+        .background(Palette.background.ignoresSafeArea())
         .task {
             // The §18A.6 reachability probe: one cheap count fetch on open.
             // A permanent failure surfaces the honest error banner.
@@ -108,18 +108,17 @@ public struct GenrePickerSheet: View {
             } label: {
                 Group {
                     if model.isAdding {
-                        ProgressView().tint(.black)
+                        ProgressView().tint(Palette.accentOnFill)
                     } else {
                         Text("Add \(model.selectedGenres.count) \(model.selectedGenres.count == 1 ? "library" : "libraries")")
                     }
                 }
                 .font(.system(size: 14.5, weight: .bold))
-                .foregroundStyle(.black)
+                .foregroundStyle(Palette.accentOnFill)
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
                 .background(
-                    LinearGradient(colors: [Color(red: 0.93, green: 0.70, blue: 0.36),
-                                            Color(red: 0.81, green: 0.56, blue: 0.20)],
+                    LinearGradient(colors: [Palette.accent, Palette.accent.opacity(0.82)],
                                    startPoint: .top, endPoint: .bottom),
                     in: Capsule())
             }
@@ -178,12 +177,11 @@ public struct GenrePickerContent: View {
                     HStack(spacing: 12) {
                         Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 20))
-                            .foregroundStyle(selected ? Color(red: 0.93, green: 0.70, blue: 0.36)
-                                                      : Color.secondary)
+                            .foregroundStyle(selected ? Palette.accent : Palette.inkSecondary)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(node.name)
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(Color.primary)
+                                .foregroundStyle(Palette.ink)
                             if let count {
                                 Text("about \(count) tracks")
                                     .font(.system(size: 11.5))
@@ -231,13 +229,13 @@ public struct GenrePickerContent: View {
                         } label: {
                             Text(child.name)
                                 .font(.system(size: 11.5, weight: .semibold))
-                                .foregroundStyle(childSelected ? .black : Color.primary)
+                                .foregroundStyle(childSelected ? Palette.accentOnFill : Palette.ink)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 7)
                                 .background(
                                     childSelected
-                                        ? Color(red: 0.93, green: 0.70, blue: 0.36)
-                                        : Color.primary.opacity(0.07),
+                                        ? Palette.accent
+                                        : Palette.ink.opacity(0.07),
                                     in: Capsule())
                         }
                         .buttonStyle(.plain)
@@ -263,7 +261,7 @@ public struct GenrePickerContent: View {
                          : "\(selections.count) \(selections.count == 1 ? "library" : "libraries") · "
                            + selections.map(\.name).joined(separator: ", "))
                         .font(.system(size: 13.5, weight: .semibold))
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(Palette.ink)
                     Text("We'll fetch the track lists now — that's quick. Audio "
                          + "downloads only when you actually play or prepare a "
                          + "track, so nothing fills your disk in the background.")
@@ -273,9 +271,9 @@ public struct GenrePickerContent: View {
                 Spacer()
                 Text("Free")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color(red: 0.81, green: 0.56, blue: 0.20))
+                    .foregroundStyle(Palette.accent)
                     .padding(.horizontal, 9).padding(.vertical, 4)
-                    .background(Color(red: 0.93, green: 0.70, blue: 0.36).opacity(0.14),
+                    .background(Palette.accent.opacity(0.14),
                                 in: Capsule())
             }
 
@@ -286,8 +284,8 @@ public struct GenrePickerContent: View {
                       ? "checkmark.square.fill" : "square")
                     .font(.system(size: 17))
                     .foregroundStyle(model.showsAccountOption
-                                     ? Color(red: 0.93, green: 0.70, blue: 0.36)
-                                     : Color.secondary)
+                                     ? Palette.accent
+                                     : Palette.inkSecondary)
                     .frame(width: 22, height: 22)
                     .contentShape(Rectangle())
                     .onTapGesture { model.showsAccountOption.toggle() }

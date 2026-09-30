@@ -309,7 +309,7 @@ struct SettingsView: View {
         } label: {
             Text(label)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(selected ? .white : Palette.inkSecondary)
+            .foregroundStyle(selected ? Palette.accentOnFill : Palette.inkSecondary)
             .frame(maxWidth: .infinity).padding(.vertical, 8)
             .background(selected ? Palette.accent : Color.primary.opacity(0.07),
                         in: RoundedRectangle(cornerRadius: 11))
@@ -327,7 +327,7 @@ struct SettingsView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .foregroundStyle(selected ? .white : Palette.inkSecondary)
+                .foregroundStyle(selected ? Palette.accentOnFill : Palette.inkSecondary)
                 .frame(maxWidth: .infinity).padding(.vertical, 8)
                 .background(selected ? Palette.accent : Color.primary.opacity(0.07),
                             in: RoundedRectangle(cornerRadius: 11))

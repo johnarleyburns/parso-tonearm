@@ -48,7 +48,7 @@ struct AddFolderSheet: View {
                 Task { await importFolder() }
             } label: {
                 Group {
-                    if isImporting { ProgressView().tint(.black) }
+                    if isImporting { ProgressView().tint(Palette.accentOnFill) }
                     else { Text("Import \(fileCount) Files") }
                 }
                 .font(.system(size: 15.5, weight: .bold)).foregroundStyle(Palette.accentOnFill)

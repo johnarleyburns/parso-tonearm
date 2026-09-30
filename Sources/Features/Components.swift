@@ -124,9 +124,9 @@ struct ProvenanceChip: View {
         }
         .font(.system(size: 8.5, weight: .bold))
         .kerning(0.5)
-        .foregroundStyle(.white)
+        .foregroundStyle(Palette.accentOnFill)
         .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(Color.primary.opacity(0.45), in: Capsule())
+        .background(Palette.accent, in: Capsule())
     }
 
     private var badge: (String, String) {

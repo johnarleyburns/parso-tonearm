@@ -73,7 +73,7 @@ struct NowPlayingView: View {
                     .padding(.top, 20)
             }
             .padding(.horizontal, 24)
-            .foregroundStyle(.white)
+            .foregroundStyle(Palette.ink)
         }
         .presentationDragIndicator(.hidden)
         .task(id: player.currentTrack?.id) {
@@ -144,8 +144,8 @@ struct NowPlayingView: View {
 
     private var npBackground: some View {
         LinearGradient(stops: [
-            .init(color: Palette.accent, location: 0),
-            .init(color: Palette.accent, location: 0.34),
+            .init(color: Palette.accent.opacity(0.24), location: 0),
+            .init(color: Palette.accent.opacity(0.12), location: 0.34),
             .init(color: Palette.surface, location: 0.78),
             .init(color: Palette.background, location: 1)
         ], startPoint: .top, endPoint: .bottom)
@@ -157,7 +157,7 @@ struct NowPlayingView: View {
                 Text(player.currentTrack?.track.title ?? "Nothing playing")
                     .font(.system(size: 17, weight: .bold)).lineLimit(1)
                 Text(player.currentTrack.flatMap { $0.artist?.name ?? $0.album?.artist } ?? "")
-                    .font(.system(size: 14)).foregroundStyle(.white.opacity(0.62))
+                    .font(.system(size: 14)).foregroundStyle(Palette.inkSecondary)
             }
             Spacer()
         }
@@ -169,10 +169,10 @@ struct NowPlayingView: View {
                 let w = geo.size.width
                 let playedFrac = player.duration > 0 ? min(1, player.currentTime / player.duration) : 0
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.primary.opacity(0.16))
-                    Capsule().fill(Color.primary.opacity(0.30))
+                    Capsule().fill(Palette.ink.opacity(0.16))
+                    Capsule().fill(Palette.ink.opacity(0.30))
                         .frame(width: w * player.cachedFraction)
-                    Capsule().fill(Color.primary.opacity(0.9))
+                    Capsule().fill(Palette.ink.opacity(0.9))
                         .frame(width: w * (isScrubbing ? scrubValue : playedFrac))
                 }
                 .frame(height: 7)
@@ -198,12 +198,12 @@ struct NowPlayingView: View {
                 Text(qualityChip)
                     .font(.system(size: 9.5, weight: .bold)).kerning(0.8)
                     .padding(.horizontal, 7).padding(.vertical, 3)
-                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.white.opacity(0.3)))
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.hairline))
                 Spacer()
                 Text("-" + TimeFmt.mmss(max(0, player.duration - player.currentTime)))
             }
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.white.opacity(0.55))
+            .foregroundStyle(Palette.inkSecondary)
             .monospacedDigit()
         }
     }
@@ -257,14 +257,14 @@ struct NowPlayingView: View {
             .accessibilityIdentifier("np.repeat")
             Button { player.shuffle.toggle() } label: {
                 Image(systemName: "shuffle").font(.system(size: 17))
-                    .foregroundStyle(player.shuffle ? Palette.accent : .white.opacity(0.6))
+                    .foregroundStyle(player.shuffle ? Palette.accent : Palette.inkSecondary)
                     .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
             }
             .disabled(player.isAmbient)
             .accessibilityLabel("Shuffle")
             .accessibilityIdentifier("np.shuffle")
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(Palette.ink)
     }
 
     private var toolbar: some View {
@@ -273,7 +273,7 @@ struct NowPlayingView: View {
                 if let row = player.currentTrack { Task { await appState.toggleFavorite(row) } }
             } label: {
                 Image(systemName: player.currentTrack.map { appState.isFavorite($0) } == true ? "heart.fill" : "heart")
-                    .foregroundStyle(player.currentTrack.map { appState.isFavorite($0) } == true ? Color.red : .white.opacity(0.6))
+                    .foregroundStyle(player.currentTrack.map { appState.isFavorite($0) } == true ? Palette.danger : Palette.inkSecondary)
                     .font(.system(size: 16)).frame(width: 44, height: 44)
                     .background(.ultraThinMaterial, in: Circle())
             }
@@ -319,7 +319,7 @@ struct NowPlayingView: View {
             } label: {
                 Image(systemName: player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack ? "moon.zzz.fill" : "moon.zzz")
                     .font(.system(size: 16))
-                    .foregroundStyle((player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack) ? Palette.accent : .white.opacity(0.6))
+                    .foregroundStyle((player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack) ? Palette.accent : Palette.inkSecondary)
                     .frame(width: 44, height: 44)
                     .background(.ultraThinMaterial, in: Circle())
             }

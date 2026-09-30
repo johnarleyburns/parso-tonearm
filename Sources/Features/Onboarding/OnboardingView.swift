@@ -249,7 +249,7 @@ struct OnboardingView: View {
             } else {
                 Button { Task { await finish() } } label: {
                     Group {
-                        if isFinishing { ProgressView().tint(.black) }
+                        if isFinishing { ProgressView().tint(Palette.accentOnFill) }
                         else { Text(selectedCount > 0 ? "Add \(selectedCount) & Get Started" : "Get Started") }
                     }
                     .modifier(PrimaryLabelStyle())

@@ -54,7 +54,7 @@ struct AddServerSheet: View {
                     Task { await connect() }
                 } label: {
                     Group {
-                        if isConnecting { ProgressView().tint(.black) }
+                        if isConnecting { ProgressView().tint(Palette.accentOnFill) }
                         else { actionLabel(title: actionTitle, icon: authKind == .oauth ? "person.crop.circle.badge.checkmark" : "checkmark") }
                     }
                 }

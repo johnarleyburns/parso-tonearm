@@ -52,6 +52,20 @@ while IFS='|' read -r kind file token reason; do
 done < "$ratchet_file"
 [ "$ratchet_ok" = "1" ] && echo "    OK"
 
+# ── Dynamic palette asset names ─────────────────────────────────────────────
+# Palette colors live inside the `Palette` asset-catalog group, but the group
+# is not part of the runtime asset name. Keep this exact regression out: a
+# `Color("Palette/ink")` lookup misses and can make all foregrounds clear.
+echo "==> Dynamic palette asset names"
+PALETTE_GROUP_LOOKUPS=$(rg -n 'Color\("Palette/' Sources/DesignSystem/Palette.swift || true)
+if [ -n "$PALETTE_GROUP_LOOKUPS" ]; then
+  echo "    Palette asset lookups must omit the catalog group prefix:"
+  echo "$PALETTE_GROUP_LOOKUPS" | sed 's/^/      /'
+  status=1
+else
+  echo "    OK"
+fi
+
 # ── Watch app icon catalog ─────────────────────────────────────────────────
 #
 # The iOS app embeds a watchOS app. Its icon catalog must be validated with

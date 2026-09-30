@@ -3,6 +3,18 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+TEST_LOCK_FILE="${TONEARM_TEST_LOCK_FILE:-${TMPDIR:-/tmp}/tonearm-local-test-suite.lock}"
+
+acquire_test_lock() {
+  while ! shlock -f "$TEST_LOCK_FILE" -p "$$"; do
+    echo "==> another local test runner is active; waiting for it to finish"
+    sleep 1
+  done
+  trap 'rm -f "$TEST_LOCK_FILE"' EXIT
+}
+
+acquire_test_lock
+
 IOS_SIMULATOR_NAME="${TONEARM_IOS_SIMULATOR_NAME:-iPhone 17}"
 if [[ -z "${TONEARM_IOS_TEST_DESTINATION:-}" ]] &&
    ! xcrun simctl list devices available | grep -Fq " ${IOS_SIMULATOR_NAME} ("; then
@@ -30,7 +42,7 @@ prepare_named_simulator() {
 
 run_swift_tests() {
   echo "==> running Swift package tests"
-  swift test
+  swift test --no-parallel
 }
 
 run_iphone_smoke() {
