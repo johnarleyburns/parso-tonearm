@@ -14,6 +14,7 @@ final class TransitionPrepService: ObservableObject {
                                                                frameCount: Int64)
 
     @Published private(set) var states: [Int64: GridPrepState] = [:]
+    @Published private(set) var stateSince: [Int64: Date] = [:]
     @Published private(set) var preparedTrackIDs: Set<Int64> = []
 
     var wifiOnly = true
@@ -62,7 +63,7 @@ final class TransitionPrepService: ObservableObject {
         waitingRows = []
         waitingAppState = nil
         for id in states.keys where !preparedTrackIDs.contains(id) {
-            states[id] = .cancelled
+            setState(.cancelled, for: id)
         }
     }
 
@@ -79,34 +80,46 @@ final class TransitionPrepService: ObservableObject {
         states[trackID] ?? .queued
     }
 
+    func transitionPrepSince(for trackID: Int64) -> Date? {
+        stateSince[trackID]
+    }
+
+    private func setState(_ state: GridPrepState, for id: Int64) {
+        states[id] = state
+        stateSince[id] = Date()
+    }
+
     private func prepare(row: TrackRow, id: Int64, appState: AppState) async {
         if preparedTrackIDs.contains(id) { return }
-        let path = pathMonitor.currentPath
-        if path.status != .satisfied {
-            states[id] = .waitingForNetwork
-            return
-        }
-        if wifiOnly && path.usesInterfaceType(.cellular) {
-            states[id] = .waitingForWiFi
-            return
+        let requiresNetwork = row.asset?.kind == .remote
+        if requiresNetwork {
+            let path = pathMonitor.currentPath
+            if path.status != .satisfied {
+                setState(.waitingForNetwork, for: id)
+                return
+            }
+            if wifiOnly && path.usesInterfaceType(.cellular) {
+                setState(.waitingForWiFi, for: id)
+                return
+            }
         }
         if let cached = try? await appState.store.djTrackPrep(trackId: id),
-           cached.analysisAlgorithm == DJTrackPrepPayload.currentAlgorithmID,
+            cached.analysisAlgorithm == DJTrackPrepPayload.currentAlgorithmID,
            cached.analysisPayloadVersion == DJTrackPrepPayload.currentVersion {
             preparedTrackIDs.insert(id)
-            states[id] = .ready
+            setState(.ready, for: id)
             return
         }
-        states[id] = .queued
+        setState(.queued, for: id)
         do {
             let url = try await resolver(row, appState)
-            guard !Task.isCancelled else { states[id] = .cancelled; return }
-            states[id] = .analyzing(0.15)
+            guard !Task.isCancelled else { setState(.cancelled, for: id); return }
+            setState(.analyzing(0.15), for: id)
             let analyze = analyzer
             let result = try await Task.detached(priority: .utility) {
                 try analyze(url, row.track.codec)
             }.value
-            guard !Task.isCancelled else { states[id] = .cancelled; return }
+            guard !Task.isCancelled else { setState(.cancelled, for: id); return }
             try await appState.store.saveDJAnalysis(
                 result.payload.encoded(),
                 meta: (result.payload.algorithmID, result.payload.version,
@@ -114,11 +127,11 @@ final class TransitionPrepService: ObservableObject {
                        result.payload.bpm, result.payload.key.camelot),
                 trackId: id)
             preparedTrackIDs.insert(id)
-            states[id] = .ready
+            setState(.ready, for: id)
         } catch is CancellationError {
-            states[id] = .cancelled
+            setState(.cancelled, for: id)
         } catch {
-            states[id] = .failed(error.localizedDescription)
+            setState(.failed(error.localizedDescription), for: id)
         }
     }
 

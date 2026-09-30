@@ -235,7 +235,7 @@ extension AudioPlayer {
         case .playlist(let playlist):
             guard let playlistId = playlist.id else { return (try? await LibraryStore.shared.allTrackRows()) ?? [] }
             return (try? await LibraryStore.shared.playlistItems(playlistId: playlistId)) ?? []
-        case .library, .none, .mood, .continuation:
+        case .mix, .library, .none, .mood, .continuation:
             // A mood queue's own extension is handled entirely above
             // (re-running the mood query) — this generic fallback pool is
             // only reached if that already failed, so the honest fallback

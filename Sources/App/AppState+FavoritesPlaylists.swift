@@ -20,12 +20,14 @@ extension AppState {
 
     // MARK: - Playlists (TF6)
 
-    func createPlaylist(title: String, trackIds: [Int64], switchesTab: Bool = true) async {
+    @discardableResult
+    func createPlaylist(title: String, trackIds: [Int64], switchesTab: Bool = true) async -> Playlist? {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        _ = try? await store.createManualPlaylist(title: name, trackIds: trackIds)
+        guard !name.isEmpty else { return nil }
+        let playlist = try? await store.createManualPlaylist(title: name, trackIds: trackIds)
         await reload()
         if switchesTab { tab = .myMusic }
+        return playlist
     }
 
     @discardableResult

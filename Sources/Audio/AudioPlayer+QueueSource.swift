@@ -39,6 +39,9 @@ public protocol QueueContinuationSource: AnyObject {
 public enum QueueSource {
     case source(Source)
     case playlist(Playlist)
+    /// A generated, explainable mix. Keeping the plan with the queue lets the
+    /// playback layer execute the same edge decisions the preview explained.
+    case mix(MixPlan)
     case library
     case ambient
     /// A queue seeded from the Listen tab's mood entry point (docs/plans/
@@ -53,6 +56,7 @@ public enum QueueSource {
         switch self {
         case .source(let s): return "From Library: \(s.title)"
         case .playlist(let p): return "From Playlist: \(p.title)"
+        case .mix: return "From Mix"
         case .library: return "From Music"
         case .ambient: return "Ambient"
         case .mood: return "A Mood"
@@ -67,6 +71,7 @@ extension QueueSource: Equatable {
         switch (lhs, rhs) {
         case (.source(let a), .source(let b)): return a == b
         case (.playlist(let a), .playlist(let b)): return a == b
+        case (.mix(let a), .mix(let b)): return a == b
         case (.library, .library): return true
         case (.ambient, .ambient): return true
         case (.mood(let a), .mood(let b)): return a === b

@@ -103,6 +103,7 @@ public final class PhoneWatchPlaybackAdapter: PhoneWatchPlaybackBridge {
         switch source {
         case .playlist(let playlist): playlist.title
         case .source(let s): s.title
+        case .mix: "Mix"
         default: nil
         }
     }

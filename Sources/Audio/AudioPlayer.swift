@@ -477,6 +477,7 @@ public final class AudioPlayer: ObservableObject {
             loadCurrent(autoplay: autoplay)
         } else {
             invalidatePreloadedNext()
+            scheduleTransitionPlan()
             prefetchNext()
             updateNowPlaying()
         }

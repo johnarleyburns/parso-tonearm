@@ -1,15 +1,33 @@
+import Charts
 import SwiftUI
 import TonearmCore
 
 struct WhyThisMixView: View {
     let plan: MixPlan
     let rows: [TrackRow]
+    let sourcePlaylist: Playlist?
 
     var body: some View {
         NavigationStack {
             List {
                 Section("Shape") {
                     Text("This mix follows a \(plan.request.shape.title.lowercased()) curve, using the available BPM range in your library.")
+                }
+                Section("Source") {
+                    LabeledContent("Collection", value: sourcePlaylist?.title ?? "Listen library")
+                    LabeledContent("Candidates", value: "\(rows.count) tracks")
+                    if let first = plan.steps.first,
+                       first.reasons.contains(.lockedByUser) {
+                        Text("The first track was locked by you.")
+                    } else {
+                        Text("The first track starts at the lowest available BPM for this shape.")
+                    }
+                }
+                Section("Arc") {
+                    MixExplanationArcChart(plan: plan)
+                        .frame(height: 130)
+                        .accessibilityLabel("Mix BPM arc")
+                        .accessibilityValue("From \(Int(plan.summary.bpmRange.lowerBound.rounded())) to \(Int(plan.summary.bpmRange.upperBound.rounded())) BPM")
                 }
                 Section("Stats") {
                     LabeledContent("Tracks", value: "\(plan.steps.count)")
@@ -20,8 +38,25 @@ struct WhyThisMixView: View {
                 if !plan.summary.weakestEdges.isEmpty {
                     Section("Trade-offs") {
                         ForEach(plan.summary.weakestEdges, id: \.self) { edge in
-                            Text("Transition \(edge + 1) was the best available option for this pool.")
+                            let flags = plan.steps[safe: edge + 1]?.edgeIn?.flags ?? []
+                            Text("Transition \(edge + 1) was the best available option: \(flags.map(\.label).joined(separator: ", ")).")
                                 .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
+                }
+                Section("Why each track is here") {
+                    ForEach(plan.steps) { step in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(rows.first(where: { $0.track.id == step.trackID })?.track.title ?? "Track \(step.trackID)")
+                                .font(Typography.body)
+                            Text(step.reasons.map(\.label).joined(separator: " · "))
+                                .font(Typography.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                            ForEach(step.runnersUp, id: \.trackID) { runner in
+                                Text("Runner-up \(runner.trackID): \(runner.lostBecause.map(\.label).joined(separator: ", "))")
+                                    .font(Typography.caption)
+                                    .foregroundStyle(Palette.inkTertiary)
+                            }
                         }
                     }
                 }
@@ -39,9 +74,27 @@ struct WhyThisMixView: View {
     }
 }
 
+private struct MixExplanationArcChart: View {
+    let plan: MixPlan
+
+    var body: some View {
+        Chart(plan.steps) { step in
+            LineMark(x: .value("Position", step.position), y: .value("BPM", step.effectiveBPM))
+                .foregroundStyle(Palette.accent)
+            PointMark(x: .value("Position", step.position), y: .value("BPM", step.effectiveBPM))
+                .foregroundStyle(Palette.accent)
+        }
+        .chartXAxis(.hidden)
+        .chartYAxisLabel("BPM")
+    }
+}
+
 struct WhyThisTransitionView: View {
+    @EnvironmentObject private var player: AudioPlayer
     let plan: TransitionPlan
     var onUsePlainFade: (() -> Void)?
+    var onPrepareNow: (() -> Void)?
+    var preparationState: GridPrepState?
 
     var body: some View {
         List {
@@ -64,8 +117,19 @@ struct WhyThisTransitionView: View {
             if let downgrade = plan.downgradedFrom {
                 Section("Preparation") {
                     Text("This was downgraded from \(downgrade.rawValue) because the stronger plan was not ready.")
-                    Button("Prepare now") { }
                 }
+            }
+            if let preparationState {
+                Section("Preparation") {
+                    LabeledContent("Grid", value: preparationState.shortLabel)
+                    if onPrepareNow != nil, preparationState != .ready {
+                        Button("Prepare now") { onPrepareNow?() }
+                    }
+                }
+            }
+            Button("Audition") {
+                player.seek(to: max(0, plan.exitTime - 10))
+                player.resumePlayback()
             }
             Button("Use a Plain Fade Here") { onUsePlainFade?() }
         }
@@ -78,6 +142,20 @@ struct WhyThisTransitionView: View {
         case .beatmatchedBlend: "The next phrase blends in on the beat, then returns to its original tempo."
         case .phraseFade: "The next phrase enters on a short equal-power fade."
         case .plainCrossfade: "The tracks use the regular crossfade."
+        }
+    }
+}
+
+extension GridPrepState {
+    var shortLabel: String {
+        switch self {
+        case .ready: "Ready"
+        case .queued: "Queued"
+        case .downloading(let progress), .analyzing(let progress): "\(Int(progress * 100))%"
+        case .waitingForNetwork: "Waiting for network"
+        case .waitingForWiFi: "Waiting for Wi-Fi"
+        case .failed: "Failed"
+        case .cancelled: "Stopped"
         }
     }
 }
@@ -121,7 +199,7 @@ private extension MixShape {
     }
 }
 
-private extension MixExclusionReason {
+extension MixExclusionReason {
     var label: String {
         switch self {
         case .notAnalyzed(let missing): "missing \(missing.contains(.bpm) ? "BPM" : "key") analysis"
@@ -129,6 +207,45 @@ private extension MixExclusionReason {
         case .duplicate: "duplicate"
         case .unplayable: "not playable"
         }
+    }
+}
+
+private extension PlacementReason {
+    var label: String {
+        switch self {
+        case .lowestBPMStart: "lowest-BPM start"
+        case .followsShape: "follows the shape"
+        case .bestKeyNeighbor: "best key neighbor"
+        case .closestTempo: "closest tempo"
+        case .energyFitsCurve: "fits the energy curve"
+        case .lockedByUser: "locked by you"
+        case .onlyRemainingOption: "only remaining option"
+        case .soundsSimilar: "sounds similar"
+        }
+    }
+}
+
+private extension EdgeFlag {
+    var label: String {
+        switch self {
+        case .againstShape: "against the shape"
+        case .tempoJump: "tempo jump"
+        case .keyClash: "key clash"
+        case .sameArtistBackToBack: "same artist back-to-back"
+        case .unavoidable(let reason):
+            switch reason {
+            case .onlyRemainingOption: "only remaining option"
+            case .limitedTempoPool: "limited tempo pool"
+            case .missingGrid: "grid not ready"
+            case .explanation(let text): text
+            }
+        }
+    }
+}
+
+private extension Array {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
 

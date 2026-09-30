@@ -14,9 +14,10 @@ extension AudioPlayer {
     }
 
     func updateCrossfade(position: Double) {
-        let fadeSeconds = normalizedCrossfadeSeconds
+        let fadeSeconds = transitionPlan?.overlapSeconds ?? normalizedCrossfadeSeconds
         guard fadeSeconds > 0,
               !sleepAtEndOfTrack,
+              transitionPlan?.style != .gapless,
               let nextIndex = upcomingQueueIndex(),
               queue.indices.contains(nextIndex),
               let current = currentTrack else {
@@ -45,8 +46,13 @@ extension AudioPlayer {
 
         guard prepareCrossfadePlayer(for: next, at: nextIndex) else { return }
         player.volume = Float(min(max(gains.outgoing, 0), 1))
-        crossfadePlayer?.volume = Float(min(max(gains.incoming, 0), 1))
-        crossfadePlayer?.play()
+        let gainMatch = transitionPlan?.gainMatchDB.map { pow(10, $0 / 20) } ?? 1
+        crossfadePlayer?.volume = Float(min(max(gains.incoming * gainMatch, 0), 1.5))
+        if let plan = transitionPlan, plan.style == .beatmatchedBlend {
+            crossfadePlayer?.playImmediately(atRate: Float(plan.blendRate))
+        } else {
+            crossfadePlayer?.play()
+        }
 
         if gains.incoming >= 1 || position >= currentDuration {
             finishCrossfade(to: nextIndex, row: next)
@@ -142,6 +148,7 @@ extension AudioPlayer {
         if let item = player.currentItem {
             observeEnd(of: item)
         }
+        scheduleTransitionPlan()
         addPeriodicObserver()
         observeTimeControlStatus()
         updateNowPlaying()

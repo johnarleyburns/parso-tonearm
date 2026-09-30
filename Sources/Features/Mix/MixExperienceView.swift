@@ -111,11 +111,15 @@ struct MixBuilderSheet: View {
     private func loadCandidates() async {
         let ids = rows.compactMap(\.track.id)
         let info = (try? await appState.store.djLoadTrackInfo(trackIds: ids)) ?? [:]
-        candidates = rows.compactMap { row in
-            guard let id = row.track.id, let musical = info[id] else { return nil }
-            return MixCandidate(trackID: id, bpm: musical.bpm, camelot: musical.camelotKey,
-                                artist: row.artist?.name, albumID: row.album?.id,
-                                duration: row.track.durationSec ?? 0)
+        // Keep unanalyzed rows in the request with nil metadata. MixPlanner
+        // records them as explicit exclusions so the preview can explain and
+        // act on them instead of silently shrinking the source pool.
+        candidates = rows.compactMap { row -> MixCandidate? in
+            guard let id = row.track.id else { return nil }
+            let musical = info[id]
+            return MixCandidate(trackID: id, bpm: musical?.bpm, camelot: musical?.camelotKey,
+                                artist: row.artist?.name,
+                                albumID: row.album?.id, duration: row.track.durationSec ?? 0)
         }
     }
 
@@ -136,6 +140,7 @@ struct MixPreviewView: View {
     @State private var whyMix = false
     @State private var plan: MixPlan
     @State private var plainFadeEdges: Set<String> = []
+    @StateObject private var prep = TransitionPrepService()
 
     init(plan: MixPlan, rows: [TrackRow], sourcePlaylist: Playlist? = nil) {
         self.rows = rows
@@ -160,9 +165,18 @@ struct MixPreviewView: View {
                 ForEach(Array(plan.steps.enumerated()), id: \.element.id) { index, step in
                     if index > 0 {
                         let edgeKey = "\(plan.steps[index - 1].trackID)-\(step.trackID)"
-                        TransitionChip(plan: transitionPlan(at: index), onUsePlainFade: {
-                            plainFadeEdges.insert(edgeKey)
-                        })
+                        TransitionChip(
+                            plan: transitionPlan(at: index),
+                            onUsePlainFade: {
+                                plainFadeEdges.insert(edgeKey)
+                                persistConfiguration()
+                            },
+                            onPrepareNow: {
+                                let rowsToPrepare = [plan.steps[index - 1].trackID, step.trackID]
+                                    .compactMap { rowByID[$0] }
+                                prep.prepare(rows: rowsToPrepare, appState: appState)
+                            },
+                            preparationState: prep.transitionPrepState(for: step.trackID))
                             .listRowSeparator(.hidden)
                     }
                     if let row = rowByID[step.trackID] {
@@ -183,9 +197,26 @@ struct MixPreviewView: View {
             if !plan.excluded.isEmpty {
                 Section("Not placed (\(plan.excluded.count))") {
                     ForEach(plan.excluded, id: \.trackID) { exclusion in
-                        Label(rowByID[exclusion.trackID]?.track.title ?? "Track \(exclusion.trackID)",
-                              systemImage: "questionmark.circle")
-                            .foregroundStyle(Palette.inkSecondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label(rowByID[exclusion.trackID]?.track.title ?? "Track \(exclusion.trackID)",
+                                  systemImage: "questionmark.circle")
+                                .foregroundStyle(Palette.inkSecondary)
+                            HStack {
+                                Text(exclusion.reason.label)
+                                    .font(Typography.caption)
+                                    .foregroundStyle(Palette.inkTertiary)
+                                Spacer()
+                                if case .notAnalyzed = exclusion.reason,
+                                   let row = rowByID[exclusion.trackID] {
+                                    Button("Analyze now") {
+                                        prep.prepare(rows: [row], appState: appState)
+                                    }
+                                }
+                                Button("Add at end") { addAtEnd(exclusion) }
+                                Button("Remove") { removeExclusion(exclusion) }
+                            }
+                            .font(Typography.caption)
+                        }
                     }
                 }
             }
@@ -196,19 +227,25 @@ struct MixPreviewView: View {
                 Menu {
                     Button("Play") {
                         let ordered = plan.steps.compactMap { rowByID[$0.trackID] }
-                        AudioPlayer.shared.play(tracks: ordered, startAt: 0, source: .library)
+                        AudioPlayer.shared.play(tracks: ordered, startAt: 0, source: .mix(plan))
                     }
                     Button("Save as Playlist") { saveAsPlaylist() }
                     if let sourcePlaylist {
                         Button("Apply Order") { applyOrder(to: sourcePlaylist) }
                     }
-                    Button("Regenerate") { plan = MixPlanner.plan(plan.request) }
+                    Button("Regenerate") {
+                        plan = MixPlanner.plan(plan.request)
+                        persistConfiguration()
+                    }
                 } label: {
                     Label("Mix actions", systemImage: "ellipsis.circle")
                 }
             }
         }
-        .sheet(isPresented: $whyMix) { WhyThisMixView(plan: plan, rows: rows) }
+        .sheet(isPresented: $whyMix) {
+            WhyThisMixView(plan: plan, rows: rows, sourcePlaylist: sourcePlaylist)
+        }
+        .task { loadPersistedConfiguration() }
     }
 
     private var summary: String {
@@ -218,23 +255,47 @@ struct MixPreviewView: View {
     private func lock(_ step: MixStep) {
         plan.request.locks[step.trackID] = step.position
         plan = MixPlanner.plan(plan.request)
+        persistConfiguration()
     }
 
     private func swap(_ step: MixStep, with runner: RunnerUp) {
         plan.request.locks[runner.trackID] = step.position
         plan = MixPlanner.plan(plan.request)
+        persistConfiguration()
     }
 
     private func remove(_ step: MixStep) {
         plan.request.candidates.removeAll { $0.trackID == step.trackID }
         plan = MixPlanner.plan(plan.request)
+        persistConfiguration()
+    }
+
+    private func addAtEnd(_ exclusion: MixExclusion) {
+        guard rowByID[exclusion.trackID] != nil else { return }
+        let nextPosition = plan.steps.count
+        let step = MixStep(trackID: exclusion.trackID, position: nextPosition,
+                           effectiveBPM: 0,
+                           reasons: [.onlyRemainingOption])
+        plan.steps.append(step)
+        plan.excluded.removeAll { $0.trackID == exclusion.trackID }
+        persistConfiguration()
+    }
+
+    private func removeExclusion(_ exclusion: MixExclusion) {
+        plan.excluded.removeAll { $0.trackID == exclusion.trackID }
+        persistConfiguration()
     }
 
     private func saveAsPlaylist() {
         let ids = plan.steps.map(\.trackID)
+        let savedPlan = plan
+        let savedOverrides = plainFadeEdges
         Task {
-            await appState.createPlaylist(title: "Mix · \(plan.request.shape.title)",
-                                          trackIds: ids, switchesTab: false)
+            let playlist = await appState.createPlaylist(title: "Mix · \(savedPlan.request.shape.title)",
+                                                         trackIds: ids, switchesTab: false)
+            if let id = playlist?.id {
+                persistConfiguration(for: id, plan: savedPlan, overrides: savedOverrides)
+            }
             ToastCenter.shared.success("Mix saved as a playlist", icon: "checkmark.circle.fill")
         }
     }
@@ -244,6 +305,7 @@ struct MixPreviewView: View {
         let ids = plan.steps.map(\.trackID)
         Task {
             try? await appState.store.applyPlaylistOrder(id: id, orderedTrackIDs: ids)
+            persistConfiguration()
             ToastCenter.shared.success("Playlist order updated", icon: "checkmark.circle.fill")
         }
     }
@@ -267,6 +329,41 @@ struct MixPreviewView: View {
             result.blendRate = 1
         }
         return result
+    }
+
+    private func loadPersistedConfiguration() {
+        guard let playlistID = sourcePlaylist?.id else { return }
+        Task { @MainActor in
+            guard let record = try? await appState.store.playlistMix(playlistId: playlistID) else { return }
+            var request = plan.request
+            request.shape = record.mixShape
+            request.seed = record.unsignedSeed
+            request.locks = (try? JSONDecoder().decode([Int64: Int].self,
+                                                         from: record.lockedJSON)) ?? request.locks
+            plan = MixPlanner.plan(request)
+            let overrides = (try? JSONDecoder().decode([String: String].self,
+                                                         from: record.transitionOverridesJSON)) ?? [:]
+            plainFadeEdges = Set(overrides.compactMap { key, value in
+                value == TransitionStyle.plainCrossfade.rawValue ? key : nil
+            })
+        }
+    }
+
+    private func persistConfiguration(for playlistID: Int64? = nil,
+                                      plan savedPlan: MixPlan? = nil,
+                                      overrides: Set<String>? = nil) {
+        guard let playlistID = playlistID ?? sourcePlaylist?.id else { return }
+        let savedPlan = savedPlan ?? plan
+        let overrides = overrides ?? plainFadeEdges
+        guard let lockedJSON = try? JSONEncoder().encode(savedPlan.request.locks),
+              let transitionOverridesJSON = try? JSONEncoder().encode(
+                Dictionary(uniqueKeysWithValues: overrides.map {
+                    ($0, TransitionStyle.plainCrossfade.rawValue)
+                })) else { return }
+        let record = PlaylistMixRecord(playlistId: playlistID, shape: savedPlan.request.shape,
+                                       seed: savedPlan.request.seed, lockedJSON: lockedJSON,
+                                       transitionOverridesJSON: transitionOverridesJSON)
+        Task { try? await appState.store.savePlaylistMix(record) }
     }
 }
 

@@ -5,6 +5,11 @@ struct UpNextView: View {
     @EnvironmentObject var player: AudioPlayer
     @EnvironmentObject var appState: AppState
     @State private var editMode: EditMode = .inactive
+    @StateObject private var transitionPrep = TransitionPrepService()
+
+    private var transitionRows: [TrackRow] {
+        Array(([player.currentTrack].compactMap { $0 } + player.upNextTracks).prefix(3))
+    }
 
     /// The first queue offset Keep Playing appended, if any — where the
     /// "Extended by Keep Playing" marker renders. `nil` when nothing in the
@@ -59,7 +64,13 @@ struct UpNextView: View {
             }
             .padding(.bottom, 8)
 
-            TransitionChip()
+            TransitionChip(
+                onPrepareNow: {
+                    transitionPrep.prepare(rows: transitionRows, appState: appState)
+                },
+                preparationState: player.upNextTracks.first?.track.id.flatMap {
+                    transitionPrep.transitionPrepState(for: $0)
+                })
                 .padding(.bottom, 6)
 
             if player.queue.isEmpty || player.isAmbient {
@@ -107,6 +118,15 @@ struct UpNextView: View {
         .padding(.vertical, 10)
         .background(Palette.surfaceRaised, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairline))
+        .task {
+            if case .mix = player.queueSource {
+                transitionPrep.prepare(rows: transitionRows, appState: appState)
+            }
+        }
+        .onChange(of: player.currentTrack?.track.id) { _, _ in
+            guard case .mix = player.queueSource else { return }
+            transitionPrep.prepare(rows: transitionRows, appState: appState)
+        }
     }
 
     private var queueListHeight: CGFloat {

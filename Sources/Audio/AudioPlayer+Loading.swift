@@ -81,6 +81,7 @@ extension AudioPlayer {
             isPlaying = true
         }
         duration = row.track.durationSec ?? 0
+        scheduleTransitionPlan()
         updateNowPlaying()
         prefetchNext()
         preloadNextItem()

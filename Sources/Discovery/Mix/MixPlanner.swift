@@ -326,8 +326,13 @@ public struct MixPlanner: Sendable {
     private func markUnavoidableIfForced(_ score: EdgeScore, from: MixCandidate,
                                          remaining: ArraySlice<MixCandidate>, target: Double,
                                          shape: MixShape) -> EdgeScore {
+        // The explanation is intentionally bounded for large libraries. The
+        // solve is already deterministic and the user-facing runners-up scan
+        // is bounded separately; rescanning every remaining candidate for
+        // every edge would make a 500-track mix miss its device budget.
+        let considered = remaining.count > 128 ? remaining.prefix(64) : remaining
         guard score.flags.contains(.tempoJump),
-              !remaining.contains(where: {
+              !considered.contains(where: {
                   !edge(from: from, to: $0, target: target, shape: shape, isFirst: false)
                       .flags.contains(.tempoJump)
               }) else { return score }
