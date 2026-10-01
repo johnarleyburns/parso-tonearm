@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import os
 import SwiftUI
 import TonearmCore
 import TonearmDiscovery
@@ -118,11 +119,20 @@ final class TransitionPrepService: ObservableObject {
         do {
             let url = try await resolver(row, appState)
             guard !Task.isCancelled else { setState(.cancelled, for: id); return }
+            let fileBytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
+            let peak = TransitionDecodeBudget.estimatedPeakBytes(
+                durationSec: row.track.durationSec, sampleRate: row.track.sampleRate, fileBytes: fileBytes)
+            guard TransitionDecodeBudget.fits(estimatedPeakBytes: peak, availableBytes: Self.availableMemory()) else {
+                // Said plainly in the prep list, never a crash: this track plays normally; it just
+                // gets a standard crossfade instead of a beat-matched one.
+                setState(.failed(String(localized: "Too long to prepare on this device")), for: id)
+                return
+            }
             setState(.analyzing(0.1), for: id)
             let analyze = analyzer
-            let result = try await Task.detached(priority: .utility) {
+            let result = try await TransitionDecodeGate.shared.run {
                 try analyze(url, row.track.codec)
-            }.value
+            }
             guard !Task.isCancelled else { setState(.cancelled, for: id); return }
             setState(.analyzing(0.8), for: id)
             try await appState.store.saveDJAnalysis(
@@ -139,6 +149,16 @@ final class TransitionPrepService: ObservableObject {
         } catch {
             setState(.failed(error.localizedDescription), for: id)
         }
+    }
+
+    /// What this process can still allocate before the OS ends it (iOS), or nil where there's no
+    /// such limit to respect (macOS).
+    private static func availableMemory() -> Int64? {
+        #if os(iOS)
+        return Int64(os_proc_available_memory())
+        #else
+        return nil
+        #endif
     }
 
     private func resumeWhenNetworkAllows() {

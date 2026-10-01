@@ -45147,6 +45147,53 @@
         }
       }
     },
+    "Too long to prepare on this device" : {
+      "comment" : "UI text shown in: Transition Prep (Sources/Features/Transitions/TransitionPrepService.swift) — the track is too long to beat-analyse within this device's memory; it still plays with a standard crossfade.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Zu lang zum Vorbereiten auf diesem Gerät"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too long to prepare on this device"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Demasiado larga para prepararla en este dispositivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Trop long à préparer sur cet appareil"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "このデバイスで準備するには長すぎます"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Longa demais para preparar neste dispositivo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "太长，无法在此设备上准备"
+          }
+        }
+      }
+    },
     "Tool" : {
       "comment" : "UI text shown in: Tools (Sources/Features/Settings/ToolsView.swift)",
       "localizations" : {
