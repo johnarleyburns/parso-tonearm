@@ -5,7 +5,7 @@ import TonearmWatchCore
 /// can read it aloud or transcribe it. No titles, URLs, paths, credentials, tokens, or search
 /// text can appear here — `WatchDiagnosticsExport` has nowhere to carry them.
 struct WatchDiagnosticsView: View {
-    @State private var json = "Loading…"
+    @State private var json = String(localized: "Loading…")
     @State private var eventCount = 0
 
     var body: some View {
@@ -36,7 +36,7 @@ struct WatchDiagnosticsView: View {
         if let data = try? WatchDiagnosticsExporter.encode(export) {
             json = String(decoding: data, as: UTF8.self)
         } else {
-            json = "Encoding failed."
+            json = String(localized: "Encoding failed.")
         }
     }
 }

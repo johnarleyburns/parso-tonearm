@@ -16,10 +16,10 @@ public enum IAURLError: Error, Equatable, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .wayback: return "This is a Wayback Machine URL"
-        case .notArchiveHost: return "Not an archive.org link"
-        case .unrecognized: return "This link isn’t an item, list, favorites page, or collection"
-        case .empty: return "Paste an archive.org link"
+        case .wayback: return String(localized: "This is a Wayback Machine URL", bundle: .module)
+        case .notArchiveHost: return String(localized: "Not an archive.org link", bundle: .module)
+        case .unrecognized: return String(localized: "This link isn’t an item, list, favorites page, or collection", bundle: .module)
+        case .empty: return String(localized: "Paste an archive.org link", bundle: .module)
         }
     }
 }

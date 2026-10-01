@@ -47,14 +47,14 @@ struct WatchGlyphView: View {
 
     private var voiceOver: String {
         switch state {
-        case .notOnWatch: return "Not on Apple Watch"
+        case .notOnWatch: return String(localized: "Not on Apple Watch")
         case .transferring(let progress):
             if let p = progress {
-                return "Transferring to Apple Watch, \(Int(p * 100))%"
+                return String(localized: "Transferring to Apple Watch, \(Int(p * 100))%")
             }
-            return "Transferring to Apple Watch"
-        case .onWatch: return "On Apple Watch"
-        case .failed: return "Transfer to Apple Watch failed"
+            return String(localized: "Transferring to Apple Watch")
+        case .onWatch: return String(localized: "On Apple Watch")
+        case .failed: return String(localized: "Transfer to Apple Watch failed")
         }
     }
 }

@@ -31,10 +31,8 @@ struct JamendoCredentialView: View {
                     Text(usingOwnKey
                          ? "Genre libraries are using your Jamendo key."
                          : appKeyPresent
-                           ? "Genre libraries are using the key built into Platterhead. "
-                             + "You can use your own instead."
-                           : "This build ships without a Jamendo key, so genre libraries are "
-                             + "unavailable until you add one.")
+                           ? "Genre libraries are using the key built into Platterhead. You can use your own instead."
+                           : "This build ships without a Jamendo key, so genre libraries are unavailable until you add one.")
                         .font(Typography.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .accessibilityIdentifier("jamendo.credential.status")
@@ -115,7 +113,7 @@ struct JamendoCredentialView: View {
             // A keychain failure is reported, never swallowed: a user who
             // believes their key is saved and finds the library still empty has
             // been told something false.
-            errorMessage = "The key could not be saved to the keychain (\(error))."
+            errorMessage = String(localized: "The key could not be saved to the keychain (\(error.localizedDescription)).")
             saved = false
         }
     }

@@ -92,9 +92,9 @@ extension SourceDetailView {
     func subtitle(for node: RemoteNode) -> String? {
         switch node.kind {
         case .directory:
-            return source.kind == .webDAV || source.kind == .smb || isCloudSource ? "Folder" : "Artist"
+            return source.kind == .webDAV || source.kind == .smb || isCloudSource ? String(localized: "Folder") : String(localized: "Artist")
         case .collection:
-            return "Album"
+            return String(localized: "Album")
         case .audio:
             var parts: [String] = []
             if let artist = node.metadata?.artist ?? node.metadata?.albumArtist, !artist.isEmpty {
@@ -106,7 +106,7 @@ extension SourceDetailView {
             if let duration = node.metadata?.durationSec ?? node.durationSec {
                 parts.append(durationString(duration))
             }
-            return parts.isEmpty ? "Song" : parts.joined(separator: " · ")
+            return parts.isEmpty ? String(localized: "Song") : parts.joined(separator: " · ")
         case .item:
             return nil
         }
@@ -124,7 +124,7 @@ extension SourceDetailView {
         if let result = await appState.remoteStats(for: source) {
             stats = result
         } else {
-            statsError = "Stats unavailable"
+            statsError = String(localized: "Stats unavailable")
         }
     }
 

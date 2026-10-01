@@ -7,6 +7,15 @@ public enum LibraryBrowseMode: String, CaseIterable, Identifiable, Sendable {
     case genres = "Genres"
 
     public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .artists: String(localized: "Artists", bundle: .module)
+        case .albums: String(localized: "Albums", bundle: .module)
+        case .songs: String(localized: "Songs", bundle: .module)
+        case .genres: String(localized: "Genres", bundle: .module)
+        }
+    }
 }
 
 public enum LibraryBrowse {
@@ -85,7 +94,9 @@ public enum LibraryBrowse {
         let entries = grouped.map { group in
             let sortedRows = sortTracks(group.rows)
             let albumCount = Set(sortedRows.compactMap(albumIdentity)).count
-            let subtitle = albumCount == 1 ? "\(sortedRows.count) songs" : "\(albumCount) albums"
+            let subtitle = albumCount == 1
+                ? String(localized: "\(sortedRows.count) songs", bundle: .module)
+                : String(localized: "\(albumCount) albums", bundle: .module)
             return Entry(id: "artist:\(group.key)",
                          kind: .artist,
                          title: group.title,
@@ -98,7 +109,7 @@ public enum LibraryBrowse {
 
     private static func albumSections(_ rows: [TrackRow]) -> [Section] {
         let grouped = group(rows) { row in
-            let albumTitle = row.album?.title.nilIfBlank ?? "Unknown Album"
+            let albumTitle = row.album?.title.nilIfBlank ?? String(localized: "Unknown Album", bundle: .module)
             let key = row.album?.id.map { "id:\($0)" }
                 ?? "fallback:\(identityKey(albumTitle)):\(identityKey(artistDisplayName(row)))"
             return (key, albumTitle)
@@ -138,7 +149,7 @@ public enum LibraryBrowse {
         let grouped = group(rows) { row in
             let genre = row.track.genre?.nilIfBlank
                 ?? row.album?.genre?.nilIfBlank
-                ?? "Unknown Genre"
+                ?? String(localized: "Unknown Genre", bundle: .module)
             return (identityKey(genre), genre)
         }
 
@@ -226,10 +237,10 @@ public enum LibraryBrowse {
     }
 
     private static func artistDisplayName(_ row: TrackRow?) -> String {
-        guard let row else { return "Unknown Artist" }
+        guard let row else { return String(localized: "Unknown Artist", bundle: .module) }
         return row.album?.albumArtist?.nilIfBlank
             ?? row.album?.artist?.nilIfBlank
-            ?? "Unknown Artist"
+            ?? String(localized: "Unknown Artist", bundle: .module)
     }
 
     private static func songSubtitle(_ row: TrackRow) -> String? {

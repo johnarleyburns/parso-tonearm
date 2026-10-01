@@ -38,6 +38,7 @@ struct AmbientPlaylistView: View {
                     .font(Typography.body).foregroundStyle(Palette.accent)
                     .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
             }
+            .accessibilityLabel("Back")
             Spacer()
         }
         .padding(.top, 8)

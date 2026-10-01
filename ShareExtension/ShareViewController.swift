@@ -13,7 +13,7 @@ final class ShareViewController: UIViewController {
 
     private func configureView() {
         view.backgroundColor = UIColor(red: 0.06, green: 0.055, blue: 0.05, alpha: 1)
-        messageLabel.text = "Opening Platterhead..."
+        messageLabel.text = String(localized: "Opening Platterhead...")
         messageLabel.textColor = .white
         messageLabel.font = .preferredFont(forTextStyle: .headline)
         messageLabel.textAlignment = .center
@@ -127,7 +127,7 @@ final class ShareViewController: UIViewController {
     private func finishWithError() {
         let error = NSError(domain: "TonearmShareExtension",
                             code: 1,
-                            userInfo: [NSLocalizedDescriptionKey: "No archive.org URL was shared."])
+                            userInfo: [NSLocalizedDescriptionKey: String(localized: "No archive.org URL was shared.")])
         extensionContext?.cancelRequest(withError: error)
     }
 }

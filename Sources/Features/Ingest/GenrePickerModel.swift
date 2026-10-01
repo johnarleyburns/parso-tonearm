@@ -86,7 +86,7 @@ public final class GenrePickerModel: ObservableObject {
     public func addSelected() async -> Bool {
         guard !selectedGenres.isEmpty else { return false }
         guard createSource != nil else {
-            catalogueError = "Can't add genres yet — the library store isn't connected."
+            catalogueError = String(localized: "Can't add genres yet — the library store isn't connected.")
             return false
         }
         isAdding = true

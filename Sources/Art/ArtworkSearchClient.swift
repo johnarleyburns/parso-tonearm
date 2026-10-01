@@ -29,8 +29,8 @@ public enum ArtworkSearchError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .disallowedHost(let h): return "Refusing to contact non-allowlisted host: \(h)"
-        case .badResponse: return "Unexpected response from artwork search"
+        case .disallowedHost(let h): return String(localized: "Refusing to contact non-allowlisted host: \(h)", bundle: .module)
+        case .badResponse: return String(localized: "Unexpected response from artwork search", bundle: .module)
         }
     }
 }

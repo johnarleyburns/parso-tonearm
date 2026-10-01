@@ -130,18 +130,49 @@ extension SettingsView {
             .buttonStyle(.plain)
             Divider().overlay(Palette.hairline)
             aboutRow("About", "Platterhead \(appVersionString) — you bring the records")
-#if DEBUG
             Divider().overlay(Palette.hairline)
-            Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
-                aboutRow("Language", "Open iPhone Settings")
-            }
-#endif
+            languagesRow
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
     }
 
-    func aboutRow(_ title: String, _ value: String) -> some View {
+    /// Every language this build ships, named in its own language, read from
+    /// the bundle so the list can never drift from the string catalogs.
+    static var shippedLanguageNames: [String] {
+        Bundle.main.localizations
+            .filter { $0 != "Base" }
+            .sorted()
+            .map { code in
+                let locale = Locale(identifier: code)
+                let name = locale.localizedString(forIdentifier: code) ?? code
+                return name.prefix(1).uppercased(with: locale) + name.dropFirst()
+            }
+    }
+
+    var languagesRow: some View {
+        let names = Self.shippedLanguageNames
+        return Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    aboutRow("Language", "Change in iPhone Settings")
+                    Image(systemName: "arrow.up.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                }
+                Text("Platterhead is available in \(names.count) languages. It follows your iPhone’s language, or you can choose a language just for Platterhead in iPhone Settings.")
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(verbatim: names.joined(separator: " · "))
+                    .font(Typography.caption).foregroundStyle(Palette.ink)
+                    .accessibilityIdentifier("settings.about.languages")
+            }
+            .padding(.bottom, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.about.changeLanguage")
+    }
+
+    func aboutRow(_ title: LocalizedStringKey, _ value: LocalizedStringKey) -> some View {
         HStack {
             Text(title).font(Typography.callout)
             Spacer()

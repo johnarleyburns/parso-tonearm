@@ -286,10 +286,10 @@ public enum ListeningStats {
             durationText(listeningTime),
         ]
         if let topArtist {
-            lines.append("Top artist: \(topArtist)")
+            lines.append(String(localized: "Top artist: \(topArtist)", bundle: .module))
         }
         if let topTrack {
-            lines.append("Top track: \(topTrack)")
+            lines.append(String(localized: "Top track: \(topTrack)", bundle: .module))
         }
         return lines.joined(separator: "\n")
     }
@@ -297,12 +297,12 @@ public enum ListeningStats {
     private static func artistName(for row: TrackRow) -> String {
         let value = row.album?.albumArtist ?? row.album?.artist
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? "Unknown Artist" : trimmed
+        return trimmed.isEmpty ? String(localized: "Unknown Artist", bundle: .module) : trimmed
     }
 
     private static func albumName(for row: TrackRow) -> String {
         let title = row.album?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return title.isEmpty ? "Unknown Album" : title
+        return title.isEmpty ? String(localized: "Unknown Album", bundle: .module) : title
     }
 
     private static func trackSortKey(_ row: TrackRow) -> String {

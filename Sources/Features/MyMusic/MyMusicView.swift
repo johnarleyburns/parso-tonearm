@@ -42,6 +42,17 @@ struct MyMusicView: View {
         case jamendo = "Jamendo"
         var id: String { rawValue }
 
+        var title: LocalizedStringKey {
+            switch self {
+            case .playlists: "Playlists"
+            case .artists: "Artists"
+            case .albums: "Albums"
+            case .songs: "Songs"
+            case .genres: "Genres"
+            case .jamendo: "Jamendo"
+            }
+        }
+
         var libraryMode: LibraryBrowseMode? {
             switch self {
             case .playlists: return nil
@@ -140,7 +151,7 @@ struct MyMusicView: View {
                 ForEach(Scope.allCases) { candidate in
                     let selected = candidate == scope
                     Button { scope = candidate } label: {
-                        Text(candidate.rawValue)
+                        Text(candidate.title)
                             .font(Typography.callout)
                             .foregroundStyle(selected ? Palette.accentOnFill : Palette.inkSecondary)
                             .padding(.horizontal, 16)

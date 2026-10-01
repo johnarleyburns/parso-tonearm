@@ -3,8 +3,8 @@ import TonearmCore
 
 struct AddToPlaylistDialog: View {
     enum Target: Equatable { case existing(Playlist), create(String) }
-    let title: String
-    let subtitle: String?
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey?
     let confirm: (Target) async -> Void
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss

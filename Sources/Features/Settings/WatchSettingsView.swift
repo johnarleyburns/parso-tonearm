@@ -62,7 +62,7 @@ struct WatchSettingsView: View {
             }
             if let storage = snapshot.storage {
                 Divider().overlay(Palette.hairline).padding(.vertical, 2)
-                Text("Downloaded \(storage.trackCount) \(storage.trackCount == 1 ? "track" : "tracks") · \(bytes(storage.installedBytes))")
+                Text("Downloaded \(storage.trackCount) tracks · \(bytes(storage.installedBytes))")
                     .font(Typography.callout)
                 if let fraction = storage.usedFraction {
                     VStack(alignment: .leading, spacing: 4) {
@@ -205,7 +205,7 @@ struct WatchSettingsView: View {
         .sensoryFeedback(.warning, trigger: confirmRemoveAll)
     }
 
-    private func managementRow(icon: String, tint: Color, title: String, chevron: Bool) -> some View {
+    private func managementRow(icon: String, tint: Color, title: LocalizedStringKey, chevron: Bool) -> some View {
         HStack {
             Image(systemName: icon).font(Typography.callout).foregroundStyle(tint)
             Text(title).font(Typography.callout).foregroundStyle(tint == Palette.danger ? Palette.danger : Palette.ink)
@@ -238,10 +238,10 @@ struct WatchSettingsView: View {
 
     private var statusText: String {
         switch appState.watchSessionState {
-        case .reachable: return "Connected"
-        case .installedNotReachable: return "Paired — Not Reachable"
-        case .notInstalled: return "Watch Not Paired"
-        case .unsupported: return "Watch Unavailable"
+        case .reachable: return String(localized: "Connected")
+        case .installedNotReachable: return String(localized: "Paired — Not Reachable")
+        case .notInstalled: return String(localized: "Watch Not Paired")
+        case .unsupported: return String(localized: "Watch Unavailable")
         }
     }
 
@@ -249,15 +249,15 @@ struct WatchSettingsView: View {
         switch appState.watchSessionState {
         case .reachable:
             if let seconds = snapshot.connectedForSeconds, seconds < 90 {
-                return "Connected just now."
+                return String(localized: "Connected just now.")
             }
-            return "Your Apple Watch is connected and ready."
+            return String(localized: "Your Apple Watch is connected and ready.")
         case .installedNotReachable:
-            return "Watch is paired but not currently reachable. Transfers resume when it is in range."
+            return String(localized: "Watch is paired but not currently reachable. Transfers resume when it is in range.")
         case .notInstalled:
-            return "Pair an Apple Watch to sync music for offline playback."
+            return String(localized: "Pair an Apple Watch to sync music for offline playback.")
         case .unsupported:
-            return "This device does not support Apple Watch."
+            return String(localized: "This device does not support Apple Watch.")
         }
     }
 
@@ -275,12 +275,12 @@ enum WatchByteFormat {
 enum WatchStageCopy {
     static func text(_ stage: PhoneWatchManagementPresenter.ActivityStage) -> String {
         switch stage {
-        case .queued: return "Queued"
-        case .resolving: return "Preparing"
-        case .transferring: return "Transferring"
-        case .waitingForWiFi: return "Waiting for Wi-Fi"
-        case .failed: return "Failed"
-        case .paused: return "Paused"
+        case .queued: return String(localized: "Queued")
+        case .resolving: return String(localized: "Preparing")
+        case .transferring: return String(localized: "Transferring")
+        case .waitingForWiFi: return String(localized: "Waiting for Wi-Fi")
+        case .failed: return String(localized: "Failed")
+        case .paused: return String(localized: "Paused")
         }
     }
 
@@ -349,7 +349,7 @@ private struct WatchCollectionRowView: View {
     let row: PhoneWatchManagementPresenter.CollectionRow
 
     private var subtitle: String {
-        if row.paused { return "Paused · \(row.readyCount) of \(row.desiredCount) downloaded" }
+        if row.paused { return String(localized: "Paused · \(row.readyCount) of \(row.desiredCount) downloaded") }
         var parts: [String] = []
         switch row.kind {
         case .track: parts.append("Track")
@@ -357,7 +357,7 @@ private struct WatchCollectionRowView: View {
         case .playlist: parts.append("\(row.desiredCount) tracks")
         }
         if row.isFullyReady {
-            parts.append(row.kind == .playlist ? "Kept in sync" : "Downloaded")
+            parts.append(row.kind == .playlist ? String(localized: "Kept in sync") : String(localized: "Downloaded"))
         } else if row.isPartial {
             parts.append("\(row.readyCount) downloaded")
         }

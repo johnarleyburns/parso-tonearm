@@ -46,6 +46,7 @@ struct UpNextView: View {
                             .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(editMode == .active ? "Done Reordering" : "Reorder Up Next")
                     .accessibilityLabel("Clear auto-added tracks")
                     .accessibilityIdentifier("np.keepPlaying.clearAutoAdded")
                 }
@@ -195,11 +196,11 @@ struct UpNextView: View {
     private var keepPlayingFallbackDetail: String {
         switch player.keepPlayingFallbackReason {
         case .waitingForModel:
-            return "Shuffled — the sound-search model is still downloading"
+            return String(localized: "Shuffled — the sound-search model is still downloading")
         case .matchingUnavailable:
-            return "Broader sound match — no Camelot/BPM match was available"
+            return String(localized: "Broader sound match — no Camelot/BPM match was available")
         case .unavailable, nil:
-            return "Shuffled — no sound-search match available for this track"
+            return String(localized: "Shuffled — no sound-search match available for this track")
         }
     }
 }

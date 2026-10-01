@@ -187,14 +187,14 @@ struct OnboardingView: View {
             .padding(.horizontal, 30).padding(.top, 6)
 
             if localAddedCount > 0 {
-                Text("Added \(localAddedCount) file\(localAddedCount == 1 ? "" : "s")")
+                Text("Added \(localAddedCount) files")
                     .font(Typography.callout).foregroundStyle(Palette.success)
             }
             Spacer(); Spacer()
         }
     }
 
-    private func localButton(icon: String, title: String) -> some View {
+    private func localButton(icon: String, title: LocalizedStringKey) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon).font(Typography.body).foregroundStyle(Palette.accent)
             ViewThatFits(in: .horizontal) {
@@ -241,7 +241,7 @@ struct OnboardingView: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel(option.title)
                         .accessibilityValue(option.selected ? "Selected" : "Not selected")
-                        .accessibilityHint("Double-tap to \(option.selected ? "remove" : "add") this source")
+                        .accessibilityHint(option.selected ? "Double-tap to remove this source" : "Double-tap to add this source")
                     }
                 }
                 .padding(.horizontal, 20).padding(.top, 18)
@@ -303,7 +303,7 @@ struct OnboardingView: View {
 
     private var selectedCount: Int { options.filter { $0.selected }.count }
 
-    private func primaryLabel(_ text: String) -> some View {
+    private func primaryLabel(_ text: LocalizedStringKey) -> some View {
         Text(text).modifier(PrimaryLabelStyle())
     }
 

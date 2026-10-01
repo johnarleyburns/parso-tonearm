@@ -10,19 +10,19 @@ struct WatchDownloadsView: View {
     var body: some View {
         List {
             NavigationLink(value: WatchNav.playlists) {
-                WatchCollectionRow(title: "Playlists", subtitle: "\(model.playlists.count) downloaded",
+                WatchCollectionRow(title: String(localized: "Playlists"), subtitle: String(localized: "\(model.playlists.count) downloaded"),
                                    systemImage: "music.note.list")
             }
             NavigationLink(value: WatchNav.albums) {
-                WatchCollectionRow(title: "Albums", subtitle: "\(model.albums.count) downloaded",
+                WatchCollectionRow(title: String(localized: "Albums"), subtitle: String(localized: "\(model.albums.count) downloaded"),
                                    systemImage: "square.stack")
             }
             NavigationLink(value: WatchNav.songs) {
-                WatchCollectionRow(title: "Tracks", subtitle: "\(model.tracks.count) downloaded",
+                WatchCollectionRow(title: String(localized: "Tracks"), subtitle: String(localized: "\(model.tracks.count) downloaded"),
                                    systemImage: "music.note")
             }
             NavigationLink(value: WatchNav.storage) {
-                WatchCollectionRow(title: "Storage",
+                WatchCollectionRow(title: String(localized: "Storage"),
                                    subtitle: WatchTimeFmt.megabytes(model.storage?.readyBytes ?? 0),
                                    systemImage: "internaldrive")
             }
@@ -54,7 +54,7 @@ struct WatchPhonePlaylistsView: View {
                     if let ref = row.collectionRef {
                         NavigationLink(value: WatchNav.phoneCollection(ref)) {
                             WatchCollectionRow(title: row.title,
-                                               subtitle: row.trackCount.map { "\($0) tracks" } ?? "Playlist",
+                                               subtitle: row.trackCount.map { String(localized: "\($0) tracks") } ?? String(localized: "Playlist"),
                                                systemImage: "music.note.list")
                         }
                     }
@@ -154,7 +154,7 @@ struct WatchPhoneCollectionView: View {
 #else
         .listStyle(.plain)
 #endif
-        .navigationTitle(response?.title ?? "Collection")
+        .navigationTitle(response?.title ?? String(localized: "Collection"))
         .task {
             response = await WatchAppAssembly.shared.loadPhoneCollection(ref)
             loaded = true
@@ -166,7 +166,7 @@ struct WatchPhoneCollectionView: View {
         }
     }
 
-    private func actionLabel(_ icon: String, _ title: String, bold: Bool = false) -> some View {
+    private func actionLabel(_ icon: String, _ title: LocalizedStringKey, bold: Bool = false) -> some View {
         HStack {
             Image(systemName: icon).font(WatchTypography.iconSmall)
             Text(title).font(.system(.body, design: .default)).fontWeight(bold ? .semibold : .regular)
@@ -221,9 +221,9 @@ struct WatchRecoveryView: View {
 
     private var title: String {
         switch launchState {
-        case .recovered: "Library Recovered"
-        case .degraded: "Library Unavailable"
-        case .opening, .ready: "Watch Library"
+        case .recovered: String(localized: "Library Recovered")
+        case .degraded: String(localized: "Library Unavailable")
+        case .opening, .ready: String(localized: "Watch Library")
         }
     }
 }

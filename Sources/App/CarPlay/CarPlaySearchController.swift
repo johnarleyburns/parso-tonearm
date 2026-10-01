@@ -21,8 +21,8 @@ import TonearmCore
 final class CarPlaySearchController: NSObject, CPSearchTemplateDelegate {
     /// CarPlay calls `updatedSearchText` per keystroke.
     private static let debounce: Duration = .milliseconds(250)
-    private static let enabledDetail = "Songs, artists, albums"
-    private static let limitedDetail = "Available when parked"
+    private static let enabledDetail = String(localized: "Songs, artists, albums")
+    private static let limitedDetail = String(localized: "Available when parked")
 
     private let interfaceController: CPInterfaceController
     private var hitsByItem: [ObjectIdentifier: (rows: [TrackRow], index: Int)] = [:]
@@ -33,7 +33,7 @@ final class CarPlaySearchController: NSObject, CPSearchTemplateDelegate {
     /// The row `CarPlayRootBuilder` puts at the top of the Library tab.
     private(set) lazy var entryItem: CPListItem = {
         let item = CPListItem(
-            text: "Search",
+            text: String(localized: "Search"),
             detailText: Self.enabledDetail,
             image: UIImage(systemName: "magnifyingglass")
         )
@@ -48,8 +48,8 @@ final class CarPlaySearchController: NSObject, CPSearchTemplateDelegate {
     /// keyboard path behind a secondary gesture on the car's display.
     private(set) lazy var voiceEntryItem: CPListItem = {
         let item = CPListItem(
-            text: "Voice Search",
-            detailText: "Hands-free library search",
+            text: String(localized: "Voice Search"),
+            detailText: String(localized: "Hands-free library search"),
             image: UIImage(systemName: "mic.fill")
         )
         item.handler = { [weak self] _, completion in
@@ -94,7 +94,7 @@ final class CarPlaySearchController: NSObject, CPSearchTemplateDelegate {
             }
             return item
         }
-        let results = CPListTemplate(title: "Voice Results", sections: [CPListSection(items: items)])
+        let results = CPListTemplate(title: String(localized: "Voice Results"), sections: [CPListSection(items: items)])
         interfaceController.pushTemplate(results, animated: true, completion: nil)
     }
 

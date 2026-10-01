@@ -92,7 +92,7 @@ extension SettingsView {
             Button("Cancel", role: .cancel) {}
             Button("Set") { applyCustomCacheLimit() }
         } message: {
-            Text("Enter a limit in MB. Minimum 100 MB; maximum 80% of free disk.")
+            Text("Enter a limit in MB. Minimum 100 MB; maximum \(80)% of free disk.")
         }
     }
 

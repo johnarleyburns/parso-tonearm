@@ -72,10 +72,10 @@ struct MiniPlayerAccessory: View {
 private extension TransitionPlan {
     var displayName: String {
         switch style {
-        case .gapless: "Gapless continuation"
-        case .beatmatchedBlend: "Beat-matched blend"
-        case .phraseFade: "Phrase-aware fade"
-        case .plainCrossfade: "Plain crossfade"
+        case .gapless: String(localized: "Gapless continuation")
+        case .beatmatchedBlend: String(localized: "Beat-matched blend")
+        case .phraseFade: String(localized: "Phrase-aware fade")
+        case .plainCrossfade: String(localized: "Plain crossfade")
         }
     }
 }
@@ -118,11 +118,11 @@ struct TransferPill: View {
 
     private func label(_ banner: PhoneWatchManagementPresenter.TransferBanner) -> String {
         if banner.hasFailure && banner.activeCount == 0 {
-            return "\(banner.failedCount) download\(banner.failedCount == 1 ? "" : "s") failed"
+            return String(localized: "\(banner.failedCount) downloads failed")
         }
         if banner.hasFailure {
-            return "\(banner.activeCount) transferring, \(banner.failedCount) failed"
+            return String(localized: "\(banner.activeCount) transferring, \(banner.failedCount) failed")
         }
-        return "\(banner.activeCount) transferring to Apple Watch"
+        return String(localized: "\(banner.activeCount) transferring to Apple Watch")
     }
 }

@@ -57,16 +57,16 @@ final class IndexStatusModel: ObservableObject {
     func refresh() async {
         do {
             guard let snap = try await statusSnapshotWithTimeout() else {
-                errorMessage = controller.lastStatusError ?? "The Sound Index status could not be read."
+                errorMessage = controller.lastStatusError ?? String(localized: "The Sound Index status could not be read.")
                 return
             }
             errorMessage = nil
             snapshot = snap
             presentation = IndexStatusPresentation.make(from: snap)
         } catch RefreshError.timedOut {
-            errorMessage = "The Sound Index status timed out. Try again."
+            errorMessage = String(localized: "The Sound Index status timed out. Try again.")
         } catch {
-            errorMessage = "The Sound Index status could not be read: \(error.localizedDescription)"
+            errorMessage = String(localized: "The Sound Index status could not be read: \(error.localizedDescription)")
         }
     }
 
@@ -166,7 +166,7 @@ final class IndexStatusModel: ObservableObject {
 
     func diagnosticsText() async -> String {
         guard let diag = await controller.diagnostics() else {
-            return "Diagnostics unavailable."
+            return String(localized: "Diagnostics unavailable.")
         }
         return diag.plainText() + "\n\n" + diag.jsonString()
     }

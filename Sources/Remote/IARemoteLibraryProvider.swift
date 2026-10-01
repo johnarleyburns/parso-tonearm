@@ -62,7 +62,7 @@ public struct IARemoteLibraryProvider: RemoteLibraryProvider {
         case .favorites(let screenname):
             let (members, total, capHit) = try await CollectionResolver().resolveFavorites(screenname: screenname)
             return SourcePreview(
-                kind: .iaFavorites, title: "Favorites of @\(screenname)",
+                kind: .iaFavorites, title: String(localized: "Favorites of @\(screenname)", bundle: .module),
                 subtitle: "\(members.count) items · audio",
                 licenseText: nil, licensePermitsStreaming: true,
                 memberCount: members.count, totalCount: total, capHit: capHit,
@@ -71,7 +71,7 @@ public struct IARemoteLibraryProvider: RemoteLibraryProvider {
         case .lists(let screenname):
             let members = try await ListResolver().resolveAll(screenname: screenname)
             return SourcePreview(
-                kind: .iaList, title: "Lists by @\(screenname)",
+                kind: .iaList, title: String(localized: "Lists by @\(screenname)", bundle: .module),
                 subtitle: "\(members.count) items · audio",
                 licenseText: nil, licensePermitsStreaming: true,
                 memberCount: members.count, totalCount: members.count, capHit: false,
@@ -79,7 +79,7 @@ public struct IARemoteLibraryProvider: RemoteLibraryProvider {
 
         case .list(let screenname, let listId, let slug):
             let members = try await ListResolver().resolve(screenname: screenname, listId: listId)
-            let title = slug.map(SourceService.prettify) ?? "List by @\(screenname)"
+            let title = slug.map(SourceService.prettify) ?? String(localized: "List by @\(screenname)", bundle: .module)
             return SourcePreview(
                 kind: .iaList, title: title,
                 subtitle: "\(members.count) items · audio",
@@ -112,6 +112,6 @@ public struct IARemoteLibraryProvider: RemoteLibraryProvider {
         if url.contains("by-sa") { return "CC BY-SA" }
         if url.contains("by-nc") { return "CC BY-NC" }
         if url.contains("by") { return "CC BY" }
-        return "See license"
+        return String(localized: "See license", bundle: .module)
     }
 }

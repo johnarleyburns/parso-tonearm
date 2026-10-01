@@ -61,7 +61,7 @@ final class LibraryBrowseTests: XCTestCase {
 
         XCTAssertEqual(artistEntries.count, 1)
         XCTAssertEqual(artistEntries.first?.title, "One Artist")
-        XCTAssertEqual(artistEntries.first?.subtitle, "1000 albums")
+        XCTAssertEqual(artistEntries.first?.subtitle, "1,000 albums")
         XCTAssertEqual(artistEntries.first?.rows.count, 1_000)
         XCTAssertEqual(albumEntries.count, 1_000)
     }

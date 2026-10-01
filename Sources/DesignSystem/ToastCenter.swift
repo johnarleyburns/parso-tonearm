@@ -24,18 +24,38 @@ final class ToastCenter: ObservableObject {
 
     private var dismissTask: Task<Void, Never>?
 
+    func progress(_ text: LocalizedStringResource, icon: String = "arrow.down.circle", tag: String? = nil) {
+        progress(String(localized: text), icon: icon, tag: tag)
+    }
+
+    @_disfavoredOverload
     func progress(_ text: String, icon: String = "arrow.down.circle", tag: String? = nil) {
         show(Toast(text: text, icon: icon, kind: .progress, tag: tag), seconds: 6)
     }
 
+    func info(_ text: LocalizedStringResource, icon: String = "info.circle", tag: String? = nil) {
+        info(String(localized: text), icon: icon, tag: tag)
+    }
+
+    @_disfavoredOverload
     func info(_ text: String, icon: String = "info.circle", tag: String? = nil) {
         show(Toast(text: text, icon: icon, kind: .info, tag: tag), seconds: 2.6)
     }
 
+    func success(_ text: LocalizedStringResource, icon: String = "checkmark.circle.fill", tag: String? = nil) {
+        success(String(localized: text), icon: icon, tag: tag)
+    }
+
+    @_disfavoredOverload
     func success(_ text: String, icon: String = "checkmark.circle.fill", tag: String? = nil) {
         show(Toast(text: text, icon: icon, kind: .success, tag: tag), seconds: 2.4)
     }
 
+    func error(_ text: LocalizedStringResource, icon: String = "exclamationmark.triangle.fill", tag: String? = nil) {
+        error(String(localized: text), icon: icon, tag: tag)
+    }
+
+    @_disfavoredOverload
     func error(_ text: String, icon: String = "exclamationmark.triangle.fill", tag: String? = nil) {
         show(Toast(text: text, icon: icon, kind: .error, tag: tag), seconds: 3.2)
     }

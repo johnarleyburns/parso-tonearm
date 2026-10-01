@@ -103,6 +103,7 @@ struct JamendoBrowseView: View {
                         .frame(width: 33, height: 33)
                         .glassSurface(cornerRadius: 16.5)
                 }
+                .accessibilityLabel("Back")
             } else {
                 Color.clear.frame(width: 33, height: 33)
             }
@@ -281,9 +282,9 @@ struct JamendoBrowseView: View {
         defer { importingIDs.remove(node.id) }
         if await appState.importJamendoTrack(node: node) {
             importedIDs.insert(node.id)
-            importMessage = "Added to My Music and queued for indexing."
+            importMessage = String(localized: "Added to My Music and queued for indexing.")
         } else {
-            importMessage = "Couldn't add this Jamendo track. Try again."
+            importMessage = String(localized: "Couldn't add this Jamendo track. Try again.")
         }
     }
 }
@@ -393,7 +394,7 @@ private struct JamendoTrackRow: View {
     }
 
     private var subtitle: String {
-        let artist = node.metadata?.artist ?? "Unknown artist"
+        let artist = node.metadata?.artist ?? String(localized: "Unknown artist")
         if let album = node.metadata?.album, !album.isEmpty {
             return "\(artist) · \(album)"
         }

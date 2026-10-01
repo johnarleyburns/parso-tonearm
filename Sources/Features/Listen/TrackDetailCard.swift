@@ -109,7 +109,7 @@ struct TrackDetailCard: View {
     private var subtitle: String {
         row.artist?.name
             ?? row.album?.artist
-            ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : "On device")
+            ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : String(localized: "On device"))
     }
 
     /// Duration (`TimeFmt.mmss`, the same formatter `TrackContextMenu`'s row
@@ -118,7 +118,7 @@ struct TrackDetailCard: View {
     private var durationAndSource: String {
         var parts: [String] = []
         if let duration = row.track.durationSec { parts.append(TimeFmt.mmss(duration)) }
-        parts.append(row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : "On device")
+        parts.append(row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : String(localized: "On device"))
         return parts.joined(separator: " · ")
     }
 
@@ -136,7 +136,7 @@ struct TrackDetailCard: View {
         }
     }
 
-    private func actionButton(_ title: String, icon: String, style: ActionStyle, action: @escaping () -> Void) -> some View {
+    private func actionButton(_ title: LocalizedStringKey, icon: String, style: ActionStyle, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: icon)

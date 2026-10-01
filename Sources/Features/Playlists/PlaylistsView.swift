@@ -86,8 +86,8 @@ struct PlaylistsView: View {
                     ZStack(alignment: .leading) {
                         NavigationLink(value: "ambient") { EmptyView() }.opacity(0)
                         NavigationRow(icon: "leaf.fill",
-                                      title: "Ambient",
-                                      subtitle: "Built-in nature sounds for focus, relaxation, or sleep")
+                                      title: String(localized: "Ambient"),
+                                      subtitle: String(localized: "Built-in nature sounds for focus, relaxation, or sleep"))
                     }
                         .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("playlist.ambient")
@@ -260,6 +260,7 @@ struct PlaylistDetailView: View {
                         .font(Typography.body).foregroundStyle(Palette.accent)
                         .frame(width: 44, height: 44).glassSurface(cornerRadius: 22)
                 }
+                .accessibilityLabel("Add tracks")
                 .accessibilityIdentifier("playlist.add")
                 Menu {
                     Button {
@@ -450,7 +451,7 @@ private struct PlaylistNavigationRow: View {
         NavigationRow(
             icon: playlist.kind == .folder ? "folder.fill" : "music.note.list",
             title: playlist.title,
-            subtitle: playlist.kind == .folder ? "Folder playlist" : "Manual playlist",
+            subtitle: playlist.kind == .folder ? String(localized: "Folder playlist") : String(localized: "Manual playlist"),
             leadingArtwork: firstTrack,
             isPinned: isPinned)
             .task(id: playlist.id) {
@@ -512,8 +513,8 @@ struct NavigationRow: View {
 
 struct EmptyStateView: View {
     let icon: String
-    let title: String
-    let message: String
+    let title: LocalizedStringKey
+    let message: LocalizedStringKey
 
     var body: some View {
         VStack(spacing: 12) {

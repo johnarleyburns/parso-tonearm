@@ -9,7 +9,7 @@ public enum PlaybackDisplayPolicy {
              .dropbox, .googleDrive, .oneDrive, .pCloud, .jamendoGenre:
             return RemoteConnectorCatalog.connector(for: source?.kind ?? .local)?.title ?? "Remote"
         case .local, .none:
-            return "On Device"
+            return String(localized: "On Device", bundle: .module)
         }
     }
 
@@ -18,14 +18,14 @@ public enum PlaybackDisplayPolicy {
                                           shuffle: Bool,
                                           repeatMode: RepeatMode) -> String {
         var parts: [String] = []
-        if shuffle { parts.append("Shuffled") }
+        if shuffle { parts.append(String(localized: "Shuffled", bundle: .module)) }
         switch repeatMode {
         case .off:
             break
         case .one:
-            parts.append("Repeat 1")
+            parts.append(String(localized: "Repeat 1", bundle: .module))
         case .all:
-            parts.append("Repeat All")
+            parts.append(String(localized: "Repeat All", bundle: .module))
         }
 
         if row.asset?.kind == .remote {

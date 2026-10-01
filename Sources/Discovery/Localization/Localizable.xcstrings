@@ -1,0 +1,2750 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    " (CPU — cooling down)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU – kühlt ab)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU: enfriándose)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU – refroidissement)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "（CPU — クールダウン中）"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU — esfriando)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "（CPU — 正在降温）"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (CPU — cooling down)"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    " (CPU — device is hot)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU – Gerät ist heiß)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU: el dispositivo está caliente)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU – l’appareil est chaud)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "（CPU — デバイスが高温）"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU — dispositivo quente)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "（CPU — 设备过热）"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (CPU — device is hot)"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    " (CPU — paused for playback)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU – pausiert für Wiedergabe)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU: en pausa por la reproducción)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU – en pause pendant la lecture)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "（CPU — 再生中のため一時停止）"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU — pausado para reprodução)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "（CPU — 因播放而暂停）"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (CPU — paused for playback)"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    " (CPU — ran warm recently)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU – war kürzlich warm)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU: se calentó hace poco)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU – a chauffé récemment)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "（CPU — 最近高温になりました）"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU — aqueceu recentemente)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "（CPU — 最近温度偏高）"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (CPU — ran warm recently)"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "%lld refinement terms supplied; at most %lld are allowed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld refinement terms supplied; at most %2$lld are allowed."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Anzahl der Verfeinerungsbegriffe: %lld; höchstens %lld sind erlaubt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Términos de refinamiento: %lld; se permiten como máximo %lld."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Termes d’affinage : %lld ; %lld au maximum sont autorisés."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "絞り込み語句が%lld個指定されています。最大%lld個までです。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Termos de refinamento: %lld; no máximo %lld são permitidos."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "提供了 %lld 个细化词，最多允许 %lld 个。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Discovery Search Query (Sources/Discovery/DiscoverySearchQuery.swift)"
+    },
+    "%lld tracks could not be indexed." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld track could not be indexed."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tracks could not be indexed."
+                }
+              }
+            }
+          }
+        },
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld Titel konnte nicht indexiert werden."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld Titel konnten nicht indexiert werden."
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "No se pudo indexar %lld pista."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "No se pudieron indexar %lld pistas."
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld morceau n’a pas pu être indexé."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld morceaux n’ont pas pu être indexés."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld曲をインデックスに追加できませんでした。"
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Não foi possível indexar %lld faixa."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Não foi possível indexar %lld faixas."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "有 %lld 首曲目无法编入索引。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "%lld tracks hit a temporary error and will retry automatically." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld track hit a temporary error and will retry automatically."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tracks hit a temporary error and will retry automatically."
+                }
+              }
+            }
+          }
+        },
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Bei %lld Titel ist ein vorübergehender Fehler aufgetreten; es wird automatisch erneut versucht."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Bei %lld Titeln ist ein vorübergehender Fehler aufgetreten; es wird automatisch erneut versucht."
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld pista tuvo un error temporal y se reintentará automáticamente."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld pistas tuvieron un error temporal y se reintentarán automáticamente."
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld morceau a rencontré une erreur temporaire et sera réessayé automatiquement."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld morceaux ont rencontré une erreur temporaire et seront réessayés automatiquement."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld曲で一時的なエラーが発生しました。自動的に再試行します。"
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld faixa teve um erro temporário e será tentada novamente automaticamente."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld faixas tiveram um erro temporário e serão tentadas novamente automaticamente."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld 首曲目遇到临时错误，将自动重试。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "%lld tracks hit a temporary error and will retry automatically. Last error: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld tracks hit a temporary error and will retry automatically. Last error: %2$@."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Vorübergehender Fehler bei Titeln: %lld. Es wird automatisch erneut versucht. Letzter Fehler: %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Pistas con un error temporal: %lld. Se reintentará automáticamente. Último error: %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Morceaux ayant rencontré une erreur temporaire : %lld. Nouvel essai automatique. Dernière erreur : %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld曲で一時的なエラーが発生しました。自動的に再試行します。最後のエラー：%@。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Faixas com erro temporário: %lld. Nova tentativa automática. Último erro: %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld 首曲目遇到临时错误，将自动重试。最近的错误：%@。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "%lld tracks waiting on their audio file — moved, deleted, or not fully downloaded from cloud storage." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld track waiting on its audio file — moved, deleted, or not fully downloaded from cloud storage."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tracks waiting on their audio file — moved, deleted, or not fully downloaded from cloud storage."
+                }
+              }
+            }
+          }
+        },
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld Titel wartet auf seine Audiodatei – verschoben, gelöscht oder nicht vollständig aus dem Cloud-Speicher geladen."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld Titel warten auf ihre Audiodatei – verschoben, gelöscht oder nicht vollständig aus dem Cloud-Speicher geladen."
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld pista está esperando su archivo de audio: se movió, se eliminó o no se descargó por completo del almacenamiento en la nube."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld pistas están esperando su archivo de audio: se movieron, se eliminaron o no se descargaron por completo del almacenamiento en la nube."
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld morceau attend son fichier audio – déplacé, supprimé ou pas entièrement téléchargé depuis le stockage cloud."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld morceaux attendent leur fichier audio – déplacés, supprimés ou pas entièrement téléchargés depuis le stockage cloud."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld曲がオーディオファイルを待っています。ファイルが移動・削除されたか、クラウドストレージから完全にダウンロードされていません。"
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld faixa está aguardando o arquivo de áudio — movido, apagado ou não totalmente baixado do armazenamento em nuvem."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld faixas estão aguardando os arquivos de áudio — movidos, apagados ou não totalmente baixados do armazenamento em nuvem."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld 首曲目正在等待其音频文件 — 文件已移动、删除或尚未从云存储完整下载。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Add music to start building the sound index." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Füge Musik hinzu, um mit dem Aufbau des Klangindex zu beginnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Añade música para empezar a crear el índice de sonido."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ajoutez de la musique pour commencer à créer l’index sonore."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "音楽を追加するとサウンドインデックスの作成が始まります。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Adicione músicas para começar a criar o índice sonoro."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "添加音乐以开始建立声音索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add music to start building the sound index."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "All music is indexed." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Alle Musik ist indexiert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Toda la música está indexada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Toute la musique est indexée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "すべての音楽がインデックス済みです。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Todas as músicas estão indexadas."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "所有音乐均已编入索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All music is indexed."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Could not compile the model: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Das Modell konnte nicht kompiliert werden: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "No se pudo compilar el modelo: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Impossible de compiler le modèle : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "モデルをコンパイルできませんでした：%@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Não foi possível compilar o modelo: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "无法编译模型：%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not compile the model: %@"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Compiled Model Cache (Sources/Discovery/CompiledModelCache.swift)"
+    },
+    "Could not create an audio resampler: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Audio-Resampler konnte nicht erstellt werden: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "No se pudo crear un remuestreador de audio: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Impossible de créer un rééchantillonneur audio : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "オーディオリサンプラを作成できませんでした：%@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Não foi possível criar um reamostrador de áudio: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "无法创建音频重采样器：%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not create an audio resampler: %@"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Windowed Audio Reader (Sources/Discovery/WindowedAudioReader.swift)"
+    },
+    "Could not load the model's mel filterbank: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Die Mel-Filterbank des Modells konnte nicht geladen werden: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "No se pudo cargar el banco de filtros mel del modelo: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Impossible de charger le banc de filtres mel du modèle : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "モデルのメルフィルタバンクを読み込めませんでした：%@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Não foi possível carregar o banco de filtros mel do modelo: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "无法载入模型的梅尔滤波器组：%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not load the model's mel filterbank: %@"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Model Manager (Sources/Discovery/ModelManager.swift)"
+    },
+    "Could not load the text model's tokenizer: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Der Tokenizer des Textmodells konnte nicht geladen werden: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "No se pudo cargar el tokenizador del modelo de texto: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Impossible de charger le tokeniseur du modèle de texte : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "テキストモデルのトークナイザを読み込めませんでした：%@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Não foi possível carregar o tokenizador do modelo de texto: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "无法载入文本模型的分词器：%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not load the text model's tokenizer: %@"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Model Manager (Sources/Discovery/ModelManager.swift)"
+    },
+    "Could not open audio file: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Audiodatei konnte nicht geöffnet werden: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "No se pudo abrir el archivo de audio: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Impossible d’ouvrir le fichier audio : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "オーディオファイルを開けませんでした：%@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Não foi possível abrir o arquivo de áudio: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "无法打开音频文件：%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not open audio file: %@"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Windowed Audio Reader (Sources/Discovery/WindowedAudioReader.swift)"
+    },
+    "Could not prepare the sound-search model: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Das Klangsuchmodell konnte nicht vorbereitet werden: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "No se pudo preparar el modelo de búsqueda por sonido: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Impossible de préparer le modèle de recherche sonore : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "サウンド検索モデルを準備できませんでした：%@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Não foi possível preparar o modelo de busca sonora: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "无法准备声音搜索模型：%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not prepare the sound-search model: %@"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Model Manager (Sources/Discovery/ModelManager.swift)"
+    },
+    "Could not read audio: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Audio konnte nicht gelesen werden: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "No se pudo leer el audio: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Impossible de lire l’audio : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "オーディオを読み取れませんでした：%@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Não foi possível ler o áudio: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "无法读取音频：%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read audio: %@"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Windowed Audio Reader (Sources/Discovery/WindowedAudioReader.swift)"
+    },
+    "Couldn't download the sound-search model yet (%@). Retrying automatically…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Das Klangsuchmodell konnte noch nicht geladen werden (%@). Neuer Versuch erfolgt automatisch …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aún no se pudo descargar el modelo de búsqueda por sonido (%@). Reintentando automáticamente…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Le modèle de recherche sonore n’a pas encore pu être téléchargé (%@). Nouvel essai automatique…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "サウンド検索モデルをまだダウンロードできません（%@）。自動的に再試行しています…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ainda não foi possível baixar o modelo de busca sonora (%@). Tentando novamente automaticamente…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "暂时无法下载声音搜索模型（%@）。正在自动重试…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't download the sound-search model yet (%@). Retrying automatically…"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Device temperature is back to normal. Resuming in %llds (confirming it stays cool)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Die Gerätetemperatur ist wieder normal. Fortsetzung in %lld s (es wird geprüft, ob es kühl bleibt)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "La temperatura del dispositivo ha vuelto a la normalidad. Se reanudará en %lld s (comprobando que se mantiene fresco)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "La température de l’appareil est revenue à la normale. Reprise dans %lld s (vérification qu’il reste frais)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "デバイスの温度は正常に戻りました。%lld秒後に再開します（温度が下がったままか確認中）。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "A temperatura do dispositivo voltou ao normal. Retomando em %lld s (confirmando que continua fria)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "设备温度已恢复正常。%lld 秒后继续（正在确认温度保持正常）。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device temperature is back to normal. Resuming in %llds (confirming it stays cool)."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Device temperature is back to normal. Resuming indexing…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Die Gerätetemperatur ist wieder normal. Indexierung wird fortgesetzt …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "La temperatura del dispositivo ha vuelto a la normalidad. Reanudando la indexación…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "La température de l’appareil est revenue à la normale. Reprise de l’indexation…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "デバイスの温度は正常に戻りました。インデックス作成を再開しています…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "A temperatura do dispositivo voltou ao normal. Retomando a indexação…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "设备温度已恢复正常。正在继续索引…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device temperature is back to normal. Resuming indexing…"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Downloading the sound-search model — %lld of %lld MB (%lld%%)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Downloading the sound-search model — %1$lld of %2$lld MB (%3$lld%%)."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Klangsuchmodell wird geladen – %lld von %lld MB (%lld %%)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Descargando el modelo de búsqueda por sonido: %lld de %lld MB (%lld %%)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Téléchargement du modèle de recherche sonore – %lld Mo sur %lld (%lld %%)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "サウンド検索モデルをダウンロード中 — %2$lld MB中%1$lld MB（%3$lld%%）。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Baixando o modelo de busca sonora — %lld de %lld MB (%lld%%)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在下载声音搜索模型 — %lld / %lld MB（%lld%%）。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Downloading the sound-search model — %lld of %lld MB." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Downloading the sound-search model — %1$lld of %2$lld MB."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Klangsuchmodell wird geladen – %lld von %lld MB."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Descargando el modelo de búsqueda por sonido: %lld de %lld MB."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Téléchargement du modèle de recherche sonore – %lld Mo sur %lld."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "サウンド検索モデルをダウンロード中 — %2$lld MB中%1$lld MB。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Baixando o modelo de busca sonora — %lld de %lld MB."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在下载声音搜索模型 — %lld / %lld MB。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Downloading the sound-search model — %lld of %lld components ready." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Downloading the sound-search model — %1$lld of %2$lld components ready."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Klangsuchmodell wird geladen – %lld von %lld Komponenten bereit."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Descargando el modelo de búsqueda por sonido: %lld de %lld componentes listos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Téléchargement du modèle de recherche sonore – %lld composants prêts sur %lld."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "サウンド検索モデルをダウンロード中 — %2$lld個中%1$lld個のコンポーネントが準備完了。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Baixando o modelo de busca sonora — %lld de %lld componentes prontos."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在下载声音搜索模型 — 已就绪 %lld 个组件（共 %lld 个）。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Downloading the sound-search model…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Klangsuchmodell wird geladen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Descargando el modelo de búsqueda por sonido…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Téléchargement du modèle de recherche sonore…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "サウンド検索モデルをダウンロード中…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Baixando o modelo de busca sonora…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在下载声音搜索模型…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading the sound-search model…"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Indexing %lld tracks…" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Indexing %lld track…"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Indexing %lld tracks…"
+                }
+              }
+            }
+          }
+        },
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld Titel wird indexiert …"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%lld Titel werden indexiert …"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Indexando %lld pista…"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Indexando %lld pistas…"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Indexation de %lld morceau…"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Indexation de %lld morceaux…"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld曲をインデックス化中…"
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Indexando %lld faixa…"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Indexando %lld faixas…"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在为 %lld 首曲目建立索引…"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Indexing is idle." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Die Indexierung ruht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "La indexación está inactiva."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "L’indexation est au repos."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "インデックス作成は待機中です。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "A indexação está ociosa."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "索引处于空闲状态。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indexing is idle."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Most recent error: %@." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Letzter Fehler: %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Error más reciente: %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Erreur la plus récente : %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "最新のエラー：%@。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Erro mais recente: %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "最近的错误：%@。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most recent error: %@."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Paused. Resume to continue indexing." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Pausiert. Fortsetzen, um weiter zu indexieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En pausa. Reanuda para seguir indexando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En pause. Reprenez pour continuer l’indexation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "一時停止中です。再開するとインデックス作成を続けます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Pausado. Retome para continuar a indexação."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "已暂停。继续即可恢复索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paused. Resume to continue indexing."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Refinement \"%@\" is %lld characters; the maximum is %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Refinement \"%1$@\" is %2$lld characters; the maximum is %3$lld."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Der Verfeinerungsbegriff „%@“ hat %lld Zeichen; das Maximum ist %lld."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "El término de refinamiento «%@» tiene %lld caracteres; el máximo es %lld."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Le terme d’affinage « %@ » compte %lld caractères ; le maximum est %lld."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "絞り込み語句「%@」は%lld文字です。最大%lld文字までです。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O termo de refinamento “%@” tem %lld caracteres; o máximo é %lld."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "细化词“%@”有 %lld 个字符，最多 %lld 个。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Discovery Search Query (Sources/Discovery/DiscoverySearchQuery.swift)"
+    },
+    "Search text is %lld characters; the maximum is %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Search text is %1$lld characters; the maximum is %2$lld."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Der Suchtext hat %lld Zeichen; das Maximum ist %lld."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "El texto de búsqueda tiene %lld caracteres; el máximo es %lld."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Le texte de recherche compte %lld caractères ; le maximum est %lld."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "検索テキストは%lld文字です。最大%lld文字までです。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O texto da busca tem %lld caracteres; o máximo é %lld."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "搜索文本有 %lld 个字符，最多 %lld 个。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Discovery Search Query (Sources/Discovery/DiscoverySearchQuery.swift)"
+    },
+    "Sound index: %@ / %@ tracks" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sound index: %1$@ / %2$@ tracks"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Klangindex: %@ / %@ Titel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Índice de sonido: %@ / %@ pistas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Index sonore : %@ / %@ morceaux"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "サウンドインデックス：%@ / %@曲"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Índice sonoro: %@ / %@ faixas"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "声音索引：%@ / %@ 首曲目"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Sound index: not started" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Klangindex: nicht gestartet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Índice de sonido: sin empezar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Index sonore : non démarré"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "サウンドインデックス：未開始"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Índice sonoro: não iniciado"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "声音索引：未开始"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sound index: not started"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "The BPM range contains a value that is not a finite number." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Der BPM-Bereich enthält einen Wert, der keine endliche Zahl ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "El rango de BPM contiene un valor que no es un número finito."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "La plage de BPM contient une valeur qui n’est pas un nombre fini."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "BPMの範囲に有限の数ではない値が含まれています。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O intervalo de BPM contém um valor que não é um número finito."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "BPM 范围包含非有限数值。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The BPM range contains a value that is not a finite number."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Discovery Search Query (Sources/Discovery/DiscoverySearchQuery.swift)"
+    },
+    "The BPM range is reversed (%lf–%lf); the low value must not exceed the high value." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "The BPM range is reversed (%1$lf–%2$lf); the low value must not exceed the high value."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Der BPM-Bereich ist vertauscht (%lf–%lf); der untere Wert darf den oberen nicht überschreiten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "El rango de BPM está invertido (%lf–%lf); el valor mínimo no puede superar al máximo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "La plage de BPM est inversée (%lf–%lf) ; la valeur basse ne doit pas dépasser la valeur haute."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "BPMの範囲が逆になっています（%lf〜%lf）。下限は上限を超えてはいけません。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O intervalo de BPM está invertido (%lf–%lf); o valor mínimo não pode exceder o máximo."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "BPM 范围颠倒（%lf–%lf）；下限不得超过上限。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Discovery Search Query (Sources/Discovery/DiscoverySearchQuery.swift)"
+    },
+    "The device is running hot (thermal state: Serious). Indexing is paused until it cools." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Das Gerät ist heiß (thermischer Zustand: ernst). Die Indexierung pausiert, bis es abgekühlt ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "El dispositivo está caliente (estado térmico: grave). La indexación está en pausa hasta que se enfríe."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "L’appareil chauffe (état thermique : grave). L’indexation est en pause jusqu’à ce qu’il refroidisse."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "デバイスが高温です（温度状態：深刻）。冷えるまでインデックス作成を一時停止しています。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O dispositivo está quente (estado térmico: grave). A indexação está pausada até ele esfriar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "设备温度较高（热状态：严重）。索引已暂停，直到设备降温。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The device is running hot (thermal state: Serious). Indexing is paused until it cools."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "The device is very hot (thermal state: Critical). Indexing is paused until it cools." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Das Gerät ist sehr heiß (thermischer Zustand: kritisch). Die Indexierung pausiert, bis es abgekühlt ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "El dispositivo está muy caliente (estado térmico: crítico). La indexación está en pausa hasta que se enfríe."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "L’appareil est très chaud (état thermique : critique). L’indexation est en pause jusqu’à ce qu’il refroidisse."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "デバイスが非常に高温です（温度状態：危険）。冷えるまでインデックス作成を一時停止しています。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O dispositivo está muito quente (estado térmico: crítico). A indexação está pausada até ele esfriar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "设备温度过高（热状态：危急）。索引已暂停，直到设备降温。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The device is very hot (thermal state: Critical). Indexing is paused until it cools."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "The device's thermal state is elevated (Fair). Indexing pauses until it's back to normal for a full minute." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Der thermische Zustand des Geräts ist erhöht (mittel). Die Indexierung pausiert, bis er eine volle Minute lang wieder normal ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "El estado térmico del dispositivo es elevado (moderado). La indexación se pausa hasta que vuelva a la normalidad durante un minuto completo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "L’état thermique de l’appareil est élevé (modéré). L’indexation est en pause jusqu’à un retour à la normale pendant une minute complète."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "デバイスの温度状態が上昇しています（やや高い）。正常な状態が丸1分続くまでインデックス作成を一時停止します。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O estado térmico do dispositivo está elevado (moderado). A indexação pausa até ele voltar ao normal por um minuto inteiro."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "设备热状态偏高（一般）。索引会暂停，直到恢复正常并持续整整一分钟。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The device's thermal state is elevated (Fair). Indexing pauses until it's back to normal for a full minute."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "The sound-search model has not been downloaded yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Das Klangsuchmodell wurde noch nicht geladen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "El modelo de búsqueda por sonido aún no se ha descargado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Le modèle de recherche sonore n’a pas encore été téléchargé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "サウンド検索モデルはまだダウンロードされていません。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O modelo de busca sonora ainda não foi baixado."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "声音搜索模型尚未下载。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The sound-search model has not been downloaded yet."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Model Manager (Sources/Discovery/ModelManager.swift)"
+    },
+    "Unsupported audio format: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Nicht unterstütztes Audioformat: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Formato de audio no compatible: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Format audio non pris en charge : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "対応していないオーディオ形式：%@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Formato de áudio incompatível: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "不支持的音频格式：%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsupported audio format: %@"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Windowed Audio Reader (Sources/Discovery/WindowedAudioReader.swift)"
+    },
+    "Waiting for Wi-Fi before indexing this remote track." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Warte auf WLAN, bevor dieser Remote-Titel indexiert wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Esperando Wi-Fi para indexar esta pista remota."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En attente du Wi-Fi avant d’indexer ce morceau distant."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Wi-Fiに接続されるのを待ってからこのリモートの曲をインデックス化します。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aguardando Wi-Fi para indexar esta faixa remota."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待 Wi-Fi 后为此远程曲目建立索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for Wi-Fi before indexing this remote track."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Waiting for a network connection to reach %lld tracks." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Waiting for a network connection to reach %lld track."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Waiting for a network connection to reach %lld tracks."
+                }
+              }
+            }
+          }
+        },
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Warte auf eine Netzwerkverbindung, um %lld Titel zu erreichen."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Warte auf eine Netzwerkverbindung, um %lld Titel zu erreichen."
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Esperando una conexión de red para acceder a %lld pista."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Esperando una conexión de red para acceder a %lld pistas."
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "En attente d’une connexion réseau pour atteindre %lld morceau."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "En attente d’une connexion réseau pour atteindre %lld morceaux."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld曲にアクセスするためのネットワーク接続を待っています。"
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Aguardando uma conexão de rede para acessar %lld faixa."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Aguardando uma conexão de rede para acessar %lld faixas."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待网络连接以访问 %lld 首曲目。"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Waiting for background processing time from iOS." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Warte auf Hintergrund-Rechenzeit von iOS."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Esperando tiempo de procesamiento en segundo plano de iOS."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En attente de temps de traitement en arrière-plan accordé par iOS."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "iOSからバックグラウンド処理時間が割り当てられるのを待っています。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aguardando tempo de processamento em segundo plano do iOS."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待 iOS 分配后台处理时间。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for background processing time from iOS."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Waiting for memory pressure to ease before indexing continues." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Warte, bis der Speicherdruck nachlässt, bevor die Indexierung fortgesetzt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Esperando a que baje el uso de memoria para seguir indexando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En attente d’une baisse de la pression mémoire avant de poursuivre l’indexation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "メモリ不足が解消されるのを待ってからインデックス作成を続けます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aguardando a pressão de memória diminuir para continuar a indexação."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待内存压力缓解后继续索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for memory pressure to ease before indexing continues."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Waiting for more battery before indexing continues." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Warte auf mehr Akkuladung, bevor die Indexierung fortgesetzt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Esperando más batería para seguir indexando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En attente de plus de batterie avant de poursuivre l’indexation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "バッテリー残量が増えるのを待ってからインデックス作成を続けます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aguardando mais bateria para continuar a indexação."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待电量充足后继续索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for more battery before indexing continues."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Waiting for more battery, or for Low Power Mode to turn off, before indexing continues." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Warte auf mehr Akkuladung oder bis der Stromsparmodus deaktiviert ist, bevor die Indexierung fortgesetzt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Esperando más batería o a que se desactive el modo de bajo consumo para seguir indexando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En attente de plus de batterie ou de la désactivation du mode Économie d’énergie avant de poursuivre l’indexation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "バッテリー残量が増えるか、低電力モードがオフになるのを待ってからインデックス作成を続けます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aguardando mais bateria ou que o Modo de Pouca Energia seja desativado para continuar a indexação."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待电量充足或低电量模式关闭后继续索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for more battery, or for Low Power Mode to turn off, before indexing continues."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Waiting for playback to stop before indexing continues." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Warte, bis die Wiedergabe stoppt, bevor die Indexierung fortgesetzt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Esperando a que se detenga la reproducción para seguir indexando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En attente de l’arrêt de la lecture avant de poursuivre l’indexation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "再生が止まるのを待ってからインデックス作成を続けます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aguardando a reprodução parar para continuar a indexação."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待播放停止后继续索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for playback to stop before indexing continues."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Waiting for power before background indexing continues." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Warte auf Stromversorgung, bevor die Indexierung im Hintergrund fortgesetzt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Esperando alimentación para seguir indexando en segundo plano."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En attente d’alimentation avant de poursuivre l’indexation en arrière-plan."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "電源に接続されるのを待ってからバックグラウンドのインデックス作成を続けます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aguardando energia para continuar a indexação em segundo plano."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待接通电源后继续后台索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for power before background indexing continues."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Waiting for power. Indexing resumes while charging." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Warte auf Stromversorgung. Die Indexierung wird beim Laden fortgesetzt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Esperando alimentación. La indexación se reanuda mientras se carga."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En attente d’alimentation. L’indexation reprend pendant la recharge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "電源を待っています。充電中にインデックス作成を再開します。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aguardando energia. A indexação continua durante o carregamento."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待接通电源。充电时将继续索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for power. Indexing resumes while charging."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Waiting for the device to cool down before indexing continues." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Warte, bis das Gerät abgekühlt ist, bevor die Indexierung fortgesetzt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Esperando a que el dispositivo se enfríe para seguir indexando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En attente du refroidissement de l’appareil avant de poursuivre l’indexation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "デバイスが冷えるのを待ってからインデックス作成を続けます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aguardando o dispositivo esfriar para continuar a indexação."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待设备降温后继续索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for the device to cool down before indexing continues."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Waiting for the sound-search model to finish downloading." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Warte, bis das Klangsuchmodell vollständig geladen ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Esperando a que termine de descargarse el modelo de búsqueda por sonido."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En attente de la fin du téléchargement du modèle de recherche sonore."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "サウンド検索モデルのダウンロード完了を待っています。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aguardando o modelo de busca sonora terminar de baixar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待声音搜索模型下载完成。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for the sound-search model to finish downloading."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
+    "Waiting to continue. Indexing resumes when conditions allow." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Warte auf Fortsetzung. Die Indexierung wird fortgesetzt, sobald es die Bedingungen erlauben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Esperando para continuar. La indexación se reanudará cuando las condiciones lo permitan."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "En attente de reprise. L’indexation reprendra dès que les conditions le permettront."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "続行を待っています。条件が整えばインデックス作成を再開します。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aguardando para continuar. A indexação será retomada quando as condições permitirem."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在等待继续。条件允许时将恢复索引。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting to continue. Indexing resumes when conditions allow."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    }
+  },
+  "version" : "1.0"
+}

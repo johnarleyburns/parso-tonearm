@@ -49,7 +49,7 @@ struct WatchConnectionBanner: View {
         case .connected: ""
         case .temporarilyUnavailable: "iPhone temporarily unavailable"
         case .unavailable: "iPhone unavailable — showing music on this watch"
-        case .incompatible: "Update Platterhead on iPhone to sync — downloaded music still plays"
+        case .incompatible: String(localized: "Update Platterhead on iPhone to sync — downloaded music still plays")
         }
     }
 }

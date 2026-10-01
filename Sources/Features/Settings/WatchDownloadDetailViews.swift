@@ -42,7 +42,7 @@ struct WatchDownloadQueueView: View {
         var parts: [String] = []
         if b.activeCount > 0 { parts.append("\(b.activeCount) transferring") }
         if b.failedCount > 0 { parts.append("\(b.failedCount) failed") }
-        return parts.isEmpty ? "Queue is idle" : parts.joined(separator: " · ")
+        return parts.isEmpty ? String(localized: "Queue is idle") : parts.joined(separator: " · ")
     }
 }
 
@@ -134,7 +134,7 @@ struct WatchDownloadedCollectionDetailView: View {
                         await reload()
                     }
                 })) {
-                    Text("Keep this \(kindWord(d.kind)) on Apple Watch")
+                    Text(keepTitle(d.kind))
                         .font(Typography.callout)
                 }
                 .tint(Palette.accent)
@@ -144,8 +144,14 @@ struct WatchDownloadedCollectionDetailView: View {
                     .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             if d.estimatedRemainingCount > 0 {
-                Text("Estimated download · \(d.estimatedRemainingCount) \(d.estimatedRemainingCount == 1 ? "track" : "tracks")\(d.estimatedRemainingBytes > 0 ? " · \(WatchByteFormat.string(d.estimatedRemainingBytes))" : "")")
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                Group {
+                    if d.estimatedRemainingBytes > 0 {
+                        Text("Estimated download · \(d.estimatedRemainingCount) tracks · \(WatchByteFormat.string(d.estimatedRemainingBytes))")
+                    } else {
+                        Text("Estimated download · \(d.estimatedRemainingCount) tracks")
+                    }
+                }
+                .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
         }
         .padding(15)
@@ -155,20 +161,16 @@ struct WatchDownloadedCollectionDetailView: View {
     private func statusCard(_ d: PhoneWatchManagementPresenter.CollectionDetail) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Status").font(Typography.callout)
-            statusRow(color: Palette.success, text: "Ready on Apple Watch",
-                      count: d.readyCount, suffix: d.readyCount == 1 ? "track" : "tracks")
+            statusRow(color: Palette.success, text: "Ready on Apple Watch", count: d.readyCount)
             if d.waitingForWiFiCount > 0 {
-                statusRow(color: Palette.accent, text: "Waiting for Wi-Fi",
-                          count: d.waitingForWiFiCount, suffix: d.waitingForWiFiCount == 1 ? "track" : "tracks")
+                statusRow(color: Palette.accent, text: "Waiting for Wi-Fi", count: d.waitingForWiFiCount)
             }
             if d.failedCount > 0 {
-                statusRow(color: Palette.danger, text: "Failed — retry from the queue",
-                          count: d.failedCount, suffix: d.failedCount == 1 ? "track" : "tracks")
+                statusRow(color: Palette.danger, text: "Failed — retry from the queue", count: d.failedCount)
             }
             if d.unavailableCount > 0 {
                 VStack(alignment: .leading, spacing: 2) {
-                    statusRow(color: Palette.danger, text: "Unavailable at source",
-                              count: d.unavailableCount, suffix: d.unavailableCount == 1 ? "track" : "tracks")
+                    statusRow(color: Palette.danger, text: "Unavailable at source", count: d.unavailableCount)
                     if let reason = d.unavailableReason {
                         Text(reason).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                             .padding(.leading, 16)
@@ -181,12 +183,12 @@ struct WatchDownloadedCollectionDetailView: View {
         .accessibilityIdentifier("settings.watch.storage")
     }
 
-    private func statusRow(color: Color, text: String, count: Int, suffix: String) -> some View {
+    private func statusRow(color: Color, text: LocalizedStringKey, count: Int) -> some View {
         HStack(spacing: 8) {
             Circle().fill(color).frame(width: 7, height: 7)
             Text(text).font(Typography.caption)
             Spacer()
-            Text("\(count) \(suffix)").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+            Text("\(count) tracks").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
         }
     }
 
@@ -195,7 +197,7 @@ struct WatchDownloadedCollectionDetailView: View {
             Button(role: .destructive) { confirmRemove = true } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "trash").font(Typography.callout)
-                    Text("Remove \(kindWord(d.kind).capitalized) from Apple Watch")
+                    Text(removeTitle(d.kind))
                         .font(Typography.callout)
                     Spacer()
                 }
@@ -221,18 +223,26 @@ struct WatchDownloadedCollectionDetailView: View {
     }
 
     private func removalNote(_ d: PhoneWatchManagementPresenter.CollectionDetail) -> String {
-        var note = "Music remains in Platterhead on this iPhone."
+        var note = String(localized: "Music remains in Platterhead on this iPhone.")
         if d.retainedSharedTrackCount > 0 {
-            note += " \(d.retainedSharedTrackCount) \(d.retainedSharedTrackCount == 1 ? "track" : "tracks") required by other downloads stay on the watch."
+            note += " " + String(localized: "\(d.retainedSharedTrackCount) tracks required by other downloads stay on the watch.")
         }
         return note
     }
 
-    private func kindWord(_ kind: PhoneWatchManagementPresenter.CollectionKind) -> String {
+    private func keepTitle(_ kind: PhoneWatchManagementPresenter.CollectionKind) -> LocalizedStringKey {
         switch kind {
-        case .track: return "track"
-        case .album: return "album"
-        case .playlist: return "playlist"
+        case .track: return "Keep this track on Apple Watch"
+        case .album: return "Keep this album on Apple Watch"
+        case .playlist: return "Keep this playlist on Apple Watch"
+        }
+    }
+
+    private func removeTitle(_ kind: PhoneWatchManagementPresenter.CollectionKind) -> LocalizedStringKey {
+        switch kind {
+        case .track: return "Remove Track from Apple Watch"
+        case .album: return "Remove Album from Apple Watch"
+        case .playlist: return "Remove Playlist from Apple Watch"
         }
     }
 }

@@ -121,7 +121,7 @@ struct WatchAlbumDetailView: View {
 #else
         .listStyle(.plain)
 #endif
-        .navigationTitle(model.album(id: albumID)?.title ?? "Album")
+        .navigationTitle(model.album(id: albumID)?.title ?? String(localized: "Album"))
         .task { await model.refresh() }
     }
 }

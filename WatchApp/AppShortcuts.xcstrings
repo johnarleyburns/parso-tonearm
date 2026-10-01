@@ -1,0 +1,140 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Play a playlist in ${applicationName}" : {
+      "localizations" : {
+        "de" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Spiele eine Playlist in ${applicationName}",
+              "Spiele eine geladene Playlist in ${applicationName}"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Play a playlist in ${applicationName}",
+              "Play a downloaded playlist in ${applicationName}"
+            ]
+          }
+        },
+        "es" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Reproduce una playlist en ${applicationName}",
+              "Reproduce una playlist descargada en ${applicationName}"
+            ]
+          }
+        },
+        "fr" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Lis une playlist dans ${applicationName}",
+              "Lis une playlist téléchargée dans ${applicationName}"
+            ]
+          }
+        },
+        "ja" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "${applicationName}でプレイリストを再生",
+              "${applicationName}でダウンロード済みプレイリストを再生"
+            ]
+          }
+        },
+        "pt-BR" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Tocar uma playlist no ${applicationName}",
+              "Tocar uma playlist baixada no ${applicationName}"
+            ]
+          }
+        },
+        "zh-Hans" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "在${applicationName}中播放播放列表",
+              "在${applicationName}中播放已下载的播放列表"
+            ]
+          }
+        }
+      }
+    },
+    "Resume ${applicationName}" : {
+      "localizations" : {
+        "de" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "${applicationName} fortsetzen",
+              "Setze die Wiedergabe in ${applicationName} fort"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Resume ${applicationName}",
+              "Resume playback in ${applicationName}"
+            ]
+          }
+        },
+        "es" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Reanudar ${applicationName}",
+              "Reanuda la reproducción en ${applicationName}"
+            ]
+          }
+        },
+        "fr" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Reprendre ${applicationName}",
+              "Reprends la lecture dans ${applicationName}"
+            ]
+          }
+        },
+        "ja" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "${applicationName}を再開",
+              "${applicationName}で再生を再開"
+            ]
+          }
+        },
+        "pt-BR" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Retomar o ${applicationName}",
+              "Retomar a reprodução no ${applicationName}"
+            ]
+          }
+        },
+        "zh-Hans" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "继续播放${applicationName}",
+              "在${applicationName}中继续播放"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

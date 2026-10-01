@@ -2,7 +2,7 @@ import SwiftUI
 import TonearmCore
 
 struct ScreenHeader: View {
-    let title: String
+    let title: LocalizedStringKey
     var showAdd = true
     var addAction: (() -> Void)? = nil
     var addAccessibilityIdentifier: String? = nil
@@ -35,7 +35,7 @@ struct ScreenHeader: View {
 
 struct SearchField: View {
     @Binding var text: String
-    var placeholder: String
+    var placeholder: LocalizedStringKey
 
     var body: some View {
         HStack(spacing: 8) {
@@ -181,6 +181,7 @@ struct TrackRowView: View {
                     .foregroundStyle(appState.isFavorite(row) ? Color.red : Palette.inkTertiary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(appState.isFavorite(row) ? "Remove from Favorites" : "Add to Favorites")
             let watchState = appState.watchGlyphState(for: row)
             if watchState != .notOnWatch {
                 watchGlyph

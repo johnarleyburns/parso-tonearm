@@ -53,13 +53,13 @@ struct SiriSettingsCard: View {
         case .authorized:
             return "“Play <song> on Platterhead” works hands-free, and CarPlay shows Ask Siri. Turn off in iOS Settings › Apps › Platterhead › Siri."
         case .denied:
-            return "Off. Turn on in iOS Settings › Apps › Platterhead › Siri to ask for songs by name in the car."
+            return String(localized: "Off. Turn on in iOS Settings › Apps › Platterhead › Siri to ask for songs by name in the car.")
         case .restricted:
-            return "Siri is restricted on this iPhone."
+            return String(localized: "Siri is restricted on this iPhone.")
         case .notDetermined:
-            return "Ask Siri for any song, artist or playlist by name, including in CarPlay."
+            return String(localized: "Ask Siri for any song, artist or playlist by name, including in CarPlay.")
         @unknown default:
-            return "Siri status unavailable."
+            return String(localized: "Siri status unavailable.")
         }
     }
 }

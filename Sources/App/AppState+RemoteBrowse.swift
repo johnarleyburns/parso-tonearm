@@ -51,15 +51,15 @@ extension AppState {
         case .subsonic, .webDAV, .jellyfin:
             return source.iaIdentifier
         case .plex:
-            return "Token saved"
+            return String(localized: "Token saved")
         case .dropbox, .googleDrive, .oneDrive, .pCloud:
             return source.iaIdentifier
         case .smb:
-            return "Folder bookmark saved"
+            return String(localized: "Folder bookmark saved")
         case .iaItem, .iaList, .iaCollection, .iaFavorites:
             if let id = source.id,
                let _ = try? CredentialStore().read(account: "ia-private:\(id)") {
-                return "Credentials saved"
+                return String(localized: "Credentials saved")
             }
             return source.originalURL
         default:
@@ -70,17 +70,17 @@ extension AppState {
     func remoteCredentialStatus(for source: Source) -> String? {
         switch source.kind {
         case .subsonic, .webDAV, .jellyfin:
-            return "Password saved"
+            return String(localized: "Password saved")
         case .plex:
-            return "Token saved"
+            return String(localized: "Token saved")
         case .dropbox, .googleDrive, .oneDrive, .pCloud:
             return "OAuth token saved"
         case .smb:
-            return "Bookmark saved"
+            return String(localized: "Bookmark saved")
         case .iaItem, .iaList, .iaCollection, .iaFavorites:
             if let id = source.id,
                let _ = try? CredentialStore().read(account: "ia-private:\(id)") {
-                return "Password saved"
+                return String(localized: "Password saved")
             }
             return nil
         default:

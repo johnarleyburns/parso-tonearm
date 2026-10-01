@@ -15,7 +15,10 @@ import sys
 locales = {"en", "zh-Hans", "es", "fr", "de", "ja", "pt-BR"}
 catalogs = [
     pathlib.Path("Resources/Localizable.xcstrings"),
+    pathlib.Path("Resources/AppShortcuts.xcstrings"),
     pathlib.Path("Resources/InfoPlist.xcstrings"),
+    pathlib.Path("Sources/Discovery/Localization/Localizable.xcstrings"),
+    pathlib.Path("WatchApp/AppShortcuts.xcstrings"),
     pathlib.Path("ShareExtension/Localizable.xcstrings"),
     pathlib.Path("WatchApp/Localizable.xcstrings"),
     pathlib.Path("SiriIntentsExtension/Localizable.xcstrings"),
@@ -27,6 +30,9 @@ def values_for(localization):
     unit = localization.get("stringUnit")
     if unit:
         return [unit.get("value", "")]
+    string_set = localization.get("stringSet")
+    if string_set:
+        return list(string_set.get("values", []))
     variations = localization.get("variations", {})
     values = []
     for category in variations.values():
@@ -44,6 +50,11 @@ for path in catalogs:
         errors.append(f"invalid JSON in {path}: {exc}")
         continue
     for key, entry in data.get("strings", {}).items():
+        if entry.get("shouldTranslate") is False:
+            continue
+        if entry.get("extractionState") == "stale":
+            errors.append(f"{path}: {key!r} is stale; run scripts/sync-localization-catalogs.sh and remove it")
+            continue
         actual = set(entry.get("localizations", {}))
         missing = locales - actual
         if missing:
@@ -91,8 +102,8 @@ for root in (pathlib.Path("Sources"), pathlib.Path("WatchApp"), pathlib.Path("Wi
         for line_number, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
             if plural_pattern.search(line):
                 plural_hits.append((path, line_number))
-if len(plural_hits) > 21:
-    errors.append(f"hand-written plural branches grew from the current baseline of 21 to {len(plural_hits)}")
+if len(plural_hits) > 1:
+    errors.append(f"hand-written plural branches grew from the current baseline of 1 to {len(plural_hits)}")
 
 if errors:
     print("localization catalog guard failed:")

@@ -79,7 +79,7 @@ struct LibraryView: View {
                             if externalMode == nil {
                                 Picker("Music View", selection: Binding(get: { mode }, set: { mode = $0 })) {
                                     ForEach(LibraryBrowseMode.allCases) { mode in
-                                        Text(mode.rawValue).tag(mode)
+                                        Text(mode.title).tag(mode)
                                     }
                                 }
                                 .pickerStyle(.segmented)
@@ -115,7 +115,7 @@ struct LibraryView: View {
                                 .padding(.top, 60)
                             } else {
                                 ForEach(renderedSections) { section in
-                                    SectionHeader(title: section.indexTitle,
+                                    SectionHeader(verbatim: section.indexTitle,
                                                   trailing: "\(section.entries.count)")
                                         .id(section.indexTitle)
                                         .padding(.top, 6)
@@ -434,7 +434,7 @@ private struct LibraryGroupDetailView: View {
         return values.reduce(0, +) / Double(values.count)
     }
 
-    private func ctaLabel(icon: String, title: String) -> some View {
+    private func ctaLabel(icon: String, title: LocalizedStringKey) -> some View {
         HStack(spacing: 7) {
             Image(systemName: icon)
             Text(title)
@@ -448,15 +448,27 @@ private struct LibraryGroupDetailView: View {
 }
 
 struct SectionHeader: View {
-    let title: String
-    var trailing: String?
+    let title: Text
+    var trailing: Text?
+
+    init(title: LocalizedStringKey, trailing: LocalizedStringKey? = nil) {
+        self.title = Text(title)
+        self.trailing = trailing.map { Text($0) }
+    }
+
+    /// Dynamic content (an index letter, a count) that must not be looked up
+    /// in the string catalog.
+    init(verbatim title: String, trailing: String? = nil) {
+        self.title = Text(verbatim: title)
+        self.trailing = trailing.map { Text(verbatim: $0) }
+    }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title).font(Typography.headline)
+            title.font(Typography.headline)
             Spacer()
             if let trailing {
-                Text(trailing).font(Typography.callout).foregroundStyle(Palette.accent)
+                trailing.font(Typography.callout).foregroundStyle(Palette.accent)
             }
         }
         .padding(.horizontal, 2)
@@ -488,11 +500,11 @@ struct AlbumCell: View {
 
     private var subtitle: String {
         switch source.kind {
-        case .local: return "On device"
+        case .local: return String(localized: "On device")
         case .iaItem: return source.licenseText ?? "archive.org"
-        case .iaList: return "List"
-        case .iaCollection: return "Collection"
-        case .iaFavorites: return "Favorites"
+        case .iaList: return String(localized: "List")
+        case .iaCollection: return String(localized: "Collection")
+        case .iaFavorites: return String(localized: "Favorites")
         case .subsonic, .webDAV, .smb, .jellyfin, .plex, .dropbox, .googleDrive, .oneDrive, .pCloud, .jamendoGenre:
             return RemoteConnectorCatalog.connector(for: source.kind)?.title ?? "Remote"
         }

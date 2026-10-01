@@ -54,11 +54,11 @@ public enum QueueSource {
 
     public var label: String {
         switch self {
-        case .source(let s): return "From Library: \(s.title)"
-        case .playlist(let p): return "From Playlist: \(p.title)"
-        case .mix: return "From Mix"
-        case .library: return "From Music"
-        case .ambient: return "Ambient"
+        case .source(let s): return String(localized: "From Library: \(s.title)", bundle: .module)
+        case .playlist(let p): return String(localized: "From Playlist: \(p.title)", bundle: .module)
+        case .mix: return String(localized: "From Mix", bundle: .module)
+        case .library: return String(localized: "From Music", bundle: .module)
+        case .ambient: return String(localized: "Ambient", bundle: .module)
         case .mood: return "A Mood"
         case .continuation: return "Jamendo"
         case .none: return ""

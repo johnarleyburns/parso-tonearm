@@ -282,7 +282,7 @@ public enum TonearmIntentRunner {
                 continue
             }
         }
-        throw lastError ?? TonearmIntentError("Nothing in Platterhead matched \"\(request.displayTitle)\".")
+        throw lastError ?? TonearmIntentError(String(localized: "Nothing in Platterhead matched \"\(request.displayTitle)\".", bundle: .module))
     }
 
     private static func run(_ command: IntentResolver.Command, playlists: [Playlist]?) async throws {
@@ -290,7 +290,7 @@ public enum TonearmIntentRunner {
         case .playPlaylist(let id, let title):
             let rows = try await LibraryStore.shared.playlistItems(playlistId: id)
             guard !rows.isEmpty else {
-                throw TonearmIntentError("Playlist \"\(title)\" has no playable tracks.")
+                throw TonearmIntentError(String(localized: "Playlist \"\(title)\" has no playable tracks.", bundle: .module))
             }
             let playlist = playlists?.first { $0.id == id }
                 ?? Playlist(id: id, title: title, kind: .manual, folderBookmark: nil, watch: false)
@@ -299,7 +299,7 @@ public enum TonearmIntentRunner {
         case .playArtist(let name):
             let rows = try await LibraryStore.shared.tracks(forArtist: name)
             guard !rows.isEmpty else {
-                throw TonearmIntentError("Artist \"\(name)\" has no playable tracks.")
+                throw TonearmIntentError(String(localized: "Artist \"\(name)\" has no playable tracks.", bundle: .module))
             }
             AudioPlayer.shared.play(tracks: rows, startAt: 0, source: .library)
 
@@ -350,34 +350,49 @@ private extension IntentResolver.Failure {
     var message: String {
         switch self {
         case .emptyLibrary(let kind):
-            return "Platterhead has no \(kind.displayName) to match."
+            switch kind {
+            case .playlist: return String(localized: "Platterhead has no playlists to match.", bundle: .module)
+            case .artist: return String(localized: "Platterhead has no artists to match.", bundle: .module)
+            case .song: return String(localized: "Platterhead has no songs to match.", bundle: .module)
+            case .sourceURL: return String(localized: "Platterhead has no source URLs to match.", bundle: .module)
+            case .sleepTimer: return String(localized: "Platterhead has no sleep timers to match.", bundle: .module)
+            }
         case .emptyParameter(let kind):
-            return "Enter a \(kind.displayName) value."
+            switch kind {
+            case .playlist: return String(localized: "Enter a playlist name.", bundle: .module)
+            case .artist: return String(localized: "Enter an artist name.", bundle: .module)
+            case .song: return String(localized: "Enter a song title.", bundle: .module)
+            case .sourceURL: return String(localized: "Enter a source URL.", bundle: .module)
+            case .sleepTimer: return String(localized: "Enter a sleep timer length.", bundle: .module)
+            }
         case .noMatch(let kind, let query):
-            return "No \(kind.displayName) matched \"\(query)\"."
+            switch kind {
+            case .playlist: return String(localized: "No playlist matched “\(query)”.", bundle: .module)
+            case .artist: return String(localized: "No artist matched “\(query)”.", bundle: .module)
+            case .song: return String(localized: "No song matched “\(query)”.", bundle: .module)
+            case .sourceURL: return String(localized: "No source URL matched “\(query)”.", bundle: .module)
+            case .sleepTimer: return String(localized: "No sleep timer matched “\(query)”.", bundle: .module)
+            }
         case .ambiguous(let kind, let query, let matches):
-            return "\(kind.displayName.capitalized) \"\(query)\" matched more than one result: \(matches.joined(separator: ", "))."
+            let list = matches.formatted(.list(type: .and))
+            switch kind {
+            case .playlist:
+                return String(localized: "More than one playlist matched “\(query)”: \(list).", bundle: .module)
+            case .artist:
+                return String(localized: "More than one artist matched “\(query)”: \(list).", bundle: .module)
+            case .song:
+                return String(localized: "More than one song matched “\(query)”: \(list).", bundle: .module)
+            case .sourceURL:
+                return String(localized: "More than one source URL matched “\(query)”: \(list).", bundle: .module)
+            case .sleepTimer:
+                return String(localized: "More than one sleep timer matched “\(query)”: \(list).", bundle: .module)
+            }
         case .malformedURL(let rawURL):
-            return "\"\(rawURL)\" is not a supported archive.org URL."
+            return String(localized: "“\(rawURL)” is not a supported archive.org URL.", bundle: .module)
         case .invalidSleepTimerMinutes(let minutes):
-            return "Sleep timer minutes must be between \(IntentResolver.minimumSleepMinutes) and \(IntentResolver.maximumSleepMinutes), not \(minutes)."
-        }
-    }
-}
-
-private extension IntentResolver.TargetKind {
-    var displayName: String {
-        switch self {
-        case .playlist:
-            return "playlist"
-        case .artist:
-            return "artist"
-        case .song:
-            return "song"
-        case .sourceURL:
-            return "source URL"
-        case .sleepTimer:
-            return "sleep timer"
+            return String(
+                localized: "Sleep timer minutes must be between \(IntentResolver.minimumSleepMinutes) and \(IntentResolver.maximumSleepMinutes), not \(minutes).",
+                bundle: .module)
         }
     }
 }

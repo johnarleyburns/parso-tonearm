@@ -41,7 +41,7 @@ struct SupportDevelopmentCard: View {
                         lastError = nil
                         let ok = await store.purchase()
                         if !ok {
-                            lastError = "The contribution did not complete. Nothing was charged — please try again."
+                            lastError = String(localized: "The contribution did not complete. Nothing was charged — please try again.")
                         }
                     }
                 } label: {

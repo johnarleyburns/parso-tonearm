@@ -9,7 +9,7 @@ struct AddMenuSheet: View {
         VStack(spacing: 0) {
             Spacer()
             VStack(spacing: 0) {
-                MenuItem(icon: "server.rack", title: "Add Remote Library",
+                MenuItem(icon: "server.rack", title: String(localized: "Add Remote Library"),
                          subtitle: RemoteConnectorCatalog.proDisplayList) {
                     appState.pendingImport = nil
                     appState.showAddMenu = false
@@ -18,16 +18,16 @@ struct AddMenuSheet: View {
                     }
                 }
                 Divider().overlay(Palette.hairline)
-                MenuItem(icon: "folder", title: "Add Local Folder",
-                         subtitle: "Import a folder, keep its order") {
+                MenuItem(icon: "folder", title: String(localized: "Add Local Folder"),
+                         subtitle: String(localized: "Import a folder, keep its order")) {
                     appState.showAddMenu = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                         appState.pendingImport = .folder
                     }
                 }
                 Divider().overlay(Palette.hairline)
-                MenuItem(icon: "music.note", title: "Add Audio Files",
-                         subtitle: "Pick individual tracks from Files") {
+                MenuItem(icon: "music.note", title: String(localized: "Add Audio Files"),
+                         subtitle: String(localized: "Pick individual tracks from Files")) {
                     appState.showAddMenu = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                         appState.pendingImport = .files
@@ -66,7 +66,7 @@ private struct MenuItem: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(locked ? "\(title), requires Pro" : title)
+        .accessibilityLabel(locked ? String(localized: "\(title), requires Pro") : title)
         .accessibilityIdentifier(title)
     }
 }

@@ -55,22 +55,23 @@ struct SmartTransitionsView: View {
     }
 
     private func stateLabel(_ state: GridPrepState, since: Date?) -> String {
-        let age = since.map { " · \(relativeAge($0))" } ?? ""
-        return switch state {
-        case .notPrepared: "Not prepared"
-        case .ready: "Ready\(age)"
-        case .queued: "Queued\(age)"
-        case .downloading(let progress), .analyzing(let progress): "\(Int(progress * 100))%\(age)"
-        case .waitingForNetwork: "Waiting for network\(age)"
-        case .waitingForWiFi: "Waiting for Wi-Fi\(age)"
-        case .failed: "Failed\(age)"
-        case .cancelled: "Stopped\(age)"
+        let base = switch state {
+        case .notPrepared: String(localized: "Not prepared")
+        case .ready: String(localized: "Ready")
+        case .queued: String(localized: "Queued")
+        case .downloading(let progress), .analyzing(let progress): progress.formatted(.percent.precision(.fractionLength(0)))
+        case .waitingForNetwork: String(localized: "Waiting for network")
+        case .waitingForWiFi: String(localized: "Waiting for Wi-Fi")
+        case .failed: String(localized: "Failed")
+        case .cancelled: String(localized: "Stopped")
         }
+        return since.map { String(localized: "\(base) · \(relativeAge($0))") } ?? base
     }
 
     private func relativeAge(_ date: Date) -> String {
         let seconds = max(0, Int(Date().timeIntervalSince(date)))
-        if seconds < 60 { return "since now" }
-        return "since \(seconds / 60)m ago"
+        if seconds < 60 { return String(localized: "since now") }
+        let minutes = Duration.seconds(seconds / 60 * 60).formatted(.units(allowed: [.minutes], width: .narrow))
+        return String(localized: "since \(minutes) ago")
     }
 }

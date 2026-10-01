@@ -195,17 +195,17 @@ public enum TagEdit {
             case .readOnly(_, let reason):
                 return reason
             case .blankTitle:
-                return "Title cannot be blank."
+                return String(localized: "Title cannot be blank.", bundle: .module)
             case .invalidInteger(_, let field, _):
-                return "\(field.rawValue) must be a positive number."
+                return String(localized: "\(field.rawValue) must be a positive number.", bundle: .module)
             case .invalidYear:
-                return "Year must be between 1 and 9999."
+                return String(localized: "Year must be between 1 and 9999.", bundle: .module)
             case .emptyFind:
-                return "Find text cannot be empty."
+                return String(localized: "Find text cannot be empty.", bundle: .module)
             case .nonTextFindReplace(let field):
-                return "Find and replace is not available for \(field.rawValue)."
+                return String(localized: "Find and replace is not available for \(field.rawValue).", bundle: .module)
             case .missingFilenameNumber:
-                return "No leading track number was found in the filename."
+                return String(localized: "No leading track number was found in the filename.", bundle: .module)
             }
         }
     }
@@ -417,7 +417,7 @@ public enum TagEdit {
                 .first(where: { !$0.isEmpty }) {
                 return .localFile(path: path)
             }
-            return .readOnly(reason: "No local file path is available for tag editing.")
+            return .readOnly(reason: String(localized: "No local file path is available for tag editing.", bundle: .module))
         case .remote:
             return .readOnly(reason: readOnlyReason(for: .remote))
         case .builtIn:
@@ -428,13 +428,13 @@ public enum TagEdit {
     private static func readOnlyReason(for kind: AssetKind?) -> String {
         switch kind {
         case .remote:
-            return "Remote libraries are read-only. Copy the file onto this device to edit tags."
+            return String(localized: "Remote libraries are read-only. Copy the file onto this device to edit tags.", bundle: .module)
         case .builtIn:
-            return "Built-in tracks are read-only."
+            return String(localized: "Built-in tracks are read-only.", bundle: .module)
         case .localRef, .managedCopy:
-            return "No local file path is available for tag editing."
+            return String(localized: "No local file path is available for tag editing.", bundle: .module)
         case .none:
-            return "No editable file is attached to this track."
+            return String(localized: "No editable file is attached to this track.", bundle: .module)
         }
     }
 }

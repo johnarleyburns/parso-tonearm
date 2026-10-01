@@ -35,10 +35,8 @@ struct IndexStatusView: View {
                         // sparse sampling below.
                         Text(
                             model.snapshot?.isRemoteIndexingEnabled == true
-                                ? "Downloaded tracks are indexed fully; remote tracks are sampled "
-                                    + "just enough to index without downloading them."
-                                : "Only downloaded, on-device tracks are indexed. A track streamed "
-                                    + "from a remote library is included once you download it."
+                                ? "Downloaded tracks are indexed fully; remote tracks are sampled just enough to index without downloading them."
+                                : "Only downloaded, on-device tracks are indexed. A track streamed from a remote library is included once you download it."
                         )
                         .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
@@ -105,15 +103,13 @@ struct IndexStatusView: View {
 
     private var wifiOnlyOffConfirmationMessage: String {
         guard let estimate = wifiOnlyOffEstimate else {
-            return "This could use a significant amount of cellular data."
+            return String(localized: "This could use a significant amount of cellular data.")
         }
         guard estimate.trackCount > 0 else {
-            return "You have no remote tracks waiting to be indexed right now."
+            return String(localized: "You have no remote tracks waiting to be indexed right now.")
         }
         let mb = ByteCountFormatter.string(fromByteCount: estimate.estimatedBytes, countStyle: .file)
-        let plural = estimate.trackCount == 1 ? "track" : "tracks"
-        return "You have about \(estimate.trackCount) remote \(plural) not yet indexed. "
-            + "Indexing them over cellular could use approximately \(mb). Are you sure?"
+        return String(localized: "You have about \(estimate.trackCount) remote tracks not yet indexed. Indexing them over cellular could use approximately \(mb). Are you sure?")
     }
 
     // MARK: - Cards
@@ -150,7 +146,7 @@ struct IndexStatusView: View {
 
     /// A `countsCard` row that opens the real track list for that bucket — real report: "I want
     /// to actually see what's happening and what's indexed," not just a count.
-    private func tappableRow(_ label: String, _ value: Int, bucket: IndexJobRepository.TrackListBucket)
+    private func tappableRow(_ label: LocalizedStringKey, _ value: Int, bucket: IndexJobRepository.TrackListBucket)
         -> some View
     {
         Button {
@@ -258,9 +254,9 @@ struct IndexStatusView: View {
 
     private func downloadStateLabel(_ state: ModelDiagnosticsDetail.DownloadTag.State) -> String {
         switch state {
-        case .finished: return "Finished"
-        case .inProgress: return "Downloading…"
-        case .notStarted: return "Not started"
+        case .finished: return String(localized: "Finished")
+        case .inProgress: return String(localized: "Downloading…")
+        case .notStarted: return String(localized: "Not started")
         }
     }
 
@@ -271,7 +267,7 @@ struct IndexStatusView: View {
                 .font(Typography.callout)
             Text(artifact.name).font(Typography.callout)
             Spacer()
-            Text(artifact.isResolved ? (artifact.resolvedName ?? "Found") : "Not found")
+            Text(artifact.isResolved ? (artifact.resolvedName ?? String(localized: "Found")) : String(localized: "Not found"))
                 .font(Typography.caption)
                 .foregroundStyle(artifact.isResolved ? Palette.inkTertiary : .orange)
         }
@@ -306,7 +302,7 @@ struct IndexStatusView: View {
             actionButton("Enqueue unindexed tracks", "arrow.triangle.2.circlepath") {
                 let count = await model.enqueueUnindexedTracks()
                 if count > 0 {
-                    ToastCenter.shared.success("Queued \(count) track\(count == 1 ? "" : "s")")
+                    ToastCenter.shared.success("Queued \(count) tracks")
                 } else {
                     ToastCenter.shared.info("Everything eligible is already queued or indexed")
                 }
@@ -402,7 +398,7 @@ struct IndexStatusView: View {
         .glassSurface(cornerRadius: 18)
     }
 
-    private func line(_ label: String, _ date: Date?) -> some View {
+    private func line(_ label: LocalizedStringKey, _ date: Date?) -> some View {
         HStack {
             Text(label).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             Spacer()
@@ -475,10 +471,10 @@ private struct IndexTrackListSheet: View {
 
     private var title: String {
         switch bucket {
-        case .complete: return "Indexed"
-        case .queuedOrRunning: return "Queued"
-        case .waiting: return "Waiting"
-        case .failed: return "Failed"
+        case .complete: return String(localized: "Indexed")
+        case .queuedOrRunning: return String(localized: "Queued")
+        case .waiting: return String(localized: "Waiting")
+        case .failed: return String(localized: "Failed")
         }
     }
 }

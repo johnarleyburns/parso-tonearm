@@ -9,11 +9,11 @@ public enum IANetworkError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .disallowedHost(let h): return "Refusing to contact non-archive.org host: \(h)"
+        case .disallowedHost(let h): return String(localized: "Refusing to contact non-archive.org host: \(h)", bundle: .module)
         case .http(let code): return "archive.org returned HTTP \(code)"
-        case .notFound: return "Item not found"
-        case .videoItem: return "This item is video"
-        case .badResponse: return "Unexpected response from archive.org"
+        case .notFound: return String(localized: "Item not found", bundle: .module)
+        case .videoItem: return String(localized: "This item is video", bundle: .module)
+        case .badResponse: return String(localized: "Unexpected response from archive.org", bundle: .module)
         }
     }
 }

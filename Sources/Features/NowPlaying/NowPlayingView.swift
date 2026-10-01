@@ -154,7 +154,7 @@ struct NowPlayingView: View {
     private var meta: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(player.currentTrack?.track.title ?? "Nothing playing")
+                Text(player.currentTrack?.track.title ?? String(localized: "Nothing playing"))
                     .font(Typography.headline).lineLimit(1)
                 Text(player.currentTrack.flatMap { $0.artist?.name ?? $0.album?.artist } ?? "")
                     .font(Typography.callout).foregroundStyle(Palette.inkSecondary)

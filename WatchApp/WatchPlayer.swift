@@ -228,7 +228,7 @@ final class WatchPlayer: ObservableObject {
             playbackPhase = .waitingForRoute
             outputRate = 0
             stopPositionTimer()
-            audioRouteProblem = "Connect headphones or a speaker to play audio."
+            audioRouteProblem = String(localized: "Connect headphones or a speaker to play audio.")
             scheduleOutputPause()
             savePosition()
             updateNowPlayingTime()
@@ -300,7 +300,7 @@ final class WatchPlayer: ObservableObject {
         sessionStatus = activation.isActive ? "active" : (activation.code ?? "failed")
         guard activation.isActive else {
             pendingRoutePlayback = true
-            audioRouteProblem = "Connect headphones or a speaker to play audio."
+            audioRouteProblem = String(localized: "Connect headphones or a speaker to play audio.")
             playbackPhase = .waitingForRoute
             isPlaying = false
             outputRate = 0
@@ -448,11 +448,11 @@ final class WatchPlayer: ObservableObject {
     }
 
     private func userMessage(for code: String) -> String {
-        if code == "localFileMissing" { return "This download is not available on the watch." }
-        if code == "itemReadinessTimeout" { return "The audio file did not become ready." }
-        if code.hasPrefix("stalled-") { return "The audio loaded but never started playing." }
-        if code.hasPrefix("item-") { return "The downloaded audio file could not be played." }
-        return "Audio could not start. Choose an output and try again."
+        if code == "localFileMissing" { return String(localized: "This download is not available on the watch.") }
+        if code == "itemReadinessTimeout" { return String(localized: "The audio file did not become ready.") }
+        if code.hasPrefix("stalled-") { return String(localized: "The audio loaded but never started playing.") }
+        if code.hasPrefix("item-") { return String(localized: "The downloaded audio file could not be played.") }
+        return String(localized: "Audio could not start. Choose an output and try again.")
     }
 
     // MARK: - Audio session lifecycle
@@ -506,7 +506,7 @@ final class WatchPlayer: ObservableObject {
             case .persist:
                 savePosition()
             case .showRouteHint:
-                routeHint = "Choose headphones or a speaker"
+                routeHint = String(localized: "Choose headphones or a speaker")
             case .clearRouteHint:
                 routeHint = nil
             case .rebuildSession:

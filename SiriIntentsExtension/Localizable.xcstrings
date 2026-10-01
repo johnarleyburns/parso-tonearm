@@ -1,15 +1,7 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Platterhead Siri" : { "localizations" : {
-      "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead Siri" } },
-      "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead Siri" } },
-      "es" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead Siri" } },
-      "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead Siri" } },
-      "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead Siri" } },
-      "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead Siri" } },
-      "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead Siri" } }
-    } }
+
   },
   "version" : "1.0"
 }

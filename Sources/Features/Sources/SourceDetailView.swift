@@ -92,7 +92,7 @@ struct SourceDetailView: View {
                 Button {
                     Task { await goBackRemote() }
                 } label: {
-                    RemoteNodeRow(icon: "chevron.left", title: "Back", subtitle: nil)
+                    RemoteNodeRow(icon: "chevron.left", title: String(localized: "Back"), subtitle: nil)
                 }
                 .buttonStyle(.plain)
                 Divider().overlay(Palette.hairline)
@@ -144,6 +144,7 @@ struct SourceDetailView: View {
                     .font(Typography.body).foregroundStyle(Palette.accent)
                     .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
             }
+            .accessibilityLabel("Back")
             .accessibilityIdentifier("source.back")
             Spacer()
             if isRemoteLibrary {
@@ -267,7 +268,7 @@ struct SourceDetailView: View {
 
     private var badgeText: String {
         if source.kind == .local { return "on device" }
-        if source.kind == .jamendoGenre { return "Jamendo · \(source.licenseText ?? "Creative Commons")" }
+        if source.kind == .jamendoGenre { return String(localized: "Jamendo · \(source.licenseText ?? "Creative Commons")") }
         if isArchiveSource { return "archive.org · \(source.licenseText ?? "streams permitted")" }
         if isRemoteLibrary { return "\(remoteProviderName) · private library" }
         return "archive.org · \(source.licenseText ?? "streams permitted")"
@@ -299,7 +300,7 @@ struct SourceDetailView: View {
         }
     }
 
-    private func ctaLabel(icon: String, title: String) -> some View {
+    private func ctaLabel(icon: String, title: LocalizedStringKey) -> some View {
         HStack(spacing: 7) {
             Image(systemName: icon)
             Text(title)

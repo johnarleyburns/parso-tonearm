@@ -156,7 +156,7 @@ public enum LRCParser {
 
 public enum LyricsLookupPolicy {
     public static let defaultOptIn = false
-    public static let privacyStatement = "Lyrics lookup is off until you turn it on. When enabled, Platterhead sends track title, artist, album, and duration to LRCLIB."
+    public static let privacyStatement = String(localized: "Lyrics lookup is off until you turn it on. When enabled, Platterhead sends track title, artist, album, and duration to LRCLIB.", bundle: .module)
 
     public enum Decision: Equatable {
         case allowed(provider: String)
@@ -165,7 +165,7 @@ public enum LyricsLookupPolicy {
 
     public static func decision(isOptedIn: Bool, provider: String = "LRCLIB") -> Decision {
         guard isOptedIn else {
-            return .blocked(reason: "Lyrics lookup is off.")
+            return .blocked(reason: String(localized: "Lyrics lookup is off.", bundle: .module))
         }
         return .allowed(provider: provider)
     }

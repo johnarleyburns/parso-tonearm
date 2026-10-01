@@ -1,0 +1,408 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Add an archive source in ${applicationName}" : {
+      "localizations" : {
+        "de" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Archivquelle in ${applicationName} hinzufügen",
+              "Füge ${applicationName} eine Quelle hinzu"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Add an archive source in ${applicationName}",
+              "Add a source to ${applicationName}"
+            ]
+          }
+        },
+        "es" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Añadir una fuente de archivo en ${applicationName}",
+              "Añade una fuente a ${applicationName}"
+            ]
+          }
+        },
+        "fr" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Ajouter une source d’archive dans ${applicationName}",
+              "Ajoute une source à ${applicationName}"
+            ]
+          }
+        },
+        "ja" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "${applicationName}にアーカイブソースを追加",
+              "${applicationName}にソースを追加"
+            ]
+          }
+        },
+        "pt-BR" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Adicionar uma fonte de arquivo no ${applicationName}",
+              "Adicionar uma fonte ao ${applicationName}"
+            ]
+          }
+        },
+        "zh-Hans" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "在${applicationName}中添加档案来源",
+              "向${applicationName}添加来源"
+            ]
+          }
+        }
+      }
+    },
+    "Play a playlist in ${applicationName}" : {
+      "localizations" : {
+        "de" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Spiele eine Playlist in ${applicationName}",
+              "Starte eine Platterhead-Playlist in ${applicationName}"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Play a playlist in ${applicationName}",
+              "Start a Platterhead playlist in ${applicationName}"
+            ]
+          }
+        },
+        "es" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Reproduce una playlist en ${applicationName}",
+              "Inicia una playlist de Platterhead en ${applicationName}"
+            ]
+          }
+        },
+        "fr" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Lis une playlist dans ${applicationName}",
+              "Lance une playlist Platterhead dans ${applicationName}"
+            ]
+          }
+        },
+        "ja" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "${applicationName}でプレイリストを再生",
+              "${applicationName}でPlatterheadのプレイリストを開始"
+            ]
+          }
+        },
+        "pt-BR" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Tocar uma playlist no ${applicationName}",
+              "Iniciar uma playlist do Platterhead no ${applicationName}"
+            ]
+          }
+        },
+        "zh-Hans" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "在${applicationName}中播放播放列表",
+              "在${applicationName}中开始播放 Platterhead 播放列表"
+            ]
+          }
+        }
+      }
+    },
+    "Play a song in ${applicationName}" : {
+      "localizations" : {
+        "de" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Spiele einen Song in ${applicationName}",
+              "Spiele einen Titel in ${applicationName}"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Play a song in ${applicationName}",
+              "Play a track in ${applicationName}"
+            ]
+          }
+        },
+        "es" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Reproduce una canción en ${applicationName}",
+              "Reproduce una pista en ${applicationName}"
+            ]
+          }
+        },
+        "fr" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Lis un morceau dans ${applicationName}",
+              "Lis un morceau dans ${applicationName}"
+            ]
+          }
+        },
+        "ja" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "${applicationName}で曲を再生",
+              "${applicationName}で曲を再生"
+            ]
+          }
+        },
+        "pt-BR" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Tocar uma música no ${applicationName}",
+              "Tocar uma faixa no ${applicationName}"
+            ]
+          }
+        },
+        "zh-Hans" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "在${applicationName}中播放歌曲",
+              "在${applicationName}中播放曲目"
+            ]
+          }
+        }
+      }
+    },
+    "Play an artist in ${applicationName}" : {
+      "localizations" : {
+        "de" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Spiele Musik von einer Künstlerin oder einem Künstler in ${applicationName}",
+              "Starte eine Künstlerin oder einen Künstler in ${applicationName}"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Play an artist in ${applicationName}",
+              "Start an artist in ${applicationName}"
+            ]
+          }
+        },
+        "es" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Reproduce a un artista en ${applicationName}",
+              "Inicia un artista en ${applicationName}"
+            ]
+          }
+        },
+        "fr" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Lis un artiste dans ${applicationName}",
+              "Lance un artiste dans ${applicationName}"
+            ]
+          }
+        },
+        "ja" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "${applicationName}でアーティストを再生",
+              "${applicationName}でアーティストを開始"
+            ]
+          }
+        },
+        "pt-BR" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Tocar um artista no ${applicationName}",
+              "Iniciar um artista no ${applicationName}"
+            ]
+          }
+        },
+        "zh-Hans" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "在${applicationName}中播放艺人",
+              "在${applicationName}中开始播放艺人"
+            ]
+          }
+        }
+      }
+    },
+    "Resume ${applicationName}" : {
+      "localizations" : {
+        "de" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "${applicationName} fortsetzen",
+              "Setze Platterhead in ${applicationName} fort"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Resume ${applicationName}",
+              "Resume Platterhead in ${applicationName}"
+            ]
+          }
+        },
+        "es" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Reanudar ${applicationName}",
+              "Reanuda Platterhead en ${applicationName}"
+            ]
+          }
+        },
+        "fr" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Reprendre ${applicationName}",
+              "Reprends Platterhead dans ${applicationName}"
+            ]
+          }
+        },
+        "ja" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "${applicationName}を再開",
+              "${applicationName}でPlatterheadを再開"
+            ]
+          }
+        },
+        "pt-BR" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Retomar o ${applicationName}",
+              "Retomar o Platterhead no ${applicationName}"
+            ]
+          }
+        },
+        "zh-Hans" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "继续播放${applicationName}",
+              "在${applicationName}中继续播放 Platterhead"
+            ]
+          }
+        }
+      }
+    },
+    "Set a sleep timer in ${applicationName}" : {
+      "localizations" : {
+        "de" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Stelle einen Sleep-Timer in ${applicationName} ein",
+              "Starte einen Platterhead-Sleep-Timer in ${applicationName}"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Set a sleep timer in ${applicationName}",
+              "Start a Platterhead sleep timer in ${applicationName}"
+            ]
+          }
+        },
+        "es" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Pon un temporizador en ${applicationName}",
+              "Inicia un temporizador de Platterhead en ${applicationName}"
+            ]
+          }
+        },
+        "fr" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Règle une minuterie de veille dans ${applicationName}",
+              "Lance une minuterie de veille Platterhead dans ${applicationName}"
+            ]
+          }
+        },
+        "ja" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "${applicationName}でスリープタイマーを設定",
+              "${applicationName}でPlatterheadのスリープタイマーを開始"
+            ]
+          }
+        },
+        "pt-BR" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "Definir um timer de sono no ${applicationName}",
+              "Iniciar um timer de sono do Platterhead no ${applicationName}"
+            ]
+          }
+        },
+        "zh-Hans" : {
+          "stringSet" : {
+            "state" : "needs_review",
+            "values" : [
+              "在${applicationName}中设置睡眠定时",
+              "在${applicationName}中开始 Platterhead 睡眠定时"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

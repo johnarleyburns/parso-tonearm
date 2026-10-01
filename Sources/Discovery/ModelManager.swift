@@ -75,13 +75,13 @@ public actor ModelManager {
         public var errorDescription: String? {
             switch self {
             case .resourcesUnavailable:
-                return "The sound-search model has not been downloaded yet."
+                return String(localized: "The sound-search model has not been downloaded yet.", bundle: .module)
             case .melFilterBankLoadFailed(let detail):
-                return "Could not load the model's mel filterbank: \(detail)"
+                return String(localized: "Could not load the model's mel filterbank: \(detail)", bundle: .module)
             case .tokenizerLoadFailed(let detail):
-                return "Could not load the text model's tokenizer: \(detail)"
+                return String(localized: "Could not load the text model's tokenizer: \(detail)", bundle: .module)
             case .modelCompileFailed(let detail):
-                return "Could not prepare the sound-search model: \(detail)"
+                return String(localized: "Could not prepare the sound-search model: \(detail)", bundle: .module)
             }
         }
     }

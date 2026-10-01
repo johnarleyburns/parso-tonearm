@@ -8,6 +8,60 @@ private enum ProToolsTab: String, CaseIterable, Identifiable {
     case duplicates = "Duplicates"
 
     var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .playlists: "Playlists"
+        case .tags: "Tags"
+        case .audio: "Audio"
+        case .duplicates: "Duplicates"
+        }
+    }
+}
+
+private extension SmartPlaylistField {
+    var displayName: LocalizedStringKey {
+        switch self {
+        case .title: "Title"
+        case .artist: "Artist"
+        case .album: "Album"
+        case .genre: "Genre"
+        case .composer: "Composer"
+        case .codec: "Codec"
+        case .sourceTitle: "Library name"
+        case .sourceKind: "Library type"
+        case .assetKind: "File type"
+        case .assetLocation: "File location"
+        case .year: "Year"
+        case .durationSeconds: "Duration (seconds)"
+        case .trackNumber: "Track number"
+        case .discNumber: "Disc number"
+        case .sampleRate: "Sample rate"
+        case .sizeBytes: "Size (bytes)"
+        case .replayGain: "ReplayGain"
+        case .dateAdded: "Date added"
+        }
+    }
+}
+
+private extension SmartPlaylistOperator {
+    var displayName: LocalizedStringKey {
+        switch self {
+        case .contains: "contains"
+        case .notContains: "does not contain"
+        case .equals: "is"
+        case .notEquals: "is not"
+        case .beginsWith: "begins with"
+        case .endsWith: "ends with"
+        case .greaterThan: "is greater than"
+        case .greaterThanOrEqual: "is at least"
+        case .lessThan: "is less than"
+        case .lessThanOrEqual: "is at most"
+        case .between: "is between"
+        case .isEmpty: "is empty"
+        case .isNotEmpty: "is not empty"
+        }
+    }
 }
 
 struct ToolsView: View {
@@ -16,7 +70,7 @@ struct ToolsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var tab: ProToolsTab = .playlists
-    @State private var playlistTitle = "Smart Playlist"
+    @State private var playlistTitle = String(localized: "Smart Playlist")
     @State private var smartField: SmartPlaylistField = .genre
     @State private var smartOperator: SmartPlaylistOperator = .contains
     @State private var smartValue = ""
@@ -42,7 +96,7 @@ struct ToolsView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Picker("Tool", selection: $tab) {
                         ForEach(ProToolsTab.allCases) { tab in
-                            Text(tab.rawValue).tag(tab)
+                            Text(tab.title).tag(tab)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -75,8 +129,8 @@ struct ToolsView: View {
     private var playlistsPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             textField("TITLE", text: $playlistTitle, prompt: "Smart Playlist")
-            pickerRow("FIELD", selection: $smartField, values: SmartPlaylistField.allCases)
-            pickerRow("MATCH", selection: $smartOperator, values: SmartPlaylistOperator.allCases)
+            pickerRow("FIELD", selection: $smartField, values: SmartPlaylistField.allCases, label: \.displayName)
+            pickerRow("MATCH", selection: $smartOperator, values: SmartPlaylistOperator.allCases, label: \.displayName)
             textField("VALUE", text: $smartValue, prompt: smartField.kind == .number ? "0" : "text")
             Stepper("Limit \(smartLimit)", value: $smartLimit, in: 1...500)
                 .font(Typography.callout)
@@ -104,7 +158,7 @@ struct ToolsView: View {
                                 .foregroundStyle(selectedTrackIDs.contains(row.id) ? Palette.accent : Palette.inkTertiary)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(row.track.title).font(Typography.callout).lineLimit(1)
-                                Text(row.album?.title ?? "Local file")
+                                Text(row.album?.title ?? String(localized: "Local file"))
                                     .font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
                             }
                             Spacer()
@@ -160,7 +214,7 @@ struct ToolsView: View {
 
             if !duplicateGroups.isEmpty {
                 primaryButton(
-                    eliminatingDuplicates ? "Removing…" : "Eliminate \(totalDuplicateCount) Duplicate\(totalDuplicateCount == 1 ? "" : "s")",
+                    eliminatingDuplicates ? "Removing…" : "Eliminate \(totalDuplicateCount) Duplicates",
                     icon: "trash"
                 ) {
                     Task { await eliminateDuplicates() }
@@ -262,7 +316,7 @@ struct ToolsView: View {
 
     private var blockerText: String {
         let blockers = bitPerfectPlan.blockers
-        guard !blockers.isEmpty else { return "No active processing blockers." }
+        guard !blockers.isEmpty else { return String(localized: "No active processing blockers.") }
         return blockers.map { "\($0)" }.joined(separator: ", ")
     }
 
@@ -278,7 +332,7 @@ struct ToolsView: View {
                 limit: smartLimit
             )
             let created = try await appState.createSmartPlaylistSnapshot(title: playlistTitle, playlist: playlist)
-            smartMessage = "Created \(created.title)."
+            smartMessage = String(localized: "Created \(created.title).")
         } catch {
             smartMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
@@ -294,7 +348,7 @@ struct ToolsView: View {
         if let year { proposal.assignments[.year] = .integer(year) }
         do {
             let count = try await appState.applyTagEdit(trackIDs: selectedTrackIDs, proposal: proposal)
-            tagMessage = "Updated \(count) tracks."
+            tagMessage = String(localized: "Updated \(count) tracks.")
             selectedTrackIDs.removeAll()
         } catch {
             tagMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -306,7 +360,7 @@ struct ToolsView: View {
         defer { scanningDuplicates = false }
         do {
             duplicateGroups = try await appState.duplicateGroups()
-            duplicateMessage = duplicateGroups.isEmpty ? "No duplicates found." : "Found \(duplicateGroups.count) groups."
+            duplicateMessage = duplicateGroups.isEmpty ? String(localized: "No duplicates found.") : String(localized: "Found \(duplicateGroups.count) groups.")
         } catch {
             duplicateMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
@@ -317,7 +371,7 @@ struct ToolsView: View {
         defer { eliminatingDuplicates = false }
         let removed = await appState.eliminateDuplicates(in: duplicateGroups)
         duplicateGroups = []
-        duplicateMessage = "Removed \(removed) duplicate track\(removed == 1 ? "" : "s")."
+        duplicateMessage = String(localized: "Removed \(removed) duplicate tracks.")
     }
 
     private func toggle(_ id: Int64) {
@@ -328,7 +382,7 @@ struct ToolsView: View {
         }
     }
 
-    private func textField(_ label: String, text: Binding<String>, prompt: String) -> some View {
+    private func textField(_ label: LocalizedStringKey, text: Binding<String>, prompt: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(Typography.caption).kerning(1)
                 .foregroundStyle(Palette.inkTertiary)
@@ -343,9 +397,10 @@ struct ToolsView: View {
     }
 
     private func pickerRow<T: CaseIterable & Hashable & RawRepresentable>(
-        _ title: String,
+        _ title: LocalizedStringKey,
         selection: Binding<T>,
-        values: T.AllCases
+        values: T.AllCases,
+        label: @escaping (T) -> LocalizedStringKey
     ) -> some View where T.RawValue == String, T.AllCases: RandomAccessCollection {
         HStack {
             Text(title).font(Typography.caption).kerning(1)
@@ -353,14 +408,14 @@ struct ToolsView: View {
             Spacer()
             Picker(title, selection: selection) {
                 ForEach(Array(values), id: \.self) { value in
-                    Text(value.rawValue).tag(value)
+                    Text(label(value)).tag(value)
                 }
             }
             .tint(Palette.accent)
         }
     }
 
-    private func slider(_ title: String,
+    private func slider(_ title: LocalizedStringKey,
                         value: Binding<Double>,
                         range: ClosedRange<Double>,
                         display: String) -> some View {
@@ -374,7 +429,7 @@ struct ToolsView: View {
         }
     }
 
-    private func primaryButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+    private func primaryButton(_ title: LocalizedStringKey, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: icon)

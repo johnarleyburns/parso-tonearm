@@ -75,8 +75,8 @@ struct WatchCollectionRow: View {
 
 struct WatchEmptyStateView: View {
     let icon: String
-    let title: String
-    let message: String
+    let title: LocalizedStringKey
+    let message: LocalizedStringKey
 
     var body: some View {
         VStack(spacing: 8) {

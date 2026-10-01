@@ -106,7 +106,7 @@ enum CarPlayRootBuilder {
     // MARK: - Playlists
 
     private static func playlistsTemplate(interfaceController: CPInterfaceController) -> CPListTemplate {
-        let template = CPListTemplate(title: "Playlists", sections: [])
+        let template = CPListTemplate(title: String(localized: "Playlists"), sections: [])
         template.tabImage = UIImage(systemName: "music.note.list")
         Task {
             let playlists = ((try? await LibraryStore.shared.allPlaylists()) ?? []).prefix(maxItemsPerList)
@@ -140,13 +140,13 @@ enum CarPlayRootBuilder {
         interfaceController: CPInterfaceController,
         search: CarPlaySearchController?
     ) -> CPListTemplate {
-        let template = CPListTemplate(title: "Library", sections: [])
+        let template = CPListTemplate(title: String(localized: "Library"), sections: [])
         template.tabImage = UIImage(systemName: "square.grid.2x2")
         let modes: [(LibraryBrowseMode, String)] = [
             (.artists, "person.wave.2"), (.albums, "square.stack"), (.songs, "music.note")
         ]
         let items = modes.map { mode, icon -> CPListItem in
-            let item = CPListItem(text: mode.rawValue, detailText: nil, image: UIImage(systemName: icon))
+            let item = CPListItem(text: mode.title, detailText: nil, image: UIImage(systemName: icon))
             item.handler = { _, completion in
                 Task {
                     let rows = (try? await LibraryStore.shared.allTrackRows()) ?? []
@@ -203,7 +203,7 @@ enum CarPlayRootBuilder {
             }
             return CPListSection(items: items, header: section.indexTitle, sectionIndexTitle: section.indexTitle)
         }
-        return CPListTemplate(title: mode.rawValue, sections: cpSections)
+        return CPListTemplate(title: mode.title, sections: cpSections)
     }
 
     // MARK: - More (Recently Played / Favorites)
@@ -212,11 +212,11 @@ enum CarPlayRootBuilder {
     /// picker: keeps Recently Played and Favorites off Playlists/Library's
     /// own tab budget rather than spending a slot each.
     private static func moreTemplate(interfaceController: CPInterfaceController) -> CPListTemplate {
-        let template = CPListTemplate(title: "More", sections: [])
+        let template = CPListTemplate(title: String(localized: "More"), sections: [])
         template.tabImage = UIImage(systemName: "ellipsis")
         let picks: [(title: String, icon: String, loadRows: @Sendable () async throws -> [TrackRow])] = [
-            ("Recently Played", "clock", { try await LibraryStore.shared.recentlyPlayedRows() }),
-            ("Favorites", "heart", { try await LibraryStore.shared.favoriteRows() })
+            (String(localized: "Recently Played"), "clock", { try await LibraryStore.shared.recentlyPlayedRows() }),
+            (String(localized: "Favorites"), "heart", { try await LibraryStore.shared.favoriteRows() })
         ]
         let items = picks.map { pick -> CPListItem in
             let item = CPListItem(text: pick.title, detailText: nil, image: UIImage(systemName: pick.icon))

@@ -168,6 +168,6 @@ public struct RemoteLibraryStats: Equatable {
         if let b = totalBytes, b > 0 {
             parts.append(ByteCountFormatter.string(fromByteCount: b, countStyle: .file))
         }
-        return parts.isEmpty ? "No stats available" : parts.joined(separator: " · ")
+        return parts.isEmpty ? String(localized: "No stats available", bundle: .module) : parts.joined(separator: " · ")
     }
 }

@@ -35,7 +35,7 @@ struct WatchPlaylistsView: View {
     }
 
     private func subtitle(for playlist: WatchPlaylistSnapshot) -> String {
-        "\(playlist.readyTrackIDs.count) tracks"
+        String(localized: "\(playlist.readyTrackIDs.count) tracks")
     }
 }
 
@@ -102,7 +102,7 @@ struct WatchPlaylistDetailView: View {
 #else
         .listStyle(.plain)
 #endif
-        .navigationTitle(model.playlist(id: playlistID)?.title ?? "Playlist")
+        .navigationTitle(model.playlist(id: playlistID)?.title ?? String(localized: "Playlist"))
         .task { await model.refresh() }
     }
 

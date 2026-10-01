@@ -11,7 +11,7 @@ extension AppState {
         let rows = try await store.smartPlaylistRows(playlist)
         let trackIDs = rows.compactMap(\.track.id)
         let created = try await store.createManualPlaylist(
-            title: title.isEmpty ? "Smart Playlist" : title,
+            title: title.isEmpty ? String(localized: "Smart Playlist") : title,
             trackIds: trackIDs
         )
         await reload()
@@ -146,7 +146,7 @@ extension AppState {
             addSourceInBackground(preview: preview, followUpdates: true)
             tab = .settings
         } catch {
-            backgroundTitle = "Shared source"
+            backgroundTitle = String(localized: "Shared source")
             backgroundDone = false
             backgroundFailed = true
         }

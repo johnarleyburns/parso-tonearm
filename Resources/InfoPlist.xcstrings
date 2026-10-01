@@ -1,15 +1,198 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "CFBundleDisplayName" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
-      "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
-      "es" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
-      "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
-      "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
-      "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } },
-      "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterhead" } }
-    } }
+    "CFBundleDisplayName" : {
+      "comment" : "Info.plist CFBundleDisplayName",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Platterhead"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription" : {
+      "comment" : "Info.plist NSMicrophoneUsageDescription",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Platterhead uses the microphone in CarPlay to hear your music searches."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead verwendet in CarPlay das Mikrofon, um deine Musiksuchen zu hören."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead usa el micrófono en CarPlay para oír tus búsquedas de música."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead utilise le micro dans CarPlay pour entendre vos recherches musicales."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "PlatterheadはCarPlayで音楽の検索内容を聞き取るためにマイクを使用します。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O Platterhead usa o microfone no CarPlay para ouvir suas buscas de música."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead 会在 CarPlay 中使用麦克风来听取你的音乐搜索。"
+          }
+        }
+      }
+    },
+    "NSSiriUsageDescription" : {
+      "comment" : "Info.plist NSSiriUsageDescription",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Siri can play songs, artists and playlists from your Platterhead library when you ask, including in CarPlay. Platterhead itself collects and sends nothing."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Siri kann auf Anfrage Songs, Künstler:innen und Playlists aus deiner Platterhead-Bibliothek abspielen, auch in CarPlay. Platterhead selbst erfasst und sendet nichts."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Siri puede reproducir canciones, artistas y playlists de tu biblioteca de Platterhead cuando se lo pidas, también en CarPlay. Platterhead no recopila ni envía nada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Siri peut lire des morceaux, des artistes et des playlists de votre bibliothèque Platterhead à votre demande, y compris dans CarPlay. Platterhead ne collecte et n’envoie rien."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "頼めばSiriがPlatterheadライブラリの曲、アーティスト、プレイリストを再生します。CarPlayでも使えます。Platterhead自体は何も収集・送信しません。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "A Siri pode tocar músicas, artistas e playlists da sua biblioteca do Platterhead quando você pedir, inclusive no CarPlay. O Platterhead não coleta nem envia nada."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "在你提出请求时，Siri 可以播放 Platterhead 资料库中的歌曲、艺人和播放列表，CarPlay 中也可以。Platterhead 本身不收集也不发送任何信息。"
+          }
+        }
+      }
+    },
+    "NSSpeechRecognitionUsageDescription" : {
+      "comment" : "Info.plist NSSpeechRecognitionUsageDescription",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Platterhead transcribes your CarPlay music search so you can find tracks hands-free."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead transkribiert deine Musiksuche in CarPlay, damit du Titel freihändig finden kannst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead transcribe tu búsqueda de música en CarPlay para que encuentres pistas sin usar las manos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead transcrit votre recherche musicale dans CarPlay pour que vous trouviez des morceaux sans les mains."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "PlatterheadはCarPlayでの音楽検索を文字に起こし、ハンズフリーで曲を探せるようにします。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O Platterhead transcreve sua busca de música no CarPlay para você encontrar faixas sem usar as mãos."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead 会转写你在 CarPlay 中的音乐搜索，让你免提查找曲目。"
+          }
+        }
+      }
+    }
   },
   "version" : "1.0"
 }

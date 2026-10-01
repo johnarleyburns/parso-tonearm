@@ -55,7 +55,7 @@ struct AddServerSheet: View {
                 } label: {
                     Group {
                         if isConnecting { ProgressView().tint(Palette.accentOnFill) }
-                        else { actionLabel(title: actionTitle, icon: authKind == .oauth ? "person.crop.circle.badge.checkmark" : "checkmark") }
+                        else { actionLabel(title: LocalizedStringKey(actionTitle), icon: authKind == .oauth ? "person.crop.circle.badge.checkmark" : "checkmark") }
                     }
                 }
                 .disabled(!canSubmit || isConnecting)
@@ -209,20 +209,21 @@ struct AddServerSheet: View {
             }
             if needsURL {
                 textField(label: isIAConnector ? "ARCHIVE.ORG URL" : "SERVER URL",
+                          identifier: isIAConnector ? "ARCHIVE.ORG URL" : "SERVER URL",
                           prompt: isIAConnector ? "https://archive.org/details/…" : connectorKind == .plex ? "https://plex.example.com:32400" : "https://music.example.com",
                           text: $urlText,
                           keyboardType: .url)
             }
             if needsUsernamePassword {
-                textField(label: "USERNAME",
-                          prompt: isIAConnector ? "archive.org username" : "user",
+                textField(label: "USERNAME", identifier: "USERNAME",
+                          prompt: isIAConnector ? String(localized: "archive.org username") : String(localized: "user"),
                           text: $username,
                           keyboardType: .default)
-                secureField(label: "PASSWORD", prompt: "password", text: $password)
+                secureField(label: "PASSWORD", identifier: "PASSWORD", prompt: String(localized: "password"), text: $password)
             }
             if needsToken {
-                secureField(label: "PLEX TOKEN",
-                            prompt: "token",
+                secureField(label: "PLEX TOKEN", identifier: "PLEX TOKEN",
+                            prompt: String(localized: "token"),
                             text: $token)
             }
             if authKind == .oauth {
@@ -260,7 +261,8 @@ struct AddServerSheet: View {
         }
     }
 
-    private func textField(label: String,
+    private func textField(label: LocalizedStringKey,
+                           identifier: String,
                            prompt: String,
                            text: Binding<String>,
                            keyboardType: TextFieldKeyboardHint) -> some View {
@@ -272,7 +274,7 @@ struct AddServerSheet: View {
                 prompt: prompt,
                 isSecure: false,
                 keyboardType: keyboardType,
-                accessibilityIdentifier: "Add Remote Library \(label)"
+                accessibilityIdentifier: "Add Remote Library \(identifier)"
             )
                 .frame(height: 28)
         }
@@ -281,7 +283,7 @@ struct AddServerSheet: View {
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.ink.opacity(0.12)))
     }
 
-    private func secureField(label: String, prompt: String, text: Binding<String>) -> some View {
+    private func secureField(label: LocalizedStringKey, identifier: String, prompt: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(Typography.caption).kerning(1)
                 .foregroundStyle(Palette.inkTertiary)
@@ -290,7 +292,7 @@ struct AddServerSheet: View {
                 prompt: prompt,
                 isSecure: true,
                 keyboardType: .default,
-                accessibilityIdentifier: "Add Remote Library \(label)"
+                accessibilityIdentifier: "Add Remote Library \(identifier)"
             )
                 .frame(height: 28)
         }
@@ -299,7 +301,7 @@ struct AddServerSheet: View {
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.ink.opacity(0.12)))
     }
 
-    private func actionLabel(title: String, icon: String) -> some View {
+    private func actionLabel(title: LocalizedStringKey, icon: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
             Text(title)
@@ -342,28 +344,28 @@ struct AddServerSheet: View {
 
     private var footerText: String {
         if isJamendoGenre {
-            return "No credentials needed. Platterhead reads the public Creative-Commons catalogue and keeps attribution with every track."
+            return String(localized: "No credentials needed. Platterhead reads the public Creative-Commons catalogue and keeps attribution with every track.")
         }
         if isIAPublicList {
-            return "Platterhead streams this music directly from archive.org. Nothing is stored permanently."
+            return String(localized: "Platterhead streams this music directly from archive.org. Nothing is stored permanently.")
         }
         if isIAPrivateList {
-            return "Credentials are stored locally in Apple Keychain. Platterhead uses them only to access your private list."
+            return String(localized: "Credentials are stored locally in Apple Keychain. Platterhead uses them only to access your private list.")
         }
         switch connectorKind {
         case .smb:
-            return "Folder access is stored as a security-scoped bookmark. Files are not copied."
+            return String(localized: "Folder access is stored as a security-scoped bookmark. Files are not copied.")
         case .dropbox, .googleDrive, .oneDrive, .pCloud:
             return "OAuth tokens are stored locally in Apple Keychain. Platterhead lists audio files and resolves streams only on demand."
         default:
-            return "Credentials are stored locally in Apple Keychain. Platterhead requests a stream URL only when you play."
+            return String(localized: "Credentials are stored locally in Apple Keychain. Platterhead requests a stream URL only when you play.")
         }
     }
 
     private var actionTitle: String {
-        if authKind == .oauth { return "Sign In to \(connector.title)" }
-        if isIAConnector { return "Add archive.org Library" }
-        return "Connect \(connector.title)"
+        if authKind == .oauth { return String(localized: "Sign In to \(connector.title)") }
+        if isIAConnector { return String(localized: "Add archive.org Library") }
+        return String(localized: "Connect \(connector.title)")
     }
 
     private var needsURL: Bool {

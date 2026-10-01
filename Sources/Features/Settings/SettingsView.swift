@@ -171,7 +171,7 @@ struct PrivacyView: View {
         }
     }
 
-    private func privacyPoint(_ title: String, _ body: String) -> some View {
+    private func privacyPoint(_ title: LocalizedStringKey, _ body: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(Typography.body).foregroundStyle(Palette.accent)
             Text(body).font(Typography.callout).foregroundStyle(Palette.inkSecondary)
@@ -220,7 +220,7 @@ struct ThirdPartyNoticesView: View {
         }
     }
 
-    private func privacyPoint(_ title: String, _ body: String) -> some View {
+    private func privacyPoint(_ title: LocalizedStringKey, _ body: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(Typography.body).foregroundStyle(Palette.accent)
             Text(body).font(Typography.callout).foregroundStyle(Palette.inkSecondary)

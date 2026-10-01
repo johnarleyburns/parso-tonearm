@@ -243,7 +243,7 @@ struct MixPreviewView: View {
                 Section("Not placed (\(plan.excluded.count))") {
                     ForEach(plan.excluded, id: \.trackID) { exclusion in
                         VStack(alignment: .leading, spacing: 8) {
-                            Label(rowByID[exclusion.trackID]?.track.title ?? "Unknown track",
+                            Label(rowByID[exclusion.trackID]?.track.title ?? String(localized: "Unknown track"),
                                   systemImage: "questionmark.circle")
                                 .foregroundStyle(Palette.inkSecondary)
                             HStack {
@@ -348,7 +348,7 @@ struct MixPreviewView: View {
         guard index > 0,
               let from = plan.request.candidates.first(where: { $0.trackID == plan.steps[index - 1].trackID })?.camelot,
               let to = plan.request.candidates.first(where: { $0.trackID == plan.steps[index].trackID })?.camelot else {
-            return "Key unavailable"
+            return String(localized: "Key unavailable")
         }
         return "\(DJKeyFormatter.format(from)) → \(DJKeyFormatter.format(to))"
     }
@@ -491,7 +491,7 @@ private struct MixTrackRow: View {
             Text("\(step.position + 1)").font(Typography.mono).foregroundStyle(Palette.inkTertiary)
             VStack(alignment: .leading) {
                 Text(row.track.title).font(Typography.body).lineLimit(1)
-                Text(row.artist?.name ?? "Unknown artist").font(Typography.caption).foregroundStyle(Palette.inkSecondary)
+                Text(row.artist?.name ?? String(localized: "Unknown artist")).font(Typography.caption).foregroundStyle(Palette.inkSecondary)
             }
             Spacer()
             Text(step.effectiveBPM > 0 ? "\(Int(step.effectiveBPM.rounded())) BPM" : "BPM unavailable")
@@ -551,6 +551,7 @@ private struct MixArcChart: View {
         .chartYAxisLabel("BPM")
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Mix tempo and energy arc")
+        .accessibilityChartDescriptor(MixArcChartDescriptor(plan: plan))
         .accessibilityValue(chartDescription)
     }
 
@@ -559,8 +560,8 @@ private struct MixArcChart: View {
         let energies = plan.steps.compactMap { step in
             plan.request.candidates.first(where: { $0.trackID == step.trackID })?.energy
         }
-        let energyText = energies.isEmpty ? "Energy is unavailable." : "Energy ranges from \(Int((energies.min() ?? 0) * 100)) to \(Int((energies.max() ?? 0) * 100)) percent."
-        return "Tempo runs \(tempo.map(String.init).joined(separator: ", ")) BPM. \(energyText)"
+        let energyText = energies.isEmpty ? String(localized: "Energy is unavailable.") : String(localized: "Energy ranges from \(Int((energies.min() ?? 0) * 100)) to \(Int((energies.max() ?? 0) * 100)) percent.")
+        return String(localized: "Tempo runs \(tempo.map(String.init).joined(separator: ", ")) BPM. \(energyText)")
     }
 
     private func energyValue(_ energy: Double) -> Double {
@@ -572,10 +573,10 @@ private struct MixArcChart: View {
 
 private extension MixShape {
     var title: String {
-        switch self { case .risingBPM: "Rising BPM"; case .steady: "Steady"; case .warmUpPeakCoolDown: "Warm up, peak, cool down"; case .windDown: "Wind down" }
+        switch self { case .risingBPM: String(localized: "Rising BPM"); case .steady: String(localized: "Steady"); case .warmUpPeakCoolDown: String(localized: "Warm up, peak, cool down"); case .windDown: String(localized: "Wind down") }
     }
     var subtitle: String {
-        switch self { case .risingBPM: "Build energy gradually"; case .steady: "Stay close to the median tempo"; case .warmUpPeakCoolDown: "Climb, peak, then release"; case .windDown: "Ease toward a calm finish" }
+        switch self { case .risingBPM: String(localized: "Build energy gradually"); case .steady: String(localized: "Stay close to the median tempo"); case .warmUpPeakCoolDown: String(localized: "Climb, peak, then release"); case .windDown: String(localized: "Ease toward a calm finish") }
     }
 }
 

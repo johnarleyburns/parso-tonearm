@@ -191,7 +191,7 @@ public enum SubsonicAPI {
     private static func validate(status: String?, error: [String: Any]?) throws {
         if status == "failed" {
             let code = int(error?["code"]) ?? 0
-            let message = string(error?["message"]) ?? "Subsonic request failed"
+            let message = string(error?["message"]) ?? String(localized: "Subsonic request failed", bundle: .module)
             throw Error.remote(code: code, message: message)
         }
         guard status == nil || status == "ok" else { throw Error.malformedResponse }
@@ -376,7 +376,7 @@ private final class XMLCollector: NSObject, XMLParserDelegate {
         case "error":
             error = XMLErrorPayload(
                 code: Int(attributeDict["code"] ?? "") ?? 0,
-                message: attributeDict["message"] ?? "Subsonic request failed"
+                message: attributeDict["message"] ?? String(localized: "Subsonic request failed", bundle: .module)
             )
         case "artist":
             let id = attributeDict["id"] ?? ""

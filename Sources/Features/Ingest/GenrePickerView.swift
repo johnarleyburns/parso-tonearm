@@ -110,7 +110,7 @@ public struct GenrePickerSheet: View {
                     if model.isAdding {
                         ProgressView().tint(Palette.accentOnFill)
                     } else {
-                        Text("Add \(model.selectedGenres.count) \(model.selectedGenres.count == 1 ? "library" : "libraries")")
+                        Text("Add \(model.selectedGenres.count) libraries")
                     }
                 }
                 .font(Typography.body)
@@ -195,8 +195,8 @@ public struct GenrePickerContent: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(node.name)\(selected ? ", selected" : "")")
-                .accessibilityValue(selected ? "selected" : "not selected")
+                .accessibilityLabel(Text(node.name))
+                .accessibilityValue(selected ? Text("Selected") : Text("Not selected"))
                 .accessibilityIdentifier("genre.\(node.path)")
 
                 if !node.children.isEmpty {
@@ -213,6 +213,7 @@ public struct GenrePickerContent: View {
                             .rotationEffect(.degrees(expanded ? 180 : 0))
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
+                            .accessibilityLabel(expanded ? Text("Hide subgenres of \(node.name)") : Text("Show subgenres of \(node.name)"))
                             .padding(.trailing, 14)
                     }
                     .buttonStyle(.plain)
@@ -257,8 +258,8 @@ public struct GenrePickerContent: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(selections.isEmpty
-                         ? "No genres picked"
-                         : "\(selections.count) \(selections.count == 1 ? "library" : "libraries") · "
+                         ? String(localized: "No genres picked")
+                         : String(localized: "\(selections.count) libraries") + " · "
                            + selections.map(\.name).joined(separator: ", "))
                         .font(Typography.callout)
                         .foregroundStyle(Palette.ink)

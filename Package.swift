@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "TonearmCore",
+    defaultLocalization: "en",
     platforms: [.iOS("27.0"), .macOS(.v15), .watchOS(.v11)],
     products: [
         .library(name: "TonearmCore", targets: ["TonearmCore"]),
@@ -164,6 +165,7 @@ let package = Package(
                 .product(name: "ParsoAudioStreaming", package: "parso-audio-engine")
             ],
             path: "Sources/Discovery",
+            resources: [.process("Localization/Localizable.xcstrings")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .executableTarget(

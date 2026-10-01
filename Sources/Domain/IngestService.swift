@@ -9,10 +9,10 @@ public enum IngestError: LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .noAudioFiles: return "No audio files found in this folder"
-        case .failedToInsertSource: return "Failed to create source in library"
-        case .failedToCreateBookmark: return "Failed to secure folder access"
-        case .accessDenied: return "Cannot access folder — permission denied"
+        case .noAudioFiles: return String(localized: "No audio files found in this folder", bundle: .module)
+        case .failedToInsertSource: return String(localized: "Failed to create source in library", bundle: .module)
+        case .failedToCreateBookmark: return String(localized: "Failed to secure folder access", bundle: .module)
+        case .accessDenied: return String(localized: "Cannot access folder — permission denied", bundle: .module)
         }
     }
 }

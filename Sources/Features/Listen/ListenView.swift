@@ -250,7 +250,7 @@ struct ListenView: View {
 
     // MARK: - Jump Back In / Favorites
 
-    private func cardRow(title: String, rows: [TrackRow]) -> some View {
+    private func cardRow(title: LocalizedStringKey, rows: [TrackRow]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: title)
             ScrollView(.horizontal, showsIndicators: false) {
@@ -353,7 +353,7 @@ struct ListenView: View {
         .padding(.bottom, 22)
     }
 
-    private func statTile(title: String, value: String) -> some View {
+    private func statTile(title: LocalizedStringKey, value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
                 .font(Typography.headline)
@@ -665,7 +665,7 @@ private struct MoodEntryPointSection: View {
         }
     }
 
-    private func hint(_ text: String) -> some View {
+    private func hint(_ text: LocalizedStringKey) -> some View {
         Text(text).font(.callout).foregroundStyle(Palette.inkTertiary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }

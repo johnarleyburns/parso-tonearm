@@ -15,21 +15,21 @@ struct WatchRootView: View {
 
             NavigationLink(value: WatchNav.search) {
                 WatchCollectionRow(
-                    title: chrome.showsConnectedFeatures ? "Search iPhone Library" : "Search Downloads",
-                    subtitle: chrome.showsConnectedFeatures ? "Tracks, albums, playlists" : "On this watch",
+                    title: chrome.showsConnectedFeatures ? String(localized: "Search iPhone Library") : String(localized: "Search Downloads"),
+                    subtitle: chrome.showsConnectedFeatures ? String(localized: "Tracks, albums, playlists") : String(localized: "On this watch"),
                     systemImage: "magnifyingglass")
             }
             .accessibilityIdentifier("watch.search")
 
             if chrome.showsConnectedFeatures {
                 NavigationLink(value: WatchNav.phonePlaylists) {
-                    WatchCollectionRow(title: "Playlists", subtitle: "Browse on iPhone",
+                    WatchCollectionRow(title: String(localized: "Playlists"), subtitle: String(localized: "Browse on iPhone"),
                                        systemImage: "music.note.list")
                 }
                 .accessibilityIdentifier("watch.playlists")
 
                 NavigationLink(value: WatchNav.downloads) {
-                    WatchCollectionRow(title: "Downloads", subtitle: downloadsSubtitle,
+                    WatchCollectionRow(title: String(localized: "Downloads"), subtitle: downloadsSubtitle,
                                        systemImage: "arrow.down.circle")
                 }
                 .accessibilityIdentifier("watch.downloads")
@@ -50,38 +50,38 @@ struct WatchRootView: View {
     @ViewBuilder
     private var offlineDownloadRows: some View {
         NavigationLink(value: WatchNav.playlists) {
-            WatchCollectionRow(title: "Playlists", subtitle: "\(model.playlists.count) downloaded",
+            WatchCollectionRow(title: String(localized: "Playlists"), subtitle: String(localized: "\(model.playlists.count) downloaded"),
                                systemImage: "music.note.list")
         }
         .accessibilityIdentifier("watch.playlists")
 
         NavigationLink(value: WatchNav.albums) {
-            WatchCollectionRow(title: "Albums", subtitle: "\(model.albums.count) downloaded",
+            WatchCollectionRow(title: String(localized: "Albums"), subtitle: String(localized: "\(model.albums.count) downloaded"),
                                systemImage: "square.stack")
         }
         .accessibilityIdentifier("watch.albums")
 
         NavigationLink(value: WatchNav.songs) {
-            WatchCollectionRow(title: "Tracks", subtitle: "\(model.tracks.count) downloaded",
+            WatchCollectionRow(title: String(localized: "Tracks"), subtitle: String(localized: "\(model.tracks.count) downloaded"),
                                systemImage: "music.note")
         }
         .accessibilityIdentifier("watch.songs")
 
         NavigationLink(value: WatchNav.storage) {
-            WatchCollectionRow(title: "Storage", subtitle: storageSubtitle, systemImage: "internaldrive")
+            WatchCollectionRow(title: String(localized: "Storage"), subtitle: storageSubtitle, systemImage: "internaldrive")
         }
         .accessibilityIdentifier("watch.downloads")
     }
 
     private var downloadsSubtitle: String {
         let bytes = model.storage?.readyBytes ?? 0
-        return bytes > 0 ? "\(model.tracks.count) tracks · \(WatchTimeFmt.megabytes(bytes))"
-                         : "\(model.tracks.count) tracks"
+        return bytes > 0 ? String(localized: "\(model.tracks.count) tracks · \(WatchTimeFmt.megabytes(bytes))")
+                         : String(localized: "\(model.tracks.count) tracks")
     }
 
     private var storageSubtitle: String {
-        guard let storage = model.storage, storage.readyBytes > 0 else { return "Manage storage" }
-        return "\(model.tracks.count) tracks · \(WatchTimeFmt.megabytes(storage.readyBytes))"
+        guard let storage = model.storage, storage.readyBytes > 0 else { return String(localized: "Manage storage") }
+        return String(localized: "\(model.tracks.count) tracks · \(WatchTimeFmt.megabytes(storage.readyBytes))")
     }
 
 }
@@ -145,11 +145,11 @@ struct WatchNowPlayingChip: View {
     /// The chip follows whichever engine currently owns transport.
     private var current: Chip? {
         if coordinator.target == .iPhone, let item = remote.state?.currentItem {
-            return Chip(title: item.title, subtitle: "On iPhone",
+            return Chip(title: item.title, subtitle: String(localized: "On iPhone"),
                         glyph: "iphone", isPlaying: remote.state?.isPlaying ?? false)
         }
         if let track = player.currentTrack {
-            return Chip(title: track.title, subtitle: "On Apple Watch",
+            return Chip(title: track.title, subtitle: String(localized: "On Apple Watch"),
                         glyph: "applewatch", isPlaying: player.isPlaying)
         }
         return nil

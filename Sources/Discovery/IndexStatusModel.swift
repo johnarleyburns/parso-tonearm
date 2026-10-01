@@ -265,9 +265,9 @@ public struct IndexStatusPresentation: Equatable, Sendable {
 
         let headline: String
         if total == 0 {
-            headline = "Sound index: not started"
+            headline = String(localized: "Sound index: not started", bundle: .module)
         } else {
-            headline = "Sound index: \(number(done)) / \(number(total)) tracks"
+            headline = String(localized: "Sound index: \(number(done)) / \(number(total)) tracks", bundle: .module)
         }
 
         let canRetry = c.failed > 0
@@ -276,13 +276,13 @@ public struct IndexStatusPresentation: Equatable, Sendable {
 
         if total == 0 {
             phase = .emptyLibrary
-            detail = "Add music to start building the sound index."
+            detail = String(localized: "Add music to start building the sound index.", bundle: .module)
         } else if snapshot.isPaused {
             phase = .paused
-            detail = "Paused. Resume to continue indexing."
+            detail = String(localized: "Paused. Resume to continue indexing.", bundle: .module)
         } else if done == total && c.waiting == 0 && c.queuedOrRunning == 0 && c.failed == 0 {
             phase = .upToDate
-            detail = "All music is indexed."
+            detail = String(localized: "All music is indexed.", bundle: .module)
         } else if (c.queuedOrRunning > 0 || c.waiting > 0) && !snapshot.modelResourceAvailable {
             // The model resource (ODR download) hasn't resolved yet. Every
             // claimed job immediately re-parks waiting for it, so
@@ -306,7 +306,7 @@ public struct IndexStatusPresentation: Equatable, Sendable {
                                  thermal: snapshot.thermalDiagnostic)
         } else if c.queuedOrRunning > 0 {
             phase = .indexing
-            detail = "Indexing \(number(c.queuedOrRunning)) track\(c.queuedOrRunning == 1 ? "" : "s")…"
+            detail = String(localized: "Indexing \(c.queuedOrRunning) tracks…", bundle: .module)
                 + Self.engineSuffix(snapshot.currentEngine)
         } else if c.waiting > 0 {
             phase = .waiting
@@ -315,11 +315,11 @@ public struct IndexStatusPresentation: Equatable, Sendable {
                 failureError: c.mostRecentFailureError, thermal: snapshot.thermalDiagnostic)
         } else if c.failed > 0 {
             phase = .needsAttention
-            detail = "\(number(c.failed)) track\(c.failed == 1 ? "" : "s") could not be indexed."
+            detail = String(localized: "\(c.failed) tracks could not be indexed.", bundle: .module)
                 + Self.errorSuffix(c.mostRecentFailureError)
         } else {
             phase = .idle
-            detail = "Indexing is idle."
+            detail = String(localized: "Indexing is idle.", bundle: .module)
         }
 
         return IndexStatusPresentation(
@@ -355,33 +355,38 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             // fall back to the previous charging-only-aware generic text
             // rather than claiming a reason we don't actually have.
             return chargingOnly
-                ? "Waiting for power. Indexing resumes while charging."
-                : "Waiting to continue. Indexing resumes when conditions allow."
+                ? String(localized: "Waiting for power. Indexing resumes while charging.", bundle: .module)
+                : String(localized: "Waiting to continue. Indexing resumes when conditions allow.", bundle: .module)
         }
-        let n = number(count)
-        let plural = count == 1 ? "track" : "tracks"
         switch reason {
         case .waitingForAsset:
-            return "\(n) \(plural) waiting on their audio file — moved, deleted, "
-                + "or not fully downloaded from cloud storage."
+            return String(
+                localized: "\(count) tracks waiting on their audio file — moved, deleted, or not fully downloaded from cloud storage.",
+                bundle: .module)
         case .waitingForNetwork:
-            return "Waiting for a network connection to reach \(n) \(plural)."
+            return String(localized: "Waiting for a network connection to reach \(count) tracks.", bundle: .module)
         case .waitingForModel:
-            return "Waiting for the sound-search model to finish downloading."
+            return String(localized: "Waiting for the sound-search model to finish downloading.", bundle: .module)
         case .waitingForPower:
             return chargingOnly
-                ? "Waiting for power. Indexing resumes while charging."
-                : "Waiting for more battery before indexing continues."
+                ? String(localized: "Waiting for power. Indexing resumes while charging.", bundle: .module)
+                : String(localized: "Waiting for more battery before indexing continues.", bundle: .module)
         case .waitingForCooling:
             return Self.thermalDetail(thermal)
         case .retryScheduled:
-            let base = "\(n) \(plural) hit a temporary error and will retry automatically."
-            guard let failureError else { return base }
-            return base + " Last error: " + (failureError.message ?? failureError.code) + "."
+            guard let failureError else {
+                return String(
+                    localized: "\(count) tracks hit a temporary error and will retry automatically.",
+                    bundle: .module)
+            }
+            let message = failureError.message ?? failureError.code
+            return String(
+                localized: "\(count) tracks hit a temporary error and will retry automatically. Last error: \(message).",
+                bundle: .module)
         case .queued, .running, .failed, .complete, .unsupported:
             // Not real waiting states — coverage() never buckets these into
             // waitingBreakdown, but the switch must stay exhaustive.
-            return "Waiting to continue. Indexing resumes when conditions allow."
+            return String(localized: "Waiting to continue. Indexing resumes when conditions allow.", bundle: .module)
         }
     }
 
@@ -392,7 +397,8 @@ public struct IndexStatusPresentation: Equatable, Sendable {
     /// of retry attempts.
     private static func errorSuffix(_ error: IndexJobRepository.JobErrorSample?) -> String {
         guard let error else { return "" }
-        return " Most recent error: " + (error.message ?? error.code) + "."
+        let message = error.message ?? error.code
+        return " " + String(localized: "Most recent error: \(message).", bundle: .module)
     }
 
     /// The user-facing reason text for each real `IndexPolicy` gate (plan
@@ -403,24 +409,25 @@ public struct IndexStatusPresentation: Equatable, Sendable {
                                thermal: ThermalDiagnostic? = nil) -> String {
         switch reason {
         case .userPaused:
-            return "Paused. Resume to continue indexing."
+            return String(localized: "Paused. Resume to continue indexing.", bundle: .module)
         case .playbackActive:
-            return "Waiting for playback to stop before indexing continues."
+            return String(localized: "Waiting for playback to stop before indexing continues.", bundle: .module)
         case .thermalFair, .thermalSerious, .thermalCritical:
             return Self.thermalDetail(thermal)
         case .memoryWarning:
-            return "Waiting for memory pressure to ease before indexing continues."
+            return String(localized: "Waiting for memory pressure to ease before indexing continues.", bundle: .module)
         case .lowBatteryOrLowPowerMode:
-            return "Waiting for more battery, or for Low Power Mode to turn off, "
-                + "before indexing continues."
+            return String(
+                localized: "Waiting for more battery, or for Low Power Mode to turn off, before indexing continues.",
+                bundle: .module)
         case .chargingOnlyRequired:
             return chargingOnly
-                ? "Waiting for power. Indexing resumes while charging."
-                : "Waiting for power before background indexing continues."
+                ? String(localized: "Waiting for power. Indexing resumes while charging.", bundle: .module)
+                : String(localized: "Waiting for power before background indexing continues.", bundle: .module)
         case .backgroundGrantMissing:
-            return "Waiting for background processing time from iOS."
+            return String(localized: "Waiting for background processing time from iOS.", bundle: .module)
         case .remoteSamplingRequiresWiFi:
-            return "Waiting for Wi-Fi before indexing this remote track."
+            return String(localized: "Waiting for Wi-Fi before indexing this remote track.", bundle: .module)
         }
     }
 
@@ -433,10 +440,10 @@ public struct IndexStatusPresentation: Equatable, Sendable {
         guard let engine else { return "" }
         switch engine {
         case .gpuPreferred: return " (GPU)"
-        case .cpuOnly(.playbackActive): return " (CPU — paused for playback)"
-        case .cpuOnly(.thermalSeriousOrCritical): return " (CPU — device is hot)"
-        case .cpuOnly(.thermalSustainedFair): return " (CPU — cooling down)"
-        case .cpuOnly(.recentOscillation): return " (CPU — ran warm recently)"
+        case .cpuOnly(.playbackActive): return String(localized: " (CPU — paused for playback)", bundle: .module)
+        case .cpuOnly(.thermalSeriousOrCritical): return String(localized: " (CPU — device is hot)", bundle: .module)
+        case .cpuOnly(.thermalSustainedFair): return String(localized: " (CPU — cooling down)", bundle: .module)
+        case .cpuOnly(.recentOscillation): return String(localized: " (CPU — ran warm recently)", bundle: .module)
         }
     }
 
@@ -450,26 +457,28 @@ public struct IndexStatusPresentation: Equatable, Sendable {
     /// don't have.
     private static func thermalDetail(_ thermal: ThermalDiagnostic?) -> String {
         guard let thermal else {
-            return "Waiting for the device to cool down before indexing continues."
+            return String(localized: "Waiting for the device to cool down before indexing continues.", bundle: .module)
         }
         switch thermal.state {
         case .critical:
-            return "The device is very hot (thermal state: Critical). Indexing is paused until it cools."
+            return String(localized: "The device is very hot (thermal state: Critical). Indexing is paused until it cools.", bundle: .module)
         case .serious:
-            return "The device is running hot (thermal state: Serious). Indexing is paused until it cools."
+            return String(localized: "The device is running hot (thermal state: Serious). Indexing is paused until it cools.", bundle: .module)
         case .fair:
-            return "The device's thermal state is elevated (Fair). Indexing pauses until it's back "
-                + "to normal for a full minute."
+            return String(
+                localized: "The device's thermal state is elevated (Fair). Indexing pauses until it's back to normal for a full minute.",
+                bundle: .module)
         case .nominal:
             // The confusing real-world case this exists for: the device is NOT hot right now —
             // it already returned to normal — but indexing hasn't resumed yet because the
             // recovery rule requires it to stay normal for a full continuous minute first.
             let remaining = Int(thermal.secondsUntilRecovered.rounded(.up))
             if remaining <= 0 {
-                return "Device temperature is back to normal. Resuming indexing…"
+                return String(localized: "Device temperature is back to normal. Resuming indexing…", bundle: .module)
             }
-            return "Device temperature is back to normal. Resuming in \(remaining)s "
-                + "(confirming it stays cool)."
+            return String(
+                localized: "Device temperature is back to normal. Resuming in \(remaining)s (confirming it stays cool).",
+                bundle: .module)
         }
     }
 
@@ -487,10 +496,10 @@ public struct IndexStatusPresentation: Equatable, Sendable {
         // bytes yet. The request retries itself, so this is informational,
         // never a dead end.
         if let error {
-            return "Couldn't download the sound-search model yet (\(error)). Retrying automatically…"
+            return String(localized: "Couldn't download the sound-search model yet (\(error)). Retrying automatically…", bundle: .module)
         }
         guard let progress, progress.totalBytes > 0 else {
-            return "Downloading the sound-search model…"
+            return String(localized: "Downloading the sound-search model…", bundle: .module)
         }
         // `NSBundleResourceRequest.progress` doesn't guarantee real bytes —
         // a real device showed both tags reporting literal totalUnitCount
@@ -502,18 +511,19 @@ public struct IndexStatusPresentation: Equatable, Sendable {
         // silence, never a fabricated percentage.
         guard !progress.isNegligibleTotal else {
             guard progress.componentsTotal > 0 else {
-                return "Downloading the sound-search model…"
+                return String(localized: "Downloading the sound-search model…", bundle: .module)
             }
-            return "Downloading the sound-search model — "
-                + "\(progress.componentsFinished) of \(progress.componentsTotal) components ready."
+            return String(
+                localized: "Downloading the sound-search model — \(progress.componentsFinished) of \(progress.componentsTotal) components ready.",
+                bundle: .module)
         }
         let doneMB = bytesToMB(progress.completedBytes)
         let totalMB = bytesToMB(progress.totalBytes)
         if let fraction = progress.fractionComplete {
             let percent = Int((fraction * 100).rounded())
-            return "Downloading the sound-search model — \(doneMB) of \(totalMB) MB (\(percent)%)."
+            return String(localized: "Downloading the sound-search model — \(doneMB) of \(totalMB) MB (\(percent)%).", bundle: .module)
         }
-        return "Downloading the sound-search model — \(doneMB) of \(totalMB) MB."
+        return String(localized: "Downloading the sound-search model — \(doneMB) of \(totalMB) MB.", bundle: .module)
     }
 
     private static func bytesToMB(_ bytes: Int64) -> Int {

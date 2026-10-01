@@ -29,7 +29,7 @@ struct AddFolderSheet: View {
                     if let err = scanError {
                         Text(err).font(Typography.caption).foregroundStyle(Palette.danger)
                     } else {
-                        Text("\(fileCount) audio files\(subfolderCount > 0 ? " · \(subfolderCount) subfolders" : "")")
+                        Text(subfolderCount > 0 ? "\(fileCount) audio files · \(subfolderCount) subfolders" : "\(fileCount) audio files")
                             .font(Typography.caption).foregroundStyle(Palette.inkSecondary)
                     }
                 }
@@ -88,7 +88,7 @@ struct AddFolderSheet: View {
         .glassSurface(cornerRadius: 14)
     }
 
-    private func toggle(_ title: String, _ sub: String, _ binding: Binding<Bool>) -> some View {
+    private func toggle(_ title: LocalizedStringKey, _ sub: LocalizedStringKey, _ binding: Binding<Bool>) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(Typography.callout)
@@ -112,7 +112,7 @@ struct AddFolderSheet: View {
         scanError = nil
         let url = resolvedURL()
         guard let url else {
-            scanError = "Lost access to folder"
+            scanError = String(localized: "Lost access to folder")
             return
         }
         defer { url.stopAccessingSecurityScopedResource() }
@@ -120,7 +120,7 @@ struct AddFolderSheet: View {
         fileCount = files.count
         subfolderCount = Set(files.compactMap { $0.relativeSection }).count
         if files.isEmpty && fileCount == 0 {
-            scanError = "No audio files found"
+            scanError = String(localized: "No audio files found")
         }
     }
 
@@ -129,7 +129,7 @@ struct AddFolderSheet: View {
         importError = nil
         defer { isImporting = false }
         guard let url = resolvedURL() else {
-            importError = "Lost access to folder"
+            importError = String(localized: "Lost access to folder")
             AppLogger.ingest.error("Import folder failed: cannot resolve bookmark")
             return
         }

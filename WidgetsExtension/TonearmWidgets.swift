@@ -26,7 +26,7 @@ struct TonearmTimelineProvider: TimelineProvider {
                         id: 1,
                         title: "Nocturne in E-flat major",
                         artist: "Platterhead",
-                        albumTitle: "Recently Played",
+                        albumTitle: String(localized: "Recently Played"),
                         duration: 262,
                         artworkID: nil
                     ),
@@ -164,7 +164,7 @@ private struct NowPlayingWidgetView: View {
         .padding(.horizontal, 4)
     }
 
-    private func accessoryEmpty(_ text: String) -> some View {
+    private func accessoryEmpty(_ text: LocalizedStringKey) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "music.note")
                 .foregroundStyle(.primary.opacity(0.5))
@@ -234,7 +234,7 @@ private struct RecentlyPlayedWidgetView: View {
         .padding(.horizontal, 4)
     }
 
-    private func accessoryEmpty(_ text: String) -> some View {
+    private func accessoryEmpty(_ text: LocalizedStringKey) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "clock")
                 .foregroundStyle(.primary.opacity(0.5))
@@ -248,8 +248,8 @@ private struct RecentlyPlayedWidgetView: View {
 }
 
 private struct EmptyWidgetView: View {
-    var title: String
-    var subtitle: String
+    var title: LocalizedStringKey
+    var subtitle: LocalizedStringKey
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {

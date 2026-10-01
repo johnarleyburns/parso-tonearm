@@ -71,15 +71,15 @@ public enum QueryValidationIssue: Equatable, Sendable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .textTooLong(let limit, let actual):
-            return "Search text is \(actual) characters; the maximum is \(limit)."
+            return String(localized: "Search text is \(actual) characters; the maximum is \(limit).", bundle: .module)
         case .tooManyRefinements(let limit, let actual):
-            return "\(actual) refinement terms supplied; at most \(limit) are allowed."
+            return String(localized: "\(actual) refinement terms supplied; at most \(limit) are allowed.", bundle: .module)
         case .refinementTermTooLong(let limit, let actual, let term):
-            return "Refinement \"\(term)\" is \(actual) characters; the maximum is \(limit)."
+            return String(localized: "Refinement \"\(term)\" is \(actual) characters; the maximum is \(limit).", bundle: .module)
         case .bpmNotFinite:
-            return "The BPM range contains a value that is not a finite number."
+            return String(localized: "The BPM range contains a value that is not a finite number.", bundle: .module)
         case .bpmReversed(let min, let max):
-            return "The BPM range is reversed (\(min)–\(max)); the low value must not exceed the high value."
+            return String(localized: "The BPM range is reversed (\(min)–\(max)); the low value must not exceed the high value.", bundle: .module)
         case .bpmNegative(let value):
             return "BPM \(value) is negative."
         case .invalidKeyCode(let code):

@@ -32,7 +32,7 @@ struct WatchSearchView: View {
         switch presenter.phase {
         case .recent(let queries):
             if queries.isEmpty {
-                Text("Type to search\(chrome.showsConnectedFeatures ? " your iPhone library" : " your downloads").")
+                Text(chrome.showsConnectedFeatures ? "Type to search your iPhone library." : "Type to search your downloads.")
                     .font(.system(.caption2)).foregroundStyle(.secondary)
             } else {
                 Section("Recent") {

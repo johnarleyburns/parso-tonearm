@@ -192,8 +192,8 @@ public enum WidgetSnapshotBuilder {
         }
         return WidgetTrackSnapshot(
             id: input.id,
-            title: displayText(input.title, fallback: "Untitled Track"),
-            artist: displayText(input.artist ?? "", fallback: "Unknown Artist"),
+            title: displayText(input.title, fallback: String(localized: "Untitled Track", bundle: .module)),
+            artist: displayText(input.artist ?? "", fallback: String(localized: "Unknown Artist", bundle: .module)),
             albumTitle: optionalDisplayText(input.albumTitle),
             duration: normalizedSeconds(input.duration),
             artworkID: normalizedArtworkID,

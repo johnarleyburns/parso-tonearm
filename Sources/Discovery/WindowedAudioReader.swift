@@ -32,10 +32,10 @@ public struct WindowedAudioReaderError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch kind {
-        case .cannotOpenFile: return "Could not open audio file: \(detail)"
-        case .unsupportedFormat: return "Unsupported audio format: \(detail)"
-        case .converterCreationFailed: return "Could not create an audio resampler: \(detail)"
-        case .readFailed: return "Could not read audio: \(detail)"
+        case .cannotOpenFile: return String(localized: "Could not open audio file: \(detail)", bundle: .module)
+        case .unsupportedFormat: return String(localized: "Unsupported audio format: \(detail)", bundle: .module)
+        case .converterCreationFailed: return String(localized: "Could not create an audio resampler: \(detail)", bundle: .module)
+        case .readFailed: return String(localized: "Could not read audio: \(detail)", bundle: .module)
         }
     }
 }

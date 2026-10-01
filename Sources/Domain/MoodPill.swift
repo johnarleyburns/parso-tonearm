@@ -26,24 +26,24 @@ public struct MoodPill: Identifiable, Equatable, Hashable, Sendable {
 /// distribution), not hand-picked, so it can't be a fixed array.
 public enum MoodPillTaxonomy {
     public static let energy: [MoodPill] = [
-        MoodPill(id: "calm", label: "Calm", queryTerm: "calm, relaxed, low energy"),
-        MoodPill(id: "upbeat", label: "Upbeat", queryTerm: "upbeat, energetic, lively"),
-        MoodPill(id: "intense", label: "Intense", queryTerm: "intense, driving, powerful"),
-        MoodPill(id: "mellow", label: "Mellow", queryTerm: "mellow, laid back, easygoing")
+        MoodPill(id: "calm", label: String(localized: "Calm", bundle: .module), queryTerm: "calm, relaxed, low energy"),
+        MoodPill(id: "upbeat", label: String(localized: "Upbeat", bundle: .module), queryTerm: "upbeat, energetic, lively"),
+        MoodPill(id: "intense", label: String(localized: "Intense", bundle: .module), queryTerm: "intense, driving, powerful"),
+        MoodPill(id: "mellow", label: String(localized: "Mellow", bundle: .module), queryTerm: "mellow, laid back, easygoing")
     ]
 
     public static let setting: [MoodPill] = [
-        MoodPill(id: "focus", label: "Focus", queryTerm: "focus music, concentration, no distraction"),
-        MoodPill(id: "background", label: "Background", queryTerm: "background music, unobtrusive, ambient"),
-        MoodPill(id: "deepListen", label: "Deep Listen", queryTerm: "deep listening, immersive, attentive"),
-        MoodPill(id: "sleep", label: "Sleep", queryTerm: "sleep music, soothing, quiet, restful")
+        MoodPill(id: "focus", label: String(localized: "Focus", bundle: .module), queryTerm: "focus music, concentration, no distraction"),
+        MoodPill(id: "background", label: String(localized: "Background", bundle: .module), queryTerm: "background music, unobtrusive, ambient"),
+        MoodPill(id: "deepListen", label: String(localized: "Deep Listen", bundle: .module), queryTerm: "deep listening, immersive, attentive"),
+        MoodPill(id: "sleep", label: String(localized: "Sleep", bundle: .module), queryTerm: "sleep music, soothing, quiet, restful")
     ]
 
     public static let character: [MoodPill] = [
-        MoodPill(id: "instrumental", label: "Instrumental", queryTerm: "instrumental, no vocals"),
-        MoodPill(id: "vocalForward", label: "Vocal-forward", queryTerm: "vocal forward, singing, lyrics"),
-        MoodPill(id: "acoustic", label: "Acoustic", queryTerm: "acoustic, unplugged, organic instruments"),
-        MoodPill(id: "electronic", label: "Electronic", queryTerm: "electronic, synthesized, produced")
+        MoodPill(id: "instrumental", label: String(localized: "Instrumental", bundle: .module), queryTerm: "instrumental, no vocals"),
+        MoodPill(id: "vocalForward", label: String(localized: "Vocal-forward", bundle: .module), queryTerm: "vocal forward, singing, lyrics"),
+        MoodPill(id: "acoustic", label: String(localized: "Acoustic", bundle: .module), queryTerm: "acoustic, unplugged, organic instruments"),
+        MoodPill(id: "electronic", label: String(localized: "Electronic", bundle: .module), queryTerm: "electronic, synthesized, produced")
     ]
 
     /// Fixed categories only — the Era/Vibe category is appended by the

@@ -267,19 +267,19 @@ final class DiscoveryModelResources: @unchecked Sendable {
         let resources = currentResources()
         let artifacts = [
             ModelDiagnosticsDetail.Artifact(
-                name: "Audio encoder", isResolved: resources.audioEncoderURL != nil,
+                name: String(localized: "Audio encoder"), isResolved: resources.audioEncoderURL != nil,
                 resolvedName: resources.audioEncoderURL?.lastPathComponent),
             ModelDiagnosticsDetail.Artifact(
-                name: "Text encoder", isResolved: resources.textEncoderURL != nil,
+                name: String(localized: "Text encoder"), isResolved: resources.textEncoderURL != nil,
                 resolvedName: resources.textEncoderURL?.lastPathComponent),
             ModelDiagnosticsDetail.Artifact(
-                name: "Mel filterbank", isResolved: resources.melFilterBankURL != nil,
+                name: String(localized: "Mel filterbank"), isResolved: resources.melFilterBankURL != nil,
                 resolvedName: resources.melFilterBankURL?.lastPathComponent),
             ModelDiagnosticsDetail.Artifact(
-                name: "Tokenizer vocab", isResolved: resources.tokenizerVocabURL != nil,
+                name: String(localized: "Tokenizer vocab"), isResolved: resources.tokenizerVocabURL != nil,
                 resolvedName: resources.tokenizerVocabURL?.lastPathComponent),
             ModelDiagnosticsDetail.Artifact(
-                name: "Tokenizer merges", isResolved: resources.tokenizerMergesURL != nil,
+                name: String(localized: "Tokenizer merges"), isResolved: resources.tokenizerMergesURL != nil,
                 resolvedName: resources.tokenizerMergesURL?.lastPathComponent),
         ]
         return ModelDiagnosticsDetail(

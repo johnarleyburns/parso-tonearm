@@ -14,7 +14,7 @@ struct WhyThisMixView: View {
                     Text("This mix follows a \(plan.request.shape.title.lowercased()) curve, using the available BPM range in your library.")
                 }
                 Section("Source") {
-                    LabeledContent("Collection", value: sourcePlaylist?.title ?? "Listen library")
+                    LabeledContent(String(localized: "Collection"), value: sourcePlaylist?.title ?? String(localized: "Listen library"))
                     LabeledContent("Candidates", value: "\(rows.count) tracks")
                     if let first = plan.steps.first,
                        first.reasons.contains(.lockedByUser) {
@@ -45,7 +45,7 @@ struct WhyThisMixView: View {
                 Section("Why each track is here") {
                     ForEach(plan.steps) { step in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(rows.first(where: { $0.track.id == step.trackID })?.track.title ?? "Unknown track")
+                            Text(rows.first(where: { $0.track.id == step.trackID })?.track.title ?? String(localized: "Unknown track"))
                                 .font(Typography.body)
                             Text(step.reasons.map(\.label).joined(separator: " · "))
                                 .font(Typography.caption)
@@ -72,7 +72,7 @@ struct WhyThisMixView: View {
     }
 
     private func title(for trackID: Int64) -> String {
-        rows.first(where: { $0.track.id == trackID })?.track.title ?? "Unknown track"
+        rows.first(where: { $0.track.id == trackID })?.track.title ?? String(localized: "Unknown track")
     }
 }
 
@@ -100,6 +100,7 @@ private struct MixExplanationArcChart: View {
         .chartYAxisLabel("BPM")
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Mix tempo and energy arc")
+        .accessibilityChartDescriptor(MixArcChartDescriptor(plan: plan))
         .accessibilityValue("Tempo ranges from \(Int(plan.summary.bpmRange.lowerBound.rounded())) to \(Int(plan.summary.bpmRange.upperBound.rounded())) BPM. \(energyDescription)")
     }
 
@@ -107,8 +108,8 @@ private struct MixExplanationArcChart: View {
         let values = plan.steps.compactMap { step in
             plan.request.candidates.first(where: { $0.trackID == step.trackID })?.energy
         }
-        guard let min = values.min(), let max = values.max() else { return "Energy is unavailable." }
-        return "Energy ranges from \(Int(min * 100)) to \(Int(max * 100)) percent."
+        guard let min = values.min(), let max = values.max() else { return String(localized: "Energy is unavailable.") }
+        return String(localized: "Energy ranges from \(Int(min * 100)) to \(Int(max * 100)) percent.")
     }
 
     private func energyValue(_ energy: Double) -> Double {
@@ -189,10 +190,10 @@ struct WhyThisTransitionView: View {
 
     private var sentence: String {
         switch plan.style {
-        case .gapless: "These adjacent album tracks continue without a fade."
-        case .beatmatchedBlend: "The next phrase blends in on the beat, then returns to its original tempo."
-        case .phraseFade: "The next phrase enters on a short equal-power fade."
-        case .plainCrossfade: "The tracks use the regular crossfade."
+        case .gapless: String(localized: "These adjacent album tracks continue without a fade.")
+        case .beatmatchedBlend: String(localized: "The next phrase blends in on the beat, then returns to its original tempo.")
+        case .phraseFade: String(localized: "The next phrase enters on a short equal-power fade.")
+        case .plainCrossfade: String(localized: "The tracks use the regular crossfade.")
         }
     }
 
@@ -209,14 +210,14 @@ struct WhyThisTransitionView: View {
 extension GridPrepState {
     var shortLabel: String {
         switch self {
-        case .notPrepared: "Not prepared"
-        case .ready: "Ready"
-        case .queued: "Queued"
+        case .notPrepared: String(localized: "Not prepared")
+        case .ready: String(localized: "Ready")
+        case .queued: String(localized: "Queued")
         case .downloading(let progress), .analyzing(let progress): "\(Int(progress * 100))%"
-        case .waitingForNetwork: "Waiting for network"
-        case .waitingForWiFi: "Waiting for Wi-Fi"
-        case .failed: "Failed"
-        case .cancelled: "Stopped"
+        case .waitingForNetwork: String(localized: "Waiting for network")
+        case .waitingForWiFi: String(localized: "Waiting for Wi-Fi")
+        case .failed: String(localized: "Failed")
+        case .cancelled: String(localized: "Stopped")
         }
     }
 }
@@ -318,22 +319,22 @@ private extension Array {
 private extension TransitionReason {
     var label: String {
         switch self {
-        case .outgoingOutroPhrase(let bar, let beats): "Leaves at the outro phrase, bar \(bar), \(beats) beats"
-        case .incomingIntroPhrase(let beats): "Enters on the intro, \(beats) beats"
-        case .lastPhraseBoundary(let bar): "Uses the last phrase boundary, bar \(bar)"
-        case .skippedLeadingSilence(let seconds): "Skips \(String(format: "%.1f", seconds)) seconds of leading silence"
-        case .tempoMatched(let pct): "Tempo changes by \(String(format: "%.1f", pct))%"
-        case .tempoReturnsOverBeats(let beats): "Returns to the original tempo over \(beats) beats"
-        case .keyCompatible(let relation): "Key relationship: \(relation.displayLabel)"
-        case .keyClashShortOverlap: "Key clash kept to a short overlap"
-        case .tempoTooFar(let pct): "Tempo is \(String(format: "%.1f", pct))% apart"
-        case .lowTempoConfidence(let confidence): "Tempo confidence is \(String(format: "%.0f", confidence))%"
-        case .variableTempo: "The track has variable tempo"
-        case .gridNotReady(let state): "Transition analysis is \(state.shortLabel.lowercased())"
-        case .notBuffered: "The incoming track was not buffered in time"
-        case .sameAlbumGapless: "Adjacent tracks on the same album"
-        case .loudnessMatched(let db): "Loudness matched by \(String(format: "%.1f", db)) dB"
-        case .userChosePlainFade: "You chose a plain fade"
+        case .outgoingOutroPhrase(let bar, let beats): String(localized: "Leaves at the outro phrase, bar \(bar), \(beats) beats")
+        case .incomingIntroPhrase(let beats): String(localized: "Enters on the intro, \(beats) beats")
+        case .lastPhraseBoundary(let bar): String(localized: "Uses the last phrase boundary, bar \(bar)")
+        case .skippedLeadingSilence(let seconds): String(localized: "Skips \(String(format: "%.1f", seconds)) seconds of leading silence")
+        case .tempoMatched(let pct): String(localized: "Tempo changes by \(String(format: "%.1f", pct))%")
+        case .tempoReturnsOverBeats(let beats): String(localized: "Returns to the original tempo over \(beats) beats")
+        case .keyCompatible(let relation): String(localized: "Key relationship: \(relation.displayLabel)")
+        case .keyClashShortOverlap: String(localized: "Key clash kept to a short overlap")
+        case .tempoTooFar(let pct): String(localized: "Tempo is \(String(format: "%.1f", pct))% apart")
+        case .lowTempoConfidence(let confidence): String(localized: "Tempo confidence is \(String(format: "%.0f", confidence))%")
+        case .variableTempo: String(localized: "The track has variable tempo")
+        case .gridNotReady(let state): String(localized: "Transition analysis: \(state.shortLabel)")
+        case .notBuffered: String(localized: "The incoming track was not buffered in time")
+        case .sameAlbumGapless: String(localized: "Adjacent tracks on the same album")
+        case .loudnessMatched(let db): String(localized: "Loudness matched by \(String(format: "%.1f", db)) dB")
+        case .userChosePlainFade: String(localized: "You chose a plain fade")
         }
     }
 }

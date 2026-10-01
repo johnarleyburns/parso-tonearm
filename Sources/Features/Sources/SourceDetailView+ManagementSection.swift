@@ -160,7 +160,7 @@ extension SourceDetailView {
         }
     }
 
-    private func managementRow(label: String, value: String, chevron: Bool = false) -> some View {
+    private func managementRow(label: LocalizedStringKey, value: String, chevron: Bool = false) -> some View {
         HStack {
             Text(label)
                 .font(Typography.caption)

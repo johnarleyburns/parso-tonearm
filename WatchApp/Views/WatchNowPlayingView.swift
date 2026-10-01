@@ -324,7 +324,7 @@ struct WatchNowPlayingView: View {
                 }
             }
             .frame(width: 20, height: 20)
-            Text(fraction.map { "Downloading \(Int($0 * 100))%" } ?? "Downloading…")
+            Text(fraction.map { String(localized: "Downloading \(Int($0 * 100))%") } ?? String(localized: "Downloading…"))
                 .font(WatchTypography.micro).foregroundStyle(.secondary)
         }
         .accessibilityIdentifier("watch.now.download")

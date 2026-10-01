@@ -1,15 +1,100 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Add to Platterhead" : { "localizations" : {
-      "en" : { "stringUnit" : { "state" : "needs_review", "value" : "Add to Platterhead" } },
-      "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "添加到 Platterhead" } },
-      "es" : { "stringUnit" : { "state" : "needs_review", "value" : "Añadir a Platterhead" } },
-      "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Ajouter à Platterhead" } },
-      "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Zu Platterhead hinzufügen" } },
-      "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "Platterheadに追加" } },
-      "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Adicionar ao Platterhead" } }
-    } }
+    "No archive.org URL was shared." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Es wurde keine archive.org-URL geteilt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "No se compartió ninguna URL de archive.org."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aucune URL archive.org n’a été partagée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "archive.orgのURLが共有されませんでした。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Nenhuma URL do archive.org foi compartilhada."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "未共享任何 archive.org 网址。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No archive.org URL was shared."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Share Controller (ShareExtension/ShareViewController.swift)"
+    },
+    "Opening Platterhead..." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead wird geöffnet …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Abriendo Platterhead…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ouverture de Platterhead…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterheadを開いています…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Abrindo o Platterhead…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "正在打开 Platterhead…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opening Platterhead..."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Share Controller (ShareExtension/ShareViewController.swift)"
+    }
   },
   "version" : "1.0"
 }

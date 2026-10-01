@@ -16,17 +16,17 @@ public enum OAuthError: LocalizedError, Equatable {
         case .invalidClientConfiguration(let provider):
             return "OAuth is not configured for \(provider)."
         case .invalidRedirect:
-            return "The sign-in redirect was invalid."
+            return String(localized: "The sign-in redirect was invalid.", bundle: .module)
         case .stateMismatch:
-            return "The sign-in response did not match this session."
+            return String(localized: "The sign-in response did not match this session.", bundle: .module)
         case .missingAuthorizationCode:
-            return "The sign-in response did not include an authorization code."
+            return String(localized: "The sign-in response did not include an authorization code.", bundle: .module)
         case .missingTokenField(let field):
-            return "The token response was missing \(field)."
+            return String(localized: "The token response was missing \(field).", bundle: .module)
         case .refreshRequired:
-            return "Reconnect this library to continue."
+            return String(localized: "Reconnect this library to continue.", bundle: .module)
         case .unsupportedProvider:
-            return "This provider does not support OAuth sign-in."
+            return String(localized: "This provider does not support OAuth sign-in.", bundle: .module)
         }
     }
 }

@@ -209,7 +209,7 @@ extension AudioPlayer {
     }
 
     func skipCurrentForWiFiOnly(row: TrackRow) {
-        networkSkipMessage = "Skipped \(row.track.title): Wi-Fi only"
+        networkSkipMessage = String(localized: "Skipped \(row.track.title): Wi-Fi only", bundle: .module)
         guard repeatMode != .one else {
             player.pause()
             isPlaying = false

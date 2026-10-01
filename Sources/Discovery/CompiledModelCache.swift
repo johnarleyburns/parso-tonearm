@@ -24,7 +24,7 @@ public enum CompiledModelCache {
         public var errorDescription: String? {
             switch self {
             case .compileFailed(let detail):
-                return "Could not compile the model: \(detail)"
+                return String(localized: "Could not compile the model: \(detail)", bundle: .module)
             }
         }
     }

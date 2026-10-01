@@ -34,7 +34,7 @@ public enum SyncGating {
         if !toggleOn { return "iCloud sync is off." }
         switch account {
         case .available: return nil
-        case .noAccount: return "Sign in to iCloud to sync."
+        case .noAccount: return String(localized: "Sign in to iCloud to sync.", bundle: .module)
         case .restricted: return "iCloud is restricted on this device."
         case .couldNotDetermine, .temporarilyUnavailable:
             return "iCloud is temporarily unavailable."
