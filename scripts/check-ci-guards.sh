@@ -215,9 +215,16 @@ if ls Sources/WatchLegacy >/dev/null 2>&1; then
   status=1; watch_ok=0
 fi
 
-if printf '%s\n' "$WATCH_TARGET" | grep -q 'CODE_SIGN_ENTITLEMENTS'; then
-  echo "    TonearmWatch declares an entitlement file"
-  status=1; watch_ok=0
+# The watch may sign with an App Group (watch redesign A2: Now Playing state shared with its
+# Smart Stack widget) and nothing else — no iCloud, keychain or push entitlements in the closure.
+WATCH_ENTITLEMENTS=$(printf '%s\n' "$WATCH_TARGET" | sed -n 's/.*CODE_SIGN_ENTITLEMENTS:[[:space:]]*//p' | head -1)
+if [ -n "$WATCH_ENTITLEMENTS" ]; then
+  WATCH_ENTITLEMENT_KEYS=$(/usr/libexec/PlistBuddy -c Print "$WATCH_ENTITLEMENTS" 2>/dev/null \
+    | sed -n 's/^    \([A-Za-z0-9._-]*\) = .*/\1/p' | sort -u)
+  if [ "$WATCH_ENTITLEMENT_KEYS" != "com.apple.security.application-groups" ]; then
+    echo "    TonearmWatch entitlements may only declare App Groups (found: ${WATCH_ENTITLEMENT_KEYS:-unreadable})"
+    status=1; watch_ok=0
+  fi
 fi
 if ! grep -q 'cloudKitDatabase: \.none' Sources/WatchCore/Bootstrap/WatchStoreBootstrap.swift; then
   echo "    SwiftData watch store lacks explicit CloudKit opt-out"

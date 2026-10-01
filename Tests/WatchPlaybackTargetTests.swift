@@ -102,3 +102,26 @@ final class WatchConnectionProjectionTests: XCTestCase {
         XCTAssertFalse(WatchConnectionProjection(banner: chrome.banner).phoneReachable)
     }
 }
+
+/// Watch redesign A2 — the Smart Stack widget state round-trips and reloads only on real changes.
+final class WatchNowPlayingWidgetStateTests: XCTestCase {
+    func testRoundTripAndStructuralChange() {
+        let defaults = UserDefaults(suiteName: "widget-\(UUID().uuidString)")!
+        let anchor = Date(timeIntervalSince1970: 1_000)
+        let state = WatchNowPlayingWidgetState(title: "Teardrop", subtitle: "Massive Attack", target: .iPhone,
+                                               isPlaying: true, elapsed: 60, duration: 300, anchorDate: anchor)
+        WatchNowPlayingWidgetStore.save(state, defaults: defaults)
+        XCTAssertEqual(WatchNowPlayingWidgetStore.load(defaults: defaults), state)
+        XCTAssertEqual(state.startDate, Date(timeIntervalSince1970: 940))
+
+        var ticked = state
+        ticked.elapsed = 61
+        ticked.anchorDate = anchor.addingTimeInterval(1)
+        XCTAssertFalse(ticked.differsStructurally(from: state), "a clock tick must not reload the widget")
+        ticked.isPlaying = false
+        XCTAssertTrue(ticked.differsStructurally(from: state))
+
+        WatchNowPlayingWidgetStore.save(nil, defaults: defaults)
+        XCTAssertNil(WatchNowPlayingWidgetStore.load(defaults: defaults))
+    }
+}

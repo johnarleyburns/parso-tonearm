@@ -274,6 +274,7 @@ final class WatchAppAssembly {
     /// migration of audio left behind by the pre-cutover watch build.
     func start() {
         adapter?.activate()
+        WatchWidgetPublisher.shared.start()
         let launch = launchState
         Task {
             await diagnostics.record(.activation, "started")

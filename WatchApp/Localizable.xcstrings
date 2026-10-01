@@ -5870,6 +5870,53 @@
         }
       }
     },
+    "Play or Pause Platterhead" : {
+      "comment" : "Smart Stack play/pause App Intent (watch redesign A2).",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead abspielen oder pausieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play or Pause Platterhead"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Reproducir o pausar Platterhead"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Lire ou mettre en pause Platterhead"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterheadを再生または一時停止"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Tocar ou pausar o Platterhead"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "播放或暂停 Platterhead"
+          }
+        }
+      }
+    },
     "Play something on your iPhone to see it here." : {
       "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)",
       "localizations" : {
@@ -6289,6 +6336,53 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "播放你已下载用于离线收听的播放列表。"
+          }
+        }
+      }
+    },
+    "Plays or pauses what Platterhead is playing." : {
+      "comment" : "Smart Stack play/pause App Intent (watch redesign A2).",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Spielt oder pausiert, was Platterhead gerade wiedergibt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays or pauses what Platterhead is playing."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Reproduce o pausa lo que suena en Platterhead."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Lit ou met en pause ce que joue Platterhead."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterheadで再生中の内容を再生または一時停止します。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Toca ou pausa o que o Platterhead está tocando."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "播放或暂停 Platterhead 正在播放的内容。"
           }
         }
       }

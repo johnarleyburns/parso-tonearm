@@ -23,6 +23,7 @@ catalogs = [
     pathlib.Path("WatchApp/Localizable.xcstrings"),
     pathlib.Path("SiriIntentsExtension/Localizable.xcstrings"),
     pathlib.Path("WidgetsExtension/Localizable.xcstrings"),
+    pathlib.Path("WatchWidgets/Localizable.xcstrings"),
 ]
 errors = []
 

@@ -67,6 +67,7 @@ let package = Package(
                 "UIRegressionTests",
                 "WatchApp",
                 "WatchUITests",
+                "WatchWidgets",
                 "WidgetsExtension",
                 "project.yml",
                 "scripts",

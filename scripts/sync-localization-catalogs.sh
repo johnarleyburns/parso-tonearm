@@ -41,6 +41,8 @@ xcrun xcstringstool sync WatchApp/Localizable.xcstrings WatchApp/AppShortcuts.xc
 # shellcheck disable=SC2046
 xcrun xcstringstool sync WidgetsExtension/Localizable.xcstrings --stringsdata $(stringsdata TonearmWidgetsExtension)
 # shellcheck disable=SC2046
+xcrun xcstringstool sync WatchWidgets/Localizable.xcstrings --stringsdata $(stringsdata TonearmWatchWidgets)
+# shellcheck disable=SC2046
 xcrun xcstringstool sync ShareExtension/Localizable.xcstrings --stringsdata $(stringsdata TonearmShareExtension)
 
 echo "Catalogs synced. Stale keys are marked extractionState=stale; remove them once confirmed unused."

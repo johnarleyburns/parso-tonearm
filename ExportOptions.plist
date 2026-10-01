@@ -22,6 +22,8 @@
 		<string>Platterhead Siri Extension Profile</string>
 		<key>guru.parso.tonearm.watchkitapp</key>
 		<string>Platterhead Watch App Store</string>
+		<key>guru.parso.tonearm.watchkitapp.widgets</key>
+		<string>Platterhead Watch Widgets App Store</string>
 	</dict>
 	<key>stripSwiftSymbols</key>
 	<true/>

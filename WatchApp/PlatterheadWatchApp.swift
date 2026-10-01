@@ -73,6 +73,10 @@ struct WatchContentView: View {
                     }
                 }
         }
+        // Watch redesign A2: tapping the Smart Stack card opens Now Playing.
+        .onOpenURL { url in
+            if url.scheme == "platterhead-watch" { player.navigateToNowPlaying() }
+        }
         .sheet(isPresented: $player.isShowingNowPlaying) {
             NavigationStack {
                 WatchNowPlayingView()
