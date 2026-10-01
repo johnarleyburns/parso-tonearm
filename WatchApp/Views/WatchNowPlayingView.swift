@@ -88,6 +88,8 @@ struct WatchNowPlayingView: View {
     private var remoteBody: some View {
         if coordinator.continuePrompt != nil {
             continueOnWatchCard
+        } else if let failure = remote.startFailure {
+            phoneStartFailureCard(failure)
         } else if let state = remote.state, let item = state.currentItem {
             // `remote.clockTick` — a @Published Int the W7 timer bumps each second — re-invokes this
             // body so the predicted elapsed below stays current without a new snapshot.
@@ -149,6 +151,30 @@ struct WatchNowPlayingView: View {
                 .font(WatchTypography.micro)
         }
         .padding(.top, 6)
+    }
+
+    /// A "play on iPhone" the phone refused or never answered. Shown instead of an empty player.
+    private func phoneStartFailureCard(_ failure: WatchRemotePlayer.StartFailure) -> some View {
+        VStack(spacing: 8) {
+            Label("iPhone Didn't Start", systemImage: "iphone.slash")
+                .font(.system(.headline)).labelStyle(.titleAndIcon)
+                .multilineTextAlignment(.center)
+            Text(model.phoneReachable ? "Your iPhone didn't accept the request."
+                                      : "Your iPhone isn't reachable.")
+                .font(WatchTypography.micro).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                Task { await WatchAppAssembly.shared.playOnPhone(failure.command) }
+            } label: {
+                Label("Try Again", systemImage: "arrow.clockwise")
+                    .font(.system(.caption)).frame(maxWidth: .infinity)
+            }
+            .accessibilityIdentifier("watch.now.retryPhone")
+            Text(failure.code)
+                .font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
+                .accessibilityIdentifier("watch.now.errorCode")
+        }
+        .padding(.top, 4)
     }
 
     // MARK: - W8 — this-watch target (local)
@@ -218,6 +244,7 @@ struct WatchNowPlayingView: View {
             Text("Playback stays paused. Your queue is safe.")
                 .font(WatchTypography.micro).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            errorCode
         }
         .padding(.top, 4)
     }
@@ -237,8 +264,21 @@ struct WatchNowPlayingView: View {
                     .font(.system(.caption)).frame(maxWidth: .infinity)
             }
             .accessibilityIdentifier("watch.now.retryPlayback")
+            errorCode
         }
         .padding(.top, 4)
+    }
+
+    /// The raw failure code under a problem card — state codes only, never titles or paths — so a
+    /// device report can say exactly which step failed.
+    @ViewBuilder
+    private var errorCode: some View {
+        if let code = player.lastPlaybackErrorCode {
+            Text(code)
+                .font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("watch.now.errorCode")
+        }
     }
 
     // MARK: - Download affordance (§7 polish)

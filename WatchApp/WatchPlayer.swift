@@ -450,7 +450,7 @@ final class WatchPlayer: ObservableObject {
     private func userMessage(for code: String) -> String {
         if code == "localFileMissing" { return "This download is not available on the watch." }
         if code == "itemReadinessTimeout" { return "The audio file did not become ready." }
-        if code == "playbackRateZero" { return "Audio did not start on the selected output." }
+        if code.hasPrefix("stalled-") { return "The audio loaded but never started playing." }
         if code.hasPrefix("item-") { return "The downloaded audio file could not be played." }
         return "Audio could not start. Choose an output and try again."
     }

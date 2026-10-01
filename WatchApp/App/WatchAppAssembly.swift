@@ -65,14 +65,24 @@ final class WatchAppAssembly {
 
     @discardableResult
     func playOnPhone(_ command: WatchPlayCommand) async -> Bool {
-        guard let coordinator else { return false }
-        let accepted = await coordinator.send(command).accepted
-        // A "play" that started something on the phone is the user choosing the iPhone target
-        // (§7.1). A plain transport nudge (next/pause/…) leaves the current target alone.
-        if accepted, command.action == .playCollection || command.action == .playTrack {
-            WatchPlaybackCoordinator.shared.setTarget(.iPhone)
+        let startsPlayback = command.action == .playCollection || command.action == .playTrack
+        let reply: WatchCommandReply
+        if let coordinator {
+            reply = await coordinator.send(command)
+        } else {
+            reply = .rejected(.phoneUnavailable)
         }
-        return accepted
+        // Tapping "play" on a phone row is the user choosing the iPhone target (§7.1), so the
+        // target follows and Now Playing opens either way — on success it shows the phone's
+        // playback, on failure it says why with a retry. A plain transport nudge (next/pause/…)
+        // leaves the current target alone.
+        if startsPlayback {
+            WatchRemotePlayer.shared.setStartFailure(reply.accepted ? nil : .init(
+                command: command, code: reply.fault.map { "\($0.code)" } ?? "rejected"))
+            WatchPlaybackCoordinator.shared.setTarget(.iPhone)
+            WatchPlayer.shared.navigateToNowPlaying()
+        }
+        return reply.accepted
     }
 
     /// §7.1: ask the phone for a fresh authoritative playback snapshot (drives the W7 correction

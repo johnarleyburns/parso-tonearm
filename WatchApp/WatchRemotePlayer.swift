@@ -19,6 +19,14 @@ final class WatchRemotePlayer: ObservableObject {
     /// Bumped once a second while Now Playing (iPhone target) is on screen so the predicted
     /// elapsed clock re-renders without a new snapshot.
     @Published private(set) var clockTick: Int = 0
+    /// The last "play on iPhone" the phone refused or never answered, with its protocol code, so
+    /// Now Playing can say so and offer a retry instead of silently showing nothing.
+    @Published private(set) var startFailure: StartFailure?
+
+    struct StartFailure: Equatable {
+        var command: WatchPlayCommand
+        var code: String
+    }
 
     private let send: (WatchPlayCommand) async -> Void
     private let requestSnapshot: () async -> Void
@@ -50,6 +58,8 @@ final class WatchRemotePlayer: ObservableObject {
     }
 
     func clear() { state = nil }
+
+    func setStartFailure(_ failure: StartFailure?) { startFailure = failure }
 
     // MARK: - Transport (always addressed to the phone)
 

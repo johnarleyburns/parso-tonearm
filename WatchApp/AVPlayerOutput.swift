@@ -5,7 +5,7 @@ import TonearmWatchCore
 @MainActor
 final class AVPlayerOutput: WatchAudioOutput {
     private static let itemReadinessTimeout: Duration = .seconds(15)
-    private static let playConfirmationTimeout: Duration = .seconds(3)
+    private static let playConfirmationTimeout: Duration = .seconds(10)
     private let player = AVPlayer()
     private var timeObserver: Any?
     private var itemEndObserver: NSObjectProtocol?
@@ -48,10 +48,16 @@ final class AVPlayerOutput: WatchAudioOutput {
             #endif
             let route = currentRoute()
             #if os(watchOS)
-            guard activated, route.outputCount > 0 else {
-                let code = activated ? "routeUnavailable" : "activationRejected"
+            // `activate()` returning true is watchOS's own statement that a long-form route was
+            // chosen (it presents the output picker itself when none is). `currentRoute.outputs` can
+            // still be empty at this instant on hardware, so an empty snapshot is logged, never
+            // treated as a failure — gating on it refused playback with AirPods connected.
+            guard activated else {
                 sessionIsActive = false
-                return .unavailable(code: code, route: route)
+                return .unavailable(code: "activationRejected", route: route)
+            }
+            if route.outputCount == 0 {
+                NSLog("WatchAudio: session active with an empty route snapshot; playing anyway")
             }
             #endif
             sessionIsActive = true
@@ -166,17 +172,33 @@ final class AVPlayerOutput: WatchAudioOutput {
         guard player.currentItem?.status == .readyToPlay else {
             return .failed(code: "itemNotReady")
         }
+        let start = player.currentTime().seconds
         player.play()
+        // `rate` is the *requested* rate and turns non-zero the instant `play()` is called, whether
+        // or not audio renders. Only a `.playing` time-control status with a clock that has actually
+        // advanced proves sound is coming out; anything else is reported with AVFoundation's reason.
         let deadline = ContinuousClock.now + Self.playConfirmationTimeout
         while ContinuousClock.now < deadline {
             if Task.isCancelled { return .cancelled }
-            if player.rate > 0 { return .playing(rate: Double(player.rate)) }
+            let now = player.currentTime().seconds
+            if player.timeControlStatus == .playing, now.isFinite, now > start + 0.1 {
+                return .playing(rate: Double(player.rate))
+            }
             if player.currentItem?.status == .failed {
                 return .failed(code: Self.itemErrorCode(player.currentItem?.error))
             }
             try? await Task.sleep(for: .milliseconds(50))
         }
-        return .failed(code: "playbackRateZero")
+        return .failed(code: stallCode())
+    }
+
+    /// `stalled-<status>-<reason>`, e.g. `stalled-1-ToMinimizeStalls`, so the on-screen code says
+    /// which AVFoundation wait the player is stuck in.
+    private func stallCode() -> String {
+        let reason = player.reasonForWaitingToPlay?.rawValue
+            .replacingOccurrences(of: "AVPlayerWaiting", with: "")
+            .replacingOccurrences(of: "Reason", with: "") ?? "none"
+        return "stalled-\(player.timeControlStatus.rawValue)-\(reason)"
     }
 
     func pause() async {
