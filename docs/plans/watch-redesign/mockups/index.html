@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platterhead Watch Redesign</title>
+<style>
+/* Watch Listening Kit — shared with Voxglass (docs/watch-redesign/mockups). Only the
+   --accent/--bg tokens differ between the two apps. 1 CSS px = 1 pt on a 45 mm watch
+   (198 × 242 pt). Normative for hierarchy, sizes, copy and states — not pixel-exact. */
+:root {
+  color-scheme: dark;
+  --page: #0b0c0e;
+  --accent: #e3a44b;        /* Platterhead brass */
+  --accent-ink: #1a1108;
+  --accent-soft: #3a2914;
+  --text: #f2f4f6;
+  --muted: #9aa1ab;
+  --faint: #5d636c;
+  --surface: #1c1f24;
+  --surface2: #2a2e35;
+  --good: #4cd471;
+  --warn: #ffcc5c;
+  --bad: #ff6b5e;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(circle at 50% -20%, #2b2115, var(--page) 40%); color: var(--text);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+.page { max-width: 1180px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -.4px; }
+h2 { font-size: 20px; margin: 48px 0 6px; padding-top: 18px; border-top: 1px solid #23262b; }
+.lead, .note { color: var(--muted); max-width: 860px; }
+.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 8px; }
+.toc a { color: #ffd08d; text-decoration: none; border: 1px solid #343a43; border-radius: 999px; padding: 5px 11px; font-size: 13px; }
+.frames { display: flex; flex-wrap: wrap; gap: 28px 26px; align-items: flex-start; margin-top: 18px; }
+.spec { width: 220px; }
+.cap { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.45; }
+.cap b { color: var(--text); font-weight: 650; }
+.cap code { overflow-wrap: anywhere; }
+.id { font: 10.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: #7f8791; }
+
+/* ---------- watch shell ---------- */
+.watch { position: relative; width: 220px; height: 264px; border-radius: 54px; padding: 11px;
+  background: linear-gradient(145deg, #3a3d43, #16181b); box-shadow: 0 24px 60px #000c, inset 0 0 0 1px #4a4e55; }
+.watch::after { content: ""; position: absolute; right: -7px; top: 62px; width: 8px; height: 30px; border-radius: 4px;
+  background: linear-gradient(90deg, #2a2c30, #55585e); } /* Digital Crown */
+.screen { position: relative; width: 198px; height: 242px; border-radius: 44px; background: #000; overflow: hidden;
+  padding: 26px 12px 10px; font-size: 13px; }
+.clock { position: absolute; top: 9px; right: 18px; font-size: 12px; font-weight: 600; }
+.navt { position: absolute; top: 9px; left: 18px; font-size: 12px; font-weight: 650; color: var(--accent); }
+.navt.plain { color: var(--text); }
+
+/* tinted now-playing background */
+.tint { position: absolute; inset: 0; background: radial-gradient(circle at 50% 0%, var(--art1) 0%, var(--art2) 46%, #000 92%); opacity: .9; }
+.tint + * { position: relative; }
+.np { position: relative; height: 100%; display: flex; flex-direction: column; }
+
+/* ---------- components ---------- */
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 10px;
+  background: #ffffff1f; font-size: 10.5px; font-weight: 650; color: var(--text); white-space: nowrap; }
+.chip.accent { background: var(--accent-soft); color: var(--accent); }
+.chip.good { background: #12301c; color: var(--good); }
+.chip.warn { background: #3a2c0b; color: var(--warn); }
+.chip.bad { background: #3a1512; color: var(--bad); }
+.dot { width: 6px; height: 6px; border-radius: 3px; background: currentColor; }
+.t1 { font-size: 15px; font-weight: 700; line-height: 1.2; letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t2 { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t3 { font-size: 10.5px; color: var(--muted); }
+.mono { font: 9.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--faint); }
+.hair { height: 3px; border-radius: 2px; background: #ffffff2e; overflow: hidden; margin: 7px 0 3px; }
+.hair > i { display: block; height: 100%; background: var(--text); border-radius: 2px; }
+.times { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.transport { display: flex; align-items: center; justify-content: space-between; margin: 8px 2px 0; }
+.tb { width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center; font-size: 17px; background: #ffffff14; }
+.tb.play { width: 58px; height: 58px; border-radius: 29px; background: var(--text); color: #000; font-size: 22px; }
+.tb.skip { font-size: 11px; font-weight: 750; }
+.tb.dim { opacity: .35; }
+.toolbar { margin-top: auto; display: flex; justify-content: space-between; padding: 0 6px; }
+.tool { width: 30px; height: 30px; border-radius: 15px; display: grid; place-items: center; font-size: 13px; background: #ffffff14; color: var(--text); }
+.tool.on { background: var(--accent-soft); color: var(--accent); }
+.vol { position: absolute; right: -9px; top: 4px; width: 4px; height: 60px; border-radius: 2px; background: #ffffff26; }
+.vol > i { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 2px; background: var(--good); }
+.art { border-radius: 10px; background: linear-gradient(140deg, var(--art1), var(--art2)); flex: none; display: grid; place-items: center; font-size: 14px; }
+.row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 8px; margin-bottom: 4px; border-radius: 12px; background: var(--surface); }
+.row .grow { flex: 1; min-width: 0; }
+.row .r { font-size: 11px; color: var(--muted); }
+.row.cur { background: var(--accent-soft); }
+.sect { font-size: 11px; font-weight: 650; color: var(--muted); margin: 8px 4px 4px; text-transform: none; }
+.pill { height: 40px; border-radius: 20px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; font-weight: 650; background: var(--surface2); }
+.pill.primary { background: var(--accent); color: var(--accent-ink); }
+.pill.small { height: 34px; font-size: 12px; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.hero { border-radius: 16px; padding: 9px; background: linear-gradient(150deg, var(--art1), var(--art2) 70%); margin-bottom: 6px; }
+.hero .t1 { font-size: 14px; }
+.card { border-radius: 14px; background: var(--surface); padding: 10px; }
+.center { text-align: center; }
+.icon-big { font-size: 26px; margin-bottom: 4px; }
+.ring { width: 22px; height: 22px; border-radius: 11px; background: conic-gradient(var(--accent) var(--p), #ffffff26 0); display: grid; place-items: center; }
+.ring::after { content: ""; width: 16px; height: 16px; border-radius: 8px; background: var(--surface); }
+.aod { filter: brightness(.55) saturate(.6); }
+.big-type .t1 { font-size: 19px; white-space: normal; }
+.big-type .t2 { font-size: 15px; }
+.legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px 22px; margin-top: 14px; }
+.legend div { font-size: 12.5px; color: var(--muted); }
+.legend b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Platterhead on Apple Watch — redesign</h1>
+<p class="lead">Built around one rule: <b>the watch is a remote and a pocket player, not a library browser.</b>
+Now Playing is the home of the app. Every screen says where the audio comes out of, and when something fails it says what failed and gives you a button to fix it.
+The written spec is <code>../DESIGN.md</code>. Frames are a 45&nbsp;mm watch (198&nbsp;×&nbsp;242&nbsp;pt). The same kit is used for Voxglass; only the accent colour changes.</p>
+<div class="toc">
+  <a href="#home">1 · Home</a><a href="#np">2 · Now Playing</a><a href="#target">3 · Where it plays</a>
+  <a href="#states">4 · Honest states</a><a href="#browse">5 · Browse &amp; play</a><a href="#search">6 · Search</a>
+  <a href="#downloads">7 · Downloads</a><a href="#ambient">8 · Wrist-down, widgets, a11y</a>
+</div>
+
+<!-- =============================== 1 HOME =============================== -->
+<h2 id="home">1 · Home — Now Playing first, four doors after it</h2>
+<p class="note">Replaces the carousel list. The top card <i>is</i> the player in miniature and is always there when anything is playing on either device — including music started on the iPhone. Below it are exactly four destinations. The connection state is a quiet chip, not a banner pushing content down.</p>
+<div class="frames">
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt plain">Platterhead</div><div class="clock">10:09</div>
+    <div class="hero" style="--art1:#c9792f;--art2:#5b2338">
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="art" style="width:38px;height:38px;--art1:#f0b35c;--art2:#7a2c47">♪</div>
+        <div style="flex:1;min-width:0"><div class="t1">Tomorrow Never Knows</div><div class="t2" style="color:#ffffffb0">The Beatles</div></div>
+        <div class="tb" style="width:32px;height:32px;background:#ffffff33;font-size:13px">❚❚</div>
+      </div>
+      <div style="margin-top:7px;display:flex;justify-content:space-between;align-items:center">
+        <span class="chip" style="background:#00000040">📱 iPhone</span><div class="hair" style="flex:1;margin:0 0 0 8px;background:#ffffff40"><i style="width:38%"></i></div>
+      </div>
+    </div>
+    <div class="row"><span>🔍</span><div class="grow">Search</div></div>
+    <div class="row"><span>♫</span><div class="grow">Playlists</div><span class="r">24</span></div>
+  </div></div>
+  <div class="cap"><b>H1 · Connected, iPhone playing.</b> Hero card follows <i>whatever is playing</i>, on either device. Tap → Now Playing; ❚❚ toggles in place. Scroll for Albums, Downloads.<br><span class="id">watch.home · watch.nowPlaying</span></div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt plain">Platterhead</div><div class="clock">10:09</div>
+    <div class="row"><span>🔍</span><div class="grow">Search</div></div>
+    <div class="row"><span>♫</span><div class="grow">Playlists</div><span class="r">24</span></div>
+    <div class="row"><span>▣</span><div class="grow">Albums</div><span class="r">61</span></div>
+    <div class="row"><span>⌄</span><div class="grow">On This Watch<div class="t3">42 songs · 1.2 GB</div></div></div>
+    <div style="display:flex;justify-content:center;margin-top:6px"><span class="chip good"><span class="dot"></span>iPhone connected</span></div>
+  </div></div>
+  <div class="cap"><b>H2 · Scrolled.</b> Four doors, in this order, always. "On This Watch" replaces the Downloads → Playlists/Albums/Tracks/Storage maze. Connection chip sits at the end of the list, out of the way.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt plain">Platterhead</div><div class="clock">10:09</div>
+    <div style="display:flex;justify-content:center;margin-bottom:6px"><span class="chip warn"><span class="dot"></span>iPhone not nearby</span></div>
+    <div class="row"><span>🔍</span><div class="grow">Search This Watch</div></div>
+    <div class="row"><span>♫</span><div class="grow">Playlists<div class="t3">6 on this watch</div></div></div>
+    <div class="row"><span>▣</span><div class="grow">Albums<div class="t3">9 on this watch</div></div></div>
+    <div class="row"><span>⌄</span><div class="grow">On This Watch</div></div>
+  </div></div>
+  <div class="cap"><b>H3 · Phone away.</b> Same four doors, scoped to what's downloaded — the user never learns a second layout. The chip moves to the top only while it changes something (scope), and says so in words.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt plain">Platterhead</div><div class="clock">10:09</div>
+    <div class="card center" style="margin-top:10px">
+      <div class="icon-big">⌚︎</div>
+      <div class="t1" style="white-space:normal">Nothing on this watch yet</div>
+      <div class="t3" style="margin:4px 0 9px">Your iPhone is nearby — play from its library now, or download a playlist for runs.</div>
+      <div class="pill primary small">Browse iPhone</div>
+    </div>
+  </div></div>
+  <div class="cap"><b>H4 · First run.</b> Empty states always end in an action. Never a dead "No Playlists".</div></div>
+</div>
+
+<!-- =============================== 2 NOW PLAYING =============================== -->
+<h2 id="np">2 · Now Playing — one fixed screen, Crown is volume</h2>
+<p class="note">No scrolling, no sheet with "Close". It's a full-screen page pushed from Home (swipe back from the left edge). Artwork colours tint the background, so it doesn't need a large thumbnail. Controls are big round buttons: play/pause 58&nbsp;pt and skip 44&nbsp;pt (the current controls are bare 26&nbsp;pt glyphs). The Crown only changes volume, shown by the green bar on the right edge. A bottom toolbar holds everything secondary.</p>
+<div class="frames">
+  <div class="spec"><div class="watch"><div class="screen" style="padding:26px 12px 10px">
+    <div class="tint" style="--art1:#c9792f;--art2:#4a1c2e"></div>
+    <div class="np">
+      <div style="display:flex;justify-content:center"><span class="chip" style="background:#00000055">⌚︎ Apple Watch · AirPods Pro</span></div>
+      <div style="margin-top:9px" class="t1">Tomorrow Never Knows</div>
+      <div class="t2" style="color:#ffffffb3">The Beatles — Revolver</div>
+      <div class="hair"><i style="width:41%"></i></div>
+      <div class="times"><span>1:12</span><span>−1:46</span></div>
+      <div class="transport"><div class="tb">⏮</div><div class="tb play">❚❚</div><div class="tb">⏭</div></div>
+      <div class="toolbar" style="margin-top:8px"><div class="tool">⇄</div><div class="tool">☰</div><div class="tool">⋯</div></div>
+      <div class="vol"><i style="height:62%"></i></div>
+    </div>
+  </div></div>
+  <div class="cap"><b>N1 · On this watch.</b> Target chip names the actual output ("AirPods Pro"), not just the device. Toolbar: <b>⇄ Output</b> (system route picker), <b>☰ Up Next</b>, <b>⋯ More</b>. Double Tap = play/pause.<br><span class="id">watch.now.* (ids unchanged)</span></div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="tint" style="--art1:#2f6fc9;--art2:#1a2448"></div>
+    <div class="np">
+      <div style="display:flex;justify-content:center"><span class="chip" style="background:#00000055">📱 iPhone · Living Room</span></div>
+      <div style="margin-top:9px" class="t1">Teardrop</div>
+      <div class="t2" style="color:#ffffffb3">Massive Attack — Mezzanine</div>
+      <div class="hair"><i style="width:22%"></i></div>
+      <div class="times"><span>1:07</span><span>−4:22</span></div>
+      <div class="transport"><div class="tb">⏮</div><div class="tb play">▶</div><div class="tb">⏭</div></div>
+      <div class="toolbar" style="margin-top:8px"><div class="tool">⇄</div><div class="tool">☰</div><div class="tool">⋯</div></div>
+      <div class="vol"><i style="height:40%"></i></div>
+    </div>
+  </div></div>
+  <div class="cap"><b>N2 · On iPhone.</b> Identical layout — only the chip changes. Crown drives the <i>iPhone's</i> volume (new protocol message). Real artwork colours arrive from the phone with the snapshot.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt plain">More</div><div class="clock">10:09</div>
+    <div class="row"><span>📱</span><div class="grow">Play on iPhone<div class="t3">Moves playback, keeps your place</div></div></div>
+    <div class="row"><span>⌄</span><div class="grow">Download to Watch</div><div class="ring" style="--p:0%"></div></div>
+    <div class="split" style="margin-top:2px"><div class="pill small">⤮ Shuffle</div><div class="pill small" style="background:var(--accent-soft);color:var(--accent)">↻ All</div></div>
+    <div class="row" style="margin-top:6px"><span>▣</span><div class="grow">Go to Album</div></div>
+  </div></div>
+  <div class="cap"><b>N3 · More (⋯).</b> Switching device is a deliberate, named action — never implied by which list you came from. Shuffle/Repeat live here, not on the main face.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt plain">Up Next</div><div class="clock">10:09</div>
+    <div class="sect">Playing from Revolver · on Watch</div>
+    <div class="row cur"><span style="color:var(--accent)">▶︎</span><div class="grow"><div class="t1" style="font-size:13px">Tomorrow Never Knows</div></div></div>
+    <div class="row"><div class="art" style="width:28px;height:28px;--art1:#8aa;--art2:#334">♪</div><div class="grow">Taxman<div class="t3">2:39</div></div></div>
+    <div class="row"><div class="art" style="width:28px;height:28px;--art1:#a86;--art2:#432">♪</div><div class="grow">Eleanor Rigby<div class="t3">2:07</div></div></div>
+  </div></div>
+  <div class="cap"><b>N4 · Up Next.</b> Says where the queue plays. On the iPhone target, songs not on the watch keep a small "iPhone only" note — never hidden, never a surprise.</div></div>
+</div>
+
+<!-- =============================== 3 TARGET =============================== -->
+<h2 id="target">3 · Where it plays — the decision the old app hid</h2>
+<p class="note">Today the same tap might play on the watch (Downloads) or on the phone (Search, a phone playlist), and nothing tells you which. In the redesign, every play button names its destination. When both are possible, a one-tap choice appears once and is remembered.</p>
+<div class="frames">
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt">‹ Playlists</div><div class="clock">10:09</div>
+    <div class="t1" style="margin:2px 2px 6px">Late Night Drive</div>
+    <div class="pill primary">▶︎ Play on iPhone</div>
+    <div class="split" style="margin-top:6px"><div class="pill small">⤮ Shuffle</div><div class="pill small">⌚︎ On Watch</div></div>
+    <div class="t3 center" style="margin-top:6px">18 of 32 songs are on this watch</div>
+  </div></div>
+  <div class="cap"><b>T1 · Collection header.</b> Primary = the remembered target. The other target is the secondary pill, and says how much of the playlist it can actually play.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt plain">Play “Teardrop”</div><div class="clock">10:09</div>
+    <div class="row" style="min-height:52px"><span style="font-size:18px">📱</span><div class="grow"><div class="t1" style="font-size:14px">iPhone</div><div class="t3">Speakers or its headphones</div></div></div>
+    <div class="row" style="min-height:52px"><span style="font-size:18px">⌚︎</span><div class="grow"><div class="t1" style="font-size:14px">Apple Watch</div><div class="t3">AirPods Pro · downloaded</div></div></div>
+    <div class="t3 center" style="margin-top:4px">Asked once. Change any time in ⋯ More.</div>
+  </div></div>
+  <div class="cap"><b>T2 · First-time choice.</b> Shown only when both targets can play the item and no preference exists. A row is disabled with its reason when it can't play ("Not downloaded").</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="tint" style="--art1:#2f6fc9;--art2:#1a2448"></div>
+    <div class="np center" style="justify-content:center">
+      <div class="icon-big">📱</div>
+      <div class="t1">Starting on iPhone…</div>
+      <div class="t3" style="margin-top:4px">Teardrop · Massive Attack</div>
+      <div class="hair" style="margin:12px 20px 0"><i style="width:30%;background:var(--accent)"></i></div>
+    </div>
+  </div></div>
+  <div class="cap"><b>T3 · Hand-off in progress.</b> A play request always lands on Now Playing immediately — optimistic, then confirmed by the phone's snapshot (≤ 3 s) or replaced by S4.</div></div>
+</div>
+
+<!-- =============================== 4 STATES =============================== -->
+<h2 id="states">4 · Honest states — every failure names itself and offers a fix</h2>
+<p class="note">One <b>Problem Card</b> component: icon, a plain title, one sentence on what to do, one primary action, and the diagnostic code in small mono type at the bottom. It replaces the transport in place, so the screen doesn't jump. These states apply the repo's "no silent work" rule to playback.</p>
+<div class="frames">
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="np center">
+      <span class="chip" style="align-self:center">⌚︎ Apple Watch</span>
+      <div class="icon-big" style="margin-top:12px">🎧</div>
+      <div class="t1">Connect headphones</div>
+      <div class="t3" style="margin:4px 4px 10px">The watch plays long audio only through Bluetooth headphones or speakers.</div>
+      <div class="pill primary">Choose Output</div>
+    </div>
+  </div></div>
+  <div class="cap"><b>S1 · No output.</b> Only when <code>activate()</code> actually fails. Button opens the system picker; a spinner shows while it's up. Queue kept.<br><span class="id">activationRejected</span></div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="np">
+      <span class="chip" style="align-self:center">⌚︎ AirPods Pro</span>
+      <div style="margin-top:9px" class="t1">Tomorrow Never Knows</div><div class="t2">The Beatles</div>
+      <div class="hair"><i style="width:0"></i></div><div class="times"><span>0:00</span><span>−2:58</span></div>
+      <div class="card center" style="margin-top:8px;padding:8px"><div class="t1" style="font-size:13px">Audio didn't start</div>
+        <div class="pill small primary" style="margin-top:6px">Try Again</div>
+        <div class="mono" style="margin-top:5px">stalled-1-ToMinimizeStalls</div></div>
+    </div>
+  </div></div>
+  <div class="cap"><b>S2 · Stalled.</b> Title and progress stay put; only the transport swaps for the card. The code is what you read back to support/us.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="np">
+      <span class="chip" style="align-self:center">⌚︎ AirPods Pro</span>
+      <div style="margin-top:9px" class="t1">Tomorrow Never Knows</div><div class="t2">The Beatles</div>
+      <div class="hair"><i style="width:0"></i></div><div class="times"><span>0:00</span><span>−2:58</span></div>
+      <div class="transport"><div class="tb dim">⏮</div><div class="tb play" style="background:#ffffff26;color:var(--text);font-size:14px">◌</div><div class="tb dim">⏭</div></div>
+      <div class="t3 center" style="margin-top:6px">Loading from watch storage…</div>
+    </div>
+  </div></div>
+  <div class="cap"><b>S3 · Loading.</b> Play button becomes a spinner (never a pause icon before audio is confirmed). The line under it names the step: activating, loading, buffering.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="np center">
+      <span class="chip warn" style="align-self:center">📱 iPhone</span>
+      <div class="icon-big" style="margin-top:12px">📵</div>
+      <div class="t1">iPhone didn't start</div>
+      <div class="t3" style="margin:4px 4px 8px">It isn't reachable. Keep it nearby, or play the 18 downloaded songs here.</div>
+      <div class="split"><div class="pill small primary">Retry</div><div class="pill small">⌚︎ Watch</div></div>
+      <div class="mono" style="margin-top:5px">phoneUnavailable</div>
+    </div>
+  </div></div>
+  <div class="cap"><b>S4 · Phone refused / away.</b> Offers the alternative only when it's real (something downloaded). Shipped as a basic card in <code>980b90f</code>; this is its final form.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="np center">
+      <div class="icon-big" style="margin-top:10px">📱⤳⌚︎</div>
+      <div class="t1">iPhone went away</div>
+      <div class="t3" style="margin:4px 4px 8px">“Teardrop” is on this watch. Continue from 1:07?</div>
+      <div class="pill primary small">Continue on Watch</div>
+      <div class="t3" style="margin-top:6px">Keep waiting</div>
+    </div>
+  </div></div>
+  <div class="cap"><b>S5 · Continue on Watch.</b> Existing §7.5 behaviour, restyled. Never switches by itself.</div></div>
+</div>
+
+<!-- =============================== 5 BROWSE =============================== -->
+<h2 id="browse">5 · Browse &amp; play — three taps from wrist-raise to music</h2>
+<p class="note">Lists use the inset-grouped style with real artwork thumbnails (28&nbsp;pt) and one line of metadata. Each song row has one glyph showing where it plays: nothing if it plays on the target you're on, ⌄ if it's downloaded, and 📱 with a dimmed row if it's iPhone-only while you're on the watch target.</p>
+<div class="frames">
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt">‹ Home</div><div class="clock">10:09</div>
+    <div class="row"><div class="art" style="width:32px;height:32px;--art1:#f0b35c;--art2:#7a2c47">♪</div><div class="grow">Late Night Drive<div class="t3">32 songs · 18 on watch</div></div></div>
+    <div class="row"><div class="art" style="width:32px;height:32px;--art1:#6fd;--art2:#246">♪</div><div class="grow">Run Club<div class="t3">45 songs · all on watch</div></div><span style="color:var(--good)">⌄</span></div>
+    <div class="row"><div class="art" style="width:32px;height:32px;--art1:#c7a;--art2:#425">♪</div><div class="grow">Platterhead Mix<div class="t3">Made for you · 25</div></div></div>
+  </div></div>
+  <div class="cap"><b>B1 · Playlists.</b> Artwork + count + how much is on the watch. Fully-downloaded playlists get the ⌄.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt">‹ Late Night Drive</div><div class="clock">10:09</div>
+    <div class="row"><div class="grow">Nightcall<div class="t3">Kavinsky · 4:18</div></div></div>
+    <div class="row cur"><span style="color:var(--accent)">▶︎</span><div class="grow">Teardrop<div class="t3">Massive Attack · 5:29</div></div></div>
+    <div class="row"><div class="grow">Midnight City<div class="t3">M83 · 4:03</div></div><span style="color:var(--good)">⌄</span></div>
+    <div class="row" style="opacity:.45"><div class="grow">Genesis<div class="t3">Justice · iPhone only</div></div><span>📱</span></div>
+  </div></div>
+  <div class="cap"><b>B2 · Songs (target = iPhone shown, then Watch row dimmed).</b> Tapping a song plays it <i>in its list</i> on the current target and goes straight to Now Playing.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt">‹ Song</div><div class="clock">10:09</div>
+    <div class="t1" style="margin:2px">Genesis</div><div class="t2" style="margin:0 2px 8px">Justice</div>
+    <div class="pill">📱 Play on iPhone</div>
+    <div class="pill" style="margin-top:6px">⌄ Download to Watch</div>
+    <div class="pill" style="margin-top:6px">▣ Go to Album</div>
+  </div></div>
+  <div class="cap"><b>B3 · Long-press a song.</b> Context menu replaces dead "Manage on iPhone" alerts — the download request goes to the phone and shows its ring on the row.</div></div>
+</div>
+
+<!-- =============================== 6 SEARCH =============================== -->
+<h2 id="search">6 · Search — dictation first, results you can trust</h2>
+<p class="note">Opening Search opens dictation straight away (Scribble and keyboard are one tap away). Results are grouped into songs, albums and playlists, with the strongest match first. The screen never says "No results" without saying <i>where</i> it looked.</p>
+<div class="frames">
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt">‹ Home</div><div class="clock">10:09</div>
+    <div class="card" style="padding:8px 10px;margin-bottom:6px"><span class="t3">🎙 “teardrop”</span></div>
+    <div class="sect">Top result</div>
+    <div class="row"><div class="art" style="width:30px;height:30px;--art1:#2f6fc9;--art2:#1a2448">♪</div><div class="grow">Teardrop<div class="t3">Song · Massive Attack</div></div></div>
+    <div class="sect">Albums</div>
+    <div class="row"><div class="art" style="width:30px;height:30px;--art1:#456;--art2:#123">▣</div><div class="grow">Mezzanine<div class="t3">Massive Attack</div></div></div>
+  </div></div>
+  <div class="cap"><b>Q1 · Results.</b> Searches the iPhone library when connected, this watch when not — and says which in the field hint.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt">‹ Home</div><div class="clock">10:09</div>
+    <div class="card" style="padding:8px 10px;margin-bottom:10px"><span class="t3">🎙 “teardrop”</span></div>
+    <div class="card center"><div class="t1" style="font-size:13px">Nothing on this watch matches</div>
+      <div class="t3" style="margin:4px 0 8px">Your iPhone isn't reachable, so only the 42 downloaded songs were searched.</div>
+      <div class="pill small">Try iPhone Again</div></div>
+  </div></div>
+  <div class="cap"><b>Q2 · No results, explained.</b> Fixes the "No results no matter what" report: scope + reason + retry. A phone timeout is <i>never</i> shown as "No results".</div></div>
+</div>
+
+<!-- =============================== 7 DOWNLOADS =============================== -->
+<h2 id="downloads">7 · On This Watch — downloads you can see and stop</h2>
+<p class="note">One screen for everything downloaded and everything being downloaded. Active transfers are listed first, with real progress, what they're waiting on, and Stop. That meets the CLAUDE.md "visible, in the user's control" rule on the watch as well as the phone.</p>
+<div class="frames">
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt">‹ Home</div><div class="clock">10:09</div>
+    <div class="sect">Downloading · 3 of 12</div>
+    <div class="row"><div class="ring" style="--p:62%"></div><div class="grow">Run Club<div class="t3">Waiting for Wi-Fi · 9 songs</div></div></div>
+    <div class="split"><div class="pill small">Pause</div><div class="pill small" style="color:var(--bad)">Stop</div></div>
+    <div class="sect" style="margin-top:8px">On this watch · 1.2 GB</div>
+    <div class="row"><div class="art" style="width:28px;height:28px;--art1:#f0b35c;--art2:#7a2c47">♪</div><div class="grow">Late Night Drive<div class="t3">18 songs</div></div></div>
+  </div></div>
+  <div class="cap"><b>D1 · On This Watch.</b> Reason for waiting is specific (Wi-Fi, charging, phone locked, storage full). Pause/Stop on the same surface.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="navt">‹ On This Watch</div><div class="clock">10:09</div>
+    <div class="card"><div class="t3">Storage</div>
+      <div class="hair" style="height:6px"><i style="width:58%;background:var(--accent)"></i></div>
+      <div class="times"><span>1.2 GB music</span><span>0.9 GB free</span></div></div>
+    <div class="row" style="margin-top:6px"><div class="grow">Diagnostics<div class="t3">Last playback: stalled-1-…</div></div></div>
+    <div class="row"><div class="grow" style="color:var(--bad)">Remove All Downloads</div></div>
+  </div></div>
+  <div class="cap"><b>D2 · Storage &amp; diagnostics.</b> Diagnostics move here from a JSON dump to a readable last-event line + "Show codes".</div></div>
+</div>
+
+<!-- =============================== 8 AMBIENT =============================== -->
+<h2 id="ambient">8 · Wrist-down, Smart Stack, Double Tap, accessibility</h2>
+<p class="note">The details that make it feel at home on the watch.</p>
+<div class="frames">
+  <div class="spec"><div class="watch"><div class="screen aod">
+    <div class="tint" style="--art1:#6a3a14;--art2:#2a0c16"></div>
+    <div class="np">
+      <span class="chip" style="align-self:center;background:#0006">⌚︎ AirPods Pro</span>
+      <div style="margin-top:9px" class="t1">Tomorrow Never Knows</div><div class="t2">The Beatles</div>
+      <div class="times" style="margin-top:12px"><span>1:12</span><span></span></div>
+    </div>
+  </div></div>
+  <div class="cap"><b>A1 · Always On.</b> Dimmed: no scrubber, no seconds ticking, buttons hidden. Elapsed updates once a minute via <code>TimelineView(.everyMinute)</code>.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen">
+    <div class="clock" style="left:0;right:0;text-align:center;font-size:26px;top:16px">10:09</div>
+    <div class="hero" style="margin-top:46px;--art1:#c9792f;--art2:#4a1c2e">
+      <div style="display:flex;gap:8px;align-items:center"><div class="art" style="width:34px;height:34px;--art1:#f0b35c;--art2:#7a2c47">♪</div>
+      <div style="flex:1;min-width:0"><div class="t1" style="font-size:13px">Tomorrow Never Knows</div><div class="t3" style="color:#fffb">⌚︎ Watch · 1:12</div></div><div class="tb" style="width:30px;height:30px;background:#fff3;font-size:12px">❚❚</div></div>
+    </div>
+    <div class="card" style="opacity:.5;height:46px"></div>
+  </div></div>
+  <div class="cap"><b>A2 · Smart Stack widget.</b> WidgetKit <code>.accessoryRectangular</code> with an interactive play/pause (App Intent already exists: <code>WatchPlaybackIntents</code>). Relevance rises while playing.</div></div>
+
+  <div class="spec"><div class="watch"><div class="screen big-type">
+    <div class="np">
+      <span class="chip" style="align-self:center">⌚︎ Watch</span>
+      <div style="margin-top:8px" class="t1">Tomorrow Never Knows</div>
+      <div class="transport" style="margin-top:auto;justify-content:center;gap:10px"><div class="tb">⏮</div><div class="tb play">❚❚</div><div class="tb">⏭</div></div>
+      <div class="toolbar" style="margin-top:8px"><div class="tool">⇄</div><div class="tool">☰</div><div class="tool">⋯</div></div>
+    </div>
+  </div></div>
+  <div class="cap"><b>A3 · AX text size.</b> Artist line and times drop first; title wraps to 2 lines; transport never shrinks below 44 pt. VoiceOver reads "Now playing on Apple Watch through AirPods Pro".</div></div>
+</div>
+
+<div class="legend">
+  <div><b>Double Tap</b> (Series 9+/Ultra 2): <code>.handGestureShortcut(.primaryAction)</code> on play/pause in Now Playing and on the Home hero.</div>
+  <div><b>Haptics:</b> <code>.click</code> on transport, <code>.success</code> on download complete, <code>.failure</code> once when a Problem Card appears.</div>
+  <div><b>Motion:</b> tint cross-fades over 0.35 s on track change; Reduce Motion = instant.</div>
+  <div><b>Crown:</b> volume only on Now Playing; lists scroll. Never both on one screen.</div>
+</div>
+</div>
+</body>
+</html>
