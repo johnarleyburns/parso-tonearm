@@ -45,9 +45,9 @@ struct WatchSearchView: View {
         switch presenter.phase {
         case .recent(let queries):
             if queries.isEmpty {
-                Text(chrome.showsConnectedFeatures
-                     ? "Say a song, album or playlist. Searches your iPhone library."
-                     : "Say a song or artist. Searches the music on this watch.")
+                (chrome.showsConnectedFeatures
+                     ? Text("Say a song, album or playlist. Searches your iPhone library.")
+                     : Text("Say a song or artist. Searches the music on this watch."))
                     .font(.caption2).foregroundStyle(.secondary)
                     .listRowBackground(Color.clear)
             } else {
@@ -66,7 +66,7 @@ struct WatchSearchView: View {
                 .listRowBackground(Color.clear)
 
         case .loading:
-            HStack { ProgressView(); Text(chrome.showsConnectedFeatures ? "Searching iPhone…" : "Searching…").font(.caption2) }
+            HStack { ProgressView(); (chrome.showsConnectedFeatures ? Text("Searching iPhone…") : Text("Searching…")).font(.caption2) }
                 .accessibilityIdentifier("watch.search.loading")
                 .listRowBackground(Color.clear)
 

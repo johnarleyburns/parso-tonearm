@@ -371,7 +371,11 @@ struct WatchCollectionDetailView: View {
             .accessibilityIdentifier("watch.collection.playPhone")
         case .thisWatch?:
             Button { perform(target: .thisWatch, startID: nil, shuffled: false) } label: {
-                Label(chrome.showsConnectedFeatures ? "Play on Watch" : "Play", systemImage: "play.fill")
+                if chrome.showsConnectedFeatures {
+                    Label("Play on Watch", systemImage: "play.fill")
+                } else {
+                    Label("Play", systemImage: "play.fill")
+                }
             }
             .buttonStyle(.watchPrimary)
             .accessibilityIdentifier("watch.collection.playLocal")

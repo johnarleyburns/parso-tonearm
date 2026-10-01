@@ -8,6 +8,8 @@ struct WatchTransportButton: View {
     enum Role { case primary, side }
 
     let systemImage: String
+    /// Required: an icon-only control is always labelled for VoiceOver.
+    let label: Text
     var role: Role = .side
     var isBusy = false
     var isEnabled = true
@@ -33,6 +35,7 @@ struct WatchTransportButton: View {
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
         .disabled(!isEnabled || isBusy)
         .opacity(isEnabled ? 1 : 0.35)
     }
@@ -45,6 +48,8 @@ struct WatchTransportButton: View {
 /// A 30 pt round toolbar button for the Now Playing bottom bar (Output · Up Next · More).
 struct WatchToolButton: View {
     let systemImage: String
+    /// Required: an icon-only control is always labelled for VoiceOver.
+    let label: Text
     var isOn = false
     let action: () -> Void
 
@@ -58,5 +63,6 @@ struct WatchToolButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }

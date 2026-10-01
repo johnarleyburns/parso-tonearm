@@ -42,7 +42,7 @@ struct WatchStorageView: View {
                 HStack(spacing: 6) {
                     Image(systemName: model.phoneReachable ? "iphone.radiowaves.left.and.right" : "iphone.slash")
                         .foregroundStyle(model.phoneReachable ? WatchPalette.success : .secondary)
-                    Text(model.phoneReachable ? "Connected" : "Not reachable")
+                    (model.phoneReachable ? Text("Connected") : Text("Not reachable"))
                 }
                 .watchCardRow()
                 .accessibilityIdentifier("watch.connection.status")

@@ -86,7 +86,7 @@ struct WatchNowPlayingView: View {
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: tintKey)
             .accessibilityElement()
             .accessibilityIdentifier("watch.now.artwork")
-            .accessibilityLabel(Text(hasArtwork ? "Artwork" : "No artwork"))
+            .accessibilityLabel((hasArtwork ? Text("Artwork") : Text("No artwork")))
     }
 
     private var hasArtwork: Bool {
@@ -270,20 +270,18 @@ struct WatchNowPlayingView: View {
     private func transport(isPlaying: Bool, isBusy: Bool, previous: @escaping () -> Void,
                            toggle: @escaping () -> Void, next: @escaping () -> Void) -> some View {
         HStack {
-            WatchTransportButton(systemImage: "backward.fill", action: previous)
+            WatchTransportButton(systemImage: "backward.fill", label: Text("Previous"), action: previous)
                 .accessibilityIdentifier("watch.now.previous")
-                .accessibilityLabel(Text("Previous"))
             Spacer(minLength: 4)
-            WatchTransportButton(systemImage: isPlaying ? "pause.fill" : "play.fill", role: .primary,
+            WatchTransportButton(systemImage: isPlaying ? "pause.fill" : "play.fill",
+                                 label: isPlaying ? Text("Pause") : Text("Play"), role: .primary,
                                  isBusy: isBusy, action: toggle)
                 .accessibilityIdentifier("watch.now.playPause")
-                .accessibilityLabel(Text(isPlaying ? "Pause" : "Play"))
                 .accessibilityValue(isPlaying ? "playing" : "paused")
                 .handGestureShortcut(.primaryAction)
             Spacer(minLength: 4)
-            WatchTransportButton(systemImage: "forward.fill", action: next)
+            WatchTransportButton(systemImage: "forward.fill", label: Text("Next"), action: next)
                 .accessibilityIdentifier("watch.now.next")
-                .accessibilityLabel(Text("Next"))
         }
         .padding(.horizontal, 2)
         .padding(.top, 2)
@@ -365,8 +363,7 @@ struct WatchNowPlayingView: View {
         }
         if !isLuminanceReduced {
             ToolbarItemGroup(placement: .bottomBar) {
-                WatchToolButton(systemImage: "airplayaudio") { showingOutput = true }
-                    .accessibilityLabel(Text("Output"))
+                WatchToolButton(systemImage: "airplayaudio", label: Text("Output")) { showingOutput = true }
                     .accessibilityIdentifier("watch.now.output")
                 Spacer()
                 NavigationLink { WatchUpNextView() } label: {

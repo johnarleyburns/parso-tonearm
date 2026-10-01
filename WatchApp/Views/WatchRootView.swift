@@ -173,7 +173,7 @@ struct WatchHomeHero: View {
                         .background(Circle().fill(Color.white.opacity(0.22)))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(Text(hero.isPlaying ? "Pause" : "Play"))
+                .accessibilityLabel((hero.isPlaying ? Text("Pause") : Text("Play")))
                 .accessibilityIdentifier("watch.home.heroPlayPause")
                 .handGestureShortcut(.primaryAction)
             }

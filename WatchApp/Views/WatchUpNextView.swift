@@ -86,7 +86,7 @@ struct WatchUpNextView: View {
             if isCurrent {
                 Image(systemName: isPlaying ? "play.fill" : "pause.fill")
                     .font(.caption2).foregroundStyle(WatchPalette.accent)
-                    .accessibilityLabel(Text(isPlaying ? "Now playing" : "Paused here"))
+                    .accessibilityLabel((isPlaying ? Text("Now playing") : Text("Paused here")))
             } else {
                 WatchArtTile(tint: WatchArtTint.color(for: title), size: 28)
             }
