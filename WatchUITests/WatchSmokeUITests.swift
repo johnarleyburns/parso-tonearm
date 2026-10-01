@@ -33,6 +33,7 @@ final class WatchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["watch.root"].waitForExistence(timeout: 10)
                       || app.collectionViews.firstMatch.waitForExistence(timeout: 10),
                       "Root never rendered")
+        snapshot(app, "H1-home")
 
         // The search surface opens with its field. (watchOS full-screen text entry is not
         // scriptable in XCUITest; the typed-query state machine is host-covered by
@@ -42,6 +43,7 @@ final class WatchSmokeUITests: XCTestCase {
         search.tap()
         XCTAssertTrue(app.textFields["watch.search.field"].waitForExistence(timeout: 8),
                       "Search field never appeared")
+        snapshot(app, "Q1-search")
         popToRoot(app)
 
         // A downloaded track, iPhone not connected (the simulator has no paired phone): find it in
@@ -54,9 +56,11 @@ final class WatchSmokeUITests: XCTestCase {
         openRootRow(app, identifier: "watch.downloads", named: "On This Watch")
         let songs = app.buttons["watch.songs"]
         XCTAssertTrue(reveal(songs, in: app), "On This Watch did not render the Songs row")
+        snapshot(app, "D1-on-this-watch")
         songs.tap()
         let track = firstMatch(in: app, identifierPrefix: "watch.track.")
         XCTAssertTrue(track.waitForExistence(timeout: 15), "Seeded track row never appeared")
+        snapshot(app, "T1-songs")
         track.tap()
         let trackStarted = assertPlaybackStartsThenStops(
             app, context: "a downloaded track (no iPhone)",
@@ -71,6 +75,7 @@ final class WatchSmokeUITests: XCTestCase {
         album.tap()
         let playAll = app.buttons["watch.collection.playLocal"]
         XCTAssertTrue(playAll.waitForExistence(timeout: 10), "Album detail had no Play All")
+        snapshot(app, "T2-album")
         playAll.tap()
         let albumStarted = assertPlaybackStartsThenStops(
             app, context: "the Albums list",
@@ -141,6 +146,7 @@ final class WatchSmokeUITests: XCTestCase {
         XCTAssertTrue(reveal(chip, in: app), "Now Playing chip vanished after Close")
         XCTAssertTrue(waitForValue(chip, equals: "playing", timeout: 8),
                       "Close stopped playback — it must only dismiss the sheet")
+        snapshot(app, "H2-home-playing")
 
         // Exit the app while a session is live; it must terminate cleanly.
         app.terminate()
@@ -232,6 +238,7 @@ final class WatchSmokeUITests: XCTestCase {
                           "Playback time did not advance for \(context)")
         }
 
+        snapshot(app, "N1-now-playing-\(context.prefix(12))")
         // The Now Playing screen renders real content: the artwork frame.
         XCTAssertTrue(app.images["watch.now.artwork"].waitForExistence(timeout: 5)
                       || app.otherElements["watch.now.artwork"].exists,
@@ -255,6 +262,14 @@ final class WatchSmokeUITests: XCTestCase {
                            + "playback did not actually stop")
         }
         return true
+    }
+
+    /// Screenshot per mockup state, for the watch-redesign fidelity audit (docs/plans/watch-redesign).
+    private func snapshot(_ app: XCUIApplication, _ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func elapsedString(_ app: XCUIApplication) -> String {
@@ -343,7 +358,7 @@ final class WatchSmokeUITests: XCTestCase {
     }
 
     private func closeNowPlaying(_ app: XCUIApplication) {
-        let close = app.buttons["Close"]
+        let close = app.buttons["Close"].firstMatch
         if close.exists { close.tap() } else { app.navigationBars.buttons.firstMatch.tap() }
     }
 

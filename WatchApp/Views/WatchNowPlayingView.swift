@@ -31,11 +31,18 @@ struct WatchNowPlayingView: View {
             background
             VStack(spacing: 4) {
                 chip
-                if showsDebugOverlay { debugPlaybackState }
                 content
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 4)
+            // The close button and the clock share the top row; the chip gets its own row below
+            // them (mockup N1) instead of sliding under both.
+            .padding(.top, 8)
+        }
+        // UI-test diagnostics stay readable to XCUITest without taking layout space, so the
+        // screen under test is the screen users see.
+        .background(alignment: .top) {
+            if showsDebugOverlay { debugPlaybackState.opacity(0.05).allowsHitTesting(false) }
         }
         .focusable(crownEnabled)
 #if os(watchOS)
@@ -270,17 +277,19 @@ struct WatchNowPlayingView: View {
     private func transport(isPlaying: Bool, isBusy: Bool, previous: @escaping () -> Void,
                            toggle: @escaping () -> Void, next: @escaping () -> Void) -> some View {
         HStack {
-            WatchTransportButton(systemImage: "backward.fill", label: Text("Previous"), action: previous)
+            WatchTransportButton(systemImage: "backward.fill", label: Text("Previous"),
+                                 diameterOverride: 40, action: previous)
                 .accessibilityIdentifier("watch.now.previous")
             Spacer(minLength: 4)
             WatchTransportButton(systemImage: isPlaying ? "pause.fill" : "play.fill",
                                  label: isPlaying ? Text("Pause") : Text("Play"), role: .primary,
-                                 isBusy: isBusy, action: toggle)
+                                 isBusy: isBusy, diameterOverride: 50, action: toggle)
                 .accessibilityIdentifier("watch.now.playPause")
                 .accessibilityValue(isPlaying ? "playing" : "paused")
                 .handGestureShortcut(.primaryAction)
             Spacer(minLength: 4)
-            WatchTransportButton(systemImage: "forward.fill", label: Text("Next"), action: next)
+            WatchTransportButton(systemImage: "forward.fill", label: Text("Next"),
+                                 diameterOverride: 40, action: next)
                 .accessibilityIdentifier("watch.now.next")
         }
         .padding(.horizontal, 2)
