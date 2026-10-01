@@ -9,8 +9,18 @@ extension AppState {
         guard let id = playlist.id else { return }
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        try? await store.renamePlaylist(id: id, title: name)
-        await reload()
+        do {
+            try await store.renamePlaylist(id: id, title: name)
+            // Playlist list mutations must not trigger a full catalog reload
+            // while SwiftUI's List is reconciling its rows. The old reload
+            // path is the stack captured in the field crash report.
+            if let index = playlists.firstIndex(where: { $0.id == id }) {
+                playlists[index].title = name
+            }
+            WidgetSnapshotPublisher.publish(appState: self, player: AudioPlayer.shared)
+        } catch {
+            AppLogger.app.error("Renaming playlist \(id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     func reorderPlaylist(_ playlist: Playlist, from source: Int, to destination: Int) async {

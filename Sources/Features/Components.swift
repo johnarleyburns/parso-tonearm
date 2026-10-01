@@ -5,6 +5,7 @@ struct ScreenHeader: View {
     let title: String
     var showAdd = true
     var addAction: (() -> Void)? = nil
+    var addAccessibilityIdentifier: String? = nil
     @EnvironmentObject var appState: AppState
 
     var body: some View {
@@ -24,6 +25,7 @@ struct ScreenHeader: View {
                         .glassSurface(cornerRadius: 16.5)
                 }
                 .accessibilityLabel("Add")
+                .accessibilityIdentifier(addAccessibilityIdentifier ?? "")
             }
         }
         .padding(.horizontal, 2)

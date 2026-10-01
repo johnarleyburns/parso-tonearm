@@ -472,4 +472,43 @@ final class KeepPlayingTests: XCTestCase {
         XCTAssertFalse(player.isPlaying)
         XCTAssertFalse(player.isWaitingForKeepPlayingToResume)
     }
+
+    /// A playlist is a starting scope, not a hard stop for Keep Playing. Once
+    /// every playlist item has been consumed, the fallback must be able to
+    /// choose an eligible track from the rest of the library instead of
+    /// returning the already-exhausted playlist and producing dead air.
+    func testPlaylistKeepPlayingContinuesFromTheLibraryAfterPlaylistEnds() async throws {
+        let store = LibraryStore.shared
+        let source = try await store.insertSource(Source(
+            id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
+            title: "Keep Playing Playlist Fixture \(UUID().uuidString)",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
+        let sourceID = try XCTUnwrap(source.id)
+        let first = try await store.insertTrack(Track(
+            id: nil, albumId: nil, sourceId: sourceID, title: "Playlist Start",
+            trackNo: 1, discNo: nil, durationSec: 120, codec: "MP3",
+            sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "fixture-1"))
+        let continuation = try await store.insertTrack(Track(
+            id: nil, albumId: nil, sourceId: sourceID, title: "Library Continuation",
+            trackNo: 2, discNo: nil, durationSec: 120, codec: "MP3",
+            sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "fixture-2"))
+        let firstID = try XCTUnwrap(first.id)
+        let continuationID = try XCTUnwrap(continuation.id)
+        let playlist = try await store.createManualPlaylist(
+            title: "Keep Playing Fixture \(UUID().uuidString)", trackIds: [firstID])
+        let playlistRows = try await store.playlistItems(playlistId: try XCTUnwrap(playlist.id))
+
+        let player = AudioPlayer.shared
+        playWithoutAutoExtending(player, tracks: playlistRows, startAt: 0)
+        player.queueSource = .playlist(playlist)
+        player.keepPlayingProvider = nil
+        await player.extendKeepPlayingQueueForTesting()
+
+        XCTAssertTrue(player.queue.contains { $0.id == continuationID },
+                      "Keep Playing must continue beyond an exhausted playlist")
+
+        try? await store.deletePlaylist(id: try XCTUnwrap(playlist.id))
+        try? await store.deleteSource(id: sourceID)
+    }
 }

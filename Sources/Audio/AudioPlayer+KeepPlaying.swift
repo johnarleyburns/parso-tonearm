@@ -233,8 +233,13 @@ extension AudioPlayer {
             guard let sourceId = source.id else { return (try? await LibraryStore.shared.allTrackRows()) ?? [] }
             return (try? await LibraryStore.shared.tracks(forSource: sourceId)) ?? []
         case .playlist(let playlist):
-            guard let playlistId = playlist.id else { return (try? await LibraryStore.shared.allTrackRows()) ?? [] }
-            return (try? await LibraryStore.shared.playlistItems(playlistId: playlistId)) ?? []
+            // A playlist is the queue's starting scope, not a boundary for
+            // Keep Playing. Once every playlist item is excluded, using the
+            // same playlist as the fallback pool guarantees dead air. Broaden
+            // to the library; the exclusion set still prevents repeats of
+            // every played and queued track.
+            _ = playlist
+            return (try? await LibraryStore.shared.allTrackRows()) ?? []
         case .mix, .library, .none, .mood, .continuation:
             // A mood queue's own extension is handled entirely above
             // (re-running the mood query) — this generic fallback pool is

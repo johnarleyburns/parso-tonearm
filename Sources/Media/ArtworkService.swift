@@ -357,9 +357,16 @@ actor ArtworkService {
             artworkId = nil
         }
         guard let url else { return nil }
-        let key = artworkId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-            ? artworkId!
-            : "remote-artwork-\(url.absoluteString)"
+        let key: String
+        if let artworkId,
+           !artworkId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            key = artworkId
+        } else {
+            // Imported IA/Jamendo rows can legitimately have a URL without a
+            // provider artwork id.  The URL is still a stable cache key; never
+            // force-unwrap the optional id on this path.
+            key = "remote-artwork-\(url.absoluteString)"
+        }
         if let cached = memCache.object(forKey: key as NSString) {
             return cached === Self.notFoundSentinel ? nil : (cached, true)
         }

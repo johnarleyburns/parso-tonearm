@@ -17,4 +17,18 @@ final class MyMusicFilterTests: XCTestCase {
         XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: 145, camelotKey: "8B")))
         XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: 130, camelotKey: "2A")))
     }
+
+    func testMixPresetRangeIsAppliedAsAnExplicitGenreRange() {
+        let filter = MyMusicFilter(mixBPMRange: 120...130)
+        XCTAssertTrue(filter.matches(DJLoadTrackInfo(bpm: 120, camelotKey: nil)))
+        XCTAssertTrue(filter.matches(DJLoadTrackInfo(bpm: 130, camelotKey: nil)))
+        XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: 131, camelotKey: nil)))
+        XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: nil, camelotKey: nil)))
+    }
+
+    func testMixKeyCanBeSelectedWithoutABPMPreset() {
+        let filter = MyMusicFilter(mixKey: "8A")
+        XCTAssertTrue(filter.matches(DJLoadTrackInfo(bpm: nil, camelotKey: "8B")))
+        XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: nil, camelotKey: "2A")))
+    }
 }

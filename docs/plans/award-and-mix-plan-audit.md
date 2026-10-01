@@ -32,6 +32,16 @@ device, a native speaker, or App Store Connect access.
 - iOS/watchOS build and test runners are single-flight and sequential. The
   policy is recorded in `CLAUDE.md`, and all local xcodebuild lanes disable
   parallel testing.
+- The 2026-09-30 playlist crashpoint was traced to playlist mutations calling
+  `AppState.reload()` while SwiftUI was reconciling playlist rows; the
+  resulting GRDB `DatabaseRegion.union` abort is removed by targeted playlist
+  state updates, rollback-on-write-failure, and playlist deletion regression
+  coverage. The same report contained no `ArtworkService` or Internet
+  Archive frame; the IA artwork force-unwrap was separately removed.
+- Sound Index status now has a non-blocking timeout race, so a stalled SQLite
+  read cannot hold the screen on its initial spinner forever. Build Mix waits
+  for its real BPM/key/energy/embedding candidates before planning and shows
+  an actionable empty result when analysis is unavailable.
 
 ## Explicit release gates
 

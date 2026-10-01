@@ -43,6 +43,9 @@ struct MixBuilderSheet: View {
     @State private var duration: TimeInterval?
     @State private var plan: MixPlan?
     @State private var isLoading = false
+    @State private var candidates: [MixCandidate] = []
+    @State private var didLoadCandidates = false
+    @State private var generationMessage: String?
 
     init(rows: [TrackRow], lockedFirst: Int64? = nil, sourcePlaylist: Playlist? = nil) {
         self.rows = rows
@@ -87,8 +90,17 @@ struct MixBuilderSheet: View {
                 }
                 if let plan {
                     Section("Preview") {
-                        NavigationLink("Review \(plan.steps.count) tracks") {
-                            MixPreviewView(plan: plan, rows: rows, sourcePlaylist: sourcePlaylist)
+                        if plan.steps.isEmpty {
+                            Label(
+                                generationMessage ?? "No compatible tracks were found yet.",
+                                systemImage: "exclamationmark.circle"
+                            )
+                            .font(Typography.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                        } else {
+                            NavigationLink("Review \(plan.steps.count) tracks") {
+                                MixPreviewView(plan: plan, rows: rows, sourcePlaylist: sourcePlaylist)
+                            }
                         }
                     }
                 }
@@ -105,8 +117,6 @@ struct MixBuilderSheet: View {
         }
         .presentationDetents([.medium, .large])
     }
-
-    @State private var candidates: [MixCandidate] = []
 
     private func loadCandidates() async {
         let ids = rows.compactMap(\.track.id)
@@ -126,15 +136,32 @@ struct MixBuilderSheet: View {
                                        embedding: embedding))
         }
         candidates = loaded
+        didLoadCandidates = true
     }
 
     private func generate() {
         isLoading = true
-        let request = MixRequest(candidates: candidates, shape: shape, targetDuration: duration,
-                                 lockedFirst: lockedFirst,
-                                 seed: UInt64(Date().timeIntervalSince1970))
-        plan = MixPlanner.plan(request)
-        isLoading = false
+        generationMessage = nil
+        Task {
+            // The source rows arrive before the async DJ/discovery metadata.
+            // Previously a fast tap generated a plan from an empty candidate
+            // array, left no preview to navigate to, and appeared to do
+            // nothing. Finish the real load before planning.
+            if !didLoadCandidates {
+                await loadCandidates()
+            }
+            let request = MixRequest(candidates: candidates, shape: shape, targetDuration: duration,
+                                     lockedFirst: lockedFirst,
+                                     seed: UInt64(Date().timeIntervalSince1970))
+            let generated = MixPlanner.plan(request)
+            plan = generated
+            if generated.steps.isEmpty {
+                generationMessage = rows.isEmpty
+                    ? "Add music to your library before building a mix."
+                    : "No tracks have usable BPM and Camelot analysis yet. Prepare the Sound Index, then generate again."
+            }
+            isLoading = false
+        }
     }
 }
 

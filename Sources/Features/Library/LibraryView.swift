@@ -20,18 +20,20 @@ struct LibraryView: View {
     private let filter: MyMusicFilter
     private let searchRows: [TrackRow]?
     private let searchRowsRevision: Int
+    private let showsSearchField: Bool
     @State private var renderedSections: [LibraryBrowse.Section] = []
     @State private var renderedPlaybackRows: [TrackRow] = []
     @State private var isRendering = true
 
     init(ownsNavigationStack: Bool = true, externalMode: Binding<LibraryBrowseMode>? = nil,
          filter: MyMusicFilter = .init(), searchRows: [TrackRow]? = nil,
-         searchRowsRevision: Int = 0) {
+         searchRowsRevision: Int = 0, showsSearchField: Bool = true) {
         self.ownsNavigationStack = ownsNavigationStack
         self.externalMode = externalMode
         self.filter = filter
         self.searchRows = searchRows
         self.searchRowsRevision = searchRowsRevision
+        self.showsSearchField = showsSearchField
     }
 
     private var mode: LibraryBrowseMode {
@@ -68,9 +70,11 @@ struct LibraryView: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             ScreenHeader(title: "Music")
-                            SearchField(text: $appState.searchText, placeholder: "Search all your music…")
-                                .padding(.top, 12)
-                                .padding(.bottom, 12)
+                            if showsSearchField {
+                                SearchField(text: $appState.searchText, placeholder: "Search all your music…")
+                                    .padding(.top, 12)
+                                    .padding(.bottom, 12)
+                            }
 
                             if externalMode == nil {
                                 Picker("Music View", selection: Binding(get: { mode }, set: { mode = $0 })) {

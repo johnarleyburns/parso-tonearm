@@ -28,7 +28,7 @@
 		1A0ED14038DAB24DEC322BEC /* UpNextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42E2045814F52BC75F1609F /* UpNextView.swift */; };
 		1C9FB19F6571B100C8C147EF /* AppState+LibraryExtras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC6ECC4D448840D7EC71C72 /* AppState+LibraryExtras.swift */; };
 		1F2AB3D61BDA2B5565075215 /* ParsoDJEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 551ED4CBE7B235659C23A496 /* ParsoDJEngine */; };
-		2011F46F371763CE2AFCB2D8 /* DiscoverySearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3CB0F1AAE5D512A11B85645 /* DiscoverySearchView.swift */; };
+		2B6A5FD8BDF347DD9F2D6A11 /* MyMusicSearchControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9D43C7E1B04F8AA2F2DBB0 /* MyMusicSearchControls.swift */; };
 		203E3F04A4D7C7663CDB3FC0 /* SupportDevelopmentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */; };
 		20D5A855403EB09E6559E3D9 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 3097F3784760CBFAB786AA5E /* Localizable.xcstrings */; };
 		23DB81AAAF14CD685C279F8F /* mel_filterbank_slaney_64.bin in Resources */ = {isa = PBXBuildFile; fileRef = 39DCFD0118F0838F83219F22 /* mel_filterbank_slaney_64.bin */; };
@@ -419,7 +419,7 @@
 		AE88E0E38F38D3267A0EBF38 /* Tonearm.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.entitlements; sourceTree = "<group>"; };
 		AF4C2C74CE7D4768E86F3D57 /* AppState+BuiltInMoodIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+BuiltInMoodIndex.swift"; sourceTree = "<group>"; };
 		AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WidgetArtworkStore+Save.swift"; sourceTree = "<group>"; };
-		B3CB0F1AAE5D512A11B85645 /* DiscoverySearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoverySearchView.swift; sourceTree = "<group>"; };
+		4F9D43C7E1B04F8AA2F2DBB0 /* MyMusicSearchControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyMusicSearchControls.swift; sourceTree = "<group>"; };
 		B47DD3B84A16E9E29F467F25 /* IndexStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexStatusView.swift; sourceTree = "<group>"; };
 		B89D48292A9F33EF6D60C975 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		B8EB48574C2697BB77C636A0 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
@@ -732,6 +732,7 @@
 		58F33C3FDDB02D5E12DC179E /* MyMusic */ = {
 			isa = PBXGroup;
 			children = (
+				4F9D43C7E1B04F8AA2F2DBB0 /* MyMusicSearchControls.swift */,
 				95AC01A007801264AC4194EA /* MyMusicView.swift */,
 			);
 			path = MyMusic;
@@ -768,7 +769,6 @@
 		783C876BA31DC0198FCAA1A1 /* Discovery */ = {
 			isa = PBXGroup;
 			children = (
-				B3CB0F1AAE5D512A11B85645 /* DiscoverySearchView.swift */,
 				0F19092FD2541A8590FF65C4 /* IndexStatusModel.swift */,
 				B47DD3B84A16E9E29F467F25 /* IndexStatusView.swift */,
 			);
@@ -1461,7 +1461,6 @@
 				BEC4C5E175FF3277F27256EE /* DiscoveryModelResources.swift in Sources */,
 				6A4CC1BB5F8EE6D574CDE305 /* DiscoveryRuntimeController.swift in Sources */,
 				412CF624F006711FA4CB497F /* DiscoverySchedulingSampler.swift in Sources */,
-				2011F46F371763CE2AFCB2D8 /* DiscoverySearchView.swift in Sources */,
 				F1FEBCEF7BC2546437362B1D /* EQView.swift in Sources */,
 				FBE3EA391AE32FF87C23FB82 /* EditTrackMetadataSheet.swift in Sources */,
 				B38E5316DDFA37A958571C45 /* GenrePickerModel.swift in Sources */,
@@ -1480,6 +1479,7 @@
 				AAD287FF1055A8EE2BE162D8 /* MoodPillPicker.swift in Sources */,
 				54052145F86597F7589FD823 /* Motion.swift in Sources */,
 				EEE6E8921715330311F4642B /* MyMusicView.swift in Sources */,
+				2B6A5FD8BDF347DD9F2D6A11 /* MyMusicSearchControls.swift in Sources */,
 				30487CE5289BB55F2472813F /* NowPlayingView.swift in Sources */,
 				2AF3605F104466A0A619CC31 /* OAuthClientConfiguration.swift in Sources */,
 				34532A4505591A95D2765EFF /* OAuthSignInCoordinator.swift in Sources */,

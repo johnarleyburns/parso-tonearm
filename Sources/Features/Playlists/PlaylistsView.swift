@@ -10,6 +10,7 @@ struct PlaylistsView: View {
     private let ownsNavigationStack: Bool
     @State private var showLocalCreate = false
     @State private var playlistToRename: Playlist?
+    @State private var playlistToDelete: Playlist?
     @State private var renameTitle = ""
     @State private var pinnedIds: Set<Int64> = PinnedPlaylistsStore.pinnedIds()
 
@@ -46,11 +47,13 @@ struct PlaylistsView: View {
     @ViewBuilder
     private var content: some View {
             VStack(alignment: .leading, spacing: 0) {
-                ScreenHeader(title: "Playlists") {
-                    if presentsCreateSheetLocally { showLocalCreate = true }
-                    else { appState.showCreatePlaylist = true }
-                }
-                    .accessibilityIdentifier("playlists.create")
+                ScreenHeader(
+                    title: "Playlists",
+                    addAction: {
+                        if presentsCreateSheetLocally { showLocalCreate = true }
+                        else { appState.showCreatePlaylist = true }
+                    },
+                    addAccessibilityIdentifier: "playlists.create")
                     .padding(.horizontal, 18)
                     .padding(.bottom, 12)
 
@@ -113,14 +116,14 @@ struct PlaylistsView: View {
                                     Label("Rename", systemImage: "pencil")
                                 }
                                 Button(role: .destructive) {
-                                    Task { await appState.deletePlaylist(playlist) }
+                                    playlistToDelete = playlist
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
                             }
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {
-                                    Task { await appState.deletePlaylist(playlist) }
+                                    playlistToDelete = playlist
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
@@ -166,6 +169,19 @@ struct PlaylistsView: View {
                 submit: { playlist, title in
                     Task { await appState.renamePlaylist(playlist, title: title) }
                 })
+            .alert("Delete Playlist?", isPresented: Binding(
+                get: { playlistToDelete != nil },
+                set: { if !$0 { playlistToDelete = nil } }
+            )) {
+                Button("Cancel", role: .cancel) { playlistToDelete = nil }
+                Button("Delete", role: .destructive) {
+                    guard let playlist = playlistToDelete else { return }
+                    playlistToDelete = nil
+                    Task { await appState.deletePlaylist(playlist) }
+                }
+            } message: {
+                Text("This removes the playlist but does not delete its tracks from Music.")
+            }
     }
 
     private func beginRename(_ playlist: Playlist) {
@@ -207,6 +223,17 @@ struct PlaylistDetailView: View {
                 .accessibilityLabel("Back")
                 .accessibilityIdentifier("playlist.back")
                 Spacer()
+                Button { playAll() } label: {
+                    Image(systemName: "play.fill")
+                        .font(Typography.callout)
+                        .foregroundStyle(Palette.accentOnFill)
+                        .frame(width: 44, height: 44)
+                        .background(Palette.accent, in: Circle())
+                }
+                .accessibilityLabel("Play Playlist")
+                .accessibilityHint("Starts this playlist from the beginning")
+                .accessibilityIdentifier("playlist.play")
+                .disabled(tracks.isEmpty)
                 EditButton()
                     .font(Typography.callout)
                     .frame(minWidth: 44, minHeight: 44)
@@ -341,6 +368,11 @@ struct PlaylistDetailView: View {
     private func play(_ item: PlaylistTrackRow) {
         guard let index = tracks.firstIndex(where: { $0.id == item.id }) else { return }
         player.play(tracks: tracks.map(\.row), startAt: index, source: .playlist(currentPlaylist))
+    }
+
+    private func playAll() {
+        guard !tracks.isEmpty else { return }
+        player.play(tracks: trackRows, startAt: 0, source: .playlist(currentPlaylist))
     }
 
     private func moveTracks(from source: IndexSet, to destination: Int) {

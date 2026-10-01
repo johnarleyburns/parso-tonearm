@@ -20,6 +20,18 @@ struct RootView: View {
                     }
             }
 
+            if player.currentTrack != nil && !appState.showNowPlaying {
+                tabAccessory
+                    .padding(.horizontal, 12)
+                    // Keep the accessory above the tab bar while remaining
+                    // inside the root ZStack. SwiftUI's tab accessory and
+                    // safe-area inset can both disappear during a playlist
+                    // detail replacement even though playback is active.
+                    .padding(.bottom, 58)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(10)
+            }
+
             if let title = appState.backgroundTitle {
                 backgroundBanner(title)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -159,15 +171,8 @@ struct RootView: View {
 
     @ViewBuilder
     private var rootTabs: some View {
-        if #available(iOS 26.0, *) {
-            baseTabs
-                .tabViewBottomAccessory { tabAccessory }
-                .tabBarMinimizeBehavior(.onScrollDown)
-                .sensoryFeedback(.selection, trigger: appState.tab)
-        } else {
-            baseTabs
-                .sensoryFeedback(.selection, trigger: appState.tab)
-        }
+        baseTabs
+            .sensoryFeedback(.selection, trigger: appState.tab)
     }
 
     private var baseTabs: some View {
@@ -189,6 +194,10 @@ struct RootView: View {
         if player.currentTrack != nil && !appState.showNowPlaying {
             VStack(spacing: 2) {
                 MiniPlayerAccessory(transitionNamespace: nowPlayingTransition)
+                    // Recreate the accessory when a playlist tap replaces an
+                    // existing queue item so SwiftUI cannot retain an empty
+                    // accessory subtree during the navigation transition.
+                    .id(player.currentTrack?.id ?? -1)
                 if appState.watchManagement.banner != nil {
                     TransferPill()
                 }

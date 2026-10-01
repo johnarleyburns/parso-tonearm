@@ -135,44 +135,57 @@ final class PlaybackPositionLossTests: XCTestCase {
         return (row, trackId)
     }
 
-    // MARK: - Test 1: Playing tick does NOT persist elapsed (Loss #1)
+    // MARK: - Test 1: A current-time tick persists a crash-resume checkpoint
 
-    func testPlayingTickDoesNotPersistElapsed_FORCEQUIT_BUG() throws {
+    func testPlaybackTickPersistsElapsedEvenWhenTransportStateLags() throws {
         let suite = try ephemeralSuite()
         PlaybackStateStore.defaultsProvider = { suite }
 
         let player = AudioPlayer.shared
         resetPlayer(player)
-
-        let relPath = try createTestWAV(duration: 4.0)
-        let asset = Asset(id: 9, trackId: 9, kind: .localRef,
-                          bookmark: nil, relPath: relPath,
-                          remoteURL: nil, altRemoteURL: nil, sizeBytes: nil,
-                          unsupportedReason: nil)
         let row = TrackRow(
             track: Track(id: 9, albumId: nil, sourceId: 1,
                          title: "Tone", trackNo: 1, discNo: nil,
                          durationSec: 4.0, codec: "WAV", sampleRate: 44100,
                          bitDepthOrBitrate: nil, sortKey: "Tone"),
-            album: nil, source: nil, asset: asset)
+            album: nil, source: nil, asset: nil)
 
+        // Drive the same seam used by AVPlayer's periodic observer without
+        // relying on host audio hardware.  In the old implementation this
+        // was a red test because persistTick returned while isAdvancing was
+        // false, losing the last checkpoint during a state transition.
         PlaybackStateStore.clear(defaults: suite)
-        player.play(tracks: [row], startAt: 0)
+        player.persistor = PlaybackPositionPersistor()
+        player.queue = [row]
+        player.index = 0
+        player.currentTime = 2.25
+        player.isPlaying = false
+        player.persistTick()
 
-        let advanced = pollUntil(keyPath: \AudioPlayer.currentTime,
-                                 greaterThan: 1.5, on: player, timeout: 10.0)
-        if !advanced {
-            throw XCTSkip("host cannot play audio (currentTime never advanced)")
-        }
+        let snapshot = PlaybackStateStore.load(defaults: suite)
+        XCTAssertNotNil(snapshot, "a tick must create a durable checkpoint")
+        XCTAssertEqual(snapshot?.trackIDs, [9])
+        XCTAssertEqual(snapshot?.elapsed ?? 0, 2.25, accuracy: 0.01)
+    }
 
-        XCTExpectFailure("Loss #1: periodic tick never persists; fixed by F3", strict: true) {
-            let snapshot = PlaybackStateStore.load(defaults: suite)
-            XCTAssertNotNil(snapshot, "snapshot should be present")
-            if let snap = snapshot {
-                XCTAssertGreaterThanOrEqual(snap.elapsed, 1.0,
-                    "tick must persist elapsed >= 1.0; found \(snap.elapsed)")
-            }
-        }
+    func testPlaybackCheckpointIsWrittenOnBackgroundEvenWhenPaused() throws {
+        let suite = try ephemeralSuite()
+        PlaybackStateStore.defaultsProvider = { suite }
+        let player = AudioPlayer.shared
+        resetPlayer(player)
+        player.persistor = PlaybackPositionPersistor()
+        player.queue = [TrackRow(
+            track: Track(id: 10, albumId: nil, sourceId: 1, title: "Paused",
+                         trackNo: 1, discNo: nil, durationSec: 90, codec: "WAV",
+                         sampleRate: 44100, bitDepthOrBitrate: nil, sortKey: "Paused"),
+            album: nil, source: nil, asset: nil)]
+        player.index = 0
+        player.currentTime = 17.5
+        player.isPlaying = false
+        player.persistNow()
+
+        XCTAssertEqual(PlaybackStateStore.load(defaults: suite)?.elapsed ?? 0,
+                       17.5, accuracy: 0.01)
     }
 
     // MARK: - Tests 2–4: Control surfaces on empty queue (Loss #2)

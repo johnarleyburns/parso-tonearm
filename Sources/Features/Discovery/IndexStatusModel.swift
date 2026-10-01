@@ -30,6 +30,23 @@ final class IndexStatusModel: ObservableObject {
         case timedOut
     }
 
+    /// A timeout must not wait for the database operation it is timing out.
+    /// `withThrowingTaskGroup` is structured: cancelling a child that is
+    /// blocked in SQLite still makes the group wait for that child, which is
+    /// exactly how the Sound Index screen got stuck on its first spinner.
+    private final class RefreshRace: @unchecked Sendable {
+        private let lock = NSLock()
+        private var didFinish = false
+
+        func claim() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !didFinish else { return false }
+            didFinish = true
+            return true
+        }
+    }
+
     init(controller: DiscoveryRuntimeController = .shared) {
         self.controller = controller
     }
@@ -54,14 +71,18 @@ final class IndexStatusModel: ObservableObject {
     }
 
     private func statusSnapshotWithTimeout() async throws -> IndexStatusSnapshot? {
-        try await withThrowingTaskGroup(of: IndexStatusSnapshot?.self) { group in
-            group.addTask { await self.controller.statusSnapshot() }
-            group.addTask {
-                try await Task.sleep(for: .seconds(5))
-                throw RefreshError.timedOut
+        let race = RefreshRace()
+        return try await withCheckedThrowingContinuation { continuation in
+            Task { @MainActor [controller] in
+                let snapshot = await controller.statusSnapshot()
+                guard race.claim() else { return }
+                continuation.resume(returning: snapshot)
             }
-            defer { group.cancelAll() }
-            return try await group.next()!
+            Task { [race] in
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled, race.claim() else { return }
+                continuation.resume(throwing: RefreshError.timedOut)
+            }
         }
     }
 

@@ -27,12 +27,9 @@ struct MyMusicView: View {
     /// `LibraryBrowse.Entry.self` from `LibraryView` — `NavigationPath`
     /// accepts any `Hashable` without unifying them under one shared type.
     @State private var navigationPath = NavigationPath()
-    @State private var bpmMinText = ""
-    @State private var bpmMaxText = ""
-    @State private var keyText = ""
-    @State private var mixBPMText = ""
-    @State private var mixKeyText = ""
-    @State private var showSoundSearch = false
+    @State private var searchMode: MyMusicSearchMode = .all
+    @State private var mixBPMPreset: MixBPMPreset?
+    @State private var mixKey: String?
     @State private var soundSearchRows: [TrackRow]?
     @State private var soundSearchRevision = 0
 
@@ -86,94 +83,35 @@ struct MyMusicView: View {
                     JamendoBrowseView(allowsImport: true, showsBackButton: false)
                         .accessibilityIdentifier("mymusic.content.jamendo")
                 case .artists, .albums, .songs, .genres:
-                    filterBar
+                    MyMusicSearchControls(mode: $searchMode, bpmPreset: $mixBPMPreset,
+                                          mixKey: $mixKey,
+                                          onSoundRows: { rows in
+                                              soundSearchRows = rows
+                                              soundSearchRevision &+= 1
+                                          })
                     LibraryView(ownsNavigationStack: false, externalMode: libraryModeBinding,
-                                filter: currentFilter, searchRows: soundSearchRows,
-                                searchRowsRevision: soundSearchRevision)
+                                filter: currentFilter,
+                                searchRows: searchMode == .sound ? soundSearchRows : nil,
+                                searchRowsRevision: soundSearchRevision,
+                                showsSearchField: false)
                         .accessibilityIdentifier("mymusic.content.music")
                 }
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
         }
-        .task { consumePendingArtistFilter() }
+        .task {
+            appState.searchText = ""
+            consumePendingArtistFilter()
+        }
     }
 
     private var currentFilter: MyMusicFilter {
-        let key = keyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let mixKey = mixKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard searchMode == .mix else { return .init() }
         return MyMusicFilter(
-            bpmMin: Double(bpmMinText.trimmingCharacters(in: .whitespaces)),
-            bpmMax: Double(bpmMaxText.trimmingCharacters(in: .whitespaces)),
-            key: key.isEmpty ? nil : key,
-            mixBPM: Double(mixBPMText.trimmingCharacters(in: .whitespaces)),
-            mixKey: mixKey.isEmpty ? nil : mixKey)
-    }
-
-    private var filterBar: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                filterField("Min BPM", text: $bpmMinText, numeric: true)
-                filterField("Max BPM", text: $bpmMaxText, numeric: true)
-                filterField("Key", text: $keyText)
-            }
-            HStack(spacing: 8) {
-                filterField("Mix BPM", text: $mixBPMText, numeric: true)
-                filterField("Mix key", text: $mixKeyText)
-                Button { showSoundSearch = true } label: {
-                    Label("Sound / mood", systemImage: "waveform.and.magnifyingglass")
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.accent)
-                        .lineLimit(1)
-                }
-                .buttonStyle(.plain)
-                if soundSearchRows != nil {
-                    Button {
-                        soundSearchRows = nil
-                        soundSearchRevision &+= 1
-                    } label: {
-                        Label("Clear sound results", systemImage: "xmark.circle")
-                            .font(Typography.caption)
-                            .foregroundStyle(Palette.inkTertiary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            if !currentFilter.isEmpty {
-                Button {
-                    bpmMinText = ""; bpmMaxText = ""; keyText = ""
-                    mixBPMText = ""; mixKeyText = ""
-                } label: {
-                    Label("Clear musical filters", systemImage: "xmark.circle")
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.inkTertiary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 6)
-        .sheet(isPresented: $showSoundSearch) {
-            DiscoverySearchView(onUseResults: { rows in
-                soundSearchRows = rows
-                soundSearchRevision &+= 1
-                showSoundSearch = false
-            })
-        }
-        .accessibilityIdentifier("mymusic.musicalFilters")
-    }
-
-    private func filterField(_ title: String, text: Binding<String>, numeric: Bool = false) -> some View {
-        TextField(title, text: text)
-            .font(Typography.caption)
-            .padding(.horizontal, 9)
-            .frame(height: 32)
-            .background(Palette.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
-            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Palette.ink.opacity(0.1)))
-            .platformAutocapitalization(numeric ? .never : .characters)
-            .autocorrectionDisabled()
-            .keyboardType(numeric ? .decimalPad : .default)
-            .accessibilityLabel(title)
+            mixBPM: mixBPMPreset.map { ($0.range.lowerBound + $0.range.upperBound) / 2 },
+            mixBPMRange: mixBPMPreset?.range,
+            mixKey: mixKey)
     }
 
     /// One-shot launch-intent consumption for a Top Artist row's tap on the

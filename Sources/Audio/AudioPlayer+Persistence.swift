@@ -137,9 +137,14 @@ extension AudioPlayer {
         persistor.save(candidate: candidate, reason: reason)
     }
 
-    /// Called from the periodic tick while advancing. Throttled to ≥1 write/s.
+    /// Called from the periodic tick.  The AVPlayer time observer is the source
+    /// of truth for elapsed time, but `isAdvancing` can briefly lag during
+    /// buffering, route changes, or a crossfade swap.  Dropping those ticks is
+    /// exactly how a crash can lose the last few seconds, so persist whenever a
+    /// real current-time sample arrived and let the admission policy reject
+    /// stale snapshots.
     internal func persistTick() {
-        guard isAdvancing else { return }
+        guard currentTrack != nil, currentTime.isFinite, currentTime >= 0 else { return }
         let now = Date()
         guard now.timeIntervalSince(persistor.lastPersistAt) >= 1.0 else { return }
         persist(reason: .tick)

@@ -38,6 +38,7 @@ struct MiniPlayerAccessory: View {
             .accessibilityValue(player.isPlaying ? "Playing" : "Paused")
             .frame(minWidth: Metrics.minimumHitTarget, minHeight: Metrics.minimumHitTarget)
             .buttonStyle(.plain)
+            .accessibilityIdentifier("mini.playpause")
             .sensoryFeedback(.impact(weight: .light), trigger: player.isPlaying)
         }
         .padding(.horizontal, 10)
