@@ -38,11 +38,11 @@ struct OnboardingView: View {
     @State private var options: [OnboardingSourceOption] = [
         .init(kind: .archiveOrg,
               title: "Chopin — Musopen",
-              subtitle: "Public domain recordings",
+              subtitle: String(localized: "Public domain recordings"),
               url: "https://archive.org/details/musopen-chopin"),
         .init(kind: .archiveOrg,
               title: "Beethoven — Complete Piano Sonatas",
-              subtitle: "Artur Schnabel · public domain",
+              subtitle: String(localized: "Artur Schnabel · public domain"),
               url: "https://archive.org/details/lp_the-complete-piano-sonatas-on-thirteen-dis_ludwig-van-beethoven-artur-schnabel_0"),
         .init(kind: .archiveOrg,
               title: "Bach — Open Goldberg Variations",
@@ -50,17 +50,17 @@ struct OnboardingView: View {
               url: "https://archive.org/details/The_Open_Goldberg_Variations-11823"),
         .init(kind: .archiveOrg,
               title: "Bach — Well-Tempered Clavier, Book 1",
-              subtitle: "Public domain",
+              subtitle: String(localized: "Public domain"),
               url: "https://archive.org/details/bach-well-tempered-clavier-book-1"),
         .init(kind: .subsonicDemo,
               title: "Navidrome — Demo Music",
-              subtitle: "Subsonic · an instant music collection",
+              subtitle: String(localized: "Subsonic · an instant music collection"),
               url: "https://demo.navidrome.org",
               username: "demo",
               password: "demo"),
         .init(kind: .jellyfinDemo,
               title: "Jellyfin — Demo Server",
-              subtitle: "Jellyfin · an instant music collection",
+              subtitle: String(localized: "Jellyfin · an instant music collection"),
               url: "https://demo.jellyfin.org/stable",
               username: "demo",
               password: ""),
@@ -79,11 +79,11 @@ struct OnboardingView: View {
         var out: [OnboardingSourceOption] = []
         for parent in JamendoGenreTree.roots {
             out.append(.init(kind: .jamendoGenre, title: parent.name,
-                             subtitle: "Jamendo · Creative Commons",
+                             subtitle: String(localized: "Jamendo · Creative Commons"),
                              url: parent.path, selected: false))
             for child in parent.children {
                 out.append(.init(kind: .jamendoGenre, title: "\(parent.name) — \(child.name)",
-                                 subtitle: "Jamendo · Creative Commons",
+                                 subtitle: String(localized: "Jamendo · Creative Commons"),
                                  url: child.path, selected: false))
             }
         }
@@ -91,12 +91,12 @@ struct OnboardingView: View {
     }()
 
     private let intros: [(icon: String, title: String, body: String)] = [
-        ("music.note.house.fill", "Welcome to Platterhead",
+        ("music.note.house.fill", String(localized: "Welcome to Platterhead"),
          "A calm player for public-domain and Creative Commons music streamed from the Internet Archive — and your own local files."),
-        ("cloud.fill", "Add libraries",
-         "Paste any archive.org item, list, favorites page, or collection. Every track lands in Music instantly. Nothing is downloaded until you press play."),
-        ("play.circle.fill", "Listen & keep",
-         "Played tracks are cached so they work offline until space is needed. Build playlists, favorite what you love, and jump back in anytime. Check out the built-in Ambient playlist with continuous rain, ocean, and flowing water sounds for focus, relaxation, or sleep.")
+        ("cloud.fill", String(localized: "Add libraries"),
+         String(localized: "Paste any archive.org item, list, favorites page, or collection. Every track lands in Music instantly. Nothing is downloaded until you press play.")),
+        ("play.circle.fill", String(localized: "Listen & keep"),
+         String(localized: "Played tracks are cached so they work offline until space is needed. Build playlists, favorite what you love, and jump back in anytime. Check out the built-in Ambient playlist with continuous rain, ocean, and flowing water sounds for focus, relaxation, or sleep."))
     ]
 
     var body: some View {

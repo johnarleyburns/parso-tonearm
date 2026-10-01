@@ -196,8 +196,7 @@ final class DiscoveryRuntimeController {
             let recovery = try await assembly.recoverAndReconcileAtLaunch()
             try? await assembly.settings.updateRuntime(
                 lastStartAt: Date(),
-                lastStopReason: "launch: reset \(recovery.resetIndexLeases) leases, "
-                    + "bootstrapped \(recovery.bootstrappedTracks), drained \(recovery.drainedOutbox)")
+                lastStopReason: "launch: reset \(recovery.resetIndexLeases) leases, bootstrapped \(recovery.bootstrappedTracks), drained \(recovery.drainedOutbox)")
         } catch {
             NSLog("[Discovery] launch recovery failed: \(error)")
         }

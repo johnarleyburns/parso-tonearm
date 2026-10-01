@@ -142,7 +142,7 @@ extension AppState {
             .flatMap { $0.volumeAvailableCapacityForImportantUsage } ?? 0
         let reserve = max(1_073_741_824, Int64(Double(available) * 0.10))
         if requiredBytes + reserve > available {
-            return (false, "Not enough disk space. \(ByteCountFormatter.string(fromByteCount: requiredBytes, countStyle: .file)) needed, \(ByteCountFormatter.string(fromByteCount: available, countStyle: .file)) available.")
+            return (false, String(localized: "Not enough disk space. \(ByteCountFormatter.string(fromByteCount: requiredBytes, countStyle: .file)) needed, \(ByteCountFormatter.string(fromByteCount: available, countStyle: .file)) available."))
         }
         return (true, nil)
     }

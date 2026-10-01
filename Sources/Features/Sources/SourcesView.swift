@@ -156,8 +156,7 @@ struct SourcesView: View {
                         await appState.reload()
                         if summary.skippedDuplicates > 0 {
                             ToastCenter.shared.info(
-                                "Imported \(summary.imported), skipped \(summary.skippedDuplicates) "
-                                    + "already in your library")
+                                "Imported \(summary.imported), skipped \(summary.skippedDuplicates) already in your library")
                         }
                     }
                 case .none:

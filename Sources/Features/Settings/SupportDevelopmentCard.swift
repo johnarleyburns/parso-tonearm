@@ -24,9 +24,7 @@ struct SupportDevelopmentCard: View {
                 }
             }
 
-            Text("Everything here is free, forever. If you'd like to help fund development, "
-                 + "this is a purely optional, one-time contribution — it doesn't unlock anything, "
-                 + "it just marks your account as a supporter.")
+            Text("Everything here is free, forever. If you'd like to help fund development, this is a purely optional, one-time contribution — it doesn't unlock anything, it just marks your account as a supporter.")
                 .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
 

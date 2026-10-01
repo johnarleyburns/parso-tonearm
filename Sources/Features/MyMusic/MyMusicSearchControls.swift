@@ -178,7 +178,7 @@ private struct MyMusicSoundQuery: View {
                     .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
             case .results(let kind, let count, _):
-                Text("\(count) \(kind == .semantic ? "sound" : "matching") result\(count == 1 ? "" : "s")")
+                Text(kind == .semantic ? "\(count) sound results" : "\(count) matching results")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
             case .noMatches:

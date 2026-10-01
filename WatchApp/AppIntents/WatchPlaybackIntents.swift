@@ -23,11 +23,11 @@ struct PlayDownloadedPlaylistIntent: AppIntent {
         await model.refresh()
         let titles = model.playlists.map(\.title)
         guard !titles.isEmpty else {
-            throw WatchIntentError("No playlists are downloaded to this watch yet.")
+            throw WatchIntentError(String(localized: "No playlists are downloaded to this watch yet."))
         }
         guard let matched = WatchPlaylistNameMatch.best(playlistName, in: titles),
               let playlist = model.playlists.first(where: { $0.title == matched }) else {
-            throw WatchIntentError("No downloaded playlist matched \u{201C}\(playlistName)\u{201D}.")
+            throw WatchIntentError(String(localized: "No downloaded playlist matched \u{201C}\(playlistName)\u{201D}."))
         }
         let tracks = model.readyTracks(forPlaylist: playlist.id)
         guard !tracks.isEmpty else {
@@ -50,7 +50,7 @@ struct ResumeWatchPlaybackIntent: AppIntent {
             await player.restorePositionIfAvailable()
         }
         guard player.currentTrack != nil else {
-            throw WatchIntentError("There is nothing to resume.")
+            throw WatchIntentError(String(localized: "There is nothing to resume."))
         }
         if !player.isPlaying { player.togglePlayPause() }
         player.navigateToNowPlaying()

@@ -258,7 +258,7 @@ extension SettingsView {
     }
 
     func settingToggle(
-        _ title: String, _ sub: String, _ binding: Binding<Bool>, id: String? = nil
+        _ title: LocalizedStringKey, _ sub: LocalizedStringKey, _ binding: Binding<Bool>, id: String? = nil
     ) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -271,7 +271,7 @@ extension SettingsView {
             // accessibility element whose reported control type/value is the
             // row's own (a StaticText), not the switch's, so UI-test taps
             // land on the row but state reads/writes never see the switch.
-            Toggle("", isOn: binding)
+            Toggle(title, isOn: binding)
                 .labelsHidden().tint(Palette.accent)
                 .modifier(OptionalAccessibilityIdentifier(id: id))
         }

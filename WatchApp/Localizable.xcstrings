@@ -2,7 +2,14 @@
   "sourceLanguage" : "en",
   "strings" : {
     "%lld downloaded" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld geladen"
+          }
+        },
         "en" : {
           "variations" : {
             "plural" : {
@@ -19,12 +26,6 @@
                 }
               }
             }
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "%lld geladen"
           }
         },
         "es" : {
@@ -93,29 +94,11 @@
             "value" : "已下载 %lld 个"
           }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "%lld events" : {
+      "comment" : "UI text shown in: Watch Diagnostics (WatchApp/Views/WatchDiagnosticsView.swift)",
       "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld event"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld events"
-                }
-              }
-            }
-          }
-        },
         "de" : {
           "variations" : {
             "plural" : {
@@ -129,6 +112,24 @@
                 "stringUnit" : {
                   "state" : "needs_review",
                   "value" : "%lld Ereignisse"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld event"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld events"
                 }
               }
             }
@@ -200,29 +201,11 @@
             "value" : "%lld 个事件"
           }
         }
-      },
-      "comment" : "UI text shown in: Watch Diagnostics (WatchApp/Views/WatchDiagnosticsView.swift)"
+      }
     },
     "%lld tracks" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift); Watch Root (WatchApp/Views/WatchRootView.swift); …",
       "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld track"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld tracks"
-                }
-              }
-            }
-          }
-        },
         "de" : {
           "variations" : {
             "plural" : {
@@ -236,6 +219,24 @@
                 "stringUnit" : {
                   "state" : "needs_review",
                   "value" : "%lld Titel"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld track"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tracks"
                 }
               }
             }
@@ -307,21 +308,21 @@
             "value" : "%lld 首曲目"
           }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift); Watch Root (WatchApp/Views/WatchRootView.swift); …"
+      }
     },
     "%lld tracks · %@" : {
+      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld tracks · %2$@"
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "%lld Titel · %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld tracks · %2$@"
           }
         },
         "es" : {
@@ -354,19 +355,25 @@
             "value" : "%lld 首曲目 · %@"
           }
         }
-      },
-      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "-%@" : {
-      "shouldTranslate" : false,
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
+      "shouldTranslate" : false
     },
     "Add or remove downloads from Platterhead on your iPhone." : {
+      "comment" : "UI text shown in: Watch Storage (WatchApp/Views/WatchStorageView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Füge Downloads in Platterhead auf deinem iPhone hinzu oder entferne sie."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add or remove downloads from Platterhead on your iPhone."
           }
         },
         "es" : {
@@ -398,21 +405,21 @@
             "state" : "needs_review",
             "value" : "在 iPhone 上的 Platterhead 中添加或移除下载项。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add or remove downloads from Platterhead on your iPhone."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Storage (WatchApp/Views/WatchStorageView.swift)"
+      }
     },
     "Album" : {
+      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
+            "value" : "Album"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Album"
           }
         },
@@ -445,22 +452,22 @@
             "state" : "needs_review",
             "value" : "专辑"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Album"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)"
+      }
     },
     "Albums" : {
+      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift); Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Alben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albums"
           }
         },
         "es" : {
@@ -492,22 +499,22 @@
             "state" : "needs_review",
             "value" : "专辑"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Albums"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift); Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Albums assembled from your downloaded songs will appear here." : {
+      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Alben, die aus deinen geladenen Songs zusammengestellt werden, erscheinen hier."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albums assembled from your downloaded songs will appear here."
           }
         },
         "es" : {
@@ -539,21 +546,21 @@
             "state" : "needs_review",
             "value" : "由你下载的歌曲组成的专辑将显示在这里。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Albums assembled from your downloaded songs will appear here."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)"
+      }
     },
     "Apple Watch" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
+            "value" : "Apple Watch"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Apple Watch"
           }
         },
@@ -586,22 +593,22 @@
             "state" : "needs_review",
             "value" : "Apple Watch"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple Watch"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Artwork" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Cover"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Artwork"
           }
         },
         "es" : {
@@ -633,22 +640,22 @@
             "state" : "needs_review",
             "value" : "插图"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Artwork"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Audio could not start. Choose an output and try again." : {
+      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Audio konnte nicht gestartet werden. Wähle eine Ausgabe und versuche es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio could not start. Choose an output and try again."
           }
         },
         "es" : {
@@ -680,69 +687,22 @@
             "state" : "needs_review",
             "value" : "无法开始播放音频。请选择输出设备后重试。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Audio could not start. Choose an output and try again."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)"
-    },
-    "Audio did not start on the selected output." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Audio wurde auf der gewählten Ausgabe nicht gestartet."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "El audio no se inició en la salida seleccionada."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "L’audio n’a pas démarré sur la sortie sélectionnée."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "選択した出力先でオーディオが開始されませんでした。"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "O áudio não começou na saída selecionada."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "音频未在所选输出设备上开始播放。"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Audio did not start on the selected output."
-          }
-        }
-      },
-      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)"
+      }
     },
     "Browse on iPhone" : {
+      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Auf dem iPhone durchsuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browse on iPhone"
           }
         },
         "es" : {
@@ -774,22 +734,22 @@
             "state" : "needs_review",
             "value" : "在 iPhone 上浏览"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Browse on iPhone"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Choose Output" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Ausgabe wählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Output"
           }
         },
         "es" : {
@@ -821,22 +781,22 @@
             "state" : "needs_review",
             "value" : "选择输出"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose Output"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Choose an Audio Output" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Audioausgabe wählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose an Audio Output"
           }
         },
         "es" : {
@@ -868,22 +828,22 @@
             "state" : "needs_review",
             "value" : "选择音频输出"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose an Audio Output"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Choose headphones or a speaker" : {
+      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Kopfhörer oder Lautsprecher wählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose headphones or a speaker"
           }
         },
         "es" : {
@@ -915,22 +875,22 @@
             "state" : "needs_review",
             "value" : "选择耳机或扬声器"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose headphones or a speaker"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)"
+      }
     },
     "Clear" : {
+      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Löschen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear"
           }
         },
         "es" : {
@@ -962,22 +922,22 @@
             "state" : "needs_review",
             "value" : "清除"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Close" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Schließen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
           }
         },
         "es" : {
@@ -1009,22 +969,22 @@
             "state" : "needs_review",
             "value" : "关闭"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Close"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Collection" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Sammlung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collection"
           }
         },
         "es" : {
@@ -1056,22 +1016,22 @@
             "state" : "needs_review",
             "value" : "合集"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Collection"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Connect headphones or a speaker to play audio." : {
+      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Verbinde Kopfhörer oder einen Lautsprecher, um Audio abzuspielen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect headphones or a speaker to play audio."
           }
         },
         "es" : {
@@ -1103,22 +1063,22 @@
             "state" : "needs_review",
             "value" : "连接耳机或扬声器以播放音频。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Connect headphones or a speaker to play audio."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)"
+      }
     },
     "Connected" : {
+      "comment" : "UI text shown in: Watch Storage (WatchApp/Views/WatchStorageView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Verbunden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected"
           }
         },
         "es" : {
@@ -1150,22 +1110,22 @@
             "state" : "needs_review",
             "value" : "已连接"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Connected"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Storage (WatchApp/Views/WatchStorageView.swift)"
+      }
     },
     "Continue" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Weiter"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue"
           }
         },
         "es" : {
@@ -1197,22 +1157,22 @@
             "state" : "needs_review",
             "value" : "继续"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Continue"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Continue on Apple Watch" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Auf der Apple Watch fortsetzen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue on Apple Watch"
           }
         },
         "es" : {
@@ -1244,22 +1204,22 @@
             "state" : "needs_review",
             "value" : "在 Apple Watch 上继续"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Continue on Apple Watch"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Couldn't Load" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Laden fehlgeschlagen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Load"
           }
         },
         "es" : {
@@ -1291,22 +1251,22 @@
             "state" : "needs_review",
             "value" : "无法载入"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couldn't Load"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Couldn't reach iPhone" : {
+      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "iPhone nicht erreichbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't reach iPhone"
           }
         },
         "es" : {
@@ -1338,22 +1298,22 @@
             "state" : "needs_review",
             "value" : "无法连接 iPhone"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couldn't reach iPhone"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Diagnostics" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Diagnostics (WatchApp/Views/WatchDiagnosticsView.swift); Watch Storage (WatchApp/Views/WatchStorageView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Diagnose"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diagnostics"
           }
         },
         "es" : {
@@ -1385,22 +1345,22 @@
             "state" : "needs_review",
             "value" : "诊断"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diagnostics"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Diagnostics (WatchApp/Views/WatchDiagnosticsView.swift); Watch Storage (WatchApp/Views/WatchStorageView.swift)"
+      }
     },
     "Different iPhone Library" : {
+      "comment" : "UI text shown in: Platterhead Watch App (WatchApp/PlatterheadWatchApp.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Andere iPhone-Bibliothek"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Different iPhone Library"
           }
         },
         "es" : {
@@ -1432,22 +1392,22 @@
             "state" : "needs_review",
             "value" : "不同的 iPhone 资料库"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Different iPhone Library"
-          }
         }
-      },
-      "comment" : "UI text shown in: Platterhead Watch App (WatchApp/PlatterheadWatchApp.swift)"
+      }
     },
     "Download this collection to your watch from Platterhead on your iPhone." : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Lade diese Sammlung über Platterhead auf deinem iPhone auf deine Watch."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download this collection to your watch from Platterhead on your iPhone."
           }
         },
         "es" : {
@@ -1479,22 +1439,22 @@
             "state" : "needs_review",
             "value" : "通过 iPhone 上的 Platterhead 将此合集下载到手表。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Download this collection to your watch from Platterhead on your iPhone."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Download to Apple Watch" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Auf die Apple Watch laden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download to Apple Watch"
           }
         },
         "es" : {
@@ -1526,22 +1486,22 @@
             "state" : "needs_review",
             "value" : "下载到 Apple Watch"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Download to Apple Watch"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Downloaded" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Geladen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloaded"
           }
         },
         "es" : {
@@ -1573,22 +1533,22 @@
             "state" : "needs_review",
             "value" : "已下载"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Downloaded"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Downloaded on watch" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Auf der Watch geladen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloaded on watch"
           }
         },
         "es" : {
@@ -1620,22 +1580,22 @@
             "state" : "needs_review",
             "value" : "已下载到手表"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Downloaded on watch"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Downloading %lld%%" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Wird geladen: %lld %%"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading %lld%%"
           }
         },
         "es" : {
@@ -1667,22 +1627,22 @@
             "state" : "needs_review",
             "value" : "正在下载 %lld%%"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Downloading %lld%%"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Downloading…" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Wird geladen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading…"
           }
         },
         "es" : {
@@ -1714,21 +1674,21 @@
             "state" : "needs_review",
             "value" : "正在下载…"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Downloading…"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Downloads" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
+            "value" : "Downloads"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Downloads"
           }
         },
@@ -1761,22 +1721,22 @@
             "state" : "needs_review",
             "value" : "下载"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Downloads"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Encoding failed." : {
+      "comment" : "UI text shown in: Watch Diagnostics (WatchApp/Views/WatchDiagnosticsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Kodierung fehlgeschlagen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encoding failed."
           }
         },
         "es" : {
@@ -1808,22 +1768,22 @@
             "state" : "needs_review",
             "value" : "编码失败。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Encoding failed."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Diagnostics (WatchApp/Views/WatchDiagnosticsView.swift)"
+      }
     },
     "Keep Current" : {
+      "comment" : "UI text shown in: Platterhead Watch App (WatchApp/PlatterheadWatchApp.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Aktuelle behalten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Current"
           }
         },
         "es" : {
@@ -1855,22 +1815,22 @@
             "state" : "needs_review",
             "value" : "保留当前"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keep Current"
-          }
         }
-      },
-      "comment" : "UI text shown in: Platterhead Watch App (WatchApp/PlatterheadWatchApp.swift)"
+      }
     },
     "Keep Waiting" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Weiter warten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Waiting"
           }
         },
         "es" : {
@@ -1902,22 +1862,22 @@
             "state" : "needs_review",
             "value" : "继续等待"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keep Waiting"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Keep typing…" : {
+      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Weitertippen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep typing…"
           }
         },
         "es" : {
@@ -1949,22 +1909,22 @@
             "state" : "needs_review",
             "value" : "请继续输入…"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keep typing…"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Library Recovered" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Bibliothek wiederhergestellt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library Recovered"
           }
         },
         "es" : {
@@ -1996,22 +1956,22 @@
             "state" : "needs_review",
             "value" : "资料库已恢复"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Library Recovered"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Library Unavailable" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Bibliothek nicht verfügbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library Unavailable"
           }
         },
         "es" : {
@@ -2043,22 +2003,22 @@
             "state" : "needs_review",
             "value" : "资料库不可用"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Library Unavailable"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Loading…" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Diagnostics (WatchApp/Views/WatchDiagnosticsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Wird geladen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading…"
           }
         },
         "es" : {
@@ -2090,22 +2050,22 @@
             "state" : "needs_review",
             "value" : "正在载入…"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loading…"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Diagnostics (WatchApp/Views/WatchDiagnosticsView.swift)"
+      }
     },
     "Manage on iPhone" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Auf dem iPhone verwalten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage on iPhone"
           }
         },
         "es" : {
@@ -2137,22 +2097,22 @@
             "state" : "needs_review",
             "value" : "在 iPhone 上管理"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Manage on iPhone"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Manage storage" : {
+      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Speicher verwalten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage storage"
           }
         },
         "es" : {
@@ -2184,22 +2144,22 @@
             "state" : "needs_review",
             "value" : "管理存储空间"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Manage storage"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Next" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Weiter"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next"
           }
         },
         "es" : {
@@ -2231,22 +2191,22 @@
             "state" : "needs_review",
             "value" : "下一步"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Next"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "No Albums" : {
+      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Keine Alben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Albums"
           }
         },
         "es" : {
@@ -2278,22 +2238,22 @@
             "state" : "needs_review",
             "value" : "没有专辑"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Albums"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)"
+      }
     },
     "No Playlists" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Keine Playlists"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Playlists"
           }
         },
         "es" : {
@@ -2325,22 +2285,22 @@
             "state" : "needs_review",
             "value" : "没有播放列表"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Playlists"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)"
+      }
     },
     "No Songs" : {
+      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Keine Songs"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Songs"
           }
         },
         "es" : {
@@ -2372,22 +2332,22 @@
             "state" : "needs_review",
             "value" : "没有歌曲"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Songs"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)"
+      }
     },
     "No artwork" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Kein Cover"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No artwork"
           }
         },
         "es" : {
@@ -2419,22 +2379,116 @@
             "state" : "needs_review",
             "value" : "无插图"
           }
+        }
+      }
+    },
+    "No downloaded playlist matched “%@”." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Keine geladene Playlist passte zu „%@“."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ninguna playlist descargada coincide con «%@»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aucune playlist téléchargée ne correspond à « %@ »."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "「%@」に一致するダウンロード済みプレイリストはありません。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Nenhuma playlist baixada corresponde a “%@”."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "没有已下载的播放列表匹配“%@”。"
+          }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No artwork"
+            "value" : "No downloaded playlist matched “%@”."
           }
         }
       },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)"
+    },
+    "No playlists are downloaded to this watch yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Auf diese Watch wurden noch keine Playlists geladen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aún no hay playlists descargadas en este reloj."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aucune playlist n’est encore téléchargée sur cette montre."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "このWatchにはまだプレイリストがダウンロードされていません。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ainda não há playlists baixadas neste relógio."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "此手表尚未下载任何播放列表。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No playlists are downloaded to this watch yet."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)"
     },
     "No results" : {
+      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Keine Ergebnisse"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No results"
           }
         },
         "es" : {
@@ -2466,22 +2520,22 @@
             "state" : "needs_review",
             "value" : "无结果"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No results"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Not downloaded" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Nicht geladen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not downloaded"
           }
         },
         "es" : {
@@ -2513,22 +2567,22 @@
             "state" : "needs_review",
             "value" : "未下载"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not downloaded"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Not reachable" : {
+      "comment" : "UI text shown in: Watch Storage (WatchApp/Views/WatchStorageView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Nicht erreichbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not reachable"
           }
         },
         "es" : {
@@ -2560,22 +2614,22 @@
             "state" : "needs_review",
             "value" : "无法连接"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not reachable"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Storage (WatchApp/Views/WatchStorageView.swift)"
+      }
     },
     "Nothing Playing" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Keine Wiedergabe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing Playing"
           }
         },
         "es" : {
@@ -2607,22 +2661,22 @@
             "state" : "needs_review",
             "value" : "未在播放"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing Playing"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Nothing Playing on iPhone" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Keine Wiedergabe auf dem iPhone"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing Playing on iPhone"
           }
         },
         "es" : {
@@ -2654,22 +2708,22 @@
             "state" : "needs_review",
             "value" : "iPhone 上未在播放"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing Playing on iPhone"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Nothing Queued" : {
+      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Nichts eingereiht"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing Queued"
           }
         },
         "es" : {
@@ -2701,28 +2755,22 @@
             "state" : "needs_review",
             "value" : "队列为空"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing Queued"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)"
+      }
     },
     "Now Playing, %@, %@" : {
+      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Now Playing, %1$@, %2$@"
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Jetzt läuft: %@, %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Now Playing, %1$@, %2$@"
           }
         },
         "es" : {
@@ -2755,15 +2803,21 @@
             "value" : "正在播放：%@，%@"
           }
         }
-      },
-      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Now playing" : {
+      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Jetzt läuft"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now playing"
           }
         },
         "es" : {
@@ -2795,21 +2849,21 @@
             "state" : "needs_review",
             "value" : "正在播放"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Now playing"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)"
+      }
     },
     "OK" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
+            "value" : "OK"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "OK"
           }
         },
@@ -2842,22 +2896,22 @@
             "state" : "needs_review",
             "value" : "好"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OK"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "On Apple Watch" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Auf der Apple Watch"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On Apple Watch"
           }
         },
         "es" : {
@@ -2889,22 +2943,22 @@
             "state" : "needs_review",
             "value" : "在 Apple Watch 上"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On Apple Watch"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "On iPhone" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Auf dem iPhone"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On iPhone"
           }
         },
         "es" : {
@@ -2936,22 +2990,22 @@
             "state" : "needs_review",
             "value" : "在 iPhone 上"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On iPhone"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "On this watch" : {
+      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Auf dieser Watch"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On this watch"
           }
         },
         "es" : {
@@ -2983,22 +3037,22 @@
             "state" : "needs_review",
             "value" : "在此手表上"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On this watch"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Opens Now Playing" : {
+      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Öffnet „Jetzt läuft“"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens Now Playing"
           }
         },
         "es" : {
@@ -3030,22 +3084,22 @@
             "state" : "needs_review",
             "value" : "打开“正在播放”"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Opens Now Playing"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Pause" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Pausieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
           }
         },
         "es" : {
@@ -3077,22 +3131,22 @@
             "state" : "needs_review",
             "value" : "暂停"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pause"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Paused here" : {
+      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Hier pausiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paused here"
           }
         },
         "es" : {
@@ -3124,21 +3178,21 @@
             "state" : "needs_review",
             "value" : "在此暂停"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Paused here"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)"
+      }
     },
     "Platterhead" : {
+      "comment" : "UI text shown in: Platterhead Watch App (WatchApp/PlatterheadWatchApp.swift); Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Platterhead"
           }
         },
@@ -3171,22 +3225,22 @@
             "state" : "needs_review",
             "value" : "Platterhead"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Platterhead"
-          }
         }
-      },
-      "comment" : "UI text shown in: Platterhead Watch App (WatchApp/PlatterheadWatchApp.swift); Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Play" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Abspielen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
           }
         },
         "es" : {
@@ -3218,22 +3272,22 @@
             "state" : "needs_review",
             "value" : "播放"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Play All" : {
+      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Alle abspielen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play All"
           }
         },
         "es" : {
@@ -3265,22 +3319,22 @@
             "state" : "needs_review",
             "value" : "全部播放"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play All"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)"
+      }
     },
     "Play Downloaded Playlist" : {
+      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Geladene Playlist abspielen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play Downloaded Playlist"
           }
         },
         "es" : {
@@ -3312,22 +3366,22 @@
             "state" : "needs_review",
             "value" : "播放已下载的播放列表"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play Downloaded Playlist"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)"
+      }
     },
     "Play Playlist" : {
+      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Playlist abspielen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play Playlist"
           }
         },
         "es" : {
@@ -3359,22 +3413,22 @@
             "state" : "needs_review",
             "value" : "播放播放列表"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play Playlist"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)"
+      }
     },
     "Play a track to add it to the queue." : {
+      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Spiele einen Titel ab, um ihn zur Warteliste hinzuzufügen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play a track to add it to the queue."
           }
         },
         "es" : {
@@ -3406,22 +3460,22 @@
             "state" : "needs_review",
             "value" : "播放曲目即可将其加入队列。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play a track to add it to the queue."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)"
+      }
     },
     "Play on Apple Watch" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Auf der Apple Watch abspielen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play on Apple Watch"
           }
         },
         "es" : {
@@ -3453,22 +3507,22 @@
             "state" : "needs_review",
             "value" : "在 Apple Watch 上播放"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play on Apple Watch"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Play on iPhone" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Auf dem iPhone abspielen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play on iPhone"
           }
         },
         "es" : {
@@ -3500,22 +3554,22 @@
             "state" : "needs_review",
             "value" : "在 iPhone 上播放"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play on iPhone"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)"
+      }
     },
     "Play something on your iPhone to see it here." : {
+      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Spiele etwas auf deinem iPhone ab, um es hier zu sehen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play something on your iPhone to see it here."
           }
         },
         "es" : {
@@ -3547,22 +3601,22 @@
             "state" : "needs_review",
             "value" : "在 iPhone 上播放内容即可在此查看。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play something on your iPhone to see it here."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)"
+      }
     },
     "Playback Failed" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Wiedergabe fehlgeschlagen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback Failed"
           }
         },
         "es" : {
@@ -3594,22 +3648,22 @@
             "state" : "needs_review",
             "value" : "播放失败"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playback Failed"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Playback stays paused. Your queue is safe." : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Die Wiedergabe bleibt pausiert. Deine Warteliste bleibt erhalten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback stays paused. Your queue is safe."
           }
         },
         "es" : {
@@ -3641,22 +3695,22 @@
             "state" : "needs_review",
             "value" : "播放保持暂停。你的队列安然无恙。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playback stays paused. Your queue is safe."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Playing %lld on iPhone" : {
+      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "%lld wird auf dem iPhone abgespielt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing %lld on iPhone"
           }
         },
         "es" : {
@@ -3688,21 +3742,21 @@
             "state" : "needs_review",
             "value" : "正在 iPhone 上播放 %lld"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playing %lld on iPhone"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)"
+      }
     },
     "Playlist" : {
+      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift); Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
+            "value" : "Playlist"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Playlist"
           }
         },
@@ -3735,21 +3789,21 @@
             "state" : "needs_review",
             "value" : "播放列表"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playlist"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift); Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)"
+      }
     },
     "Playlists" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift); Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
+            "value" : "Playlists"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Playlists"
           }
         },
@@ -3782,22 +3836,22 @@
             "state" : "needs_review",
             "value" : "播放列表"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playlists"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift); Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Playlists on your iPhone will appear here." : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Playlists auf deinem iPhone erscheinen hier."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists on your iPhone will appear here."
           }
         },
         "es" : {
@@ -3829,22 +3883,22 @@
             "state" : "needs_review",
             "value" : "你 iPhone 上的播放列表会显示在这里。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playlists on your iPhone will appear here."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Playlists you download from your iPhone will appear here." : {
+      "comment" : "UI text shown in: Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Playlists, die du von deinem iPhone lädst, erscheinen hier."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists you download from your iPhone will appear here."
           }
         },
         "es" : {
@@ -3876,22 +3930,22 @@
             "state" : "needs_review",
             "value" : "从 iPhone 下载的播放列表会显示在这里。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playlists you download from your iPhone will appear here."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)"
+      }
     },
     "Plays a playlist you've downloaded for offline listening." : {
+      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Spielt eine Playlist ab, die du zum Offline-Hören geladen hast."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays a playlist you've downloaded for offline listening."
           }
         },
         "es" : {
@@ -3923,22 +3977,22 @@
             "state" : "needs_review",
             "value" : "播放你已下载用于离线收听的播放列表。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plays a playlist you've downloaded for offline listening."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)"
+      }
     },
     "Previous" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Zurück"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous"
           }
         },
         "es" : {
@@ -3970,22 +4024,22 @@
             "state" : "needs_review",
             "value" : "上一首"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Previous"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Queue Empty" : {
+      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Warteliste leer"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queue Empty"
           }
         },
         "es" : {
@@ -4017,22 +4071,22 @@
             "state" : "needs_review",
             "value" : "队列为空"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Queue Empty"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)"
+      }
     },
     "Recent" : {
+      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Zuletzt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent"
           }
         },
         "es" : {
@@ -4064,22 +4118,22 @@
             "state" : "needs_review",
             "value" : "最近"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recent"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Recovery" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Wiederherstellung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recovery"
           }
         },
         "es" : {
@@ -4111,22 +4165,22 @@
             "state" : "needs_review",
             "value" : "恢复"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recovery"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Refresh" : {
+      "comment" : "UI text shown in: Watch Diagnostics (WatchApp/Views/WatchDiagnosticsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Aktualisieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh"
           }
         },
         "es" : {
@@ -4158,22 +4212,22 @@
             "state" : "needs_review",
             "value" : "刷新"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Refresh"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Diagnostics (WatchApp/Views/WatchDiagnosticsView.swift)"
+      }
     },
     "Replace Downloads" : {
+      "comment" : "UI text shown in: Platterhead Watch App (WatchApp/PlatterheadWatchApp.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Downloads ersetzen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace Downloads"
           }
         },
         "es" : {
@@ -4205,22 +4259,22 @@
             "state" : "needs_review",
             "value" : "替换下载项"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Replace Downloads"
-          }
         }
-      },
-      "comment" : "UI text shown in: Platterhead Watch App (WatchApp/PlatterheadWatchApp.swift)"
+      }
     },
     "Resume" : {
+      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Fortsetzen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume"
           }
         },
         "es" : {
@@ -4252,22 +4306,22 @@
             "state" : "needs_review",
             "value" : "继续"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Resume"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)"
+      }
     },
     "Resume Platterhead" : {
+      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Platterhead fortsetzen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume Platterhead"
           }
         },
         "es" : {
@@ -4299,22 +4353,22 @@
             "state" : "needs_review",
             "value" : "继续播放 Platterhead"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Resume Platterhead"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)"
+      }
     },
     "Resumes your last downloaded track." : {
+      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Setzt deinen zuletzt geladenen Titel fort."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resumes your last downloaded track."
           }
         },
         "es" : {
@@ -4346,22 +4400,22 @@
             "state" : "needs_review",
             "value" : "继续播放你最近下载的曲目。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Resumes your last downloaded track."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)"
+      }
     },
     "Search" : {
+      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Suchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
           }
         },
         "es" : {
@@ -4393,22 +4447,22 @@
             "state" : "needs_review",
             "value" : "搜索"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Search Downloads" : {
+      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift); Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Downloads durchsuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search Downloads"
           }
         },
         "es" : {
@@ -4440,22 +4494,22 @@
             "state" : "needs_review",
             "value" : "搜索下载项"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search Downloads"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift); Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Search iPhone" : {
+      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "iPhone durchsuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search iPhone"
           }
         },
         "es" : {
@@ -4487,22 +4541,22 @@
             "state" : "needs_review",
             "value" : "搜索 iPhone"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search iPhone"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Search iPhone Library" : {
+      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "iPhone-Bibliothek durchsuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search iPhone Library"
           }
         },
         "es" : {
@@ -4534,22 +4588,22 @@
             "state" : "needs_review",
             "value" : "搜索 iPhone 资料库"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search iPhone Library"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Searching…" : {
+      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Suche läuft …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Searching…"
           }
         },
         "es" : {
@@ -4581,22 +4635,22 @@
             "state" : "needs_review",
             "value" : "正在搜索…"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Searching…"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Shuffle" : {
+      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Zufällig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuffle"
           }
         },
         "es" : {
@@ -4628,21 +4682,21 @@
             "state" : "needs_review",
             "value" : "随机播放"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shuffle"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift); Watch Playlists (WatchApp/Views/WatchPlaylistsView.swift)"
+      }
     },
     "Songs" : {
+      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
+            "value" : "Songs"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Songs"
           }
         },
@@ -4675,22 +4729,22 @@
             "state" : "needs_review",
             "value" : "歌曲"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Songs"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)"
+      }
     },
     "Songs you download from your iPhone will appear here." : {
+      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Songs, die du von deinem iPhone lädst, erscheinen hier."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Songs you download from your iPhone will appear here."
           }
         },
         "es" : {
@@ -4722,28 +4776,22 @@
             "state" : "needs_review",
             "value" : "从 iPhone 下载的歌曲会显示在这里。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Songs you download from your iPhone will appear here."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Albums (WatchApp/Views/WatchAlbumsView.swift)"
+      }
     },
     "State: %@\nDownloads: %lld" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "State: %1$@\nDownloads: %2$lld"
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Status: %@\nDownloads: %lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "State: %1$@\nDownloads: %2$lld"
           }
         },
         "es" : {
@@ -4776,15 +4824,21 @@
             "value" : "状态：%@\n下载：%lld"
           }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Storage" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Root (WatchApp/Views/WatchRootView.swift); Watch Storage (WatchApp/Views/WatchStorageView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Speicher"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storage"
           }
         },
         "es" : {
@@ -4816,22 +4870,22 @@
             "state" : "needs_review",
             "value" : "存储空间"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Storage"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Root (WatchApp/Views/WatchRootView.swift); Watch Storage (WatchApp/Views/WatchStorageView.swift)"
+      }
     },
     "The audio file did not become ready." : {
+      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Die Audiodatei wurde nicht bereit."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The audio file did not become ready."
           }
         },
         "es" : {
@@ -4863,22 +4917,69 @@
             "state" : "needs_review",
             "value" : "音频文件未能准备就绪。"
           }
+        }
+      }
+    },
+    "The audio loaded but never started playing." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Das Audio wurde geladen, aber nie abgespielt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "El audio se cargó, pero nunca empezó a reproducirse."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "L’audio a été chargé mais n’a jamais démarré."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "オーディオは読み込まれましたが、再生が始まりませんでした。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O áudio carregou, mas nunca começou a tocar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "音频已载入，但始终没有开始播放。"
+          }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The audio file did not become ready."
+            "value" : "The audio loaded but never started playing."
           }
         }
       },
       "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)"
     },
     "The downloaded audio file could not be played." : {
+      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Die geladene Audiodatei konnte nicht abgespielt werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The downloaded audio file could not be played."
           }
         },
         "es" : {
@@ -4910,22 +5011,22 @@
             "state" : "needs_review",
             "value" : "无法播放已下载的音频文件。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The downloaded audio file could not be played."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)"
+      }
     },
     "The iPhone could not be reached." : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Das iPhone war nicht erreichbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The iPhone could not be reached."
           }
         },
         "es" : {
@@ -4957,22 +5058,116 @@
             "state" : "needs_review",
             "value" : "无法连接 iPhone。"
           }
+        }
+      }
+    },
+    "There is nothing to play." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Es gibt nichts abzuspielen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "No hay nada que reproducir."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Il n’y a rien à lire."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "再生するものがありません。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Não há nada para tocar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "没有可播放的内容。"
+          }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The iPhone could not be reached."
+            "value" : "There is nothing to play."
           }
         }
       },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)"
+    },
+    "There is nothing to resume." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Es gibt nichts fortzusetzen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "No hay nada que reanudar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Il n’y a rien à reprendre."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "再開するものがありません。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Não há nada para retomar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "没有可继续播放的内容。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is nothing to resume."
+          }
+        }
+      },
+      "comment" : "UI text shown in: Watch Playback Intents (WatchApp/AppIntents/WatchPlaybackIntents.swift)"
     },
     "This download is not available on the watch." : {
+      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Dieser Download ist auf der Watch nicht verfügbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This download is not available on the watch."
           }
         },
         "es" : {
@@ -5004,22 +5199,22 @@
             "state" : "needs_review",
             "value" : "此下载项在手表上不可用。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This download is not available on the watch."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Player (WatchApp/WatchPlayer.swift)"
+      }
     },
     "This iPhone has a different music library. Replacing keeps this watch in sync but removes downloads that are no longer in it." : {
+      "comment" : "UI text shown in: Platterhead Watch App (WatchApp/PlatterheadWatchApp.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Dieses iPhone hat eine andere Musikbibliothek. Beim Ersetzen bleibt diese Watch synchron, aber Downloads, die dort nicht mehr vorhanden sind, werden entfernt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This iPhone has a different music library. Replacing keeps this watch in sync but removes downloads that are no longer in it."
           }
         },
         "es" : {
@@ -5051,22 +5246,22 @@
             "state" : "needs_review",
             "value" : "此 iPhone 使用不同的音乐资料库。替换后此手表将保持同步，但会移除已不在该资料库中的下载项。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This iPhone has a different music library. Replacing keeps this watch in sync but removes downloads that are no longer in it."
-          }
         }
-      },
-      "comment" : "UI text shown in: Platterhead Watch App (WatchApp/PlatterheadWatchApp.swift)"
+      }
     },
     "This track is downloaded." : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Dieser Titel ist geladen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This track is downloaded."
           }
         },
         "es" : {
@@ -5098,22 +5293,22 @@
             "state" : "needs_review",
             "value" : "此曲目已下载。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This track is downloaded."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "Tracks" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Titel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks"
           }
         },
         "es" : {
@@ -5145,22 +5340,22 @@
             "state" : "needs_review",
             "value" : "曲目"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tracks"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift); Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Tracks, albums, playlists" : {
+      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Titel, Alben, Playlists"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks, albums, playlists"
           }
         },
         "es" : {
@@ -5192,22 +5387,22 @@
             "state" : "needs_review",
             "value" : "曲目、专辑、播放列表"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tracks, albums, playlists"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "Try Again" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Erneut versuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try Again"
           }
         },
         "es" : {
@@ -5239,22 +5434,22 @@
             "state" : "needs_review",
             "value" : "重试"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try Again"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Try again, or search your downloads." : {
+      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Versuche es erneut oder durchsuche deine Downloads."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again, or search your downloads."
           }
         },
         "es" : {
@@ -5286,22 +5481,22 @@
             "state" : "needs_review",
             "value" : "请重试，或搜索你的下载项。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try again, or search your downloads."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Type to search your downloads." : {
+      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Tippe, um deine Downloads zu durchsuchen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type to search your downloads."
           }
         },
         "es" : {
@@ -5333,22 +5528,22 @@
             "state" : "needs_review",
             "value" : "输入以搜索你的下载项。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Type to search your downloads."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Type to search your iPhone library." : {
+      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Tippe, um deine iPhone-Bibliothek zu durchsuchen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type to search your iPhone library."
           }
         },
         "es" : {
@@ -5380,22 +5575,22 @@
             "state" : "needs_review",
             "value" : "输入以搜索你的 iPhone 资料库。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Type to search your iPhone library."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Search (WatchApp/Views/WatchSearchView.swift)"
+      }
     },
     "Up Next" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Up Next (WatchApp/Views/WatchUpNextView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Als Nächstes"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up Next"
           }
         },
         "es" : {
@@ -5427,22 +5622,22 @@
             "state" : "needs_review",
             "value" : "待播清单"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Up Next"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Up Next (WatchApp/Views/WatchUpNextView.swift)"
+      }
     },
     "Update Platterhead on iPhone to sync — downloaded music still plays" : {
+      "comment" : "UI text shown in: Watch Connection Banner (WatchApp/Views/WatchConnectionBanner.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Aktualisiere Platterhead auf dem iPhone, um zu synchronisieren – geladene Musik wird weiterhin abgespielt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update Platterhead on iPhone to sync — downloaded music still plays"
           }
         },
         "es" : {
@@ -5474,22 +5669,22 @@
             "state" : "needs_review",
             "value" : "请更新 iPhone 上的 Platterhead 以同步 — 已下载的音乐仍可播放"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Update Platterhead on iPhone to sync — downloaded music still plays"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connection Banner (WatchApp/Views/WatchConnectionBanner.swift)"
+      }
     },
     "Updating…" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Wird aktualisiert …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updating…"
           }
         },
         "es" : {
@@ -5521,22 +5716,22 @@
             "state" : "needs_review",
             "value" : "正在更新…"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Updating…"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "View Details" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Details anzeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Details"
           }
         },
         "es" : {
@@ -5568,22 +5763,22 @@
             "state" : "needs_review",
             "value" : "查看详细信息"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "View Details"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      }
     },
     "Watch Library" : {
+      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Watch-Bibliothek"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch Library"
           }
         },
         "es" : {
@@ -5615,22 +5810,69 @@
             "state" : "needs_review",
             "value" : "手表资料库"
           }
+        }
+      }
+    },
+    "Your iPhone didn't accept the request." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Dein iPhone hat die Anfrage nicht angenommen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Tu iPhone no aceptó la solicitud."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Votre iPhone n’a pas accepté la demande."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "iPhoneがリクエストを受け付けませんでした。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Seu iPhone não aceitou a solicitação."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "你的 iPhone 未接受该请求。"
+          }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Watch Library"
+            "value" : "Your iPhone didn't accept the request."
           }
         }
       },
-      "comment" : "UI text shown in: Watch Connecteds (WatchApp/Views/WatchConnectedViews.swift)"
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
     },
     "Your iPhone isn't reachable." : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Dein iPhone ist nicht erreichbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your iPhone isn't reachable."
           }
         },
         "es" : {
@@ -5662,22 +5904,22 @@
             "state" : "needs_review",
             "value" : "无法连接你的 iPhone。"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your iPhone isn't reachable."
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "connected" : {
+      "comment" : "UI text shown in: Watch Storage (WatchApp/Views/WatchStorageView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "verbunden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "connected"
           }
         },
         "es" : {
@@ -5709,22 +5951,22 @@
             "state" : "needs_review",
             "value" : "已连接"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "connected"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Storage (WatchApp/Views/WatchStorageView.swift)"
+      }
     },
     "downloaded" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "geladen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "downloaded"
           }
         },
         "es" : {
@@ -5756,22 +5998,22 @@
             "state" : "needs_review",
             "value" : "已下载"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "downloaded"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "downloading" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "wird geladen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "downloading"
           }
         },
         "es" : {
@@ -5803,22 +6045,22 @@
             "state" : "needs_review",
             "value" : "正在下载"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "downloading"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "downloading %lld percent" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "wird geladen, %lld Prozent"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "downloading %lld percent"
           }
         },
         "es" : {
@@ -5850,22 +6092,22 @@
             "state" : "needs_review",
             "value" : "正在下载，百分之 %lld"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "downloading %lld percent"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "duration %@" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Dauer %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "duration %@"
           }
         },
         "es" : {
@@ -5897,22 +6139,22 @@
             "state" : "needs_review",
             "value" : "时长 %@"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "duration %@"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "error %@" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Fehler %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "error %@"
           }
         },
         "es" : {
@@ -5944,22 +6186,22 @@
             "state" : "needs_review",
             "value" : "错误 %@"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "error %@"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "generation %lld" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Generation %lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "generation %lld"
           }
         },
         "es" : {
@@ -5991,21 +6233,21 @@
             "state" : "needs_review",
             "value" : "第 %lld 代"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "generation %lld"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "iPhone" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Storage (WatchApp/Views/WatchStorageView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
+            "value" : "iPhone"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "iPhone"
           }
         },
@@ -6038,22 +6280,69 @@
             "state" : "needs_review",
             "value" : "iPhone"
           }
+        }
+      }
+    },
+    "iPhone Didn't Start" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "iPhone hat nicht gestartet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "El iPhone no empezó"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "L’iPhone n’a pas démarré"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "iPhoneで開始されませんでした"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O iPhone não iniciou"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "iPhone 未开始播放"
+          }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "iPhone"
+            "value" : "iPhone Didn't Start"
           }
         }
       },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Storage (WatchApp/Views/WatchStorageView.swift)"
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
     },
     "iPhone Unavailable" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "iPhone nicht verfügbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone Unavailable"
           }
         },
         "es" : {
@@ -6085,22 +6374,22 @@
             "state" : "needs_review",
             "value" : "iPhone 不可用"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iPhone Unavailable"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "iPhone only" : {
+      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Nur iPhone"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone only"
           }
         },
         "es" : {
@@ -6132,22 +6421,22 @@
             "state" : "needs_review",
             "value" : "仅限 iPhone"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iPhone only"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Up Next (WatchApp/Views/WatchUpNextView.swift)"
+      }
     },
     "item %@" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Objekt %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "item %@"
           }
         },
         "es" : {
@@ -6179,22 +6468,22 @@
             "state" : "needs_review",
             "value" : "项目 %@"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "item %@"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "not downloaded" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "nicht geladen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not downloaded"
           }
         },
         "es" : {
@@ -6226,22 +6515,22 @@
             "state" : "needs_review",
             "value" : "未下载"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "not downloaded"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "paused" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "pausiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "paused"
           }
         },
         "es" : {
@@ -6273,22 +6562,22 @@
             "state" : "needs_review",
             "value" : "已暂停"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "paused"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "phase %@" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Phase %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "phase %@"
           }
         },
         "es" : {
@@ -6320,22 +6609,22 @@
             "state" : "needs_review",
             "value" : "阶段 %@"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "phase %@"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "playing" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Root (WatchApp/Views/WatchRootView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "wird abgespielt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "playing"
           }
         },
         "es" : {
@@ -6367,22 +6656,22 @@
             "state" : "needs_review",
             "value" : "正在播放"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "playing"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift); Watch Root (WatchApp/Views/WatchRootView.swift)"
+      }
     },
     "rate %@" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Rate %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rate %@"
           }
         },
         "es" : {
@@ -6414,22 +6703,22 @@
             "state" : "needs_review",
             "value" : "速率 %@"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rate %@"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "session %@" : {
+      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Sitzung %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "session %@"
           }
         },
         "es" : {
@@ -6461,22 +6750,22 @@
             "state" : "needs_review",
             "value" : "会话 %@"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "session %@"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Now Playing (WatchApp/Views/WatchNowPlayingView.swift)"
+      }
     },
     "unreachable" : {
+      "comment" : "UI text shown in: Watch Storage (WatchApp/Views/WatchStorageView.swift)",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "nicht erreichbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "unreachable"
           }
         },
         "es" : {
@@ -6508,15 +6797,8 @@
             "state" : "needs_review",
             "value" : "无法连接"
           }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "unreachable"
-          }
         }
-      },
-      "comment" : "UI text shown in: Watch Storage (WatchApp/Views/WatchStorageView.swift)"
+      }
     }
   },
   "version" : "1.0"

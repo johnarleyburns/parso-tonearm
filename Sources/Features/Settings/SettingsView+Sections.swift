@@ -193,7 +193,7 @@ extension SettingsView {
             customCacheLimitMB = String(max(100, cacheLimit / 1024 / 1024))
             showCustomCacheLimit = true
         } label: {
-            Text(selected ? TimeFmt.megabytes(cacheLimit) : "Custom")
+            Text(selected ? TimeFmt.megabytes(cacheLimit) : String(localized: "Custom"))
                 .font(Typography.caption)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)

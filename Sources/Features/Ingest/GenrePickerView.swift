@@ -75,10 +75,7 @@ public struct GenrePickerSheet: View {
             Text("Want some music to practise with?")
                 .font(Typography.headline).kerning(-0.4)
                 .multilineTextAlignment(.center)
-            Text("Pick the genres you want to mix. Each one becomes its own "
-                 + "library, ordered by what's most interesting right now — so "
-                 + "you can build a set from techno without wading through "
-                 + "everything else.")
+            Text("Pick the genres you want to mix. Each one becomes its own library, ordered by what's most interesting right now — so you can build a set from techno without wading through everything else.")
                 .font(Typography.callout)
                 .foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.center)
@@ -263,9 +260,7 @@ public struct GenrePickerContent: View {
                            + selections.map(\.name).joined(separator: ", "))
                         .font(Typography.callout)
                         .foregroundStyle(Palette.ink)
-                    Text("We'll fetch the track lists now — that's quick. Audio "
-                         + "downloads only when you actually play or prepare a "
-                         + "track, so nothing fills your disk in the background.")
+                    Text("We'll fetch the track lists now — that's quick. Audio downloads only when you actually play or prepare a track, so nothing fills your disk in the background.")
                         .font(Typography.caption)
                             .foregroundStyle(Palette.inkSecondary)
                 }
@@ -290,9 +285,7 @@ public struct GenrePickerContent: View {
                     .frame(width: 22, height: 22)
                     .contentShape(Rectangle())
                     .onTapGesture { model.showsAccountOption.toggle() }
-                Text("I have a catalogue account (optional) — signing in adds "
-                     + "your favourites and playlists. **Browsing and playing "
-                     + "work without it.**")
+                Text("I have a catalogue account (optional) — signing in adds your favourites and playlists. **Browsing and playing work without it.**")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.inkSecondary)
                 Spacer()
@@ -300,10 +293,7 @@ public struct GenrePickerContent: View {
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("genre.account.optional")
 
-            Text("These tracks are Creative-Commons licensed. Platterhead keeps "
-                 + "each track's artist and licence with it, and adds them to "
-                 + "your mix's tracklist automatically — so a set you post is "
-                 + "properly credited.")
+            Text("These tracks are Creative-Commons licensed. Platterhead keeps each track's artist and licence with it, and adds them to your mix's tracklist automatically — so a set you post is properly credited.")
                 .font(Typography.caption)
                 .foregroundStyle(.tertiary)
                 .lineSpacing(2)

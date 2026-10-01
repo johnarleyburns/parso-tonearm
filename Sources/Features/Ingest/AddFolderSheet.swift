@@ -143,8 +143,7 @@ struct AddFolderSheet: View {
             appState.tab = .myMusic
             if summary.skippedDuplicates > 0 {
                 ToastCenter.shared.info(
-                    "Imported \(summary.imported), skipped \(summary.skippedDuplicates) "
-                        + "already in your library")
+                    "Imported \(summary.imported), skipped \(summary.skippedDuplicates) already in your library")
             }
         } catch {
             importError = error.localizedDescription

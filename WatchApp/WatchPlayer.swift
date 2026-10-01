@@ -95,7 +95,7 @@ final class WatchPlayer: ObservableObject {
 
     func play(tracks: [WatchTrackSnapshot], startAt: Int) {
         guard !tracks.isEmpty else {
-            failWithoutTrack(code: "emptyQueue", message: "There is nothing to play.")
+            failWithoutTrack(code: "emptyQueue", message: String(localized: "There is nothing to play."))
             return
         }
         let safeIndex = min(max(0, startAt), tracks.count - 1)
@@ -108,7 +108,7 @@ final class WatchPlayer: ObservableObject {
                             seekTo: Double? = nil) {
         let playable = tracks.filter { localFileURL(for: $0) != nil }
         guard !playable.isEmpty else {
-            failWithoutTrack(code: "localFileMissing", message: "This download is not available on the watch.")
+            failWithoutTrack(code: "localFileMissing", message: String(localized: "This download is not available on the watch."))
             return
         }
         let start = playable.firstIndex(where: { $0.id == selectedTrackID }) ?? 0
@@ -242,7 +242,7 @@ final class WatchPlayer: ObservableObject {
                 return self.queue.first(where: { $0.id == key }).flatMap { self.localFileURL(for: $0) }
             }
             guard !directives.isEmpty else {
-                failWithoutTrack(code: "localFileMissing", message: "This download is not available on the watch.")
+                failWithoutTrack(code: "localFileMissing", message: String(localized: "This download is not available on the watch."))
                 return
             }
             elapsed = engine.elapsed
@@ -274,7 +274,7 @@ final class WatchPlayer: ObservableObject {
 
     private func scheduleCurrentTrackPlayback() {
         guard let track = currentTrack, let url = localFileURL(for: track) else {
-            failWithoutTrack(code: "localFileMissing", message: "This download is not available on the watch.")
+            failWithoutTrack(code: "localFileMissing", message: String(localized: "This download is not available on the watch."))
             return
         }
         playbackGeneration &+= 1

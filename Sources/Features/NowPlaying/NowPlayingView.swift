@@ -412,7 +412,7 @@ struct NowPlayingView: View {
                 if let row {
                     Task {
                         await appState.removeFromWatch(rows: [row])
-                        ToastCenter.shared.info("Removed from Apple Watch", icon: "applewatch")
+                        ToastCenter.shared.info(String(localized: "Removed from Apple Watch"), icon: "applewatch")
                     }
                 }
             case .transferring:

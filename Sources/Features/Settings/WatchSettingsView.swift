@@ -352,8 +352,8 @@ private struct WatchCollectionRowView: View {
         if row.paused { return String(localized: "Paused · \(row.readyCount) of \(row.desiredCount) downloaded") }
         var parts: [String] = []
         switch row.kind {
-        case .track: parts.append("Track")
-        case .album: parts.append("Album · \(row.desiredCount) tracks")
+        case .track: parts.append(String(localized: "Track"))
+        case .album: parts.append(String(localized: "Album · \(row.desiredCount) tracks"))
         case .playlist: parts.append("\(row.desiredCount) tracks")
         }
         if row.isFullyReady {

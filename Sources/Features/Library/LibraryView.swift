@@ -331,7 +331,7 @@ private struct LibraryGroupDetailView: View {
                         .padding(.top, 4)
                 }
                 if entry.kind == .album, let averageBPM {
-                    Text("Average " + String(format: "%.1f", averageBPM) + " BPM")
+                    Text("Average \(averageBPM, format: .number.precision(.fractionLength(1))) BPM")
                         .font(Typography.monoStrong)
                         .foregroundStyle(Palette.accent)
                         .padding(.top, 3)

@@ -277,12 +277,12 @@ struct IndexStatusView: View {
     private func actionsCard(_ p: IndexStatusPresentation) -> some View {
         VStack(spacing: 10) {
             if p.canResume {
-                actionButton("Resume indexing", "play.fill") { await model.setPaused(false) }
+                actionButton(String(localized: "Resume indexing"), "play.fill") { await model.setPaused(false) }
             } else if p.canPause {
-                actionButton("Pause indexing", "pause.fill") { await model.setPaused(true) }
+                actionButton(String(localized: "Pause indexing"), "pause.fill") { await model.setPaused(true) }
             }
             if p.canRetryFailed {
-                actionButton("Retry \(p.failedCount) failed", "arrow.clockwise") {
+                actionButton(String(localized: "Retry \(p.failedCount) failed"), "arrow.clockwise") {
                     await model.retryFailed()
                 }
             }
@@ -299,7 +299,7 @@ struct IndexStatusView: View {
 
             remoteIndexingToggles
 
-            actionButton("Enqueue unindexed tracks", "arrow.triangle.2.circlepath") {
+            actionButton(String(localized: "Enqueue unindexed tracks"), "arrow.triangle.2.circlepath") {
                 let count = await model.enqueueUnindexedTracks()
                 if count > 0 {
                     ToastCenter.shared.success("Queued \(count) tracks")
@@ -308,7 +308,7 @@ struct IndexStatusView: View {
                 }
             }
 
-            actionButton("Export diagnostics", "square.and.arrow.up") {
+            actionButton(String(localized: "Export diagnostics"), "square.and.arrow.up") {
                 diagnosticsText = await model.diagnosticsText()
                 showShare = true
             }
@@ -334,8 +334,7 @@ struct IndexStatusView: View {
             )
             .font(Typography.callout)
             .padding(.vertical, 4)
-            Text("Samples just enough of each track from your remote libraries to index it — "
-                + "the audio is never downloaded or kept.")
+            Text("Samples just enough of each track from your remote libraries to index it — the audio is never downloaded or kept.")
                 .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
 

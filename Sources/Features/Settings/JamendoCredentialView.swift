@@ -47,10 +47,7 @@ struct JamendoCredentialView: View {
                         .platformAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("jamendo.credential.secret")
-                    Text("Register an application at devportal.jamendo.com. This is an "
-                         + "application key, not a Jamendo account — browsing and playback "
-                         + "still need no sign-in. The secret is optional and unused today; "
-                         + "it is kept for the authorised flows Jamendo requires it for.")
+                    Text("Register an application at devportal.jamendo.com. This is an application key, not a Jamendo account — browsing and playback still need no sign-in. The secret is optional and unused today; it is kept for the authorised flows Jamendo requires it for.")
                         .font(Typography.caption)
                         .foregroundStyle(Palette.inkSecondary)
                 }

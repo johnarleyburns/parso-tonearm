@@ -225,8 +225,7 @@ struct ListenView: View {
     private var moodNotReadyView: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: "What's the mood?")
-            Text("Once you download the mood models and index your tracks, "
-                + "you can come back and search by mood here.")
+            Text("Once you download the mood models and index your tracks, you can come back and search by mood here.")
                 .font(Typography.callout)
                 .foregroundStyle(Palette.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -701,7 +700,7 @@ struct RecentCard: View {
                 .font(Typography.callout)
                 .lineLimit(1)
                 .padding(.top, 7)
-            Text(row.artist?.name ?? row.album?.artist ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : "On device"))
+            Text(row.artist?.name ?? row.album?.artist ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : String(localized: "On device")))
                 .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
                 .lineLimit(1)

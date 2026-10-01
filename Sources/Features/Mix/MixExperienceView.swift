@@ -92,7 +92,7 @@ struct MixBuilderSheet: View {
                     Section("Preview") {
                         if plan.steps.isEmpty {
                             Label(
-                                generationMessage ?? "No compatible tracks were found yet.",
+                                generationMessage ?? String(localized: "No compatible tracks were found yet."),
                                 systemImage: "exclamationmark.circle"
                             )
                             .font(Typography.callout)
@@ -157,8 +157,8 @@ struct MixBuilderSheet: View {
             plan = generated
             if generated.steps.isEmpty {
                 generationMessage = rows.isEmpty
-                    ? "Add music to your library before building a mix."
-                    : "No tracks have usable BPM and Camelot analysis yet. Prepare the Sound Index, then generate again."
+                    ? String(localized: "Add music to your library before building a mix.")
+                    : String(localized: "No tracks have usable BPM and Camelot analysis yet. Prepare the Sound Index, then generate again.")
             }
             isLoading = false
         }
@@ -358,13 +358,13 @@ struct MixPreviewView: View {
         let savedPlan = plan
         let savedOverrides = plainFadeEdges
         Task {
-            let playlist = await appState.createPlaylist(title: "Mix · \(savedPlan.request.shape.title)",
+            let playlist = await appState.createPlaylist(title: String(localized: "Mix · \(savedPlan.request.shape.title)"),
                                                          trackIds: ids, switchesTab: false)
             if let id = playlist?.id {
                 persistConfiguration(for: id, plan: savedPlan, overrides: savedOverrides)
-                ToastCenter.shared.success("Mix saved as a playlist", icon: "checkmark.circle.fill")
+                ToastCenter.shared.success(String(localized: "Mix saved as a playlist"), icon: "checkmark.circle.fill")
             } else {
-                ToastCenter.shared.error("Could not save the mix", icon: "exclamationmark.triangle")
+                ToastCenter.shared.error(String(localized: "Could not save the mix"), icon: "exclamationmark.triangle")
             }
         }
     }
@@ -379,9 +379,9 @@ struct MixPreviewView: View {
                 undoPlaylistID = id
                 undoPlaylistOrder = original
                 persistConfiguration()
-                ToastCenter.shared.success("Playlist order updated", icon: "checkmark.circle.fill")
+                ToastCenter.shared.success(String(localized: "Playlist order updated"), icon: "checkmark.circle.fill")
             } catch {
-                ToastCenter.shared.error("Could not update playlist order", icon: "exclamationmark.triangle")
+                ToastCenter.shared.error(String(localized: "Could not update playlist order"), icon: "exclamationmark.triangle")
             }
         }
     }
@@ -394,9 +394,9 @@ struct MixPreviewView: View {
                 try await appState.store.applyPlaylistOrder(id: id, orderedTrackIDs: original)
                 undoPlaylistID = nil
                 undoPlaylistOrder = []
-                ToastCenter.shared.success("Playlist order restored", icon: "arrow.uturn.backward")
+                ToastCenter.shared.success(String(localized: "Playlist order restored"), icon: "arrow.uturn.backward")
             } catch {
-                ToastCenter.shared.error("Could not restore playlist order", icon: "exclamationmark.triangle")
+                ToastCenter.shared.error(String(localized: "Could not restore playlist order"), icon: "exclamationmark.triangle")
             }
         }
     }

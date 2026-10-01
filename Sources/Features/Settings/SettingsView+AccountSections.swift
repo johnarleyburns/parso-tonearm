@@ -20,8 +20,7 @@ extension SettingsView {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Tracks added per extension").font(Typography.callout)
-                    Text("Picked by sound similarity to what you just played, "
-                        + "when the sound index is ready — otherwise shuffled from the same library/playlist")
+                    Text("Picked by sound similarity to what you just played, when the sound index is ready — otherwise shuffled from the same library/playlist")
                         .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
