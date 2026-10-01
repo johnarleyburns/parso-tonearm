@@ -5,7 +5,7 @@ hierarchy, sizes, copy and states (not pixel-exact). This spec sits on top of
 [`../watch-rearchitecture/`](../watch-rearchitecture/): the sync/protocol architecture there stands, and this replaces
 its watch UI layer (W1–W12 screens).
 
-The same **Watch Listening Kit** (§3) is specified in Voxglass at `docs/watch-redesign/DESIGN.md`. Only the
+The same **Watch Listening Kit** (§3) is specified in Voxglass at `parso-voxglass/docs/plans/watch-redesign/DESIGN.md`. Only the
 accent colour and the domain screens differ, so build fixes and polish in one app port straight to the other.
 
 ## 1. What's wrong today (from code review + owner device report, 2026-09-30)
