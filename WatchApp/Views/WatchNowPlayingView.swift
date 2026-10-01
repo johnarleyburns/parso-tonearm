@@ -361,6 +361,11 @@ struct WatchNowPlayingView: View {
             ])
     }
 
+    private var showsProblemCard: Bool {
+        if shown == .iPhone { return remote.startFailure != nil }
+        return player.currentTrack != nil && (player.audioRouteProblem != nil || player.playbackErrorMessage != nil)
+    }
+
     // MARK: - Toolbar
 
     @ToolbarContentBuilder
@@ -370,7 +375,8 @@ struct WatchNowPlayingView: View {
             Button { dismiss() } label: { Image(systemName: "chevron.down") }
                 .accessibilityLabel(Text("Close"))
         }
-        if !isLuminanceReduced {
+        // A Problem Card owns the screen's actions (S3); the tool row would cover them.
+        if !isLuminanceReduced && !showsProblemCard {
             ToolbarItemGroup(placement: .bottomBar) {
                 WatchToolButton(systemImage: "airplayaudio", label: Text("Output")) { showingOutput = true }
                     .accessibilityIdentifier("watch.now.output")
