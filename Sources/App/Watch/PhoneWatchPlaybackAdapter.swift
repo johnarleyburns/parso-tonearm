@@ -18,6 +18,7 @@ public final class PhoneWatchPlaybackAdapter: PhoneWatchPlaybackBridge {
     private let player: AudioPlayer
     private let downloadedProvider: @Sendable () async -> Set<WatchTrackID>
     private let artworkBindingProvider: @Sendable (String) async -> (coverArtworkID: String?, customArtworkID: String?)
+    private var artworkColorCache: [String: String] = [:]
 
     public init(player: AudioPlayer,
                 downloadedProvider: @escaping @Sendable () async -> Set<WatchTrackID> = { [] },
@@ -47,8 +48,33 @@ public final class PhoneWatchPlaybackAdapter: PhoneWatchPlaybackBridge {
             collection: collectionRef(for: player.queueSource),
             collectionTitle: collectionTitle(for: player.queueSource),
             shuffleEnabled: player.shuffle,
-            repeatMode: Self.watchRepeat(player.repeatMode))
+            repeatMode: Self.watchRepeat(player.repeatMode),
+            volume: Double(player.outputLevel),
+            artworkColorHex: await artworkColorHex())
         return WatchPlaybackSnapshotBuilder.build(input)
+    }
+
+    /// Average artwork colour for the current track as `#RRGGBB`, cached per track so a 1 Hz
+    /// snapshot poll doesn't re-render artwork (watch redesign §6.2).
+    private func artworkColorHex() async -> String? {
+        guard player.queue.indices.contains(player.index) else { return nil }
+        let row = player.queue[player.index]
+        let key = PhoneWatchID.track(row.track).rawValue
+        if let cached = artworkColorCache[key] { return cached }
+        guard let image = await ArtworkService.shared.thumbnail(forTrackRow: row, maxDimension: 64) else {
+            return nil
+        }
+        let hex = Self.hex(ArtworkService.dominantColor(from: image))
+        if artworkColorCache.count > 64 { artworkColorCache.removeAll() }
+        artworkColorCache[key] = hex
+        return hex
+    }
+
+    private static func hex(_ color: PlatformColor) -> String {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        func byte(_ v: CGFloat) -> Int { Int((min(max(v, 0), 1) * 255).rounded()) }
+        return String(format: "#%02X%02X%02X", byte(r), byte(g), byte(b))
     }
 
     public func play(_ tracks: [TrackRow], startIndex: Int,
@@ -75,6 +101,8 @@ public final class PhoneWatchPlaybackAdapter: PhoneWatchPlaybackBridge {
     public func setRepeat(_ mode: TonearmWatchProtocol.WatchRepeatMode) async {
         player.repeatMode = Self.playerRepeat(mode)
     }
+
+    public func setVolume(_ level: Double) async { player.setOutputLevel(Float(level)) }
 
     // MARK: - Mapping
 

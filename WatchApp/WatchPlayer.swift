@@ -16,12 +16,19 @@ final class WatchPlayer: ObservableObject {
     }
     /// Non-nil when the audio route went away; drives the "Choose headphones or a speaker" hint.
     @Published var routeHint: String?
+    /// The current output's name ("AirPods Pro") for the Now Playing target chip (watch redesign
+    /// §6.3). `nil` when the session has no output yet.
+    @Published private(set) var outputName: String?
     /// Non-nil when the audio session could not be activated — the watch has no usable output route.
     /// Distinct from `routeHint` (a transient policy nudge): this is a hard "no audio is playing"
     /// state with a "Choose Output" affordance.
     @Published var audioRouteProblem: String?
     /// Embedded cover art for the current local track, or `nil` — the view falls back to a glyph.
-    @Published var artwork: UIImage?
+    @Published var artwork: UIImage? {
+        didSet { artworkTint = artwork?.watchAverageColor }
+    }
+    /// Average artwork colour for the Now Playing tint, computed once per artwork change.
+    @Published private(set) var artworkTint: Color?
     /// The AVPlayer's actual transport rate. 0 while paused/stalled, ~1 while audio is running.
     /// Surfaced so a test (and a curious user) can tell real playback from a relabelled button.
     @Published private(set) var outputRate: Double = 0
@@ -311,6 +318,7 @@ final class WatchPlayer: ObservableObject {
         }
         await recordPlaybackDiagnostic("activationSucceeded", generation: generation,
                                        count: activation.route.outputCount)
+        refreshOutputName()
         audioRouteProblem = nil
         playbackErrorMessage = nil
         playbackPhase = .loading
@@ -477,6 +485,7 @@ final class WatchPlayer: ObservableObject {
                   let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
             let lost = reason == .oldDeviceUnavailable || reason == .noSuitableRouteForCategory
             let available = reason == .newDeviceAvailable || reason == .routeConfigurationChange
+            Task { @MainActor in WatchPlayer.shared.refreshOutputName() }
             guard lost || available else { return }
             Task { @MainActor in
                 WatchPlayer.shared.handleAudioEvent(lost ? .routeLost : .routeAvailable)
@@ -485,6 +494,12 @@ final class WatchPlayer: ObservableObject {
         nc.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { _ in
             Task { @MainActor in WatchPlayer.shared.handleAudioEvent(.mediaServicesReset) }
         }
+    }
+
+    /// Re-reads the route's first output name; called on activation and every route change.
+    func refreshOutputName() {
+        let name = AVAudioSession.sharedInstance().currentRoute.outputs.first?.portName
+        outputName = (name?.isEmpty ?? true) ? nil : name
     }
 
     func handleAudioEvent(_ event: WatchAudioEvent) {

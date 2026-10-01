@@ -62,6 +62,12 @@ public struct WatchPhonePlaybackSnapshot: Codable, Equatable, Sendable {
     public var elapsedAnchorDate: Date
     public var shuffleEnabled: Bool
     public var repeatMode: WatchRepeatMode
+    /// The phone player's own output level (0...1), so the watch Crown starts from the real value.
+    /// `nil` from a phone that predates the watch redesign.
+    public var volume: Double?
+    /// Average colour of the current item's artwork as `#RRGGBB`, computed on the phone so the
+    /// watch can tint Now Playing without receiving the image. `nil` when there is no artwork.
+    public var artworkColorHex: String?
 
     public static let queueWindowLimit = 20
 
@@ -71,7 +77,8 @@ public struct WatchPhonePlaybackSnapshot: Codable, Equatable, Sendable {
                 queueWindow: [WatchTrackSummary] = [], queueWindowStartIndex: Int = 0,
                 queueIndex: Int = 0, queueCount: Int = 0, elapsedSeconds: Double = 0,
                 elapsedAnchorDate: Date = Date(), shuffleEnabled: Bool = false,
-                repeatMode: WatchRepeatMode = .off) {
+                repeatMode: WatchRepeatMode = .off, volume: Double? = nil,
+                artworkColorHex: String? = nil) {
         self.revision = revision
         self.source = source
         self.isPlaying = isPlaying
@@ -87,6 +94,8 @@ public struct WatchPhonePlaybackSnapshot: Codable, Equatable, Sendable {
         self.elapsedAnchorDate = elapsedAnchorDate
         self.shuffleEnabled = shuffleEnabled
         self.repeatMode = repeatMode
+        self.volume = volume
+        self.artworkColorHex = artworkColorHex
     }
 
     /// Elapsed position projected forward from the anchor. Clamped to the item duration so a
@@ -114,6 +123,37 @@ public struct WatchTransferProgress: Codable, Equatable, Sendable {
     }
 }
 
+/// Watch redesign D1 — one download root (a playlist, album or single track) as the watch shows it
+/// on "On This Watch": what it is, how far along, and the specific reason it is waiting.
+public struct WatchDownloadRootStatus: Codable, Equatable, Sendable, Identifiable {
+    public enum State: String, Codable, Sendable {
+        case downloading, queued, waitingForWiFi, paused, failed, complete
+    }
+
+    public var rootID: String
+    public var title: String
+    public var desiredCount: Int
+    public var readyCount: Int
+    public var failedCount: Int
+    public var state: State
+
+    public var id: String { rootID }
+
+    public init(rootID: String, title: String, desiredCount: Int, readyCount: Int,
+                failedCount: Int = 0, state: State) {
+        self.rootID = rootID
+        self.title = title
+        self.desiredCount = desiredCount
+        self.readyCount = readyCount
+        self.failedCount = failedCount
+        self.state = state
+    }
+
+    public var fraction: Double {
+        desiredCount > 0 ? min(1, Double(readyCount) / Double(desiredCount)) : 1
+    }
+}
+
 public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
     public var revision: Int64
     public var queuedCount: Int
@@ -124,10 +164,12 @@ public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
     /// Sender-side byte progress for the transfers in flight right now. Optional on the wire —
     /// an older phone omits it and the watch shows a state indicator instead.
     public var activeTransfers: [WatchTransferProgress]
+    /// Watch redesign D1: per-root progress and state. Empty from an older phone.
+    public var roots: [WatchDownloadRootStatus]
 
     public init(revision: Int64, queuedCount: Int = 0, activeCount: Int = 0,
                 waitingForWiFiCount: Int = 0, failedCount: Int = 0, readyCount: Int = 0,
-                activeTransfers: [WatchTransferProgress] = []) {
+                activeTransfers: [WatchTransferProgress] = [], roots: [WatchDownloadRootStatus] = []) {
         self.revision = revision
         self.queuedCount = queuedCount
         self.activeCount = activeCount
@@ -135,10 +177,12 @@ public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
         self.failedCount = failedCount
         self.readyCount = readyCount
         self.activeTransfers = activeTransfers
+        self.roots = roots
     }
 
     private enum CodingKeys: String, CodingKey {
         case revision, queuedCount, activeCount, waitingForWiFiCount, failedCount, readyCount, activeTransfers
+        case roots
     }
 
     public init(from decoder: any Decoder) throws {
@@ -150,6 +194,7 @@ public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
         failedCount = try c.decodeIfPresent(Int.self, forKey: .failedCount) ?? 0
         readyCount = try c.decodeIfPresent(Int.self, forKey: .readyCount) ?? 0
         activeTransfers = try c.decodeIfPresent([WatchTransferProgress].self, forKey: .activeTransfers) ?? []
+        roots = try c.decodeIfPresent([WatchDownloadRootStatus].self, forKey: .roots) ?? []
     }
 
     public var isIdle: Bool { queuedCount == 0 && activeCount == 0 && waitingForWiFiCount == 0 }

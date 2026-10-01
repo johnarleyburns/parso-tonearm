@@ -30,6 +30,8 @@ public protocol PhoneWatchPlaybackBridge: Sendable {
     func seek(toSeconds seconds: Double) async
     func setShuffle(_ enabled: Bool) async
     func setRepeat(_ mode: TonearmWatchProtocol.WatchRepeatMode) async
+    /// Watch redesign §6.1: the phone player's own output level, 0...1.
+    func setVolume(_ level: Double) async
 }
 
 /// Builds a `WatchPhonePlaybackSnapshot` from primitive now-playing values. Pure and
@@ -49,6 +51,8 @@ public enum WatchPlaybackSnapshotBuilder {
         public var collectionTitle: String?
         public var shuffleEnabled: Bool
         public var repeatMode: TonearmWatchProtocol.WatchRepeatMode
+        public var volume: Double?
+        public var artworkColorHex: String?
 
         public init(revision: Int64,
                     source: WatchPlaybackSourceKind,
@@ -60,7 +64,9 @@ public enum WatchPlaybackSnapshotBuilder {
                     collection: WatchCollectionRef? = nil,
                     collectionTitle: String? = nil,
                     shuffleEnabled: Bool = false,
-                    repeatMode: TonearmWatchProtocol.WatchRepeatMode = .off) {
+                    repeatMode: TonearmWatchProtocol.WatchRepeatMode = .off,
+                    volume: Double? = nil,
+                    artworkColorHex: String? = nil) {
             self.revision = revision
             self.source = source
             self.isPlaying = isPlaying
@@ -72,6 +78,8 @@ public enum WatchPlaybackSnapshotBuilder {
             self.collectionTitle = collectionTitle
             self.shuffleEnabled = shuffleEnabled
             self.repeatMode = repeatMode
+            self.volume = volume
+            self.artworkColorHex = artworkColorHex
         }
     }
 
@@ -81,7 +89,8 @@ public enum WatchPlaybackSnapshotBuilder {
             return WatchPhonePlaybackSnapshot(
                 revision: input.revision, source: .none, isPlaying: false, rate: 0,
                 elapsedAnchorDate: input.anchorDate,
-                shuffleEnabled: input.shuffleEnabled, repeatMode: input.repeatMode)
+                shuffleEnabled: input.shuffleEnabled, repeatMode: input.repeatMode,
+                volume: input.volume.map(Self.clampVolume))
         }
 
         let index = min(max(0, input.index), count - 1)
@@ -110,6 +119,13 @@ public enum WatchPlaybackSnapshotBuilder {
             elapsedSeconds: max(0, input.elapsedSeconds),
             elapsedAnchorDate: input.anchorDate,
             shuffleEnabled: input.shuffleEnabled,
-            repeatMode: input.repeatMode)
+            repeatMode: input.repeatMode,
+            volume: input.volume.map(Self.clampVolume),
+            artworkColorHex: input.artworkColorHex)
+    }
+
+    /// The one clamp for phone player volume, shared by the snapshot and the `setVolume` handler.
+    public static func clampVolume(_ level: Double) -> Double {
+        level.isFinite ? min(max(level, 0), 1) : 1
     }
 }

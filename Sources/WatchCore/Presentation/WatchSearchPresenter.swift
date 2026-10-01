@@ -24,8 +24,10 @@ public final class WatchSearchPresenter: ObservableObject {
         case loading
         case results([WatchResultRow])
         case noResults
-        /// Connected only: the phone could not be reached within the bounded wait.
-        case unreachable
+        /// Connected only: the phone could not be reached within the bounded wait. The same query is
+        /// run against this watch's downloads so the screen can say *where* it looked (watch
+        /// redesign Q2) — a phone timeout is never presented as "No results".
+        case unreachable(fallback: [WatchResultRow])
         case offlineResults([WatchResultRow])
         case offlineNoResults
     }
@@ -124,7 +126,9 @@ public final class WatchSearchPresenter: ObservableObject {
                 case .superseded:
                     return
                 case .failed:
-                    self.phase = .unreachable
+                    let fallback = await self.offlineSearch(trimmed)
+                    guard !Task.isCancelled, generation == self.generation else { return }
+                    self.phase = .unreachable(fallback: fallback)
                 }
             case .offline:
                 let rows = await self.offlineSearch(trimmed)

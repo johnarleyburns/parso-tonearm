@@ -30,6 +30,12 @@ final class AVPlayerOutput: WatchAudioOutput {
     private(set) var currentDuration: Double = 0
 
     init() {
+        // Every watch item is a fully downloaded local file, so there is no network buffer for
+        // AVPlayer to protect. Left at the default, AVPlayer can sit in
+        // `.waitingToPlayAtSpecifiedRate` (reason `toMinimizeStalls` / `evaluatingBufferingRate`)
+        // and never render — the silent "stalled" playback seen on device in both Platterhead and
+        // Voxglass. `play()` below still requires a moving clock before it reports success.
+        player.automaticallyWaitsToMinimizeStalling = false
         rateObserver = player.observe(\.rate, options: [.new]) { [weak self] player, _ in
             let rate = Double(player.rate)
             Task { @MainActor in self?.onRateChange?(rate) }

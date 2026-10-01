@@ -1,6 +1,8 @@
 import Foundation
 import Combine
+import WatchKit
 import TonearmWatchCore
+import TonearmWatchProtocol
 
 /// A derived album grouping. Albums are not a stored collection on the watch — they are projected
 /// from whatever ready tracks carry the same album title, so "only ready local tracks and derived
@@ -26,6 +28,9 @@ final class WatchLibraryModel: ObservableObject {
     /// Sender-side byte progress for tracks the phone is transferring right now, keyed by raw track
     /// ID. Drives the Now Playing download ring; empty when nothing is in flight.
     @Published private(set) var transferFractions: [String: Double] = [:]
+    /// The phone's latest download status (watch redesign D1): per-root progress and the specific
+    /// reason anything is waiting. `nil` until the phone first reports.
+    @Published private(set) var downloadStatus: WatchDownloadStatusSnapshot?
 
     private let repository: WatchLibraryRepository?
 
@@ -79,6 +84,21 @@ final class WatchLibraryModel: ObservableObject {
     func setPhoneReachable(_ reachable: Bool) { phoneReachable = reachable }
 
     func setTransferFractions(_ fractions: [String: Double]) { transferFractions = fractions }
+
+    func setDownloadStatus(_ status: WatchDownloadStatusSnapshot) {
+        // §3 haptics: `.success` once when a download finishes.
+        let wasIncomplete = Set((downloadStatus?.roots ?? []).filter { $0.state != .complete }.map(\.rootID))
+        let nowComplete = status.roots.filter { $0.state == .complete && wasIncomplete.contains($0.rootID) }
+        if !nowComplete.isEmpty { WKInterfaceDevice.current().play(.success) }
+        downloadStatus = status
+        transferFractions = Dictionary(uniqueKeysWithValues:
+            status.activeTransfers.map { ($0.trackID.rawValue, $0.fractionComplete) })
+    }
+
+    /// Roots still in progress, newest activity first (D1 "Downloading" section).
+    var activeDownloadRoots: [WatchDownloadRootStatus] {
+        (downloadStatus?.roots ?? []).filter { $0.state != .complete }
+    }
 
     /// Byte progress for one track, or `nil` when the phone isn't transferring it.
     func transferFraction(forTrackID id: String) -> Double? { transferFractions[id] }

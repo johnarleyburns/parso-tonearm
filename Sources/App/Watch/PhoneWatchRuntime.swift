@@ -46,6 +46,9 @@ final class PhoneWatchRuntime {
 
     private var lastWatchManifest: WatchManifestPayload?
     private var connectedSince: Date?
+    /// Watch redesign D1: download-status publishing state (see `publishDownloadStatusIfActive`).
+    private var lastDownloadStatusWasBusy = false
+    private var lastPublishedRoots: [WatchDownloadRootStatus] = []
 
     init(store: LibraryStore, player: AudioPlayer) {
         self.store = store
@@ -86,7 +89,8 @@ final class PhoneWatchRuntime {
             },
             onManifest: { [inbound] payload in await inbound.manifest(payload) },
             onReconciliation: { [inbound] request in await inbound.reconciliation(request) },
-            onDownloadRequest: { [inbound] request in await inbound.downloadRequest(request) })
+            onDownloadRequest: { [inbound] request in await inbound.downloadRequest(request) },
+            onDownloadControl: { [inbound] control in await inbound.downloadControl(control) })
 
         let coordinator = PhoneWatchProtocolCoordinator(
             transport: PhoneWatchProtocolAdapter.transport,
@@ -154,13 +158,20 @@ final class PhoneWatchRuntime {
 
     /// Push a download-status context (with per-track byte progress) while a transfer is in flight,
     /// so the watch's Now Playing download ring can close. Silent when idle — I-10 forbids churn.
-    private func publishDownloadStatusIfActive() async {
+    ///
+    /// Watch redesign D1: one more push when work *becomes* idle (finished, paused or stopped), so
+    /// "On This Watch" never shows a stale "Downloading" — then silence again.
+    private func publishDownloadStatusIfActive(force: Bool = false) async {
         guard var snapshot = try? await downloadManager.statusSnapshot() else { return }
         let fractions = PhoneWatchProtocolAdapter.activeAudioTransferFractions()
         snapshot.activeTransfers = fractions.map {
             WatchTransferProgress(trackID: WatchTrackID($0.key), fractionComplete: $0.value)
         }
-        guard !snapshot.isIdle || !snapshot.activeTransfers.isEmpty else { return }
+        let busy = !snapshot.isIdle || !snapshot.activeTransfers.isEmpty
+        let shouldPublish = busy || force || lastDownloadStatusWasBusy || snapshot.roots != lastPublishedRoots
+        lastDownloadStatusWasBusy = busy
+        guard shouldPublish else { return }
+        lastPublishedRoots = snapshot.roots
         await coordinator.publishContext(downloads: snapshot)
     }
 
@@ -302,6 +313,20 @@ final class PhoneWatchRuntime {
     /// §7 polish — the watch asked (from its Now Playing screen) to download or drop one track.
     /// The phone is still the authority: it resolves the id against the real library and turns the
     /// ask into a normal single-track download root (or removes that root).
+    /// Watch redesign D1 — Pause / Resume / Stop / Retry from the watch's "On This Watch" screen.
+    fileprivate func applyWatchDownloadControl(_ control: WatchDownloadControl) async {
+        try? await downloadManager.applyControl(control)
+        if control.action == .stop {
+            // Stopping a root removes it; tell the watch which tracks no root wants any more.
+            let installed = (try? await downloadStore.manifestEntries())?.map(\.trackID) ?? []
+            let desired = Set(((try? await downloadStore.roots()) ?? []).flatMap(\.desiredTrackIDs))
+            let orphaned = installed.filter { !desired.contains($0) }.map(WatchTrackID.init)
+            if !orphaned.isEmpty { _ = await coordinator.sendRemoveAssets(orphaned) }
+        }
+        await refresh()
+        await publishDownloadStatusIfActive(force: true)
+    }
+
     fileprivate func applyWatchDownloadRequest(_ request: WatchDownloadRequest) async {
         let id = request.trackID
         let rootID = "track:\(id.rawValue)"
@@ -428,6 +453,10 @@ private actor PhoneWatchInbound: PhoneWatchProtocolObserver {
 
     func downloadRequest(_ request: WatchDownloadRequest) async {
         await runtime?.applyWatchDownloadRequest(request)
+    }
+
+    func downloadControl(_ control: WatchDownloadControl) async {
+        await runtime?.applyWatchDownloadControl(control)
     }
 }
 

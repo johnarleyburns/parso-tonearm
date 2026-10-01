@@ -15,64 +15,6 @@ enum WatchTimeFmt {
     }
 }
 
-struct WatchTrackRow: View {
-    let track: WatchTrackSnapshot
-
-    var body: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(track.title)
-                    .font(.system(.body, design: .default))
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                if !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.system(.caption2))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: 4)
-        }
-        .padding(.vertical, 4)
-    }
-
-    private var subtitle: String {
-        var parts: [String] = []
-        if !track.artist.isEmpty { parts.append(track.artist) }
-        if let d = track.durationSeconds { parts.append(WatchTimeFmt.mmss(d)) }
-        return parts.joined(separator: " · ")
-    }
-}
-
-struct WatchCollectionRow: View {
-    let title: String
-    let subtitle: String
-    var systemImage: String? = nil
-
-    var body: some View {
-        HStack(spacing: 10) {
-            if let img = systemImage {
-                Image(systemName: img)
-                    .font(WatchTypography.iconMedium)
-                    .foregroundStyle(.tint)
-                    .frame(width: 28)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(.body, design: .default))
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(.system(.caption2))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.vertical, 6)
-    }
-}
-
 struct WatchEmptyStateView: View {
     let icon: String
     let title: LocalizedStringKey

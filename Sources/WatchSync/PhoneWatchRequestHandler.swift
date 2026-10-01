@@ -23,6 +23,7 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
     private let onManifest: @Sendable (WatchManifestPayload) async -> Void
     private let onReconciliation: @Sendable (WatchReconciliationRequest) async -> Void
     private let onDownloadRequest: @Sendable (WatchDownloadRequest) async -> Void
+    private let onDownloadControl: @Sendable (WatchDownloadControl) async -> Void
 
     public init(store: LibraryStore,
                 player: any PhoneWatchPlaybackBridge,
@@ -33,7 +34,8 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
                 artworkBindingProvider: @escaping @Sendable (String) async -> (coverArtworkID: String?, customArtworkID: String?) = { _ in (nil, nil) },
                 onManifest: @escaping @Sendable (WatchManifestPayload) async -> Void = { _ in },
                 onReconciliation: @escaping @Sendable (WatchReconciliationRequest) async -> Void = { _ in },
-                onDownloadRequest: @escaping @Sendable (WatchDownloadRequest) async -> Void = { _ in }) {
+                onDownloadRequest: @escaping @Sendable (WatchDownloadRequest) async -> Void = { _ in },
+                onDownloadControl: @escaping @Sendable (WatchDownloadControl) async -> Void = { _ in }) {
         self.store = store
         self.player = player
         self.libraryID = libraryID
@@ -44,6 +46,7 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
         self.onManifest = onManifest
         self.onReconciliation = onReconciliation
         self.onDownloadRequest = onDownloadRequest
+        self.onDownloadControl = onDownloadControl
     }
 
     // MARK: - Negotiation
@@ -208,6 +211,9 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
             case .setRepeat:
                 guard let mode = command.repeatMode else { return .rejected(.contentNotFound) }
                 await player.setRepeat(mode)
+            case .setVolume:
+                guard let level = command.volume else { return .rejected(.contentNotFound) }
+                await player.setVolume(WatchPlaybackSnapshotBuilder.clampVolume(level))
             case .requestSnapshot:
                 break  // read-only: fall through to the snapshot reply below
             }
@@ -233,6 +239,10 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
 
     public func handleDownloadRequest(_ request: WatchDownloadRequest) async {
         await onDownloadRequest(request)
+    }
+
+    public func handleDownloadControl(_ control: WatchDownloadControl) async {
+        await onDownloadControl(control)
     }
 
     // MARK: - Resolution

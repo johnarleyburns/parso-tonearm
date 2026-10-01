@@ -26,6 +26,10 @@ public final class AudioPlayer: ObservableObject {
         }
     }
     @Published public var repeatMode: RepeatMode = .off
+    /// The user's output level for this player, 0...1 — set from the Mac volume menu commands and
+    /// the watch Crown (watch redesign §6.1). Crossfades scale their gains by it, so a fade never
+    /// jumps back to full volume.
+    @Published public internal(set) var outputLevel: Float = 1
     /// "Keep Playing" (main-library path only — DJ decks stay fully manual):
     /// when the manually-built queue is about to run out, extend it with more
     /// tracks instead of stopping. On by default. Turning it off removes any

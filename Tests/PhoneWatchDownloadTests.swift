@@ -769,6 +769,71 @@ final class PhoneWatchDownloadTests: XCTestCase {
         XCTAssertEqual(sentB, 1)
     }
 
+    // MARK: watch redesign D1 — root status + watch-side control
+
+    func testRootStatusPrecedence() {
+        let roots = [root("done", tracks: ["a"]), root("paused", tracks: ["b"]),
+                     root("dl", tracks: ["c", "d"]), root("wifi", tracks: ["e"]),
+                     root("q", tracks: ["f"]), root("bad", tracks: ["g"])]
+        var paused = roots[1]; paused.paused = true
+        let jobs = [
+            PhoneWatchDownloadJob(trackID: "b", rootIDs: ["paused"], state: .transferring),
+            PhoneWatchDownloadJob(trackID: "c", rootIDs: ["dl"], state: .transferring),
+            PhoneWatchDownloadJob(trackID: "d", rootIDs: ["dl"], state: .failed),
+            PhoneWatchDownloadJob(trackID: "e", rootIDs: ["wifi"], state: .waitingForWiFi),
+            PhoneWatchDownloadJob(trackID: "f", rootIDs: ["q"], state: .queued),
+            PhoneWatchDownloadJob(trackID: "g", rootIDs: ["bad"], state: .failed)
+        ]
+        let statuses = PhoneWatchDownloadManager.rootStatuses(
+            roots: [roots[0], paused, roots[2], roots[3], roots[4], roots[5]],
+            jobs: jobs, installed: ["a"])
+        XCTAssertEqual(statuses.map(\.state), [.complete, .paused, .downloading, .waitingForWiFi, .queued, .failed])
+        XCTAssertEqual(statuses[2].failedCount, 1, "a failed track inside a downloading root is still counted")
+        XCTAssertEqual(statuses[0].fraction, 1)
+    }
+
+    func testWatchPauseAndResumeControlAddressEveryRootWhenUnscoped() async throws {
+        let db = try freshQueue()
+        let resolver = FakeResolver(local: ["a", "b"])
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: resolver, transfer: transfer)
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        try await store.replaceRoots([root("p1", kind: .playlist, tracks: ["a"]),
+                                      root("p2", kind: .playlist, tracks: ["b"])])
+
+        try await manager.applyControl(WatchDownloadControl(action: .pause))
+        let pausedFlags = try await store.roots().map(\.paused)
+        XCTAssertEqual(pausedFlags, [true, true])
+
+        try await manager.applyControl(WatchDownloadControl(action: .resume, rootID: "p2"))
+        let byID = Dictionary(uniqueKeysWithValues: try await store.roots().map { ($0.rootID, $0.paused) })
+        XCTAssertEqual(byID, ["p1": true, "p2": false])
+    }
+
+    func testWatchStopControlRemovesTheRoot() async throws {
+        let db = try freshQueue()
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]), transfer: FakeTransfer())
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        try await store.replaceRoots([root("p1", kind: .playlist, tracks: ["a"])])
+
+        try await manager.applyControl(WatchDownloadControl(action: .stop, rootID: "p1"))
+        let remaining = try await store.roots()
+        XCTAssertTrue(remaining.isEmpty)
+    }
+
+    func testStatusSnapshotCarriesRootsAndDecodesWithoutThem() async throws {
+        let db = try freshQueue()
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]), transfer: FakeTransfer())
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        try await store.replaceRoots([root("p1", kind: .playlist, tracks: ["a"])])
+        let snapshot = try await manager.statusSnapshot()
+        XCTAssertEqual(snapshot.roots.map(\.rootID), ["p1"])
+
+        let legacy = Data(#"{"revision":4,"queuedCount":1}"#.utf8)
+        let decoded = try JSONDecoder().decode(WatchDownloadStatusSnapshot.self, from: legacy)
+        XCTAssertTrue(decoded.roots.isEmpty)
+    }
+
     func testCancelJobStaysCancelledAcrossReconcile() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a"])

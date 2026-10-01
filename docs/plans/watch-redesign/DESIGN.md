@@ -1,6 +1,6 @@
 # Platterhead Watch — redesign spec
 
-Status: design, not implemented. Mockups: [`mockups/index.html`](mockups/index.html), which are normative for
+Status: implemented 2026-10-01 (see §8 for the two deviations and the one blocked item). Mockups: [`mockups/index.html`](mockups/index.html), which are normative for
 hierarchy, sizes, copy and states (not pixel-exact). This spec sits on top of
 [`../watch-rearchitecture/`](../watch-rearchitecture/): the sync/protocol architecture there stands, and this replaces
 its watch UI layer (W1–W12 screens).
@@ -102,7 +102,7 @@ IDs match the mockup sections. Existing accessibility identifiers are kept where
   label from `playbackPhase` (`activating`, `loading`, `ready`). S4 is the final form of the "iPhone Didn't Start"
   card from `980b90f`, adding the "play N downloaded songs here" alternative when `locallyAvailableTrackIDs` isn't
   empty. S5 restyles the existing continue-on-watch card.
-- **B1–B3 Browse.** Inset-grouped, `ArtTile` per row, one location glyph. Long-press (`.contextMenu`) on a song:
+- **B1–B3 Browse.** Inset-grouped, `ArtTile` per row, one location glyph. Swipe (see §8) on a song:
   Play on iPhone / Play on Watch / Download to Watch / Go to Album. This replaces the "Manage on iPhone" alert in
   `WatchPhoneCollectionView`; the existing `requestDownloadToThisWatch` already covers single tracks.
 - **Q1/Q2 Search.** The field opens dictation on appear (`.searchable`, or `TextField` with
@@ -154,7 +154,29 @@ Each commit: `swift test` (the hook), then build `TonearmWatch` with
 `-destination 'generic/platform=iOS Simulator'`, sequentially, per CLAUDE.md. The watch UI smoke test
 (`TonearmWatchUITests`) must stay green; update it when a screen's structure changes, without dropping assertions.
 
-## 8. Acceptance (owner checks on device)
+## 8. Implementation notes (2026-10-01)
+
+- **B3 is a swipe, not a long-press.** `contextMenu` is deprecated on watchOS (and this repo is
+  warning-free), so per-song actions (Play on Watch / Download to Watch / Play on iPhone / Go to
+  Album) are trailing `swipeActions` on each row.
+- **Output (⇄) opens the system `NowPlayingView`.** watchOS has no route-picker view (AVKit's is
+  unavailable); the system Now Playing's AirPlay button switches output for whichever device plays.
+  When no route exists at all, S1's *Choose Output* re-activates the session, which presents the
+  system picker.
+- **A2 Smart Stack widget is blocked on signing, not code.** Every extension here ships with a
+  manual App Store profile and a CI secret. A watch widget extension needs a new App ID
+  (`guru.parso.tonearm.watchkitapp.widgets`), an App Store provisioning profile named e.g.
+  "Platterhead Watch Widgets Profile", and a `WATCH_WIDGETS_PROVISIONING_PROFILE_BASE64` secret
+  before the target can be added without breaking the TestFlight job. Until then the system Smart
+  Stack's Now Playing widget (fed by `MPNowPlayingInfoCenter`, which the watch already publishes)
+  provides wrist-down control.
+- **Audio root cause candidate.** `AVPlayerOutput` now sets `automaticallyWaitsToMinimizeStalling =
+  false`: every watch item is a local file, and the waiting behaviour matches the on-device
+  `stalled-*` symptom. Confirm on device with the Problem Card code.
+- **Remote volume** is the phone player's own level (`AudioPlayer.outputLevel`, which crossfades
+  respect); iOS has no public system-volume setter.
+
+## 9. Acceptance (owner checks on device)
 
 - From a wrist raise, a downloaded playlist starts playing through AirPods in ≤ 3 taps, and you hear it.
 - Music started on the iPhone appears in the Home hero within 2 s of opening the watch app, and pause works.

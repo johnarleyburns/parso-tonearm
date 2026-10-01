@@ -59,7 +59,7 @@ final class WatchSearchPresenterTests: XCTestCase {
         let presenter = makePresenter(mode: .connected, connected: { _, _ in .failed(.init(code: .phoneUnavailable)) })
         presenter.query = "piano"
         try? await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(presenter.phase, .unreachable)
+        XCTAssertEqual(presenter.phase, .unreachable(fallback: []))
     }
 
     func testSupersededReplyDoesNotRepaint() async {
@@ -105,7 +105,8 @@ final class WatchSearchPresenterTests: XCTestCase {
             offline: { _ in [row("localhit")] })
         presenter.query = "piano"
         try? await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(presenter.phase, .unreachable)
+        XCTAssertEqual(presenter.phase, .unreachable(fallback: [row("localhit")]),
+                       "a phone fault falls back to the watch's downloads and says so")
 
         presenter.setMode(.offline)
         try? await Task.sleep(for: .milliseconds(50))

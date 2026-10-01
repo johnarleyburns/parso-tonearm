@@ -26,8 +26,30 @@ final class WatchRemotePlayer: ObservableObject {
     struct StartFailure: Equatable {
         var command: WatchPlayCommand
         var code: String
+        /// How many songs of the requested item are downloaded here — S4 offers "Play on Watch"
+        /// only when this is real.
+        var downloadedAlternativeCount = 0
     }
 
+    /// T3: a "play on iPhone" is in flight; Now Playing shows "Starting on iPhone…" until the
+    /// phone's reply or snapshot confirms it, or S4 replaces it.
+    @Published private(set) var isStarting = false
+    @Published private(set) var startingTitle: String?
+
+    func beginStart(title: String?) {
+        startFailure = nil
+        startingTitle = title
+        isStarting = true
+    }
+
+    func endStart() {
+        isStarting = false
+        startingTitle = nil
+    }
+
+    private var pendingVolume: Double?
+    private var lastSentVolume: Double?
+    private var volumeTask: Task<Void, Never>?
     private let send: (WatchPlayCommand) async -> Void
     private let requestSnapshot: () async -> Void
     private var timer: Timer?
@@ -69,6 +91,35 @@ final class WatchRemotePlayer: ObservableObject {
     func next() { dispatch(WatchPlayCommand(action: .next)) }
     func previous() { dispatch(WatchPlayCommand(action: .previous)) }
     func jump(to index: Int) { dispatch(WatchPlayCommand(action: .jumpToIndex, startIndex: index)) }
+    func setShuffle(_ enabled: Bool) { dispatch(WatchPlayCommand(action: .setShuffle, shuffleEnabled: enabled)) }
+    func setRepeat(_ mode: TonearmWatchProtocol.WatchRepeatMode) { dispatch(WatchPlayCommand(action: .setRepeat, repeatMode: mode)) }
+
+    // MARK: - Volume (watch redesign §6.1)
+
+    /// The phone player's level as last reported, or the Crown's latest local value while the user is
+    /// turning it. 1 when the phone predates the redesign and reports no volume.
+    var volume: Double { pendingVolume ?? state?.snapshot.volume ?? 1 }
+
+    /// True once the phone reports its level — a phone that predates the redesign can't take
+    /// `setVolume`, so the Crown stays idle rather than sending commands it would reject.
+    var supportsVolume: Bool { state?.snapshot.volume != nil }
+
+    /// The Crown fires many changes per second; send at most every 150 ms, latest value wins.
+    func setVolume(_ level: Double) {
+        let clamped = min(max(level, 0), 1)
+        pendingVolume = clamped
+        objectWillChange.send()
+        guard volumeTask == nil else { return }
+        volumeTask = Task { @MainActor [weak self] in
+            while let self, let value = self.pendingVolume, value != self.lastSentVolume {
+                self.lastSentVolume = value
+                await self.send(.setVolume(value))
+                try? await Task.sleep(for: .milliseconds(150))
+            }
+            self?.volumeTask = nil
+            self?.pendingVolume = nil
+        }
+    }
 
     private func dispatch(_ command: WatchPlayCommand) {
         Task { await send(command) }

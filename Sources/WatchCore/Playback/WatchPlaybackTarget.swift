@@ -30,6 +30,14 @@ public enum WatchPlaybackTargetStore {
         return target
     }
 
+    /// Watch redesign T2: true once the user has explicitly chosen a target, so the one-time
+    /// "Play on iPhone or Apple Watch?" choice is never asked again.
+    public static func hasStoredPreference(defaults: UserDefaults? = nil) -> Bool {
+        let ud = defaults ?? .standard
+        guard let raw = ud.string(forKey: key) else { return false }
+        return WatchPlaybackTarget(rawValue: raw) != nil
+    }
+
     public static func clear(defaults: UserDefaults? = nil) {
         (defaults ?? .standard).removeObject(forKey: key)
     }

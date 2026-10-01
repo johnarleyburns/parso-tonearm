@@ -50,40 +50,84 @@ final class WatchAppAssembly {
 
     // MARK: - Connected content (W1 browse, W3 collection detail, play-on-iPhone)
 
-    func browsePhonePlaylists() async -> [WatchResultRow] {
-        guard let coordinator else { return [] }
-        if case .results(let response) = await coordinator.browse(.playlists) { return response.rows }
-        return []
-    }
-
-    func loadPhoneCollection(_ ref: WatchCollectionRef) async -> WatchCollectionResponse? {
-        guard let coordinator, case .success(let response) = await coordinator.collection(ref) else {
+    func loadPhoneCollection(_ ref: WatchCollectionRef, pageToken: String? = nil) async -> WatchCollectionResponse? {
+        guard let coordinator,
+              case .success(let response) = await coordinator.collection(ref, pageToken: pageToken) else {
             return nil
         }
         return response
     }
 
+    /// Watch redesign B1 — one page of the iPhone's playlists or albums; `nil` when the phone
+    /// couldn't be reached (the screen says so and offers Try Again).
+    func browsePhone(_ category: WatchBrowseCategory, pageToken: String? = nil) async -> WatchBrowseResponse? {
+        guard let coordinator else { return nil }
+        if case .results(let response) = await coordinator.browse(category, pageToken: pageToken) { return response }
+        return nil
+    }
+
     @discardableResult
-    func playOnPhone(_ command: WatchPlayCommand) async -> Bool {
+    func playOnPhone(_ command: WatchPlayCommand, title: String? = nil) async -> Bool {
         let startsPlayback = command.action == .playCollection || command.action == .playTrack
+        // Tapping "play" on a phone row is the user choosing the iPhone target (§7.1), so the target
+        // follows and Now Playing opens immediately in a "Starting on iPhone…" state (T3); the reply
+        // either confirms it or turns it into the S4 card with the reason and a retry. A plain
+        // transport nudge (next/pause/…) leaves the current target alone.
+        if startsPlayback {
+            WatchRemotePlayer.shared.beginStart(title: title)
+            WatchPlaybackCoordinator.shared.setTarget(.iPhone)
+            WatchPlayer.shared.navigateToNowPlaying()
+        }
         let reply: WatchCommandReply
         if let coordinator {
             reply = await coordinator.send(command)
         } else {
             reply = .rejected(.phoneUnavailable)
         }
-        // Tapping "play" on a phone row is the user choosing the iPhone target (§7.1), so the
-        // target follows and Now Playing opens either way — on success it shows the phone's
-        // playback, on failure it says why with a retry. A plain transport nudge (next/pause/…)
-        // leaves the current target alone.
         if startsPlayback {
-            WatchRemotePlayer.shared.setStartFailure(reply.accepted ? nil : .init(
-                command: command, code: reply.fault.map { "\($0.code)" } ?? "rejected"))
-            WatchPlaybackCoordinator.shared.setTarget(.iPhone)
-            WatchPlayer.shared.navigateToNowPlaying()
+            WatchRemotePlayer.shared.endStart()
+            if reply.accepted {
+                WatchRemotePlayer.shared.setStartFailure(nil)
+            } else {
+                WatchRemotePlayer.shared.setStartFailure(.init(
+                    command: command,
+                    code: reply.fault.map { "\($0.code)" } ?? "rejected",
+                    downloadedAlternativeCount: localAlternative(for: command).count))
+            }
         }
         return reply.accepted
     }
+
+    /// S4 "Play on Watch": the downloaded part of what the phone refused, in order.
+    func localAlternative(for command: WatchPlayCommand) -> [WatchTrackSnapshot] {
+        if let collection = command.collection, collection.kind == .playlist {
+            let tracks = model.readyTracks(forPlaylist: collection.id)
+            if !tracks.isEmpty { return tracks }
+        }
+        if let trackID = command.trackID, let track = model.track(id: trackID.rawValue) {
+            return [track]
+        }
+        return []
+    }
+
+    func playLocalAlternative(for command: WatchPlayCommand) async {
+        let tracks = localAlternative(for: command)
+        guard !tracks.isEmpty else { return }
+        WatchRemotePlayer.shared.setStartFailure(nil)
+        let selected = command.trackID.flatMap { id in tracks.first { $0.id == id.rawValue } } ?? tracks[0]
+        WatchPlayer.shared.startLocalPlayback(tracks: tracks, selectedTrackID: selected.id)
+    }
+
+    /// Watch redesign D1 — Pause / Resume / Stop / Retry from "On This Watch".
+    func controlDownloads(_ action: WatchDownloadControlAction, rootID: String? = nil) async {
+        await coordinator?.controlDownloads(WatchDownloadControl(action: action, rootID: rootID))
+    }
+
+    /// Watch redesign B3 — ask the phone to download one song from a long-press menu.
+    func requestDownloads(_ trackIDs: [WatchTrackID]) async {
+        for id in trackIDs { await coordinator?.requestDownload(trackID: id, wantsDownload: true) }
+    }
+
 
     /// §7.1: ask the phone for a fresh authoritative playback snapshot (drives the W7 correction
     /// poll). No-op when the link is unavailable.

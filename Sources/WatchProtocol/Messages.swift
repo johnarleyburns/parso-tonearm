@@ -17,6 +17,9 @@ public enum WatchMessageKind: String, Codable, Sendable, CaseIterable {
     /// the download authority — it validates and turns this into a real download root — but the
     /// watch can now ask from its own Now Playing screen (§7 polish).
     case requestDownload
+    /// Watch → phone (watch redesign D1): pause, resume, stop or retry downloads to this watch from
+    /// the watch's own "On This Watch" screen. The phone stays the authority.
+    case downloadControl
     case error
 
     /// Which WCSession channel §5.2 assigns this kind. The router uses it to refuse, for example, a
@@ -29,7 +32,8 @@ public enum WatchMessageKind: String, Codable, Sendable, CaseIterable {
             .immediate
         case .phonePlaybackSnapshot, .downloadStatusSnapshot:
             .applicationContext
-        case .setDownloadRoots, .watchManifest, .requestReconciliation, .removeAssets, .requestDownload:
+        case .setDownloadRoots, .watchManifest, .requestReconciliation, .removeAssets, .requestDownload,
+             .downloadControl:
             .userInfo
         }
     }
@@ -298,6 +302,9 @@ public enum WatchTransportAction: String, Codable, Sendable, CaseIterable {
     /// §7.1: a read-only poll. Mutates nothing; the reply carries the current authoritative
     /// snapshot so the watch can correct its predicted elapsed clock while showing Now Playing.
     case requestSnapshot
+    /// Watch redesign §6.1: the Digital Crown on the iPhone-target Now Playing sets the phone
+    /// player's own output level (`volume`, 0...1). iOS has no public way to set system volume.
+    case setVolume
 }
 
 /// §5.3 `playCommand`. §7.1 makes targets explicit: this type only ever addresses the *phone*
@@ -310,10 +317,13 @@ public struct WatchPlayCommand: Codable, Equatable, Sendable {
     public var seekSeconds: Double?
     public var shuffleEnabled: Bool?
     public var repeatMode: WatchRepeatMode?
+    /// `setVolume` only: the requested phone player level, clamped to 0...1 by the phone.
+    public var volume: Double?
 
     public init(action: WatchTransportAction, collection: WatchCollectionRef? = nil,
                 trackID: WatchTrackID? = nil, startIndex: Int? = nil, seekSeconds: Double? = nil,
-                shuffleEnabled: Bool? = nil, repeatMode: WatchRepeatMode? = nil) {
+                shuffleEnabled: Bool? = nil, repeatMode: WatchRepeatMode? = nil,
+                volume: Double? = nil) {
         self.action = action
         self.collection = collection
         self.trackID = trackID
@@ -321,6 +331,11 @@ public struct WatchPlayCommand: Codable, Equatable, Sendable {
         self.seekSeconds = seekSeconds
         self.shuffleEnabled = shuffleEnabled
         self.repeatMode = repeatMode
+        self.volume = volume
+    }
+
+    public static func setVolume(_ level: Double) -> Self {
+        .init(action: .setVolume, volume: level)
     }
 
     /// D-06: a playlist plays in stored order from index zero unless a row was tapped.
@@ -410,6 +425,27 @@ public struct WatchDownloadRequest: Codable, Equatable, Sendable {
     public init(trackID: WatchTrackID, wantsDownload: Bool = true) {
         self.trackID = trackID
         self.wantsDownload = wantsDownload
+    }
+}
+
+/// Watch redesign D1 — payload of `downloadControl`. `rootID == nil` addresses every root.
+public enum WatchDownloadControlAction: String, Codable, Sendable, CaseIterable {
+    /// Keep what's on the watch; stop feeding new transfers until resumed.
+    case pause
+    case resume
+    /// Stop downloading the root and remove it from the watch.
+    case stop
+    /// One explicit retry of every failed job in the root.
+    case retryFailed
+}
+
+public struct WatchDownloadControl: Codable, Equatable, Sendable {
+    public var action: WatchDownloadControlAction
+    public var rootID: String?
+
+    public init(action: WatchDownloadControlAction, rootID: String? = nil) {
+        self.action = action
+        self.rootID = rootID
     }
 }
 

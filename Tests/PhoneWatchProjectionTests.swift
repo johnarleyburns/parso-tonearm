@@ -305,7 +305,8 @@ final class PhoneWatchProjectionTests: XCTestCase {
             (WatchPlayCommand(action: .jumpToIndex, startIndex: 2), "jump(2)"),
             (WatchPlayCommand(action: .seek, seekSeconds: 42), "seek(42.0)"),
             (WatchPlayCommand(action: .setShuffle, shuffleEnabled: true), "shuffle(true)"),
-            (WatchPlayCommand(action: .setRepeat, repeatMode: .all), "repeat(all)")
+            (WatchPlayCommand(action: .setRepeat, repeatMode: .all), "repeat(all)"),
+            (.setVolume(1.7), "setVolume(1.0)")
         ]
         for (command, _) in cases {
             let reply = await handler.handlePlayCommand(command)
@@ -328,6 +329,40 @@ final class PhoneWatchProjectionTests: XCTestCase {
         XCTAssertNotNil(reply.snapshot?.currentItem, "requestSnapshot must return the live snapshot")
         let directivesAfter = await bridge.directives
         XCTAssertEqual(directivesAfter, directivesBefore, "requestSnapshot must not touch the player")
+    }
+
+    func testSetVolumeIsClampedAndReportedInTheReplySnapshot() async throws {
+        let fixture = try await makeFixture()
+        let bridge = SpyPlaybackBridge()
+        let handler = makeHandler(fixture, bridge: bridge)
+        _ = await handler.handlePlayCommand(.playCollection(fixture.playlistRef))
+
+        let reply = await handler.handlePlayCommand(.setVolume(0.35))
+        XCTAssertTrue(reply.accepted)
+        XCTAssertEqual(reply.snapshot?.volume ?? -1, 0.35, accuracy: 0.0001)
+
+        let missing = await handler.handlePlayCommand(WatchPlayCommand(action: .setVolume))
+        XCTAssertFalse(missing.accepted, "setVolume without a level must be rejected, not ignored")
+    }
+
+    func testSnapshotCarriesArtworkColourAndClampsVolume() {
+        let queue = [WatchTrackSummary(trackID: WatchTrackID("t0"), title: "T0")]
+        let snapshot = WatchPlaybackSnapshotBuilder.build(.init(
+            revision: 1, source: .localLibrary, isPlaying: true, queue: queue, index: 0,
+            elapsedSeconds: 0, volume: -3, artworkColorHex: "#C9792F"))
+        XCTAssertEqual(snapshot.volume, 0)
+        XCTAssertEqual(snapshot.artworkColorHex, "#C9792F")
+    }
+
+    func testOlderSnapshotWithoutRedesignFieldsStillDecodes() throws {
+        let legacy = WatchPhonePlaybackSnapshot(revision: 3)
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy)) as? [String: Any] ?? [:]
+        json.removeValue(forKey: "volume")
+        json.removeValue(forKey: "artworkColorHex")
+        let data = try JSONSerialization.data(withJSONObject: json)
+        let decoded = try JSONDecoder().decode(WatchPhonePlaybackSnapshot.self, from: data)
+        XCTAssertNil(decoded.volume)
+        XCTAssertNil(decoded.artworkColorHex)
     }
 
     func testTransportCommandMissingItsArgumentIsRejected() async throws {
@@ -436,12 +471,14 @@ private actor SpyPlaybackBridge: PhoneWatchPlaybackBridge {
     private var repeatMode: TonearmWatchProtocol.WatchRepeatMode = .off
     private var collection: WatchCollectionRef?
     private var collectionTitle: String?
+    private var volume: Double = 1
 
     func snapshot(revision: Int64) async -> WatchPhonePlaybackSnapshot {
         WatchPlaybackSnapshotBuilder.build(.init(
             revision: revision, source: queue.isEmpty ? .none : .localLibrary, isPlaying: playing,
             queue: queue, index: index, elapsedSeconds: 0, collection: collection,
-            collectionTitle: collectionTitle, shuffleEnabled: shuffle, repeatMode: repeatMode))
+            collectionTitle: collectionTitle, shuffleEnabled: shuffle, repeatMode: repeatMode,
+            volume: volume))
     }
 
     func play(_ tracks: [TrackRow], startIndex: Int,
@@ -466,4 +503,5 @@ private actor SpyPlaybackBridge: PhoneWatchPlaybackBridge {
     func setRepeat(_ mode: TonearmWatchProtocol.WatchRepeatMode) async {
         directives.append("repeat(\(mode.rawValue))"); repeatMode = mode
     }
+    func setVolume(_ level: Double) async { directives.append("setVolume(\(level))"); volume = level }
 }

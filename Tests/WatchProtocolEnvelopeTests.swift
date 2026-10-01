@@ -63,6 +63,7 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         try check(.requestReconciliation, WatchReconciliationRequest(scope: .manifest, trigger: .storeRecovered))
         try check(.removeAssets, WatchRemoveAssets(revision: 8, trackIDs: ["t1"], reason: .rootRemoved))
         try check(.requestDownload, WatchDownloadRequest(trackID: "t1", wantsDownload: true))
+        try check(.downloadControl, WatchDownloadControl(action: .retryFailed, rootID: "r1"))
         try check(.error, WatchProtocolFault(code: .insufficientWatchStorage, retryAfterSeconds: 30))
 
         XCTAssertEqual(covered, Set(WatchMessageKind.allCases),

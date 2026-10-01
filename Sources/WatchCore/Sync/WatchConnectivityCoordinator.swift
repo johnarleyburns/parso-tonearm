@@ -254,6 +254,15 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         await transport.transferUserInfo(data)
     }
 
+    /// Watch redesign D1 — pause, resume, stop or retry downloads from "On This Watch". Durable, like
+    /// `requestDownload`, so a locked phone still acts on it.
+    public func controlDownloads(_ control: WatchDownloadControl) async {
+        guard let data = try? WatchProtocolEnvelope.encode(
+            kind: .downloadControl, payload: control,
+            pairedLibraryID: boundLibraryID ?? .unknown) else { return }
+        await transport.transferUserInfo(data)
+    }
+
     public func requestReconciliation(scope: WatchReconciliationScope = .all,
                                       trigger: WatchProtocolErrorCode? = nil) async {
         let payload = WatchReconciliationRequest(scope: scope, trigger: trigger)
@@ -409,7 +418,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
 
         case .hello, .helloReply, .searchRequest, .searchResponse, .browseRequest, .browseResponse,
              .collectionRequest, .collectionResponse, .playCommand, .commandReply, .watchManifest,
-             .requestDownload:
+             .requestDownload, .downloadControl:
             // Request/reply kinds are consumed by the caller that correlated them; `requestDownload`
             // is watch→phone and never comes back. A stray copy on a broadcast channel is not
             // something to act on twice.

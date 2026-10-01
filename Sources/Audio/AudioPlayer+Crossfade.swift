@@ -42,14 +42,14 @@ extension AudioPlayer {
                                          fadeSeconds: fadeSeconds,
                                          curve: crossfadeCurve)
         guard gains.active else {
-            player.volume = 1
+            player.volume = outputLevel
             return
         }
 
         guard prepareCrossfadePlayer(for: next, at: nextIndex) else { return }
-        player.volume = Float(min(max(gains.outgoing, 0), 1))
+        player.volume = Float(min(max(gains.outgoing, 0), 1)) * outputLevel
         let gainMatch = transitionPlan?.gainMatchDB.map { pow(10, $0 / 20) } ?? 1
-        crossfadePlayer?.volume = Float(min(max(gains.incoming * gainMatch, 0), 1.5))
+        crossfadePlayer?.volume = Float(min(max(gains.incoming * gainMatch, 0), 1.5)) * outputLevel
         if !transitionStartedForCurrentEdge {
             startScheduledTransition(fadeStart: plannedFadeStart,
                                      entryTime: transitionPlan?.entryTime ?? 0)
@@ -193,7 +193,7 @@ extension AudioPlayer {
         oldLoaders.forEach { $0.shutdown() }
 
         player = nextPlayer
-        player.volume = 1
+        player.volume = outputLevel
         if let loader = crossfadeNextLoader {
             loaders.append(loader)
         }
@@ -228,7 +228,7 @@ extension AudioPlayer {
 
     func cancelCrossfade(resetVolume: Bool) {
         guard crossfadePlayer != nil || crossfadeNextLoader != nil || crossfadeNextIndex != nil else {
-            if resetVolume { player.volume = 1 }
+            if resetVolume { player.volume = outputLevel }
             return
         }
         crossfadePlayer?.pause()
@@ -242,7 +242,7 @@ extension AudioPlayer {
         transitionStartedForCurrentEdge = false
         transitionTask?.cancel()
         transitionTask = nil
-        if resetVolume { player.volume = 1 }
+        if resetVolume { player.volume = outputLevel }
     }
 
     func shutdownLoaders() {

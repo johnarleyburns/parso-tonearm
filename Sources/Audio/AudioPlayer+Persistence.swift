@@ -26,7 +26,15 @@ extension AudioPlayer {
     /// exposes a volume control today; this is real, not a placeholder —
     /// it drives the same `AVPlayer.volume` crossfade already reads/writes.
     public func adjustVolume(by delta: Float) {
-        player.volume = min(max(player.volume + delta, 0), 1)
+        setOutputLevel(outputLevel + delta)
+    }
+
+    /// Sets the player's output level (0...1). Used by the watch Crown on the iPhone-target Now
+    /// Playing; during a crossfade the next gain update re-applies the curve scaled by this level.
+    public func setOutputLevel(_ level: Float) {
+        let clamped = level.isFinite ? min(max(level, 0), 1) : 1
+        outputLevel = clamped
+        if crossfadePlayer == nil { player.volume = clamped }
     }
 
     /// AVPlayer never auto-rewinds: once an item plays to

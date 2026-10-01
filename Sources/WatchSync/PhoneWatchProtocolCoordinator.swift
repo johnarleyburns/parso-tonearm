@@ -247,6 +247,9 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
         case .requestDownload:
             guard let request = try? envelope.decodePayload(WatchDownloadRequest.self) else { return }
             await handler.handleDownloadRequest(request)
+        case .downloadControl:
+            guard let control = try? envelope.decodePayload(WatchDownloadControl.self) else { return }
+            await handler.handleDownloadControl(control)
         default:
             break
         }

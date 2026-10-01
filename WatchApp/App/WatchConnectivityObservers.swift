@@ -57,28 +57,11 @@ actor WatchFanoutObserver: WatchConnectivityObserver {
     }
 }
 
-/// Projects the coordinator's connection state onto the `@MainActor` library model so the chrome can
-/// show a live "iPhone connected / not reachable" state without any view touching `WCSession`.
+/// Kept for the fan-out shape; reachability is now derived from the chrome in `WatchChromeObserver`
+/// so the banner, the search scope and `model.phoneReachable` can never disagree (watch redesign
+/// §6.4 — the "Your iPhone isn't reachable" while the phone was nearby bug).
 final class WatchReachabilityObserver: WatchConnectivityObserver {
-    private let model: WatchLibraryModel
-
-    init(model: WatchLibraryModel) {
-        self.model = model
-    }
-
-    func connectionStateDidChange(_ state: WatchConnectionReducer.State,
-                                  connectivity: WatchConnectivityState) async {
-        let reachable = connectivity == .connected
-        await MainActor.run { model.setPhoneReachable(reachable) }
-    }
-
-    func didConfirmDisconnection() async {
-        await MainActor.run { model.setPhoneReachable(false) }
-    }
-
-    func didReconnect() async {
-        await MainActor.run { model.setPhoneReachable(true) }
-    }
+    init(model: WatchLibraryModel) {}
 }
 
 /// Projects the phone's per-track transfer progress onto the model so the Now Playing download ring
@@ -91,9 +74,7 @@ final class WatchDownloadStatusObserver: WatchConnectivityObserver {
     }
 
     func didReceiveDownloadStatus(_ snapshot: WatchDownloadStatusSnapshot) async {
-        let fractions = Dictionary(uniqueKeysWithValues:
-            snapshot.activeTransfers.map { ($0.trackID.rawValue, $0.fractionComplete) })
-        await MainActor.run { model.setTransferFractions(fractions) }
+        await MainActor.run { model.setDownloadStatus(snapshot) }
     }
 }
 
@@ -114,29 +95,28 @@ final class WatchChromeObserver: WatchConnectivityObserver {
                                   connectivity: WatchConnectivityState) async {
         await MainActor.run {
             chrome.apply(connectivity: connectivity)
-            search.setMode(chrome.showsConnectedFeatures ? .connected : .offline)
-            model.setPhoneReachable(connectivity == .connected)
+            syncDerivedState()
         }
     }
 
     func didConfirmDisconnection() async {
         await MainActor.run {
             chrome.confirmedDisconnection()
-            search.setMode(.offline)
+            syncDerivedState()
         }
     }
 
     func didReconnect() async {
         await MainActor.run {
             chrome.reconnected()
-            search.setMode(chrome.showsConnectedFeatures ? .connected : .offline)
+            syncDerivedState()
         }
     }
 
     func didNegotiate(_ session: WatchNegotiatedSession) async {
         await MainActor.run {
             chrome.reconnected()
-            search.setMode(.connected)
+            syncDerivedState()
         }
     }
 
@@ -144,8 +124,17 @@ final class WatchChromeObserver: WatchConnectivityObserver {
         guard fault.code == .protocolUpgradeRequired else { return }
         await MainActor.run {
             chrome.markIncompatible()
-            search.setMode(.offline)
+            syncDerivedState()
         }
+    }
+
+    /// The one place reachability-derived state is written: the chrome's banner is the truth, and
+    /// the search scope and `model.phoneReachable` follow it after every transition.
+    @MainActor
+    private func syncDerivedState() {
+        let projection = WatchConnectionProjection(banner: chrome.banner)
+        search.setMode(projection.searchMode)
+        model.setPhoneReachable(projection.phoneReachable)
     }
 
     func pairedLibraryChangeRequiresConfirmation(current: WatchPairedLibraryID,

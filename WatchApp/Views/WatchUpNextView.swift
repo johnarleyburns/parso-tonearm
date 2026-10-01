@@ -1,97 +1,117 @@
 import SwiftUI
 import TonearmWatchCore
+import TonearmWatchProtocol
 
-/// W9 — Up Next for whichever engine currently owns transport (§7.1). Tapping a row jumps that
-/// engine; a row the active engine can't play is shown but explained.
+/// Watch redesign §5 N4 — Up Next for whichever engine Now Playing shows. The header says where
+/// the queue plays; tapping a row jumps that engine; a row the shown engine can't play here stays
+/// visible with a note ("iPhone only"), never hidden.
 struct WatchUpNextView: View {
     @ObservedObject private var player = WatchPlayer.shared
     @ObservedObject private var remote = WatchRemotePlayer.shared
     @ObservedObject private var coordinator = WatchPlaybackCoordinator.shared
 
+    private var shown: WatchTarget {
+        WatchNowPlayingResolver.shown(
+            local: .init(hasItem: player.currentTrack != nil, isPlaying: player.isPlaying),
+            remote: .init(hasItem: remote.state?.currentItem != nil, isPlaying: remote.state?.isPlaying ?? false),
+            target: coordinator.target) ?? coordinator.target
+    }
+
     var body: some View {
         Group {
-            if coordinator.target == .iPhone {
-                remoteQueue
-            } else {
-                localQueue
-            }
+            if shown == .iPhone { remoteQueue } else { localQueue }
         }
         .navigationTitle("Up Next")
     }
 
-    // MARK: - iPhone target
+    // MARK: iPhone
 
     @ViewBuilder
     private var remoteQueue: some View {
         if let state = remote.state, !state.queueWindow.isEmpty {
             List {
-                Section("Playing \(state.queueCount) on iPhone") {
+                Section {
                     ForEach(Array(state.queueWindow.enumerated()), id: \.element.id) { offset, item in
-                        let absoluteIndex = state.queueWindowStartIndex + offset
-                        Button {
-                            remote.jump(to: absoluteIndex)
-                        } label: {
-                            HStack(spacing: 8) {
-                                if absoluteIndex == state.queueIndex {
-                                    Image(systemName: state.isPlaying ? "play.fill" : "pause.fill")
-                                        .font(WatchTypography.micro).foregroundStyle(.tint)
-                                        .accessibilityLabel(state.isPlaying ? "Now playing" : "Paused here")
-                                }
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.title).font(.system(.body)).lineLimit(1)
-                                    if !item.isDownloadedOnWatch {
-                                        Text("iPhone only").font(.system(.caption2)).foregroundStyle(.secondary)
-                                    }
-                                }
-                                Spacer(minLength: 4)
-                            }
-                            .contentShape(Rectangle())
+                        let index = state.queueWindowStartIndex + offset
+                        Button { remote.jump(to: index) } label: {
+                            row(title: item.title,
+                                detail: item.isDownloadedOnWatch ? item.artist
+                                                                 : String(localized: "iPhone only"),
+                                isCurrent: index == state.queueIndex, isPlaying: state.isPlaying,
+                                downloaded: item.isDownloadedOnWatch)
                         }
                         .buttonStyle(.plain)
+                        .listRowBackground(rowBackground(current: index == state.queueIndex))
                     }
+                } header: {
+                    Text(header(collection: state.collectionTitle, target: .iPhone))
                 }
             }
-#if os(watchOS)
-            .listStyle(.carousel)
-#else
-            .listStyle(.plain)
-#endif
         } else {
             WatchEmptyStateView(icon: "list.bullet", title: "Nothing Queued",
                                 message: "Play something on your iPhone to see it here.")
         }
     }
 
-    // MARK: - This-watch target
+    // MARK: This watch
 
     @ViewBuilder
     private var localQueue: some View {
         if player.queueTracks.isEmpty {
             WatchEmptyStateView(icon: "list.bullet", title: "Queue Empty",
-                                message: "Play a track to add it to the queue.")
+                                message: "Play a song to add it to the queue.")
         } else {
             List {
-                ForEach(Array(player.queueTracks.enumerated()), id: \.element.id) { idx, track in
-                    Button {
-                        player.jump(to: idx)
-                    } label: {
-                        HStack {
-                            if track.id == player.currentTrack?.id {
-                                Image(systemName: player.isPlaying ? "play.fill" : "pause.fill")
-                                    .font(WatchTypography.micro).foregroundStyle(.tint)
-                                    .accessibilityLabel(player.isPlaying ? "Now playing" : "Paused here")
-                            }
-                            WatchTrackRow(track: track)
+                Section {
+                    ForEach(Array(player.queueTracks.enumerated()), id: \.element.id) { index, track in
+                        let isCurrent = track.id == player.currentTrack?.id
+                        Button { player.jump(to: index) } label: {
+                            row(title: track.title, detail: track.artist, isCurrent: isCurrent,
+                                isPlaying: player.isPlaying, downloaded: true)
                         }
+                        .buttonStyle(.plain)
+                        .listRowBackground(rowBackground(current: isCurrent))
                     }
-                    .buttonStyle(.plain)
+                } header: {
+                    Text(header(collection: player.currentTrack?.albumTitle, target: .thisWatch))
                 }
             }
-#if os(watchOS)
-            .listStyle(.carousel)
-#else
-            .listStyle(.plain)
-#endif
         }
+    }
+
+    // MARK: Rows
+
+    private func row(title: String, detail: String, isCurrent: Bool, isPlaying: Bool, downloaded: Bool) -> some View {
+        HStack(spacing: 8) {
+            if isCurrent {
+                Image(systemName: isPlaying ? "play.fill" : "pause.fill")
+                    .font(.caption2).foregroundStyle(WatchPalette.accent)
+                    .accessibilityLabel(Text(isPlaying ? "Now playing" : "Paused here"))
+            } else {
+                WatchArtTile(tint: WatchArtTint.color(for: title), size: 28)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.body).lineLimit(1)
+                if !detail.isEmpty {
+                    Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 2)
+        }
+        .opacity(shown == .thisWatch || downloaded || isCurrent ? 1 : 0.85)
+        .contentShape(Rectangle())
+    }
+
+    private func rowBackground(current: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(current ? WatchPalette.accentSoft : WatchPalette.surface)
+    }
+
+    private func header(collection: String?, target: WatchTarget) -> String {
+        let place = target == .iPhone ? String(localized: "on iPhone") : String(localized: "on Watch")
+        if let collection, !collection.isEmpty {
+            return String(localized: "Playing from \(collection) · \(place)")
+        }
+        return String(localized: "Playing \(place)")
     }
 }

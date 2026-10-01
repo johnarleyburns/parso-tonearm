@@ -50,7 +50,11 @@ final class WatchSmokeUITests: XCTestCase {
         // The fixture seeder simulates the download: it copies bundled audio into the store's audio
         // directory and marks the asset `.ready` with its real checksum, exactly as a real transfer
         // would leave it.
-        openRootRow(app, identifier: "watch.songs", named: "Tracks")
+        // Watch redesign D1: Songs lives under "On This Watch" (one of Home's four doors).
+        openRootRow(app, identifier: "watch.downloads", named: "On This Watch")
+        let songs = app.buttons["watch.songs"]
+        XCTAssertTrue(reveal(songs, in: app), "On This Watch did not render the Songs row")
+        songs.tap()
         let track = firstMatch(in: app, identifierPrefix: "watch.track.")
         XCTAssertTrue(track.waitForExistence(timeout: 15), "Seeded track row never appeared")
         track.tap()
@@ -268,9 +272,9 @@ final class WatchSmokeUITests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", identifierPrefix)).firstMatch
     }
 
-    /// The root list is a `.carousel`, which keeps below-fold rows out of the accessibility tree
-    /// until they scroll into view — so a plain `waitForExistence` on a lower row never resolves.
-    /// Swipe the carousel up a few times, checking after each, before giving up.
+    /// Lists keep below-fold rows out of the accessibility tree until they scroll into view — so a
+    /// plain `waitForExistence` on a lower row never resolves. Swipe up a few times, checking after
+    /// each, before giving up.
     @discardableResult
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
         if element.waitForExistence(timeout: 6) { return true }

@@ -486,13 +486,70 @@ public actor PhoneWatchDownloadManager {
     public func statusSnapshot() async throws -> WatchDownloadStatusSnapshot {
         let jobs = try await store.jobs()
         let installed = try await store.installedTrackIDs()
+        let roots = try await store.roots()
         return WatchDownloadStatusSnapshot(
             revision: try await store.currentRevision(),
             queuedCount: jobs.filter { $0.state == .queued || $0.state == .resolving }.count,
             activeCount: jobs.filter { $0.state == .transferring }.count,
             waitingForWiFiCount: jobs.filter { $0.state == .waitingForWiFi }.count,
             failedCount: jobs.filter { $0.state == .failed }.count,
-            readyCount: installed.count)
+            readyCount: installed.count,
+            roots: Self.rootStatuses(roots: roots, jobs: jobs, installed: installed))
+    }
+
+    /// Watch redesign D1 — each root's progress and the specific reason it is waiting. Pure, so the
+    /// precedence (complete > paused > downloading > Wi-Fi > queued > failed) is host-tested.
+    public static func rootStatuses(roots: [PhoneWatchDownloadRoot], jobs: [PhoneWatchDownloadJob],
+                                    installed: Set<String>) -> [WatchDownloadRootStatus] {
+        let jobsByTrack = Dictionary(grouping: jobs, by: \.trackID)
+        return roots.map { root in
+            let desired = root.desiredTrackIDs
+            let ready = desired.filter { installed.contains($0) }.count
+            let states = desired.flatMap { jobsByTrack[$0] ?? [] }.map(\.state)
+            let failed = states.filter { $0 == .failed }.count
+            let state: WatchDownloadRootStatus.State
+            if ready >= desired.count {
+                state = .complete
+            } else if root.paused {
+                state = .paused
+            } else if states.contains(.transferring) || states.contains(.resolving) {
+                state = .downloading
+            } else if states.contains(.waitingForWiFi) {
+                state = .waitingForWiFi
+            } else if states.contains(.queued) {
+                state = .queued
+            } else if failed > 0 {
+                state = .failed
+            } else {
+                state = .queued
+            }
+            return WatchDownloadRootStatus(
+                rootID: root.rootID, title: root.title, desiredCount: desired.count,
+                readyCount: ready, failedCount: failed, state: state)
+        }
+    }
+
+    /// Watch redesign D1 — apply a control sent from the watch's "On This Watch" screen. A `nil`
+    /// root addresses every root. Stop removes the root (and so its tracks) from the watch.
+    public func applyControl(_ control: WatchDownloadControl) async throws {
+        let roots = try await store.roots()
+        let targets = control.rootID.map { id in roots.filter { $0.rootID == id } } ?? roots
+        switch control.action {
+        case .pause:
+            for root in targets { try await setRootPaused(rootID: root.rootID, paused: true) }
+        case .resume:
+            for root in targets { try await setRootPaused(rootID: root.rootID, paused: false) }
+        case .stop:
+            for root in targets { try await store.deleteRoot(rootID: root.rootID) }
+            try await reconcile()
+            try await emitCurrentRoots()
+        case .retryFailed:
+            let wanted = Set(targets.flatMap(\.desiredTrackIDs))
+            for job in try await store.jobs() where job.state == .failed && wanted.contains(job.trackID) {
+                explicitRetryTrackIDs.insert(job.trackID)
+            }
+            try await reconcile()
+        }
     }
 
     /// Bytes still to transfer for desired-but-not-installed tracks.

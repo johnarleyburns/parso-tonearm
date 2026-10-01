@@ -66,7 +66,8 @@ struct WatchContentView: View {
                     case .storage: WatchStorageView()
                     case .playlist(let id): WatchPlaylistDetailView(playlistID: id)
                     case .album(let id): WatchAlbumDetailView(albumID: id)
-                    case .phonePlaylists: WatchPhonePlaylistsView()
+                    case .phonePlaylists: WatchPhoneIndexView(category: .playlists)
+                    case .phoneAlbums: WatchPhoneIndexView(category: .albums)
                     case .phoneCollection(let ref): WatchPhoneCollectionView(ref: ref)
                     case .recovery: WatchRecoveryView()
                     }
