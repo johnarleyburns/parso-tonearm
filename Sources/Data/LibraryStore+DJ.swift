@@ -24,6 +24,39 @@ extension LibraryStore {
         return row.quantizedVector.map { Float(Int8(bitPattern: $0)) * Float(row.scale) }
     }
 
+    /// Batch form of `discoveryEmbeddingVector(trackId:)`: one read for a whole Build a Mix source
+    /// (a 1,000-track library made the per-track reads the slowest part of Generate).
+    public func discoveryEmbeddingVectors(trackIds: [Int64]) throws -> [Int64: [Float]] {
+        let ids = Array(Set(trackIds.filter { $0 >= 0 }))
+        guard !ids.isEmpty else { return [:] }
+        return try dbQueue.read { db in
+            var result: [Int64: [Float]] = [:]
+            for chunk in stride(from: 0, to: ids.count, by: 500).map({ Array(ids[$0..<min($0 + 500, ids.count)]) }) {
+                for row in try DiscoveryEmbedding.filter(chunk.contains(Column("trackId"))).fetchAll(db) {
+                    guard row.dimensions > 0, row.quantizedVector.count == row.dimensions,
+                          row.scale.isFinite else { continue }
+                    result[row.trackId] = row.quantizedVector.map { Float(Int8(bitPattern: $0)) * Float(row.scale) }
+                }
+            }
+            return result
+        }
+    }
+
+    /// Batch energy values from the local discovery analysis, keyed by track.
+    public func discoveryEnergies(trackIds: [Int64]) throws -> [Int64: Double] {
+        let ids = Array(Set(trackIds.filter { $0 >= 0 }))
+        guard !ids.isEmpty else { return [:] }
+        return try dbQueue.read { db in
+            var result: [Int64: Double] = [:]
+            for chunk in stride(from: 0, to: ids.count, by: 500).map({ Array(ids[$0..<min($0 + 500, ids.count)]) }) {
+                for row in try DiscoveryTrackAnalysis.filter(chunk.contains(Column("trackId"))).fetchAll(db) {
+                    if let energy = row.energy { result[row.trackId] = energy }
+                }
+            }
+            return result
+        }
+    }
+
     /// Returns the current, displayable musical values for the requested
     /// tracks. Discovery analysis is preferred because it is the shared
     /// library result; DJ prep supplies a user BPM override and remains a

@@ -46,6 +46,8 @@ struct MixBuilderSheet: View {
     @State private var candidates: [MixCandidate] = []
     @State private var didLoadCandidates = false
     @State private var generationMessage: String?
+    @State private var showingPreview = false
+    @State private var detent: PresentationDetent = .medium
 
     init(rows: [TrackRow], lockedFirst: Int64? = nil, sourcePlaylist: Playlist? = nil) {
         self.rows = rows
@@ -56,6 +58,24 @@ struct MixBuilderSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                // The result goes first: the sheet opens at half height, and a result appended
+                // below the fold made Generate look like it did nothing.
+                if let plan, plan.steps.isEmpty {
+                    Section {
+                        Label(
+                            generationMessage ?? String(localized: "No compatible tracks were found yet."),
+                            systemImage: "exclamationmark.circle"
+                        )
+                        .font(Typography.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .accessibilityIdentifier("mix.builder.message")
+                    }
+                } else if let plan {
+                    Section {
+                        Button("Review \(plan.steps.count) tracks") { showingPreview = true }
+                            .accessibilityIdentifier("mix.builder.review")
+                    }
+                }
                 Section("Source") {
                     LabeledContent("Tracks", value: "\(rows.count)")
                     Text("Only tracks with transition analysis are placed. Nothing is silently discarded.")
@@ -88,22 +108,6 @@ struct MixBuilderSheet: View {
                         Text("About 90 minutes").tag(TimeInterval?.some(90 * 60))
                     }
                 }
-                if let plan {
-                    Section("Preview") {
-                        if plan.steps.isEmpty {
-                            Label(
-                                generationMessage ?? String(localized: "No compatible tracks were found yet."),
-                                systemImage: "exclamationmark.circle"
-                            )
-                            .font(Typography.callout)
-                            .foregroundStyle(Palette.inkSecondary)
-                        } else {
-                            NavigationLink("Review \(plan.steps.count) tracks") {
-                                MixPreviewView(plan: plan, rows: rows, sourcePlaylist: sourcePlaylist)
-                            }
-                        }
-                    }
-                }
             }
             .navigationTitle("Build a Mix")
             .toolbar {
@@ -114,8 +118,11 @@ struct MixBuilderSheet: View {
                 }
             }
             .task { await loadCandidates() }
+            .navigationDestination(isPresented: $showingPreview) {
+                if let plan { MixPreviewView(plan: plan, rows: rows, sourcePlaylist: sourcePlaylist) }
+            }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
     }
 
     private func loadCandidates() async {
@@ -124,16 +131,17 @@ struct MixBuilderSheet: View {
         // Keep unanalyzed rows in the request with nil metadata. MixPlanner
         // records them as explicit exclusions so the preview can explain and
         // act on them instead of silently shrinking the source pool.
+        let energies = (try? await appState.store.discoveryEnergies(trackIds: ids)) ?? [:]
+        let embeddings = (try? await appState.store.discoveryEmbeddingVectors(trackIds: ids)) ?? [:]
         var loaded: [MixCandidate] = []
+        loaded.reserveCapacity(rows.count)
         for row in rows {
             guard let id = row.track.id else { continue }
             let musical = info[id]
-            let analysis = try? await appState.store.discoveryTrackAnalysis(trackId: id)
-            let embedding = try? await appState.store.discoveryEmbeddingVector(trackId: id)
             loaded.append(MixCandidate(trackID: id, bpm: musical?.bpm, camelot: musical?.camelotKey,
-                                       energy: analysis?.energy, artist: row.artist?.name,
+                                       energy: energies[id], artist: row.artist?.name,
                                        albumID: row.album?.id, duration: row.track.durationSec ?? 0,
-                                       embedding: embedding))
+                                       embedding: embeddings[id]))
         }
         candidates = loaded
         didLoadCandidates = true
@@ -153,8 +161,13 @@ struct MixBuilderSheet: View {
             let request = MixRequest(candidates: candidates, shape: shape, targetDuration: duration,
                                      lockedFirst: lockedFirst,
                                      seed: UInt64(Date().timeIntervalSince1970))
-            let generated = MixPlanner.plan(request)
+            // The planner compares every pair of tracks; keep that off the main thread.
+            let generated = await Task.detached(priority: .userInitiated) { MixPlanner.plan(request) }.value
             plan = generated
+            // Show the outcome where it can be seen: the full-height sheet, and the preview itself
+            // when there is a mix.
+            detent = .large
+            if !generated.steps.isEmpty { showingPreview = true }
             if generated.steps.isEmpty {
                 generationMessage = rows.isEmpty
                     ? String(localized: "Add music to your library before building a mix.")
