@@ -67,6 +67,8 @@ public final class AudioPlayer: ObservableObject {
     /// case under `swift test`) means Keep Playing always uses the honest
     /// shuffle-continue fallback.
     public var keepPlayingProvider: (any KeepPlayingSimilarityProviding)?
+    /// Keep Playing's endless-mix continuation (Discovery's mix planner); nil until Discovery is up.
+    public var keepPlayingMixProvider: (any KeepPlayingMixProviding)?
     /// Every track that has actually started playing during the current
     /// continuous-play session (most recent last), oldest-first. Reset by a
     /// fresh `play(tracks:startAt:)`. Keep Playing never re-suggests a track

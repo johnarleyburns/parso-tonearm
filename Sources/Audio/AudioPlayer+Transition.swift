@@ -73,8 +73,8 @@ extension AudioPlayer {
             let toPayload = try? await LibraryStore.shared.transitionPrepPayload(trackId: nextID)
             guard !Task.isCancelled, let self else { return }
             var resolved = TransitionPlanner.plan(from: fromPayload, to: toPayload, context: context)
-            if resolved.style == .plainCrossfade && resolved.overlapSeconds == 0 {
-                resolved.overlapSeconds = self.normalizedCrossfadeSeconds
+            if resolved.style == .plainCrossfade {
+                resolved.overlapSeconds = max(resolved.overlapSeconds, self.normalizedCrossfadeSeconds)
             }
             self.transitionPlan = resolved
             self.transitionPrepState = fromPayload != nil && toPayload != nil ? .ready : .notPrepared

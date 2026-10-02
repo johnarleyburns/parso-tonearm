@@ -39,6 +39,49 @@ public struct MixCandidate: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
+/// Build a Mix's mixing rules: every next track is within ±`bpmTolerance` of the previous
+/// track's BPM, and its Camelot key is the same, one number away with the same letter, or the
+/// same number with the other letter (8A → 7A, 9A or 8B).
+public struct MixCompatibility: Codable, Sendable, Equatable {
+    public var bpmTolerance: Double
+
+    public init(bpmTolerance: Double = 0.08) {
+        self.bpmTolerance = bpmTolerance
+    }
+
+    public static let standard = MixCompatibility()
+
+    public func bpmCompatible(_ from: Double, _ to: Double) -> Bool {
+        guard from > 0, to > 0, from.isFinite, to.isFinite else { return false }
+        return abs(to / from - 1) <= bpmTolerance + 1e-9
+    }
+
+    public static func keysCompatible(_ from: String, _ to: String) -> Bool {
+        guard let a = CamelotCode(from), let b = CamelotCode(to) else { return false }
+        if a.letter == b.letter {
+            let step = abs(a.number - b.number)
+            return step == 0 || step == 1 || step == 11  // 12A ↔ 1A wraps
+        }
+        return a.number == b.number
+    }
+
+    /// Whether a string is a Camelot key code ("8A", "12b").
+    public static func isCamelot(_ raw: String) -> Bool { CamelotCode(raw) != nil }
+
+    /// "8A", "12b", " 3B " → (number, letter).
+    struct CamelotCode {
+        let number: Int
+        let letter: Character
+        init?(_ raw: String) {
+            let code = raw.trimmingCharacters(in: .whitespaces).uppercased()
+            guard let letter = code.last, letter == "A" || letter == "B",
+                  let number = Int(code.dropLast()), (1...12).contains(number) else { return nil }
+            self.number = number
+            self.letter = letter
+        }
+    }
+}
+
 public struct MixRequest: Codable, Sendable, Equatable {
     public var candidates: [MixCandidate]
     public var shape: MixShape
@@ -46,16 +89,21 @@ public struct MixRequest: Codable, Sendable, Equatable {
     public var lockedFirst: Int64?
     public var locks: [Int64: Int]
     public var seed: UInt64
+    /// When set, the mix is a chain under these rules from a (seeded) random first track up to
+    /// `targetDuration`, instead of an ordering of every candidate.
+    public var compatibility: MixCompatibility?
 
     public init(candidates: [MixCandidate], shape: MixShape = .risingBPM,
                 targetDuration: TimeInterval? = nil, lockedFirst: Int64? = nil,
-                locks: [Int64: Int] = [:], seed: UInt64 = 0) {
+                locks: [Int64: Int] = [:], seed: UInt64 = 0,
+                compatibility: MixCompatibility? = nil) {
         self.candidates = candidates
         self.shape = shape
         self.targetDuration = targetDuration
         self.lockedFirst = lockedFirst
         self.locks = locks
         self.seed = seed
+        self.compatibility = compatibility
     }
 }
 

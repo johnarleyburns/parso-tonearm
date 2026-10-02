@@ -39,6 +39,10 @@ struct MixBuilderSheet: View {
     let rows: [TrackRow]
     let lockedFirst: Int64?
     let sourcePlaylist: Playlist?
+    /// Build a Mix from Listen picks its own source (a random genre, else a playlist not used in
+    /// the last 10 mixes, else the library). Other entry points mix the tracks they were given.
+    let picksSource: Bool
+    @State private var source: MixSource = .given
     @State private var shape: MixShape = .risingBPM
     /// A mix is a listening session, not the whole library: 15, 30 or 60 minutes.
     @State private var duration: TimeInterval = 30 * 60
@@ -50,10 +54,12 @@ struct MixBuilderSheet: View {
     @State private var showingPreview = false
     @State private var detent: PresentationDetent = .medium
 
-    init(rows: [TrackRow], lockedFirst: Int64? = nil, sourcePlaylist: Playlist? = nil) {
+    init(rows: [TrackRow], lockedFirst: Int64? = nil, sourcePlaylist: Playlist? = nil,
+         picksSource: Bool = false) {
         self.rows = rows
         self.lockedFirst = lockedFirst
         self.sourcePlaylist = sourcePlaylist
+        self.picksSource = picksSource
     }
 
     var body: some View {
@@ -80,7 +86,9 @@ struct MixBuilderSheet: View {
                 Section("Source") {
                     LabeledContent("Tracks", value: "\(rows.count)")
                         .accessibilityIdentifier("mix.builder.trackCount")
-                    Text("Only tracks with transition analysis are placed. Nothing is silently discarded.")
+                    (picksSource
+                     ? Text("Platterhead picks one genre at random — or a playlist you haven't mixed lately — and chains tracks that each stay within 8% of the last one's tempo, in a matching key.")
+                     : Text("Each track stays within 8% of the last one's tempo, in a matching key."))
                         .font(Typography.caption)
                         .foregroundStyle(Palette.inkSecondary)
                 }
@@ -120,7 +128,7 @@ struct MixBuilderSheet: View {
             }
             .task { await loadCandidates() }
             .navigationDestination(isPresented: $showingPreview) {
-                if let plan { MixPreviewView(plan: plan, rows: rows, sourcePlaylist: sourcePlaylist) }
+                if let plan { MixPreviewView(plan: plan, rows: rows, sourcePlaylist: sourcePlaylist, source: source) }
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
@@ -159,11 +167,36 @@ struct MixBuilderSheet: View {
             if !didLoadCandidates {
                 await loadCandidates()
             }
-            let request = MixRequest(candidates: candidates, shape: shape, targetDuration: duration,
-                                     lockedFirst: lockedFirst,
-                                     seed: UInt64(Date().timeIntervalSince1970))
-            // The planner compares every pair of tracks; keep that off the main thread.
-            let generated = await Task.detached(priority: .userInitiated) { MixPlanner.plan(request) }.value
+            let seed = UInt64(Date().timeIntervalSince1970 * 1_000)
+            let generated: MixPlan
+            if picksSource {
+                let genres = Dictionary(rows.compactMap { row in row.track.id.map { ($0, row.track.genre ?? "") } },
+                                        uniquingKeysWith: { first, _ in first })
+                let membership = (try? await appState.store.playlistTrackIDs()) ?? [:]
+                let playlists = appState.playlists.compactMap { playlist -> MixSourcePicker.Playlist? in
+                    guard let id = playlist.id else { return nil }
+                    return MixSourcePicker.Playlist(id: id, title: playlist.title, trackIDs: membership[id] ?? [])
+                }
+                let pickInputs = (candidates, shape, duration, MixHistory.recentSources)
+                // The pick plans several pools; keep it off the main thread.
+                let picked = await Task.detached(priority: .userInitiated) {
+                    MixSourcePicker.pick(candidates: pickInputs.0, genres: genres, playlists: playlists,
+                                         recentSources: pickInputs.3, shape: pickInputs.1,
+                                         targetDuration: pickInputs.2, seed: seed)
+                }.value
+                source = picked.source
+                generated = picked.plan
+                if !generated.steps.isEmpty { MixHistory.record(picked.source) }
+            } else {
+                let request = MixRequest(candidates: candidates, shape: shape, targetDuration: duration,
+                                         lockedFirst: lockedFirst, seed: seed, compatibility: .standard)
+                // The planner compares every pair of tracks; keep that off the main thread.
+                generated = await Task.detached(priority: .userInitiated) { MixPlanner.plan(request) }.value
+                source = sourcePlaylist.flatMap { playlist in
+                    playlist.id.map { MixSource.playlist(id: $0, title: playlist.title) }
+                } ?? .given
+                if !generated.steps.isEmpty { MixHistory.record(source) }
+            }
             plan = generated
             // Show the outcome where it can be seen: the full-height sheet, and the preview itself
             // when there is a mix.
@@ -179,6 +212,22 @@ struct MixBuilderSheet: View {
     }
 }
 
+/// The last few Build a Mix sources on this device ("not a playlist used in the past 10 mixes").
+enum MixHistory {
+    private static let key = "mix.recentSources"
+
+    static var recentSources: [String] {
+        UserDefaults.standard.stringArray(forKey: key) ?? []
+    }
+
+    static func record(_ source: MixSource) {
+        guard let entry = source.historyKey else { return }
+        var recent = recentSources.filter { $0 != entry }
+        recent.append(entry)
+        UserDefaults.standard.set(Array(recent.suffix(MixSourcePicker.recentLimit)), forKey: key)
+    }
+}
+
 struct MixPreviewView: View {
     @EnvironmentObject private var appState: AppState
     let rows: [TrackRow]
@@ -191,9 +240,12 @@ struct MixPreviewView: View {
     @State private var undoPlaylistOrder: [Int64] = []
     @EnvironmentObject private var prep: TransitionPrepService
 
-    init(plan: MixPlan, rows: [TrackRow], sourcePlaylist: Playlist? = nil) {
+    let source: MixSource
+
+    init(plan: MixPlan, rows: [TrackRow], sourcePlaylist: Playlist? = nil, source: MixSource = .given) {
         self.rows = rows
         self.sourcePlaylist = sourcePlaylist
+        self.source = source
         self.rowByID = Dictionary(rows.compactMap { row in row.track.id.map { ($0, row) } },
                                   uniquingKeysWith: { first, _ in first })
         _plan = State(initialValue: plan)
@@ -206,6 +258,22 @@ struct MixPreviewView: View {
     var body: some View {
         List {
             Section {
+                if let sourceLine {
+                    Label(sourceLine, systemImage: "music.note.list")
+                        .font(Typography.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .accessibilityIdentifier("mix.preview.source")
+                }
+                Button(action: playMix) {
+                    Label("Play Mix", systemImage: "play.fill")
+                        .font(Typography.headline)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Palette.accent)
+                .disabled(plan.steps.isEmpty)
+                .listRowBackground(Color.clear)
+                .accessibilityIdentifier("mix.preview.play")
                 MixArcChart(plan: plan)
                     .frame(height: 150)
                     .listRowBackground(Color.clear)
@@ -228,7 +296,7 @@ struct MixPreviewView: View {
                             onPrepareNow: {
                                 let rowsToPrepare = [plan.steps[index - 1].trackID, step.trackID]
                                     .compactMap { rowByID[$0] }
-                                prep.prepare(rows: rowsToPrepare, appState: appState)
+                                prep.prepare(rows: rowsToPrepare, appState: appState, allowsCellular: true)
                             },
                             onAudition: {
                                 guard let auditionPlan = transitionPlan(at: index),
@@ -257,41 +325,11 @@ struct MixPreviewView: View {
                     }
                 }
             }
-            if !plan.excluded.isEmpty {
-                Section("Not placed (\(plan.excluded.count))") {
-                    ForEach(plan.excluded, id: \.trackID) { exclusion in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label(rowByID[exclusion.trackID]?.track.title ?? String(localized: "Unknown track"),
-                                  systemImage: "questionmark.circle")
-                                .foregroundStyle(Palette.inkSecondary)
-                            HStack {
-                                Text(exclusion.reason.label)
-                                    .font(Typography.caption)
-                                    .foregroundStyle(Palette.inkTertiary)
-                                Spacer()
-                                if case .notAnalyzed = exclusion.reason,
-                                   let row = rowByID[exclusion.trackID] {
-                                    Button("Analyze now") {
-                                        prep.prepare(rows: [row], appState: appState)
-                                    }
-                                }
-                                Button("Add at end") { addAtEnd(exclusion) }
-                                Button("Remove") { removeExclusion(exclusion) }
-                            }
-                            .font(Typography.caption)
-                        }
-                    }
-                }
-            }
         }
-        .navigationTitle("Mix Preview")
+        .navigationTitle("Mix for You")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Button("Play") {
-                        let ordered = plan.steps.compactMap { rowByID[$0.trackID] }
-                        AudioPlayer.shared.play(tracks: ordered, startAt: 0, source: .mix(plan))
-                    }
                     Button("Save as Playlist") { saveAsPlaylist() }
                     if let sourcePlaylist {
                         Button("Apply Order") { applyOrder(to: sourcePlaylist) }
@@ -347,30 +385,35 @@ struct MixPreviewView: View {
         replan(plan.request)
     }
 
-    private func addAtEnd(_ exclusion: MixExclusion) {
-        guard rowByID[exclusion.trackID] != nil else { return }
-        let nextPosition = plan.steps.count
-        let bpm = plan.request.candidates.first(where: { $0.trackID == exclusion.trackID })?.bpm ?? 0
-        let step = MixStep(trackID: exclusion.trackID, position: nextPosition,
-                           effectiveBPM: bpm,
-                           reasons: [.onlyRemainingOption])
-        plan.steps.append(step)
-        plan.excluded.removeAll { $0.trackID == exclusion.trackID }
-        persistConfiguration()
-    }
-
-    private func removeExclusion(_ exclusion: MixExclusion) {
-        plan.excluded.removeAll { $0.trackID == exclusion.trackID }
-        persistConfiguration()
-    }
-
     private func camelotLabel(at index: Int) -> String {
-        guard index > 0,
-              let from = plan.request.candidates.first(where: { $0.trackID == plan.steps[index - 1].trackID })?.camelot,
-              let to = plan.request.candidates.first(where: { $0.trackID == plan.steps[index].trackID })?.camelot else {
+        let code = { (step: MixStep) in candidateByID[step.trackID]?.camelot }
+        // The first track has no transition in, but it does have a key.
+        guard index > 0 else {
+            return code(plan.steps[index]).map(DJKeyFormatter.format) ?? String(localized: "Key unavailable")
+        }
+        guard let from = code(plan.steps[index - 1]), let to = code(plan.steps[index]) else {
             return String(localized: "Key unavailable")
         }
         return "\(DJKeyFormatter.format(from)) → \(DJKeyFormatter.format(to))"
+    }
+
+    private var candidateByID: [Int64: MixCandidate] {
+        Dictionary(plan.request.candidates.map { ($0.trackID, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private func playMix() {
+        let ordered = plan.steps.compactMap { rowByID[$0.trackID] }
+        guard !ordered.isEmpty else { return }
+        AudioPlayer.shared.play(tracks: ordered, startAt: 0, source: .mix(plan))
+    }
+
+    private var sourceLine: String? {
+        switch source {
+        case .genre(let name): String(localized: "From \(name)")
+        case .playlist(_, let title): String(localized: "From your playlist “\(title)”")
+        case .library: String(localized: "From your whole library")
+        case .given: nil
+        }
     }
 
     private func saveAsPlaylist() {
@@ -469,7 +512,8 @@ struct MixPreviewView: View {
         // Prepare the opening transitions only — the prep service is a small, visible window, and
         // Up Next prepares the rest as playback reaches it. Handing it a whole-library mix queued
         // thousands of downloads and decodes.
-        prep.prepare(rows: plan.steps.prefix(Self.prepWindow).compactMap { rowByID[$0.trackID] }, appState: appState)
+        prep.prepare(rows: plan.steps.prefix(Self.prepWindow).compactMap { rowByID[$0.trackID] },
+                     appState: appState, allowsCellular: true)
     }
 
     private func loadPersistedConfiguration() async {

@@ -74,6 +74,20 @@ extension LibraryStore {
         }
     }
 
+    /// Every playlist's track ids in playlist order, in one read (Build a Mix chooses among
+    /// playlists by their analysed length).
+    public func playlistTrackIDs() throws -> [Int64: [Int64]] {
+        try dbQueue.read { db in
+            var result: [Int64: [Int64]] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT playlistId, trackId FROM playlist_item ORDER BY playlistId, position") {
+                let playlist: Int64 = row["playlistId"]
+                let track: Int64 = row["trackId"]
+                result[playlist, default: []].append(track)
+            }
+            return result
+        }
+    }
+
     public func playlistItems(playlistId: Int64) throws -> [TrackRow] {
         try playlistTrackRows(playlistId: playlistId).map(\.row)
     }

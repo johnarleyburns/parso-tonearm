@@ -38,7 +38,6 @@ struct SmartTransitionsView: View {
             }
         }
         .task {
-            prep.wifiOnly = wifiOnly
             player.smartTransitionsEnabled = enabled
             if enabled { prep.prepare(rows: prepWindow, appState: appState) }
         }
@@ -47,7 +46,11 @@ struct SmartTransitionsView: View {
             guard isEnabled else { prep.stop(); return }
             prep.prepare(rows: prepWindow, appState: appState)
         }
-        .onChange(of: wifiOnly) { _, value in prep.wifiOnly = value }
+        // The prep service reads this setting itself; re-run so a change applies at once.
+        .onChange(of: wifiOnly) { _, _ in
+            guard enabled else { return }
+            prep.prepare(rows: prepWindow, appState: appState)
+        }
         .onChange(of: prepWindow.map { $0.track.id }) { _, _ in
             guard enabled else { return }
             prep.prepare(rows: prepWindow, appState: appState)

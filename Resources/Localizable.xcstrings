@@ -3652,53 +3652,6 @@
         }
       }
     },
-    "Add at end" : {
-      "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Am Ende hinzufügen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add at end"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Añadir al final"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Ajouter à la fin"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "最後に追加"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Adicionar ao final"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "添加到末尾"
-          }
-        }
-      }
-    },
     "Add libraries" : {
       "localizations" : {
         "de" : {
@@ -5695,53 +5648,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "美式根源"
-          }
-        }
-      }
-    },
-    "Analyze now" : {
-      "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Jetzt analysieren"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Analyze now"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Analizar ahora"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Analyser maintenant"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "今すぐ解析"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Analisar agora"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "立即分析"
           }
         }
       }
@@ -14031,6 +13937,52 @@
         }
       }
     },
+    "Each track stays within 8% of the last one's tempo, in a matching key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Jeder Titel bleibt innerhalb von 8 % des Tempos des vorherigen, in einer passenden Tonart."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each track stays within 8% of the last one's tempo, in a matching key."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Cada pista se mantiene a menos del 8 % del tempo de la anterior, en una tonalidad compatible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Chaque morceau reste à moins de 8 % du tempo du précédent, dans une tonalité compatible."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "各曲は前の曲のテンポから8%以内、相性の良いキーで続きます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Cada faixa fica a até 8% do andamento da anterior, em um tom compatível."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "每首曲目的速度与上一首相差不超过 8%，调性相互匹配。"
+          }
+        }
+      }
+    },
     "Ease toward a calm finish" : {
       "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
       "localizations" : {
@@ -17467,6 +17419,52 @@
         }
       }
     },
+    "From %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aus %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "De %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Depuis %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%@から"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "De %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "来自 %@"
+          }
+        }
+      }
+    },
     "From Library: %@" : {
       "comment" : "UI text shown in: Audio Player Queue Source (Sources/Audio/AudioPlayer+QueueSource.swift)",
       "localizations" : {
@@ -17651,6 +17649,98 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "来自播放列表：%@"
+          }
+        }
+      }
+    },
+    "From your playlist “%@”" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aus deiner Playlist „%@“"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From your playlist “%@”"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "De tu lista «%@»"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Depuis ta playlist « %@ »"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "プレイリスト「%@」から"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Da sua playlist “%@”"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "来自你的播放列表“%@”"
+          }
+        }
+      }
+    },
+    "From your whole library" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aus deiner gesamten Mediathek"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From your whole library"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "De toda tu biblioteca"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Depuis toute ta bibliothèque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "ライブラリ全体から"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "De toda a sua biblioteca"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "来自你的整个资料库"
           }
         }
       }
@@ -23966,53 +24056,6 @@
       },
       "comment" : "UI text shown in: My Music Search Controls (Sources/Features/MyMusic/MyMusicSearchControls.swift)"
     },
-    "Mix Preview" : {
-      "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Mix-Vorschau"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mix Preview"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Vista previa de la mezcla"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Aperçu du mix"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "ミックスのプレビュー"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Prévia da mixagem"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "混音预览"
-          }
-        }
-      }
-    },
     "Mix This Playlist" : {
       "comment" : "UI text shown in: Playlists (Sources/Features/Playlists/PlaylistsView.swift)",
       "localizations" : {
@@ -24103,6 +24146,52 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "混音操作"
+          }
+        }
+      }
+    },
+    "Mix for You" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mix für dich"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mix for You"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mix para ti"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mix pour toi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "あなたのためのミックス"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mix para você"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "为你打造的混音"
           }
         }
       }
@@ -27350,53 +27439,6 @@
         }
       }
     },
-    "Not placed (%lld)" : {
-      "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Nicht eingeplant (%lld)"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not placed (%lld)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Sin colocar (%lld)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Non placés (%lld)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "未配置（%lld）"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Não posicionadas (%lld)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "未安排（%lld）"
-          }
-        }
-      }
-    },
     "Not prepared" : {
       "comment" : "UI text shown in: Mix Explanations (Sources/Features/Mix/MixExplanationViews.swift); Smart Transitions (Sources/Features/Transitions/SmartTransitionsView.swift)",
       "localizations" : {
@@ -28615,53 +28657,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "仅在充电时建立索引"
-          }
-        }
-      }
-    },
-    "Only tracks with transition analysis are placed. Nothing is silently discarded." : {
-      "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Nur Titel mit Übergangsanalyse werden eingeplant. Nichts wird stillschweigend verworfen."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only tracks with transition analysis are placed. Nothing is silently discarded."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Solo se colocan las pistas con análisis de transición. No se descarta nada sin avisar."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Seuls les morceaux disposant d’une analyse de transition sont placés. Rien n’est écarté en silence."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "配置されるのはトランジション解析済みの曲だけです。黙って除外されるものはありません。"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Só faixas com análise de transição são posicionadas. Nada é descartado em silêncio."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "只有完成过渡分析的曲目才会被安排。不会悄悄丢弃任何内容。"
           }
         }
       }
@@ -30418,6 +30413,52 @@
         }
       }
     },
+    "Platterhead picks one genre at random — or a playlist you haven't mixed lately — and chains tracks that each stay within 8% of the last one's tempo, in a matching key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead wählt zufällig ein Genre – oder eine Playlist, die du länger nicht gemixt hast – und reiht Titel aneinander, die jeweils innerhalb von 8 % des vorherigen Tempos und in einer passenden Tonart bleiben."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Platterhead picks one genre at random — or a playlist you haven't mixed lately — and chains tracks that each stay within 8% of the last one's tempo, in a matching key."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead elige un género al azar —o una lista que no hayas mezclado últimamente— y encadena pistas que se mantienen a menos del 8 % del tempo de la anterior, en una tonalidad compatible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead choisit un genre au hasard — ou une playlist que tu n’as pas mixée récemment — et enchaîne des morceaux qui restent chacun à moins de 8 % du tempo du précédent, dans une tonalité compatible."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterheadがジャンルを1つランダムに選び(または最近ミックスしていないプレイリストを選び)、前の曲のテンポから8%以内で相性の良いキーの曲をつなげます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O Platterhead escolhe um gênero ao acaso — ou uma playlist que você não mixou recentemente — e encadeia faixas que ficam a até 8% do andamento da anterior, em um tom compatível."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead 会随机选择一种风格（或你最近没有混音过的播放列表），串联速度与上一首相差不超过 8% 且调性匹配的曲目。"
+          }
+        }
+      }
+    },
     "Platterhead requests read-only access for browsing and streaming." : {
       "comment" : "UI text shown in: Add Server Sheet (Sources/Features/Ingest/AddServerSheet.swift)",
       "localizations" : {
@@ -30743,6 +30784,52 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "播放艺人"
+          }
+        }
+      }
+    },
+    "Play Mix" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mix abspielen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play Mix"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Reproducir mix"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Lire le mix"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "ミックスを再生"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Tocar mix"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "播放混音"
           }
         }
       }
@@ -32529,53 +32616,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "预设和自定义曲线"
-          }
-        }
-      }
-    },
-    "Preview" : {
-      "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Vorschau"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preview"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Vista previa"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Aperçu"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "プレビュー"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Prévia"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "预览"
           }
         }
       }

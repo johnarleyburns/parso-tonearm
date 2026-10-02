@@ -190,6 +190,8 @@ final class DiscoveryRuntimeController {
         // stays `nil` and `AudioPlayer` takes its honest shuffle-continue
         // fallback instead.
         AudioPlayer.shared.keepPlayingProvider = KeepPlayingDiscoveryProvider()
+        // …and, first, as an endless mix under Build a Mix's rules.
+        AudioPlayer.shared.keepPlayingMixProvider = KeepPlayingMixContinuation(store: LibraryStore.shared)
 
         let assembly = await makeAssembly()
         do {

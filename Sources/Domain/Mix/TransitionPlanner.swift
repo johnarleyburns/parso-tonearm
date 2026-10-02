@@ -28,6 +28,10 @@ public struct TransitionPlanningContext: Codable, Sendable, Equatable {
 /// Pure, analysis-backed transition selection. Both the player and preview
 /// call this type so the explanation is the same decision the listener hears.
 public enum TransitionPlanner {
+    /// A plain crossfade's length. It used to be 0 — the chip said "Plain crossfade" and the
+    /// player, seeing a zero-length fade, cut straight from one track to the next.
+    public static let plainCrossfadeSeconds: Double = 8
+
     public static func plan(from outgoing: DJTrackPrepPayload?, to incoming: DJTrackPrepPayload?,
                             context: TransitionPlanningContext) -> TransitionPlan {
         if context.sameAlbumInOrder {
@@ -37,17 +41,17 @@ public enum TransitionPlanner {
         }
         if context.userChosePlainFade {
             return TransitionPlan(fromTrackID: context.fromTrackID, toTrackID: context.toTrackID,
-                                  style: .plainCrossfade, confidence: 1,
+                                  style: .plainCrossfade, overlapSeconds: plainCrossfadeSeconds, confidence: 1,
                                   reasons: [.userChosePlainFade])
         }
         guard let outgoing, let incoming else {
             return TransitionPlan(fromTrackID: context.fromTrackID, toTrackID: context.toTrackID,
-                                  style: .plainCrossfade, confidence: 0,
+                                  style: .plainCrossfade, overlapSeconds: plainCrossfadeSeconds, confidence: 0,
                                   reasons: [.gridNotReady(context.prepState)])
         }
         guard context.incomingBuffered else {
             return TransitionPlan(fromTrackID: context.fromTrackID, toTrackID: context.toTrackID,
-                                  style: .plainCrossfade, confidence: 0,
+                                  style: .plainCrossfade, overlapSeconds: plainCrossfadeSeconds, confidence: 0,
                                   reasons: [.notBuffered], downgradedFrom: .beatmatchedBlend)
         }
 

@@ -133,7 +133,8 @@ struct ListenView: View {
         .sheet(isPresented: $showMixBuilder) {
             // A first mix should represent the music the listener owns, not
             // whatever happened to be queued or played last.
-            MixBuilderSheet(rows: appState.allTracks.isEmpty ? appState.recentlyPlayed : appState.allTracks)
+            MixBuilderSheet(rows: appState.allTracks.isEmpty ? appState.recentlyPlayed : appState.allTracks,
+                            picksSource: true)
                 .environmentObject(appState)
         }
         .sheet(isPresented: $showIndexStatus, onDismiss: {

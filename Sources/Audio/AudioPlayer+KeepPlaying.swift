@@ -48,6 +48,13 @@ public protocol KeepPlayingSimilarityProviding: Sendable {
 /// real CLAP similarity pick. Kept distinct from a plain `Bool` so the UI can
 /// give an honest, specific reason instead of a generic "something went
 /// wrong" (CLAUDE.md "no silent/magic background work").
+/// Keep Playing as an endless mix: the next tracks after `trackID` that follow Build a Mix's
+/// rules (±8% BPM, a compatible Camelot key), in play order. Empty when nothing compatible is left
+/// — Keep Playing then falls back to similarity, and says so.
+public protocol KeepPlayingMixProviding: Sendable {
+    func mixContinuation(after trackID: Int64, excluding: Set<Int64>, limit: Int) async -> [Int64]
+}
+
 public enum KeepPlayingFallbackReason: Equatable, Sendable {
     /// The sound-search model/index isn't ready yet (still downloading, or
     /// the reference track has no embedding). Not a dead end — it retries
@@ -110,6 +117,18 @@ extension AudioPlayer {
         // running well past the session (or test) that started it.
         guard !Task.isCancelled else { return }
         let excluded = currentKeepPlayingExclusions()
+
+        // Keep Playing is an endless mix: continue from the last queued track under the mixing
+        // rules first; the other continuations below are the fallback when nothing fits.
+        if let mixProvider = keepPlayingMixProvider, let anchor = queue.last?.track.id {
+            let ids = await mixProvider.mixContinuation(after: anchor, excluding: excluded,
+                                                        limit: keepPlayingBatchSize)
+            guard !Task.isCancelled else { return }
+            if !ids.isEmpty {
+                await appendKeepPlayingSimilarTracks(ids, isFallback: false, reason: nil)
+                return
+            }
+        }
 
         // A mood-seeded queue (docs/plans/mood-based-listening-plan.md §3.3/
         // §7) extends by re-running the SAME mood query, not the generic

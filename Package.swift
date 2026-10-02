@@ -173,6 +173,7 @@ let package = Package(
             name: "BuiltInAnalyzer",
             dependencies: [
                 "TonearmDiscovery",
+                "TonearmCore",
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine")
             ],
             path: "Sources/Tools/BuiltInAnalyzer",

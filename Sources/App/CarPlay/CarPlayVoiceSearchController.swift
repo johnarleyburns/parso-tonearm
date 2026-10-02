@@ -57,20 +57,10 @@ final class CarPlayVoiceSearchController: NSObject {
             let engine = AVAudioEngine()
             let request = SFSpeechAudioBufferRecognitionRequest()
             request.shouldReportPartialResults = true
-            let input = engine.inputNode
-            input.installTap(onBus: 0, bufferSize: 1_024, format: input.outputFormat(forBus: 0)) { buffer, _ in
-                request.append(buffer)
-            }
+            Self.installTap(on: engine.inputNode, feeding: request)
             audioEngine = engine
-            recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
-                let phrase = result?.bestTranscription.formattedString ?? ""
-                let finished = result?.isFinal == true || error != nil
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    if finished {
-                        await self.finish(phrase)
-                    }
-                }
+            recognitionTask = Self.startRecognition(recognizer, request: request) { [weak self] phrase in
+                Task { @MainActor [weak self] in await self?.finish(phrase) }
             }
             try engine.start()
         } catch {
@@ -103,12 +93,48 @@ final class CarPlayVoiceSearchController: NSObject {
     }
 
     private func requestAuthorization() async -> Bool {
-        let speech = await withCheckedContinuation { continuation in
-            SFSpeechRecognizer.requestAuthorization { status in continuation.resume(returning: status == .authorized) }
+        guard await Self.speechAuthorized() else { return false }
+        return await Self.recordPermissionGranted()
+    }
+
+    // TCC calls these completion handlers on its own queue. Written inside this @MainActor class
+    // they inherited main-actor isolation, and Swift 6's runtime check trapped (TestFlight 513:
+    // EXC_BREAKPOINT in requestAuthorization's closure). Non-isolated, with @Sendable handlers,
+    // they only resume the continuation — safe from any queue.
+    /// The tap runs on the real-time audio thread; it must not inherit this class's main-actor
+    /// isolation (Swift 6 traps on that), so it's built here.
+    private nonisolated static func installTap(on input: AVAudioInputNode,
+                                               feeding request: SFSpeechAudioBufferRecognitionRequest) {
+        input.installTap(onBus: 0, bufferSize: 1_024, format: input.outputFormat(forBus: 0)) { @Sendable buffer, _ in
+            request.append(buffer)
         }
-        guard speech else { return false }
-        return await withCheckedContinuation { continuation in
-            AVAudioSession.sharedInstance().requestRecordPermission { allowed in continuation.resume(returning: allowed) }
+    }
+
+    /// Speech calls the result handler on its own queue; only the final phrase hops to the main
+    /// actor through `onFinal`.
+    private nonisolated static func startRecognition(
+        _ recognizer: SFSpeechRecognizer, request: SFSpeechAudioBufferRecognitionRequest,
+        onFinal: @escaping @Sendable (String) -> Void
+    ) -> SFSpeechRecognitionTask {
+        recognizer.recognitionTask(with: request) { @Sendable result, error in
+            guard result?.isFinal == true || error != nil else { return }
+            onFinal(result?.bestTranscription.formattedString ?? "")
+        }
+    }
+
+    private nonisolated static func speechAuthorized() async -> Bool {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            SFSpeechRecognizer.requestAuthorization { @Sendable status in
+                continuation.resume(returning: status == .authorized)
+            }
+        }
+    }
+
+    private nonisolated static func recordPermissionGranted() async -> Bool {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            AVAudioApplication.requestRecordPermission { @Sendable allowed in
+                continuation.resume(returning: allowed)
+            }
         }
     }
 }

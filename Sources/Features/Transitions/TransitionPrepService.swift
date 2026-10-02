@@ -18,7 +18,15 @@ final class TransitionPrepService: ObservableObject {
     @Published private(set) var stateSince: [Int64: Date] = [:]
     @Published private(set) var preparedTrackIDs: Set<Int64> = []
 
-    var wifiOnly = true
+    /// Settings → "Prepare remote tracks on Wi-Fi only" (it used to be a separate flag the
+    /// switch never reached).
+    var wifiOnly: Bool {
+        UserDefaults.standard.object(forKey: "smartTransitionsWiFiOnly") as? Bool ?? true
+    }
+    /// A mix is useless with unprepared transitions, so preparing one may use cellular even when
+    /// the Wi-Fi-only setting is on.
+    private var allowsCellularForWindow = false
+    private var cellularBlocked: Bool { wifiOnly && !allowsCellularForWindow }
     private var task: Task<Void, Never>?
     private let pathMonitor = NWPathMonitor()
     private let resolver: Resolver
@@ -45,8 +53,9 @@ final class TransitionPrepService: ObservableObject {
 
     deinit { task?.cancel(); pathMonitor.cancel() }
 
-    func prepare(rows: [TrackRow], appState: AppState) {
+    func prepare(rows: [TrackRow], appState: AppState, allowsCellular: Bool = false) {
         task?.cancel()
+        allowsCellularForWindow = allowsCellular
         var seen = Set<Int64>()
         let window = rows.filter { row in
             guard let id = row.track.id else { return false }
@@ -103,7 +112,7 @@ final class TransitionPrepService: ObservableObject {
                 setState(.waitingForNetwork, for: id)
                 return
             }
-            if wifiOnly && path.usesInterfaceType(.cellular) {
+            if cellularBlocked && path.usesInterfaceType(.cellular) {
                 setState(.waitingForWiFi, for: id)
                 return
             }
@@ -165,7 +174,7 @@ final class TransitionPrepService: ObservableObject {
         guard !waitingRows.isEmpty,
               let waitingAppState,
               pathMonitor.currentPath.status == .satisfied,
-              (!wifiOnly || !pathMonitor.currentPath.usesInterfaceType(.cellular)) else { return }
-        prepare(rows: waitingRows, appState: waitingAppState)
+              (!cellularBlocked || !pathMonitor.currentPath.usesInterfaceType(.cellular)) else { return }
+        prepare(rows: waitingRows, appState: waitingAppState, allowsCellular: allowsCellularForWindow)
     }
 }

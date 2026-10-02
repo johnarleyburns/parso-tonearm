@@ -180,7 +180,8 @@ final class AppState: ObservableObject {
         await AudioPlayer.shared.restorePersistedQueue()
         await reload()
         if UserDefaults.standard.object(forKey: "smartTransitionsEnabled") as? Bool ?? true {
-            transitionPrepService.prepare(rows: AudioPlayer.shared.queue, appState: self)
+            transitionPrepService.prepare(rows: AudioPlayer.shared.queue, appState: self,
+                                          allowsCellular: AudioPlayer.shared.isPlayingMix)
         }
         await AudioCache.shared.garbageCollectStalePartials()
         Task { await warmLocalSourceArtwork() }

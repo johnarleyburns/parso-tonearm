@@ -41,6 +41,33 @@ public enum BuiltInMoodIndexProvider {
         return (try? JSONDecoder().decode([BuiltInMoodTrack].self, from: data)) ?? []
     }
 
+    /// The Mood Starter transition-prep pack (BuiltInTransitionPrepPack): the Mac app ships the
+    /// full-waveform pack, the iPhone the compact one.
+    public static var transitionPrepPackURL: URL? {
+        #if os(macOS)
+        let names = ["builtin-transition-prep-full", "builtin-transition-prep"]
+        #else
+        let names = ["builtin-transition-prep"]
+        #endif
+        for bundle in bundles {
+            for name in names {
+                if let url = bundle.url(forResource: name, withExtension: "bin")
+                    ?? bundle.url(forResource: name, withExtension: "bin", subdirectory: "Audio") {
+                    return url
+                }
+            }
+        }
+        return nil
+    }
+
+    private static var bundles: [Bundle] {
+        #if SWIFT_PACKAGE
+        return [Bundle.module, .main]
+        #else
+        return [.main]
+        #endif
+    }
+
     private static var resourceURL: URL? {
         let bundles: [Bundle] = {
             #if SWIFT_PACKAGE

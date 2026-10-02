@@ -49,7 +49,8 @@ public struct MixPlanner: Sendable {
             pool.append(candidate)
         }
 
-        if let target = request.targetDuration, target.isFinite, target > 0,
+        if request.compatibility == nil,
+           let target = request.targetDuration, target.isFinite, target > 0,
            pool.reduce(0, { $0 + max(0, $1.duration) }) > target {
             pool = fitToLength(pool, target: target, request: request, excluded: &excluded)
         }
@@ -97,54 +98,60 @@ public struct MixPlanner: Sendable {
         let fast = MixPlannerFastPool(pool: pool, camelotKeys: camelotKeys)
         let tieBreaks = pool.map { seededTieBreak($0.trackID, seed: request.seed) }
 
-        for position in pool.indices {
-            if let lockedID = lockedByPosition[position], let lockedIndex = indexByID[lockedID] {
-                ordered.append(pool[lockedIndex])
-                orderedIndices.append(lockedIndex)
-                used[lockedIndex] = true
-                continue
-            }
-
-            let positionTarget = target(position, Double(pool.count))
-            let previous = orderedIndices.last
-            // One matrix-vector product scores the previous track's sound against every
-            // candidate (a 4,000-track library was a minute of per-pair cosines).
-            let distances = previous.map { fast.cosineDistances(from: $0) }
-            var selected: Int?
-            var selectedCost = Double.infinity
-            for index in pool.indices {
-                guard !used[index], !lockedIDs.contains(pool[index].trackID) else { continue }
-
-                let cost: Double
-                if let previous {
-                    cost = fast.edgeTotal(from: previous, to: index, target: positionTarget,
-                                          shape: request.shape, distance: distances?[index])
-                        + tieBreaks[index]
-                } else {
-                    cost = startCost(pool[index], shape: request.shape, target: positionTarget,
-                                     seed: request.seed)
+        if let compatibility = request.compatibility {
+            ordered = chain(pool: pool, request: request, compatibility: compatibility, fast: fast,
+                            indexByID: indexByID, lockedByPosition: lockedByPosition,
+                            tieBreaks: tieBreaks, target: target)
+        } else {
+            for position in pool.indices {
+                if let lockedID = lockedByPosition[position], let lockedIndex = indexByID[lockedID] {
+                    ordered.append(pool[lockedIndex])
+                    orderedIndices.append(lockedIndex)
+                    used[lockedIndex] = true
+                    continue
                 }
 
-                // Evaluate each candidate once. The previous `min` comparator
-                // recalculated both edge scores on every comparison, which
-                // made a 500-track plan sensitive to host load.
-                if cost < selectedCost
-                    || (cost == selectedCost && pool[index].trackID < selected.map { pool[$0].trackID } ?? .max) {
-                    selected = index
-                    selectedCost = cost
+                let positionTarget = target(position, Double(pool.count))
+                let previous = orderedIndices.last
+                // One matrix-vector product scores the previous track's sound against every
+                // candidate (a 4,000-track library was a minute of per-pair cosines).
+                let distances = previous.map { fast.cosineDistances(from: $0) }
+                var selected: Int?
+                var selectedCost = Double.infinity
+                for index in pool.indices {
+                    guard !used[index], !lockedIDs.contains(pool[index].trackID) else { continue }
+
+                    let cost: Double
+                    if let previous {
+                        cost = fast.edgeTotal(from: previous, to: index, target: positionTarget,
+                                              shape: request.shape, distance: distances?[index])
+                            + tieBreaks[index]
+                    } else {
+                        cost = startCost(pool[index], shape: request.shape, target: positionTarget,
+                                         seed: request.seed)
+                    }
+
+                    // Evaluate each candidate once. The previous `min` comparator
+                    // recalculated both edge scores on every comparison, which
+                    // made a 500-track plan sensitive to host load.
+                    if cost < selectedCost
+                        || (cost == selectedCost && pool[index].trackID < selected.map { pool[$0].trackID } ?? .max) {
+                        selected = index
+                        selectedCost = cost
+                    }
                 }
+                guard let selected else { break }
+                ordered.append(pool[selected])
+                orderedIndices.append(selected)
+                used[selected] = true
             }
-            guard let selected else { break }
-            ordered.append(pool[selected])
-            orderedIndices.append(selected)
-            used[selected] = true
+
+            // A bounded swap improvement preserves fixed positions and is cheap
+            // enough for the 500-track CI performance bound.
+            ordered = improve(ordered, lockedByPosition: lockedByPosition, request: request,
+                               target: target, camelotKeys: camelotKeys,
+                               maxIterations: min(2, ordered.count))
         }
-
-        // A bounded swap improvement preserves fixed positions and is cheap
-        // enough for the 500-track CI performance bound.
-        ordered = improve(ordered, lockedByPosition: lockedByPosition, request: request,
-                           target: target, camelotKeys: camelotKeys,
-                           maxIterations: min(2, ordered.count))
 
         var steps: [MixStep] = []
         steps.reserveCapacity(ordered.count)
@@ -194,7 +201,8 @@ public struct MixPlanner: Sendable {
                                                     target: target(position, Double(ordered.count)),
                                                     shape: request.shape,
                                                     camelotKeys: camelotKeys,
-                                                    distances: distances) } ?? []
+                                                    distances: distances,
+                                                    compatibility: request.compatibility) } ?? []
             let effectiveMatch = previous.map { effectiveBPM(from: $0.bpm!, to: candidate.bpm!) }
             let relation = effectiveMatch?.relation ?? .same
             let effective = effectiveMatch?.bpm ?? candidate.bpm!
@@ -227,6 +235,64 @@ public struct MixPlanner: Sendable {
     private func valid(_ bpm: Double?) -> Bool {
         guard let bpm else { return false }
         return bpm.isFinite && bpm > 0
+    }
+
+    /// Build a Mix under mixing rules: a seeded random first track (or the locked one), then each
+    /// next track chosen — by the usual shape/energy/sound cost — only among tracks within the BPM
+    /// tolerance and a compatible key of the previous one, until the session length is reached or
+    /// nothing compatible is left. Locked positions are honoured.
+    private func chain(pool: [MixCandidate], request: MixRequest, compatibility: MixCompatibility,
+                       fast: MixPlannerFastPool, indexByID: [Int64: Int],
+                       lockedByPosition: [Int: Int64], tieBreaks: [Double],
+                       target: (Int, Double) -> Double) -> [MixCandidate] {
+        guard !pool.isEmpty else { return [] }
+        let goal = request.targetDuration.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        let averageLength = max(60, pool.reduce(0) { $0 + max(0, $1.duration) } / Double(pool.count))
+        let expectedCount = goal.map { max(1, ($0 / averageLength).rounded()) } ?? Double(pool.count)
+        let codes = pool.map { $0.camelot ?? "" }
+        var used = [Bool](repeating: false, count: pool.count)
+        var orderedIndices: [Int] = []
+        var total: TimeInterval = 0
+
+        let first = request.lockedFirst.flatMap { indexByID[$0] }
+            ?? lockedByPosition[0].flatMap { indexByID[$0] }
+            ?? pool.indices.min { tieBreaks[$0] == tieBreaks[$1] ? pool[$0].trackID < pool[$1].trackID : tieBreaks[$0] < tieBreaks[$1] }!
+        orderedIndices.append(first)
+        used[first] = true
+        total += max(0, pool[first].duration)
+
+        while true {
+            if let goal, total >= goal * 0.97 { break }
+            let position = orderedIndices.count
+            if let lockedID = lockedByPosition[position], let locked = indexByID[lockedID], !used[locked] {
+                orderedIndices.append(locked)
+                used[locked] = true
+                total += max(0, pool[locked].duration)
+                continue
+            }
+            let previous = orderedIndices[orderedIndices.count - 1]
+            let positionTarget = target(position, max(expectedCount, Double(position + 1)))
+            let distances = fast.cosineDistances(from: previous)
+            var selected: Int?
+            var selectedCost = Double.infinity
+            for index in pool.indices where !used[index] {
+                guard compatibility.bpmCompatible(fast.bpm[previous], fast.bpm[index]),
+                      MixCompatibility.keysCompatible(codes[previous], codes[index]) else { continue }
+                if let goal, total + max(0, pool[index].duration) > goal * 1.1 { continue }
+                let cost = fast.edgeTotal(from: previous, to: index, target: positionTarget,
+                                          shape: request.shape, distance: distances[index]) + tieBreaks[index]
+                if cost < selectedCost
+                    || (cost == selectedCost && pool[index].trackID < selected.map { pool[$0].trackID } ?? .max) {
+                    selected = index
+                    selectedCost = cost
+                }
+            }
+            guard let selected else { break }
+            orderedIndices.append(selected)
+            used[selected] = true
+            total += max(0, pool[selected].duration)
+        }
+        return orderedIndices.map { pool[$0] }
     }
 
     /// Picks the tracks for a 15/30/60-minute mix from a larger pool. Locked tracks stay; the rest
@@ -484,11 +550,19 @@ public struct MixPlanner: Sendable {
                            pool: [MixCandidate], position: Int, target: Double,
                            shape: MixShape,
                            camelotKeys: [Int64: CamelotKey],
-                           distances: StepDistances? = nil) -> [RunnerUp] {
+                           distances: StepDistances? = nil,
+                           compatibility: MixCompatibility? = nil) -> [RunnerUp] {
+        // Under mixing rules a runner-up (and so a Swap) must obey them too.
+        let admissible = compatibility.map { rules in
+            pool.filter { candidate in
+                rules.bpmCompatible(previous.bpm ?? 0, candidate.bpm ?? 0)
+                    && MixCompatibility.keysCompatible(previous.camelot ?? "", candidate.camelot ?? "")
+            }
+        } ?? pool
         // Explanations stay complete for normal-size mixes. For a very large
         // library pool, bound the explanatory scan separately from the solve
         // so the 500-track planner remains interactive.
-        let considered = pool.count > 100 ? Array(pool.prefix(64)) : pool
+        let considered = admissible.count > 100 ? Array(admissible.prefix(64)) : admissible
         return considered.filter { $0.trackID != selected.trackID }
             .map { candidate in
                 let score = edge(from: previous, to: candidate, target: target,

@@ -36,6 +36,15 @@ public protocol QueueContinuationSource: AnyObject {
     func nextTracks(excluding: Set<Int64>, limit: Int) async -> [TrackRow]
 }
 
+extension AudioPlayer {
+    /// Playing a Build a Mix session: its transitions may be prepared over cellular (a mix with
+    /// unprepared transitions is just a playlist).
+    public var isPlayingMix: Bool {
+        if case .mix = queueSource { return true }
+        return false
+    }
+}
+
 public enum QueueSource {
     case source(Source)
     case playlist(Playlist)

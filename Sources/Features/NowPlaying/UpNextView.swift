@@ -67,7 +67,7 @@ struct UpNextView: View {
 
             TransitionChip(
                 onPrepareNow: {
-                    transitionPrep.prepare(rows: transitionRows, appState: appState)
+                    transitionPrep.prepare(rows: transitionRows, appState: appState, allowsCellular: player.isPlayingMix)
                 },
                 onAudition: {
                     guard let outgoing = player.currentTrack,
@@ -127,12 +127,12 @@ struct UpNextView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairline))
         .task {
             if case .mix = player.queueSource {
-                transitionPrep.prepare(rows: transitionRows, appState: appState)
+                transitionPrep.prepare(rows: transitionRows, appState: appState, allowsCellular: player.isPlayingMix)
             }
         }
         .onChange(of: player.currentTrack?.track.id) { _, _ in
             guard case .mix = player.queueSource else { return }
-            transitionPrep.prepare(rows: transitionRows, appState: appState)
+            transitionPrep.prepare(rows: transitionRows, appState: appState, allowsCellular: player.isPlayingMix)
         }
     }
 

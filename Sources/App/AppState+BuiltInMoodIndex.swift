@@ -28,6 +28,7 @@ extension AppState {
             await backfillMoodIndexArtworkIfNeeded()
             await backfillNewMoodIndexTracksIfNeeded(sourceId: sourceId)
             await backfillMoodIndexAnalysisIfNeeded(sourceId: sourceId)
+            await seedMoodIndexTransitionPrepIfNeeded(sourceId: sourceId)
             return
         }
         let bundled = BuiltInMoodIndexProvider.tracks
@@ -84,6 +85,7 @@ extension AppState {
                     scale: entry.scale, completedAt: now)
                 try await seedMusicalAnalysis(entry, trackId: trackId, assetId: assetId, at: now)
             }
+            await seedMoodIndexTransitionPrepIfNeeded(sourceId: sourceId)
             await reload()
         } catch {
             AppLogger.app.error("Seeding built-in mood index failed: \(error.localizedDescription, privacy: .public)")
@@ -103,6 +105,44 @@ extension AppState {
             bpm: entry.bpm, key: entry.key, energy: entry.energy,
             scopeSeconds: entry.analysisScopeSeconds ?? min(60, entry.durationSec),
             completedAt: date)
+    }
+
+    /// Installs the shipped transition-prep pack for the Mood Starter tracks, so a mix of them has
+    /// its transitions ready on install instead of "Preparing…" (download + full decode per track
+    /// on the phone). Runs once per pack: the pack's size is remembered after a successful import.
+    private func seedMoodIndexTransitionPrepIfNeeded(sourceId: Int64) async {
+        guard let url = BuiltInMoodIndexProvider.transitionPrepPackURL,
+              let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize else { return }
+        let stamp = "\(DJTrackPrepPayload.currentAlgorithmID)-\(size)"
+        let key = "builtin.transitionPrepPack"
+        guard UserDefaults.standard.string(forKey: key) != stamp else { return }
+        do {
+            let packed = try Data(contentsOf: url, options: .mappedIfSafe)
+            let payloads = try await Task.detached(priority: .utility) {
+                try BuiltInTransitionPrepPack.decode(packed)
+            }.value
+            let urlByID = Dictionary(BuiltInMoodIndexProvider.tracks.map { ($0.id, $0.streamURL) },
+                                     uniquingKeysWith: { first, _ in first })
+            let trackByURL: [String: Int64] = try await store.dbQueue.read { db in
+                var map: [String: Int64] = [:]
+                for row in try Row.fetchAll(db, sql: """
+                    SELECT asset.remoteURL AS url, asset.trackId AS trackId FROM asset
+                    JOIN track ON track.id = asset.trackId
+                    WHERE track.sourceId = ? AND asset.remoteURL IS NOT NULL
+                    """, arguments: [sourceId]) {
+                    if let url: String = row["url"], let id: Int64 = row["trackId"] { map[url] = id }
+                }
+                return map
+            }
+            let items = payloads.compactMap { entry -> (trackId: Int64, payload: DJTrackPrepPayload)? in
+                guard let url = urlByID[entry.key], let trackId = trackByURL[url] else { return nil }
+                return (trackId, entry.value)
+            }
+            try await store.seedTransitionPrep(items)
+            UserDefaults.standard.set(stamp, forKey: key)
+        } catch {
+            AppLogger.app.error("Seeding Mood Starter transition prep failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// A device that seeded the Mood Starter before the bundle carried tempo and key has those

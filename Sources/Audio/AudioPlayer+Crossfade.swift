@@ -14,7 +14,13 @@ extension AudioPlayer {
     }
 
     func updateCrossfade(position: Double) {
-        let fadeSeconds = transitionPlan?.overlapSeconds ?? normalizedCrossfadeSeconds
+        let fadeSeconds: Double = {
+            guard let plan = transitionPlan else { return normalizedCrossfadeSeconds }
+            if plan.overlapSeconds > 0 { return plan.overlapSeconds }
+            // A planned transition always blends unless it is deliberately gapless; plans saved
+            // before plain crossfades had a length would otherwise cut hard.
+            return plan.style == .gapless ? 0 : max(normalizedCrossfadeSeconds, TransitionPlanner.plainCrossfadeSeconds)
+        }()
         guard fadeSeconds > 0,
               !sleepAtEndOfTrack,
               transitionPlan?.style != .gapless,

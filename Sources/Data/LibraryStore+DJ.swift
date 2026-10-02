@@ -162,6 +162,33 @@ extension LibraryStore {
         }
     }
 
+    /// Seeds shipped transition-prep payloads (the Mood Starter pack) in one transaction, exactly as
+    /// `saveDJAnalysis` would store an on-device preparation. Tracks that already hold a current
+    /// analysis are left alone. Returns how many were written.
+    @discardableResult
+    public func seedTransitionPrep(_ items: [(trackId: Int64, payload: DJTrackPrepPayload)],
+                                   at date: Date = Date()) throws -> Int {
+        try dbQueue.write { db in
+            var written = 0
+            for item in items where item.trackId >= 0 {
+                var row = try DJTrackPrep.fetchOne(db, key: item.trackId) ?? DJTrackPrep(trackId: item.trackId)
+                if row.analysisPayload != nil, row.analysisAlgorithm == item.payload.algorithmID,
+                   row.analysisPayloadVersion == item.payload.version { continue }
+                row.analysisPayload = try item.payload.encoded()
+                row.analysisAlgorithm = item.payload.algorithmID
+                row.analysisPayloadVersion = item.payload.version
+                row.sourceSampleRate = item.payload.sampleRate
+                row.sourceFrameCount = item.payload.sourceFrameCount
+                row.bpm = item.payload.bpm
+                row.camelotKey = item.payload.key.camelot
+                row.analysisUpdatedAt = date
+                try row.save(db)
+                written += 1
+            }
+            return written
+        }
+    }
+
     public func saveDJGrid(bpmOverride: Double?, firstBeatOverride: Double?, keyShiftSemitones: Int,
                            trackId: Int64, at date: Date = Date()) throws {
         guard trackId >= 0 else { return }
