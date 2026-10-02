@@ -27,6 +27,7 @@
 		188474691ABE001A453E8C8B /* SiriMediaHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DFACA84CBD5D7FDDE7C6E7 /* SiriMediaHandling.swift */; };
 		19D3B7BFDB92E43C1DF0BB38 /* ambient-flowing-water.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 68C41942DAE2689F40567DDD /* ambient-flowing-water.mp4 */; };
 		1A0ED14038DAB24DEC322BEC /* UpNextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42E2045814F52BC75F1609F /* UpNextView.swift */; };
+		1C14F99846EA3F8713D8CCCA /* starter-iphone.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = F35495698D3E2D24B9BC626A /* starter-iphone.sqlite */; };
 		1C9FB19F6571B100C8C147EF /* AppState+LibraryExtras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC6ECC4D448840D7EC71C72 /* AppState+LibraryExtras.swift */; };
 		1F2AB3D61BDA2B5565075215 /* ParsoDJEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 551ED4CBE7B235659C23A496 /* ParsoDJEngine */; };
 		203E3F04A4D7C7663CDB3FC0 /* SupportDevelopmentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */; };
@@ -73,7 +74,6 @@
 		4C81101F93E43415C7EE73F1 /* TonearmWatchWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 33D1CACDDA38AC11884D0013 /* TonearmWatchWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4F556962AF663ABF80303696 /* AdaptiveGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4497CDA730FA46494E531667 /* AdaptiveGlass.swift */; };
 		4FAC5A9709F7937D3BFBA535 /* WatchDefaultsSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAC8912A647F968F6B1973EE /* WatchDefaultsSyncStateStore.swift */; };
-		50F99C6778B867EC1CDA528A /* builtin-mood-index.json in Resources */ = {isa = PBXBuildFile; fileRef = 6DDE8091034A33A4333D7605 /* builtin-mood-index.json */; };
 		51D544641455737BB88B7B8F /* AppState+Watch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 642414839821D38BCEA39933 /* AppState+Watch.swift */; };
 		53622ED77DF628B5D0B06B29 /* SourceDetailView+Remote.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC7A21C58025194C07411493 /* SourceDetailView+Remote.swift */; };
 		53E7DC2F577752FE38C3AE62 /* WatchActionPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C765C8245D110BFA6F78BAC /* WatchActionPill.swift */; };
@@ -402,7 +402,6 @@
 		6A21E9BA83011557E190F76D /* WatchSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSmokeUITests.swift; sourceTree = "<group>"; };
 		6AB44399EDF479626BC62A6F /* EQView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EQView.swift; sourceTree = "<group>"; };
 		6B30803B3705FC80247E98A8 /* ambient-flowing-water.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-flowing-water.wav"; sourceTree = "<group>"; };
-		6DDE8091034A33A4333D7605 /* builtin-mood-index.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "builtin-mood-index.json"; sourceTree = "<group>"; };
 		6E3EECAA4F3F90C416B78A37 /* WatchLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLibraryModel.swift; sourceTree = "<group>"; };
 		6E9FB2D91C051DAB10A3A3B5 /* SettingsView+Sections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Sections.swift"; sourceTree = "<group>"; };
 		706DA4B73090EF9C76A51174 /* TonearmApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonearmApp.swift; sourceTree = "<group>"; };
@@ -509,6 +508,7 @@
 		F1456A887E510378AA4B5141 /* PhoneWatchProtocolAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchProtocolAdapter.swift; sourceTree = "<group>"; };
 		F1BAAB8C1EDFCC23544B7B03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F264152278DB935FBFB188F5 /* WatchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchComponents.swift; sourceTree = "<group>"; };
+		F35495698D3E2D24B9BC626A /* starter-iphone.sqlite */ = {isa = PBXFileReference; lastKnownFileType = file; path = "starter-iphone.sqlite"; sourceTree = "<group>"; };
 		F39D6547A3D27A72C24F56AD /* SmartTransitionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartTransitionsView.swift; sourceTree = "<group>"; };
 		F42E2045814F52BC75F1609F /* UpNextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpNextView.swift; sourceTree = "<group>"; };
 		F43AA652B4D4981556956CB7 /* AppState+CustomArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+CustomArtwork.swift"; sourceTree = "<group>"; };
@@ -966,7 +966,7 @@
 				74D07216801F19A8231EE98A /* ambient-ocean.wav */,
 				E38CB1BF7D38667CEFEBA735 /* ambient-rain.wav */,
 				99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */,
-				6DDE8091034A33A4333D7605 /* builtin-mood-index.json */,
+				F35495698D3E2D24B9BC626A /* starter-iphone.sqlite */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -1489,7 +1489,6 @@
 				5B465DBD74B94A0538CC824B /* ambient-rain.mp4 in Resources */,
 				2A74A418509060190D7BF44F /* ambient-rain.wav in Resources */,
 				B9CAB7F4B8BDBAC6217A3E17 /* blue.jpg in Resources */,
-				50F99C6778B867EC1CDA528A /* builtin-mood-index.json in Resources */,
 				271CF80625CD67CB26D53B41 /* dream.jpg in Resources */,
 				F988679E965F1CF14A03E646 /* heart.jpg in Resources */,
 				887D130CA82A14CB9D425888 /* love.jpg in Resources */,
@@ -1498,6 +1497,7 @@
 				309C4A7BE4BFBADC96076097 /* night.jpg in Resources */,
 				65318BD0EF55380DE2058F79 /* rain.jpg in Resources */,
 				DE2BEC06DBD57AB6777880B0 /* splash_screen.jpg in Resources */,
+				1C14F99846EA3F8713D8CCCA /* starter-iphone.sqlite in Resources */,
 				6AA9B6354B01CCBC02AC6DC0 /* vocab.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -51,6 +51,7 @@ while read -r url sha file; do
     exit 1
   fi
   mv "$tmp" "$target"
+  chmod 644 "$target"
   echo "==> starter: $file verified"
   fetched=$((fetched + 1))
 done < "$LOCK"

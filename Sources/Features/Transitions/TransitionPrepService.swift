@@ -105,6 +105,13 @@ final class TransitionPrepService: ObservableObject {
 
     private func prepare(row: TrackRow, id: Int64, appState: AppState) async {
         if preparedTrackIDs.contains(id) { return }
+        // Prepared on this device, or shipped in the starter DB (Mood Starter tracks) —
+        // checked before the network, which shipped prep never needs.
+        if (try? await appState.store.hasCurrentTransitionPrep(trackId: id)) == true {
+            preparedTrackIDs.insert(id)
+            setState(.ready, for: id)
+            return
+        }
         let requiresNetwork = row.asset?.kind == .remote
         if requiresNetwork {
             let path = pathMonitor.currentPath
@@ -116,12 +123,6 @@ final class TransitionPrepService: ObservableObject {
                 setState(.waitingForWiFi, for: id)
                 return
             }
-        }
-        // Prepared on this device, or shipped in the starter DB (Mood Starter tracks).
-        if (try? await appState.store.hasCurrentTransitionPrep(trackId: id)) == true {
-            preparedTrackIDs.insert(id)
-            setState(.ready, for: id)
-            return
         }
         setState(.queued, for: id)
         do {

@@ -127,6 +127,16 @@ final class CrossfadeCurveTests: XCTestCase {
         XCTAssertTrue(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: next))
     }
 
+    func testGaplessAlbumDetectionIgnoresUnnumberedCollectionBuckets() {
+        // Mood Starter genre albums: one album id, no album artist, no track numbers.
+        let current = CrossfadeCurve.AlbumContinuity(albumID: 7, sourceID: 1, albumTitle: "Folk",
+                                                     albumArtist: nil, discNumber: nil, trackNumber: nil)
+        let next = CrossfadeCurve.AlbumContinuity(albumID: 7, sourceID: 1, albumTitle: "Folk",
+                                                  albumArtist: nil, discNumber: nil, trackNumber: nil)
+
+        XCTAssertFalse(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: next))
+    }
+
     func testGaplessAlbumDetectionDoesNotSuppressDifferentOrNonAdjacentAlbums() {
         let current = CrossfadeCurve.AlbumContinuity(albumID: 7,
                                                      sourceID: 1,

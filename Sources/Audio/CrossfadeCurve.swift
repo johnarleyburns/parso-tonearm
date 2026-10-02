@@ -85,7 +85,10 @@ public enum CrossfadeCurve: String, CaseIterable, Codable, Equatable {
 
         guard let currentTrack = current.trackNumber,
               let nextTrack = next.trackNumber else {
-            return true
+            // Without track numbers only a real album (it names its artist) counts. A
+            // collection bucket such as a Mood Starter genre album has no album artist, and
+            // treating it as gapless would hard-cut every transition between its tracks.
+            return normalized(current.albumArtist) != nil
         }
 
         if normalizedDisc(current.discNumber) == normalizedDisc(next.discNumber) {

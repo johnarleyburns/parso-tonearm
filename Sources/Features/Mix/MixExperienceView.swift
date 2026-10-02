@@ -415,7 +415,7 @@ struct MixPreviewView: View {
                             },
                             outgoingPayload: transitionPayloads[plan.steps[index - 1].trackID],
                             incomingPayload: transitionPayloads[step.trackID],
-                            preparationState: prep.transitionPrepState(for: step.trackID))
+                            preparationState: preparationState(for: step.trackID))
                             .listRowSeparator(.hidden)
                     }
                     if let row = rowByID[step.trackID] {
@@ -570,6 +570,17 @@ struct MixPreviewView: View {
                 ToastCenter.shared.error(String(localized: "Could not restore playlist order"), icon: "exclamationmark.triangle")
             }
         }
+    }
+
+    /// A track whose payload is already loaded (prepared earlier, or shipped in the starter DB) is
+    /// ready, even outside the small window the prep service is working through.
+    private func preparationState(for trackID: Int64) -> GridPrepState {
+        if let payload = transitionPayloads[trackID],
+           payload.algorithmID == DJTrackPrepPayload.currentAlgorithmID,
+           payload.version == DJTrackPrepPayload.currentVersion {
+            return .ready
+        }
+        return prep.transitionPrepState(for: trackID)
     }
 
     private func transitionPlan(at index: Int) -> TransitionPlan? {

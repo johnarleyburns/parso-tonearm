@@ -87,8 +87,13 @@ struct BuiltInAnalyzer {
             }
         }
         write(entries, to: indexURL)
-        let analysed = entries.filter { $0["bpm"] != nil && $0["key"] != nil }.count
-        say("done: \(analysed)/\(entries.count) tracks have BPM and key")
+        if prepMode {
+            let prepared = entries.filter { $0["transitionPrep"] != nil }.count
+            say("done: \(prepared)/\(entries.count) tracks have transition prep")
+        } else {
+            let analysed = entries.filter { $0["bpm"] != nil && $0["key"] != nil }.count
+            say("done: \(analysed)/\(entries.count) tracks have BPM and key")
+        }
     }
 
     struct Entry: Sendable { let id: String; let streamURL: String?; let duration: Double? }

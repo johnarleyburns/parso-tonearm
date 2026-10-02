@@ -92,8 +92,8 @@ final class AppState: ObservableObject {
     /// bound navigation path), then cleared — same one-shot launch-intent
     /// pattern used elsewhere in this file.
     @Published var pendingArtistFilter: String?
-    @Published internal(set) var downloadRevision = 0
-    @Published internal(set) var activePhoneDownloads: Set<Int64> = []
+    @Published var downloadRevision = 0
+    @Published var activePhoneDownloads: Set<Int64> = []
     /// The row (not just id) whose "Change Artwork" picker is open — a remote
     /// row's id can still be transient/negative here, so the picker's
     /// `onChange` must persist it before assigning artwork.
