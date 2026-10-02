@@ -78,6 +78,7 @@ struct MixBuilderSheet: View {
                 }
                 Section("Source") {
                     LabeledContent("Tracks", value: "\(rows.count)")
+                        .accessibilityIdentifier("mix.builder.trackCount")
                     Text("Only tracks with transition analysis are placed. Nothing is silently discarded.")
                         .font(Typography.caption)
                         .foregroundStyle(Palette.inkSecondary)
@@ -193,10 +194,14 @@ struct MixPreviewView: View {
     init(plan: MixPlan, rows: [TrackRow], sourcePlaylist: Playlist? = nil) {
         self.rows = rows
         self.sourcePlaylist = sourcePlaylist
+        self.rowByID = Dictionary(rows.compactMap { row in row.track.id.map { ($0, row) } },
+                                  uniquingKeysWith: { first, _ in first })
         _plan = State(initialValue: plan)
     }
 
-    private var rowByID: [Int64: TrackRow] { Dictionary(uniqueKeysWithValues: rows.compactMap { row in row.track.id.map { ($0, row) } }) }
+    /// Built once: it's read several times per row, and rebuilding it each time made a large mix's
+    /// preview quadratic on the main thread.
+    private let rowByID: [Int64: TrackRow]
 
     var body: some View {
         List {
@@ -297,9 +302,7 @@ struct MixPreviewView: View {
                     Button("Regenerate") {
                         var request = plan.request
                         request.seed &+= 1
-                        plan = MixPlanner.plan(request)
-                        Task { await resolveTransitionPlans() }
-                        persistConfiguration()
+                        replan(request)
                     }
                 } label: {
                     Label("Mix actions", systemImage: "ellipsis.circle")
@@ -319,25 +322,29 @@ struct MixPreviewView: View {
         "\(plan.steps.count) tracks · \(Int(plan.summary.bpmRange.lowerBound.rounded()))–\(Int(plan.summary.bpmRange.upperBound.rounded())) BPM · \(plan.summary.harmonicEdges)/\(plan.summary.totalEdges) harmonic edges"
     }
 
+    /// Re-plans off the main thread: the solve is quadratic, and a whole-library mix would
+    /// otherwise freeze the preview for seconds.
+    private func replan(_ request: MixRequest) {
+        Task {
+            plan = await Task.detached(priority: .userInitiated) { MixPlanner.plan(request) }.value
+            persistConfiguration()
+            await resolveTransitionPlans()
+        }
+    }
+
     private func lock(_ step: MixStep) {
         plan.request.locks[step.trackID] = step.position
-        plan = MixPlanner.plan(plan.request)
-        Task { await resolveTransitionPlans() }
-        persistConfiguration()
+        replan(plan.request)
     }
 
     private func swap(_ step: MixStep, with runner: RunnerUp) {
         plan.request.locks[runner.trackID] = step.position
-        plan = MixPlanner.plan(plan.request)
-        Task { await resolveTransitionPlans() }
-        persistConfiguration()
+        replan(plan.request)
     }
 
     private func remove(_ step: MixStep) {
         plan.request.candidates.removeAll { $0.trackID == step.trackID }
-        plan = MixPlanner.plan(plan.request)
-        Task { await resolveTransitionPlans() }
-        persistConfiguration()
+        replan(plan.request)
     }
 
     private func addAtEnd(_ exclusion: MixExclusion) {
@@ -445,6 +452,8 @@ struct MixPreviewView: View {
                                       to: transitionPayloads[to.trackID], context: context)
     }
 
+    private static let prepWindow = 6
+
     private func resolveTransitionPlans() async {
         var payloads: [Int64: DJTrackPrepPayload] = [:]
         for step in plan.steps {
@@ -457,7 +466,10 @@ struct MixPreviewView: View {
         plan.transitionPlans = plan.steps.dropFirst().enumerated().map { offset, step in
             makeTransitionPlan(from: plan.steps[offset], to: step)
         }
-        prep.prepare(rows: plan.steps.compactMap { rowByID[$0.trackID] }, appState: appState)
+        // Prepare the opening transitions only — the prep service is a small, visible window, and
+        // Up Next prepares the rest as playback reaches it. Handing it a whole-library mix queued
+        // thousands of downloads and decodes.
+        prep.prepare(rows: plan.steps.prefix(Self.prepWindow).compactMap { rowByID[$0.trackID] }, appState: appState)
     }
 
     private func loadPersistedConfiguration() async {
@@ -468,7 +480,7 @@ struct MixPreviewView: View {
         request.seed = record.unsignedSeed
         request.locks = (try? JSONDecoder().decode([Int64: Int].self,
                                                      from: record.lockedJSON)) ?? request.locks
-        plan = MixPlanner.plan(request)
+        plan = await Task.detached(priority: .userInitiated) { MixPlanner.plan(request) }.value
         let overrides = (try? JSONDecoder().decode([String: String].self,
                                                      from: record.transitionOverridesJSON)) ?? [:]
         plainFadeEdges = Set(overrides.compactMap { key, value in
@@ -542,23 +554,31 @@ private struct ShapeSparkline: View {
 private struct MixArcChart: View {
     let plan: MixPlan
     var body: some View {
+        let energyByID = Dictionary(plan.request.candidates.compactMap { candidate in
+            candidate.energy.map { (candidate.trackID, $0) } }, uniquingKeysWith: { first, _ in first })
+        // Points and key labels read for a normal mix; a library-sized mix draws the lines only.
+        let detailed = plan.steps.count <= 60
         Chart {
             ForEach(plan.steps) { step in
             LineMark(x: .value("Position", step.position), y: .value("BPM", step.effectiveBPM))
                 .foregroundStyle(Palette.accent)
-            PointMark(x: .value("Position", step.position), y: .value("BPM", step.effectiveBPM))
-                .foregroundStyle(Palette.accent)
-                .annotation(position: .top) { Text(step.edgeIn?.key.label ?? "") .font(Typography.caption) }
+            if detailed {
+                PointMark(x: .value("Position", step.position), y: .value("BPM", step.effectiveBPM))
+                    .foregroundStyle(Palette.accent)
+                    .annotation(position: .top) { Text(step.edgeIn?.key.label ?? "") .font(Typography.caption) }
+            }
             }
             ForEach(plan.steps.compactMap { step -> (Int, Double)? in
-                guard let energy = plan.request.candidates.first(where: { $0.trackID == step.trackID })?.energy else { return nil }
+                guard let energy = energyByID[step.trackID] else { return nil }
                 return (step.position, energy)
             }, id: \.0) { position, energy in
                 LineMark(x: .value("Position", position), y: .value("Energy", energyValue(energy)), series: .value("Series", "Energy"))
                     .foregroundStyle(Palette.success)
                     .lineStyle(StrokeStyle(lineWidth: 2, dash: [4, 3]))
-                PointMark(x: .value("Position", position), y: .value("Energy", energyValue(energy)))
-                    .foregroundStyle(Palette.success)
+                if detailed {
+                    PointMark(x: .value("Position", position), y: .value("Energy", energyValue(energy)))
+                        .foregroundStyle(Palette.success)
+                }
             }
         }
         .chartYAxisLabel("BPM")
