@@ -170,6 +170,15 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .executableTarget(
+            name: "BuiltInAnalyzer",
+            dependencies: [
+                "TonearmDiscovery",
+                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine")
+            ],
+            path: "Sources/Tools/BuiltInAnalyzer",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .executableTarget(
             name: "BuiltInEmbedder",
             dependencies: [
                 "TonearmDiscovery",

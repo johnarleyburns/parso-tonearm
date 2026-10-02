@@ -27,6 +27,7 @@ extension AppState {
            let sourceId = existing.id {
             await backfillMoodIndexArtworkIfNeeded()
             await backfillNewMoodIndexTracksIfNeeded(sourceId: sourceId)
+            await backfillMoodIndexAnalysisIfNeeded(sourceId: sourceId)
             return
         }
         let bundled = BuiltInMoodIndexProvider.tracks
@@ -81,6 +82,7 @@ extension AppState {
                     samplingVersion: DiscoveryPipelineVersion.sampling,
                     dimensions: entry.dimensions, quantizedVector: vectorData,
                     scale: entry.scale, completedAt: now)
+                try await seedMusicalAnalysis(entry, trackId: trackId, assetId: assetId, at: now)
             }
             await reload()
         } catch {
@@ -89,6 +91,50 @@ extension AppState {
     }
 
     private static let moodIndexSourceTitle = "Mood Starter"
+
+    /// Build a Mix places only tracks with BPM + Camelot key. The bundle carries both for the
+    /// Mood Starter tracks (BuiltInAnalyzer), so a fresh install can mix straight away.
+    private func seedMusicalAnalysis(_ entry: BuiltInMoodTrack, trackId: Int64, assetId: Int64,
+                                     at date: Date) async throws {
+        guard entry.hasMusicalAnalysis else { return }
+        try await store.seedBuiltInMusicalAnalysis(
+            trackId: trackId, assetId: assetId,
+            analysisVersion: DiscoveryPipelineVersion.musicalAnalysis,
+            bpm: entry.bpm, key: entry.key, energy: entry.energy,
+            scopeSeconds: entry.analysisScopeSeconds ?? min(60, entry.durationSec),
+            completedAt: date)
+    }
+
+    /// A device that seeded the Mood Starter before the bundle carried tempo and key has those
+    /// tracks with no musical analysis, so Build a Mix can't place them. Fill in what the bundle
+    /// now has — matched by stream URL, only for tracks still missing analysis. One read, and a
+    /// no-op once done.
+    private func backfillMoodIndexAnalysisIfNeeded(sourceId: Int64) async {
+        let byURL = Dictionary(BuiltInMoodIndexProvider.tracks.filter(\.hasMusicalAnalysis)
+            .map { ($0.streamURL, $0) }, uniquingKeysWith: { first, _ in first })
+        guard !byURL.isEmpty else { return }
+        do {
+            let missing: [(trackId: Int64, assetId: Int64, url: String)] = try await store.dbQueue.read { db in
+                try Row.fetchAll(db, sql: """
+                    SELECT track.id AS trackId, asset.id AS assetId, asset.remoteURL AS url
+                    FROM track JOIN asset ON asset.trackId = track.id
+                    LEFT JOIN discovery_track_analysis analysis ON analysis.trackId = track.id
+                    WHERE track.sourceId = ? AND asset.remoteURL IS NOT NULL AND analysis.trackId IS NULL
+                    """, arguments: [sourceId]).compactMap { row in
+                    guard let trackId: Int64 = row["trackId"], let assetId: Int64 = row["assetId"],
+                          let url: String = row["url"] else { return nil }
+                    return (trackId, assetId, url)
+                }
+            }
+            let now = Date()
+            for item in missing {
+                guard let entry = byURL[item.url] else { continue }
+                try await seedMusicalAnalysis(entry, trackId: item.trackId, assetId: item.assetId, at: now)
+            }
+        } catch {
+            AppLogger.app.error("Backfilling mood analysis failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
 
     /// One-time backfill for a device that already seeded the mood-starter
     /// index before this bundle carried `artworkURL` — real report: "none
@@ -198,6 +244,7 @@ extension AppState {
                     samplingVersion: DiscoveryPipelineVersion.sampling,
                     dimensions: entry.dimensions, quantizedVector: vectorData,
                     scale: entry.scale, completedAt: now)
+                try await seedMusicalAnalysis(entry, trackId: trackId, assetId: assetId, at: now)
             }
             await reload()
         } catch {

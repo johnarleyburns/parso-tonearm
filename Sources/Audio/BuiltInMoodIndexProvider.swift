@@ -23,6 +23,16 @@ public struct BuiltInMoodTrack: Codable, Sendable {
     public let dimensions: Int
     public let scale: Double
     public let quantizedVectorBase64: String
+    /// Tempo, Camelot key and energy from the same mid-track `FullAnalysis` window the on-device
+    /// indexer uses (computed on the Mac by BuiltInAnalyzer). Build a Mix needs BPM + key to
+    /// place a track, so without these a fresh install had nothing it could mix. Absent for the
+    /// few tracks whose audio couldn't be analysed.
+    public let bpm: Double?
+    public let key: String?
+    public let energy: Double?
+    public let analysisScopeSeconds: Double?
+
+    public var hasMusicalAnalysis: Bool { bpm != nil && key != nil }
 }
 
 public enum BuiltInMoodIndexProvider {
@@ -40,7 +50,10 @@ public enum BuiltInMoodIndexProvider {
             #endif
         }()
         for bundle in bundles {
-            if let url = bundle.url(forResource: "builtin-mood-index", withExtension: "json") {
+            // The app bundle flattens resources; the SwiftPM module bundle keeps the copied
+            // `Audio/` folder.
+            if let url = bundle.url(forResource: "builtin-mood-index", withExtension: "json")
+                ?? bundle.url(forResource: "builtin-mood-index", withExtension: "json", subdirectory: "Audio") {
                 return url
             }
         }

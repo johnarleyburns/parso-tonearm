@@ -38,6 +38,25 @@ extension LibraryStore {
         }
     }
 
+    /// Seeds a bundled track's precomputed musical analysis (BPM, Camelot key, energy) exactly as
+    /// the on-device indexer would have stored it, and marks that stage complete on its job.
+    public func seedBuiltInMusicalAnalysis(
+        trackId: Int64, assetId: Int64, analysisVersion: Int, bpm: Double?, key: String?,
+        energy: Double?, scopeSeconds: Double, completedAt: Date
+    ) throws {
+        try dbQueue.write { db in
+            var analysis = DiscoveryTrackAnalysis(
+                trackId: trackId, assetId: assetId, assetRevision: 1,
+                analysisVersion: analysisVersion, bpm: bpm, key: key, energy: energy,
+                phraseSummary: nil, analysisScopeSeconds: scopeSeconds, completedAt: completedAt)
+            try analysis.upsert(db)
+            try db.execute(sql: """
+                UPDATE discovery_index_job SET musicalAnalysisStageState = ?
+                WHERE trackId = ?
+                """, arguments: [DiscoveryStageState.complete.rawValue, trackId])
+        }
+    }
+
     @discardableResult
     public func insertAlbum(_ album: Album) throws -> Album {
         try dbQueue.write { db in
