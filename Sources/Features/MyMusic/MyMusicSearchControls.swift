@@ -66,9 +66,10 @@ struct MyMusicSearchControls: View {
 
             switch mode {
             case .all:
-                Text("Browse your library")
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.inkTertiary)
+                // Plain text search by title, artist, album and the other general fields. The
+                // library list below doesn't show its own field inside My Music, so this is it.
+                SearchField(text: $appState.searchText, placeholder: "Search all your music…")
+                    .accessibilityIdentifier("mymusic.search.text")
             case .mix:
                 mixControls
             case .sound:
@@ -98,6 +99,9 @@ struct MyMusicSearchControls: View {
             }
         }
         .onChange(of: mode) { _, newMode in
+            // The text field only exists in All; a query left behind would keep filtering
+            // the list with nothing on screen to show or clear it.
+            if newMode != .all { appState.searchText = "" }
             if newMode != .mix {
                 bpmPreset = nil
                 mixKey = nil

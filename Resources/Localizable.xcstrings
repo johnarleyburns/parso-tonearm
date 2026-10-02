@@ -7874,53 +7874,6 @@
         }
       }
     },
-    "Browse your library" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Deine Bibliothek durchsuchen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Explora tu biblioteca"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Parcourir votre bibliothèque"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "ライブラリを見る"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Navegue pela sua biblioteca"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "浏览你的资料库"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Browse your library"
-          }
-        }
-      },
-      "comment" : "UI text shown in: My Music Search Controls (Sources/Features/MyMusic/MyMusicSearchControls.swift)"
-    },
     "Build a Mix" : {
       "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
       "localizations" : {
