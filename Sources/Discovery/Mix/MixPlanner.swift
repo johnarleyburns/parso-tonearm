@@ -49,14 +49,9 @@ public struct MixPlanner: Sendable {
             pool.append(candidate)
         }
 
-        if let target = request.targetDuration, target.isFinite, target > 0 {
-            var duration = pool.reduce(0) { $0 + max(0, $1.duration) }
-            while duration > target, pool.count > 1 {
-                guard let index = pool.indices.max(by: { removalCost(pool[$0]) < removalCost(pool[$1]) }) else { break }
-                let removed = pool.remove(at: index)
-                duration -= max(0, removed.duration)
-                excluded.append(MixExclusion(trackID: removed.trackID, reason: .overTargetLength))
-            }
+        if let target = request.targetDuration, target.isFinite, target > 0,
+           pool.reduce(0, { $0 + max(0, $1.duration) }) > target {
+            pool = fitToLength(pool, target: target, request: request, excluded: &excluded)
         }
 
         guard !pool.isEmpty else {
@@ -234,9 +229,47 @@ public struct MixPlanner: Sendable {
         return bpm.isFinite && bpm > 0
     }
 
-    private func removalCost(_ candidate: MixCandidate) -> Double {
-        max(1, candidate.duration) * (candidate.energy.map { 1 + abs($0 - 0.5) } ?? 1)
+    /// Picks the tracks for a 15/30/60-minute mix from a larger pool. Locked tracks stay; the rest
+    /// are taken in a seed-shuffled order — full-length tracks before short clips — while they still
+    /// fit. (Trimming the longest tracks first used to leave a 15-minute mix of 24-second snippets,
+    /// identical on every Regenerate.) The shape then orders whatever was picked.
+    private func fitToLength(_ pool: [MixCandidate], target: TimeInterval, request: MixRequest,
+                             excluded: inout [MixExclusion]) -> [MixCandidate] {
+        var locked = Set(request.locks.keys)
+        if let first = request.lockedFirst { locked.insert(first) }
+        var keep = Set<Int64>()
+        var used: TimeInterval = 0
+        for candidate in pool where locked.contains(candidate.trackID) {
+            keep.insert(candidate.trackID)
+            used += max(0, candidate.duration)
+        }
+        let order = pool.filter { !locked.contains($0.trackID) }.sorted { lhs, rhs in
+            let lhsShort = lhs.duration < Self.shortClipSeconds, rhsShort = rhs.duration < Self.shortClipSeconds
+            if lhsShort != rhsShort { return !lhsShort }
+            let l = seededTieBreak(lhs.trackID, seed: request.seed), r = seededTieBreak(rhs.trackID, seed: request.seed)
+            return l == r ? lhs.trackID < rhs.trackID : l < r
+        }
+        for candidate in order {
+            let length = max(0, candidate.duration)
+            // Short clips only rescue a session the full-length tracks couldn't get near.
+            if length < Self.shortClipSeconds, used >= target * 0.8 { break }
+            guard used + length <= target else { continue }
+            keep.insert(candidate.trackID)
+            used += length
+            if used >= target * 0.97 { break }
+        }
+        // Every track is longer than the session: keep the shortest one rather than nothing.
+        if keep.isEmpty, let shortest = pool.min(by: { $0.duration < $1.duration }) {
+            keep.insert(shortest.trackID)
+        }
+        for candidate in pool where !keep.contains(candidate.trackID) {
+            excluded.append(MixExclusion(trackID: candidate.trackID, reason: .overTargetLength))
+        }
+        return pool.filter { keep.contains($0.trackID) }
     }
+
+    /// Tracks shorter than this are picked only when longer ones can't fill the session.
+    static let shortClipSeconds: TimeInterval = 90
 
     private func quantile(_ values: [Double], _ fraction: Double) -> Double {
         guard let first = values.first else { return 120 }

@@ -40,7 +40,8 @@ struct MixBuilderSheet: View {
     let lockedFirst: Int64?
     let sourcePlaylist: Playlist?
     @State private var shape: MixShape = .risingBPM
-    @State private var duration: TimeInterval?
+    /// A mix is a listening session, not the whole library: 15, 30 or 60 minutes.
+    @State private var duration: TimeInterval = 30 * 60
     @State private var plan: MixPlan?
     @State private var isLoading = false
     @State private var candidates: [MixCandidate] = []
@@ -103,10 +104,9 @@ struct MixBuilderSheet: View {
                 }
                 Section("Length") {
                     Picker("Target", selection: $duration) {
-                        Text("All tracks").tag(TimeInterval?.none)
-                        Text("About 30 minutes").tag(TimeInterval?.some(30 * 60))
-                        Text("About 60 minutes").tag(TimeInterval?.some(60 * 60))
-                        Text("About 90 minutes").tag(TimeInterval?.some(90 * 60))
+                        Text("About 15 minutes").tag(TimeInterval(15 * 60))
+                        Text("About 30 minutes").tag(TimeInterval(30 * 60))
+                        Text("About 60 minutes").tag(TimeInterval(60 * 60))
                     }
                 }
             }

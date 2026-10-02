@@ -93,4 +93,35 @@ final class BuiltInMixReadinessTests: XCTestCase {
         XCTAssertTrue(plan.excluded.isEmpty)
         XCTAssertLessThan(elapsed, 15, "a large library plan should stay interactive")
     }
+
+    /// Build a Mix offers 15, 30 and 60 minutes. From the whole bundled library each length
+    /// produces a mix of about that length, and Regenerate (a new seed) gives a different one.
+    func testSessionLengthsFromTheWholeLibrary() {
+        let candidates = BuiltInMoodIndexProvider.tracks.enumerated().compactMap { index, track -> MixCandidate? in
+            guard track.hasMusicalAnalysis else { return nil }
+            return MixCandidate(trackID: Int64(index), bpm: track.bpm, camelot: track.key, energy: track.energy,
+                                artist: track.artist, duration: track.durationSec)
+        }
+        for minutes in [15.0, 30, 60] {
+            let start = Date()
+            let plan = MixPlanner.plan(MixRequest(candidates: candidates, shape: .risingBPM,
+                                                  targetDuration: minutes * 60, seed: 1))
+            let elapsed = Date().timeIntervalSince(start)
+            let length = plan.steps.compactMap { step in candidates.first { $0.trackID == step.trackID }?.duration }
+                .reduce(0, +) / 60
+            print("SESSION \(Int(minutes)) min → \(plan.steps.count) tracks, \(String(format: "%.1f", length)) min, \(String(format: "%.2f", elapsed)) s")
+            XCTAssertFalse(plan.steps.isEmpty)
+            XCTAssertLessThanOrEqual(length, minutes, "\(minutes)-minute mix ran \(length) minutes")
+            XCTAssertGreaterThan(length, minutes * 0.8, "\(minutes)-minute mix was only \(length) minutes")
+            let shortClips = plan.steps.filter { step in
+                (candidates.first { $0.trackID == step.trackID }?.duration ?? 0) < MixPlanner.shortClipSeconds
+            }
+            XCTAssertTrue(shortClips.isEmpty, "\(minutes)-minute mix used \(shortClips.count) short clips")
+        }
+        let first = MixPlanner.plan(MixRequest(candidates: candidates, shape: .risingBPM, targetDuration: 30 * 60, seed: 1))
+        let again = MixPlanner.plan(MixRequest(candidates: candidates, shape: .risingBPM, targetDuration: 30 * 60, seed: 2))
+        let overlap = Set(first.steps.map(\.trackID)).intersection(again.steps.map(\.trackID)).count
+        print("SESSION regenerate overlap \(overlap)/\(first.steps.count)")
+        XCTAssertLessThan(overlap, first.steps.count / 2, "Regenerate should pick a different mix")
+    }
 }

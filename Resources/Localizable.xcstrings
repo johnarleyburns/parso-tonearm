@@ -2498,6 +2498,53 @@
         }
       }
     },
+    "About 15 minutes" : {
+      "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Etwa 15 Minuten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About 15 minutes"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Unos 15 minutos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Environ 15 minutes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "約15分"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Cerca de 15 minutos"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "约 15 分钟"
+          }
+        }
+      }
+    },
     "About 30 minutes" : {
       "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
       "localizations" : {
@@ -2588,53 +2635,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "约 60 分钟"
-          }
-        }
-      }
-    },
-    "About 90 minutes" : {
-      "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Etwa 90 Minuten"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "About 90 minutes"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Unos 90 minutos"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Environ 90 minutes"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "約90分"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Cerca de 90 minutos"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "约 90 分钟"
           }
         }
       }
@@ -5319,53 +5319,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "已对齐的前后过渡波形"
-          }
-        }
-      }
-    },
-    "All tracks" : {
-      "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Alle Titel"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All tracks"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Todas las pistas"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tous les morceaux"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "すべての曲"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Todas as faixas"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "所有曲目"
           }
         }
       }
