@@ -7,7 +7,11 @@ import Foundation
 import Network
 import TonearmCore
 import TonearmDiscovery
+#if os(macOS)
+import IOKit.ps
+#else
 import UIKit
+#endif
 
 /// Thread-safe cache of REAL device power/thermal/playback signals, refreshed
 /// from `UIDevice`/`ProcessInfo`/`AudioPlayer` on the main actor and read
@@ -96,6 +100,13 @@ final class SchedulingSampler: @unchecked Sendable {
 
         let nc = NotificationCenter.default
         let mainQueue = OperationQueue.main
+        #if os(macOS)
+        MacPowerSource.startObserving()
+        nc.addObserver(forName: MacPowerSource.didChangeNotification,
+                       object: nil, queue: mainQueue) { _ in
+            MainActor.assumeIsolated { SchedulingSampler.refreshBattery(on: self) }
+        }
+        #else
         UIDevice.current.isBatteryMonitoringEnabled = true
         nc.addObserver(forName: UIDevice.batteryLevelDidChangeNotification,
                        object: nil, queue: mainQueue) { _ in
@@ -105,6 +116,7 @@ final class SchedulingSampler: @unchecked Sendable {
                        object: nil, queue: mainQueue) { _ in
             MainActor.assumeIsolated { SchedulingSampler.refreshBattery(on: self) }
         }
+        #endif
         nc.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification,
                        object: nil, queue: mainQueue) { _ in
             self.setThermalState(Self.mapThermal(ProcessInfo.processInfo.thermalState))
@@ -113,6 +125,8 @@ final class SchedulingSampler: @unchecked Sendable {
                        object: nil, queue: mainQueue) { _ in
             self.setLowPowerMode(ProcessInfo.processInfo.isLowPowerModeEnabled)
         }
+        #if !os(macOS)
+        // No memory-warning notification on macOS: the OS pages instead.
         nc.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification,
                        object: nil, queue: mainQueue) { _ in
             self.setMemoryWarning(true)
@@ -123,6 +137,7 @@ final class SchedulingSampler: @unchecked Sendable {
                 self.setMemoryWarning(false)
             }
         }
+        #endif
 
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
@@ -144,10 +159,15 @@ final class SchedulingSampler: @unchecked Sendable {
 
     @MainActor
     private static func refreshBattery(on sampler: SchedulingSampler) {
+        #if os(macOS)
+        let reading = MacPowerSource.current()
+        sampler.setBattery(level: reading.level, charging: reading.isOnExternalPower)
+        #else
         let device = UIDevice.current
         let level = Double(device.batteryLevel)  // -1 when unknown
         let charging = device.batteryState == .charging || device.batteryState == .full
         sampler.setBattery(level: level, charging: charging)
+        #endif
     }
 
     static func mapThermal(_ state: ProcessInfo.ThermalState) -> DiscoveryThermalState {
@@ -237,3 +257,57 @@ final class SchedulingSampler: @unchecked Sendable {
         body()
     }
 }
+
+#if os(macOS)
+/// The Mac's real power source, read from IOKit (`IOPSCopyPowerSourcesInfo`):
+/// whether the Mac is on external (AC) power and, on a laptop, the internal
+/// battery's charge. A desktop Mac has no battery — its level stays `-1`
+/// (unknown, never assumed healthy) while `isOnExternalPower` is the honest
+/// `true`, so the index policy's "low battery and not charging" gate never
+/// blocks a Mac that is plugged in.
+enum MacPowerSource {
+    static let didChangeNotification = Notification.Name("guru.parso.tonearm.macPowerSourceDidChange")
+
+    struct Reading {
+        var level: Double
+        var isOnExternalPower: Bool
+    }
+
+    static func current() -> Reading {
+        guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue() else {
+            return Reading(level: -1, isOnExternalPower: false)
+        }
+        let providing = IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() as String?
+        let onExternal = providing == kIOPMACPowerKey || providing == kIOPMUPSPowerKey
+        var level = -1.0
+        let sources = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] ?? []
+        for source in sources {
+            guard let description = IOPSGetPowerSourceDescription(info, source)?
+                    .takeUnretainedValue() as? [String: Any],
+                  description[kIOPSTypeKey] as? String == kIOPSInternalBatteryType,
+                  let current = description[kIOPSCurrentCapacityKey] as? Int,
+                  let max = description[kIOPSMaxCapacityKey] as? Int, max > 0
+            else { continue }
+            level = Double(current) / Double(max)
+        }
+        return Reading(level: level, isOnExternalPower: onExternal)
+    }
+
+    /// Registers once for IOKit's power-source change callback on the main
+    /// run loop and re-posts it as `didChangeNotification`.
+    @MainActor
+    static func startObserving() {
+        guard !isObserving else { return }
+        isObserving = true
+        let callback: IOPowerSourceCallbackType = { _ in
+            NotificationCenter.default.post(name: MacPowerSource.didChangeNotification, object: nil)
+        }
+        guard let source = IOPSNotificationCreateRunLoopSource(callback, nil)?.takeRetainedValue() else {
+            return
+        }
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
+    }
+
+    @MainActor private static var isObserving = false
+}
+#endif

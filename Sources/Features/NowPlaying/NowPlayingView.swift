@@ -1,6 +1,7 @@
 import SwiftUI
+#if !os(macOS)
 import UIKit
-import PhotosUI
+#endif
 import TonearmCore
 
 struct NowPlayingView: View {
@@ -12,7 +13,6 @@ struct NowPlayingView: View {
     @State private var isScrubbing = false
     @State private var npArtwork: PlatformImage?
     @State private var showPhotoPicker = false
-    @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showEQ = false
     @State private var showArtworkDeleteAlert = false
     @State private var showAddToPlaylist = false
@@ -23,9 +23,14 @@ struct NowPlayingView: View {
     var body: some View {
         ZStack {
             npBackground.ignoresSafeArea()
+            nowPlayingScroll {
             VStack(spacing: 0) {
+                // The grabber belongs to the iPhone's swipe-down screen; on Mac
+                // Now Playing is the window's inspector column.
+                #if os(iOS)
                 Capsule().fill(Palette.ink.opacity(0.35))
                     .frame(width: 36, height: 5).padding(.top, 8)
+                #endif
 
                 ArtworkView(
                     image: npArtwork,
@@ -74,13 +79,19 @@ struct NowPlayingView: View {
             }
             .padding(.horizontal, 24)
             .foregroundStyle(Palette.ink)
+            }
         }
         .presentationDragIndicator(.hidden)
         .task(id: player.currentTrack?.id) {
             guard let row = player.currentTrack else { return }
             npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
         }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+        .artworkImagePicker(isPresented: $showPhotoPicker) { data in
+            guard let row = player.currentTrack,
+                  await appState.assignCustomArtwork(toTrack: row, data: data) else { return }
+            npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
+            ArtworkInvalidation.shared.invalidate()
+        }
         .sheet(isPresented: $showEQ) { EQView() }
         .onChange(of: invalidation.version) { _, _ in
             Task {
@@ -104,17 +115,6 @@ struct NowPlayingView: View {
                 if let playlist { await appState.addToPlaylist(row, playlist: playlist) }
             }
         }
-        .onChange(of: selectedPhotoItem) { _, item in
-            guard let item else { return }
-            Task {
-                guard let data = try? await item.loadTransferable(type: Data.self),
-                      let row = player.currentTrack,
-                      await appState.assignCustomArtwork(toTrack: row, data: data) else { return }
-                npArtwork = await ArtworkService.shared.artwork(forTrackRow: row)
-                ArtworkInvalidation.shared.invalidate()
-                selectedPhotoItem = nil
-            }
-        }
         .alert("Remove Artwork", isPresented: $showArtworkDeleteAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Remove", role: .destructive) { deleteArtwork() }
@@ -131,6 +131,17 @@ struct NowPlayingView: View {
             pendingWatchToastTrackID = nil
             ToastCenter.shared.error("Apple Watch download failed", icon: "applewatch.slash", tag: "dl.watch")
         }
+    }
+
+    /// The iPhone screen is sized to the display; the Mac inspector column can
+    /// be shorter than the artwork, transport and queue together, so it scrolls.
+    @ViewBuilder
+    private func nowPlayingScroll<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        #if os(macOS)
+        ScrollView { content().padding(.vertical, 12) }
+        #else
+        content()
+        #endif
     }
 
     private func deleteArtwork() {
@@ -307,12 +318,16 @@ struct NowPlayingView: View {
             .accessibilityLabel("Add to Playlist")
             .accessibilityIdentifier("np.addToPlaylist")
 
+            #if os(iOS)
             AirPlayButton()
                 .frame(width: 44, height: 44)
                 .accessibilityIdentifier("np.airplay")
+            #endif
 
             phoneDownloadButton(for: player.currentTrack)
+            #if os(iOS)
             watchButton(for: player.currentTrack)
+            #endif
 
             Menu {
                 if !player.isAmbient, player.currentTrack != nil {
@@ -355,8 +370,13 @@ struct NowPlayingView: View {
                     ToastCenter.shared.progress("Downloading…", tag: "dl.phone")
                     Task {
                         let added = await appState.download(rows: [row])
+                        #if os(macOS)
+                        ToastCenter.shared.success(added > 0 ? "Saved to this Mac" : "Already saved",
+                                                   tag: "dl.phone")
+                        #else
                         ToastCenter.shared.success(added > 0 ? "Saved to iPhone" : "Already saved",
                                                    tag: "dl.phone")
+                        #endif
                     }
                 }
             case .downloaded:
@@ -396,6 +416,7 @@ struct NowPlayingView: View {
         .contentShape(Circle())
     }
 
+    #if os(iOS)
     @ViewBuilder
     private func watchButton(for row: TrackRow?) -> some View {
         let state = row.map { appState.watchGlyphState(for: $0) } ?? .notOnWatch
@@ -443,6 +464,7 @@ struct NowPlayingView: View {
         .background(.ultraThinMaterial, in: Circle())
         .contentShape(Circle())
     }
+    #endif
 
     private func cacheGlyphState(from state: PhoneDownloadState) -> CacheGlyphState {
         switch state {

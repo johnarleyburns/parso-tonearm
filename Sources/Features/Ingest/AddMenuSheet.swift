@@ -27,7 +27,7 @@ struct AddMenuSheet: View {
                 }
                 Divider().overlay(Palette.hairline)
                 MenuItem(icon: "music.note", title: String(localized: "Add Audio Files"),
-                         subtitle: String(localized: "Pick individual tracks from Files")) {
+                         subtitle: Self.audioFilesSubtitle) {
                     appState.showAddMenu = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                         appState.pendingImport = .files
@@ -37,8 +37,24 @@ struct AddMenuSheet: View {
             .glassSurface(cornerRadius: 20)
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
+            #if os(macOS)
+            // A Mac sheet has no swipe-down or tap-outside dismissal.
+            Button("Cancel", role: .cancel) { appState.showAddMenu = false }
+                .keyboardShortcut(.cancelAction)
+                .padding(.bottom, 16)
+            #endif
         }
+        #if os(iOS)
         .presentationBackground(.clear)
+        #endif
+    }
+
+    private static var audioFilesSubtitle: String {
+        #if os(macOS)
+        String(localized: "Pick individual tracks from Finder")
+        #else
+        String(localized: "Pick individual tracks from Files")
+        #endif
     }
 }
 

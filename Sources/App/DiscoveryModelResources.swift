@@ -39,6 +39,49 @@ final class DiscoveryModelResources: @unchecked Sendable {
     private static let audioTag = "clap-audio"
     private static let textTag = "clap-text"
 
+    #if os(macOS)
+    // `NSBundleResourceRequest`/On-Demand Resources don't exist on macOS. The
+    // Mac app bundles the converted CLAP packages directly when they are on
+    // the build host (`scripts/generate-project.sh`), so `currentResources()`
+    // resolves whatever is genuinely present in the app bundle; there is no
+    // download flow to drive, so every other method is an honest, static
+    // "nothing to report" (CLAUDE.md "no silent/magic background work").
+    func currentDownloadError() -> String? { nil }
+    func beginAccessing() {}
+    func currentDownloadProgress() -> ModelDownloadProgress? { nil }
+    func currentPerTagDebugSummary() -> String { "not applicable on macOS (models are bundled)" }
+
+    func currentResources() -> ModelManager.Resources {
+        var directories: [URL] = []
+        if let resourceURL = Bundle.main.resourceURL {
+            directories.append(resourceURL)
+        }
+        return ModelResourceLocator(searchDirectories: directories, bundle: Bundle.main).resolve()
+    }
+
+    func currentDiagnosticsDetail() -> ModelDiagnosticsDetail {
+        let resources = currentResources()
+        let artifacts = [
+            ModelDiagnosticsDetail.Artifact(
+                name: String(localized: "Audio encoder"), isResolved: resources.audioEncoderURL != nil,
+                resolvedName: resources.audioEncoderURL?.lastPathComponent),
+            ModelDiagnosticsDetail.Artifact(
+                name: String(localized: "Text encoder"), isResolved: resources.textEncoderURL != nil,
+                resolvedName: resources.textEncoderURL?.lastPathComponent),
+            ModelDiagnosticsDetail.Artifact(
+                name: String(localized: "Mel filterbank"), isResolved: resources.melFilterBankURL != nil,
+                resolvedName: resources.melFilterBankURL?.lastPathComponent),
+            ModelDiagnosticsDetail.Artifact(
+                name: String(localized: "Tokenizer vocab"), isResolved: resources.tokenizerVocabURL != nil,
+                resolvedName: resources.tokenizerVocabURL?.lastPathComponent),
+            ModelDiagnosticsDetail.Artifact(
+                name: String(localized: "Tokenizer merges"), isResolved: resources.tokenizerMergesURL != nil,
+                resolvedName: resources.tokenizerMergesURL?.lastPathComponent),
+        ]
+        return ModelDiagnosticsDetail(downloadTags: [], artifacts: artifacts, downloadError: nil)
+    }
+    #else
+
     /// Per-tag retry/error bookkeeping, including the live
     /// `NSBundleResourceRequest` (`var`, not `let`: a real device crashed
     /// with `NSInvalidArgumentException` "beginAccessingResources was
@@ -287,5 +330,6 @@ final class DiscoveryModelResources: @unchecked Sendable {
         return ModelDiagnosticsDetail(
             downloadTags: tags, artifacts: artifacts, downloadError: currentDownloadError())
     }
+    #endif
 }
 #endif

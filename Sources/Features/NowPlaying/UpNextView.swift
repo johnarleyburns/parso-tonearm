@@ -5,7 +5,9 @@ struct UpNextView: View {
     @EnvironmentObject var player: AudioPlayer
     @EnvironmentObject var appState: AppState
     @EnvironmentObject private var transitionPrep: TransitionPrepService
+    #if os(iOS)
     @State private var editMode: EditMode = .inactive
+    #endif
 
     private var transitionRows: [TrackRow] {
         Array(([player.currentTrack].compactMap { $0 } + player.upNextTracks).prefix(3))
@@ -46,11 +48,13 @@ struct UpNextView: View {
                             .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(editMode == .active ? "Done Reordering" : "Reorder Up Next")
                     .accessibilityLabel("Clear auto-added tracks")
                     .accessibilityIdentifier("np.keepPlaying.clearAutoAdded")
                 }
 
+                // A Mac list reorders by drag and removes with the Delete key
+                // at any time, so only iPhone needs an explicit reorder mode.
+                #if os(iOS)
                 if !player.isAmbient, player.queue.count > 1 {
                     Button {
                         editMode = editMode == .active ? .inactive : .active
@@ -61,7 +65,9 @@ struct UpNextView: View {
                             .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(editMode == .active ? "Done Reordering" : "Reorder Up Next")
                 }
+                #endif
             }
             .padding(.bottom, 8)
 
@@ -117,7 +123,9 @@ struct UpNextView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                #if os(iOS)
                 .environment(\.editMode, $editMode)
+                #endif
                 .frame(height: queueListHeight)
             }
         }

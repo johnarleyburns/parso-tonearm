@@ -109,10 +109,14 @@ struct MyMusicView: View {
                 }
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
-            .toolbar(.hidden, for: .navigationBar)
+            .hiddenNavigationBar()
         }
         .task {
+            // On Mac the search field is the window toolbar's, and typing in
+            // it is what brings My Music forward — keep what was typed.
+            #if os(iOS)
             appState.searchText = ""
+            #endif
             consumePendingArtistFilter()
         }
     }

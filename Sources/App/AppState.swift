@@ -19,11 +19,16 @@ struct MixBuilderRequest: Identifiable {
     let rows: [TrackRow]
     let lockedFirst: Int64?
     let sourcePlaylist: Playlist?
+    /// Build a Mix from Listen (or the Mac's Build a Mix… command) picks its
+    /// own source — genre, playlist or all tracks — rather than mixing `rows`.
+    let picksSource: Bool
 
-    init(rows: [TrackRow], lockedFirst: Int64?, sourcePlaylist: Playlist? = nil) {
+    init(rows: [TrackRow], lockedFirst: Int64?, sourcePlaylist: Playlist? = nil,
+         picksSource: Bool = false) {
         self.rows = rows
         self.lockedFirst = lockedFirst
         self.sourcePlaylist = sourcePlaylist
+        self.picksSource = picksSource
     }
 }
 
@@ -85,6 +90,8 @@ final class AppState: ObservableObject {
     @Published var showAddRemoteLibrary = false
     @Published var showCreatePlaylist = false
     @Published var mixBuilderRequest: MixBuilderRequest?
+    /// Bumped by the Mac's Edit › Find (⌘F) to focus the toolbar search field.
+    @Published var macSearchFocusRequest = 0
     /// Set by a Top Artist row's tap on the Listen tab (docs/plans/mood-
     /// based-listening-plan.md §3.5): the artist name to land on. Consumed
     /// once by `MyMusicView` on appear (switches to the Artists scope,
@@ -140,9 +147,12 @@ final class AppState: ObservableObject {
     // where they are used) because Swift extensions cannot hold stored
     // instance properties. `watchRuntime` is also used by `bootstrap()`
     // below and by AppState+CustomArtwork.swift. The product ships on iPhone
-    // with an Apple Watch companion.
+    // with an Apple Watch companion; a Mac has no paired watch, so the native
+    // Mac app (docs/plans/native-mac-parity.md) compiles none of this.
+    #if os(iOS)
     var tickTask: Task<Void, Never>?
     lazy var watchRuntime = PhoneWatchRuntime(store: store, player: AudioPlayer.shared)
+    #endif
 
     private var musicalInfoObserver: NSObjectProtocol?
 
@@ -185,9 +195,11 @@ final class AppState: ObservableObject {
         }
         await AudioCache.shared.garbageCollectStalePartials()
         Task { await warmLocalSourceArtwork() }
+        #if os(iOS)
         watchRuntime.onChange = { [weak self] in self?.refreshWatchStateFromRuntime() }
         await watchRuntime.activate()
         startWatchTransferTick()
+        #endif
     }
 
     private func repairDuplicatePlaylistsOnce() async {
@@ -321,4 +333,13 @@ final class AppState: ObservableObject {
 extension Notification.Name {
     static let tonearmMusicalMetadataDidChange = Notification.Name(
         "tonearm.musicalMetadataDidChange")
+}
+
+extension AppState {
+    /// Build a Mix as offered on Listen: the builder picks its own source
+    /// (genre, playlist or all tracks) from the music the listener owns.
+    func requestBuildAMix() {
+        mixBuilderRequest = MixBuilderRequest(
+            rows: allTracks.isEmpty ? recentlyPlayed : allTracks, lockedFirst: nil, picksSource: true)
+    }
 }

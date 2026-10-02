@@ -159,7 +159,7 @@ struct PlaylistsView: View {
             .navigationDestination(for: String.self) { value in
                 if value == "ambient" { AmbientPlaylistView() }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .hiddenNavigationBar()
             .sheet(isPresented: $showLocalCreate) {
                 CreatePlaylistSheet(isEmbedded: true)
             }
@@ -195,7 +195,9 @@ struct PlaylistDetailView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @Environment(\.dismiss) private var dismiss
+    #if os(iOS)
     @Environment(\.editMode) private var editMode
+    #endif
     @State private var tracks: [PlaylistTrackRow] = []
     @State private var hasAnalyzedBPM = false
     @State private var playlistToRename: Playlist?
@@ -210,6 +212,17 @@ struct PlaylistDetailView: View {
 
     private var trackRows: [TrackRow] {
         tracks.map(\.row)
+    }
+
+    /// iPhone reveals reorder/delete/sort behind Edit; a Mac list reorders by
+    /// drag and deletes with the Delete key at any time, so the sort action
+    /// is always offered there.
+    private var isEditingTracks: Bool {
+        #if os(iOS)
+        editMode?.wrappedValue == .active
+        #else
+        true
+        #endif
     }
 
     var body: some View {
@@ -234,11 +247,13 @@ struct PlaylistDetailView: View {
                 .accessibilityHint("Starts this playlist from the beginning")
                 .accessibilityIdentifier("playlist.play")
                 .disabled(tracks.isEmpty)
+                #if os(iOS)
                 EditButton()
                     .font(Typography.callout)
                     .frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("playlist.edit")
-                if editMode?.wrappedValue == .active {
+                #endif
+                if isEditingTracks {
                     Button {
                         Task {
                             await appState.sortPlaylistByBPM(currentPlaylist)
@@ -297,6 +312,7 @@ struct PlaylistDetailView: View {
                     } label: {
                         Label("Download All", systemImage: "arrow.down.circle")
                     }
+                    #if os(iOS)
                     Menu {
                         Button {
                             Task { await appState.downloadAllToWatch(playlistId: currentPlaylist.id ?? -1) }
@@ -311,6 +327,7 @@ struct PlaylistDetailView: View {
                     } label: {
                         Label("Apple Watch", systemImage: "applewatch")
                     }
+                    #endif
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(Typography.callout).foregroundStyle(Palette.accent)

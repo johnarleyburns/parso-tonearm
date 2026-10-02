@@ -84,7 +84,7 @@ struct SourcesView: View {
                 case .jamendo: JamendoBrowseView()
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .hiddenNavigationBar()
             // Real report: "Settings -> Libraries -> '+' does nothing." Root
             // cause: `ScreenHeader`'s default "+" sets `appState.showAddMenu`,
             // which only `RootView` listens for via `.sheet(isPresented:)` —
@@ -136,9 +136,7 @@ struct SourcesView: View {
                 switch ImportRouter.route(urls) {
                 case .folder(let url):
                     let didScope = url.startAccessingSecurityScopedResource()
-                    let bookmark = try? url.bookmarkData(options: [.minimalBookmark],
-                                                          includingResourceValuesForKeys: nil,
-                                                          relativeTo: nil)
+                    let bookmark = BookmarkVault.makeBookmark(for: url)
                     if didScope { url.stopAccessingSecurityScopedResource() }
                     if appState.pendingImport == .smbFolder {
                         Task {

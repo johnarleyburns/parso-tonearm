@@ -68,8 +68,13 @@ struct MyMusicSearchControls: View {
             case .all:
                 // Plain text search by title, artist, album and the other general fields. The
                 // library list below doesn't show its own field inside My Music, so this is it.
+                // On Mac the same search lives in the window toolbar (⌘F).
+                #if os(iOS)
                 SearchField(text: $appState.searchText, placeholder: "Search all your music…")
                     .accessibilityIdentifier("mymusic.search.text")
+                #else
+                EmptyView()
+                #endif
             case .mix:
                 mixControls
             case .sound:

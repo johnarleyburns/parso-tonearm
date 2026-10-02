@@ -1,5 +1,9 @@
 import Foundation
+#if os(macOS)
+import AppKit
+#else
 import UIKit
+#endif
 import AVFoundation
 import CoreImage
 import TonearmCore
@@ -184,10 +188,14 @@ actor ArtworkService {
         let trackId = row.track.id ?? -1
         // Screen scale is MainActor-isolated; hop over rather than making this whole actor
         // method require a caller-supplied pixel size. The sharpest connected screen wins.
-        let screenScale = await MainActor.run {
+        let screenScale = await MainActor.run { () -> CGFloat in
+            #if os(macOS)
+            NSScreen.main?.backingScaleFactor ?? 2
+            #else
             UIApplication.shared.connectedScenes
                 .compactMap { ($0 as? UIWindowScene)?.screen.scale }
                 .max() ?? UITraitCollection.current.displayScale
+            #endif
         }
         let pixelDimension = maxDimension * screenScale
         let cacheKey = "track-\(trackId)-\(Int(pixelDimension))" as NSString
@@ -217,8 +225,9 @@ actor ArtworkService {
     /// list-scroll cost this exists to avoid, since it runs once per track
     /// and is cached forever after (both in memory and on disk), never per
     /// frame. `UIGraphicsImageRenderer` has no macOS equivalent (native Mac
-    /// app, docs/plans/native-mac-app-plan.md §2b) — the Mac branch uses
-    /// The renderer keeps list thumbnails independent from full-size artwork.
+    /// app) — the Mac branch uses `NSImage(size:flipped:drawingHandler:)`, the
+    /// modern AppKit analog. The renderer keeps list thumbnails independent
+    /// from full-size artwork.
     private static func downsampled(_ image: PlatformImage, maxPixelDimension: CGFloat) -> PlatformImage {
         let scale = image.platformScale
         let pixelSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
@@ -226,6 +235,12 @@ actor ArtworkService {
         let downscale = min(1, maxPixelDimension / max(pixelSize.width, pixelSize.height))
         guard downscale < 1 else { return image }
         let targetPointSize = CGSize(width: image.size.width * downscale, height: image.size.height * downscale)
+        #if os(macOS)
+        return PlatformImage(size: targetPointSize, flipped: false) { rect in
+            image.draw(in: rect, from: .zero, operation: .copy, fraction: 1)
+            return true
+        }
+        #else
         let format = UIGraphicsImageRendererFormat()
         format.scale = scale
         format.opaque = true
@@ -233,6 +248,7 @@ actor ArtworkService {
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: targetPointSize))
         }
+        #endif
     }
 
     private func thumbnailDiskCacheURL(key: String) -> URL {
@@ -480,7 +496,13 @@ actor ArtworkService {
 
     @MainActor
     static func dominantColor(from image: PlatformImage) -> PlatformColor {
+        #if os(macOS)
+        // macOS CoreImage has no `NSImage`-taking initializer; go through `CGImage`.
+        guard let cgImage = image.tonearmCGImage else { return .systemBlue }
+        let ciImage = CIImage(cgImage: cgImage)
+        #else
         guard let ciImage = CIImage(image: image) else { return .systemBlue }
+        #endif
         let filter = CIFilter(
             name: "CIAreaAverage",
             parameters: [

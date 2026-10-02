@@ -1,10 +1,12 @@
 import Foundation
+#if !os(macOS)
 import UIKit
 import TonearmCore
 
 /// The UIKit half of `WidgetArtworkStore`: downscales and JPEG-encodes the now-
 /// playing artwork into the shared App Group directory. Kept app-side so Core
-/// (the snapshot builder) stays host-compilable.
+/// (the snapshot builder) stays host-compilable. No Mac counterpart: the Mac
+/// app ships no widget extension (docs/plans/native-mac-parity.md).
 extension WidgetArtworkStore {
     @discardableResult
     static func save(image: UIImage, for artworkID: String) -> String? {
@@ -32,3 +34,4 @@ extension WidgetArtworkStore {
         }
     }
 }
+#endif

@@ -19,13 +19,18 @@ enum SettingsSheet: Identifiable {
     var id: Self { self }
 }
 
-/// A real macOS Preferences pane (native-mac-app-plan.md §3: "its four
-/// existing sections... become four preference panes unchanged") — matches
-/// `SettingsView.body`'s own four groupings exactly. `nil` on iOS/iPadOS,
-/// where `SettingsView` still renders every section in one scroll.
+/// A real macOS Settings pane (⌘,) — the same four groupings as
+/// `SettingsView.body`, each shown in its own tab of the Mac `Settings`
+/// scene. `nil` on iPhone, where `SettingsView` renders every section in one
+/// scroll.
+enum MacPreferencesPane {
+    case playback, library, account, advanced
+}
+
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
+    var macPane: MacPreferencesPane?
     @State var cacheUsed: Int64 = 0
     @State var cacheLimit: Int64 = SparseCacheStore.defaultLimit
     @State var cachedCount: Int = 0
@@ -49,33 +54,52 @@ struct SettingsView: View {
         ("10 GB", 10 * 1024 * 1024 * 1024)
     ]
 
+    private func shows(_ pane: MacPreferencesPane) -> Bool {
+        macPane == nil || macPane == pane
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("Playback") {
-                    behaviorCard
-                    keepPlayingCard
-                    SiriSettingsCard()
+                if shows(.playback) {
+                    Section("Playback") {
+                        behaviorCard
+                        keepPlayingCard
+                        #if os(iOS)
+                        SiriSettingsCard()
+                        #endif
+                    }
+                    SmartTransitionsView()
                 }
-                SmartTransitionsView()
-                Section("Library & Storage") {
-                    musicLibrariesCard
-                    soundIndexCard
-                    analysisCard
-                    cacheSummaryCard
-                    watchCard
-                    syncCard
+                if shows(.library) {
+                    Section("Library & Storage") {
+                        musicLibrariesCard
+                        soundIndexCard
+                        analysisCard
+                        cacheSummaryCard
+                        #if os(iOS)
+                        watchCard
+                        #endif
+                        syncCard
+                    }
                 }
-                Section("Account & About") {
-                    appearanceCard
-                    privacyCard
-                    SupportDevelopmentCard()
-                    aboutCard
+                if shows(.account) {
+                    Section("Account & About") {
+                        appearanceCard
+                        privacyCard
+                        SupportDevelopmentCard()
+                        aboutCard
+                    }
                 }
-                Section("Advanced") {
-                    advancedSection
+                if shows(.advanced) {
+                    Section("Advanced") {
+                        advancedSection
+                    }
                 }
             }
+            #if os(macOS)
+            .formStyle(.grouped)
+            #endif
             .foregroundStyle(Palette.ink)
             .scrollContentBackground(.hidden)
             .background(Palette.libraryBackground.ignoresSafeArea())

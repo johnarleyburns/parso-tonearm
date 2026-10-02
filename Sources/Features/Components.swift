@@ -133,7 +133,12 @@ struct ProvenanceChip: View {
 
     private var badge: (String, String) {
         switch source?.kind {
-        case .local, .none: return ("iphone", "ON DEVICE")
+        case .local, .none:
+            #if os(macOS)
+            return ("laptopcomputer", "ON DEVICE")
+            #else
+            return ("iphone", "ON DEVICE")
+            #endif
         case .iaItem, .iaList, .iaCollection, .iaFavorites:
             return ("cloud", "ARCHIVE.ORG")
         case .subsonic, .webDAV, .smb, .jellyfin, .plex,
@@ -279,10 +284,13 @@ struct TrackContextMenu: ViewModifier {
                 Label(fav ? "Remove from Favorites" : "Add to Favorites",
                       systemImage: fav ? "heart.slash" : "heart")
             }
+            #if os(iOS)
             watchMenuItems
+            #endif
         }
     }
 
+    #if os(iOS)
     @ViewBuilder
     private var watchMenuItems: some View {
         let state = appState.watchGlyphState(for: row)
@@ -309,6 +317,7 @@ struct TrackContextMenu: ViewModifier {
             EmptyView()
         }
     }
+    #endif
 
     @ViewBuilder
     private var phoneMenuItems: some View {

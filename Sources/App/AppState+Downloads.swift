@@ -2,7 +2,9 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
+#if !os(macOS)
 import UIKit
+#endif
 
 extension AppState {
     /// Resolves a track to bytes that the DJ engine can read. The normal player

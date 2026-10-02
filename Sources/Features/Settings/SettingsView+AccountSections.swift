@@ -151,15 +151,31 @@ extension SettingsView {
 
     var languagesRow: some View {
         let names = Self.shippedLanguageNames
-        return Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
+        #if os(macOS)
+        // System Settings › General › Language & Region › Applications.
+        let destination = URL(string: "x-apple.systempreferences:com.apple.Localization-Settings.extension")!
+        #else
+        let destination = URL(string: UIApplication.openSettingsURLString)!
+        #endif
+        return Link(destination: destination) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
+                    #if os(macOS)
+                    aboutRow("Language", "Change in System Settings")
+                    #else
                     aboutRow("Language", "Change in iPhone Settings")
+                    #endif
                     Image(systemName: "arrow.up.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
+                #if os(macOS)
+                Text("Platterhead is available in \(names.count) languages. It follows your Mac’s language, or you can choose a language just for Platterhead in System Settings › General › Language & Region.")
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                #else
                 Text("Platterhead is available in \(names.count) languages. It follows your iPhone’s language, or you can choose a language just for Platterhead in iPhone Settings.")
                     .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                     .fixedSize(horizontal: false, vertical: true)
+                #endif
                 Text(verbatim: names.joined(separator: " · "))
                     .font(Typography.caption).foregroundStyle(Palette.ink)
                     .accessibilityIdentifier("settings.about.languages")

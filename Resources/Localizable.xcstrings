@@ -3416,6 +3416,53 @@
         }
       }
     },
+    "Add Audio Files…" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacRootView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Audiodateien hinzufügen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Audio Files…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Añadir archivos de audio…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ajouter des fichiers audio…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "オーディオファイルを追加…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Adicionar arquivos de áudio…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "添加音频文件…"
+          }
+        }
+      }
+    },
     "Add Files" : {
       "comment" : "UI text shown in: Onboarding (Sources/Features/Onboarding/OnboardingView.swift)",
       "localizations" : {
@@ -3459,6 +3506,53 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "添加文件"
+          }
+        }
+      }
+    },
+    "Add Internet Archive or Jamendo…" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacRootView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Internet Archive oder Jamendo hinzufügen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Internet Archive or Jamendo…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Añadir Internet Archive o Jamendo…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ajouter Internet Archive ou Jamendo…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Internet ArchiveまたはJamendoを追加…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Adicionar Internet Archive ou Jamendo…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "添加 Internet Archive 或 Jamendo…"
           }
         }
       }
@@ -3510,6 +3604,100 @@
         }
       }
     },
+    "Add Local Folder…" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacRootView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Lokalen Ordner hinzufügen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Local Folder…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Añadir carpeta local…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ajouter un dossier local…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "ローカルフォルダを追加…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Adicionar pasta local…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "添加本地文件夹…"
+          }
+        }
+      }
+    },
+    "Add Music" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacRootView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Musik hinzufügen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Music"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Añadir música"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ajouter de la musique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "音楽を追加"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Adicionar música"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "添加音乐"
+          }
+        }
+      }
+    },
     "Add Remote Library" : {
       "comment" : "UI text shown in: Components (Sources/Features/Components.swift); Add Menu Sheet (Sources/Features/Ingest/AddMenuSheet.swift); Add Server Sheet (Sources/Features/Ingest/AddServerSheet.swift)",
       "localizations" : {
@@ -3557,6 +3745,53 @@
         }
       }
     },
+    "Add Remote Library…" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacRootView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Remote-Bibliothek hinzufügen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Remote Library…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Añadir biblioteca remota…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ajouter une bibliothèque distante…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "リモートライブラリを追加…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Adicionar biblioteca remota…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "添加远程资料库…"
+          }
+        }
+      }
+    },
     "Add Source" : {
       "comment" : "UI text shown in: App Intents (Sources/Intents/AppIntents.swift)",
       "localizations" : {
@@ -3600,6 +3835,53 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "添加来源"
+          }
+        }
+      }
+    },
+    "Add a folder, audio files or a remote library" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacRootView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Einen Ordner, Audiodateien oder eine Remote-Bibliothek hinzufügen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a folder, audio files or a remote library"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Añade una carpeta, archivos de audio o una biblioteca remota"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ajouter un dossier, des fichiers audio ou une bibliothèque distante"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "フォルダ、オーディオファイル、またはリモートライブラリを追加"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Adicione uma pasta, arquivos de áudio ou uma biblioteca remota"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "添加文件夹、音频文件或远程资料库"
           }
         }
       }
@@ -7825,6 +8107,53 @@
         }
       }
     },
+    "Build a 15, 30 or 60 minute mix" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacRootView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Einen Mix mit 15, 30 oder 60 Minuten erstellen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build a 15, 30 or 60 minute mix"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Crea una mezcla de 15, 30 o 60 minutos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Créer un mix de 15, 30 ou 60 minutes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "15分、30分、60分のミックスを作成"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Crie uma mixagem de 15, 30 ou 60 minutos"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "创建 15、30 或 60 分钟的混音"
+          }
+        }
+      }
+    },
     "Build a Mix" : {
       "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
       "localizations" : {
@@ -7868,6 +8197,53 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "创建混音"
+          }
+        }
+      }
+    },
+    "Build a Mix…" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/TonearmMacCommands.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mix erstellen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build a Mix…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Crear una mezcla…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Créer un mix…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "ミックスを作成…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Criar uma mixagem…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "创建混音…"
           }
         }
       }
@@ -8620,6 +8996,53 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "更改插图"
+          }
+        }
+      }
+    },
+    "Change in System Settings" : {
+      "comment" : "UI text shown in: Mac app (Sources/Features/Settings/SettingsView+AccountSections.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "In den Systemeinstellungen ändern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change in System Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Cambiar en Ajustes del Sistema"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Modifier dans Réglages Système"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "システム設定で変更"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Alterar nos Ajustes do Sistema"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "在“系统设置”中更改"
           }
         }
       }
@@ -10551,6 +10974,53 @@
         }
       }
     },
+    "Controls" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/TonearmMacCommands.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Steuerung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Controls"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Controles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Commandes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "コントロール"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Controles"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "控制"
+          }
+        }
+      }
+    },
     "Convolution taps %lld" : {
       "comment" : "UI text shown in: Tools (Sources/Features/Settings/ToolsView.swift)",
       "localizations" : {
@@ -11957,6 +12427,53 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "死亡金属"
+          }
+        }
+      }
+    },
+    "Decrease Volume" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/TonearmMacCommands.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Leiser"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decrease Volume"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Bajar volumen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Baisser le volume"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "音量を下げる"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Diminuir volume"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "降低音量"
           }
         }
       }
@@ -16605,6 +17122,53 @@
         }
       }
     },
+    "Find in My Music" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/TonearmMacCommands.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "In „Meine Musik“ suchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find in My Music"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Buscar en Mi música"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Rechercher dans Ma musique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "マイミュージックで検索"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Buscar em Minhas músicas"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "在“我的音乐”中查找"
+          }
+        }
+      }
+    },
     "Find text cannot be empty." : {
       "comment" : "UI text shown in: Tag Edit (Sources/Domain/TagEdit.swift)",
       "localizations" : {
@@ -18212,6 +18776,53 @@
         }
       }
     },
+    "General" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacPreferencesView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Allgemein"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "General"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "General"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Général"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "一般"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Geral"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "通用"
+          }
+        }
+      }
+    },
     "Generate" : {
       "comment" : "UI text shown in: Mix Experience (Sources/Features/Mix/MixExperienceView.swift)",
       "localizations" : {
@@ -19152,6 +19763,53 @@
         }
       }
     },
+    "Hide Now Playing" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/TonearmMacCommands.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "„Jetzt läuft“ ausblenden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Now Playing"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ocultar Ahora suena"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Masquer À l’écoute"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "再生中を隠す"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ocultar Tocando agora"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "隐藏“正在播放”"
+          }
+        }
+      }
+    },
     "Hide subgenres of %@" : {
       "localizations" : {
         "de" : {
@@ -19819,6 +20477,53 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "包含子文件夹"
+          }
+        }
+      }
+    },
+    "Increase Volume" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/TonearmMacCommands.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Lauter"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Increase Volume"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Subir volumen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Augmenter le volume"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "音量を上げる"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aumentar volume"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "提高音量"
           }
         }
       }
@@ -25697,6 +26402,53 @@
         }
       }
     },
+    "New Playlist…" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/TonearmMacCommands.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Neue Playlist …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Playlist…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Nueva playlist…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Nouvelle playlist…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "新規プレイリスト…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Nova playlist…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "新建播放列表…"
+          }
+        }
+      }
+    },
     "New Wave" : {
       "comment" : "UI text shown in: Jamendo Genre Provider (Sources/Remote/Providers/JamendoGenreProvider.swift)",
       "localizations" : {
@@ -27338,6 +28090,53 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "暂时没有曲目符合该心情。请尝试其他标签或减少标签数量。"
+          }
+        }
+      }
+    },
+    "Not Playing" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacNowPlayingMenuView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Keine Wiedergabe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Playing"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Sin reproducción"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aucune lecture"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "再生していません"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Nada tocando"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "未在播放"
           }
         }
       }
@@ -29833,6 +30632,53 @@
         }
       }
     },
+    "Pick individual tracks from Finder" : {
+      "comment" : "UI text shown in: Mac app (Sources/Features/Ingest/AddMenuSheet.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Einzelne Titel im Finder auswählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick individual tracks from Finder"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Elige pistas sueltas desde el Finder"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Choisissez des morceaux individuels dans le Finder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Finderから個別の曲を選択"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Escolha faixas individuais no Finder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "从“访达”中挑选单个曲目"
+          }
+        }
+      }
+    },
     "Pick one or more genres. Each becomes its own library. No account needed." : {
       "comment" : "UI text shown in: Add Server Sheet (Sources/Features/Ingest/AddServerSheet.swift)",
       "localizations" : {
@@ -30064,6 +30910,53 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "普通交叉淡化"
+          }
+        }
+      }
+    },
+    "Platterhead" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacRootView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Platterhead"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead"
           }
         }
       }
@@ -30393,6 +31286,113 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Platterhead 中没有可匹配的来源网址。"
+          }
+        }
+      }
+    },
+    "Platterhead is available in %lld languages. It follows your Mac’s language, or you can choose a language just for Platterhead in System Settings › General › Language & Region." : {
+      "comment" : "UI text shown in: Mac app (Sources/Features/Settings/SettingsView+AccountSections.swift)",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Platterhead ist in %lld Sprache verfügbar. Es folgt der Sprache deines Mac, oder du wählst in den Systemeinstellungen › Allgemein › Sprache & Region eine Sprache nur für Platterhead."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Platterhead ist in %lld Sprachen verfügbar. Es folgt der Sprache deines Mac, oder du wählst in den Systemeinstellungen › Allgemein › Sprache & Region eine Sprache nur für Platterhead."
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Platterhead is available in %lld language. It follows your Mac’s language, or you can choose a language just for Platterhead in System Settings › General › Language & Region."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Platterhead is available in %lld languages. It follows your Mac’s language, or you can choose a language just for Platterhead in System Settings › General › Language & Region."
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Platterhead está disponible en %lld idioma. Sigue el idioma de tu Mac, o puedes elegir un idioma solo para Platterhead en Ajustes del Sistema › General › Idioma y región."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Platterhead está disponible en %lld idiomas. Sigue el idioma de tu Mac, o puedes elegir un idioma solo para Platterhead en Ajustes del Sistema › General › Idioma y región."
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Platterhead est disponible en %lld langue. Il suit la langue de votre Mac, ou vous pouvez choisir une langue rien que pour Platterhead dans Réglages Système › Général › Langue et région."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Platterhead est disponible en %lld langues. Il suit la langue de votre Mac, ou vous pouvez choisir une langue rien que pour Platterhead dans Réglages Système › Général › Langue et région."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterheadは%lld言語に対応しています。Macの言語に従いますが、システム設定 › 一般 › 言語と地域でPlatterheadだけの言語を選ぶこともできます。"
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "O Platterhead está disponível em %lld idioma. Ele segue o idioma do seu Mac, ou você pode escolher um idioma só para o Platterhead em Ajustes do Sistema › Geral › Idioma e Região."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "O Platterhead está disponível em %lld idiomas. Ele segue o idioma do seu Mac, ou você pode escolher um idioma só para o Platterhead em Ajustes do Sistema › Geral › Idioma e Região."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead 支持 %lld 种语言。它会跟随你的 Mac 语言，你也可以在“系统设置”›“通用”›“语言与地区”中单独为 Platterhead 选择语言。"
           }
         }
       }
@@ -33664,6 +34664,53 @@
         }
       }
     },
+    "Quit Platterhead" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacNowPlayingMenuView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead beenden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit Platterhead"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Salir de Platterhead"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Quitter Platterhead"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterheadを終了"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Encerrar o Platterhead"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "退出 Platterhead"
+          }
+        }
+      }
+    },
     "R&B" : {
       "comment" : "UI text shown in: Jamendo Genre Provider (Sources/Remote/Providers/JamendoGenreProvider.swift)",
       "localizations" : {
@@ -35792,6 +36839,147 @@
         }
       }
     },
+    "Repeat: All" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/TonearmMacCommands.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Wiederholen: Alle"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeat: All"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Repetir: todo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Répéter : tout"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "リピート：すべて"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Repetir: tudo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "重复：全部"
+          }
+        }
+      }
+    },
+    "Repeat: Off" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/TonearmMacCommands.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Wiederholen: Aus"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeat: Off"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Repetir: no"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Répéter : non"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "リピート：オフ"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Repetir: desativado"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "重复：关"
+          }
+        }
+      }
+    },
+    "Repeat: One" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/TonearmMacCommands.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Wiederholen: Einen Titel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeat: One"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Repetir: una"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Répéter : un morceau"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "リピート：1曲"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Repetir: uma"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "重复：单曲"
+          }
+        }
+      }
+    },
     "ReplayGain" : {
       "comment" : "UI text shown in: Tools (Sources/Features/Settings/ToolsView.swift)",
       "localizations" : {
@@ -37382,6 +38570,53 @@
         }
       }
     },
+    "Saved to this Mac" : {
+      "comment" : "UI text shown in: Mac app (Sources/Features/NowPlaying/NowPlayingView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Auf diesem Mac gesichert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved to this Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Guardado en este Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Enregistré sur ce Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "このMacに保存済み"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Salvo neste Mac"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "已保存到这台 Mac"
+          }
+        }
+      }
+    },
     "Scanning" : {
       "comment" : "UI text shown in: Tools (Sources/Features/Settings/ToolsView.swift)",
       "localizations" : {
@@ -37660,6 +38895,53 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "查找重复项"
+          }
+        }
+      }
+    },
+    "Search your music" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacRootView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Deine Musik durchsuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search your music"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Busca en tu música"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Rechercher dans votre musique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "音楽を検索"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Buscar nas suas músicas"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "搜索你的音乐"
           }
         }
       }
@@ -38694,6 +39976,147 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "显示更多…"
+          }
+        }
+      }
+    },
+    "Show Now Playing" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/TonearmMacCommands.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "„Jetzt läuft“ einblenden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Now Playing"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mostrar Ahora suena"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Afficher À l’écoute"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "再生中を表示"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mostrar Tocando agora"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "显示“正在播放”"
+          }
+        }
+      }
+    },
+    "Show Platterhead" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacNowPlayingMenuView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead anzeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Platterhead"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mostrar Platterhead"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Afficher Platterhead"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterheadを表示"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mostrar o Platterhead"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "显示 Platterhead"
+          }
+        }
+      }
+    },
+    "Show or hide Now Playing" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacRootView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "„Jetzt läuft“ ein- oder ausblenden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show or hide Now Playing"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mostrar u ocultar Ahora suena"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Afficher ou masquer À l’écoute"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "再生中の表示/非表示"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Mostrar ou ocultar Tocando agora"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "显示或隐藏“正在播放”"
           }
         }
       }
@@ -48385,6 +49808,53 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "语音搜索"
+          }
+        }
+      }
+    },
+    "Volume" : {
+      "comment" : "UI text shown in: Mac app (Sources/AppMac/MacRootView.swift)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Lautstärke"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volume"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Volumen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Volume"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "音量"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Volume"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "音量"
           }
         }
       }

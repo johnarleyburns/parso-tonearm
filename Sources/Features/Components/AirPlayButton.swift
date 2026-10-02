@@ -1,3 +1,8 @@
+// iPhone-only: `AVRoutePickerView` on macOS needs an `AVPlayer` to route, and
+// Platterhead plays through its own audio engine. Mac apps (Music included)
+// leave output-route selection to the system Sound menu / Control Center, so
+// the Mac app omits this button rather than invent a nonstandard substitute.
+#if os(iOS)
 import SwiftUI
 import AVKit
 
@@ -22,3 +27,4 @@ struct AirPlayButton: UIViewRepresentable {
         uiView.tintColor = inactiveTintColor
     }
 }
+#endif

@@ -84,6 +84,22 @@ done
       echo "        resourceTags:"
       echo "          - $tag"
     done
+    # macOS has no On-Demand Resources: the Mac app bundles the CLAP
+    # encoders it needs for the Sound Index and Search by Sound directly
+    # (DiscoveryModelResources' macOS branch). Demucs is DJ-only and stays out.
+    mac_entries=()
+    for entry in "${present[@]}"; do
+      [[ "${entry##*:}" == clap-* ]] && mac_entries+=("$entry")
+    done
+    if [[ ${#mac_entries[@]} -gt 0 ]]; then
+      echo "  TonearmMac:"
+      echo "    sources:"
+      for entry in "${mac_entries[@]}"; do
+        echo "      - path: Resources/Models/${entry%%:*}"
+        echo "        type: folder"
+        echo "        buildPhase: resources"
+      done
+    fi
   fi
 } > "$OVERLAY"
 

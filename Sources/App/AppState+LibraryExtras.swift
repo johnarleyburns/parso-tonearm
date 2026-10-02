@@ -2,7 +2,9 @@ import Foundation
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
+#if !os(macOS)
 import UIKit
+#endif
 
 extension AppState {
     @discardableResult
@@ -139,7 +141,7 @@ extension AppState {
         }
     }
 
-    private func handleSharedSourceURL(_ rawURL: String) async {
+    func handleSharedSourceURL(_ rawURL: String) async {
         do {
             let service = SourceService(preferFLAC: preferFLAC)
             let preview = try await service.preview(from: rawURL)

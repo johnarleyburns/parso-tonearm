@@ -1,5 +1,4 @@
 import SwiftUI
-import PhotosUI
 import TonearmCore
 import TonearmDiscovery
 
@@ -308,7 +307,6 @@ private struct LibraryGroupDetailView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var showArtworkPicker = false
-    @State private var artworkPickerItem: PhotosPickerItem?
     @State private var showRemoveArtworkAlert = false
 
     private var albumId: Int64? {
@@ -387,15 +385,9 @@ private struct LibraryGroupDetailView: View {
                         .glassSurface(cornerRadius: 16.5)
                 }
                 .accessibilityLabel("Album actions")
-                .photosPicker(isPresented: $showArtworkPicker, selection: $artworkPickerItem, matching: .images)
-                .onChange(of: artworkPickerItem) { _, item in
-                    guard let item else { return }
-                    Task {
-                        guard let data = try? await item.loadTransferable(type: Data.self),
-                              await appState.assignCustomArtwork(albumId: albumId, data: data) else { return }
-                        ArtworkInvalidation.shared.invalidate()
-                        artworkPickerItem = nil
-                    }
+                .artworkImagePicker(isPresented: $showArtworkPicker) { data in
+                    guard await appState.assignCustomArtwork(albumId: albumId, data: data) else { return }
+                    ArtworkInvalidation.shared.invalidate()
                 }
                 .alert("Remove Artwork", isPresented: $showRemoveArtworkAlert) {
                     Button("Cancel", role: .cancel) {}

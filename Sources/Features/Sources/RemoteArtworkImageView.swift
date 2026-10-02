@@ -1,5 +1,7 @@
 import SwiftUI
+#if !os(macOS)
 import UIKit
+#endif
 import TonearmCore
 
 /// Remote artwork loading + cache for `SourceDetailView`/`RemoteNodeRow` —

@@ -1,5 +1,7 @@
 import SwiftUI
+#if !os(macOS)
 import UIKit
+#endif
 import UniformTypeIdentifiers
 import TonearmCore
 
@@ -428,9 +430,7 @@ struct AddServerSheet: View {
         isConnecting = true
         defer { isConnecting = false }
         let accessed = url.startAccessingSecurityScopedResource()
-        let bookmark = try? url.bookmarkData(options: [.minimalBookmark],
-                                             includingResourceValuesForKeys: nil,
-                                             relativeTo: nil)
+        let bookmark = BookmarkVault.makeBookmark(for: url)
         if accessed { url.stopAccessingSecurityScopedResource() }
         do {
             try await appState.addSMBFolder(url, bookmark: bookmark)
@@ -454,6 +454,7 @@ public enum TextFieldKeyboardHint {
     case `default`
 }
 
+#if !os(macOS)
 struct PasteCapableTextField: UIViewRepresentable {
     @Binding var text: String
     var prompt: String
@@ -546,3 +547,38 @@ final class PasteEnabledTextField: UITextField {
         pasteCoordinator?.textDidChange(self)
     }
 }
+#else
+struct PasteCapableTextField: View {
+    @Binding var text: String
+    var prompt: String
+    var isSecure: Bool
+    var keyboardType: TextFieldKeyboardHint
+    var accessibilityIdentifier: String? = nil
+
+    var body: some View {
+        Group {
+            if isSecure {
+                SecureField(prompt, text: $text)
+            } else {
+                TextField(prompt, text: $text)
+                    .textContentType(keyboardType == .url ? .URL : nil)
+            }
+        }
+        .font(Typography.callout.monospaced())
+        .textFieldStyle(.plain)
+        .autocorrectionDisabled()
+        .modifier(OptionalAccessibilityID(id: accessibilityIdentifier))
+    }
+}
+
+private struct OptionalAccessibilityID: ViewModifier {
+    let id: String?
+    func body(content: Content) -> some View {
+        if let id {
+            content.accessibilityIdentifier(id)
+        } else {
+            content
+        }
+    }
+}
+#endif

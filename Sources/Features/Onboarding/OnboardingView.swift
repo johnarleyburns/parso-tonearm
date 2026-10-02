@@ -103,6 +103,7 @@ struct OnboardingView: View {
         ZStack {
             Palette.libraryBackground.ignoresSafeArea()
             VStack(spacing: 0) {
+                #if os(iOS)
                 TabView(selection: $page) {
                     ForEach(Array(intros.enumerated()), id: \.offset) { idx, intro in
                         introPage(intro).tag(idx)
@@ -112,6 +113,20 @@ struct OnboardingView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .always))
                 .indexViewStyle(.page(backgroundDisplayMode: .always))
+                #else
+                // macOS has no paged TabView: one page at a time, stepped by
+                // the footer's Back / Continue buttons.
+                Group {
+                    if page < intros.count {
+                        introPage(intros[page])
+                    } else if page == intros.count {
+                        localPage
+                    } else {
+                        sourcesPage
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                #endif
 
                 footer
             }
@@ -121,9 +136,7 @@ struct OnboardingView: View {
         .fileImporter(isPresented: $showFolderImporter, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result {
                 _ = url.startAccessingSecurityScopedResource()
-                let bookmark = try? url.bookmarkData(options: [.minimalBookmark],
-                                                      includingResourceValuesForKeys: nil,
-                                                      relativeTo: nil)
+                let bookmark = BookmarkVault.makeBookmark(for: url)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
                     pickedFolder = url
                     pickedFolderBookmark = bookmark
@@ -251,6 +264,13 @@ struct OnboardingView: View {
 
     private var footer: some View {
         VStack(spacing: 10) {
+            #if os(macOS)
+            if page > 0 {
+                Button("Back") { Motion.perform { page -= 1 } }
+                    .font(Typography.callout)
+                    .disabled(isFinishing)
+            }
+            #endif
             if page < lastPage {
                 Button { Motion.perform { page += 1 } } label: {
                     primaryLabel("Continue")

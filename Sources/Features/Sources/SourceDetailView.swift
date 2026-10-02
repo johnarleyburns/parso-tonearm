@@ -1,5 +1,4 @@
 import SwiftUI
-import PhotosUI
 import TonearmCore
 
 /// Split across files by concern: this file keeps the struct's stored state and
@@ -29,7 +28,6 @@ struct SourceDetailView: View {
     @State var statsError: String?
     @State private var showAddToPlaylist = false
     @State private var showArtworkPicker = false
-    @State private var artworkPickerItem: PhotosPickerItem?
     @State private var showRemoveArtworkAlert = false
 
     var body: some View {
@@ -162,6 +160,7 @@ struct SourceDetailView: View {
                 } label: {
                     Label("Download All", systemImage: "arrow.down.circle")
                 }
+                #if os(iOS)
                 Button {
                     Task { await appState.downloadToWatch(rows: tracks) }
                 } label: {
@@ -172,6 +171,7 @@ struct SourceDetailView: View {
                 } label: {
                     Label("Remove All from Apple Watch", systemImage: "applewatch.slash")
                 }
+                #endif
                 Divider()
                 Button {
                     showArtworkPicker = true
@@ -194,15 +194,10 @@ struct SourceDetailView: View {
             }
         }
         .padding(.top, 8)
-        .photosPicker(isPresented: $showArtworkPicker, selection: $artworkPickerItem, matching: .images)
-        .onChange(of: artworkPickerItem) { _, item in
-            guard let item, let sourceId = source.id else { return }
-            Task {
-                guard let data = try? await item.loadTransferable(type: Data.self),
-                      await appState.assignCustomArtwork(sourceId: sourceId, data: data) else { return }
-                ArtworkInvalidation.shared.invalidate()
-                artworkPickerItem = nil
-            }
+        .artworkImagePicker(isPresented: $showArtworkPicker) { data in
+            guard let sourceId = source.id,
+                  await appState.assignCustomArtwork(sourceId: sourceId, data: data) else { return }
+            ArtworkInvalidation.shared.invalidate()
         }
         .alert("Remove Artwork", isPresented: $showRemoveArtworkAlert) {
             Button("Cancel", role: .cancel) {}
