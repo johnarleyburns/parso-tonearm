@@ -24,20 +24,23 @@ public final class StarterLibrary: Sendable {
         return try? StarterLibrary(url: url)
     }()
 
+    /// The app bundle's starter DB. Each app carries only its own (project.yml); the shared
+    /// package bundle deliberately carries none, or every app and extension would embed both.
+    /// `swift test` and BuiltInAnalyzer have no app bundle and read the fetched copy in the
+    /// source tree (`Resources/Starter/`, `make starter`).
     public static var bundledURL: URL? {
-        #if SWIFT_PACKAGE
-        let bundles: [Bundle] = [Bundle.module, .main]
-        #else
-        let bundles: [Bundle] = [.main]
-        #endif
-        for bundle in bundles {
-            for name in resourceNames {
-                if let url = bundle.url(forResource: name, withExtension: "sqlite")
-                    ?? bundle.url(forResource: name, withExtension: "sqlite", subdirectory: "Audio") {
-                    return url
-                }
-            }
+        for name in resourceNames {
+            if let url = Bundle.main.url(forResource: name, withExtension: "sqlite") { return url }
         }
+        #if SWIFT_PACKAGE
+        let sourceTree = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources/Starter", isDirectory: true)
+        for name in resourceNames {
+            let url = sourceTree.appendingPathComponent("\(name).sqlite")
+            if FileManager.default.fileExists(atPath: url.path) { return url }
+        }
+        #endif
         return nil
     }
 

@@ -27,7 +27,6 @@
 		188474691ABE001A453E8C8B /* SiriMediaHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DFACA84CBD5D7FDDE7C6E7 /* SiriMediaHandling.swift */; };
 		19D3B7BFDB92E43C1DF0BB38 /* ambient-flowing-water.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 68C41942DAE2689F40567DDD /* ambient-flowing-water.mp4 */; };
 		1A0ED14038DAB24DEC322BEC /* UpNextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42E2045814F52BC75F1609F /* UpNextView.swift */; };
-		1C14F99846EA3F8713D8CCCA /* starter-iphone.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = F35495698D3E2D24B9BC626A /* starter-iphone.sqlite */; };
 		1C9FB19F6571B100C8C147EF /* AppState+LibraryExtras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC6ECC4D448840D7EC71C72 /* AppState+LibraryExtras.swift */; };
 		1F2AB3D61BDA2B5565075215 /* ParsoDJEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 551ED4CBE7B235659C23A496 /* ParsoDJEngine */; };
 		203E3F04A4D7C7663CDB3FC0 /* SupportDevelopmentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */; };
@@ -96,6 +95,7 @@
 		6AA9B6354B01CCBC02AC6DC0 /* vocab.json in Resources */ = {isa = PBXBuildFile; fileRef = 799F8E8C5C1DBA3A543B600B /* vocab.json */; };
 		6C5DD6A4AF0825987A8CE9E3 /* SystemPlaybackBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD2E724E87813719D5A0A81 /* SystemPlaybackBridge.swift */; };
 		6DA8AD1D2B20E57AD89886BB /* IndexStatusModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F19092FD2541A8590FF65C4 /* IndexStatusModel.swift */; };
+		6E7484814710BC5263FB5866 /* starter-iphone.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = AF879D1D1BA2257741E5CAFD /* starter-iphone.sqlite */; };
 		6F92340A366D9E75B106285F /* SettingsView+LibrarySections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53FE3201FB2A76A7F351F268 /* SettingsView+LibrarySections.swift */; };
 		6FF649FB95E0F82150307951 /* AddFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764B46CE0EAFEC605FE2CE5D /* AddFolderSheet.swift */; };
 		70B335C9F25257F926ADD07A /* WatchDownloadDetailViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA9DA16335431A3B294A331 /* WatchDownloadDetailViews.swift */; };
@@ -463,6 +463,7 @@
 		AE88E0E38F38D3267A0EBF38 /* Tonearm.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.entitlements; sourceTree = "<group>"; };
 		AF4C2C74CE7D4768E86F3D57 /* AppState+BuiltInMoodIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+BuiltInMoodIndex.swift"; sourceTree = "<group>"; };
 		AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WidgetArtworkStore+Save.swift"; sourceTree = "<group>"; };
+		AF879D1D1BA2257741E5CAFD /* starter-iphone.sqlite */ = {isa = PBXFileReference; lastKnownFileType = file; path = "starter-iphone.sqlite"; sourceTree = "<group>"; };
 		B47DD3B84A16E9E29F467F25 /* IndexStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexStatusView.swift; sourceTree = "<group>"; };
 		B89D48292A9F33EF6D60C975 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		B8EB48574C2697BB77C636A0 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
@@ -508,7 +509,6 @@
 		F1456A887E510378AA4B5141 /* PhoneWatchProtocolAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchProtocolAdapter.swift; sourceTree = "<group>"; };
 		F1BAAB8C1EDFCC23544B7B03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F264152278DB935FBFB188F5 /* WatchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchComponents.swift; sourceTree = "<group>"; };
-		F35495698D3E2D24B9BC626A /* starter-iphone.sqlite */ = {isa = PBXFileReference; lastKnownFileType = file; path = "starter-iphone.sqlite"; sourceTree = "<group>"; };
 		F39D6547A3D27A72C24F56AD /* SmartTransitionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartTransitionsView.swift; sourceTree = "<group>"; };
 		F42E2045814F52BC75F1609F /* UpNextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpNextView.swift; sourceTree = "<group>"; };
 		F43AA652B4D4981556956CB7 /* AppState+CustomArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+CustomArtwork.swift"; sourceTree = "<group>"; };
@@ -744,6 +744,14 @@
 			path = Features;
 			sourceTree = "<group>";
 		};
+		44AE95CA9E50F7F3FA156D93 /* Starter */ = {
+			isa = PBXGroup;
+			children = (
+				AF879D1D1BA2257741E5CAFD /* starter-iphone.sqlite */,
+			);
+			path = Starter;
+			sourceTree = "<group>";
+		};
 		499B83014C41D2FBCEB59014 /* Chrome */ = {
 			isa = PBXGroup;
 			children = (
@@ -856,6 +864,7 @@
 				94D3A2525220B072498FB15D /* Audio */,
 				863C1ED5AB979DD99C846B7E /* CLAP */,
 				D3F715052D65995177B44222 /* Models */,
+				44AE95CA9E50F7F3FA156D93 /* Starter */,
 				F90AE6772698F2114601747C /* Video */,
 				B8EB48574C2697BB77C636A0 /* AppIcon.icon */,
 				C6582DD00135325CDB814488 /* AppShortcuts.xcstrings */,
@@ -966,7 +975,6 @@
 				74D07216801F19A8231EE98A /* ambient-ocean.wav */,
 				E38CB1BF7D38667CEFEBA735 /* ambient-rain.wav */,
 				99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */,
-				F35495698D3E2D24B9BC626A /* starter-iphone.sqlite */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -1497,7 +1505,7 @@
 				309C4A7BE4BFBADC96076097 /* night.jpg in Resources */,
 				65318BD0EF55380DE2058F79 /* rain.jpg in Resources */,
 				DE2BEC06DBD57AB6777880B0 /* splash_screen.jpg in Resources */,
-				1C14F99846EA3F8713D8CCCA /* starter-iphone.sqlite in Resources */,
+				6E7484814710BC5263FB5866 /* starter-iphone.sqlite in Resources */,
 				6AA9B6354B01CCBC02AC6DC0 /* vocab.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

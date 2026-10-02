@@ -15,10 +15,13 @@ final class OAuthSignInCoordinator: NSObject, ObservableObject, ASWebAuthenticat
     }
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        if let key = scenes.flatMap(\.windows).first(where: \.isKeyWindow) { return key }
+        // Sign-in only starts from a sheet on screen, so there is always a connected window scene.
+        guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else {
+            preconditionFailure("OAuth sign-in started with no connected window scene")
+        }
+        return ASPresentationAnchor(windowScene: scene)
     }
 
     private func callbackURL(for authSession: OAuthAuthorizationSession) async throws -> URL {

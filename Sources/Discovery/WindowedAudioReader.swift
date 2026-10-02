@@ -127,16 +127,15 @@ public struct WindowedAudioReader: Sendable {
         // one-shot `convert(to:from:)` returns OSStatus -50 whenever the in
         // and out formats differ in rate.
         var conversionError: NSError?
-        var suppliedInput = false
+        let input = ConverterInput(inBuffer)
         let status = converter.convert(to: outBuffer, error: &conversionError) {
             _, outStatus in
-            if suppliedInput {
+            guard let buffer = input.take() else {
                 outStatus.pointee = .noDataNow
                 return nil
             }
-            suppliedInput = true
             outStatus.pointee = .haveData
-            return inBuffer
+            return buffer
         }
         if status == .error {
             throw WindowedAudioReaderError(
@@ -155,4 +154,24 @@ public struct WindowedAudioReader: Sendable {
         return output
     }
 }
+
+/// Hands the converter its single input buffer once. `AVAudioConverter.convert(to:error:withInputFrom:)`
+/// declares the input block `@Sendable`, but calls it synchronously on the calling thread before
+/// returning, so the buffer and the "already supplied" flag are never touched concurrently. The
+/// lock keeps that true even if a future SDK did call the block elsewhere.
+private final class ConverterInput: @unchecked Sendable {
+    private let lock = NSLock()
+    private var buffer: AVAudioPCMBuffer?
+
+    init(_ buffer: AVAudioPCMBuffer) { self.buffer = buffer }
+
+    func take() -> AVAudioPCMBuffer? {
+        lock.lock()
+        defer { lock.unlock() }
+        let taken = buffer
+        buffer = nil
+        return taken
+    }
+}
+
 #endif

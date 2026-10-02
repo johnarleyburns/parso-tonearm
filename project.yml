@@ -109,7 +109,7 @@ targets:
         excludes:
           - "Models/**"
           # The iPhone bundles the compact starter DB; the Mac one (full waveforms) is Mac-only.
-          - "Audio/starter-mac.sqlite"
+          - "Starter/starter-mac.sqlite"
       # No model package is listed here. All three — CLAPAudioEncoder,
       # CLAPTextEncoder and DemucsStems — arrive through the
       # `Config/models-odr.yml` overlay at the top of this file, whose entries

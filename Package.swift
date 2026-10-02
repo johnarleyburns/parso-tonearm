@@ -49,6 +49,18 @@ let package = Package(
                 "Resources/splash_screen.jpg",
                 "Resources/Models",
                 "Resources/CLAP",
+                // Each app bundles its own starter DB (project.yml); copying them into the shared
+                // package bundle put both into the iPhone app and every extension.
+                "Resources/Starter",
+                "Resources/AppIcon.icon",
+                "Resources/AppShortcuts.xcstrings",
+                "Resources/ArtworkKeywords",
+                "Resources/InfoPlist.xcstrings",
+                "Resources/Localizable.xcstrings",
+                "Sources/CLAMEBridge",
+                "Sources/Tools",
+                "design",
+                "IMPLEMENT_CLAP_PLAN.md",
                 "ShareExtension",
                 "SiriIntentsExtension",
                 "Sources/App",

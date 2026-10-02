@@ -182,10 +182,13 @@ actor ArtworkService {
     /// thumbnail still looks sharp, never blurry, at its real render size.
     func thumbnail(forTrackRow row: TrackRow, maxDimension: CGFloat) async -> PlatformImage? {
         let trackId = row.track.id ?? -1
-        // UIScreen.main/NSScreen.main are MainActor-isolated; hop over rather
-        // than making this whole actor method require a caller-supplied
-        // pixel size.
-        let screenScale = await MainActor.run { UIScreen.main.scale }
+        // Screen scale is MainActor-isolated; hop over rather than making this whole actor
+        // method require a caller-supplied pixel size. The sharpest connected screen wins.
+        let screenScale = await MainActor.run {
+            UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.screen.scale }
+                .max() ?? UITraitCollection.current.displayScale
+        }
         let pixelDimension = maxDimension * screenScale
         let cacheKey = "track-\(trackId)-\(Int(pixelDimension))" as NSString
 

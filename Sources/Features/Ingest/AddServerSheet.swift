@@ -497,6 +497,8 @@ struct PasteCapableTextField: UIViewRepresentable {
         Coordinator(text: $text)
     }
 
+    // UIKit delivers the text field's editing events on the main thread.
+    @MainActor
     final class Coordinator: NSObject {
         @Binding var text: String
 

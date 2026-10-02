@@ -80,7 +80,7 @@ public enum SuggestionChips {
     /// `discovery_track_analysis` side table — one cheap aggregate query, no
     /// object graph.
     public static func summary(library: LibraryStore) async -> LibraryDescriptorSummary {
-        let rows = (try? await library.dbQueue.read { db in
+        let rows = (try? library.dbQueue.read { db in
             try Row.fetchAll(db, sql: """
                 SELECT t.durationSec AS durationSec, a.bpm AS bpm,
                        a.energy AS energy, a.key AS camelot

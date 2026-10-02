@@ -58,7 +58,9 @@ final class DiscoveryModelResources: @unchecked Sendable {
     /// instead of 5→10→20→...→300) and letting a real, persistent error be
     /// silently wiped by an unrelated tag's success. Each tag now owns its
     /// own state, so one tag's outcome can never affect the other's.
-    private final class TagState {
+    /// Sendable because every field is read and written under `lock` (the ODR completion handler
+    /// that captures it runs on a background queue).
+    private final class TagState: @unchecked Sendable {
         var request: NSBundleResourceRequest
         var lastError: String?
         var retryDelay: TimeInterval = 5

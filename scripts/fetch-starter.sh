@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fetches the Mood Starter databases (StarterLibrary) pinned in Config/starter.lock into
-# Resources/Audio/. They are build inputs, not source: the Mac one carries every track's full
+# Resources/Starter/. They are build inputs, not source: the Mac one carries every track's full
 # transition-prep waveform (~100 MB), and committing binary rebuilds would bloat history and run
 # into GitHub's 100 MB file limit — the same reason Core ML models are fetched (fetch-models.sh).
 #
@@ -14,7 +14,7 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 LOCK="Config/starter.lock"
-DEST="Resources/Audio"
+DEST="Resources/Starter"
 FORCE=0
 [[ "${1:-}" == "--force" ]] && FORCE=1
 

@@ -113,7 +113,7 @@ public actor DiscoveryReconciler {
     public func pruneJobsForUndownloadedTracks() async throws -> Int {
         var pruned = 0
         while true {
-            let batch = try await writer.read { db in
+            let batch = try writer.read { db in
                 try Row.fetchAll(
                     db,
                     sql: """
@@ -393,7 +393,7 @@ public actor DiscoveryReconciler {
             let sizeBytes: Int64?
             let remoteURL: String?
         }
-        let candidates: [Candidate] = ((try? await writer.read { db in
+        let candidates: [Candidate] = ((try? writer.read { db in
             try Row.fetchAll(
                 db,
                 sql: """

@@ -708,9 +708,9 @@ struct MixPlannerFastPool {
         guard dimensions > 0, hasEmbedding[index] else { return [Double?](repeating: nil, count: count) }
         var similarities = [Float](repeating: 0, count: count)
         unitEmbeddings.withUnsafeBufferPointer { matrix in
-            cblas_sgemv(CblasRowMajor, CblasNoTrans, Int32(count), Int32(dimensions), 1,
-                        matrix.baseAddress!, Int32(dimensions),
-                        matrix.baseAddress! + index * dimensions, 1, 0, &similarities, 1)
+            // (count × dimensions) · (dimensions × 1); vDSP_mmul replaces the deprecated cblas_sgemv.
+            vDSP_mmul(matrix.baseAddress!, 1, matrix.baseAddress! + index * dimensions, 1,
+                      &similarities, 1, vDSP_Length(count), 1, vDSP_Length(dimensions))
         }
         return (0..<count).map { hasEmbedding[$0] ? 1 - Double(similarities[$0]) : nil }
     }

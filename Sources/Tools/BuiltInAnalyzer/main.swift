@@ -6,7 +6,7 @@ import TonearmCore
 import TonearmDiscovery
 
 // Dev-only offline tool: adds tempo, key and energy to the bundled mood-starter index
-// (Resources/Audio/builtin-mood-index.json) so Build a Mix can place the built-in tracks on a
+// (data/mood-starter/source-index.json) so Build a Mix can place the built-in tracks on a
 // fresh install. BuiltInEmbedder only produced the sound embedding; the app seeded those tracks
 // with musical analysis marked unsupported, so Generate had nothing with BPM + key to order.
 //

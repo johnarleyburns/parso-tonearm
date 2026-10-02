@@ -7,7 +7,7 @@
 #
 # One row per database:
 #
-#   <url>  <sha256>  <file name in Resources/Audio/>
+#   <url>  <sha256>  <file name in Resources/Starter/>
 #
 # Built with `swift run -c release BuiltInAnalyzer build-starter data/mood-starter/source-index.json
 # <payload-dir> <out.sqlite> [--full]` from a BUILTIN_ANALYZER_PREP run. To publish a new build,

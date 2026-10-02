@@ -17,14 +17,14 @@ final class DiscoverySearchViewModelTests: XCTestCase {
     private let dims = 8
     private var cacheURL: URL!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         cacheURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("vm-\(UUID().uuidString).bin")
     }
-    override func tearDown() {
+    override func tearDown() async throws {
         try? FileManager.default.removeItem(at: cacheURL)
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func unit(_ v: [Float]) -> [Float] { SemanticPooling.l2Normalized(v) }

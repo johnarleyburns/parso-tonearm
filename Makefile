@@ -13,7 +13,7 @@ ci-guards:
 models:
 	scripts/fetch-models.sh
 
-# Fetch the Mood Starter databases pinned in Config/starter.lock into Resources/Audio/
+# Fetch the Mood Starter databases pinned in Config/starter.lock into Resources/Starter/
 # (StarterLibrary). Build them with `swift run -c release BuiltInAnalyzer build-starter …`.
 starter:
 	scripts/fetch-starter.sh

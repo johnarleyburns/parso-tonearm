@@ -51,7 +51,7 @@ final class CarPlayVoiceSearchController: NSObject {
         guard let recognizer, recognizer.isAvailable else { return showUnavailable() }
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .measurement, options: [.duckOthers, .allowBluetooth])
+            try session.setCategory(.record, mode: .measurement, options: [.duckOthers, .allowBluetoothHFP])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
 
             let engine = AVAudioEngine()
@@ -105,8 +105,9 @@ final class CarPlayVoiceSearchController: NSObject {
     /// isolation (Swift 6 traps on that), so it's built here.
     private nonisolated static func installTap(on input: AVAudioInputNode,
                                                feeding request: SFSpeechAudioBufferRecognitionRequest) {
+        let feed = RecognitionFeed(request)
         input.installTap(onBus: 0, bufferSize: 1_024, format: input.outputFormat(forBus: 0)) { @Sendable buffer, _ in
-            request.append(buffer)
+            feed.append(buffer)
         }
     }
 
@@ -137,5 +138,14 @@ final class CarPlayVoiceSearchController: NSObject {
             }
         }
     }
+}
+
+/// Carries the recognition request into the real-time tap. Speech documents
+/// `SFSpeechAudioBufferRecognitionRequest.append(_:)` as callable from any thread, which is the
+/// tap's whole use of it; the SDK just doesn't mark the class Sendable.
+private final class RecognitionFeed: @unchecked Sendable {
+    private let request: SFSpeechAudioBufferRecognitionRequest
+    init(_ request: SFSpeechAudioBufferRecognitionRequest) { self.request = request }
+    func append(_ buffer: AVAudioPCMBuffer) { request.append(buffer) }
 }
 #endif

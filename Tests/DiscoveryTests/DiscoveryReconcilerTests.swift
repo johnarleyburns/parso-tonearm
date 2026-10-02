@@ -423,7 +423,7 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let backfilled = await reconciler.backfillRemoteNodeReferences { _ in provider }
         XCTAssertEqual(backfilled, 1)
 
-        let row = try await queue.read { db in
+        let row = try queue.read { db in
             try Row.fetchOne(db, sql: "SELECT remoteNodeID, remoteNodePath FROM asset WHERE id = ?",
                 arguments: [assetID])!
         }
@@ -528,7 +528,7 @@ final class DiscoveryReconcilerTests: XCTestCase {
         }
         XCTAssertEqual(backfilled, 1)
 
-        let row = try await queue.read { db in
+        let row = try queue.read { db in
             try Row.fetchOne(db, sql: "SELECT remoteNodeID, remoteNodePath FROM asset WHERE id = ?",
                 arguments: [assetID])!
         }
