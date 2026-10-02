@@ -197,6 +197,52 @@
       "comment" : "UI text shown in: Transition Chip (Sources/Features/Mix/TransitionChip.swift); Smart Transitions (Sources/Features/Transitions/SmartTransitionsView.swift)",
       "shouldTranslate" : false
     },
+    "%@ · %lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%1$@ · %2$lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%1$@ · %2$lld"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%1$@ · %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%1$@ · %2$lld"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%1$@ · %2$lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%1$@ · %2$lld"
+          }
+        }
+      }
+    },
     "%@, requires Pro" : {
       "comment" : "UI text shown in: Add Menu Sheet (Sources/Features/Ingest/AddMenuSheet.swift)",
       "localizations" : {
@@ -5272,6 +5318,52 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "已对齐的前后过渡波形"
+          }
+        }
+      }
+    },
+    "All tracks" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Alle Titel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All tracks"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Todas las pistas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Tous les morceaux"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "すべての曲"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Todas as faixas"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "所有曲目"
           }
         }
       }
@@ -17415,6 +17507,52 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "频率"
+          }
+        }
+      }
+    },
+    "From" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aus"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "De"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Depuis"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "ソース"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "De"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "来源"
           }
         }
       }
@@ -40628,6 +40766,52 @@
         }
       }
     },
+    "Starts from a random track in your library; each next track stays within 8% of the last one's tempo, in a matching key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Beginnt mit einem zufälligen Titel aus deiner Mediathek; jeder weitere Titel bleibt innerhalb von 8 % des vorherigen Tempos, in einer passenden Tonart."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts from a random track in your library; each next track stays within 8% of the last one's tempo, in a matching key."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Empieza con una pista al azar de tu biblioteca; cada pista siguiente se mantiene a menos del 8 % del tempo de la anterior, en una tonalidad compatible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Commence par un morceau au hasard de ta bibliothèque ; chaque morceau suivant reste à moins de 8 % du tempo du précédent, dans une tonalité compatible."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "ライブラリのランダムな曲から始まり、次の曲は前の曲のテンポから8%以内、相性の良いキーで続きます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Começa com uma faixa aleatória da sua biblioteca; cada próxima faixa fica a até 8% do andamento da anterior, em um tom compatível."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "从你资料库中的随机曲目开始；之后每首曲目的速度与上一首相差不超过 8%，调性相互匹配。"
+          }
+        }
+      }
+    },
     "Starts this playlist from the beginning" : {
       "localizations" : {
         "de" : {
@@ -41658,6 +41842,52 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "冲浪摇滚"
+          }
+        }
+      }
+    },
+    "Surprise me" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Überrasch mich"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Surprise me"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Sorpréndeme"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Surprends-moi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "おまかせ"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Surpreenda-me"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "给我惊喜"
           }
         }
       }
@@ -45704,6 +45934,98 @@
         }
       }
     },
+    "Tracks from this genre, each within 8% of the last one's tempo, in a matching key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Titel aus diesem Genre, jeweils innerhalb von 8 % des vorherigen Tempos, in einer passenden Tonart."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks from this genre, each within 8% of the last one's tempo, in a matching key."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Pistas de este género, cada una a menos del 8 % del tempo de la anterior, en una tonalidad compatible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Des morceaux de ce genre, chacun à moins de 8 % du tempo du précédent, dans une tonalité compatible."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "このジャンルの曲を、前の曲のテンポから8%以内、相性の良いキーでつなげます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Faixas deste gênero, cada uma a até 8% do andamento da anterior, em um tom compatível."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "来自该风格的曲目，每首速度与上一首相差不超过 8%，调性相互匹配。"
+          }
+        }
+      }
+    },
+    "Tracks from this playlist, each within 8% of the last one's tempo, in a matching key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Titel aus dieser Playlist, jeweils innerhalb von 8 % des vorherigen Tempos, in einer passenden Tonart."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks from this playlist, each within 8% of the last one's tempo, in a matching key."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Pistas de esta lista, cada una a menos del 8 % del tempo de la anterior, en una tonalidad compatible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Des morceaux de cette playlist, chacun à moins de 8 % du tempo du précédent, dans une tonalité compatible."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "このプレイリストの曲を、前の曲のテンポから8%以内、相性の良いキーでつなげます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Faixas desta playlist, cada uma a até 8% do andamento da anterior, em um tom compatível."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "来自该播放列表的曲目，每首速度与上一首相差不超过 8%，调性相互匹配。"
+          }
+        }
+      }
+    },
     "Trade-offs" : {
       "comment" : "UI text shown in: Mix Explanations (Sources/Features/Mix/MixExplanationViews.swift)",
       "localizations" : {
@@ -49285,6 +49607,52 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "你选择了普通淡化"
+          }
+        }
+      }
+    },
+    "You don't have any playlists yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Du hast noch keine Playlists."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You don't have any playlists yet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Aún no tienes listas de reproducción."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Tu n’as pas encore de playlist."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "まだプレイリストがありません。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Você ainda não tem playlists."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "你还没有播放列表。"
           }
         }
       }

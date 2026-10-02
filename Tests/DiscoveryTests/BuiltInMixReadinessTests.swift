@@ -78,8 +78,8 @@ final class BuiltInMixReadinessTests: XCTestCase {
     /// this uses 1,000 tracks (the solve is quadratic) with a broad bound.
     func testLargeBundledLibraryPlansQuickly() {
         let candidates = BuiltInMoodIndexProvider.tracks.enumerated().compactMap { index, track -> MixCandidate? in
-            guard track.hasMusicalAnalysis, let data = Data(base64Encoded: track.quantizedVectorBase64) else { return nil }
-            let embedding = data.map { Float(Int8(bitPattern: $0)) * Float(track.scale) }
+            guard track.hasMusicalAnalysis else { return nil }
+            let embedding = track.quantizedVector.map { Float(Int8(bitPattern: $0)) * Float(track.scale) }
             return MixCandidate(trackID: Int64(index), bpm: track.bpm, camelot: track.key, energy: track.energy,
                                 artist: track.artist, duration: track.durationSec, embedding: embedding)
         }

@@ -6,10 +6,20 @@ extension LibraryStore {
     /// preview and the playback executor. A missing or stale payload is nil;
     /// callers must show the preparation state instead of inventing values.
     public func transitionPrepPayload(trackId: Int64) throws -> DJTrackPrepPayload? {
-        guard trackId >= 0,
-              let row = try dbQueue.read({ db in try DJTrackPrep.fetchOne(db, key: trackId) }),
-              let data = row.analysisPayload else { return nil }
-        return try DJTrackPrepPayload.decoded(data)
+        guard trackId >= 0 else { return nil }
+        if let row = try dbQueue.read({ db in try DJTrackPrep.fetchOne(db, key: trackId) }),
+           let data = row.analysisPayload {
+            return try DJTrackPrepPayload.decoded(data)
+        }
+        // A Mood Starter track's prep ships in the bundled starter DB and is read in place.
+        return try starterTransitionPrep(trackId: trackId, starter: starterLibrary)
+    }
+
+    /// Whether a current transition-prep payload exists — prepared on device or shipped.
+    public func hasCurrentTransitionPrep(trackId: Int64) throws -> Bool {
+        guard let payload = try transitionPrepPayload(trackId: trackId) else { return false }
+        return payload.algorithmID == DJTrackPrepPayload.currentAlgorithmID
+            && payload.version == DJTrackPrepPayload.currentVersion
     }
 
     /// Reads the authoritative discovery embedding in planner-friendly form.
@@ -159,33 +169,6 @@ extension LibraryStore {
             row.analysisPayloadVersion = meta.version; row.sourceSampleRate = meta.sampleRate
             row.sourceFrameCount = meta.frameCount; row.bpm = meta.bpm; row.camelotKey = meta.key
             row.analysisUpdatedAt = date; try row.save(db)
-        }
-    }
-
-    /// Seeds shipped transition-prep payloads (the Mood Starter pack) in one transaction, exactly as
-    /// `saveDJAnalysis` would store an on-device preparation. Tracks that already hold a current
-    /// analysis are left alone. Returns how many were written.
-    @discardableResult
-    public func seedTransitionPrep(_ items: [(trackId: Int64, payload: DJTrackPrepPayload)],
-                                   at date: Date = Date()) throws -> Int {
-        try dbQueue.write { db in
-            var written = 0
-            for item in items where item.trackId >= 0 {
-                var row = try DJTrackPrep.fetchOne(db, key: item.trackId) ?? DJTrackPrep(trackId: item.trackId)
-                if row.analysisPayload != nil, row.analysisAlgorithm == item.payload.algorithmID,
-                   row.analysisPayloadVersion == item.payload.version { continue }
-                row.analysisPayload = try item.payload.encoded()
-                row.analysisAlgorithm = item.payload.algorithmID
-                row.analysisPayloadVersion = item.payload.version
-                row.sourceSampleRate = item.payload.sampleRate
-                row.sourceFrameCount = item.payload.sourceFrameCount
-                row.bpm = item.payload.bpm
-                row.camelotKey = item.payload.key.camelot
-                row.analysisUpdatedAt = date
-                try row.save(db)
-                written += 1
-            }
-            return written
         }
     }
 

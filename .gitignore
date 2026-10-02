@@ -114,3 +114,6 @@ Resources/Models/DemucsStems.mlpackage
 # Config/models.lock, and scripts/generate-project.sh writes the ODR tag for
 # whichever packages are actually here.
 Resources/Models/*.mlpackage
+
+# Starter DBs are build inputs fetched by scripts/fetch-starter.sh (Config/starter.lock), not committed.
+Resources/Audio/starter-*.sqlite

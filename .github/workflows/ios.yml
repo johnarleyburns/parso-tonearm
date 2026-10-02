@@ -42,6 +42,11 @@ jobs:
           key: spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
           restore-keys: spm-
 
+      - name: Fetch Mood Starter databases
+        # Tests read the bundled Mood Starter library (BuiltInMixReadinessTests and others); it
+        # is a build input pinned in Config/starter.lock, not committed.
+        run: make starter
+
       - name: Run Swift Package Tests
         run: |
           set -eo pipefail
@@ -171,6 +176,12 @@ jobs:
         # Jamendo key nearly shipped. A failed download or a checksum mismatch
         # fails the job.
         run: make models
+
+      - name: Fetch Mood Starter databases
+        if: env.HAS_TESTFLIGHT_SECRETS == 'true'
+        # The starter DB ships in the app (Config/starter.lock). Without it a fresh install would
+        # have no Mood Starter library and Build a Mix nothing to mix. Failures fail the job.
+        run: make starter
 
       - name: Generate Xcode project
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'

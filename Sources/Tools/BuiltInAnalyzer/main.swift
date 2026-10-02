@@ -1,4 +1,5 @@
 #if !os(watchOS)
+import CryptoKit
 import Foundation
 import ParsoAudioAnalysis
 import TonearmCore
@@ -22,9 +23,9 @@ import TonearmDiscovery
 struct BuiltInAnalyzer {
     static func main() async {
         let args = CommandLine.arguments
-        if args.count >= 4, args[1] == "pack" {
-            pack(directory: URL(fileURLWithPath: args[2]), output: URL(fileURLWithPath: args[3]),
-                 full: args.contains("--full"))
+        if args.count >= 5, args[1] == "build-starter" {
+            buildStarter(source: URL(fileURLWithPath: args[2]), prepDirectory: URL(fileURLWithPath: args[3]),
+                         output: URL(fileURLWithPath: args[4]), full: args.contains("--full"))
             return
         }
         guard args.count >= 2 else {
@@ -216,42 +217,31 @@ struct BuiltInAnalyzer {
         FileHandle.standardOutput.write((line + "\n").data(using: .utf8)!)
     }
 
-    /// Downsamples to one bin per second: min of mins, max of maxes, RMS of RMS per band.
-    static func coarseWaveform(_ bins: [DJTrackPrepPayload.WaveformBin], duration: Double) -> [DJTrackPrepPayload.WaveformBin] {
-        let target = max(1, Int(duration.rounded(.up)))
-        guard bins.count > target else { return bins }
-        return (0..<target).map { index in
-            let lower = index * bins.count / target
-            let upper = max(lower + 1, (index + 1) * bins.count / target)
-            let slice = bins[lower..<min(upper, bins.count)]
-            func rms(_ values: [Float]) -> Float {
-                (values.reduce(0) { $0 + $1 * $1 } / Float(max(1, values.count))).squareRoot()
-            }
-            let bandCount = slice.map(\.bandRMS.count).max() ?? 0
-            return .init(min: slice.map(\.min).min() ?? 0, max: slice.map(\.max).max() ?? 0,
-                         rms: rms(slice.map(\.rms)),
-                         bandRMS: (0..<bandCount).map { band in rms(slice.map { $0.bandRMS.indices.contains(band) ? $0.bandRMS[band] : 0 }) })
-        }
-    }
-
-    /// `BuiltInAnalyzer pack <payload-dir> <out.bin> [--full]`: the per-track payloads from a
-    /// BUILTIN_ANALYZER_PREP run → the shipped pack (compact waveform for iPhone, full for Mac).
-    static func pack(directory: URL, output: URL, full: Bool) {
-        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        var entries: [(id: String, payload: DJTrackPrepPayload)] = []
-        for file in files.filter({ $0.pathExtension == "plz" }).sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            guard let data = try? Data(contentsOf: file), let payload = try? DJTrackPrepPayload.decoded(data) else {
-                say("skip \(file.lastPathComponent): unreadable")
-                continue
-            }
-            entries.append((file.deletingPathExtension().lastPathComponent, payload))
-        }
+    static func buildStarter(source: URL, prepDirectory: URL, output: URL, full: Bool) {
         do {
-            let packed = try BuiltInTransitionPrepPack.encode(entries, coarseWaveform: !full)
-            try packed.write(to: output, options: .atomic)
-            say("packed \(entries.count) tracks → \(output.path) (\(packed.count / 1024) KB, \(full ? "full" : "compact") waveform)")
+            let sourceData = try Data(contentsOf: source)
+            let tracks = try JSONDecoder().decode([BuiltInMoodTrack].self, from: sourceData)
+            var prep: [String: DJTrackPrepPayload] = [:]
+            for track in tracks {
+                let file = prepDirectory.appendingPathComponent("\(track.id).plz")
+                guard let data = try? Data(contentsOf: file),
+                      let payload = try? DJTrackPrepPayload.decoded(data) else { continue }
+                prep[track.id] = payload
+            }
+            var hasher = SHA256()
+            hasher.update(data: sourceData)
+            for id in prep.keys.sorted() { hasher.update(data: Data(id.utf8)) }
+            hasher.update(data: Data((full ? "full" : "compact").utf8))
+            let contentVersion = hasher.finalize().prefix(8).map { String(format: "%02x", $0) }.joined()
+            try StarterLibraryWriter.create(
+                at: output, tracks: tracks, prep: prep, fullWaveform: full,
+                meta: ["content_version": contentVersion, "track_count": String(tracks.count),
+                       "prep_count": String(prep.count), "prep_algorithm": DJTrackPrepPayload.currentAlgorithmID,
+                       "built_at": ISO8601DateFormatter().string(from: Date())])
+            let size = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            say("starter DB → \(output.path): \(tracks.count) tracks, \(prep.count) with transition prep, \(size / 1_048_576) MB (\(full ? "full" : "compact") waveform), content \(contentVersion)")
         } catch {
-            say("pack failed: \(error)")
+            say("build-starter failed: \(error)")
         }
     }
 

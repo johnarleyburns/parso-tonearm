@@ -43,6 +43,17 @@ struct MixBuilderSheet: View {
     /// the last 10 mixes, else the library). Other entry points mix the tracks they were given.
     let picksSource: Bool
     @State private var source: MixSource = .given
+    /// Build a Mix from Listen: what to mix from. Genre (default; "Surprise me" picks one), one of
+    /// your playlists, or all tracks.
+    enum SourceChoice: String, CaseIterable, Identifiable {
+        case genre, playlist, allTracks
+        var id: String { rawValue }
+    }
+    @State private var sourceChoice: SourceChoice = .genre
+    /// nil = Surprise me (a random genre that can fill the session, else an unused playlist, else
+    /// the library).
+    @State private var chosenGenre: String?
+    @State private var chosenPlaylistID: Int64?
     @State private var shape: MixShape = .risingBPM
     /// A mix is a listening session, not the whole library: 15, 30 or 60 minutes.
     @State private var duration: TimeInterval = 30 * 60
@@ -84,11 +95,45 @@ struct MixBuilderSheet: View {
                     }
                 }
                 Section("Source") {
-                    LabeledContent("Tracks", value: "\(rows.count)")
-                        .accessibilityIdentifier("mix.builder.trackCount")
-                    (picksSource
-                     ? Text("Platterhead picks one genre at random — or a playlist you haven't mixed lately — and chains tracks that each stay within 8% of the last one's tempo, in a matching key.")
-                     : Text("Each track stays within 8% of the last one's tempo, in a matching key."))
+                    if picksSource {
+                        Picker("From", selection: $sourceChoice) {
+                            Text("Genre").tag(SourceChoice.genre)
+                            Text("Playlist").tag(SourceChoice.playlist)
+                            Text("All tracks").tag(SourceChoice.allTracks)
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("mix.builder.sourceChoice")
+                        switch sourceChoice {
+                        case .genre:
+                            Picker("Genre", selection: $chosenGenre) {
+                                Text("Surprise me").tag(String?.none)
+                                ForEach(genreChoices, id: \.name) { choice in
+                                    Text("\(choice.name) · \(choice.count)").tag(String?.some(choice.name))
+                                }
+                            }
+                            .accessibilityIdentifier("mix.builder.genre")
+                        case .playlist:
+                            if mixablePlaylists.isEmpty {
+                                Text("You don't have any playlists yet.")
+                                    .font(Typography.caption)
+                                    .foregroundStyle(Palette.inkSecondary)
+                            } else {
+                                Picker("Playlist", selection: $chosenPlaylistID) {
+                                    ForEach(mixablePlaylists, id: \.id) { playlist in
+                                        Text(playlist.title).tag(playlist.id)
+                                    }
+                                }
+                                .accessibilityIdentifier("mix.builder.playlist")
+                            }
+                        case .allTracks:
+                            LabeledContent("Tracks", value: "\(rows.count)")
+                                .accessibilityIdentifier("mix.builder.trackCount")
+                        }
+                    } else {
+                        LabeledContent("Tracks", value: "\(rows.count)")
+                            .accessibilityIdentifier("mix.builder.trackCount")
+                    }
+                    sourceExplanation
                         .font(Typography.caption)
                         .foregroundStyle(Palette.inkSecondary)
                 }
@@ -134,6 +179,45 @@ struct MixBuilderSheet: View {
         .presentationDetents([.medium, .large], selection: $detent)
     }
 
+    private var genreByTrack: [Int64: String] {
+        Dictionary(rows.compactMap { row in
+            row.track.id.map { ($0, row.track.genre?.trimmingCharacters(in: .whitespaces) ?? "") }
+        }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Genres with tracks that can be mixed (analysed tempo and key), most first.
+    private var genreChoices: [(name: String, count: Int)] {
+        let genres = genreByTrack
+        var counts: [String: Int] = [:]
+        for candidate in candidates where (candidate.bpm ?? 0) > 0 && MixCompatibility.isCamelot(candidate.camelot ?? "") {
+            if let genre = genres[candidate.trackID], !genre.isEmpty { counts[genre, default: 0] += 1 }
+        }
+        return counts.map { ($0.key, $0.value) }
+            .sorted { $0.count == $1.count ? $0.name < $1.name : $0.count > $1.count }
+    }
+
+    private var mixablePlaylists: [Playlist] {
+        appState.playlists.filter { $0.id != nil }
+    }
+
+    @ViewBuilder
+    private var sourceExplanation: some View {
+        if !picksSource {
+            Text("Each track stays within 8% of the last one's tempo, in a matching key.")
+        } else {
+            switch sourceChoice {
+            case .genre where chosenGenre == nil:
+                Text("Platterhead picks one genre at random — or a playlist you haven't mixed lately — and chains tracks that each stay within 8% of the last one's tempo, in a matching key.")
+            case .genre:
+                Text("Tracks from this genre, each within 8% of the last one's tempo, in a matching key.")
+            case .playlist:
+                Text("Tracks from this playlist, each within 8% of the last one's tempo, in a matching key.")
+            case .allTracks:
+                Text("Starts from a random track in your library; each next track stays within 8% of the last one's tempo, in a matching key.")
+            }
+        }
+    }
+
     private func loadCandidates() async {
         let ids = rows.compactMap(\.track.id)
         let info = (try? await appState.store.djLoadTrackInfo(trackIds: ids)) ?? [:]
@@ -170,23 +254,47 @@ struct MixBuilderSheet: View {
             let seed = UInt64(Date().timeIntervalSince1970 * 1_000)
             let generated: MixPlan
             if picksSource {
-                let genres = Dictionary(rows.compactMap { row in row.track.id.map { ($0, row.track.genre ?? "") } },
-                                        uniquingKeysWith: { first, _ in first })
+                let genres = genreByTrack
                 let membership = (try? await appState.store.playlistTrackIDs()) ?? [:]
-                let playlists = appState.playlists.compactMap { playlist -> MixSourcePicker.Playlist? in
-                    guard let id = playlist.id else { return nil }
-                    return MixSourcePicker.Playlist(id: id, title: playlist.title, trackIDs: membership[id] ?? [])
+                let inputs = (candidates, shape, duration)
+                switch sourceChoice {
+                case .genre where chosenGenre == nil:
+                    let playlists = appState.playlists.compactMap { playlist -> MixSourcePicker.Playlist? in
+                        guard let id = playlist.id else { return nil }
+                        return MixSourcePicker.Playlist(id: id, title: playlist.title, trackIDs: membership[id] ?? [])
+                    }
+                    let recent = MixHistory.recentSources
+                    // The pick plans several pools; keep it off the main thread.
+                    let picked = await Task.detached(priority: .userInitiated) {
+                        MixSourcePicker.pick(candidates: inputs.0, genres: genres, playlists: playlists,
+                                             recentSources: recent, shape: inputs.1,
+                                             targetDuration: inputs.2, seed: seed)
+                    }.value
+                    source = picked.source
+                    generated = picked.plan
+                case .genre:
+                    let genre = chosenGenre ?? ""
+                    let pool = inputs.0.filter { genres[$0.trackID] == genre }
+                    generated = await Task.detached(priority: .userInitiated) {
+                        MixSourcePicker.plan(pool: pool, shape: inputs.1, targetDuration: inputs.2, seed: seed)
+                    }.value
+                    source = .genre(genre)
+                case .playlist:
+                    let playlist = mixablePlaylists.first { $0.id == chosenPlaylistID } ?? mixablePlaylists.first
+                    let ids = playlist.flatMap { $0.id }.map { membership[$0] ?? [] } ?? []
+                    let byID = Dictionary(inputs.0.map { ($0.trackID, $0) }, uniquingKeysWith: { first, _ in first })
+                    let pool = ids.compactMap { byID[$0] }
+                    generated = await Task.detached(priority: .userInitiated) {
+                        MixSourcePicker.plan(pool: pool, shape: inputs.1, targetDuration: inputs.2, seed: seed)
+                    }.value
+                    source = playlist.flatMap { p in p.id.map { MixSource.playlist(id: $0, title: p.title) } } ?? .given
+                case .allTracks:
+                    generated = await Task.detached(priority: .userInitiated) {
+                        MixSourcePicker.plan(pool: inputs.0, shape: inputs.1, targetDuration: inputs.2, seed: seed)
+                    }.value
+                    source = .library
                 }
-                let pickInputs = (candidates, shape, duration, MixHistory.recentSources)
-                // The pick plans several pools; keep it off the main thread.
-                let picked = await Task.detached(priority: .userInitiated) {
-                    MixSourcePicker.pick(candidates: pickInputs.0, genres: genres, playlists: playlists,
-                                         recentSources: pickInputs.3, shape: pickInputs.1,
-                                         targetDuration: pickInputs.2, seed: seed)
-                }.value
-                source = picked.source
-                generated = picked.plan
-                if !generated.steps.isEmpty { MixHistory.record(picked.source) }
+                if !generated.steps.isEmpty { MixHistory.record(source) }
             } else {
                 let request = MixRequest(candidates: candidates, shape: shape, targetDuration: duration,
                                          lockedFirst: lockedFirst, seed: seed, compatibility: .standard)

@@ -45,6 +45,12 @@ public actor LibraryStore {
     public static let shared = try! LibraryStore()
 
     public let dbQueue: DatabaseQueue
+    /// The bundled starter DB whose transition prep is read in place (replaceable in tests).
+    public private(set) var starterLibrary: StarterLibrary? = StarterLibrary.shared
+
+    public func useStarterLibrary(_ starter: StarterLibrary?) {
+        starterLibrary = starter
+    }
 
     public init(inMemory: Bool = false) throws {
         // Real incident: `Tests/PlaybackPositionLossTests.swift` inserted

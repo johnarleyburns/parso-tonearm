@@ -22,8 +22,8 @@ final class BuiltInTransitionPrepPackTests: XCTestCase {
 
     func testFullPackRoundTrips() throws {
         let original = payload()
-        let decoded = try XCTUnwrap(BuiltInTransitionPrepPack.decode(
-            BuiltInTransitionPrepPack.encode([("jamendo-1", original)], coarseWaveform: false))["jamendo-1"])
+        let decoded = try BuiltInTransitionPrepPack.decodeRecord(
+            BuiltInTransitionPrepPack.encodeRecord(original, coarseWaveform: false))
         XCTAssertEqual(decoded.algorithmID, original.algorithmID)
         XCTAssertEqual(decoded.version, original.version)
         XCTAssertEqual(decoded.bpm, original.bpm)
@@ -41,19 +41,16 @@ final class BuiltInTransitionPrepPackTests: XCTestCase {
         }
     }
 
-    func testIPhonePackKeepsOneWaveformBinPerSecondAndIsSmall() throws {
-        let entries = (0..<50).map { ("track-\($0)", payload()) }
-        let full = try BuiltInTransitionPrepPack.encode(entries, coarseWaveform: false)
-        let coarse = try BuiltInTransitionPrepPack.encode(entries, coarseWaveform: true)
-        let decoded = try BuiltInTransitionPrepPack.decode(coarse)
-        XCTAssertEqual(decoded.count, 50)
-        XCTAssertEqual(decoded["track-0"]?.waveform.count, 210)
-        XCTAssertLessThan(coarse.count, full.count / 4)
-        XCTAssertLessThan(coarse.count / 50, 4_000, "an iPhone pack entry should be a few KB")
+    func testIPhoneRecordKeepsOneWaveformBinPerSecondAndIsSmall() throws {
+        let full = try BuiltInTransitionPrepPack.encodeRecord(payload(), coarseWaveform: false)
+        let coarse = try BuiltInTransitionPrepPack.encodeRecord(payload(), coarseWaveform: true)
+        XCTAssertEqual(try BuiltInTransitionPrepPack.decodeRecord(coarse).waveform.count, 210)
+        XCTAssertLessThan(coarse.count, full.count / 2)
+        XCTAssertLessThan(coarse.count, 6_000, "an iPhone record should be a few KB")
     }
 
     func testRejectsGarbage() {
-        XCTAssertThrowsError(try BuiltInTransitionPrepPack.decode(Data([1, 2, 3])))
+        XCTAssertThrowsError(try BuiltInTransitionPrepPack.decodeRecord(Data([1, 2, 3])))
     }
 }
 

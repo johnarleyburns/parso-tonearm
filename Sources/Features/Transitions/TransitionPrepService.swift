@@ -117,9 +117,8 @@ final class TransitionPrepService: ObservableObject {
                 return
             }
         }
-        if let cached = try? await appState.store.djTrackPrep(trackId: id),
-            cached.analysisAlgorithm == DJTrackPrepPayload.currentAlgorithmID,
-           cached.analysisPayloadVersion == DJTrackPrepPayload.currentVersion {
+        // Prepared on this device, or shipped in the starter DB (Mood Starter tracks).
+        if (try? await appState.store.hasCurrentTransitionPrep(trackId: id)) == true {
             preparedTrackIDs.insert(id)
             setState(.ready, for: id)
             return

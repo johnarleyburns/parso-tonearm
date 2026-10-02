@@ -4,291 +4,43 @@ import TonearmCore
 import TonearmDiscovery
 
 extension AppState {
-    /// Seeds the bundled Jamendo/archive.org mood-starter tracks
-    /// (docs/plans/builtin-mood-starter-index-plan.md expansion): real
-    /// track/album/source/asset rows for each `BuiltInMoodTrack`, PLUS a
-    /// completed `discovery_embedding` row seeded directly from its bundled
-    /// precomputed vector — bypassing on-device CLAP inference entirely for
-    /// these tracks. A matching `.complete` `discovery_index_job` row is
-    /// seeded too, at the current pipeline version, so
-    /// `DiscoveryReconciler.bootstrapAllTracks()` (which only creates a job
-    /// for a track that doesn't already have one at the current pipeline
-    /// version — see `pageOfTracksNeedingJobs`) never queues live remote
-    /// indexing for them. Each track's asset is `.remote` with the real
-    /// Jamendo/archive.org stream URL, so playback works normally and
-    /// on-device network use only ever happens when the user actually
-    /// presses play — never in the background (CLAUDE.md "no silent/magic
-    /// background work").
+    /// Merges the bundled Mood Starter library (the starter DB, `StarterLibrary`) into the library:
+    /// real source/album/artist/track/asset rows for each Jamendo/archive.org track, plus its
+    /// precomputed CLAP embedding, a completed index job and its tempo/key/energy — so the
+    /// reconciler never queues live remote indexing for these tracks, and Build a Mix can place
+    /// them on a fresh install. Assets are `.remote` with the real stream URL: network use only
+    /// happens when the user presses play (CLAUDE.md "no silent/magic background work"). Each
+    /// track's transition prep stays in the starter DB and is read on demand.
     ///
-    /// Idempotent — checks for the "Mood Starter" source first, same
-    /// pattern as `seedBuiltInLibraryContentIfNeeded()`.
+    /// One transaction; runs again only when the starter DB's content version changes, and then
+    /// only adds what is missing (new tracks, analysis, artwork) — existing rows are never
+    /// duplicated.
     func seedBuiltInMoodIndexIfNeeded() async {
-        if let existing = try? await store.firstSource(title: Self.moodIndexSourceTitle, kind: .local),
-           let sourceId = existing.id {
-            await backfillMoodIndexArtworkIfNeeded()
-            await backfillNewMoodIndexTracksIfNeeded(sourceId: sourceId)
-            await backfillMoodIndexAnalysisIfNeeded(sourceId: sourceId)
-            await seedMoodIndexTransitionPrepIfNeeded(sourceId: sourceId)
-            return
-        }
-        let bundled = BuiltInMoodIndexProvider.tracks
-        guard !bundled.isEmpty else { return }
+        guard let starter = StarterLibrary.shared else { return }
+        let key = "builtin.starterLibrary.mergedVersion"
+        let alreadyMerged = UserDefaults.standard.string(forKey: key) == starter.contentVersion
+        let sourcePresent = (try? await store.firstSource(title: Self.moodIndexSourceTitle, kind: .local)) != nil
+        guard !(alreadyMerged && sourcePresent) else { return }
         do {
-            let source = try await store.insertSource(Source(
-                id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
-                title: Self.moodIndexSourceTitle, addedAt: Date(), lastResolvedAt: nil,
-                followUpdates: false, licenseText: "Creative Commons — attribution kept",
-                memberCapHit: false))
-            guard let sourceId = source.id else { return }
-
-            var albumsByGenre: [String: Int64] = [:]
-            let now = Date()
-
-            for entry in bundled {
-                let albumId: Int64
-                if let existing = albumsByGenre[entry.genre] {
-                    albumId = existing
-                } else {
-                    let album = try await store.insertAlbum(Album(
-                        id: nil, sourceId: sourceId, title: entry.genre,
-                        artist: nil, year: nil, artworkId: nil))
-                    guard let newId = album.id else { continue }
-                    albumsByGenre[entry.genre] = newId
-                    albumId = newId
-                }
-                let artist = try await store.findOrCreateArtist(
-                    name: entry.artist, sortName: entry.artist.lowercased())
-
-                let track = try await store.insertTrack(Track(
-                    id: nil, albumId: albumId, sourceId: sourceId,
-                    title: entry.title, trackNo: nil, discNo: nil,
-                    durationSec: entry.durationSec, codec: "MP3", sampleRate: nil,
-                    bitDepthOrBitrate: nil, sortKey: entry.title.lowercased(),
-                    genre: entry.genre, composer: nil, artistId: artist.id))
-                guard let trackId = track.id else { continue }
-
-                let asset = try await store.insertAsset(Asset(
-                    id: nil, trackId: trackId, kind: .remote, bookmark: nil,
-                    relPath: nil, remoteURL: entry.streamURL, altRemoteURL: nil,
-                    sizeBytes: nil, unsupportedReason: nil,
-                    persistedArtworkURL: entry.artworkURL))
-                guard let assetId = asset.id else { continue }
-
-                guard let vectorData = Data(base64Encoded: entry.quantizedVectorBase64) else { continue }
-                try await store.seedBuiltInEmbedding(
-                    trackId: trackId, assetId: assetId,
-                    pipelineVersion: DiscoveryPipelineVersion.pipeline,
-                    modelVersion: DiscoveryPipelineVersion.model,
-                    preprocessingVersion: DiscoveryPipelineVersion.preprocessing,
-                    samplingVersion: DiscoveryPipelineVersion.sampling,
-                    dimensions: entry.dimensions, quantizedVector: vectorData,
-                    scale: entry.scale, completedAt: now)
-                try await seedMusicalAnalysis(entry, trackId: trackId, assetId: assetId, at: now)
+            let tracks = try await Task.detached(priority: .utility) { try starter.tracks() }.value
+            guard !tracks.isEmpty else { return }
+            let result = try await store.mergeStarterLibrary(
+                tracks, sourceTitle: Self.moodIndexSourceTitle,
+                licenseText: "Creative Commons — attribution kept",
+                versions: StarterMergeVersions(
+                    pipeline: DiscoveryPipelineVersion.pipeline, model: DiscoveryPipelineVersion.model,
+                    preprocessing: DiscoveryPipelineVersion.preprocessing,
+                    sampling: DiscoveryPipelineVersion.sampling,
+                    musicalAnalysis: DiscoveryPipelineVersion.musicalAnalysis))
+            UserDefaults.standard.set(starter.contentVersion, forKey: key)
+            AppLogger.app.info("Mood Starter merged: \(result.tracksAdded, privacy: .public) tracks, \(result.analysesAdded, privacy: .public) analyses, \(result.artworkFilled, privacy: .public) artwork")
+            if result.tracksAdded > 0 || result.analysesAdded > 0 || result.artworkFilled > 0 {
+                await reload()
             }
-            await seedMoodIndexTransitionPrepIfNeeded(sourceId: sourceId)
-            await reload()
         } catch {
-            AppLogger.app.error("Seeding built-in mood index failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.app.error("Merging the Mood Starter library failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     private static let moodIndexSourceTitle = "Mood Starter"
-
-    /// Build a Mix places only tracks with BPM + Camelot key. The bundle carries both for the
-    /// Mood Starter tracks (BuiltInAnalyzer), so a fresh install can mix straight away.
-    private func seedMusicalAnalysis(_ entry: BuiltInMoodTrack, trackId: Int64, assetId: Int64,
-                                     at date: Date) async throws {
-        guard entry.hasMusicalAnalysis else { return }
-        try await store.seedBuiltInMusicalAnalysis(
-            trackId: trackId, assetId: assetId,
-            analysisVersion: DiscoveryPipelineVersion.musicalAnalysis,
-            bpm: entry.bpm, key: entry.key, energy: entry.energy,
-            scopeSeconds: entry.analysisScopeSeconds ?? min(60, entry.durationSec),
-            completedAt: date)
-    }
-
-    /// Installs the shipped transition-prep pack for the Mood Starter tracks, so a mix of them has
-    /// its transitions ready on install instead of "Preparing…" (download + full decode per track
-    /// on the phone). Runs once per pack: the pack's size is remembered after a successful import.
-    private func seedMoodIndexTransitionPrepIfNeeded(sourceId: Int64) async {
-        guard let url = BuiltInMoodIndexProvider.transitionPrepPackURL,
-              let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize else { return }
-        let stamp = "\(DJTrackPrepPayload.currentAlgorithmID)-\(size)"
-        let key = "builtin.transitionPrepPack"
-        guard UserDefaults.standard.string(forKey: key) != stamp else { return }
-        do {
-            let packed = try Data(contentsOf: url, options: .mappedIfSafe)
-            let payloads = try await Task.detached(priority: .utility) {
-                try BuiltInTransitionPrepPack.decode(packed)
-            }.value
-            let urlByID = Dictionary(BuiltInMoodIndexProvider.tracks.map { ($0.id, $0.streamURL) },
-                                     uniquingKeysWith: { first, _ in first })
-            let trackByURL: [String: Int64] = try await store.dbQueue.read { db in
-                var map: [String: Int64] = [:]
-                for row in try Row.fetchAll(db, sql: """
-                    SELECT asset.remoteURL AS url, asset.trackId AS trackId FROM asset
-                    JOIN track ON track.id = asset.trackId
-                    WHERE track.sourceId = ? AND asset.remoteURL IS NOT NULL
-                    """, arguments: [sourceId]) {
-                    if let url: String = row["url"], let id: Int64 = row["trackId"] { map[url] = id }
-                }
-                return map
-            }
-            let items = payloads.compactMap { entry -> (trackId: Int64, payload: DJTrackPrepPayload)? in
-                guard let url = urlByID[entry.key], let trackId = trackByURL[url] else { return nil }
-                return (trackId, entry.value)
-            }
-            try await store.seedTransitionPrep(items)
-            UserDefaults.standard.set(stamp, forKey: key)
-        } catch {
-            AppLogger.app.error("Seeding Mood Starter transition prep failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// A device that seeded the Mood Starter before the bundle carried tempo and key has those
-    /// tracks with no musical analysis, so Build a Mix can't place them. Fill in what the bundle
-    /// now has — matched by stream URL, only for tracks still missing analysis. One read, and a
-    /// no-op once done.
-    private func backfillMoodIndexAnalysisIfNeeded(sourceId: Int64) async {
-        let byURL = Dictionary(BuiltInMoodIndexProvider.tracks.filter(\.hasMusicalAnalysis)
-            .map { ($0.streamURL, $0) }, uniquingKeysWith: { first, _ in first })
-        guard !byURL.isEmpty else { return }
-        do {
-            let missing: [(trackId: Int64, assetId: Int64, url: String)] = try await store.dbQueue.read { db in
-                try Row.fetchAll(db, sql: """
-                    SELECT track.id AS trackId, asset.id AS assetId, asset.remoteURL AS url
-                    FROM track JOIN asset ON asset.trackId = track.id
-                    LEFT JOIN discovery_track_analysis analysis ON analysis.trackId = track.id
-                    WHERE track.sourceId = ? AND asset.remoteURL IS NOT NULL AND analysis.trackId IS NULL
-                    """, arguments: [sourceId]).compactMap { row in
-                    guard let trackId: Int64 = row["trackId"], let assetId: Int64 = row["assetId"],
-                          let url: String = row["url"] else { return nil }
-                    return (trackId, assetId, url)
-                }
-            }
-            let now = Date()
-            for item in missing {
-                guard let entry = byURL[item.url] else { continue }
-                try await seedMusicalAnalysis(entry, trackId: item.trackId, assetId: item.assetId, at: now)
-            }
-        } catch {
-            AppLogger.app.error("Backfilling mood analysis failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// One-time backfill for a device that already seeded the mood-starter
-    /// index before this bundle carried `artworkURL` — real report: "none
-    /// of the Jamendo artwork is loading." Seeding itself is idempotent
-    /// (checks the source exists first), so those rows would otherwise stay
-    /// stuck at `persistedArtworkURL == nil` forever on an already-seeded
-    /// device. Matches each bundled entry to its real asset by the stream
-    /// URL (the one value both sides share) rather than by title/artist,
-    /// which aren't guaranteed unique. Cheap and safe to run every launch —
-    /// a single indexed lookup per bundled entry with an artwork URL, and a
-    /// no-op once every row already has one.
-    private func backfillMoodIndexArtworkIfNeeded() async {
-        let bundled = BuiltInMoodIndexProvider.tracks
-        guard !bundled.isEmpty else { return }
-        do {
-            try await store.dbQueue.write { db in
-                for entry in bundled {
-                    guard let artworkURL = entry.artworkURL else { continue }
-                    try db.execute(
-                        sql: """
-                            UPDATE asset SET persistedArtworkURL = ?
-                            WHERE remoteURL = ? AND persistedArtworkURL IS NULL
-                            """,
-                        arguments: [artworkURL, entry.streamURL])
-                }
-            }
-        } catch {
-            AppLogger.app.error("Backfilling mood artwork failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// One-time backfill for a device that already seeded the mood-starter
-    /// index before the bundled taxonomy was rebuilt/expanded (the 155-tag
-    /// Jamendo genre taxonomy, shared with the onboarding picker) — without
-    /// this, a device that seeded the OLD, smaller bundle would stay stuck
-    /// at its original track count forever, since `seedBuiltInMoodIndexIfNeeded`
-    /// only runs its full insert path when the "Mood Starter" source doesn't
-    /// exist yet at all. Matches by `remoteURL` (same strategy as the
-    /// artwork backfill above) so already-present tracks are never
-    /// duplicated — only bundled entries with no matching asset get
-    /// inserted. Cheap and safe to run every launch: one indexed read per
-    /// call, a no-op once every bundled entry already has a row.
-    private func backfillNewMoodIndexTracksIfNeeded(sourceId: Int64) async {
-        let bundled = BuiltInMoodIndexProvider.tracks
-        guard !bundled.isEmpty else { return }
-        do {
-            let existingRemoteURLs: Set<String> = try await store.dbQueue.read { db in
-                let rows = try Row.fetchAll(db, sql: """
-                    SELECT asset.remoteURL FROM asset
-                    JOIN track ON track.id = asset.trackId
-                    WHERE track.sourceId = ? AND asset.remoteURL IS NOT NULL
-                    """, arguments: [sourceId])
-                return Set(rows.compactMap { $0["remoteURL"] as String? })
-            }
-            let missing = bundled.filter { !existingRemoteURLs.contains($0.streamURL) }
-            guard !missing.isEmpty else { return }
-
-            var albumsByGenre: [String: Int64] = try await store.dbQueue.read { db in
-                let rows = try Row.fetchAll(
-                    db, sql: "SELECT id, title FROM album WHERE sourceId = ?", arguments: [sourceId])
-                var map: [String: Int64] = [:]
-                for row in rows {
-                    if let title: String = row["title"], let id: Int64 = row["id"] {
-                        map[title] = id
-                    }
-                }
-                return map
-            }
-            let now = Date()
-
-            for entry in missing {
-                let albumId: Int64
-                if let existing = albumsByGenre[entry.genre] {
-                    albumId = existing
-                } else {
-                    let album = try await store.insertAlbum(Album(
-                        id: nil, sourceId: sourceId, title: entry.genre,
-                        artist: nil, year: nil, artworkId: nil))
-                    guard let newId = album.id else { continue }
-                    albumsByGenre[entry.genre] = newId
-                    albumId = newId
-                }
-                let artist = try await store.findOrCreateArtist(
-                    name: entry.artist, sortName: entry.artist.lowercased())
-
-                let track = try await store.insertTrack(Track(
-                    id: nil, albumId: albumId, sourceId: sourceId,
-                    title: entry.title, trackNo: nil, discNo: nil,
-                    durationSec: entry.durationSec, codec: "MP3", sampleRate: nil,
-                    bitDepthOrBitrate: nil, sortKey: entry.title.lowercased(),
-                    genre: entry.genre, composer: nil, artistId: artist.id))
-                guard let trackId = track.id else { continue }
-
-                let asset = try await store.insertAsset(Asset(
-                    id: nil, trackId: trackId, kind: .remote, bookmark: nil,
-                    relPath: nil, remoteURL: entry.streamURL, altRemoteURL: nil,
-                    sizeBytes: nil, unsupportedReason: nil,
-                    persistedArtworkURL: entry.artworkURL))
-                guard let assetId = asset.id else { continue }
-
-                guard let vectorData = Data(base64Encoded: entry.quantizedVectorBase64) else { continue }
-                try await store.seedBuiltInEmbedding(
-                    trackId: trackId, assetId: assetId,
-                    pipelineVersion: DiscoveryPipelineVersion.pipeline,
-                    modelVersion: DiscoveryPipelineVersion.model,
-                    preprocessingVersion: DiscoveryPipelineVersion.preprocessing,
-                    samplingVersion: DiscoveryPipelineVersion.sampling,
-                    dimensions: entry.dimensions, quantizedVector: vectorData,
-                    scale: entry.scale, completedAt: now)
-                try await seedMusicalAnalysis(entry, trackId: trackId, assetId: assetId, at: now)
-            }
-            await reload()
-        } catch {
-            AppLogger.app.error("Backfilling new mood tracks failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
 }

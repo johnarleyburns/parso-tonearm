@@ -106,6 +106,31 @@ public enum MixSourcePicker {
         return (.library, plan(analysed))
     }
 
+    /// A mix from a pool the listener chose (one genre, one playlist, or all tracks): under the
+    /// mixing rules, the first of a few starting points that fills the session, else the longest.
+    public static func plan(pool candidates: [MixCandidate], shape: MixShape, targetDuration: TimeInterval,
+                            seed: UInt64, compatibility: MixCompatibility = .standard) -> MixPlan {
+        var seen = Set<Int64>()
+        let pool = candidates.filter { candidate in
+            (candidate.bpm ?? 0) > 0 && MixCompatibility.isCamelot(candidate.camelot ?? "")
+                && seen.insert(candidate.trackID).inserted
+        }
+        let durations = Dictionary(pool.map { ($0.trackID, $0.duration) }, uniquingKeysWith: { first, _ in first })
+        func length(_ plan: MixPlan) -> TimeInterval {
+            plan.steps.reduce(0) { $0 + max(0, durations[$1.trackID] ?? 0) }
+        }
+        var best: MixPlan?
+        for attempt in 0..<startsPerSource {
+            let candidatePlan = MixPlanner.plan(MixRequest(
+                candidates: pool, shape: shape, targetDuration: targetDuration,
+                seed: seed &+ attempt &* 0x5851_F42D_4C95_7F2D, compatibility: compatibility))
+            if length(candidatePlan) >= targetDuration * acceptedFraction { return candidatePlan }
+            if best.map({ length(candidatePlan) > length($0) }) ?? true { best = candidatePlan }
+        }
+        return best ?? MixPlanner.plan(MixRequest(candidates: pool, shape: shape, targetDuration: targetDuration,
+                                                  seed: seed, compatibility: compatibility))
+    }
+
     /// Stable seeded order (FNV-1a over the key, mixed with the seed).
     static func hash(_ key: String, _ seed: UInt64) -> UInt64 {
         var value: UInt64 = 0xcbf2_9ce4_8422_2325 ^ (seed &* 0x9E37_79B9_7F4A_7C15)

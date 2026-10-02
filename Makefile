@@ -1,4 +1,4 @@
-.PHONY: ci-guards models project test-local test-swift test-ui test-integration test-ui-regression
+.PHONY: ci-guards models starter project test-local test-swift test-ui test-integration test-ui-regression
 
 # The structural guards CI runs before it spends a test job on you: the Swift 6
 # contract, the StoreKit import boundary, and the codename leak. Under a second.
@@ -12,6 +12,11 @@ ci-guards:
 # replaces it).
 models:
 	scripts/fetch-models.sh
+
+# Fetch the Mood Starter databases pinned in Config/starter.lock into Resources/Audio/
+# (StarterLibrary). Build them with `swift run -c release BuiltInAnalyzer build-starter …`.
+starter:
+	scripts/fetch-starter.sh
 
 # Regenerate Tonearm.xcodeproj. USE THIS RATHER THAN BARE `xcodegen generate`:
 # it first writes Config/models-odr.yml from which converted model packages are

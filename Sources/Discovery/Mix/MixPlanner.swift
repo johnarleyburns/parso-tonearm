@@ -254,9 +254,13 @@ public struct MixPlanner: Sendable {
         var orderedIndices: [Int] = []
         var total: TimeInterval = 0
 
+        // A random first track — among those that fit the session (a 27-minute piece can't open a
+        // 15-minute mix), unless nothing does.
+        let fitting = pool.indices.filter { goal == nil || pool[$0].duration <= goal! }
+        let firstPool = fitting.isEmpty ? Array(pool.indices) : fitting
         let first = request.lockedFirst.flatMap { indexByID[$0] }
             ?? lockedByPosition[0].flatMap { indexByID[$0] }
-            ?? pool.indices.min { tieBreaks[$0] == tieBreaks[$1] ? pool[$0].trackID < pool[$1].trackID : tieBreaks[$0] < tieBreaks[$1] }!
+            ?? firstPool.min { tieBreaks[$0] == tieBreaks[$1] ? pool[$0].trackID < pool[$1].trackID : tieBreaks[$0] < tieBreaks[$1] }!
         orderedIndices.append(first)
         used[first] = true
         total += max(0, pool[first].duration)
