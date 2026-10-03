@@ -44,6 +44,6 @@ final class CrossfadePrepareTests: XCTestCase {
 
     func testPrerollOnlyRunsForAReadyPlayer() {
         let unloaded = AVPlayer(playerItem: AVPlayerItem(url: URL(string: "https://example.invalid/a.mp3")!))
-        XCTAssertFalse(AudioPlayer.prerollIfReady(unloaded, rate: 1))
+        XCTAssertFalse(TransitionPlayerControl.preroll(unloaded, rate: 1))
     }
 }

@@ -100,6 +100,8 @@ targets:
           # `swift run` from Package.swift's executableTarget — never part of
           # the app target (its own top-level @main conflicts with the app's).
           - "Tools/**"
+          # Package-only Objective-C target (TonearmObjCSupport), linked through TonearmCore.
+          - "ObjCSupport/**"
           - "WatchPlayback/**"
           - "WatchProtocol/**"
           - "WatchCore/**"
@@ -240,6 +242,8 @@ targets:
           - "Snapshot/**"
           - "Sync/**"
           - "Tools/**"
+          # Package-only Objective-C target (TonearmObjCSupport), linked through TonearmCore.
+          - "ObjCSupport/**"
           - "WatchPlayback/**"
           - "WatchProtocol/**"
           - "WatchCore/**"

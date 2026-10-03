@@ -52,16 +52,28 @@ extension AudioPlayer {
             return
         }
 
-        guard prepareCrossfadePlayer(for: next, at: nextIndex) else { return }
+        guard prepareCrossfadePlayer(for: next, at: nextIndex),
+              let incomingPlayer = crossfadePlayer else { return }
+        let startingNow = !transitionStartedForCurrentEdge
+        if startingNow {
+            guard TransitionPlayerControl.isReady(incomingPlayer),
+                  startScheduledTransition(fadeStart: plannedFadeStart,
+                                           entryTime: transitionPlan?.entryTime ?? 0) else {
+                // The incoming track hasn't loaded yet (usual for a stream). Starting it now is
+                // what crashed TestFlight 520/521; instead the outgoing track keeps playing at full
+                // level, the fade begins once the incoming one is ready, and if the outgoing track
+                // ends first the queue simply advances as it would without a crossfade.
+                player.volume = outputLevel
+                incomingPlayer.volume = 0
+                if position >= currentDuration { cancelCrossfade(resetVolume: true) }
+                return
+            }
+        }
         player.volume = Float(min(max(gains.outgoing, 0), 1)) * outputLevel
         let gainMatch = transitionPlan?.gainMatchDB.map { pow(10, $0 / 20) } ?? 1
-        crossfadePlayer?.volume = Float(min(max(gains.incoming * gainMatch, 0), 1.5)) * outputLevel
-        if !transitionStartedForCurrentEdge {
-            startScheduledTransition(fadeStart: plannedFadeStart,
-                                     entryTime: transitionPlan?.entryTime ?? 0)
-        } else if let plan = transitionPlan,
-                  plan.style == .beatmatchedBlend,
-                  let incoming = crossfadePlayer {
+        incomingPlayer.volume = Float(min(max(gains.incoming * gainMatch, 0), 1.5)) * outputLevel
+        if !startingNow, let plan = transitionPlan, plan.style == .beatmatchedBlend {
+            let incoming = incomingPlayer
             let expected = plan.entryTime + max(0, position - plan.exitTime) * plan.blendRate
             let actual = incoming.currentTime().seconds
             if actual.isFinite, expected.isFinite {
@@ -88,7 +100,7 @@ extension AudioPlayer {
            crossfadeNextIndex == nextIndex {
             // The incoming item usually finishes loading a few ticks after it was created.
             if !crossfadePrerolled, !transitionStartedForCurrentEdge {
-                crossfadePrerolled = AudioPlayer.prerollIfReady(existing, rate: crossfadeTargetRate)
+                crossfadePrerolled = TransitionPlayerControl.preroll(existing, rate: crossfadeTargetRate)
             }
             return true
         }
@@ -124,7 +136,7 @@ extension AudioPlayer {
         crossfadeNextIndex = nextIndex
         crossfadeNextLoader = built.loader
         nextPlayer.rate = 0
-        crossfadePrerolled = AudioPlayer.prerollIfReady(nextPlayer, rate: crossfadeTargetRate)
+        crossfadePrerolled = TransitionPlayerControl.preroll(nextPlayer, rate: crossfadeTargetRate)
         return true
     }
 
@@ -132,24 +144,15 @@ extension AudioPlayer {
         transitionPlan?.style == .beatmatchedBlend ? Float(transitionPlan?.blendRate ?? 1) : 1
     }
 
-    /// `AVPlayer.preroll(atRate:)` raises an Objective-C exception (an app abort, TestFlight 520)
-    /// unless the player is `.readyToPlay` and paused — and a freshly built remote item never is.
-    /// Prerolling is only an optimisation, so until then it's simply skipped and retried on the
-    /// next tick.
-    static func prerollIfReady(_ player: AVPlayer, rate: Float) -> Bool {
-        guard player.status == .readyToPlay, player.rate == 0 else { return false }
-        player.preroll(atRate: rate) { _ in }
-        return true
-    }
-
     /// Schedules the incoming item against the outgoing player's host clock.
     /// The audio-mix ramp is intentionally not used here: AVPlayer.volume is
     /// the sole gain ramp, avoiding the previous double-fade dip.
-    private func startScheduledTransition(fadeStart: Double, entryTime: Double) {
-        guard let incoming = crossfadePlayer else { return }
+    /// Returns false, leaving the incoming player untouched, when it can't be started yet.
+    private func startScheduledTransition(fadeStart: Double, entryTime: Double) -> Bool {
+        guard let incoming = crossfadePlayer, TransitionPlayerControl.isReady(incoming) else { return false }
         let plan = transitionPlan
-        transitionStartedForCurrentEdge = true
-        let targetRate = Float(plan?.style == .beatmatchedBlend ? (plan?.blendRate ?? 1) : 1)
+        let targetRate = crossfadeTargetRate
+        let scheduled: Bool
         if let timebase = player.currentItem?.timebase {
             let now = CMClockGetTime(CMClockGetHostTimeClock())
             let host = AudioPlayer.transitionHostTime(
@@ -157,21 +160,25 @@ extension AudioPlayer {
                 currentItemTime: player.currentTime(),
                 timebase: timebase,
                 hostTime: now)
-            incoming.setRate(targetRate,
-                             time: CMTime(seconds: entryTime, preferredTimescale: 600),
-                             atHostTime: host)
-        } else if targetRate == 1 {
-            incoming.play()
+            scheduled = TransitionPlayerControl.schedule(
+                incoming, rate: targetRate,
+                itemTime: CMTime(seconds: entryTime.isFinite ? max(0, entryTime) : 0, preferredTimescale: 600),
+                hostTime: host)
         } else {
-            incoming.playImmediately(atRate: targetRate)
+            scheduled = false
         }
+        // No usable clock, or the synchronized start refused: start it now instead (never raises).
+        if !scheduled {
+            if targetRate == 1 { incoming.play() } else { incoming.playImmediately(atRate: targetRate) }
+        }
+        transitionStartedForCurrentEdge = true
 
         transitionTask?.cancel()
         guard let plan, plan.style == .beatmatchedBlend,
               let beats = plan.rateRampBeats, beats > 0,
               let overlapBeats = plan.overlapBeats,
               plan.overlapSeconds > 0
-        else { return }
+        else { return true }
         let rampBPM = max(1, Double(overlapBeats) / plan.overlapSeconds * 60)
         let ramp = AudioPlayer.transitionRateRamp(start: plan.blendRate, end: 1,
                                                    beats: beats, bpm: rampBPM)
@@ -186,6 +193,7 @@ extension AudioPlayer {
                 previousOffset = point.offset
             }
         }
+        return true
     }
 
     func finishCrossfade(to nextIndex: Int, row: TrackRow) {

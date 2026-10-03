@@ -25,6 +25,7 @@ let package = Package(
         .target(
             name: "TonearmCore",
             dependencies: [
+                "TonearmObjCSupport",
                 "TonearmWatchProtocol",
                 "TonearmWatchCore",
                 .product(name: "GRDB", package: "GRDB.swift"),
@@ -59,6 +60,7 @@ let package = Package(
                 "Resources/InfoPlist.xcstrings",
                 "Resources/Localizable.xcstrings",
                 "Sources/CLAMEBridge",
+                "Sources/ObjCSupport",
                 "Sources/Tools",
                 "design",
                 "IMPLEMENT_CLAP_PLAN.md",
@@ -136,6 +138,11 @@ let package = Package(
                 // conversions are intentional for its SQLite ABI.
                 .unsafeFlags(["-Wno-shorten-64-to-32"])
             ]
+        ),
+        // Objective-C exception backstop for AVFoundation calls (TonearmCatchObjCException).
+        .target(
+            name: "TonearmObjCSupport",
+            path: "Sources/ObjCSupport"
         ),
         .target(
             name: "CLAMEBridge",
