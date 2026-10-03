@@ -173,6 +173,8 @@ public final class AudioPlayer: ObservableObject {
     var crossfadePlayer: AVPlayer?
     var crossfadeNextTrackId: Int64?
     var crossfadeNextIndex: Int?
+    /// Whether the incoming player has been prerolled (only possible once it is ready to play).
+    var crossfadePrerolled = false
     var crossfadeNextLoader: CachingResourceLoader?
     var crossfadeCompletionInFlight = false
     var transitionStartedForCurrentEdge = false

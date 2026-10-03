@@ -173,7 +173,11 @@ struct MixBuilderSheet: View {
             }
             .task { await loadCandidates() }
             .navigationDestination(isPresented: $showingPreview) {
-                if let plan { MixPreviewView(plan: plan, rows: rows, sourcePlaylist: sourcePlaylist, source: source) }
+                if let plan {
+                    // Playing closes Build a Mix so the mix is in the player, not behind a sheet.
+                    MixPreviewView(plan: plan, rows: rows, sourcePlaylist: sourcePlaylist, source: source,
+                                   onPlay: { dismiss() })
+                }
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
@@ -349,8 +353,11 @@ struct MixPreviewView: View {
     @EnvironmentObject private var prep: TransitionPrepService
 
     let source: MixSource
+    private let onPlay: (() -> Void)?
 
-    init(plan: MixPlan, rows: [TrackRow], sourcePlaylist: Playlist? = nil, source: MixSource = .given) {
+    init(plan: MixPlan, rows: [TrackRow], sourcePlaylist: Playlist? = nil, source: MixSource = .given,
+         onPlay: (() -> Void)? = nil) {
+        self.onPlay = onPlay
         self.rows = rows
         self.sourcePlaylist = sourcePlaylist
         self.source = source
@@ -513,6 +520,7 @@ struct MixPreviewView: View {
         let ordered = plan.steps.compactMap { rowByID[$0.trackID] }
         guard !ordered.isEmpty else { return }
         AudioPlayer.shared.play(tracks: ordered, startAt: 0, source: .mix(plan))
+        onPlay?()
     }
 
     private var sourceLine: String? {

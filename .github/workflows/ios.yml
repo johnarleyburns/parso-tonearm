@@ -7,6 +7,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# The TestFlight build number is the commit count, so two runs of one commit upload the same
+# build and the second fails with a 409 (62c6cf8 was delivered as two push events 14 s apart).
+# A duplicate cancels the earlier run long before either reaches the upload.
+concurrency:
+  group: ios-${{ github.event_name }}-${{ github.sha }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 

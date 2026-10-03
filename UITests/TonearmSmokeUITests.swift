@@ -65,6 +65,42 @@ final class TonearmSmokeUITests: XCTestCase {
 
     }
 
+    /// Build a Mix end to end on a fresh install: the Mood Starter library merges, Generate opens
+    /// Mix for You with an enabled Play Mix, and playing it closes the sheet and starts the mix.
+    func testBuildAMixAndPlayIt() throws {
+        launch()
+        openTab("Listen", anchor: "Listen")
+        let card = app.buttons["listen.buildMix"]
+        for _ in 0..<6 where !card.exists { app.swipeUp() }
+        XCTAssertTrue(card.waitForExistence(timeout: 20), "Build a Mix card should be on Listen")
+
+        // The first launch merges the Mood Starter library in the background; retry until the
+        // builder has mixable tracks.
+        let play = app.buttons["mix.preview.play"].firstMatch
+        let deadline = Date().addingTimeInterval(90)
+        while !play.exists, Date() < deadline {
+            card.tap()
+            let generate = app.buttons["Generate"].firstMatch
+            XCTAssertTrue(generate.waitForExistence(timeout: 10))
+            if generate.isEnabled { generate.tap() }
+            for _ in 0..<60 where !play.exists { Thread.sleep(forTimeInterval: 0.5) }
+            if !play.exists {
+                app.buttons["Cancel"].firstMatch.tap()
+                Thread.sleep(forTimeInterval: 3)
+            }
+        }
+        XCTAssertTrue(play.exists, "Generate should open Mix for You")
+        XCTAssertTrue(play.isEnabled, "Play Mix must be enabled for a generated mix")
+        play.tap()
+
+        let closed = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: play)
+        XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 5), .completed,
+                       "Playing a mix should close Build a Mix")
+        let miniTitle = app.descendants(matching: .any)["mini.title"].firstMatch
+        XCTAssertTrue(miniTitle.waitForExistence(timeout: 15), "The mix should be in the player")
+        XCTAssertFalse(miniTitle.label.isEmpty)
+    }
+
     private func launch(arguments: [String] = []) {
         app = XCUIApplication()
         app.launchArguments = ["UI_TESTING", "-uiRegression", "-resetLibrary"] + arguments

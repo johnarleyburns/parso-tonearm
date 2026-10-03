@@ -83,9 +83,13 @@ extension AudioPlayer {
 
     @discardableResult
     func prepareCrossfadePlayer(for row: TrackRow, at nextIndex: Int) -> Bool {
-        if crossfadePlayer != nil,
+        if let existing = crossfadePlayer,
            crossfadeNextTrackId == row.track.id,
            crossfadeNextIndex == nextIndex {
+            // The incoming item usually finishes loading a few ticks after it was created.
+            if !crossfadePrerolled, !transitionStartedForCurrentEdge {
+                crossfadePrerolled = AudioPlayer.prerollIfReady(existing, rate: crossfadeTargetRate)
+            }
             return true
         }
 
@@ -114,14 +118,27 @@ extension AudioPlayer {
         nextPlayer.automaticallyWaitsToMinimizeStalling = false
         let entry = CMTime(seconds: transitionPlan?.entryTime ?? 0, preferredTimescale: 600)
         nextPlayer.seek(to: entry, toleranceBefore: .zero, toleranceAfter: .zero)
-        nextPlayer.preroll(atRate: transitionPlan?.style == .beatmatchedBlend
-                           ? Float(transitionPlan?.blendRate ?? 1) : 1) { _ in }
         nextPlayer.volume = 0
         crossfadePlayer = nextPlayer
         crossfadeNextTrackId = row.track.id
         crossfadeNextIndex = nextIndex
         crossfadeNextLoader = built.loader
         nextPlayer.rate = 0
+        crossfadePrerolled = AudioPlayer.prerollIfReady(nextPlayer, rate: crossfadeTargetRate)
+        return true
+    }
+
+    private var crossfadeTargetRate: Float {
+        transitionPlan?.style == .beatmatchedBlend ? Float(transitionPlan?.blendRate ?? 1) : 1
+    }
+
+    /// `AVPlayer.preroll(atRate:)` raises an Objective-C exception (an app abort, TestFlight 520)
+    /// unless the player is `.readyToPlay` and paused — and a freshly built remote item never is.
+    /// Prerolling is only an optimisation, so until then it's simply skipped and retried on the
+    /// next tick.
+    static func prerollIfReady(_ player: AVPlayer, rate: Float) -> Bool {
+        guard player.status == .readyToPlay, player.rate == 0 else { return false }
+        player.preroll(atRate: rate) { _ in }
         return true
     }
 
@@ -242,6 +259,7 @@ extension AudioPlayer {
         crossfadePlayer = nil
         crossfadeNextTrackId = nil
         crossfadeNextIndex = nil
+        crossfadePrerolled = false
         crossfadeNextLoader?.shutdown()
         crossfadeNextLoader = nil
         crossfadeCompletionInFlight = false
