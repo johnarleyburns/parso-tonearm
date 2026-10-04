@@ -17,7 +17,13 @@ extension AudioPlayer {
         pathMonitor.start(queue: pathMonitorQueue)
     }
 
-    func resume() { seekToStartIfAtEnd(); player.play(); isPlaying = true; updateNowPlaying() }
+    func resume() {
+        seekToStartIfAtEnd()
+        let rate = mixPlaybackRate(for: currentTrack?.id ?? -1)
+        if rate == 1 { player.play() } else { player.playImmediately(atRate: rate) }
+        isPlaying = true
+        updateNowPlaying()
+    }
     func pause() { player.pause(); isPlaying = false; updateNowPlaying() }
 
     /// Nudges output volume by `delta`, clamped to [0, 1] — the Mac

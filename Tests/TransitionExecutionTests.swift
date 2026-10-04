@@ -4,6 +4,12 @@ import AVFoundation
 
 @MainActor
 final class TransitionExecutionTests: XCTestCase {
+    func testMixPlaybackRateUsesReferenceTempoWithoutChangingKey() {
+        XCTAssertEqual(AudioPlayer.mixPlaybackRate(referenceBPM: 128, sourceBPM: 115),
+                       Float(128.0 / 115.0), accuracy: 0.0001)
+        XCTAssertEqual(AudioPlayer.mixPlaybackRate(referenceBPM: .nan, sourceBPM: 115), 1)
+    }
+
     func testHostTimeMathUsesPlaybackRate() {
         var timebase: CMTimebase?
         XCTAssertEqual(CMTimebaseCreateWithSourceClock(allocator: kCFAllocatorDefault,

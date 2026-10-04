@@ -155,6 +155,10 @@ public struct MixPlanner: Sendable {
 
         var steps: [MixStep] = []
         steps.reserveCapacity(ordered.count)
+        // A mix has one musical clock. Use the fastest analyzed track as that
+        // clock and key-tempo every other track up to it; never make the
+        // listener choose a curve or silently switch between half/double time.
+        let referenceBPM = ordered.compactMap(\.bpm).max() ?? 0
         var scores: [EdgeScore] = []
         for (position, candidate) in ordered.enumerated() {
             let previous = position > 0 ? ordered[position - 1] : nil
@@ -203,11 +207,11 @@ public struct MixPlanner: Sendable {
                                                     camelotKeys: camelotKeys,
                                                     distances: distances,
                                                     compatibility: request.compatibility) } ?? []
-            let effectiveMatch = previous.map { effectiveBPM(from: $0.bpm!, to: candidate.bpm!) }
-            let relation = effectiveMatch?.relation ?? .same
-            let effective = effectiveMatch?.bpm ?? candidate.bpm!
+            let relation: MixTempoRelation = position == 0 ? .same : .keyTempo
+            let effective = referenceBPM > 0 ? referenceBPM : candidate.bpm!
             steps.append(MixStep(trackID: candidate.trackID, position: position,
-                                 effectiveBPM: effective, tempoRelation: relation,
+                                 effectiveBPM: effective, sourceBPM: candidate.bpm,
+                                 tempoRelation: relation,
                                 reasons: reasons.sorted { String(describing: $0) < String(describing: $1) },
                                  edgeIn: score, runnersUp: runners))
         }
@@ -218,9 +222,7 @@ public struct MixPlanner: Sendable {
         let tempoJumps = scores.filter { $0.flags.contains(.tempoJump) }.count
         let againstShape = scores.filter { $0.flags.contains(.againstShape) }.count
         let totalDuration = ordered.reduce(0) { $0 + max(0, $1.duration) }
-        let range = ordered.compactMap(\.bpm).min().map { minBPM in
-            (minBPM...(ordered.compactMap(\.bpm).max() ?? minBPM))
-        } ?? 0...0
+        let range = referenceBPM > 0 ? referenceBPM...referenceBPM : 0...0
 
         return MixPlan(
             steps: steps,

@@ -150,9 +150,29 @@ extension AudioPlayer {
     /// scheduler owns the hand-over deadline and will downgrade a remote edge
     /// when it cannot meet it.
     static func configureTransitionItem(_ item: AVPlayerItem) {
-        item.audioTimePitchAlgorithm = .timeDomain
+        // Mix transitions are key-tempo transitions: changing rate must not
+        // shift the musical key.
+        item.audioTimePitchAlgorithm = .spectral
         item.preferredForwardBufferDuration = 20
         item.automaticallyPreservesTimeOffsetFromLive = false
+    }
+
+    /// Returns the rate that puts a mix track on the plan's single reference
+    /// BPM. `spectral` time pitch preserves the analyzed musical key while the
+    /// source is sped up to that rate.
+    func mixPlaybackRate(for trackID: Int64) -> Float {
+        guard case .mix(let mix) = queueSource,
+              let step = mix.steps.first(where: { $0.trackID == trackID }),
+              let sourceBPM = step.sourceBPM,
+              sourceBPM.isFinite, sourceBPM > 0,
+              step.effectiveBPM.isFinite, step.effectiveBPM > 0 else { return 1 }
+        return Self.mixPlaybackRate(referenceBPM: step.effectiveBPM, sourceBPM: sourceBPM)
+    }
+
+    static func mixPlaybackRate(referenceBPM: Double, sourceBPM: Double) -> Float {
+        guard referenceBPM.isFinite, referenceBPM > 0,
+              sourceBPM.isFinite, sourceBPM > 0 else { return 1 }
+        return Float(referenceBPM / sourceBPM)
     }
 
     func publishTransition(_ plan: TransitionPlan?) {

@@ -160,4 +160,25 @@ final class CrossfadeCurveTests: XCTestCase {
         XCTAssertFalse(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: differentAlbum))
         XCTAssertFalse(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: nonAdjacent))
     }
+
+    func testThreePhraseBlendHasIncomingRampEqualMiddleAndOutgoingFade() {
+        let start = 0.0
+        let duration = 96.0
+
+        let first = CrossfadeCurve.threePhraseGains(position: 0, fadeStart: start, fadeSeconds: duration)
+        XCTAssertEqual(first.incoming, 0, accuracy: 0.001)
+        XCTAssertEqual(first.outgoing, 1, accuracy: 0.001)
+
+        let phraseBoundary = CrossfadeCurve.threePhraseGains(position: 32, fadeStart: start, fadeSeconds: duration)
+        XCTAssertEqual(phraseBoundary.incoming, 1, accuracy: 0.001)
+        XCTAssertEqual(phraseBoundary.outgoing, 1, accuracy: 0.001)
+
+        let middle = CrossfadeCurve.threePhraseGains(position: 48, fadeStart: start, fadeSeconds: duration)
+        XCTAssertEqual(middle.incoming, 1, accuracy: 0.001)
+        XCTAssertEqual(middle.outgoing, 1, accuracy: 0.001)
+
+        let final = CrossfadeCurve.threePhraseGains(position: 96, fadeStart: start, fadeSeconds: duration)
+        XCTAssertEqual(final.incoming, 1, accuracy: 0.001)
+        XCTAssertEqual(final.outgoing, 0, accuracy: 0.001)
+    }
 }

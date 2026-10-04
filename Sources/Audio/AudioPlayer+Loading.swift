@@ -77,7 +77,8 @@ extension AudioPlayer {
         applyEQ(to: item, row: row)
         protectCacheKeys(for: asset)
         if autoplay {
-            player.play()
+            let rate = mixPlaybackRate(for: row.id)
+            if rate == 1 { player.play() } else { player.playImmediately(atRate: rate) }
             isPlaying = true
         }
         duration = row.track.durationSec ?? 0

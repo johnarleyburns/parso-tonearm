@@ -54,7 +54,7 @@ struct MixBuilderSheet: View {
     /// the library).
     @State private var chosenGenre: String?
     @State private var chosenPlaylistID: Int64?
-    @State private var shape: MixShape = .risingBPM
+    @State private var shape: MixShape = .steady
     /// A mix is a listening session, not the whole library: 15, 30 or 60 minutes.
     @State private var duration: TimeInterval = 30 * 60
     @State private var plan: MixPlan?
@@ -137,23 +137,10 @@ struct MixBuilderSheet: View {
                         .font(Typography.caption)
                         .foregroundStyle(Palette.inkSecondary)
                 }
-                Section("Shape") {
-                    ForEach(MixShape.allCases, id: \.self) { item in
-                        Button { shape = item } label: {
-                            HStack {
-                                Image(systemName: item == shape ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(item == shape ? Palette.accent : Palette.inkTertiary)
-                                VStack(alignment: .leading) {
-                                    Text(item.title).foregroundStyle(Palette.ink)
-                                    Text(item.subtitle).font(Typography.caption).foregroundStyle(Palette.inkSecondary)
-                                }
-                                Spacer()
-                                ShapeSparkline(shape: item)
-                                    .frame(width: 74, height: 28)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
+                Section {
+                    Label("Reference tempo: fastest track · key preserved", systemImage: "metronome")
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
                 Section("Length") {
                     Picker("Target", selection: $duration) {

@@ -61,19 +61,15 @@ public enum TransitionPlanner {
         let constantTempo = outgoing.isConstantTempo && incoming.isConstantTempo
         if confidence >= 0.6 && constantTempo && bpmDelta <= 8 {
             let fromDuration = context.fromDuration > 0 ? context.fromDuration : outgoing.duration
-            let toDuration = context.toDuration > 0 ? context.toDuration : incoming.duration
             let intro = introStart(incoming)
             let outro = outroStart(outgoing, duration: fromDuration)
             let beatLength = 60 / max(outgoing.bpm, 1)
             let compatible = harmonic(relation)
-            let overlapBeats = compatible ? snappedOverlap(outro: outro, intro: intro,
-                                                            fromDuration: fromDuration,
-                                                            toDuration: toDuration,
-                                                            beatLength: beatLength) : 4
-            let overlapSeconds = min(Double(overlapBeats) * beatLength, 30)
+            let overlapBeats = compatible ? 96 : 4
+            let overlapSeconds = Double(overlapBeats) * beatLength
             var reasons: [TransitionReason] = [
                 .tempoMatched(pct: bpmDelta), .keyCompatible(relation),
-                .tempoReturnsOverBeats(16)
+                .tempoReturnsOverBeats(96)
             ]
             if let section = outgoing.sections.last(where: { $0.kind.lowercased().contains("outro") }) {
                 reasons.append(.outgoingOutroPhrase(bar: section.bar, beats: overlapBeats))
@@ -92,7 +88,7 @@ public enum TransitionPlanner {
                                   style: .beatmatchedBlend, exitTime: outro, entryTime: intro,
                                   overlapBeats: overlapBeats, overlapSeconds: overlapSeconds,
                                   blendRate: outgoing.bpm / max(incoming.bpm, 1),
-                                  rateRampBeats: 16, gainMatchDB: loudnessDifference(outgoing, incoming),
+                                  rateRampBeats: 96, gainMatchDB: loudnessDifference(outgoing, incoming),
                                   keyRelation: relation, bpmDeltaPct: bpmDelta,
                                   confidence: confidence, reasons: reasons)
         }
@@ -127,11 +123,10 @@ public enum TransitionPlanner {
     }
 
     private static func outroStart(_ payload: DJTrackPrepPayload, duration: Double) -> Double {
-        if let section = payload.sections.last(where: { $0.kind.lowercased().contains("outro") }) {
-            return section.start
-        }
-        let beats = payload.downbeatPositions.filter { $0 <= max(0, duration - 16 * 60 / max(payload.bpm, 1)) }
-        return beats.suffix(32).last ?? max(0, duration - 32 * 60 / max(payload.bpm, 1))
+        // Section metadata is useful for explanation, but must not move the
+        // handoff later and shorten the requested three-phrase overlap.
+        let blendStart = max(0, duration - 96 * 60 / max(payload.bpm, 1))
+        return payload.downbeatPositions.last(where: { $0 <= blendStart }) ?? blendStart
     }
 
     private static func phraseBoundary(_ payload: DJTrackPrepPayload, duration: Double) -> Double {

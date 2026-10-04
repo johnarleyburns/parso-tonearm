@@ -25,7 +25,17 @@ final class MixPlannerTests: XCTestCase {
         ])
         let plan = MixPlanner.plan(request)
         XCTAssertEqual(plan.excluded.count, 2)
-        XCTAssertTrue(plan.steps.contains { $0.tempoRelation == .doubleTime || $0.tempoRelation == .halfTime })
+        XCTAssertTrue(plan.steps.dropFirst().allSatisfy { $0.tempoRelation == .keyTempo })
+        XCTAssertEqual(Set(plan.steps.map { Int($0.effectiveBPM) }), Set([120]))
+    }
+
+    func testAllTracksUseHighestBPMAsTheKeyTempoReference() {
+        let plan = MixPlanner.plan(MixRequest(candidates: [
+            candidate(1, bpm: 112, key: "8A"), candidate(2, bpm: 124, key: "9A"),
+            candidate(3, bpm: 118, key: "10A")
+        ], shape: .risingBPM))
+        XCTAssertTrue(plan.steps.allSatisfy { $0.effectiveBPM == 124 })
+        XCTAssertEqual(plan.summary.bpmRange, 124...124)
     }
 
     func testRunnersUpAreValidAndForcedJumpIsExplained() {

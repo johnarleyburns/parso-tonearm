@@ -377,7 +377,8 @@ public final class AudioPlayer: ObservableObject {
             player.pause()
         } else {
             seekToStartIfAtEnd()
-            player.play()
+            let rate = mixPlaybackRate(for: currentTrack?.id ?? -1)
+            if rate == 1 { player.play() } else { player.playImmediately(atRate: rate) }
         }
         isPlaying.toggle()
         updateNowPlaying()
@@ -443,14 +444,28 @@ public final class AudioPlayer: ObservableObject {
     public func next() {
         if isAmbient { nextAmbientTrack(); return }
         guard !queue.isEmpty else { return }
-        if repeatMode == .one { seek(to: 0); player.play(); return }
+        if repeatMode == .one {
+            seek(to: 0)
+            let rate = mixPlaybackRate(for: currentTrack?.id ?? -1)
+            if rate == 1 { player.play() } else { player.playImmediately(atRate: rate) }
+            return
+        }
         if index < queue.count - 1 {
             index += 1
         } else if repeatMode == .all {
             index = 0
         } else {
-            if keepPlayingEnabled, keepPlayingExtensionInFlight {
-                isWaitingForKeepPlayingToResume = true
+            if keepPlayingEnabled {
+                // The end notification can race the asynchronous extension
+                // started from the second-to-last track. Kick off the final
+                // attempt here as well so that race can never strand the
+                // player paused at the queue boundary.
+                if !keepPlayingExtensionInFlight {
+                    maybeExtendKeepPlayingQueue()
+                }
+                if keepPlayingExtensionInFlight {
+                    isWaitingForKeepPlayingToResume = true
+                }
             }
             player.pause(); isPlaying = false; updateNowPlaying(); return
         }

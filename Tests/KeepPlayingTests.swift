@@ -123,6 +123,12 @@ final class KeepPlayingTests: XCTestCase {
             queueCount: 3, index: 1, lastAttemptedIndex: nil, extensionInFlight: false))
     }
 
+    func testKeepPlayingEndCanRetryAfterAnEmptyExtension() {
+        XCTAssertTrue(KeepPlayingPicker.shouldAttemptExtension(
+            enabled: true, isAmbient: false, repeatMode: .off,
+            queueCount: 1, index: 0, lastAttemptedIndex: nil, extensionInFlight: false))
+    }
+
     func testShouldAttemptExtensionDoesNotFireInTheMiddleOfALongQueue() {
         XCTAssertFalse(KeepPlayingPicker.shouldAttemptExtension(
             enabled: true, isAmbient: false, repeatMode: .off,

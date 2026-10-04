@@ -36,17 +36,16 @@ final class TransitionPlannerTests: XCTestCase {
 
     func testBeatmatchedBlendSnapsAndReportsSilenceKeyAndLoudness() {
         let outgoing = payload(bpm: 120, key: "8A", loudness: [-14])
-        let incoming = payload(bpm: 124, key: "3B", leadingSilence: 1,
+        let incoming = payload(bpm: 124, key: "8A", leadingSilence: 1,
                                loudness: [-10])
         let context = TransitionPlanningContext(fromTrackID: 1, toTrackID: 2,
                                                 fromDuration: 60, toDuration: 60)
         let plan = TransitionPlanner.plan(from: outgoing, to: incoming, context: context)
 
         XCTAssertEqual(plan.style, .beatmatchedBlend)
-        XCTAssertEqual(plan.overlapBeats, 4)
-        XCTAssertLessThanOrEqual(plan.overlapSeconds, 30)
-        XCTAssertEqual(plan.rateRampBeats, 16)
-        XCTAssertEqual(plan.keyRelation, .clash(steps: 5))
+        XCTAssertEqual(plan.overlapBeats, 96)
+        XCTAssertEqual(plan.rateRampBeats, 96)
+        XCTAssertEqual(plan.keyRelation, .same)
         XCTAssertTrue(plan.reasons.contains { if case .skippedLeadingSilence = $0 { return true }; return false })
         XCTAssertTrue(plan.reasons.contains { if case .loudnessMatched = $0 { return true }; return false })
     }

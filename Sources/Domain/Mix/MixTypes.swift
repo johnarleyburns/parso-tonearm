@@ -11,6 +11,8 @@ public enum MixTempoRelation: String, Codable, Sendable, Equatable {
     case same
     case halfTime
     case doubleTime
+    /// The source is time-stretched to the mix reference tempo with pitch/key preserved.
+    case keyTempo
 }
 
 public struct MixCandidate: Codable, Sendable, Equatable, Identifiable {
@@ -93,7 +95,7 @@ public struct MixRequest: Codable, Sendable, Equatable {
     /// `targetDuration`, instead of an ordering of every candidate.
     public var compatibility: MixCompatibility?
 
-    public init(candidates: [MixCandidate], shape: MixShape = .risingBPM,
+    public init(candidates: [MixCandidate], shape: MixShape = .steady,
                 targetDuration: TimeInterval? = nil, lockedFirst: Int64? = nil,
                 locks: [Int64: Int] = [:], seed: UInt64 = 0,
                 compatibility: MixCompatibility? = nil) {
@@ -235,6 +237,9 @@ public struct MixSummary: Codable, Sendable, Equatable {
 public struct MixStep: Codable, Sendable, Equatable, Identifiable {
     public var trackID: Int64
     public var position: Int
+    /// The analyzed source tempo before key-preserving time stretch. Optional
+    /// for plans persisted before the reference-tempo mixer was introduced.
+    public var sourceBPM: Double?
     public var effectiveBPM: Double
     public var tempoRelation: MixTempoRelation
     public var reasons: [PlacementReason]
@@ -244,11 +249,13 @@ public struct MixStep: Codable, Sendable, Equatable, Identifiable {
     public var id: Int64 { trackID }
 
     public init(trackID: Int64, position: Int, effectiveBPM: Double,
+                sourceBPM: Double? = nil,
                 tempoRelation: MixTempoRelation = .same,
                 reasons: [PlacementReason] = [], edgeIn: EdgeScore? = nil,
                 runnersUp: [RunnerUp] = []) {
         self.trackID = trackID
         self.position = position
+        self.sourceBPM = sourceBPM
         self.effectiveBPM = effectiveBPM
         self.tempoRelation = tempoRelation
         self.reasons = reasons

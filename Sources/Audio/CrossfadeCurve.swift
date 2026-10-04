@@ -47,6 +47,26 @@ public enum CrossfadeCurve: String, CaseIterable, Codable, Equatable {
         return gains(position: position, fadeStart: fadeStart, fadeSeconds: fadeWindow, curve: curve)
     }
 
+    /// Three-phrase DJ handoff: incoming ramps to unity over phrase one,
+    /// both remain at unity for phrase two, then outgoing fades over phrase
+    /// three. `fadeSeconds` is the complete 96-beat overlap.
+    public static func threePhraseGains(position: TimeInterval,
+                                        fadeStart: TimeInterval,
+                                        fadeSeconds: TimeInterval) -> Gains {
+        guard fadeStart.isFinite, fadeSeconds.isFinite, fadeSeconds > 0 else {
+            return Gains(outgoing: 1, incoming: 0, active: false)
+        }
+        guard position >= fadeStart else { return Gains(outgoing: 1, incoming: 0, active: false) }
+        let progress = min(max((position - fadeStart) / fadeSeconds, 0), 1)
+        if progress < 1.0 / 3.0 {
+            return Gains(outgoing: 1, incoming: progress * 3, active: true)
+        }
+        if progress < 2.0 / 3.0 {
+            return Gains(outgoing: 1, incoming: 1, active: true)
+        }
+        return Gains(outgoing: (1 - progress) * 3, incoming: 1, active: true)
+    }
+
     /// Calculates a fade at an analyzed phrase boundary rather than always
     /// pinning it to the file's final seconds.
     public static func gains(position: TimeInterval,

@@ -43,10 +43,18 @@ extension AudioPlayer {
         let currentDuration = duration > 0 ? duration : (current.track.durationSec ?? 0)
         let plannedFadeStart = transitionPlan.map(\.exitTime).flatMap { $0 > 0 ? $0 : nil }
             ?? max(0, currentDuration - fadeSeconds)
-        let gains = CrossfadeCurve.gains(position: position,
+        let gains: CrossfadeCurve.Gains
+        if transitionPlan?.style == .beatmatchedBlend,
+           transitionPlan?.overlapBeats == 96 {
+            gains = CrossfadeCurve.threePhraseGains(position: position,
+                                                    fadeStart: plannedFadeStart,
+                                                    fadeSeconds: fadeSeconds)
+        } else {
+            gains = CrossfadeCurve.gains(position: position,
                                          fadeStart: plannedFadeStart,
                                          fadeSeconds: fadeSeconds,
                                          curve: crossfadeCurve)
+        }
         guard gains.active else {
             player.volume = outputLevel
             return
@@ -74,7 +82,11 @@ extension AudioPlayer {
         incomingPlayer.volume = Float(min(max(gains.incoming * gainMatch, 0), 1.5)) * outputLevel
         if !startingNow, let plan = transitionPlan, plan.style == .beatmatchedBlend {
             let incoming = incomingPlayer
-            let expected = plan.entryTime + max(0, position - plan.exitTime) * plan.blendRate
+            let clockRate: Double = {
+                guard case .mix = queueSource else { return plan.blendRate }
+                return 1
+            }()
+            let expected = plan.entryTime + max(0, position - plan.exitTime) * clockRate
             let actual = incoming.currentTime().seconds
             if actual.isFinite, expected.isFinite {
                 let drift = actual - expected
@@ -88,7 +100,11 @@ extension AudioPlayer {
             }
         }
 
-        if gains.incoming >= 1 || position >= currentDuration {
+        // Keep both tracks alive for the full three-phrase handoff. The old
+        // implementation advanced as soon as the incoming ramp reached 1,
+        // truncating the equal-volume phrase and the outgoing fade.
+        let transitionEnd = plannedFadeStart + fadeSeconds
+        if position >= transitionEnd || position >= currentDuration {
             finishCrossfade(to: nextIndex, row: next)
         }
     }
@@ -141,7 +157,10 @@ extension AudioPlayer {
     }
 
     private var crossfadeTargetRate: Float {
-        transitionPlan?.style == .beatmatchedBlend ? Float(transitionPlan?.blendRate ?? 1) : 1
+        guard transitionPlan?.style == .beatmatchedBlend,
+              let trackID = transitionPlan?.toTrackID else { return 1 }
+        if case .mix = queueSource { return mixPlaybackRate(for: trackID) }
+        return Float(transitionPlan?.blendRate ?? 1)
     }
 
     /// Schedules the incoming item against the outgoing player's host clock.
@@ -180,7 +199,18 @@ extension AudioPlayer {
               plan.overlapSeconds > 0
         else { return true }
         let rampBPM = max(1, Double(overlapBeats) / plan.overlapSeconds * 60)
-        let ramp = AudioPlayer.transitionRateRamp(start: plan.blendRate, end: 1,
+        let rateRampStart: Double
+        let rateRampEnd: Double
+        if case .mix = queueSource {
+            // Both players are already on the mix's single reference clock;
+            // do not ramp the incoming item back toward its source tempo.
+            rateRampStart = Double(targetRate)
+            rateRampEnd = Double(targetRate)
+        } else {
+            rateRampStart = plan.blendRate
+            rateRampEnd = 1
+        }
+        let ramp = AudioPlayer.transitionRateRamp(start: rateRampStart, end: rateRampEnd,
                                                    beats: beats, bpm: rampBPM)
         transitionTask = Task { [weak self] in
             var previousOffset = 0.0

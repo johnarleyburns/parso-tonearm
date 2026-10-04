@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Reference tempo: fastest track · key preserved" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Referenztempo: schnellster Titel · Tonart beibehalten" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference tempo: fastest track · key preserved" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Tempo de referencia: pista más rápida · clave conservada" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Tempo de référence : piste la plus rapide · tonalité conservée" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "基準テンポ：最速トラック · キーを維持" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Tempo de referência: faixa mais rápida · tonalidade preservada" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "参考速度：最快曲目 · 保留调性" } }
+      }
+    },
     "" : {
       "comment" : "UI text shown in: Components (Sources/Features/Components.swift); Add Folder Sheet (Sources/Features/Ingest/AddFolderSheet.swift); Add Source Sheet (Sources/Features/Ingest/AddSourceSheet.swift); …",
       "shouldTranslate" : false

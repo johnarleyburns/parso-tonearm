@@ -285,7 +285,13 @@ extension AudioPlayer {
         // over regardless of whether it produced anything playable.
         let shouldResume = isWaitingForKeepPlayingToResume
         isWaitingForKeepPlayingToResume = false
-        guard !rows.isEmpty else { return }
+        guard !rows.isEmpty else {
+            // An empty result is not a terminal queue state. Allow the end
+            // callback to make one fresh fallback attempt instead of being
+            // suppressed forever by the per-index gate.
+            keepPlayingLastExtensionAttemptIndex = nil
+            return
+        }
 
         queue.append(contentsOf: rows)
         if shuffle { unshuffledQueue = queue }
