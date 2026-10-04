@@ -137,14 +137,6 @@ extension AudioPlayer {
         isRemote && !likelyBufferedByExit
     }
 
-    /// The device executor uses a bounded one-beat correction after its first
-    /// drift sample. Keeping this pure makes the safety limit testable without
-    /// requiring an audio route or a real-time clock.
-    static func transitionDriftCorrection(driftSeconds: Double) -> Double {
-        guard driftSeconds.isFinite, abs(driftSeconds) > 0.015 else { return 0 }
-        return driftSeconds > 0 ? -0.005 : 0.005
-    }
-
     /// Configure an item for beat-matched playback. AVPlayer's regular
     /// buffering policy is intentionally disabled here: the transition
     /// scheduler owns the hand-over deadline and will downgrade a remote edge

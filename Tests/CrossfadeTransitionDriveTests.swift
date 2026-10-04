@@ -149,6 +149,10 @@ final class CrossfadeTransitionDriveTests: XCTestCase {
         player.sleepAtEndOfTrack = false
         player.repeatMode = .off
         player.crossfadeSeconds = fadeSeconds
+        // A previous case can leave the shared player playing its incoming track; these cases
+        // drive the clock themselves, and the executor reads a playing player's own clock.
+        player.player.pause()
+        player.isPlaying = false
         let item = AVPlayerItem(url: try audioFile(seconds: outgoingSeconds))
         player.player.automaticallyWaitsToMinimizeStalling = false
         player.player.replaceCurrentItem(with: item)

@@ -179,6 +179,16 @@ public final class AudioPlayer: ObservableObject {
     var crossfadeCompletionInFlight = false
     var transitionStartedForCurrentEdge = false
     var transitionTask: Task<Void, Never>?
+    /// Runs updateCrossfade 20 times a second while a transition is armed, so the incoming start is
+    /// scheduled ahead of the exit and the volume ramps in small steps (the 0.5 s time observer
+    /// alone made both late and steppy).
+    var transitionTicker: Task<Void, Never>?
+    /// Outgoing item time at which a late incoming start happened; its gain fades in from there.
+    var transitionLateStartPosition: Double?
+    /// Outgoing item time of the last beat-alignment check.
+    var lastTransitionDriftCheck: Double = -.infinity
+    /// After a non-mix blend, returns the incoming track to its own tempo once it plays alone.
+    var tempoReturnTask: Task<Void, Never>?
     var transitionPlanningTask: Task<Void, Never>?
     /// EQ (T4.1): a single tap engine shared across items; reattached to the
     /// preloaded next item so EQ survives near-gapless swaps.

@@ -38,10 +38,48 @@ final class TransitionExecutionTests: XCTestCase {
         XCTAssertTrue(AudioPlayer.shouldDowngradeTransition(isRemote: true, likelyBufferedByExit: false))
     }
 
-    func testDriftCorrectionIsBoundedToHalfPercentForOneBeat() {
-        XCTAssertEqual(AudioPlayer.transitionDriftCorrection(driftSeconds: 0.015), 0)
-        XCTAssertEqual(AudioPlayer.transitionDriftCorrection(driftSeconds: 0.016), -0.005)
-        XCTAssertEqual(AudioPlayer.transitionDriftCorrection(driftSeconds: -0.016), 0.005)
-        XCTAssertEqual(AudioPlayer.transitionDriftCorrection(driftSeconds: .nan), 0)
+    // MARK: - Field test 2026-10-03: beats offset in blends, abrupt blends
+
+    func testStartIsScheduledExactlyAtTheExitWhenThereIsTime() {
+        let start = TransitionTiming.start(exit: 180, entry: 4, outgoingNow: 178.5,
+                                           outgoingRate: 1, incomingRate: 1.03)
+        XCTAssertEqual(start.delaySeconds, 1.5, accuracy: 0.0001)
+        XCTAssertEqual(start.incomingItemTime, 4, accuracy: 0.0001)
+        XCTAssertFalse(start.isLate)
+    }
+
+    func testLateStartJoinsInPhaseInsteadOfAtTheEntryPoint() {
+        // The old executor started a late incoming track at its entry point: 0.4 s late here,
+        // which is most of a beat at 128 BPM.
+        let start = TransitionTiming.start(exit: 180, entry: 4, outgoingNow: 180.3,
+                                           outgoingRate: 1, incomingRate: 1.05)
+        XCTAssertTrue(start.isLate)
+        XCTAssertEqual(start.delaySeconds, TransitionTiming.minimumStartLeadSeconds, accuracy: 0.0001)
+        XCTAssertEqual(start.incomingItemTime, 4 + 0.4 * 1.05, accuracy: 0.0001)
+    }
+
+    func testMixExpectationUsesBothTracksRates() {
+        // Mix at 128: outgoing 120 BPM source plays at 128/120, incoming 125 at 128/125. Over
+        // 10 outgoing item-seconds the incoming item advances 10 × (120/125) = 9.6 s, not 10 s
+        // (the old mix check assumed 10 s and seeked the tracks 0.4 s apart).
+        let expected = TransitionTiming.expectedIncomingTime(
+            exit: 100, entry: 2, outgoingNow: 110,
+            outgoingRate: 128.0 / 120.0, incomingRate: 128.0 / 125.0)
+        XCTAssertEqual(expected, 2 + 9.6, accuracy: 0.0001)
+    }
+
+    func testSmallDriftIsNudgedNotSeeked() {
+        XCTAssertEqual(TransitionTiming.correction(driftSeconds: 0.003, expectedIncomingTime: 10), .none)
+        XCTAssertEqual(TransitionTiming.correction(driftSeconds: 0.02, expectedIncomingTime: 10), .nudgeRate(0.98))
+        XCTAssertEqual(TransitionTiming.correction(driftSeconds: -0.05, expectedIncomingTime: 10), .nudgeRate(1.03))
+        XCTAssertEqual(TransitionTiming.correction(driftSeconds: 0.2, expectedIncomingTime: 10), .seek(toIncomingTime: 10))
+        XCTAssertEqual(TransitionTiming.correction(driftSeconds: .nan, expectedIncomingTime: 10), .none)
+    }
+
+    func testLateStartFadesInFromSilence() {
+        XCTAssertEqual(TransitionTiming.lateStartGain(outgoingNow: 50, startedAtOutgoing: nil), 1)
+        XCTAssertEqual(TransitionTiming.lateStartGain(outgoingNow: 50, startedAtOutgoing: 50), 0)
+        XCTAssertEqual(TransitionTiming.lateStartGain(outgoingNow: 51, startedAtOutgoing: 50), 0.5, accuracy: 0.0001)
+        XCTAssertEqual(TransitionTiming.lateStartGain(outgoingNow: 60, startedAtOutgoing: 50), 1)
     }
 }

@@ -110,8 +110,11 @@ public enum TransitionPlanner {
                               downgradedFrom: .beatmatchedBlend)
     }
 
+    /// The incoming track enters on a downbeat (bar one), not merely on a beat: the exit is a
+    /// downbeat, so entering on beat 2–4 of a bar put the two tracks' bars out of step.
     private static func introStart(_ payload: DJTrackPrepPayload) -> Double {
-        guard let silence = leadingSilence(payload) else { return payload.beatPositions.first ?? 0 }
+        let silence = leadingSilence(payload) ?? 0
+        if let downbeat = payload.downbeatPositions.first(where: { $0 >= silence }) { return downbeat }
         return payload.beatPositions.first(where: { $0 >= silence }) ?? silence
     }
 
