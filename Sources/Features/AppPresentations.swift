@@ -33,6 +33,12 @@ struct AppPresentations: ViewModifier {
                 MixBuilderSheet(rows: request.rows, lockedFirst: request.lockedFirst,
                                 sourcePlaylist: request.sourcePlaylist,
                                 picksSource: request.picksSource)
+                    // Sheets presented by a modifier do not reliably inherit environment
+                    // objects attached inside the presenting root's content tree. MixPreviewView
+                    // reads this service while rendering every transition row; inject it at the
+                    // sheet boundary so mood/genre-generated mixes cannot crash SwiftUI with a
+                    // missing EnvironmentObject during the first preview render.
+                    .environmentObject(appState.transitionPrepService)
                     .macSheetFrame(minWidth: 560, minHeight: 640)
             }
             #if os(iOS)
