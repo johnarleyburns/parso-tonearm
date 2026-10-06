@@ -67,6 +67,36 @@ extension LibraryStore {
         }
     }
 
+    /// Genres that have mixable tracks (a tempo and a Camelot key, by the same rules as
+    /// `djLoadTrackInfo`), with their counts, most first. One aggregate query: the Mix builder's
+    /// genre list needs no per-track rows (field report: the list took 5–20 s while every track's
+    /// metadata and embedding loaded).
+    public func mixableGenreCounts() throws -> [(name: String, count: Int)] {
+        try dbQueue.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT genre, COUNT(*) AS n FROM (
+                    SELECT TRIM(t.genre) AS genre,
+                           COALESCE(prep.bpmOverride,
+                                    CASE WHEN analysis.assetId = firstAsset.id THEN analysis.bpm END,
+                                    prep.bpm) AS bpm,
+                           UPPER(TRIM(COALESCE(
+                                    CASE WHEN analysis.assetId = firstAsset.id THEN analysis.key END,
+                                    prep.camelotKey))) AS camelot
+                    FROM track t
+                    LEFT JOIN (SELECT trackId, MIN(id) AS id FROM asset GROUP BY trackId) firstAsset
+                      ON firstAsset.trackId = t.id
+                    LEFT JOIN discovery_track_analysis analysis ON analysis.trackId = t.id
+                    LEFT JOIN dj_track_prep prep ON prep.trackId = t.id
+                    WHERE t.genre IS NOT NULL AND TRIM(t.genre) <> ''
+                )
+                WHERE bpm > 0 AND (camelot GLOB '[1-9][AB]' OR camelot GLOB '1[0-2][AB]')
+                GROUP BY genre
+                ORDER BY n DESC, genre ASC
+                """)
+            return rows.map { (name: $0["genre"], count: $0["n"]) }
+        }
+    }
+
     /// Returns the current, displayable musical values for the requested
     /// tracks. Discovery analysis is preferred because it is the shared
     /// library result; DJ prep supplies a user BPM override and remains a

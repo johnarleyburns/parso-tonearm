@@ -10,6 +10,31 @@ import XCTest
 final class PhoneWatchProjectionTests: XCTestCase {
     private let libraryID = WatchPairedLibraryID("library-phase4")
 
+    func testResolvedPlaylistCommandKeepsPlaylistQueueSource() {
+        let playlist = Playlist(id: 42, title: "Evening Jazz", kind: .manual,
+                                folderBookmark: nil, watch: false)
+        let ref = WatchCollectionRef(kind: .playlist, id: "prow:42")
+
+        let source = PhoneWatchPlaybackSource.queueSource(for: ref, playlist: playlist)
+
+        guard case .playlist(let actual) = source else {
+            return XCTFail("a resolved watch playlist must remain a playlist queue")
+        }
+        XCTAssertEqual(actual, playlist)
+    }
+
+    func testUnresolvedOrNonPlaylistCommandUsesSafeLibraryQueueSource() {
+        let ref = WatchCollectionRef(kind: .playlist, id: "prow:42")
+        let album = WatchCollectionRef(kind: .album, id: "arow:7")
+
+        guard case .library = PhoneWatchPlaybackSource.queueSource(for: ref, playlist: nil) else {
+            return XCTFail("an unresolved playlist must fall back safely to library playback")
+        }
+        guard case .library = PhoneWatchPlaybackSource.queueSource(for: album, playlist: nil) else {
+            return XCTFail("non-playlist playback must use the library source")
+        }
+    }
+
     // MARK: - Fixture
 
     private struct Fixture {

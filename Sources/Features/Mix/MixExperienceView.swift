@@ -61,6 +61,9 @@ struct MixBuilderSheet: View {
     @State private var isLoading = false
     @State private var candidates: [MixCandidate] = []
     @State private var didLoadCandidates = false
+    /// Genre names with mixable-track counts, from one aggregate query (nil while it runs).
+    @State private var genreChoices: [(name: String, count: Int)]?
+    @State private var candidateLoad: Task<Void, Never>?
     @State private var generationMessage: String?
     @State private var showingPreview = false
     @State private var detent: PresentationDetent = .medium
@@ -107,11 +110,22 @@ struct MixBuilderSheet: View {
                         case .genre:
                             Picker("Genre", selection: $chosenGenre) {
                                 Text("Surprise me").tag(String?.none)
-                                ForEach(genreChoices, id: \.name) { choice in
+                                ForEach(genreChoices ?? [], id: \.name) { choice in
                                     Text("\(choice.name) · \(choice.count)").tag(String?.some(choice.name))
                                 }
                             }
                             .accessibilityIdentifier("mix.builder.genre")
+                            if genreChoices == nil {
+                                // Say why the list only has "Surprise me" for a moment.
+                                Label {
+                                    Text("Loading genres from your library…")
+                                } icon: {
+                                    ProgressView()
+                                }
+                                .font(Typography.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .accessibilityIdentifier("mix.builder.genreLoading")
+                            }
                         case .playlist:
                             if mixablePlaylists.isEmpty {
                                 Text("You don't have any playlists yet.")
@@ -158,7 +172,11 @@ struct MixBuilderSheet: View {
                         .disabled(isLoading || rows.isEmpty)
                 }
             }
-            .task { await loadCandidates() }
+            // Only the genre list loads up front; tracks load when Generate is tapped.
+            .task {
+                guard picksSource, genreChoices == nil else { return }
+                genreChoices = (try? await appState.store.mixableGenreCounts()) ?? []
+            }
             .navigationDestination(isPresented: $showingPreview) {
                 if let plan {
                     // Playing closes Build a Mix so the mix is in the player, not behind a sheet.
@@ -174,17 +192,6 @@ struct MixBuilderSheet: View {
         Dictionary(rows.compactMap { row in
             row.track.id.map { ($0, row.track.genre?.trimmingCharacters(in: .whitespaces) ?? "") }
         }, uniquingKeysWith: { first, _ in first })
-    }
-
-    /// Genres with tracks that can be mixed (analysed tempo and key), most first.
-    private var genreChoices: [(name: String, count: Int)] {
-        let genres = genreByTrack
-        var counts: [String: Int] = [:]
-        for candidate in candidates where (candidate.bpm ?? 0) > 0 && MixCompatibility.isCamelot(candidate.camelot ?? "") {
-            if let genre = genres[candidate.trackID], !genre.isEmpty { counts[genre, default: 0] += 1 }
-        }
-        return counts.map { ($0.key, $0.value) }
-            .sorted { $0.count == $1.count ? $0.name < $1.name : $0.count > $1.count }
     }
 
     private var mixablePlaylists: [Playlist] {
@@ -209,6 +216,16 @@ struct MixBuilderSheet: View {
         }
     }
 
+    /// Loads the mix candidates once; later callers wait for the same load.
+    private func ensureCandidates() async {
+        if candidateLoad == nil {
+            candidateLoad = Task { await loadCandidates() }
+        }
+        await candidateLoad?.value
+    }
+
+    /// Per-track metadata, energy and embeddings for planning. Runs only once Generate is
+    /// tapped; the genre list never needs it.
     private func loadCandidates() async {
         let ids = rows.compactMap(\.track.id)
         let info = (try? await appState.store.djLoadTrackInfo(trackIds: ids)) ?? [:]
@@ -217,6 +234,12 @@ struct MixBuilderSheet: View {
         // act on them instead of silently shrinking the source pool.
         let energies = (try? await appState.store.discoveryEnergies(trackIds: ids)) ?? [:]
         let embeddings = (try? await appState.store.discoveryEmbeddingVectors(trackIds: ids)) ?? [:]
+        candidates = makeCandidates(info: info, energies: energies, embeddings: embeddings)
+        didLoadCandidates = true
+    }
+
+    private func makeCandidates(info: [Int64: DJLoadTrackInfo], energies: [Int64: Double],
+                                embeddings: [Int64: [Float]]) -> [MixCandidate] {
         var loaded: [MixCandidate] = []
         loaded.reserveCapacity(rows.count)
         for row in rows {
@@ -227,8 +250,7 @@ struct MixBuilderSheet: View {
                                        albumID: row.album?.id, duration: row.track.durationSec ?? 0,
                                        embedding: embeddings[id]))
         }
-        candidates = loaded
-        didLoadCandidates = true
+        return loaded
     }
 
     private func generate() {
@@ -239,9 +261,7 @@ struct MixBuilderSheet: View {
             // Previously a fast tap generated a plan from an empty candidate
             // array, left no preview to navigate to, and appeared to do
             // nothing. Finish the real load before planning.
-            if !didLoadCandidates {
-                await loadCandidates()
-            }
+            await ensureCandidates()
             let seed = UInt64(Date().timeIntervalSince1970 * 1_000)
             let generated: MixPlan
             if picksSource {

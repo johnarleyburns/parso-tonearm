@@ -18,14 +18,19 @@ public final class PhoneWatchPlaybackAdapter: PhoneWatchPlaybackBridge {
     private let player: AudioPlayer
     private let downloadedProvider: @Sendable () async -> Set<WatchTrackID>
     private let artworkBindingProvider: @Sendable (String) async -> (coverArtworkID: String?, customArtworkID: String?)
+    /// Resolves the opaque playlist reference carried by a watch command back to the phone's
+    /// persisted playlist so the queue retains its collection identity.
+    private let playlistResolver: @Sendable (String) async -> Playlist?
     private var artworkColorCache: [String: String] = [:]
 
     public init(player: AudioPlayer,
                 downloadedProvider: @escaping @Sendable () async -> Set<WatchTrackID> = { [] },
-                artworkBindingProvider: @escaping @Sendable (String) async -> (coverArtworkID: String?, customArtworkID: String?) = { _ in (nil, nil) }) {
+                artworkBindingProvider: @escaping @Sendable (String) async -> (coverArtworkID: String?, customArtworkID: String?) = { _ in (nil, nil) },
+                playlistResolver: @escaping @Sendable (String) async -> Playlist? = { _ in nil }) {
         self.player = player
         self.downloadedProvider = downloadedProvider
         self.artworkBindingProvider = artworkBindingProvider
+        self.playlistResolver = playlistResolver
     }
 
     public func snapshot(revision: Int64) async -> WatchPhonePlaybackSnapshot {
@@ -79,7 +84,18 @@ public final class PhoneWatchPlaybackAdapter: PhoneWatchPlaybackBridge {
 
     public func play(_ tracks: [TrackRow], startIndex: Int,
                      collection: WatchCollectionRef?, collectionTitle: String?) async {
-        player.play(tracks: tracks, startAt: startIndex, source: .library)
+        // Resolve the collection before starting playback. Starting with `.library` and repairing
+        // the source afterward races the first now-playing snapshot and loses the playlist on the
+        // watch.
+        let resolvedPlaylist: Playlist?
+        if let collection, collection.kind == .playlist {
+            resolvedPlaylist = await playlistResolver(collection.id)
+        } else {
+            resolvedPlaylist = nil
+        }
+        player.play(tracks: tracks, startAt: startIndex,
+                    source: PhoneWatchPlaybackSource.queueSource(for: collection,
+                                                                 playlist: resolvedPlaylist))
     }
 
     public func setPlaying(_ playing: Bool) async {

@@ -84,6 +84,27 @@ final class StarterLibraryTests: XCTestCase {
         XCTAssertNil(stored?.analysisPayload, "shipped prep is never copied into the library")
     }
 
+    /// The Mix builder's genre list comes from one aggregate query and must count exactly the
+    /// tracks the planner can mix (tempo + Camelot key), as the per-track loader sees them.
+    func testMixableGenreCountsMatchPerTrackInfo() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let tracks = (0..<5).map { entry($0) } + (5..<7).map { entry($0, analysed: false) }
+        _ = try await store.mergeStarterLibrary(tracks, sourceTitle: "Mood Starter", licenseText: "cc",
+                                                versions: versions)
+        let rows = try await store.allTrackRows()
+        let info = try await store.djLoadTrackInfo(trackIds: rows.compactMap(\.track.id))
+        var expected: [String: Int] = [:]
+        for row in rows {
+            guard let id = row.track.id, let genre = row.track.genre, !genre.isEmpty,
+                  (info[id]?.bpm ?? 0) > 0, MixCompatibility.isCamelot(info[id]?.camelotKey ?? "") else { continue }
+            expected[genre, default: 0] += 1
+        }
+        let counts = try await store.mixableGenreCounts()
+        XCTAssertEqual(Dictionary(uniqueKeysWithValues: counts.map { ($0.name, $0.count) }), expected)
+        XCTAssertEqual(counts.map(\.count), counts.map(\.count).sorted(by: >), "most tracks first")
+        XCTAssertFalse(expected.isEmpty)
+    }
+
     func testMergeBackfillsAnalysisAndArtworkForExistingTracks() async throws {
         let store = try LibraryStore(inMemory: true)
         let old = (0..<3).map { entry($0, analysed: false) }

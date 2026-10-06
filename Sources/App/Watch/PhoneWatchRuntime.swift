@@ -74,6 +74,17 @@ final class PhoneWatchRuntime {
                                                         downloadedProvider: downloadedProvider,
                                                         artworkBindingProvider: { [artworkBindings] trackID in
                                                             await artworkBindings.binding(for: trackID)
+                                                        },
+                                                        playlistResolver: { [weak store] rawID in
+                                                            guard let store else { return nil }
+                                                            let id: Int64?
+                                                            if let rowID = PhoneWatchID.playlistRowID(rawID) {
+                                                                id = rowID
+                                                            } else {
+                                                                id = try? await store.localID(table: "playlist", syncID: rawID)
+                                                            }
+                                                            guard let id else { return nil }
+                                                            return try? await store.playlist(id: id)
                                                         })
         self.player = player
         self.playbackAdapter = playbackAdapter

@@ -34,6 +34,19 @@ public protocol PhoneWatchPlaybackBridge: Sendable {
     func setVolume(_ level: Double) async
 }
 
+#if !os(watchOS)
+/// Maps a resolved watch collection to the phone queue source. Kept in the host-testable core so
+/// the real Xcode-only `AudioPlayer` adapter and the protocol tests share the same regression seam.
+public enum PhoneWatchPlaybackSource {
+    public static func queueSource(for collection: WatchCollectionRef?, playlist: Playlist?) -> QueueSource {
+        if collection?.kind == .playlist, let playlist {
+            return .playlist(playlist)
+        }
+        return .library
+    }
+}
+#endif
+
 /// Builds a `WatchPhonePlaybackSnapshot` from primitive now-playing values. Pure and
 /// host-tested; the real adapter's only job is to gather `AudioPlayer`'s published state and call
 /// this. Keeping the window math here means the "never the whole queue" rule (§5.3) has exactly one
