@@ -113,6 +113,7 @@ public struct WatchProtocolRouter: Sendable {
 
             case .helloReply, .searchResponse, .browseResponse, .collectionResponse, .commandReply,
                  .phonePlaybackSnapshot, .setDownloadRoots, .downloadStatusSnapshot, .removeAssets,
+                 .catalogPage,
                  .error:
                 // Replies and phone-authored events are not requests. Answering them would create a
                 // loop; ignoring them is the correct read of "never assume delivery order".

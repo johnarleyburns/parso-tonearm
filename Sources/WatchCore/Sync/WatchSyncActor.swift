@@ -13,6 +13,9 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     private let artworkInstaller: WatchArtworkInstaller?
     private let diagnostics: WatchDiagnosticsRecorder?
     private weak var coordinator: WatchConnectivityCoordinator?
+    private var catalogID: String?
+    private var catalogRevision: Int64 = -1
+    private var catalogPages: [Int: WatchCatalogPage] = [:]
 
     /// Fired when the phone's paired-library identity differs from the bound one (A-08). The UI
     /// presents the choice and calls `coordinator.confirmPairedLibraryReplacement()`.
@@ -48,6 +51,40 @@ public actor WatchSyncActor: WatchConnectivityObserver {
         }
         await installer.retryDeferred()
         await artworkInstaller?.retryDeferred()
+        await onLibraryChanged()
+        await publishManifest()
+    }
+
+    /// Applies a complete phone catalog atomically from the watch's point of view. Search can run
+    /// while pages arrive, but it continues to see the previous complete catalog until every page
+    /// for the new snapshot is present.
+    public func didReceiveCatalogPage(_ page: WatchCatalogPage) async {
+        guard page.pageCount > 0, page.pageIndex >= 0, page.pageIndex < page.pageCount else { return }
+        if page.revision < catalogRevision { return }
+        if page.revision > catalogRevision || (page.catalogID != catalogID && catalogPages.isEmpty) {
+            catalogID = page.catalogID
+            catalogRevision = page.revision
+            catalogPages.removeAll()
+        }
+        guard page.catalogID == catalogID, page.revision == catalogRevision else { return }
+        catalogPages[page.pageIndex] = page
+        guard catalogPages.count == page.pageCount,
+              (0..<page.pageCount).allSatisfy({ catalogPages[$0] != nil }) else { return }
+
+        let pages = (0..<page.pageCount).compactMap { catalogPages[$0] }
+        for summary in pages.flatMap(\.tracks) {
+            _ = try? await repository.upsertTrack(.init(
+                trackID: summary.trackID.rawValue, title: summary.title, artist: summary.artist,
+                albumTitle: summary.albumTitle, durationSeconds: summary.durationSeconds,
+                artworkID: summary.artworkID, coverArtworkID: summary.coverArtworkID,
+                customArtworkID: summary.customArtworkID, phoneRevision: page.revision))
+        }
+        for playlist in pages.flatMap(\.playlists) {
+            _ = try? await repository.upsertPlaylist(.init(
+                playlistID: playlist.playlistID, title: playlist.title,
+                trackIDs: playlist.trackIDs.map(\.rawValue), phoneRevision: page.revision))
+        }
+        catalogPages.removeAll()
         await onLibraryChanged()
         await publishManifest()
     }

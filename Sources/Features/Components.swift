@@ -246,6 +246,8 @@ struct TrackContextMenu: ViewModifier {
     let row: TrackRow
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
+    @State private var watchConfirmation: WatchTransferConfirmation?
+    @State private var showWatchConfirmation = false
 
     func body(content: Content) -> some View {
         content.contextMenu {
@@ -288,6 +290,21 @@ struct TrackContextMenu: ViewModifier {
             watchMenuItems
             #endif
         }
+        .confirmationDialog(watchConfirmation?.title ?? "Apple Watch", isPresented: $showWatchConfirmation,
+                            titleVisibility: .visible) {
+            Button(watchConfirmation?.confirmTitle ?? "Confirm") {
+                Task {
+                    guard let action = watchConfirmation else { return }
+                    switch action {
+                    case .download: await appState.downloadToWatch(rows: [row])
+                    case .remove: await appState.removeFromWatch(rows: [row])
+                    }
+                }
+            }
+            Button("No", role: .cancel) {}
+        } message: {
+            Text(watchConfirmation?.message ?? "")
+        }
     }
 
     #if os(iOS)
@@ -296,21 +313,15 @@ struct TrackContextMenu: ViewModifier {
         let state = appState.watchGlyphState(for: row)
         switch state {
         case .notOnWatch:
-            Button {
-                Task { await appState.downloadToWatch(rows: [row]) }
-            } label: {
+            Button { watchConfirmation = .download; showWatchConfirmation = true } label: {
                 Label("Download to Apple Watch", systemImage: "applewatch")
             }
         case .onWatch:
-            Button {
-                Task { await appState.removeFromWatch(rows: [row]) }
-            } label: {
+            Button { watchConfirmation = .remove; showWatchConfirmation = true } label: {
                 Label("Remove from Apple Watch", systemImage: "applewatch.slash")
             }
         case .failed:
-            Button {
-                Task { await appState.downloadToWatch(rows: [row]) }
-            } label: {
+            Button { watchConfirmation = .download; showWatchConfirmation = true } label: {
                 Label("Retry Download to Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
             }
         case .transferring:
@@ -338,6 +349,17 @@ struct TrackContextMenu: ViewModifier {
         case .downloading:
             EmptyView()
         }
+    }
+}
+
+enum WatchTransferConfirmation: String, Identifiable {
+    case download, remove
+    var id: String { rawValue }
+    var title: String { self == .download ? "Download to Apple Watch" : "Remove from Apple Watch" }
+    var confirmTitle: String { self == .download ? "Yes, Download" : "Yes, Remove" }
+    var message: String {
+        self == .download ? "Download this track to the Apple Watch for offline playback?" :
+            "Remove this track from the Apple Watch?"
     }
 }
 

@@ -97,7 +97,7 @@ struct WatchPhoneIndexView: View {
             case .loaded:
                 ForEach(rows) { row in
                     if let ref = row.collectionRef {
-                        NavigationLink(value: WatchNav.phoneCollection(ref)) {
+                        NavigationLink(value: ref.kind == .playlist ? WatchNav.playlist(ref.id) : WatchNav.album(ref.id)) {
                             WatchCollectionRowLabel(title: row.title, detail: detail(for: row, ref: ref),
                                                     tintKey: row.title, fullyOnWatch: isFullyOnWatch(row, ref: ref))
                         }
@@ -293,11 +293,12 @@ struct WatchCollectionDetailView: View {
                             artworkFilename: local?.artworkFilename, local: local)
             }
         case .localPlaylist(let id):
-            return model.readyTracks(forPlaylist: id).map(Self.song)
+            let ids = model.playlist(id: id)?.trackIDs ?? []
+            return ids.compactMap { model.track(id: $0) }.map(Self.song)
         case .localAlbum(let id):
             return model.readyTracks(forAlbum: id).map(Self.song)
         case .localSongs:
-            return model.tracks.map(Self.song)
+            return model.tracks.filter(\.isReady).map(Self.song)
         }
     }
 
@@ -306,7 +307,7 @@ struct WatchCollectionDetailView: View {
              albumTitle: track.albumTitle, artworkFilename: track.artworkFilename, local: track)
     }
 
-    private var localTracks: [WatchTrackSnapshot] { songs.compactMap(\.local) }
+    private var localTracks: [WatchTrackSnapshot] { songs.compactMap(\.local).filter(\.isReady) }
 
     /// The phone-side collection this screen can address, if any. A local playlist exists on the
     /// phone under the same id; a derived local album or "all songs" has no phone twin.
@@ -318,7 +319,7 @@ struct WatchCollectionDetailView: View {
         }
     }
 
-    private var canPlayOnPhone: Bool { chrome.showsConnectedFeatures && phoneRef(for: source) != nil }
+    private var canPlayOnPhone: Bool { false }
     private var canPlayOnWatch: Bool { !localTracks.isEmpty }
 
     /// The remembered target when the user has chosen one; otherwise `nil` (ask once, T2).
@@ -328,12 +329,7 @@ struct WatchCollectionDetailView: View {
 
     /// The primary target for this screen: the only possible one, else the remembered one.
     private var primaryTarget: WatchTarget? {
-        switch (canPlayOnPhone, canPlayOnWatch) {
-        case (true, true): rememberedTarget
-        case (true, false): .iPhone
-        case (false, true): .thisWatch
-        case (false, false): nil
-        }
+        canPlayOnWatch ? .thisWatch : nil
     }
 
     // MARK: Header (T1)
@@ -447,7 +443,7 @@ struct WatchCollectionDetailView: View {
     private func rowDetail(_ song: Song) -> String {
         var parts: [String] = []
         if !song.artist.isEmpty { parts.append(song.artist) }
-        if !song.isOnWatch && effectiveTarget == .thisWatch { parts.append(String(localized: "iPhone only")) }
+        if !song.isOnWatch { parts.append(String(localized: "Not downloaded to this watch")) }
         else if let duration = song.duration { parts.append(WatchTimeFmt.mmss(duration)) }
         return parts.joined(separator: " · ")
     }
@@ -459,9 +455,9 @@ struct WatchCollectionDetailView: View {
         } else if song.isOnWatch && effectiveTarget != .thisWatch {
             Image(systemName: "arrow.down.circle.fill").font(.caption2).foregroundStyle(WatchPalette.success)
                 .accessibilityLabel(Text("On this watch"))
-        } else if !song.isOnWatch && effectiveTarget == .thisWatch {
-            Image(systemName: "iphone").font(.caption2).foregroundStyle(.secondary)
-                .accessibilityLabel(Text("iPhone only"))
+        } else if !song.isOnWatch {
+            Image(systemName: "arrow.down.circle").font(.caption2).foregroundStyle(.secondary)
+                .accessibilityLabel(Text("Available to download"))
         }
     }
 
@@ -472,7 +468,7 @@ struct WatchCollectionDetailView: View {
                 Label("Play on Watch", systemImage: "applewatch")
             }
             .tint(WatchPalette.accent)
-        } else if chrome.showsConnectedFeatures {
+        } else {
             Button {
                 requestedDownloads.insert(song.id)
                 Task { await WatchAppAssembly.shared.requestDownloads([WatchTrackID(song.id)]) }
@@ -480,12 +476,6 @@ struct WatchCollectionDetailView: View {
                 Label("Download to Watch", systemImage: "arrow.down.circle")
             }
             .tint(WatchPalette.success)
-        }
-        if canPlayOnPhone {
-            Button { perform(target: .iPhone, startID: song.id, shuffled: false) } label: {
-                Label("Play on iPhone", systemImage: "iphone")
-            }
-            .tint(.blue)
         }
         if !song.albumTitle.isEmpty, model.album(id: song.albumTitle) != nil {
             NavigationLink(value: WatchNav.album(song.albumTitle)) {
@@ -501,8 +491,7 @@ struct WatchCollectionDetailView: View {
     private func isPlayable(_ song: Song) -> Bool {
         switch effectiveTarget {
         case .thisWatch?: song.isOnWatch
-        case .iPhone?: true
-        case nil: song.isOnWatch || canPlayOnPhone
+        case .iPhone?, nil: false
         }
     }
 
@@ -521,18 +510,7 @@ struct WatchCollectionDetailView: View {
         WKInterfaceDevice.current().play(.click)
         switch target {
         case .iPhone:
-            guard let ref = phoneRef(for: source) else { return }
-            if shuffled {
-                Task {
-                    await WatchAppAssembly.shared.playOnPhone(WatchPlayCommand(action: .setShuffle, shuffleEnabled: true))
-                    await WatchAppAssembly.shared.playOnPhone(.playCollection(ref), title: title)
-                }
-            } else if let startID {
-                let name = songs.first { $0.id == startID }?.title
-                Task { await WatchAppAssembly.shared.playOnPhone(.playTrack(WatchTrackID(startID), in: ref), title: name) }
-            } else {
-                Task { await WatchAppAssembly.shared.playOnPhone(.playCollection(ref), title: title) }
-            }
+            return
         case .thisWatch:
             var tracks = localTracks
             guard !tracks.isEmpty else { return }

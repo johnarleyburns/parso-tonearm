@@ -56,6 +56,46 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
                         phoneRevision: await revisionStore.currentRevision())
     }
 
+    /// Builds the complete searchable My Music projection. It is chunked by the caller for
+    /// WatchConnectivity rather than exposed through the watch's request/search path.
+    public func catalogPages(revision: Int64) async throws -> [WatchCatalogPage] {
+        let allTracks = try await store.allTrackRows()
+        let downloaded: Set<WatchTrackID> = []
+        let summaries = allTracks.map {
+            PhoneWatchProjection.trackSummary(from: $0, downloadedOnWatch: downloaded)
+        }
+        let phonePlaylists = try await store.allPlaylists()
+        var playlists: [WatchCatalogPlaylist] = []
+        for playlist in phonePlaylists {
+            let ids: [WatchTrackID]
+            if let id = playlist.id {
+                ids = try await store.playlistTrackRows(playlistId: id).map {
+                    PhoneWatchID.track($0.row.track)
+                }
+            } else {
+                ids = []
+            }
+            playlists.append(WatchCatalogPlaylist(playlistID: PhoneWatchID.playlist(playlist),
+                                                  title: playlist.title, trackIDs: ids))
+        }
+        let trackPageSize = 20
+        let playlistPageSize = 10
+        let trackPages = Int(ceil(Double(summaries.count) / Double(trackPageSize)))
+        let playlistPages = Int(ceil(Double(playlists.count) / Double(playlistPageSize)))
+        let pageCount = max(1, max(trackPages, playlistPages))
+        let catalogID = UUID().uuidString
+        return (0..<pageCount).map { index in
+            let trackStart = index * trackPageSize
+            let playlistStart = index * playlistPageSize
+            let tracks = trackStart < summaries.count
+                ? Array(summaries[trackStart..<min(trackStart + trackPageSize, summaries.count)]) : []
+            let playlistRows = playlistStart < playlists.count
+                ? Array(playlists[playlistStart..<min(playlistStart + playlistPageSize, playlists.count)]) : []
+            return WatchCatalogPage(catalogID: catalogID, revision: revision, pageIndex: index,
+                                    pageCount: pageCount, tracks: tracks, playlists: playlistRows)
+        }
+    }
+
     // MARK: - Search
 
     public func handleSearch(_ request: WatchSearchRequest) async throws -> WatchSearchResponse {

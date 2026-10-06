@@ -19,6 +19,8 @@ struct NowPlayingView: View {
     /// Track key whose watch transfer we toasted the *start* of, so we can toast its completion
     /// when it lands in the watch manifest.
     @State private var pendingWatchToastTrackID: String?
+    @State private var watchConfirmation: WatchTransferConfirmation?
+    @State private var showWatchConfirmation = false
 
     var body: some View {
         ZStack {
@@ -120,6 +122,25 @@ struct NowPlayingView: View {
             Button("Remove", role: .destructive) { deleteArtwork() }
         } message: {
             Text("This will remove the custom artwork for this track.")
+        }
+        .confirmationDialog(watchConfirmation?.title ?? "Apple Watch", isPresented: $showWatchConfirmation,
+                            titleVisibility: .visible) {
+            Button(watchConfirmation?.confirmTitle ?? "Confirm") {
+                guard let row = player.currentTrack else { return }
+                Task {
+                    guard let action = watchConfirmation else { return }
+                    switch action {
+                    case .download:
+                        pendingWatchToastTrackID = PhoneWatchID.track(row.track).rawValue
+                        await appState.downloadToWatch(rows: [row])
+                    case .remove:
+                        await appState.removeFromWatch(rows: [row])
+                    }
+                }
+            }
+            Button("No", role: .cancel) {}
+        } message: {
+            Text(watchConfirmation?.message ?? "")
         }
         .onChange(of: appState.watchInstalledTrackIDs) { _, installed in
             guard let pending = pendingWatchToastTrackID, installed.contains(pending) else { return }
@@ -425,16 +446,13 @@ struct NowPlayingView: View {
             case .notOnWatch, .failed:
                 if let row {
                     pendingWatchToastTrackID = PhoneWatchID.track(row.track).rawValue
-                    ToastCenter.shared.progress("Sending to Apple Watch…", icon: "applewatch",
-                                                tag: "dl.watch")
-                    Task { await appState.downloadToWatch(rows: [row]) }
+                    watchConfirmation = .download
+                    showWatchConfirmation = true
                 }
             case .onWatch:
                 if let row {
-                    Task {
-                        await appState.removeFromWatch(rows: [row])
-                        ToastCenter.shared.info(String(localized: "Removed from Apple Watch"), icon: "applewatch")
-                    }
+                    watchConfirmation = .remove
+                    showWatchConfirmation = true
                 }
             case .transferring:
                 break

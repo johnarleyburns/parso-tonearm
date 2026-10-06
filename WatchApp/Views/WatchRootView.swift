@@ -29,13 +29,16 @@ struct WatchRootView: View {
                     .listRowBackground(Color.clear)
             }
 
-            door(.search, title: connected ? "Search" : "Search This Watch",
+            door(.search, title: "Search All Music",
                  detail: nil, systemImage: "magnifyingglass", identifier: "watch.search")
-            door(connected ? .phonePlaylists : .playlists, title: "Playlists",
-                 detail: connected ? nil : String(localized: "\(model.playlists.count) on this watch"),
+            door(.searchThisWatch, title: "Search This Watch",
+                 detail: String(localized: "\(model.tracks.filter(\.isReady).count) downloaded"),
+                 systemImage: "applewatch", identifier: "watch.search.thisWatch")
+            door(.playlists, title: "Playlists",
+                 detail: String(localized: "\(model.playlists.count) in catalog"),
                  systemImage: "music.note.list", identifier: "watch.playlists")
-            door(connected ? .phoneAlbums : .albums, title: "Albums",
-                 detail: connected ? nil : String(localized: "\(model.albums.count) on this watch"),
+            door(.albums, title: "Albums",
+                 detail: String(localized: "\(model.albums.count) in catalog"),
                  systemImage: "square.stack", identifier: "watch.albums")
             door(.downloads, title: "On This Watch", detail: onWatchDetail,
                  systemImage: "applewatch", identifier: "watch.downloads")
@@ -76,7 +79,7 @@ struct WatchRootView: View {
     }
 
     private var onWatchDetail: String {
-        let count = model.tracks.count
+        let count = model.tracks.filter(\.isReady).count
         let bytes = model.storage?.readyBytes ?? 0
         if count == 0 { return String(localized: "Nothing downloaded") }
         let songs = String(localized: "\(count) songs")
@@ -107,9 +110,9 @@ struct WatchRootView: View {
             Image(systemName: "applewatch").font(.title3).foregroundStyle(WatchPalette.accent)
             Text("Nothing on this watch yet").font(.headline).multilineTextAlignment(.center)
             if connected {
-                Text("Your iPhone is nearby — play from its library now, or download a playlist for runs.")
+                Text("Your iPhone can sync music here. Downloaded tracks play directly on this watch.")
                     .font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                NavigationLink(value: WatchNav.phonePlaylists) { Text("Browse iPhone") }
+                NavigationLink(value: WatchNav.playlists) { Text("Browse synced catalog") }
                     .buttonStyle(.watchPrimarySmall)
                     .accessibilityIdentifier("watch.home.browsePhone")
             } else {
@@ -124,12 +127,9 @@ struct WatchRootView: View {
     }
 }
 
-/// H1 hero — the player in miniature. Shown while anything is loaded on either engine; follows
-/// `WatchNowPlayingResolver`, and its play/pause addresses the engine it shows. Tap → Now Playing.
+/// H1 hero — the local watch player in miniature. The phone player is never a watch playback target.
 struct WatchHomeHero: View {
     @ObservedObject private var player = WatchPlayer.shared
-    @ObservedObject private var remote = WatchRemotePlayer.shared
-    @ObservedObject private var coordinator = WatchPlaybackCoordinator.shared
 
     var body: some View {
         if let hero = current {
@@ -148,9 +148,7 @@ struct WatchHomeHero: View {
                             Spacer(minLength: 0)
                         }
                         HStack(spacing: 6) {
-                            WatchTargetChip(systemImage: hero.target == .iPhone ? "iphone" : "applewatch",
-                                            title: hero.target == .iPhone ? String(localized: "iPhone")
-                                                                          : String(localized: "Watch"),
+                            WatchTargetChip(systemImage: "applewatch", title: String(localized: "On Watch"),
                                             tone: .onArtwork)
                             WatchProgressHairline(elapsed: hero.elapsed, duration: hero.duration, showsTimes: false)
                         }
@@ -159,7 +157,7 @@ struct WatchHomeHero: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("watch.nowPlaying")
-                .accessibilityLabel(Text("Now Playing, \(hero.title), \(hero.target == .iPhone ? String(localized: "on iPhone") : String(localized: "on Apple Watch"))"))
+                .accessibilityLabel(Text("Now Playing, \(hero.title), on Apple Watch"))
                 .accessibilityValue(hero.isPlaying ? "playing" : "paused")
                 .accessibilityHint(Text("Opens Now Playing"))
 
@@ -188,7 +186,6 @@ struct WatchHomeHero: View {
     private struct Hero {
         var title: String
         var subtitle: String
-        var target: WatchTarget
         var isPlaying: Bool
         var elapsed: Double
         var duration: Double
@@ -198,32 +195,17 @@ struct WatchHomeHero: View {
     }
 
     private var current: Hero? {
-        let shown = WatchNowPlayingResolver.shown(
-            local: .init(hasItem: player.currentTrack != nil, isPlaying: player.isPlaying),
-            remote: .init(hasItem: remote.state?.currentItem != nil, isPlaying: remote.state?.isPlaying ?? false),
-            target: coordinator.target)
-        switch shown {
-        case .iPhone:
-            guard let state = remote.state, let item = state.currentItem else { return nil }
-            return Hero(title: item.title, subtitle: item.artist.isEmpty ? (state.collectionTitle ?? "") : item.artist,
-                        target: .iPhone, isPlaying: state.isPlaying,
-                        elapsed: state.predictedElapsed(at: Date()), duration: item.durationSeconds ?? 0,
-                        tint: Color(watchHex: state.snapshot.artworkColorHex) ?? WatchPalette.accent,
-                        image: nil, toggle: { remote.togglePlayPause() })
-        case .thisWatch:
-            guard let track = player.currentTrack else { return nil }
-            return Hero(title: track.title, subtitle: track.artist, target: .thisWatch,
-                        isPlaying: player.isPlaying, elapsed: player.elapsed, duration: player.duration,
-                        tint: player.artworkTint ?? WatchPalette.accent, image: player.artwork,
-                        toggle: { player.togglePlayPause() })
-        case nil:
-            return nil
-        }
+        guard let track = player.currentTrack else { return nil }
+        return Hero(title: track.title, subtitle: track.artist, isPlaying: player.isPlaying,
+                    elapsed: player.elapsed, duration: player.duration,
+                    tint: player.artworkTint ?? WatchPalette.accent, image: player.artwork,
+                    toggle: { player.togglePlayPause() })
     }
 }
 
 enum WatchNav: Hashable {
     case search
+    case searchThisWatch
     case downloads
     case playlists
     case albums
@@ -231,8 +213,5 @@ enum WatchNav: Hashable {
     case storage
     case playlist(String)
     case album(String)
-    case phonePlaylists
-    case phoneAlbums
-    case phoneCollection(WatchCollectionRef)
     case recovery
 }

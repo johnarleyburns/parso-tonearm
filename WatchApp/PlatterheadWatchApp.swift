@@ -58,7 +58,8 @@ struct WatchContentView: View {
                 .navigationTitle("Platterhead")
                 .navigationDestination(for: WatchNav.self) { nav in
                     switch nav {
-                    case .search: WatchSearchView()
+                    case .search: WatchSearchView(mode: .allMusic)
+                    case .searchThisWatch: WatchSearchView(mode: .thisWatch)
                     case .downloads: WatchDownloadsView()
                     case .playlists: WatchPlaylistsView()
                     case .albums: WatchAlbumsView()
@@ -66,9 +67,6 @@ struct WatchContentView: View {
                     case .storage: WatchStorageView()
                     case .playlist(let id): WatchPlaylistDetailView(playlistID: id)
                     case .album(let id): WatchAlbumDetailView(albumID: id)
-                    case .phonePlaylists: WatchPhoneIndexView(category: .playlists)
-                    case .phoneAlbums: WatchPhoneIndexView(category: .albums)
-                    case .phoneCollection(let ref): WatchPhoneCollectionView(ref: ref)
                     case .recovery: WatchRecoveryView()
                     }
                 }

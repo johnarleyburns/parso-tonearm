@@ -19,6 +19,7 @@ final class PhoneWatchRuntime {
     private let protocolAdapter: PhoneWatchProtocolAdapter
     private let downloadManager: PhoneWatchDownloadManager
     private let inbound: PhoneWatchInbound
+    private let requestHandler: PhoneWatchRequestHandler
     private let libraryID: WatchPairedLibraryID
     private let artworkBindings: PhoneWatchArtworkBindingRegistry
 
@@ -102,6 +103,7 @@ final class PhoneWatchRuntime {
             onReconciliation: { [inbound] request in await inbound.reconciliation(request) },
             onDownloadRequest: { [inbound] request in await inbound.downloadRequest(request) },
             onDownloadControl: { [inbound] control in await inbound.downloadControl(control) })
+        self.requestHandler = requestHandler
 
         let coordinator = PhoneWatchProtocolCoordinator(
             transport: PhoneWatchProtocolAdapter.transport,
@@ -156,6 +158,7 @@ final class PhoneWatchRuntime {
     func activate() async {
         protocolAdapter.activate()
         try? await downloadManager.resumeOutstanding()
+        await publishCatalog()
         await refresh()
         await publishPlaybackIfChanged()
     }
@@ -258,8 +261,19 @@ final class PhoneWatchRuntime {
     }
 
     func requestReconciliation() async {
+        await publishCatalog()
         await coordinator.requestReconciliation()
         await tickDownloads()
+    }
+
+    /// Sends the complete catalog after every negotiation or an explicit Settings refresh. Search
+    /// on the watch never uses the request handler; this is the sole metadata path.
+    func publishCatalog() async {
+        // A catalog snapshot gets its own monotonic revision. This prevents a late page from an
+        // earlier reconnect (with a different catalog UUID) from replacing a newer snapshot.
+        let revision = (try? await downloadStore.bumpRevision()) ?? 0
+        guard let pages = try? await requestHandler.catalogPages(revision: revision) else { return }
+        for page in pages { await coordinator.sendCatalogPage(page) }
     }
 
     func artworkDidChange() async {
@@ -452,6 +466,7 @@ private actor PhoneWatchInbound: PhoneWatchProtocolObserver {
 
     func watchDidNegotiate(_ hello: WatchHello) async {
         await negotiatedCapabilities.set(hello.capabilities)
+        await runtime?.publishCatalog()
     }
 
     func manifest(_ payload: WatchManifestPayload) async {

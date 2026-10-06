@@ -66,15 +66,8 @@ struct WatchNowPlayingMoreView: View {
             .disabled(local.isEmpty)
             .accessibilityIdentifier("watch.more.switchTarget")
         } else {
-            Button {
-                Task { await moveToPhone() }
-            } label: {
-                rowLabel(systemImage: "iphone", title: "Play on iPhone",
-                         detail: model.phoneReachable ? String(localized: "Moves playback, keeps your place")
-                                                      : String(localized: "iPhone isn't reachable"))
-            }
-            .disabled(!model.phoneReachable)
-            .accessibilityIdentifier("watch.more.switchTarget")
+            Text("Playback is local to this Apple Watch.")
+                .font(.caption2).foregroundStyle(.secondary)
         }
     }
 
@@ -104,17 +97,6 @@ struct WatchNowPlayingMoreView: View {
         remote.pause()
         WatchPlayer.shared.startLocalPlayback(tracks: tracks, selectedTrackID: first.id,
                                               seekTo: sameItem && elapsed > 0 ? elapsed : nil)
-        dismiss()
-    }
-
-    private func moveToPhone() async {
-        guard let track = player.currentTrack else { return }
-        let position = player.elapsed
-        if player.isPlaying { player.togglePlayPause() }
-        let ok = await WatchAppAssembly.shared.playOnPhone(.playTrack(WatchTrackID(track.id)), title: track.title)
-        if ok, position > 1 {
-            _ = await WatchAppAssembly.shared.playOnPhone(WatchPlayCommand(action: .seek, seekSeconds: position))
-        }
         dismiss()
     }
 

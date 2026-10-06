@@ -20,6 +20,9 @@ public enum WatchMessageKind: String, Codable, Sendable, CaseIterable {
     /// Watch → phone (watch redesign D1): pause, resume, stop or retry downloads to this watch from
     /// the watch's own "On This Watch" screen. The phone stays the authority.
     case downloadControl
+    /// Phone → watch: one page of the complete phone catalog. Pages are durable so a locked watch
+    /// can finish a catalog sync without issuing search requests back to the phone.
+    case catalogPage
     case error
 
     /// Which WCSession channel §5.2 assigns this kind. The router uses it to refuse, for example, a
@@ -33,7 +36,7 @@ public enum WatchMessageKind: String, Codable, Sendable, CaseIterable {
         case .phonePlaybackSnapshot, .downloadStatusSnapshot:
             .applicationContext
         case .setDownloadRoots, .watchManifest, .requestReconciliation, .removeAssets, .requestDownload,
-             .downloadControl:
+             .downloadControl, .catalogPage:
             .userInfo
         }
     }
@@ -64,6 +67,8 @@ public enum WatchCapability: String, Codable, Sendable, CaseIterable {
     case watchInitiatedDownload
     /// The watch accepts content-addressed artwork files and track artwork bindings.
     case artworkAssets
+    /// The watch keeps a local searchable catalog and never asks the phone to search or play.
+    case watchLocalCatalog
 }
 
 public struct WatchHello: Codable, Equatable, Sendable {

@@ -2,215 +2,175 @@ import SwiftUI
 import TonearmWatchCore
 import TonearmWatchProtocol
 
-/// Watch redesign §5 Q1/Q2 — dictation-first search with results you can trust. The field opens
-/// the system text input (dictation, Scribble, keyboard) as soon as the screen appears; results are
-/// grouped with the strongest match first; and the screen never says "No results" without saying
-/// *where* it looked — a phone timeout falls back to this watch's downloads and says so.
+enum WatchSearchMode: Hashable {
+    case allMusic, thisWatch
+    var title: LocalizedStringKey {
+        switch self { case .allMusic: "Search All Music"; case .thisWatch: "Search This Watch" }
+    }
+}
+
+/// Search is intentionally backed only by WatchLibraryModel. A connected phone changes download
+/// availability, never the source of search results.
 struct WatchSearchView: View {
-    @ObservedObject private var presenter = WatchAppAssembly.shared.search
-    @ObservedObject private var chrome = WatchAppAssembly.shared.chrome
+    let mode: WatchSearchMode
     @ObservedObject private var model = WatchAppAssembly.shared.model
-    @ObservedObject private var coordinator = WatchPlaybackCoordinator.shared
     @FocusState private var fieldFocused: Bool
-    @State private var didAutoFocus = false
+    @State private var query = ""
+    @State private var rows: [WatchResultRow] = []
+    @State private var isSearching = false
+    @State private var pendingDownload: WatchTrackRequest?
+    @State private var downloadNavigation: WatchTrackRequest?
+    @State private var showDownloadConfirmation = false
 
     var body: some View {
         List {
-            TextField(fieldPrompt, text: $presenter.query)
-                .focused($fieldFocused)
-                .submitLabel(.search)
-                .onSubmit { presenter.submit() }
+            TextField(mode == .allMusic ? "Search synced catalog" : "Search downloaded music", text: $query)
+                .focused($fieldFocused).submitLabel(.search).onSubmit { search() }
                 .accessibilityIdentifier("watch.search.field")
                 .listRowBackground(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(WatchPalette.surface))
-            content
-        }
-        .listStyle(.plain)
-        .navigationTitle("Search")
-        .onAppear {
-            // Dictation-first: open input straight away the first time, unless a UI test drives it.
-            guard !didAutoFocus, presenter.query.isEmpty,
-                  !ProcessInfo.processInfo.arguments.contains("UI_TESTING") else { return }
-            didAutoFocus = true
-            fieldFocused = true
-        }
-    }
-
-    private var fieldPrompt: String {
-        chrome.showsConnectedFeatures ? String(localized: "Search iPhone library")
-                                      : String(localized: "Search this watch")
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        switch presenter.phase {
-        case .recent(let queries):
-            if queries.isEmpty {
-                (chrome.showsConnectedFeatures
-                     ? Text("Say a song, album or playlist. Searches your iPhone library.")
-                     : Text("Say a song or artist. Searches the music on this watch."))
-                    .font(.caption2).foregroundStyle(.secondary)
+            if isSearching {
+                HStack { ProgressView(); Text("Searching this watch…").font(.caption2) }
                     .listRowBackground(Color.clear)
+            } else if rows.isEmpty {
+                Text(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                     ? (mode == .allMusic ? "Search the synced music catalog." : "Search audio downloaded to this watch.")
+                     : "No matches in this watch catalog.")
+                    .font(.caption2).foregroundStyle(.secondary).listRowBackground(Color.clear)
             } else {
-                Section("Recent") {
-                    ForEach(queries, id: \.self) { query in
-                        Button(query) { presenter.submit(query) }
-                            .watchCardRow()
-                    }
-                    Button("Clear Recents", role: .destructive) { presenter.clearRecents() }
-                        .listRowBackground(Color.clear)
-                }
+                ForEach(rows) { row in resultRow(row) }
             }
-
-        case .tooShort:
-            Text("Keep going…").font(.caption2).foregroundStyle(.secondary)
-                .listRowBackground(Color.clear)
-
-        case .loading:
-            HStack { ProgressView(); (chrome.showsConnectedFeatures ? Text("Searching iPhone…") : Text("Searching…")).font(.caption2) }
-                .accessibilityIdentifier("watch.search.loading")
-                .listRowBackground(Color.clear)
-
-        case .results(let rows):
-            grouped(rows, scope: .iPhone)
-
-        case .offlineResults(let rows):
-            scopeNote(String(localized: "On this watch"))
-            grouped(rows, scope: .thisWatch)
-
-        case .noResults:
-            explanation(title: "No matches in your iPhone library",
-                        message: String(localized: "Try a different word, or an artist name."))
-
-        case .offlineNoResults:
-            explanation(title: "Nothing on this watch matches",
-                        message: String(localized: "Searched the \(model.tracks.count) songs on this watch."))
-
-        case .unreachable(let fallback):
-            WatchProblemCard(
-                systemImage: "iphone.slash",
-                title: fallback.isEmpty ? "Nothing on this watch matches" : "Showing this watch only",
-                message: String(localized: "Your iPhone isn't reachable, so only the \(model.tracks.count) downloaded songs were searched."),
-                actions: [.init(title: "Try iPhone Again", identifier: "watch.search.retry") { presenter.submit() }])
-                .listRowBackground(Color.clear)
-            if !fallback.isEmpty { grouped(fallback, scope: .thisWatch) }
         }
-    }
-
-    // MARK: Grouping
-
-    @ViewBuilder
-    private func grouped(_ rows: [WatchResultRow], scope: WatchTarget) -> some View {
-        if let top = rows.first {
-            Section("Top Result") { resultRow(top, scope: scope) }
+        .listStyle(.plain).navigationTitle(mode.title)
+        .onAppear { if !ProcessInfo.processInfo.arguments.contains("UI_TESTING") { fieldFocused = true } }
+        .navigationDestination(item: $downloadNavigation) { request in
+            WatchTrackDownloadView(trackID: request.trackID, title: request.title)
         }
-        let rest = Array(rows.dropFirst())
-        ForEach(WatchSearchGroup.allCases, id: \.self) { group in
-            let members = rest.filter { group.matches($0.kind) }
-            if !members.isEmpty {
-                Section(group.title) {
-                    ForEach(members) { resultRow($0, scope: scope) }
-                }
+        .confirmationDialog("Download to Apple Watch?", isPresented: $showDownloadConfirmation,
+                            titleVisibility: .visible) {
+            Button("Download to Watch") {
+                downloadNavigation = pendingDownload
+                pendingDownload = nil
             }
+            Button("Cancel", role: .cancel) { pendingDownload = nil }
+        } message: {
+            Text("The selected track is in your synced catalog but is not fully downloaded on this watch.")
         }
     }
 
     @ViewBuilder
-    private func resultRow(_ row: WatchResultRow, scope: WatchTarget) -> some View {
-        if let ref = row.collectionRef, scope == .iPhone {
-            NavigationLink(value: WatchNav.phoneCollection(ref)) { rowLabel(row) }
-                .watchCardRow()
-                .accessibilityIdentifier("watch.search.result.\(row.id)")
+    private func resultRow(_ row: WatchResultRow) -> some View {
+        if let ref = row.collectionRef {
+            NavigationLink(value: ref.kind == .playlist ? WatchNav.playlist(ref.id) : WatchNav.album(ref.id)) {
+                label(row)
+            }.watchCardRow()
         } else {
-            Button { activate(row, scope: scope) } label: { rowLabel(row).contentShape(Rectangle()) }
-                .buttonStyle(.plain)
-                .watchCardRow()
-                .accessibilityIdentifier("watch.search.result.\(row.id)")
+            Button { activate(row) } label: { label(row).contentShape(Rectangle()) }
+                .buttonStyle(.plain).watchCardRow()
         }
     }
 
-    private func rowLabel(_ row: WatchResultRow) -> some View {
+    private func label(_ row: WatchResultRow) -> some View {
         HStack(spacing: 8) {
             WatchLocalArtTile(filename: model.track(id: row.id)?.artworkFilename, tintKey: row.title,
                               size: 30, systemImage: WatchSearchGroup.icon(for: row.kind))
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.title).font(.body).lineLimit(1)
-                Text(subtitle(row)).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                Text(detail(row)).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 2)
             if row.isDownloadedOnWatch {
-                Image(systemName: "arrow.down.circle.fill").font(.caption2).foregroundStyle(WatchPalette.success)
-                    .accessibilityLabel(Text("On this watch"))
+                Image(systemName: "checkmark.circle.fill").font(.caption2).foregroundStyle(WatchPalette.success)
+                    .accessibilityLabel(Text("Downloaded to this watch"))
+            } else if row.kind == .track {
+                Image(systemName: "arrow.down.circle").font(.caption2).foregroundStyle(.secondary)
+                    .accessibilityLabel(Text("Available to download"))
             }
         }
     }
 
-    private func subtitle(_ row: WatchResultRow) -> String {
+    private func detail(_ row: WatchResultRow) -> String {
         let kind = WatchSearchGroup.kindLabel(row.kind)
-        guard let detail = row.subtitle, !detail.isEmpty else { return kind }
-        return "\(kind) · \(detail)"
+        guard let subtitle = row.subtitle, !subtitle.isEmpty else { return kind }
+        return "\(kind) · \(subtitle)"
     }
 
-    private func activate(_ row: WatchResultRow, scope: WatchTarget) {
-        guard row.kind == .track else { return }
-        let local = model.track(id: row.id)
-        let preferWatch = WatchPlaybackTargetStore.hasStoredPreference() && coordinator.target == .thisWatch
-        if scope == .iPhone, !(preferWatch && local != nil) {
-            Task { await WatchAppAssembly.shared.playOnPhone(.playTrack(WatchTrackID(row.id)), title: row.title) }
-        } else if let local {
-            WatchPlayer.shared.play(tracks: [local], startAt: 0)
+    private func activate(_ row: WatchResultRow) {
+        guard row.kind == .track, let track = model.track(id: row.id) else { return }
+        if track.isReady {
+            WatchPlayer.shared.startLocalPlayback(tracks: [track], selectedTrackID: track.id)
+        } else {
+            pendingDownload = WatchTrackRequest(trackID: row.id, title: row.title)
+            showDownloadConfirmation = true
         }
     }
 
-    private func scopeNote(_ text: String) -> some View {
-        Text(text).font(.caption2).foregroundStyle(.secondary).listRowBackground(Color.clear)
-    }
-
-    private func explanation(title: LocalizedStringKey, message: String) -> some View {
-        VStack(spacing: 4) {
-            Text(title).font(.headline).multilineTextAlignment(.center)
-            Text(message).font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
+    private func search() {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else { rows = []; return }
+        isSearching = true
+        Task {
+            let result = await model.search(query: trimmed, onWatchOnly: mode == .thisWatch)
+            guard !Task.isCancelled else { return }
+            rows = result; isSearching = false
         }
-        .frame(maxWidth: .infinity)
-        .listRowBackground(Color.clear)
-        .accessibilityIdentifier("watch.search.empty")
     }
 }
 
-/// Search result groups, in display order after the top result.
-enum WatchSearchGroup: CaseIterable {
-    case songs, albums, playlists, artists
+private struct WatchTrackRequest: Identifiable, Hashable {
+    let trackID: String
+    let title: String
+    var id: String { trackID }
+}
 
-    var title: LocalizedStringKey {
-        switch self {
-        case .songs: "Songs"
-        case .albums: "Albums"
-        case .playlists: "Playlists"
-        case .artists: "Artists"
+struct WatchTrackDownloadView: View {
+    let trackID: String
+    let title: String
+    @ObservedObject private var model = WatchAppAssembly.shared.model
+    @Environment(\.dismiss) private var dismiss
+    @State private var started = false
+    @State private var failed = false
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "arrow.down.circle.fill").font(.largeTitle).foregroundStyle(WatchPalette.accent)
+            Text(title).font(.headline).multilineTextAlignment(.center)
+            if let fraction = model.transferFraction(forTrackID: trackID) {
+                ProgressView(value: fraction)
+                Text("Downloading… \(Int(fraction * 100))%").font(.caption2).foregroundStyle(.secondary)
+            } else if model.track(id: trackID)?.isReady == true {
+                Text("Downloaded. Starting playback…").font(.caption2).foregroundStyle(WatchPalette.success)
+            } else if failed {
+                Text("Keep the iPhone available to download this track.")
+                    .font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            } else {
+                ProgressView().controlSize(.small)
+                Text("Waiting for the iPhone to send this track…")
+                    .font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+        }
+        .padding().navigationTitle("Download to Watch")
+        .task {
+            guard !started else { return }
+            started = true
+            await WatchAppAssembly.shared.requestDownloads([WatchTrackID(trackID)])
+            for _ in 0..<120 {
+                await model.refresh()
+                if let track = model.track(id: trackID), track.isReady {
+                    WatchPlayer.shared.startLocalPlayback(tracks: [track], selectedTrackID: track.id)
+                    dismiss(); return
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+            failed = true
         }
     }
+}
 
-    func matches(_ kind: WatchResultKind) -> Bool {
-        switch (self, kind) {
-        case (.songs, .track), (.albums, .album), (.playlists, .playlist), (.artists, .artist): true
-        default: false
-        }
-    }
-
+enum WatchSearchGroup {
     static func icon(for kind: WatchResultKind) -> String {
-        switch kind {
-        case .track: "music.note"
-        case .album: "square.stack"
-        case .playlist: "music.note.list"
-        case .artist: "person"
-        }
+        switch kind { case .track: "music.note"; case .album: "square.stack"; case .playlist: "music.note.list"; case .artist: "person" }
     }
-
     static func kindLabel(_ kind: WatchResultKind) -> String {
-        switch kind {
-        case .track: String(localized: "Song")
-        case .album: String(localized: "Album")
-        case .playlist: String(localized: "Playlist")
-        case .artist: String(localized: "Artist")
-        }
+        switch kind { case .track: "Song"; case .album: "Album"; case .playlist: "Playlist"; case .artist: "Artist" }
     }
 }

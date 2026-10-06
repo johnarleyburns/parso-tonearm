@@ -48,54 +48,24 @@ final class WatchAppAssembly {
         Task { await coordinator.rejectPairedLibraryReplacement() }
     }
 
-    // MARK: - Connected content (W1 browse, W3 collection detail, play-on-iPhone)
+    // MARK: - Synced catalog compatibility
 
     func loadPhoneCollection(_ ref: WatchCollectionRef, pageToken: String? = nil) async -> WatchCollectionResponse? {
-        guard let coordinator,
-              case .success(let response) = await coordinator.collection(ref, pageToken: pageToken) else {
-            return nil
-        }
-        return response
+        nil
     }
 
     /// Watch redesign B1 — one page of the iPhone's playlists or albums; `nil` when the phone
     /// couldn't be reached (the screen says so and offers Try Again).
     func browsePhone(_ category: WatchBrowseCategory, pageToken: String? = nil) async -> WatchBrowseResponse? {
-        guard let coordinator else { return nil }
-        if case .results(let response) = await coordinator.browse(category, pageToken: pageToken) { return response }
         return nil
     }
 
+    @available(*, deprecated, message: "Watch playback is local-only; use WatchPlayer instead.")
     @discardableResult
     func playOnPhone(_ command: WatchPlayCommand, title: String? = nil) async -> Bool {
-        let startsPlayback = command.action == .playCollection || command.action == .playTrack
-        // Tapping "play" on a phone row is the user choosing the iPhone target (§7.1), so the target
-        // follows and Now Playing opens immediately in a "Starting on iPhone…" state (T3); the reply
-        // either confirms it or turns it into the S4 card with the reason and a retry. A plain
-        // transport nudge (next/pause/…) leaves the current target alone.
-        if startsPlayback {
-            WatchRemotePlayer.shared.beginStart(title: title)
-            WatchPlaybackCoordinator.shared.setTarget(.iPhone)
-            WatchPlayer.shared.navigateToNowPlaying()
-        }
-        let reply: WatchCommandReply
-        if let coordinator {
-            reply = await coordinator.send(command)
-        } else {
-            reply = .rejected(.phoneUnavailable)
-        }
-        if startsPlayback {
-            WatchRemotePlayer.shared.endStart()
-            if reply.accepted {
-                WatchRemotePlayer.shared.setStartFailure(nil)
-            } else {
-                WatchRemotePlayer.shared.setStartFailure(.init(
-                    command: command,
-                    code: reply.fault.map { "\($0.code)" } ?? "rejected",
-                    downloadedAlternativeCount: localAlternative(for: command).count))
-            }
-        }
-        return reply.accepted
+        // The phone is a sync/download authority only. Keeping this compatibility shim avoids a
+        // source break for older views, but it can never send a play command over WCSession.
+        return false
     }
 
     /// S4 "Play on Watch": the downloaded part of what the phone refused, in order.
@@ -138,7 +108,8 @@ final class WatchAppAssembly {
     }
 
     func refreshRemotePlayback() async {
-        await coordinator?.refreshPlaybackSnapshot()
+        // Deliberately empty. The phone is a sync/download authority only; playback snapshots
+        // are not polled from the watch and no watch action can start iPhone playback.
     }
 
     // MARK: - Continue on Apple Watch (§7.5)
@@ -222,25 +193,21 @@ final class WatchAppAssembly {
         let coord = WatchConnectivityCoordinator(
             transport: WatchProtocolSessionAdapter.transport,
             stateStore: stateStore,
+            configuration: .init(capabilities: [.downloadRoots, .manifestAcknowledgement,
+                                                .reconciliation, .watchInitiatedDownload,
+                                                .artworkAssets, .watchLocalCatalog]),
             diagnostics: diag,
             observer: nil)
 
         let searchPresenter = WatchSearchPresenter(
             mode: .offline,
-            connectedSearch: { [weak coord] query, _ in
-                guard let coord else { return .failed(.init(code: .phoneUnavailable)) }
-                switch await coord.search(query) {
-                case .results(let response): return .results(response)
-                case .superseded: return .superseded
-                case .failed(let fault): return .failed(fault)
-                }
-            },
+            connectedSearch: { _, _ in .failed(.init(code: .phoneUnavailable)) },
             offlineSearch: { [weak repo] query in
-                let hits = (try? await repo?.search(query, readyOnly: true)) ?? []
+                let hits = (try? await repo?.search(query, readyOnly: false)) ?? []
                 return hits.map {
                     WatchResultRow(kind: .track, id: $0.id, title: $0.title,
                                    subtitle: $0.artist.isEmpty ? nil : $0.artist,
-                                   durationSeconds: $0.durationSeconds, isDownloadedOnWatch: true)
+                                   durationSeconds: $0.durationSeconds, isDownloadedOnWatch: $0.isReady)
                 }
             })
         self.search = searchPresenter

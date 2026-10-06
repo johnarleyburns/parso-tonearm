@@ -176,6 +176,12 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
         return revision
     }
 
+    public func sendCatalogPage(_ page: WatchCatalogPage) async {
+        guard let data = try? WatchProtocolEnvelope.fromPhone(
+            kind: .catalogPage, payload: page, libraryID: libraryID, revision: page.revision) else { return }
+        await transport.transferUserInfo(data)
+    }
+
     public func requestReconciliation(scope: WatchReconciliationScope = .all) async {
         let revision = await revisionStore.currentRevision()
         if let data = try? WatchProtocolEnvelope.fromPhone(

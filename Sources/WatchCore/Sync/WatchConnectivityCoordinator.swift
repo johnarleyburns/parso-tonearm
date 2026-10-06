@@ -408,6 +408,10 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
             await noteAppliedPhoneRevision(envelope.phoneRevision)
             await observer?.didReceiveRemoveAssets(payload)
 
+        case .catalogPage:
+            guard let page = try? envelope.decodePayload(WatchCatalogPage.self) else { return }
+            await observer?.didReceiveCatalogPage(page)
+
         case .requestReconciliation:
             guard let request = try? envelope.decodePayload(WatchReconciliationRequest.self) else { return }
             await observer?.phoneRequestedReconciliation(request)

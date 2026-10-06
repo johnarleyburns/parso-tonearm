@@ -10,7 +10,8 @@ actor WatchRemotePlaybackObserver: WatchConnectivityObserver {
     private var disconnectedAt: Date?
 
     func didReceivePhonePlayback(_ snapshot: WatchPhonePlaybackSnapshot) async {
-        await MainActor.run { WatchRemotePlayer.shared.apply(snapshot) }
+        // Phone playback is intentionally not mirrored into the watch UI anymore. The phone is a
+        // sync/download authority; only WatchPlayer may produce a playable watch state.
     }
 
     func didConfirmDisconnection() async {

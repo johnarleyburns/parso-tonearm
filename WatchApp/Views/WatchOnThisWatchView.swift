@@ -46,7 +46,7 @@ struct WatchDownloadsView: View {
             Section {
                 NavigationLink(value: WatchNav.songs) {
                     WatchCollectionRowLabel(title: String(localized: "Songs"),
-                                            detail: String(localized: "\(model.tracks.count) songs"),
+                                            detail: String(localized: "\(model.tracks.filter(\.isReady).count) songs"),
                                             tintKey: "songs")
                 }
                 .watchCardRow()

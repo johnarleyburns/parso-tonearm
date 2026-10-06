@@ -63,15 +63,7 @@ struct WatchNowPlayingView: View {
 
     // MARK: - Which engine
 
-    private var shown: WatchTarget? {
-        if remote.startFailure != nil || remote.isStarting || coordinator.continuePrompt != nil {
-            return .iPhone
-        }
-        return WatchNowPlayingResolver.shown(
-            local: .init(hasItem: player.currentTrack != nil, isPlaying: player.isPlaying),
-            remote: .init(hasItem: remote.state?.currentItem != nil, isPlaying: remote.state?.isPlaying ?? false),
-            target: coordinator.target) ?? coordinator.target
-    }
+    private var shown: WatchTarget? { player.currentTrack == nil ? nil : .thisWatch }
 
     private var showsDebugOverlay: Bool {
         #if DEBUG
@@ -325,26 +317,15 @@ struct WatchNowPlayingView: View {
 
     private func phoneStartFailureCard(_ failure: WatchRemotePlayer.StartFailure) -> some View {
         let downloaded = failure.downloadedAlternativeCount
-        var actions: [WatchProblemCard.Action] = [
-            .init(title: "Retry", identifier: "watch.now.retryPhone") {
-                Task { await WatchAppAssembly.shared.playOnPhone(failure.command) }
-            }
-        ]
-        if downloaded > 0 {
-            actions.append(.init(title: "Play on Watch", isPrimary: false, identifier: "watch.now.playHereInstead") {
+        let action = downloaded > 0
+            ? WatchProblemCard.Action(title: "Play on Watch", isPrimary: true,
+                                      identifier: "watch.now.playHereInstead") {
                 Task { await WatchAppAssembly.shared.playLocalAlternative(for: failure.command) }
-            })
-        }
-        let message: String
-        if !model.phoneReachable {
-            message = downloaded > 0
-                ? String(localized: "It isn't reachable. Keep it nearby, or play the \(downloaded) downloaded songs here.")
-                : String(localized: "It isn't reachable. Keep your iPhone nearby and try again.")
-        } else {
-            message = String(localized: "Your iPhone didn't accept the request.")
-        }
-        return WatchProblemCard(systemImage: "iphone.slash", title: "iPhone Didn't Start",
-                                message: message, actions: actions, code: failure.code)
+            }
+            : nil
+        return WatchProblemCard(systemImage: "applewatch.slash", title: "Track Isn't on This Watch",
+                                message: String(localized: "Only fully downloaded audio can play here. Download it from the synced catalog first."),
+                                actions: action.map { [$0] } ?? [], code: failure.code)
     }
 
     private var continueOnWatchCard: some View {

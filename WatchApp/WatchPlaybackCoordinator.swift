@@ -2,10 +2,8 @@ import Foundation
 import SwiftUI
 import TonearmWatchCore
 
-/// Owns the one piece of state §7.1 insists is always explicit and always visible: which engine —
-/// `iPhone` or `thisWatch` — transport is addressed to. Changing it is only ever a user action;
-/// nothing here switches targets automatically. Also arms the §7.5 "Continue on Apple Watch"
-/// offer when the phone drops while it was the target.
+/// Owns the watch's playback target. Platterhead Watch is intentionally local-only: the phone
+/// synchronizes catalog metadata and downloads, while `WatchPlayer` owns all playback.
 @MainActor
 final class WatchPlaybackCoordinator: ObservableObject {
     static let shared = WatchPlaybackCoordinator()
@@ -19,22 +17,16 @@ final class WatchPlaybackCoordinator: ObservableObject {
 
     init(defaults: UserDefaults? = nil) {
         self.defaults = defaults
-        self.target = WatchPlaybackTargetStore.load(defaults: defaults)
+        self.target = .thisWatch
     }
 
     /// The explicit user switch. Persisted so the next launch defaults to the last explicit choice.
     func setTarget(_ target: WatchPlaybackTarget) {
-        guard target != self.target else { return }
-        self.target = target
-        WatchPlaybackTargetStore.save(target, defaults: defaults)
+        guard target == .thisWatch, self.target != .thisWatch else { return }
+        self.target = .thisWatch
+        WatchPlaybackTargetStore.save(.thisWatch, defaults: defaults)
         continuePrompt = nil
-        let code = target.rawValue
-        Task { await WatchAppAssembly.shared.diagnostics.record(.playbackTarget, code) }
-        if target == .iPhone {
-            // Coming back to the phone: drop any stale local prediction so the W7 view shows a
-            // fresh "updating…" rather than a frozen old clock until the next snapshot lands.
-            WatchRemotePlayer.shared.clear()
-        }
+        Task { await WatchAppAssembly.shared.diagnostics.record(.playbackTarget, WatchPlaybackTarget.thisWatch.rawValue) }
     }
 
     // MARK: - Continue on Apple Watch (§7.5)

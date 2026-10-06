@@ -3,9 +3,9 @@ import SwiftUI
 import TonearmWatchCore
 import TonearmWatchProtocol
 
-/// The watch's remote control for the **iPhone** playback target (§7.1). It holds the last
-/// `WatchPhonePlaybackSnapshot` the phone sent, predicts the elapsed clock forward from its anchor,
-/// and forwards transport to the phone over the link — it never drives local audio.
+/// Legacy compatibility shell for the removed iPhone playback target. The watch is now local-only:
+/// this type retains old view and widget seams while deliberately sending no playback commands or
+/// polling requests. Audio playback belongs to `WatchPlayer` and requires a ready local asset.
 ///
 /// The pure parts (revision ordering, elapsed prediction, staleness) live in
 /// `WatchRemotePlaybackState` in `TonearmWatchCore` and are host-tested there; this type is the
@@ -56,12 +56,8 @@ final class WatchRemotePlayer: ObservableObject {
     private var ticksSincePoll = 0
 
     /// The default wiring talks to the real coordinator; tests inject spies.
-    init(send: @escaping (WatchPlayCommand) async -> Void = { command in
-             _ = await WatchAppAssembly.shared.playOnPhone(command)
-         },
-         requestSnapshot: @escaping () async -> Void = {
-             await WatchAppAssembly.shared.refreshRemotePlayback()
-         }) {
+    init(send: @escaping (WatchPlayCommand) async -> Void = { _ in },
+         requestSnapshot: @escaping () async -> Void = {}) {
         self.send = send
         self.requestSnapshot = requestSnapshot
     }
@@ -83,7 +79,7 @@ final class WatchRemotePlayer: ObservableObject {
 
     func setStartFailure(_ failure: StartFailure?) { startFailure = failure }
 
-    // MARK: - Transport (always addressed to the phone)
+    // MARK: - Legacy transport (intentionally disabled)
 
     func play() { dispatch(WatchPlayCommand(action: .play)) }
     func pause() { dispatch(WatchPlayCommand(action: .pause)) }
@@ -122,7 +118,8 @@ final class WatchRemotePlayer: ObservableObject {
     }
 
     private func dispatch(_ command: WatchPlayCommand) {
-        Task { await send(command) }
+        // Kept as a no-op for old callers compiled against the compatibility shell. Product code
+        // must use WatchPlayer, which only accepts tracks whose local audio is ready.
     }
 
     // MARK: - Prediction clock + correction poll
@@ -132,11 +129,7 @@ final class WatchRemotePlayer: ObservableObject {
     /// so an idle watch does no polling (§11 / I-10).
     func startClock() {
         stopClock()
-        ticksSincePoll = 0
-        Task { await requestSnapshot() }
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.onTick() }
-        }
+        // There is no remote clock to predict or correct in watch-only mode.
     }
 
     func stopClock() {

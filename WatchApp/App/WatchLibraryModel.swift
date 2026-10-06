@@ -5,8 +5,8 @@ import TonearmWatchCore
 import TonearmWatchProtocol
 
 /// A derived album grouping. Albums are not a stored collection on the watch — they are projected
-/// from whatever ready tracks carry the same album title, so "only ready local tracks and derived
-/// collections appear" (Phase 6 DoD) holds by construction.
+/// from catalog tracks carrying the same album title. Readiness is shown separately so metadata can
+/// be searched before its audio is downloaded.
 struct WatchAlbumGroup: Identifiable, Hashable {
     let id: String
     let title: String
@@ -69,15 +69,21 @@ final class WatchLibraryModel: ObservableObject {
         return album.trackIDs.compactMap { byID[$0] }
     }
 
+    func search(query: String, onWatchOnly: Bool) async -> [WatchResultRow] {
+        guard let repository else { return [] }
+        let tracks = (try? await repository.tracks(readyOnly: false)) ?? []
+        let playlists = (try? await repository.playlists()) ?? []
+        return WatchLocalCatalogSearch.rows(query: query, tracks: tracks, playlists: playlists,
+                                            onWatchOnly: onWatchOnly)
+    }
+
     func refresh() async {
         guard let repository else { return }
-        let loadedTracks = (try? await repository.tracks(readyOnly: true)) ?? []
+        let loadedTracks = (try? await repository.tracks(readyOnly: false)) ?? []
         let loadedPlaylists = (try? await repository.playlists()) ?? []
         let loadedStorage = try? await repository.storage()
         tracks = loadedTracks
-        // Only playlists with at least one ready track are shown offline — a playlist whose audio
-        // has not arrived is not a browsable collection yet.
-        playlists = loadedPlaylists.filter { !$0.readyTrackIDs.isEmpty }
+        playlists = loadedPlaylists
         storage = loadedStorage
     }
 
