@@ -64,9 +64,9 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         try check(.removeAssets, WatchRemoveAssets(revision: 8, trackIDs: ["t1"], reason: .rootRemoved))
         try check(.requestDownload, WatchDownloadRequest(trackID: "t1", wantsDownload: true))
         try check(.downloadControl, WatchDownloadControl(action: .retryFailed, rootID: "r1"))
-        try check(.catalogPage, WatchCatalogPage(
+        try check(.catalogPage, WatchLibraryPage(
             catalogID: "catalog-1", revision: 7, pageIndex: 0, pageCount: 1,
-            tracks: [track], playlists: [WatchCatalogPlaylist(playlistID: "p1", title: "Set",
+            tracks: [track], playlists: [WatchLibraryPlaylist(playlistID: "p1", title: "Set",
                                                                trackIDs: ["t1"])]) )
         try check(.error, WatchProtocolFault(code: .insufficientWatchStorage, retryAfterSeconds: 30))
 

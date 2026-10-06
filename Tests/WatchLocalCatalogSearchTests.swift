@@ -26,13 +26,13 @@ final class WatchLocalCatalogSearchTests: XCTestCase {
     }
 
     func testCatalogPageRoundTripsAllPagesAndMembership() throws {
-        let page = WatchCatalogPage(
+        let page = WatchLibraryPage(
             catalogID: "catalog-1", revision: 4, pageIndex: 0, pageCount: 2,
             tracks: [WatchTrackSummary(trackID: WatchTrackID("catalog"), title: "Catalog Song")],
-            playlists: [WatchCatalogPlaylist(playlistID: "playlist", title: "Road Mix",
+            playlists: [WatchLibraryPlaylist(playlistID: "playlist", title: "Road Mix",
                                               trackIDs: [WatchTrackID("catalog")])])
         let data = try JSONEncoder().encode(page)
-        XCTAssertEqual(try JSONDecoder().decode(WatchCatalogPage.self, from: data), page)
+        XCTAssertEqual(try JSONDecoder().decode(WatchLibraryPage.self, from: data), page)
         XCTAssertEqual(page.playlists.first?.trackIDs, [WatchTrackID("catalog")])
     }
 }

@@ -409,7 +409,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
             await observer?.didReceiveRemoveAssets(payload)
 
         case .catalogPage:
-            guard let page = try? envelope.decodePayload(WatchCatalogPage.self) else { return }
+            guard let page = try? envelope.decodePayload(WatchLibraryPage.self) else { return }
             await observer?.didReceiveCatalogPage(page)
 
         case .requestReconciliation:

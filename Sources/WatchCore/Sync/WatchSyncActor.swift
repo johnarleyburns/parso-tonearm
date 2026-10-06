@@ -15,7 +15,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     private weak var coordinator: WatchConnectivityCoordinator?
     private var catalogID: String?
     private var catalogRevision: Int64 = -1
-    private var catalogPages: [Int: WatchCatalogPage] = [:]
+    private var catalogPages: [Int: WatchLibraryPage] = [:]
 
     /// Fired when the phone's paired-library identity differs from the bound one (A-08). The UI
     /// presents the choice and calls `coordinator.confirmPairedLibraryReplacement()`.
@@ -58,7 +58,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     /// Applies a complete phone catalog atomically from the watch's point of view. Search can run
     /// while pages arrive, but it continues to see the previous complete catalog until every page
     /// for the new snapshot is present.
-    public func didReceiveCatalogPage(_ page: WatchCatalogPage) async {
+    public func didReceiveCatalogPage(_ page: WatchLibraryPage) async {
         guard page.pageCount > 0, page.pageIndex >= 0, page.pageIndex < page.pageCount else { return }
         if page.revision < catalogRevision { return }
         if page.revision > catalogRevision || (page.catalogID != catalogID && catalogPages.isEmpty) {

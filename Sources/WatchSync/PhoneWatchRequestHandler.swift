@@ -58,14 +58,14 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
 
     /// Builds the complete searchable My Music projection. It is chunked by the caller for
     /// WatchConnectivity rather than exposed through the watch's request/search path.
-    public func catalogPages(revision: Int64) async throws -> [WatchCatalogPage] {
+    public func catalogPages(revision: Int64) async throws -> [WatchLibraryPage] {
         let allTracks = try await store.allTrackRows()
         let downloaded: Set<WatchTrackID> = []
         let summaries = allTracks.map {
             PhoneWatchProjection.trackSummary(from: $0, downloadedOnWatch: downloaded)
         }
         let phonePlaylists = try await store.allPlaylists()
-        var playlists: [WatchCatalogPlaylist] = []
+        var playlists: [WatchLibraryPlaylist] = []
         for playlist in phonePlaylists {
             let ids: [WatchTrackID]
             if let id = playlist.id {
@@ -75,7 +75,7 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
             } else {
                 ids = []
             }
-            playlists.append(WatchCatalogPlaylist(playlistID: PhoneWatchID.playlist(playlist),
+            playlists.append(WatchLibraryPlaylist(playlistID: PhoneWatchID.playlist(playlist),
                                                   title: playlist.title, trackIDs: ids))
         }
         let trackPageSize = 20
@@ -91,7 +91,7 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
                 ? Array(summaries[trackStart..<min(trackStart + trackPageSize, summaries.count)]) : []
             let playlistRows = playlistStart < playlists.count
                 ? Array(playlists[playlistStart..<min(playlistStart + playlistPageSize, playlists.count)]) : []
-            return WatchCatalogPage(catalogID: catalogID, revision: revision, pageIndex: index,
+            return WatchLibraryPage(catalogID: catalogID, revision: revision, pageIndex: index,
                                     pageCount: pageCount, tracks: tracks, playlists: playlistRows)
         }
     }

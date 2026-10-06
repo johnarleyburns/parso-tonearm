@@ -20,7 +20,7 @@ public protocol WatchConnectivityObserver: AnyObject, Sendable {
     func didReceiveDownloadStatus(_ snapshot: WatchDownloadStatusSnapshot) async
     func didReceiveDownloadRoots(_ payload: WatchSetDownloadRoots) async
     func didReceiveRemoveAssets(_ payload: WatchRemoveAssets) async
-    func didReceiveCatalogPage(_ page: WatchCatalogPage) async
+    func didReceiveCatalogPage(_ page: WatchLibraryPage) async
     /// §5.2 `transferFile`: one audio delivery has been staged by the transport adapter and is the
     /// observer's to install (§8.3) or defer. `stagedURL` is consumed by the implementation.
     func didReceiveAudioFile(at stagedURL: URL, metadata: [String: String]) async
@@ -43,7 +43,7 @@ extension WatchConnectivityObserver {
     public func didReceiveDownloadStatus(_ snapshot: WatchDownloadStatusSnapshot) async {}
     public func didReceiveDownloadRoots(_ payload: WatchSetDownloadRoots) async {}
     public func didReceiveRemoveAssets(_ payload: WatchRemoveAssets) async {}
-    public func didReceiveCatalogPage(_ page: WatchCatalogPage) async {}
+    public func didReceiveCatalogPage(_ page: WatchLibraryPage) async {}
     public func didReceiveAudioFile(at stagedURL: URL, metadata: [String: String]) async {}
     public func didReceiveArtworkFile(at stagedURL: URL, metadata: [String: String]) async {}
     public func phoneRequestedReconciliation(_ request: WatchReconciliationRequest) async {}

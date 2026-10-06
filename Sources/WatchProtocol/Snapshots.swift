@@ -34,7 +34,7 @@ public struct WatchTrackSummary: Codable, Equatable, Sendable, Identifiable {
 
 /// A playlist's metadata and membership in the watch-local catalog. Audio readiness is deliberately
 /// not carried here; the watch derives that from its validated local asset.
-public struct WatchCatalogPlaylist: Codable, Equatable, Sendable, Identifiable {
+public struct WatchLibraryPlaylist: Codable, Equatable, Sendable, Identifiable {
     public let playlistID: String
     public let title: String
     public let trackIDs: [WatchTrackID]
@@ -49,16 +49,16 @@ public struct WatchCatalogPlaylist: Codable, Equatable, Sendable, Identifiable {
 
 /// Chunk of the complete My Music catalog. The watch assembles all pages before applying them so a
 /// reconnect cannot expose a half-updated searchable library.
-public struct WatchCatalogPage: Codable, Equatable, Sendable {
+public struct WatchLibraryPage: Codable, Equatable, Sendable {
     public let catalogID: String
     public let revision: Int64
     public let pageIndex: Int
     public let pageCount: Int
     public let tracks: [WatchTrackSummary]
-    public let playlists: [WatchCatalogPlaylist]
+    public let playlists: [WatchLibraryPlaylist]
 
     public init(catalogID: String, revision: Int64, pageIndex: Int, pageCount: Int,
-                tracks: [WatchTrackSummary], playlists: [WatchCatalogPlaylist]) {
+                tracks: [WatchTrackSummary], playlists: [WatchLibraryPlaylist]) {
         self.catalogID = catalogID
         self.revision = revision
         self.pageIndex = pageIndex

@@ -176,7 +176,7 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
         return revision
     }
 
-    public func sendCatalogPage(_ page: WatchCatalogPage) async {
+    public func sendCatalogPage(_ page: WatchLibraryPage) async {
         guard let data = try? WatchProtocolEnvelope.fromPhone(
             kind: .catalogPage, payload: page, libraryID: libraryID, revision: page.revision) else { return }
         await transport.transferUserInfo(data)
