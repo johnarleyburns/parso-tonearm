@@ -55,10 +55,12 @@ public protocol WatchProtocolInbound: AnyObject, Sendable {
     func receiveApplicationContext(_ data: Data) async
     func receiveUserInfo(_ data: Data) async
     func receiveFile(_ url: URL, metadata: [String: String]) async
+    func receiveFileFailure(metadata: [String: String], code: WatchProtocolErrorCode) async
 }
 
 extension WatchProtocolInbound {
     public func receiveFile(_ url: URL, metadata: [String: String]) async {}
+    public func receiveFileFailure(metadata: [String: String], code: WatchProtocolErrorCode) async {}
 }
 
 /// The session lifecycle an adapter drives. Separate from `WatchProtocolInbound` because it is the

@@ -16,9 +16,11 @@ import TonearmWatchCore
 public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sendable {
     private let endpoint: any WatchProtocolLifecycle
     private let backgroundDelivery = WatchBackgroundDeliveryTracker()
+    private let diagnostics: WatchDiagnosticsRecorder?
 
-    public init(endpoint: any WatchProtocolLifecycle) {
+    public init(endpoint: any WatchProtocolLifecycle, diagnostics: WatchDiagnosticsRecorder? = nil) {
         self.endpoint = endpoint
+        self.diagnostics = diagnostics
         super.init()
     }
 
@@ -106,17 +108,31 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
         // The file is deleted when this returns, so it is moved out of the inbox before the endpoint
         // is told about it. Everything past that point — checksum, install, dedupe — is Phase 5's.
         let metadata = (file.metadata ?? [:]).compactMapValues { $0 as? String }
+        let diagnostics = diagnostics
         let staged = FileManager.default.temporaryDirectory
             .appendingPathComponent("inbox-\(UUID().uuidString)")
             .appendingPathExtension(file.fileURL.pathExtension)
         do {
             try FileManager.default.moveItem(at: file.fileURL, to: staged)
         } catch {
-            delivery.end()
+            let endpoint = endpoint
+            Task {
+                defer { delivery.end() }
+                await diagnostics?.record(.installResult, "inboxStagingFailed")
+                await endpoint.receiveFileFailure(metadata: metadata, code: .installationFailed)
+            }
             return
         }
         let endpoint = endpoint
-        Task { defer { delivery.end() }; await endpoint.receiveFile(staged, metadata: metadata) }
+        Task {
+            defer { delivery.end() }
+            if metadata["assetKind"] == WatchAudioChunkMetadata.assetKind {
+                await diagnostics?.record(.installResult, "chunkReceived")
+            } else if metadata["assetKind"] != WatchArtworkFileMetadata.assetKind {
+                await diagnostics?.record(.installResult, "audioFileReceived")
+            }
+            await endpoint.receiveFile(staged, metadata: metadata)
+        }
     }
 }
 

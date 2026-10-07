@@ -11,6 +11,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     private let repository: WatchLibraryRepository
     private let installer: WatchFileInstaller
     private let chunkAssembler: WatchAudioChunkAssembler?
+    private let requiresNormalizedAAC: Bool
     private let artworkInstaller: WatchArtworkInstaller?
     private let diagnostics: WatchDiagnosticsRecorder?
     private weak var coordinator: WatchConnectivityCoordinator?
@@ -20,6 +21,13 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     private var lastCatalogReceivedAt: Date?
     private var chunkFailures: [String: WatchProtocolErrorCode] = [:]
     private var chunkFailureTransferIDs: [String: String] = [:]
+    private var lastPeriodicReportAt: Date?
+
+    public func publishPeriodicStatus(at date: Date = Date()) async {
+        guard lastPeriodicReportAt.map({ date.timeIntervalSince($0) >= 15 }) ?? true else { return }
+        lastPeriodicReportAt = date
+        await publishManifest(periodic: true)
+    }
 
     /// Fired when the phone's paired-library identity differs from the bound one (A-08). The UI
     /// presents the choice and calls `coordinator.confirmPairedLibraryReplacement()`.
@@ -30,6 +38,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     public init(repository: WatchLibraryRepository,
                 installer: WatchFileInstaller,
                 chunkAssembler: WatchAudioChunkAssembler? = nil,
+                requiresNormalizedAAC: Bool = false,
                 artworkInstaller: WatchArtworkInstaller? = nil,
                 coordinator: WatchConnectivityCoordinator? = nil,
                 diagnostics: WatchDiagnosticsRecorder? = nil,
@@ -39,6 +48,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
         self.repository = repository
         self.installer = installer
         self.chunkAssembler = chunkAssembler
+        self.requiresNormalizedAAC = requiresNormalizedAAC
         self.artworkInstaller = artworkInstaller
         self.diagnostics = diagnostics
         self.lastCatalogReceivedAt = lastCatalogReceivedAt
@@ -52,6 +62,14 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     }
 
     // MARK: - Downloads
+
+    public func didRejectIncomingFile(metadata: [String: String], code: WatchProtocolErrorCode) async {
+        guard let audio = WatchAudioFileMetadata(dictionary: metadata) else { return }
+        chunkFailures[audio.trackID.rawValue] = code
+        chunkFailureTransferIDs[audio.trackID.rawValue] = audio.transferID
+        await diagnostics?.record(.installResult, code.rawValue)
+        await publishManifest()
+    }
 
     public func didReceiveDownloadRoots(_ payload: WatchSetDownloadRoots) async {
         await chunkAssembler?.allow(trackIDs: Set(payload.roots.flatMap { $0.trackIDs.map(\.rawValue) }))
@@ -203,7 +221,23 @@ public actor WatchSyncActor: WatchConnectivityObserver {
             await publishManifest()
             return
         }
-        let outcome = await installer.install(stagedURL: stagedURL, metadata: metadata)
+        let descriptor = WatchAudioFileMetadata(dictionary: metadata)
+        let outcome: WatchInstallOutcome
+        if requiresNormalizedAAC, descriptor?.fileExtension != "m4a" || descriptor?.codec != "aac" {
+            try? FileManager.default.removeItem(at: stagedURL)
+            outcome = .rejected(trackID: descriptor?.trackID.rawValue ?? "", .init(code: .unsupportedAudio))
+        } else {
+            outcome = await installer.install(stagedURL: stagedURL, metadata: metadata)
+        }
+        if let audio = WatchAudioFileMetadata(dictionary: metadata) {
+            if case .rejected(_, let fault) = outcome {
+                chunkFailures[audio.trackID.rawValue] = fault.code
+                chunkFailureTransferIDs[audio.trackID.rawValue] = audio.transferID
+            } else {
+                chunkFailures.removeValue(forKey: audio.trackID.rawValue)
+                chunkFailureTransferIDs.removeValue(forKey: audio.trackID.rawValue)
+            }
+        }
         await recordInstall(outcome)
         await onLibraryChanged()
         await publishManifest()
@@ -225,6 +259,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
                     await chunkAssembler.invalidateLastCheckpoint(trackID: audio.trackID)
                 }
             case .retained(let trackID):
+                await diagnostics?.record(.installResult, "chunkRetained")
                 chunkFailures.removeValue(forKey: trackID.rawValue)
                 chunkFailureTransferIDs.removeValue(forKey: trackID.rawValue)
             case .rejected(let trackID, let fault):
@@ -309,9 +344,12 @@ public actor WatchSyncActor: WatchConnectivityObserver {
         for outcome in await chunkAssembler?.resumeCompleted() ?? [] { await applyChunkOutcome(outcome) }
     }
 
-    private func publishManifest() async {
+    private func publishManifest(periodic: Bool = false) async {
         guard let coordinator else { return }
-        guard let snapshot = try? await repository.manifest() else { return }
+        guard let snapshot = try? await repository.manifest() else {
+            await diagnostics?.record(.manifestConvergence, "storeReadFailed")
+            return
+        }
         await chunkAssembler?.remove(trackIDs: Set(snapshot.readyTrackIDs))
         let storage = try? await repository.storage()
         let payload = WatchManifestPayload(
@@ -325,8 +363,11 @@ public actor WatchSyncActor: WatchConnectivityObserver {
             lastAudioInstalledAt: try? await repository.lastAudioInstallationDate(),
             partialAudioDownloads: await chunkAssembler?.partialDownloads() ?? [],
             audioDownloadFailures: chunkFailures,
-            audioFailureTransferIDs: chunkFailureTransferIDs)
-        await coordinator.sendManifest(payload)
+            audioFailureTransferIDs: chunkFailureTransferIDs,
+            catalogTrackCount: ((try? await repository.tracks(readyOnly: false)) ?? []).count,
+            inProgressTrackIDs: await installer.deferredTrackIDs().map(WatchTrackID.init))
+        if periodic { await coordinator.publishManifestContext(payload) }
+        else { await coordinator.sendManifest(payload) }
         // §12 manifest-convergence diagnostics: each time the watch reports where it stands, log the
         // ready count and installed bytes. Watching `count` climb toward the desired set across a
         // soak is how convergence is verified without a title ever being recorded.

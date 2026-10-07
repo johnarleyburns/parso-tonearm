@@ -18,7 +18,6 @@ final class PhoneWatchRuntime {
     private let coordinator: PhoneWatchProtocolCoordinator
     private let protocolAdapter: PhoneWatchProtocolAdapter
     private let downloadManager: PhoneWatchDownloadManager
-    private let chunkSender: PhoneWatchResumableAudioTransfer
     private let inbound: PhoneWatchInbound
     private let requestHandler: PhoneWatchRequestHandler
     private let libraryID: WatchPairedLibraryID
@@ -47,6 +46,8 @@ final class PhoneWatchRuntime {
     private(set) var management = PhoneWatchManagementPresenter.Snapshot.empty
 
     private var lastWatchManifest: WatchManifestPayload?
+    private var catalogTrackCount = 0
+    private var audioAttempts: [String: String] = (UserDefaults.standard.dictionary(forKey: "watch.wholeAAC.attempts") as? [String: String]) ?? [:]
     private var syncHistory = PhoneWatchManagementPresenter.SyncHistory()
     private var connectedSince: Date?
     /// Watch redesign D1: download-status publishing state (see `publishDownloadStatusIfActive`).
@@ -54,6 +55,9 @@ final class PhoneWatchRuntime {
     private var lastPublishedRoots: [WatchDownloadRootStatus] = []
 
     init(store: LibraryStore, player: AudioPlayer) {
+        if let data = UserDefaults.standard.data(forKey: "watch.phone.manifest") {
+            lastWatchManifest = try? JSONDecoder().decode(WatchManifestPayload.self, from: data)
+        }
         if let data = UserDefaults.standard.data(forKey: "watch.phone.syncHistory"),
            let saved = try? JSONDecoder().decode(PhoneWatchManagementPresenter.SyncHistory.self, from: data) {
             self.syncHistory = saved
@@ -120,22 +124,9 @@ final class PhoneWatchRuntime {
             revisionStore: revisionStore,
             observer: inbound)
         self.coordinator = coordinator
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let chunkSender = PhoneWatchResumableAudioTransfer(
-            directory: support.appendingPathComponent("WatchAudioChunks", isDirectory: true),
-            transport: PhoneWatchProtocolAdapter.transport,
-            systemTransfers: { PhoneWatchProtocolAdapter.outstandingChunks() },
-            systemFractions: { PhoneWatchProtocolAdapter.chunkTransferFractions() },
-            canTransfer: { [negotiatedCapabilities] in await negotiatedCapabilities.supports(.resumableAudioChunks) },
-            cancelSystem: { PhoneWatchProtocolAdapter.cancelAudioTransfer(trackID: $0) },
-            sourceLookup: { AudioCache.layout.evictableBlobsDirectory.appendingPathComponent($0.lastPathComponent) },
-            onFailure: { [inbound] trackID, code in await inbound.fileTransferFailed(trackID, code: code) })
-        self.chunkSender = chunkSender
-        // v2 never schedules whole audio files. A late legacy cancellation has no
-        // attempt ID and must not fail a new chunk plan for the same track.
         self.protocolAdapter = PhoneWatchProtocolAdapter(endpoint: coordinator,
-            onChunkCompletion: { [inbound] chunk, code in
-                await inbound.chunkCompleted(chunk, code: code)
+            onAudioCompletion: { [inbound] metadata, code in
+                await inbound.audioFinished(metadata, code: code)
             })
 
         let audioResolver = PhoneWatchLibraryAudioResolver(store: store)
@@ -143,7 +134,7 @@ final class PhoneWatchRuntime {
         let fileTransfer = PhoneWatchSessionFileTransfer(
             transport: PhoneWatchProtocolAdapter.transport,
             phoneRevision: { [weak downloadStore] in (try? await downloadStore?.currentRevision()) ?? 0 },
-            chunkSender: chunkSender)
+            onEnqueue: { [inbound] metadata in await inbound.audioEnqueued(metadata) })
 
         let rootExpander: @Sendable (PhoneWatchDownloadRoot) async -> [String] = { [weak store] root in
             guard root.kind == .playlist, let store else { return root.desiredTrackIDs }
@@ -182,6 +173,7 @@ final class PhoneWatchRuntime {
 
     func activate() async {
         protocolAdapter.activate()
+        await migrateLegacyTransfers()
         try? await downloadManager.resumeOutstanding()
         await publishCatalog()
         await refresh()
@@ -192,7 +184,7 @@ final class PhoneWatchRuntime {
         await tickDownloads(forceStatus: false)
         await refresh()
         await publishPlaybackIfChanged()
-        await publishDownloadStatusIfActive()
+        await publishDownloadStatusIfActive(force: true)
     }
 
     /// Push a download-status context (with per-track byte progress) while a transfer is in flight,
@@ -204,32 +196,16 @@ final class PhoneWatchRuntime {
         let fractions = PhoneWatchProtocolAdapter.activeAudioTransferFractions()
         guard var snapshot = try? await downloadManager.statusSnapshot(transferFractions: fractions) else { return }
         snapshot.lastWatchReportAt = lastWatchManifest?.generatedAt
-        let checkpoints = await chunkSender.progress()
+        snapshot.catalogTrackCount = catalogTrackCount
+        snapshot.readyTrackIDs = installedTrackIDs.sorted().map(WatchTrackID.init)
         for index in snapshot.activities.indices {
             let id = snapshot.activities[index].trackID
             let row: TrackRow?
             if let localID = PhoneWatchID.trackRowID(id) { row = try? await store.trackRow(id: localID) }
             else { row = try? await store.trackRow(syncID: id.rawValue) }
             if let row { snapshot.activities[index].title = row.track.title }
-            if let progress = checkpoints[id.rawValue] {
-                if ![.failed, .paused, .waitingForWiFi].contains(snapshot.activities[index].stage) {
-                    snapshot.activities[index].stage = progress.stage
-                }
-                snapshot.activities[index].fractionComplete = progress.checkpoint.fractionRetained
-                snapshot.activities[index].retainedBytes = progress.checkpoint.retainedBytes
-                snapshot.activities[index].receivedChunkCount = progress.checkpoint.receivedChunkIndexes.count
-                snapshot.activities[index].totalChunkCount = progress.checkpoint.chunkCount
-            }
         }
-        var progressByTrack = fractions
-        for (id, progress) in checkpoints {
-            guard snapshot.activities.contains(where: {
-                $0.trackID.rawValue == id && $0.stage != .failed && $0.stage != .paused
-            }) else { continue }
-            // A legacy transfer can still be cancelling during migration. Emit
-            // exactly one progress entry per track, preferring saved checkpoints.
-            progressByTrack[id] = progress.checkpoint.fractionRetained
-        }
+        let progressByTrack = fractions
         snapshot.activeTransfers = progressByTrack.map {
             WatchTransferProgress(trackID: WatchTrackID($0.key), fractionComplete: $0.value)
         }
@@ -312,8 +288,7 @@ final class PhoneWatchRuntime {
     }
 
     func removeAll() async {
-        let checkpoints = await chunkSender.progress()
-        let installed = installedTrackIDs.union(checkpoints.keys).map(WatchTrackID.init)
+        let installed = installedTrackIDs.union(((try? await downloadStore.jobs()) ?? []).map(\.trackID)).map(WatchTrackID.init)
         try? await downloadManager.setRoots([])
         if !installed.isEmpty { _ = await coordinator.sendRemoveAssets(installed) }
         await refresh()
@@ -332,6 +307,7 @@ final class PhoneWatchRuntime {
         // earlier reconnect (with a different catalog UUID) from replacing a newer snapshot.
         let revision = (try? await downloadStore.bumpRevision()) ?? 0
         guard let pages = try? await requestHandler.catalogPages(revision: revision) else { return }
+        catalogTrackCount = pages.reduce(0) { $0 + $1.tracks.count }
         for page in pages { await coordinator.sendCatalogPage(page) }
         syncHistory.lastCatalogSentAt = Date()
         persistSyncHistory()
@@ -355,7 +331,7 @@ final class PhoneWatchRuntime {
     }
 
     func removeRoot(_ rootID: String) async {
-        let partials = Set(await chunkSender.progress().keys)
+        let partials = Set(((try? await downloadStore.jobs()) ?? []).map(\.trackID))
         let released = PhoneWatchManagementPresenter.tracksReleasedByRemoving(
             rootID: rootID,
             roots: (try? await downloadStore.roots()) ?? [],
@@ -388,29 +364,34 @@ final class PhoneWatchRuntime {
 
     fileprivate func ingestManifest(_ payload: WatchManifestPayload) async {
         guard lastWatchManifest.map({ payload.generatedAt > $0.generatedAt }) ?? true else { return }
-        try? await chunkSender.ingestManifest(payload)
         lastWatchManifest = payload
+        if let data = try? JSONEncoder().encode(payload) { UserDefaults.standard.set(data, forKey: "watch.phone.manifest") }
         syncHistory.lastWatchReportAt = Date()
         syncHistory.lastCatalogReceivedAt = payload.lastCatalogReceivedAt
         syncHistory.lastAudioInstalledAt = payload.lastAudioInstalledAt
         persistSyncHistory()
         try? await downloadManager.ingestManifest(payload)
+        for (id, code) in payload.audioDownloadFailures where payload.audioFailureTransferIDs[id] == audioAttempts[id]
+            && audioAttempts[id] != nil {
+            try? await downloadManager.transferFailed(trackID: WatchTrackID(id), code: code)
+        }
         await refresh()
     }
 
     fileprivate func tickDownloads(forceStatus: Bool = true) async {
-        await chunkSender.tick()
         try? await downloadManager.tick()
         await refresh()
         if forceStatus { await publishDownloadStatusIfActive(force: true) }
     }
 
     fileprivate func migrateLegacyTransfers() async {
+        let key = "watch.wholeAAC128.v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
         for job in (try? await downloadStore.jobs()) ?? [] where job.state == .sent && !installedTrackIDs.contains(job.trackID) {
-            if await chunkSender.hasPlan(trackID: job.trackID) { continue }
-            try? await downloadManager.requestRetry(requestID: job.requestID)
+            PhoneWatchProtocolAdapter.cancelAudioTransfer(trackID: WatchTrackID(job.trackID))
+            try? await downloadManager.transferFailed(trackID: WatchTrackID(job.trackID), code: .transferFailed)
         }
-        await tickDownloads()
+        UserDefaults.standard.set(true, forKey: key)
     }
 
     /// §7 polish — the watch asked (from its Now Playing screen) to download or drop one track.
@@ -423,7 +404,7 @@ final class PhoneWatchRuntime {
             // Stopping a root removes it; tell the watch which tracks no root wants any more.
             let installed = (try? await downloadStore.manifestEntries())?.map(\.trackID) ?? []
             let desired = Set(((try? await downloadStore.roots()) ?? []).flatMap(\.desiredTrackIDs))
-            let partials = Set(await chunkSender.progress().keys)
+            let partials = Set(((try? await downloadStore.jobs()) ?? []).map(\.trackID))
             let orphaned = Set(installed).union(partials).filter { !desired.contains($0) }.map(WatchTrackID.init)
             if !orphaned.isEmpty { _ = await coordinator.sendRemoveAssets(orphaned) }
         }
@@ -461,9 +442,20 @@ final class PhoneWatchRuntime {
         await publishDownloadStatusIfActive(force: true)
     }
 
-    fileprivate func chunkCompleted(_ chunk: WatchAudioChunkMetadata, code: WatchProtocolErrorCode?) async {
-        await chunkSender.deliveryFinished(chunk, error: code)
+    fileprivate func fileTransferCompleted(_ trackID: WatchTrackID) async {
+        try? await downloadManager.transferDelivered(trackID: trackID)
         await tickDownloads()
+    }
+
+    fileprivate func audioEnqueued(_ metadata: WatchAudioFileMetadata) {
+        audioAttempts[metadata.trackID.rawValue] = metadata.transferID
+        UserDefaults.standard.set(audioAttempts, forKey: "watch.wholeAAC.attempts")
+    }
+
+    fileprivate func audioFinished(_ metadata: WatchAudioFileMetadata, code: WatchProtocolErrorCode?) async {
+        guard let attempt = metadata.transferID, audioAttempts[metadata.trackID.rawValue] == attempt else { return }
+        if let code { await fileTransferFailed(metadata.trackID, code: code) }
+        else { await fileTransferCompleted(metadata.trackID) }
     }
 
     // MARK: - Internal
@@ -506,7 +498,6 @@ final class PhoneWatchRuntime {
             roots: roots, jobs: jobs, manifestEntries: entries,
             watchManifest: lastWatchManifest, now: Date(),
             transferFractions: PhoneWatchProtocolAdapter.activeAudioTransferFractions(),
-            chunkProgress: await chunkSender.progress(),
             syncHistory: syncHistory, trackTitles: trackTitles)
 
         onChange?()
@@ -574,7 +565,6 @@ private actor PhoneWatchInbound: PhoneWatchProtocolObserver {
 
     func watchDidNegotiate(_ hello: WatchHello) async {
         await negotiatedCapabilities.set(hello.capabilities)
-        if hello.capabilities.contains(.resumableAudioChunks) { await runtime?.migrateLegacyTransfers() }
         await runtime?.publishCatalog()
     }
 
@@ -594,8 +584,13 @@ private actor PhoneWatchInbound: PhoneWatchProtocolObserver {
         await runtime?.fileTransferFailed(trackID, code: code)
     }
 
-    func chunkCompleted(_ chunk: WatchAudioChunkMetadata, code: WatchProtocolErrorCode?) async {
-        await runtime?.chunkCompleted(chunk, code: code)
+    func fileTransferCompleted(_ trackID: WatchTrackID) async {
+        await runtime?.fileTransferCompleted(trackID)
+    }
+
+    func audioEnqueued(_ metadata: WatchAudioFileMetadata) async { await runtime?.audioEnqueued(metadata) }
+    func audioFinished(_ metadata: WatchAudioFileMetadata, code: WatchProtocolErrorCode?) async {
+        await runtime?.audioFinished(metadata, code: code)
     }
 
     func downloadControl(_ control: WatchDownloadControl) async {

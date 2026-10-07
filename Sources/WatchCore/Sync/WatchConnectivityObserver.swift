@@ -24,6 +24,7 @@ public protocol WatchConnectivityObserver: AnyObject, Sendable {
     /// §5.2 `transferFile`: one audio delivery has been staged by the transport adapter and is the
     /// observer's to install (§8.3) or defer. `stagedURL` is consumed by the implementation.
     func didReceiveAudioFile(at stagedURL: URL, metadata: [String: String]) async
+    func didRejectIncomingFile(metadata: [String: String], code: WatchProtocolErrorCode) async
     func didReceiveArtworkFile(at stagedURL: URL, metadata: [String: String]) async
     func phoneRequestedReconciliation(_ request: WatchReconciliationRequest) async
     /// A-08: the phone's library identity differs from the one this watch is bound to. Nothing has
@@ -45,6 +46,7 @@ extension WatchConnectivityObserver {
     public func didReceiveRemoveAssets(_ payload: WatchRemoveAssets) async {}
     public func didReceiveCatalogPage(_ page: WatchLibraryPage) async {}
     public func didReceiveAudioFile(at stagedURL: URL, metadata: [String: String]) async {}
+    public func didRejectIncomingFile(metadata: [String: String], code: WatchProtocolErrorCode) async {}
     public func didReceiveArtworkFile(at stagedURL: URL, metadata: [String: String]) async {}
     public func phoneRequestedReconciliation(_ request: WatchReconciliationRequest) async {}
     public func pairedLibraryChangeRequiresConfirmation(current: WatchPairedLibraryID,
@@ -85,6 +87,10 @@ public actor WatchFanoutObserver: WatchConnectivityObserver {
 
     public init(_ observers: [any WatchConnectivityObserver]) {
         self.observers = observers
+    }
+
+    public func didRejectIncomingFile(metadata: [String: String], code: WatchProtocolErrorCode) async {
+        for observer in observers { await observer.didRejectIncomingFile(metadata: metadata, code: code) }
     }
 
     public func connectionStateDidChange(_ state: WatchConnectionReducer.State,

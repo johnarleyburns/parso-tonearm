@@ -79,6 +79,8 @@ final class WatchSmokeUITests: XCTestCase {
         // requires paired devices; this checks installation and offline playback on watchOS.
         // Watch redesign D1: Songs lives under "On This Watch" (one of Home's four doors).
         openRootRow(app, identifier: "watch.downloads", named: "On This Watch")
+        XCTAssertTrue(reveal(app.staticTexts["Downloaded audio"], in: app))
+        XCTAssertTrue(reveal(app.staticTexts["Catalog on this watch"], in: app))
         let songs = app.descendants(matching: .any)["watch.songs"]
         XCTAssertTrue(reveal(songs, in: app), "On This Watch did not render the Songs row")
         snapshot(app, "D1-on-this-watch")
@@ -193,6 +195,10 @@ final class WatchSmokeUITests: XCTestCase {
         let diagnostics = app.descendants(matching: .any)["watch.about.diagnostics"]
         XCTAssertTrue(reveal(diagnostics, in: app), "About must expose sync diagnostics")
         diagnostics.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["watch.diagnostics.summary"].waitForExistence(timeout: 8))
+        let rawCodes = app.descendants(matching: .any)["watch.diagnostics.raw"]
+        XCTAssertTrue(reveal(rawCodes, in: app))
+        rawCodes.tap()
         XCTAssertTrue(app.descendants(matching: .any)["watch.diagnostics.json"].waitForExistence(timeout: 8))
     }
 

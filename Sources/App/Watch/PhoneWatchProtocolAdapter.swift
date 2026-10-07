@@ -15,11 +15,14 @@ public final class PhoneWatchProtocolAdapter: NSObject, WCSessionDelegate, Senda
     private let onFileTransferFailure: @Sendable (WatchTrackID, WatchProtocolErrorCode) async -> Void
     private let onFileTransferCompletion: @Sendable (WatchTrackID) async -> Void
     private let onChunkCompletion: @Sendable (WatchAudioChunkMetadata, WatchProtocolErrorCode?) async -> Void
+    private let onAudioCompletion: (@Sendable (WatchAudioFileMetadata, WatchProtocolErrorCode?) async -> Void)?
 
     public init(endpoint: any WatchProtocolLifecycle,
                 onFileTransferFailure: @escaping @Sendable (WatchTrackID, WatchProtocolErrorCode) async -> Void = { _, _ in },
                 onFileTransferCompletion: @escaping @Sendable (WatchTrackID) async -> Void = { _ in },
-                onChunkCompletion: @escaping @Sendable (WatchAudioChunkMetadata, WatchProtocolErrorCode?) async -> Void = { _, _ in }) {
+                onChunkCompletion: @escaping @Sendable (WatchAudioChunkMetadata, WatchProtocolErrorCode?) async -> Void = { _, _ in },
+                onAudioCompletion: (@Sendable (WatchAudioFileMetadata, WatchProtocolErrorCode?) async -> Void)? = nil) {
+        self.onAudioCompletion = onAudioCompletion
         self.endpoint = endpoint
         self.onFileTransferFailure = onFileTransferFailure
         self.onFileTransferCompletion = onFileTransferCompletion
@@ -93,6 +96,11 @@ public final class PhoneWatchProtocolAdapter: NSObject, WCSessionDelegate, Senda
             return
         }
         guard let metadata = WatchAudioFileMetadata(dictionary: raw) else { return }
+        if let callback = onAudioCompletion {
+            let code = error.map { WatchSessionTransport.fault(for: $0).code }
+            Task { await callback(metadata, code) }
+            return
+        }
         // A cancelled/restarted transfer can finish after its replacement was queued.
         // Its late failure must not mark the replacement's job failed.
         guard !session.outstandingFileTransfers.contains(where: { other in
@@ -139,8 +147,9 @@ public final class PhoneWatchProtocolAdapter: NSObject, WCSessionDelegate, Senda
     public func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState,
                         error: (any Error)?) {
         let reachable = state == .activated && session.isReachable
+        let context = WatchProtocolEnvelope.payloadData(in: session.receivedApplicationContext)
         let endpoint = endpoint
-        Task { await endpoint.activate(reachable: reachable, receivedContext: nil) }
+        Task { await endpoint.activate(reachable: reachable, receivedContext: context) }
     }
 
     public func sessionReachabilityDidChange(_ session: WCSession) {

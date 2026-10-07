@@ -106,7 +106,7 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         guard case .assembled(let recovered, _) = outcomes.first else { return XCTFail("Did not recover final assembly") }
         XCTAssertEqual(try WatchFileDigest.measure(recovered).sha256, fx.audio.sha256)
     }
-    func testProductionWatchRouteInstallsCompleteFileAndMakesOfflinePlaybackAvailable() async throws {
+    func testLegacyChunkRouteInstallsCompleteFileAndMakesOfflinePlaybackAvailable() async throws {
         let original = try XCTUnwrap(BuiltInContentProvider.bundledAudioURL(forChannelId: "ambient-ocean"))
         let fx = try ChunkFixture(bytes: 0, audioBytes: Data(contentsOf: original), fileExtension: "wav")
         defer { fx.clean() }
@@ -114,7 +114,9 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         let repository = WatchLibraryRepository(container: try WatchStoreBootstrap.inMemory(), audioDirectory: audioDirectory)
         let installer = WatchFileInstaller(repository: repository, audioDirectory: audioDirectory,
             stagingDirectory: fx.root.appendingPathComponent("staging"))
-        let sync = WatchSyncActor(repository: repository, installer: installer, chunkAssembler: fx.assembler)
+        let diagnostics = WatchDiagnosticsRecorder()
+        let sync = WatchSyncActor(repository: repository, installer: installer,
+            chunkAssembler: fx.assembler, diagnostics: diagnostics)
         let link = WatchFakeDuplexLink()
         let fanout = WatchFanoutObserver([sync])
         defer { withExtendedLifetime(fanout) {} }
@@ -157,6 +159,10 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         XCTAssertTrue(remaining.isEmpty)
         let outstanding = await sender.activeTrackIDs()
         XCTAssertTrue(outstanding.isEmpty)
+        let events = await diagnostics.events()
+        XCTAssertEqual(events.filter { $0.category == .installResult && $0.stateCode == "chunkRetained" }.count, count - 1)
+        XCTAssertTrue(events.contains { $0.category == .installResult && $0.stateCode == "installed" })
+        XCTAssertEqual(events.filter { $0.category == .manifestConvergence && $0.stateCode == "reported" }.count, count + 1)
     }
 
     func testWatchRejectionBecomesVisibleFailureWithoutDiscardingSavedProgress() async throws {
@@ -181,7 +187,7 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         let retry = await fx.transport.files.last!
         XCTAssertEqual(retry.metadata.index, 1)
     }
-    func testProductionPolicyIsOneUnconfirmedOneMiBChunkGlobally() async throws {
+    func testLegacyChunkPolicyIsOneUnconfirmedOneMiBChunkGlobally() async throws {
         XCTAssertEqual(WatchAudioChunkPolicy.defaultChunkBytes, 1_048_576)
         XCTAssertEqual(WatchAudioChunkPolicy.maximumUnconfirmedChunks, 1)
         let fx = try ChunkFixture(bytes: 3 * 1_048_576 + 17)

@@ -96,6 +96,7 @@ final class WatchAppAssembly {
 
     func refreshSyncReachability() async {
         await coordinator?.refreshReachability()
+        await syncActor?.publishPeriodicStatus()
         await syncStatus.refreshInstallationDate()
     }
 
@@ -206,21 +207,10 @@ final class WatchAppAssembly {
         let reach = WatchReachabilityObserver(model: mdl)
         let diag = diagnostics
         let sync = WatchSyncActor(repository: repo, installer: inst,
-                                  chunkAssembler: WatchAudioChunkAssembler(directory: audio.deletingLastPathComponent()
-                                    .appendingPathComponent("AudioChunks", isDirectory: true),
-                                    storageProvider: { try? await repo.storage() }),
+                                  requiresNormalizedAAC: true,
                                   artworkInstaller: artworkInst, diagnostics: diag,
                                   lastCatalogReceivedAt: syncStatus.lastCatalogSyncAt,
                                   onLibraryChanged: { [weak mdl] in await mdl?.refresh() })
-        let coord = WatchConnectivityCoordinator(
-            transport: WatchProtocolSessionAdapter.transport,
-            stateStore: stateStore,
-            configuration: .init(capabilities: [.downloadRoots, .manifestAcknowledgement,
-                                                .reconciliation, .watchInitiatedDownload,
-                                                .artworkAssets, .watchLocalCatalog, .resumableAudioChunks]),
-            diagnostics: diag,
-            observer: nil)
-
         let searchPresenter = WatchSearchPresenter(
             mode: .offline,
             connectedSearch: { _, _ in .failed(.init(code: .phoneUnavailable)) },
@@ -239,7 +229,16 @@ final class WatchAppAssembly {
         let diagObs = WatchDiagnosticsObserver(diagnostics: diag)
         let downloadStatusObs = WatchDownloadStatusObserver(model: mdl)
         let fan = WatchFanoutObserver([sync, reach, chromeObs, remotePlayback, diagObs, downloadStatusObs, syncStatus])
-        let adpt = WatchProtocolSessionAdapter(endpoint: coord)
+        // The observer is installed before native activation, not in a later Task.
+        // A background file can arrive immediately when WCSession activates.
+        let coord = WatchConnectivityCoordinator(
+            transport: WatchProtocolSessionAdapter.transport,
+            stateStore: stateStore,
+            configuration: .init(capabilities: [.downloadRoots, .manifestAcknowledgement,
+                                                .reconciliation, .watchInitiatedDownload,
+                                                .artworkAssets, .watchLocalCatalog]),
+            diagnostics: diag, observer: fan)
+        let adpt = WatchProtocolSessionAdapter(endpoint: coord, diagnostics: diag)
 
         self.repository = repo
         self.installer = inst
@@ -252,10 +251,8 @@ final class WatchAppAssembly {
         self.coordinator = coord
         self.adapter = adpt
 
-        let fanForTask = fan
         Task {
             await sync.setCoordinator(coord)
-            await coord.setObserver(fanForTask)
         }
     }
 

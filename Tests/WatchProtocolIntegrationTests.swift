@@ -7,6 +7,30 @@ import XCTest
 /// every case below is the real phone code talking to the real watch code — no simulator, no
 /// WatchConnectivity, no wall-clock waits beyond a grace period the test itself picks.
 final class WatchProtocolIntegrationTests: XCTestCase {
+    func testPeriodicCatalogReportsWorkOfflineInBothDirectionsWithoutAudioSends() async throws {
+        let harness = await makeHarness(boundLibraryID: libraryID)
+        await harness.link.setReachable(false)
+        await harness.watch.activate(reachable: false)
+        await harness.phone.activate(reachable: false)
+        let watchReport = WatchManifestPayload(manifestID: "watch-truth", readyTrackIDs: ["installed"],
+            installedBytes: 512, catalogTrackCount: 379, inProgressTrackIDs: ["received-not-installed"])
+        await harness.watch.publishManifestContext(watchReport)
+        await harness.link.replayApplicationContext(from: .watch)
+        let reports = await harness.handler.receivedManifests
+        XCTAssertEqual(reports.last, watchReport)
+        await harness.phone.publishContext(downloads: .init(revision: 1, readyCount: 1,
+            activities: [.init(trackID: "submitted", stage: .waitingForDelivery)],
+            catalogTrackCount: 400, readyTrackIDs: ["installed"]))
+        await harness.link.replayApplicationContext(from: .phone)
+        let statuses = await harness.watchObserver.downloadStatuses
+        XCTAssertEqual(statuses.last?.catalogTrackCount, 400)
+        XCTAssertEqual(statuses.last?.readyTrackIDs, ["installed"])
+        XCTAssertEqual(statuses.last?.activities.first?.trackID, "submitted")
+        let watchState = await harness.watch.connectionState
+        let phoneState = await harness.phone.connectionState
+        XCTAssertTrue(watchState.isConfirmedDisconnected)
+        XCTAssertTrue(phoneState.isConfirmedDisconnected)
+    }
     func testCachedPreChunkProtocolPacketsDoNotPoisonAnUpdatedSession() async throws {
         let harness = await makeConnectedHarness()
         let stale = try WatchProtocolEnvelope.encode(kind: .downloadStatusSnapshot,

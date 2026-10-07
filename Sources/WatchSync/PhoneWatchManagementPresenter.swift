@@ -251,7 +251,7 @@ public enum PhoneWatchManagementPresenter {
                     stage: stage,
                     rootIDs: job.rootIDs,
                     failureMessage: job.state == .failed ? job.message : nil,
-                    canRetry: job.state == .failed || job.state == .cancelled || job.state == .sent,
+                    canRetry: job.state == .failed || job.state == .cancelled,
                     canCancel: job.isActive || job.state == .sent)
                 row.fractionComplete = chunk?.checkpoint.fractionRetained ?? fraction
                 row.receivedChunkCount = chunk?.checkpoint.receivedChunkIndexes.count

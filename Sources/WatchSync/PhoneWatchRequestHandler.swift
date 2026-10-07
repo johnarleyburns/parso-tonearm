@@ -29,7 +29,7 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
                 player: any PhoneWatchPlaybackBridge,
                 libraryID: WatchPairedLibraryID,
                 revisionStore: any WatchPhoneRevisionStore,
-                capabilities: [WatchCapability] = WatchCapability.allCases,
+                capabilities: [WatchCapability] = WatchCapability.allCases.filter { $0 != .resumableAudioChunks },
                 downloadedProvider: @escaping @Sendable () async -> Set<WatchTrackID> = { [] },
                 artworkBindingProvider: @escaping @Sendable (String) async -> (coverArtworkID: String?, customArtworkID: String?) = { _ in (nil, nil) },
                 onManifest: @escaping @Sendable (WatchManifestPayload) async -> Void = { _ in },

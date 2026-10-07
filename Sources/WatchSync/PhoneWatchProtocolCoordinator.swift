@@ -227,6 +227,11 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
 
     public func receiveApplicationContext(_ data: Data) async {
         guard let envelope = await accept(data, notesLiveness: false) else { return }
+        if let context = try? envelope.decodePayload(WatchContextSnapshot.self), let manifest = context.manifest {
+            await handler.handleWatchManifest(manifest)
+            await observer?.watchDidReportManifest(manifest)
+            return
+        }
         await applyDurable(envelope)
     }
 

@@ -136,7 +136,7 @@ public actor PhoneWatchDownloadManager {
     private var isPumping = false
 
     /// Allow time for the watch's install acknowledgement after WCSession finishes.
-    public static let installationAcknowledgementTimeout: TimeInterval = 300
+    public static let installationAcknowledgementTimeout: TimeInterval = 24 * 60 * 60
 
     public init(store: PhoneWatchDownloadStore,
                 resolver: any PhoneWatchAudioResolving,
@@ -202,7 +202,7 @@ public actor PhoneWatchDownloadManager {
     /// funnels through the same explicit-retry path, which revives a failed *or* cancelled job.
     public func requestRetry(requestID: String) async throws {
         guard var job = try await store.jobs().first(where: { $0.requestID == requestID }) else { return }
-        if job.state == .sent {
+        if job.state == .sent || job.state == .failed {
             guard !(try await store.installedTrackIDs()).contains(job.trackID) else { return }
             // An explicit restart is different from automatic reconciliation: cancel the
             // old system-owned transfer before scheduling one replacement, never two copies.
@@ -266,8 +266,9 @@ public actor PhoneWatchDownloadManager {
     /// Apply the watch's latest manifest (§1.6 second authority) and re-reconcile. Per-track bytes
     /// are not in the payload, so a known job's `expectedBytes` fills in where available.
     public func ingestManifest(_ payload: WatchManifestPayload) async throws {
-        // A manifest is the watch's authority. Anything absent must be eligible for a resend,
-        // including an asset that was previously accepted by WCSession but never installed.
+        let previouslyInstalled = try await store.installedTrackIDs()
+        // The watch owns installed truth. Missing prior assets require user approval,
+        // not an automatic resend. Apple-owned transfers remain independently tracked.
         artworkSentIDs.formIntersection(Set(payload.installedArtworkIDs.map { $0.lowercased() }))
         let existing = try await store.jobs()
         let jobsByTrack = Dictionary(existing.map { ($0.trackID, $0) },
@@ -279,11 +280,18 @@ public actor PhoneWatchDownloadManager {
                                     reportedAt: payload.generatedAt)
         }
         try await store.replaceManifest(entries)
+        let roots = try await store.roots()
+        let desired = Set(roots.flatMap(\.desiredTrackIDs))
+        let lost = previouslyInstalled.subtracting(payload.readyTrackIDs.map(\.rawValue)).intersection(desired)
+        for id in lost {
+            var job = jobsByTrack[id] ?? PhoneWatchDownloadJob(trackID: id,
+                rootIDs: roots.filter { $0.desiredTrackIDs.contains(id) }.map(\.rootID))
+            try await failFromError(&job, code: .transferFailed)
+        }
         try await reconcile()
     }
 
-    /// The app's periodic / foreground nudge. Re-runs reconciliation, which is what advances
-    /// backed-off transient retries — there is no idle timer inside the manager (I-10).
+    /// Periodic reconciliation updates status but never retries a failed transfer automatically.
     public func tick() async throws {
         try await reconcile()
     }
@@ -352,6 +360,10 @@ public actor PhoneWatchDownloadManager {
         // A queued file is not installed truth. Recover lost deliveries and watch-side
         // rejections, while leaving transfers still owned by WCSession alone.
         for var job in try await store.jobs() where job.state == .sent && !installed.contains(job.trackID) {
+            if now().timeIntervalSince(job.updatedAt) >= Self.installationAcknowledgementTimeout {
+                try await failFromError(&job, code: .transferFailed)
+                continue
+            }
             if outstanding.contains(job.trackID) {
                 if job.deliveryCompletedAt != nil {
                     job.deliveryCompletedAt = nil
@@ -376,13 +388,8 @@ public actor PhoneWatchDownloadManager {
         }
 
         let ts = now()
-        // Transient failures whose backoff has elapsed are retried now; the planner has no clock,
-        // so fold them into the retry set alongside the user's explicit retries.
-        let timerElapsed = existing
-            .filter { $0.state == .failed && ($0.failureClass?.isRetryable ?? false)
-                && ($0.nextAttemptAt ?? .distantPast) <= ts }
-            .map(\.trackID)
-        let retrySet = explicitRetryTrackIDs.union(timerElapsed)
+        // Only user-approved retries enter the planner's reset set.
+        let retrySet = explicitRetryTrackIDs
 
         let plan = PhoneWatchDownloadPlanner.plan(
             roots: activeRoots, installedTrackIDs: installed, existingJobs: existing,
@@ -541,19 +548,15 @@ public actor PhoneWatchDownloadManager {
         }
     }
 
-    /// Re-attach to in-flight transfers after a relaunch (§8.2). A job the store thinks is
-    /// transferring but the framework no longer lists is reset to `queued` for redelivery.
+    /// Re-attach to Apple-owned transfers after relaunch. Interrupted work absent
+    /// from the system queue asks for approval rather than silently re-enqueueing.
     public func resumeOutstanding() async throws {
         let outstanding = Set(await transfer.outstandingTransfers().map(\.rawValue))
         let jobs = try await store.jobs()
         let stranded = jobs.filter {
             ($0.state == .transferring || $0.state == .resolving) && !outstanding.contains($0.trackID)
         }
-        if !stranded.isEmpty {
-            try await store.upsertJobs(stranded.map {
-                var j = $0; j.state = .queued; j.updatedAt = now(); return j
-            })
-        }
+        for var job in stranded { try await failFromError(&job, code: .transferFailed) }
         try await reconcile()
     }
 
@@ -628,7 +631,7 @@ public actor PhoneWatchDownloadManager {
             }
             return WatchDownloadRootStatus(
                 rootID: root.rootID, title: root.title, desiredCount: desired.count,
-                readyCount: ready, failedCount: failed, state: state)
+                readyCount: ready, failedCount: failed, state: state, trackIDs: desired.map(WatchTrackID.init))
         }
     }
 
@@ -649,7 +652,7 @@ public actor PhoneWatchDownloadManager {
         case .retryFailed:
             let wanted = Set(targets.flatMap(\.desiredTrackIDs))
             for job in try await store.jobs() where job.state == .failed && wanted.contains(job.trackID) {
-                explicitRetryTrackIDs.insert(job.trackID)
+                try await requestRetry(requestID: job.requestID)
             }
             try await reconcile()
         }
@@ -672,15 +675,13 @@ public actor PhoneWatchDownloadManager {
         job.errorCode = code.rawValue
         job.message = message
         job.attempt += 1
-        job.nextAttemptAt = cls.isRetryable
-            ? now().addingTimeInterval(PhoneWatchTransferScheduler.backoff(attempt: job.attempt))
-            : nil
+        job.nextAttemptAt = nil
         job.updatedAt = now()
         try await store.upsertJob(job)
     }
 
     private func failFromError(_ job: inout PhoneWatchDownloadJob, code: WatchProtocolErrorCode) async throws {
         try await fail(&job, class: PhoneWatchTransferScheduler.classify(code),
-                       code: code, message: code.safeDisplayMessage)
+                       code: code, message: code.safeDisplayMessage + " Retry this transfer?")
     }
 }

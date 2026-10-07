@@ -172,11 +172,13 @@ public struct WatchDownloadRootStatus: Codable, Equatable, Sendable, Identifiabl
     public var readyCount: Int
     public var failedCount: Int
     public var state: State
+    public var trackIDs: [WatchTrackID]?
 
     public var id: String { rootID }
 
     public init(rootID: String, title: String, desiredCount: Int, readyCount: Int,
-                failedCount: Int = 0, state: State) {
+                failedCount: Int = 0, state: State, trackIDs: [WatchTrackID]? = nil) {
+        self.trackIDs = trackIDs
         self.rootID = rootID
         self.title = title
         self.desiredCount = desiredCount
@@ -187,6 +189,17 @@ public struct WatchDownloadRootStatus: Codable, Equatable, Sendable, Identifiabl
 
     public var fraction: Double {
         desiredCount > 0 ? min(1, Double(readyCount) / Double(desiredCount)) : 1
+    }
+
+    /// The receiver owns its installed files, even when the sender's report is stale.
+    public func reconciled(readyTrackIDs: Set<String>) -> Self {
+        guard let trackIDs else { return self }
+        var result = self
+        result.desiredCount = Set(trackIDs).count
+        result.readyCount = Set(trackIDs.map(\.rawValue)).intersection(readyTrackIDs).count
+        if result.desiredCount > 0 && result.readyCount == result.desiredCount { result.state = .complete }
+        else if state == .complete { result.state = .queued }
+        return result
     }
 }
 
@@ -213,6 +226,8 @@ public struct WatchDownloadActivity: Codable, Equatable, Sendable, Identifiable 
 }
 
 public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
+    public var catalogTrackCount: Int
+    public var readyTrackIDs: [WatchTrackID]
     public var revision: Int64
     public var queuedCount: Int
     public var activeCount: Int
@@ -233,7 +248,9 @@ public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
                 waitingForWiFiCount: Int = 0, failedCount: Int = 0, readyCount: Int = 0,
                 activeTransfers: [WatchTransferProgress] = [], roots: [WatchDownloadRootStatus] = [],
                 activities: [WatchDownloadActivity] = [], generatedAt: Date? = nil,
-                lastWatchReportAt: Date? = nil) {
+                lastWatchReportAt: Date? = nil, catalogTrackCount: Int = 0, readyTrackIDs: [WatchTrackID] = []) {
+        self.catalogTrackCount = catalogTrackCount
+        self.readyTrackIDs = readyTrackIDs
         self.revision = revision
         self.queuedCount = queuedCount
         self.activeCount = activeCount
@@ -249,11 +266,14 @@ public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case revision, queuedCount, activeCount, waitingForWiFiCount, failedCount, readyCount, activeTransfers
+        case catalogTrackCount, readyTrackIDs
         case roots, activities, generatedAt, lastWatchReportAt
     }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        catalogTrackCount = try c.decodeIfPresent(Int.self, forKey: .catalogTrackCount) ?? 0
+        readyTrackIDs = try c.decodeIfPresent([WatchTrackID].self, forKey: .readyTrackIDs) ?? []
         revision = try c.decode(Int64.self, forKey: .revision)
         queuedCount = try c.decodeIfPresent(Int.self, forKey: .queuedCount) ?? 0
         activeCount = try c.decodeIfPresent(Int.self, forKey: .activeCount) ?? 0
@@ -280,6 +300,8 @@ public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
 /// §5.3 `watchManifest` — the watch's *actual* state, which §1.6 makes the second authority: the
 /// phone owns what should be downloaded, the watch owns what is.
 public struct WatchManifestPayload: Codable, Equatable, Sendable {
+    public var catalogTrackCount: Int
+    public var inProgressTrackIDs: [WatchTrackID]
     public var manifestID: String
     public var readyTrackIDs: [WatchTrackID]
     public var installedBytes: Int64
@@ -298,7 +320,10 @@ public struct WatchManifestPayload: Codable, Equatable, Sendable {
                 lastCatalogReceivedAt: Date? = nil, lastAudioInstalledAt: Date? = nil,
                 partialAudioDownloads: [WatchPartialAudioDownload] = [],
                 audioDownloadFailures: [String: WatchProtocolErrorCode] = [:],
-                audioFailureTransferIDs: [String: String] = [:]) {
+                audioFailureTransferIDs: [String: String] = [:],
+                catalogTrackCount: Int = 0, inProgressTrackIDs: [WatchTrackID] = []) {
+        self.catalogTrackCount = catalogTrackCount
+        self.inProgressTrackIDs = inProgressTrackIDs
         self.manifestID = manifestID
         self.readyTrackIDs = readyTrackIDs
         self.installedBytes = installedBytes
@@ -315,6 +340,7 @@ public struct WatchManifestPayload: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case manifestID, readyTrackIDs, installedBytes, capacityBytes, freeBytes, installedArtworkIDs, generatedAt
+        case catalogTrackCount, inProgressTrackIDs
         case lastCatalogReceivedAt, lastAudioInstalledAt
         case partialAudioDownloads
         case audioDownloadFailures
@@ -323,6 +349,8 @@ public struct WatchManifestPayload: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        catalogTrackCount = try container.decodeIfPresent(Int.self, forKey: .catalogTrackCount) ?? 0
+        inProgressTrackIDs = try container.decodeIfPresent([WatchTrackID].self, forKey: .inProgressTrackIDs) ?? []
         manifestID = try container.decode(String.self, forKey: .manifestID)
         readyTrackIDs = try container.decode([WatchTrackID].self, forKey: .readyTrackIDs)
         installedBytes = try container.decode(Int64.self, forKey: .installedBytes)

@@ -304,13 +304,13 @@ enum WatchStageCopy {
     static func text(_ stage: PhoneWatchManagementPresenter.ActivityStage) -> String {
         switch stage {
         case .queued: return String(localized: "Queued")
-        case .resolving: return String(localized: "Preparing")
+        case .resolving: return String(localized: "Preparing 128 kbps AAC")
         case .transferring: return String(localized: "Transferring")
         case .waitingForWiFi: return String(localized: "Waiting for Wi-Fi")
         case .failed: return String(localized: "Failed")
         case .paused: return String(localized: "Paused")
         case .waitingForDelivery: return String(localized: "Queued in Apple transfer service")
-        case .awaitingInstallation: return String(localized: "Waiting for watch installation")
+        case .awaitingInstallation: return String(localized: "Transfer submitted — syncing device status")
         case .awaitingChunkConfirmation: return String(localized: "Waiting for saved-chunk confirmation")
         }
     }

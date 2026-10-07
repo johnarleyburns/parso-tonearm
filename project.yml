@@ -490,7 +490,7 @@ targets:
       - path: Resources/AppIcon.icon
       # DEBUG builds do not embed the broad core resource bundle. Declare the
       # smoke fixture as a resource source so XcodeGen preserves the copy phase.
-      - path: Resources/Audio/ambient-ocean.wav
+      - path: Resources/Audio/ambient-ocean-watch-aac128.m4a
         buildPhase: resources
     resources:
       - WatchApp/Localizable.xcstrings

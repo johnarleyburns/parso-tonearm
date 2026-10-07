@@ -53,6 +53,7 @@
 		1FA2A0707839663693B763C8 /* AppPresentations.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1546F30649364893DBDC24F /* AppPresentations.swift */; };
 		203E3F04A4D7C7663CDB3FC0 /* SupportDevelopmentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */; };
 		20D5A855403EB09E6559E3D9 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 3097F3784760CBFAB786AA5E /* Localizable.xcstrings */; };
+		2159A4CD451E2A1AC4F98510 /* ambient-ocean-watch-aac128.m4a in Resources */ = {isa = PBXBuildFile; fileRef = F33C20D678B25AEE660F46D4 /* ambient-ocean-watch-aac128.m4a */; };
 		235DEAAB235F18FD2D7A84A0 /* ambient-rain.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 4EDDCD4974AB22B40A4AB3EE /* ambient-rain.mp4 */; };
 		23DB81AAAF14CD685C279F8F /* mel_filterbank_slaney_64.bin in Resources */ = {isa = PBXBuildFile; fileRef = 39DCFD0118F0838F83219F22 /* mel_filterbank_slaney_64.bin */; };
 		244A07E62B756372CCAFEF41 /* TransitionPrepService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D5667AD63119E315DA4812 /* TransitionPrepService.swift */; };
@@ -222,6 +223,7 @@
 		9F50FE5B13420A2961DA7D25 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5EDA31C3AD0CDB64A40CF2EC /* TonearmCore */; };
 		9F62783C181DD46988FC97D5 /* WatchRecoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC20374D7D9CA25709FB4C4 /* WatchRecoveryView.swift */; };
 		9FDE771587B35B56ED9750B8 /* SupportDevelopmentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */; };
+		A175B7F17902FFEDB6F1B2F2 /* ambient-ocean-watch-aac128.m4a in Resources */ = {isa = PBXBuildFile; fileRef = F33C20D678B25AEE660F46D4 /* ambient-ocean-watch-aac128.m4a */; };
 		A196CB4D0462628843CAA4C4 /* AppState+BuiltInMoodIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4C2C74CE7D4768E86F3D57 /* AppState+BuiltInMoodIndex.swift */; };
 		A2576E4F8F5923803B5C0F40 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C6582DD00135325CDB814488 /* AppShortcuts.xcstrings */; };
 		A30963F2D644A882134163F2 /* ArtworkImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 298AE119DE325FD5445FE843 /* ArtworkImagePicker.swift */; };
@@ -267,7 +269,6 @@
 		BD38B111851C766BAB2D808C /* ATTRIBUTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */; };
 		BE20C9CFF3CB74BB6864F917 /* ArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE86C3C1F56FA212DBB6D8F0 /* ArtworkStore.swift */; };
 		BEC4C5E175FF3277F27256EE /* DiscoveryModelResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55CE08A58DEB1BB867E399B /* DiscoveryModelResources.swift */; };
-		BFF0F03CC238BE94D7FF5554 /* ambient-ocean.wav in Resources */ = {isa = PBXBuildFile; fileRef = 74D07216801F19A8231EE98A /* ambient-ocean.wav */; };
 		C02503205EC9C7FC113253AB /* DiscoveryModelResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55CE08A58DEB1BB867E399B /* DiscoveryModelResources.swift */; };
 		C0D5BE09D689D61435BEDCA1 /* WidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */; };
 		C0E3EB7AB1D02FA2309CE3B2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */; };
@@ -295,6 +296,7 @@
 		CC78D6293406B9AE7D35BB2B /* AppState+SourceArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = A96CA438842FCA6E4E863EB7 /* AppState+SourceArtwork.swift */; };
 		CCDACE2A27A30E0C628821EB /* SettingsRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81B8284B4318B309731708F /* SettingsRegressionUITests.swift */; };
 		CE2DF2A03F702707EEB672FB /* WidgetArtworkStore+Save.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */; };
+		CEF69C62863E0848FD0282CA /* ambient-ocean-watch-aac128.m4a in Resources */ = {isa = PBXBuildFile; fileRef = F33C20D678B25AEE660F46D4 /* ambient-ocean-watch-aac128.m4a */; };
 		CFBD80626ED3BCF63CD60960 /* JamendoBrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F050FDF819A0D40258D11F51 /* JamendoBrowseView.swift */; };
 		D03406B7B729D4CAF0E10224 /* DiscoveryRuntimeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2691BB73DBF1FEEB2FF9DC14 /* DiscoveryRuntimeController.swift */; };
 		D164368A449E38B7B71B5BFE /* ParsoDJEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 23AE0F246BF805F17302EDDD /* ParsoDJEngine */; };
@@ -662,6 +664,7 @@
 		F1546F30649364893DBDC24F /* AppPresentations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPresentations.swift; sourceTree = "<group>"; };
 		F1BAAB8C1EDFCC23544B7B03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F264152278DB935FBFB188F5 /* WatchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchComponents.swift; sourceTree = "<group>"; };
+		F33C20D678B25AEE660F46D4 /* ambient-ocean-watch-aac128.m4a */ = {isa = PBXFileReference; path = "ambient-ocean-watch-aac128.m4a"; sourceTree = "<group>"; };
 		F39D6547A3D27A72C24F56AD /* SmartTransitionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartTransitionsView.swift; sourceTree = "<group>"; };
 		F42E2045814F52BC75F1609F /* UpNextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpNextView.swift; sourceTree = "<group>"; };
 		F43AA652B4D4981556956CB7 /* AppState+CustomArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+CustomArtwork.swift"; sourceTree = "<group>"; };
@@ -1166,6 +1169,7 @@
 			isa = PBXGroup;
 			children = (
 				6B30803B3705FC80247E98A8 /* ambient-flowing-water.wav */,
+				F33C20D678B25AEE660F46D4 /* ambient-ocean-watch-aac128.m4a */,
 				74D07216801F19A8231EE98A /* ambient-ocean.wav */,
 				E38CB1BF7D38667CEFEBA735 /* ambient-rain.wav */,
 				99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */,
@@ -1715,6 +1719,7 @@
 				859FF5128A4FB2431F372BC1 /* Tonearm.storekit in Resources */,
 				7632BF5A7300E0161E31561E /* ambient-flowing-water.mp4 in Resources */,
 				0382D625CFFFBBCCD5C33260 /* ambient-flowing-water.wav in Resources */,
+				CEF69C62863E0848FD0282CA /* ambient-ocean-watch-aac128.m4a in Resources */,
 				19B97DB26682D6D1E4E699DF /* ambient-ocean.mp4 in Resources */,
 				399FCA70804576F1845E8482 /* ambient-ocean.wav in Resources */,
 				235DEAAB235F18FD2D7A84A0 /* ambient-rain.mp4 in Resources */,
@@ -1750,6 +1755,7 @@
 				2BDD7EA40A22BF33622364F5 /* Tonearm.storekit in Resources */,
 				19D3B7BFDB92E43C1DF0BB38 /* ambient-flowing-water.mp4 in Resources */,
 				04AB1C915EDC9668DB183B57 /* ambient-flowing-water.wav in Resources */,
+				2159A4CD451E2A1AC4F98510 /* ambient-ocean-watch-aac128.m4a in Resources */,
 				270849FD1C2B861CB7D22A4E /* ambient-ocean.mp4 in Resources */,
 				E7D8EA806A23E80EA7653ACB /* ambient-ocean.wav in Resources */,
 				5B465DBD74B94A0538CC824B /* ambient-rain.mp4 in Resources */,
@@ -1776,7 +1782,7 @@
 				AFCB0C188CB61B77079A95F9 /* AppShortcuts.xcstrings in Resources */,
 				3B69A3EEB3B798C7E772B384 /* Assets.xcassets in Resources */,
 				944AEFE5BF7BD9D636587F2C /* Localizable.xcstrings in Resources */,
-				BFF0F03CC238BE94D7FF5554 /* ambient-ocean.wav in Resources */,
+				A175B7F17902FFEDB6F1B2F2 /* ambient-ocean-watch-aac128.m4a in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

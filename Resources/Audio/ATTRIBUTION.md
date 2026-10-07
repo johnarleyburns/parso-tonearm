@@ -14,6 +14,12 @@ fallback if a file is ever missing.
 **All three ambient loop sounds are CC0 (public domain)** — no attribution
 is legally required (credits are still shown in-app as good practice).
 
+`ambient-ocean-watch-aac128.m4a` is a 128 kbps AAC stereo / 44.1 kHz derivative of
+the same Nox_Sound CC0 ocean recording, generated with the production
+`PhoneWatchAudioPreparation.prepare` encoder by
+`WatchAVPlayerItemTests.testWholeAAC128UsesOneTransferFileAndPlaysRealCC0Audio`.
+It is the watch simulator's installation/offline-playback regression fixture.
+
 ### Background videos (`Resources/Video/ambient-*.mp4`)
 
 All three are Mixkit clips under the Mixkit Free License; license compliance

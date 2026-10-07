@@ -46,11 +46,18 @@ struct WatchDownloadsView: View {
             Section {
                 NavigationLink(value: WatchNav.songs) {
                     WatchCollectionRowLabel(title: String(localized: "Songs"),
-                                            detail: String(localized: "\(model.tracks.filter(\.isReady).count) songs"),
+                                            detail: String(localized: "\(model.tracks.filter(\.isReady).count) playable tracks"),
                                             tintKey: "songs")
                 }
                 .watchCardRow()
                 .accessibilityIdentifier("watch.songs")
+            } header: {
+                Text("Downloaded audio")
+            } footer: {
+                Text("Only downloaded tracks can play without your iPhone.")
+            }
+
+            Section {
                 NavigationLink(value: WatchNav.playlists) {
                     WatchCollectionRowLabel(title: String(localized: "Playlists"),
                                             detail: String(localized: "\(model.playlists.count) playlists"),
@@ -66,7 +73,9 @@ struct WatchDownloadsView: View {
                 .watchCardRow()
                 .accessibilityIdentifier("watch.downloads.albums")
             } header: {
-                Text(onWatchHeader)
+                Text("Catalog on this watch")
+            } footer: {
+                Text("Playlist and album listings do not mean their audio is downloaded.")
             }
 
             Section {
@@ -137,7 +146,7 @@ struct WatchDownloadsView: View {
         let progress = String(localized: "\(root.readyCount) of \(root.desiredCount) songs")
         let reason: String = switch root.state {
         case .downloading: String(localized: "Downloading")
-        case .queued: String(localized: "Waiting to start")
+        case .queued: String(localized: "Transfer queued")
         case .waitingForWiFi: String(localized: "Waiting for Wi-Fi")
         case .paused: String(localized: "Paused")
         case .failed: String(localized: "Failed — tap Retry")
@@ -161,12 +170,6 @@ struct WatchDownloadsView: View {
         let done = roots.reduce(0) { $0 + $1.readyCount }
         let total = roots.reduce(0) { $0 + $1.desiredCount }
         return String(localized: "Downloading · \(done) of \(total)")
-    }
-
-    private var onWatchHeader: String {
-        let bytes = model.storage?.readyBytes ?? 0
-        return bytes > 0 ? String(localized: "On this watch · \(WatchTimeFmt.megabytes(bytes))")
-                         : String(localized: "On this watch")
     }
 
     private var confirmTitle: String {

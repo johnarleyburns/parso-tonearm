@@ -156,6 +156,47 @@ private func manifest(_ ids: [String], id: String = UUID().uuidString) -> WatchM
 // MARK: - Tests
 
 final class PhoneWatchDownloadTests: XCTestCase {
+    func testLostInstalledAudioAsksForApprovalInsteadOfAutomaticallyDownloadingAgain() async throws {
+        let db = try freshQueue()
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["lost"]), transfer: transfer)
+        try await manager.setRoots([root("r", tracks: ["lost"])])
+        try await manager.ingestManifest(manifest(["lost"]))
+        try await manager.ingestManifest(manifest([]))
+        try await manager.tick()
+        let count = await transfer.sentCount("lost")
+        XCTAssertEqual(count, 1)
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        let job = try await store.jobs().first
+        XCTAssertEqual(job?.state, .failed)
+        XCTAssertNil(job?.nextAttemptAt)
+    }
+    func testAppleOwnedWholeFilePromptsAtTwentyFourHoursWithoutReenqueueing() async throws {
+        let db = try freshQueue()
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        let clock = TestClock()
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["whole"]), transfer: transfer, clock: clock)
+        try await manager.setRoots([root("r", tracks: ["whole"])])
+        await transfer.setOutstanding(["whole"])
+        clock.advance(86_399)
+        try await manager.tick()
+        let before = try await store.jobs().first
+        XCTAssertEqual(before?.state, .sent)
+        clock.advance(2)
+        try await manager.tick()
+        let expired = try await store.jobs().first
+        XCTAssertEqual(expired?.state, .failed)
+        XCTAssertTrue(expired?.message?.contains("Retry this transfer?") ?? false)
+        XCTAssertNil(expired?.nextAttemptAt)
+        let count = await transfer.sentCount("whole")
+        XCTAssertEqual(count, 1)
+        try await manager.requestRetry(requestID: try XCTUnwrap(expired?.requestID))
+        let approved = await transfer.sentCount("whole")
+        XCTAssertEqual(approved, 2)
+        let cancelled = await transfer.cancelled
+        XCTAssertEqual(cancelled, ["whole"], "Only explicit consent cancels Apple's old file transfer")
+    }
     func testPauseAndRemoveCancelSystemOwnedFilesAndResumeQueuesOneReplacement() async throws {
         let db = try freshQueue()
         let transfer = FakeTransfer()
@@ -326,7 +367,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
         XCTAssertEqual(job?.failureClass, .transient)
     }
 
-    func testAsynchronousDeliveryFailureRetriesAfterBackoff() async throws {
+    func testAsynchronousDeliveryFailureRequiresUserApproval() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let clock = TestClock()
@@ -344,7 +385,12 @@ final class PhoneWatchDownloadTests: XCTestCase {
         clock.advance(6)
         try await manager.tick()
         let afterRetry = await transfer.sentCount("a")
-        XCTAssertEqual(afterRetry, 2)
+        XCTAssertEqual(afterRetry, 1)
+        clock.advance(100_000)
+        try await manager.tick()
+        let stillOne = await transfer.sentCount("a")
+        XCTAssertEqual(stillOne, 1)
+        try await manager.requestRetry(requestID: try XCTUnwrap(failed?.requestID))
         try await manager.ingestManifest(manifest(["a"]))
         try await manager.transferFailed(trackID: "a", code: .transferFailed)
         clock.advance(600)
@@ -378,7 +424,9 @@ final class PhoneWatchDownloadTests: XCTestCase {
         clock.advance(6)
         try await manager.tick()
         let recoveredCount = await transfer.sentCount("a")
-        XCTAssertEqual(recoveredCount, 2)
+        XCTAssertEqual(recoveredCount, 1)
+        XCTAssertNil(failed?.nextAttemptAt)
+        try await manager.requestRetry(requestID: try XCTUnwrap(failed?.requestID))
         try await manager.ingestManifest(manifest(["a"]))
         clock.advance(600)
         try await manager.tick()
@@ -762,7 +810,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
         XCTAssertEqual(sent, ["a", "b", "c"])
     }
 
-    func testWatchStoreResetReQueuesDroppedTracks() async throws {
+    func testWatchStoreResetDoesNotAutomaticallyRequeueDroppedTracks() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a", "b"])
         let transfer = FakeTransfer()
@@ -774,7 +822,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.ingestManifest(manifest([]))
         let afterReset = await transfer.sentSorted()
-        XCTAssertEqual(afterReset, ["a", "a", "b", "b"])
+        XCTAssertEqual(afterReset, ["a", "b"])
     }
 
     func testManifestReadyForUndesiredTrackIsHonoured() async throws {
@@ -792,7 +840,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
     // MARK: manager — retry classes
 
-    func testTransientFailureBacksOffThenRetriesOnTimerElapsed() async throws {
+    func testTransientFailureNeverRetriesOnTimerElapsed() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let clock = TestClock()
@@ -808,7 +856,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
         XCTAssertEqual(failed?.state, .failed)
         XCTAssertEqual(failed?.failureClass, .transient)
         XCTAssertEqual(failed?.attempt, 1)
-        XCTAssertNotNil(failed?.nextAttemptAt)
+        XCTAssertNil(failed?.nextAttemptAt)
 
         try await manager.tick()
         let stillStalled = await transfer.sent
@@ -817,7 +865,10 @@ final class PhoneWatchDownloadTests: XCTestCase {
         clock.advance(10)
         try await manager.tick()
         let retried = await transfer.sent
-        XCTAssertEqual(retried, ["a"])
+        XCTAssertTrue(retried.isEmpty)
+        try await manager.requestRetry(requestID: try XCTUnwrap(failed?.requestID))
+        let approved = await transfer.sent
+        XCTAssertEqual(approved, ["a"])
     }
 
     func testAuthFailureDoesNotSpinButExplicitRetryWorks() async throws {
@@ -882,7 +933,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
         XCTAssertEqual(afterB.count, 2, "no track should be re-sent after relaunch")
     }
 
-    func testRelaunchReQueuesStrandedTransferWhenFrameworkForgotIt() async throws {
+    func testRelaunchDoesNotAutomaticallyRequeueStrandedTransfer() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         try await store.replaceRoots([root("r1", tracks: ["a"])])
@@ -892,7 +943,9 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.resumeOutstanding()
         let sent = await transfer.sent
-        XCTAssertEqual(sent, ["a"])
+        XCTAssertTrue(sent.isEmpty)
+        let job = try await store.jobs().first
+        XCTAssertEqual(job?.state, .failed)
     }
 
     func testRelaunchLeavesGenuinelyOutstandingTransferAlone() async throws {
@@ -950,6 +1003,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         clock.advance(30)
         try await managerA.tick()
+        try await managerA.requestRetry(trackID: "t3")
 
         let managerB = makeManager(dbQueue: db, resolver: resolver, transfer: transfer, clock: clock)
         try await managerB.resumeOutstanding()
@@ -1195,7 +1249,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
     /// in-flight-ish states resume and complete, and `sent` / `failed` / `cancelled` are respected —
     /// with never more than one job per track.
     func testRelaunchAtEveryJobStateConvergesConsistently() async throws {
-        let resumesToSent: Set<PhoneWatchJobState> = [.queued, .resolving, .waitingForWiFi, .transferring]
+        let resumesToSent: Set<PhoneWatchJobState> = [.queued, .waitingForWiFi]
 
         for state in PhoneWatchJobState.allCases {
             let db = try freshQueue()
@@ -1217,7 +1271,8 @@ final class PhoneWatchDownloadTests: XCTestCase {
                 XCTAssertEqual(jobs.first?.state, .sent)
             } else {
                 XCTAssertTrue(sent.isEmpty, "state \(state) is terminal — nothing should transfer")
-                XCTAssertEqual(jobs.first?.state, state, "state \(state) should be left untouched")
+                XCTAssertEqual(jobs.first?.state, [.resolving, .transferring].contains(state) ? .failed : state,
+                    "Interrupted work must ask for approval rather than automatically resend")
             }
         }
     }

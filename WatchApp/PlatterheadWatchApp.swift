@@ -15,6 +15,12 @@ struct PlatterheadWatchApp: App {
     var body: some Scene {
         WindowGroup {
             WatchContentView()
+                .task {
+                    while !Task.isCancelled {
+                        await WatchAppAssembly.shared.refreshSyncReachability()
+                        try? await Task.sleep(for: .seconds(15))
+                    }
+                }
                 .task { await WatchPlayer.shared.restorePositionIfAvailable() }
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {

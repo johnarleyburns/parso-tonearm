@@ -4,6 +4,16 @@ import XCTest
 /// §5.1–5.5 codec coverage: every kind round-trips, unknown fields and versions behave as
 /// specified, and the error vocabulary stays complete.
 final class WatchProtocolEnvelopeTests: XCTestCase {
+    func testWatchReconcilesRootUsingItsOwnFilesNotPhoneReadinessClaims() {
+        let stalePhone = WatchDownloadRootStatus(rootID: "r", title: "Playlist", desiredCount: 2,
+            readyCount: 2, state: .complete, trackIDs: ["a", "b"])
+        let local = stalePhone.reconciled(readyTrackIDs: ["a"])
+        XCTAssertEqual(local.readyCount, 1)
+        XCTAssertEqual(local.state, .queued)
+        let stalePending = WatchDownloadRootStatus(rootID: "r", title: "Playlist", desiredCount: 2,
+            readyCount: 0, state: .queued, trackIDs: ["a", "b"])
+        XCTAssertEqual(stalePending.reconciled(readyTrackIDs: ["a", "b"]).state, .complete)
+    }
     func testImmediateCompletionIgnoresRepeatedErrorsAndLateReply() async {
         do {
             let _: Data = try await withCheckedThrowingContinuation { continuation in

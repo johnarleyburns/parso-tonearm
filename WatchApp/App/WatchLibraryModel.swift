@@ -94,7 +94,9 @@ final class WatchLibraryModel: ObservableObject {
     func setDownloadStatus(_ status: WatchDownloadStatusSnapshot) {
         // §3 haptics: `.success` once when a download finishes.
         let wasIncomplete = Set((downloadStatus?.roots ?? []).filter { $0.state != .complete }.map(\.rootID))
-        let nowComplete = status.roots.filter { $0.state == .complete && wasIncomplete.contains($0.rootID) }
+        let ready = Set(tracks.filter(\.isReady).map(\.id))
+        let nowComplete = status.roots.map { $0.reconciled(readyTrackIDs: ready) }
+            .filter { $0.state == .complete && wasIncomplete.contains($0.rootID) }
         if !nowComplete.isEmpty { WKInterfaceDevice.current().play(.success) }
         downloadStatus = status
         transferFractions = Dictionary(uniqueKeysWithValues:
@@ -103,7 +105,8 @@ final class WatchLibraryModel: ObservableObject {
 
     /// Roots still in progress, newest activity first (D1 "Downloading" section).
     var activeDownloadRoots: [WatchDownloadRootStatus] {
-        (downloadStatus?.roots ?? []).filter { $0.state != .complete }
+        let ready = Set(tracks.filter(\.isReady).map(\.id))
+        return (downloadStatus?.roots ?? []).map { $0.reconciled(readyTrackIDs: ready) }.filter { $0.state != .complete }
     }
 
     /// Byte progress for one track, or `nil` when the phone isn't transferring it.

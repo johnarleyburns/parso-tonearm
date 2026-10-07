@@ -247,34 +247,33 @@ public struct PhoneWatchLibraryArtworkResolver: PhoneWatchArtworkResolving {
 public struct PhoneWatchSessionFileTransfer: PhoneWatchFileTransferring {
     let transport: any WatchProtocolTransport
     let phoneRevision: @Sendable () async -> Int64
-    let chunkSender: PhoneWatchResumableAudioTransfer?
+    let onEnqueue: @Sendable (WatchAudioFileMetadata) async -> Void
 
     public init(transport: any WatchProtocolTransport,
                 phoneRevision: @escaping @Sendable () async -> Int64 = { 0 },
-                chunkSender: PhoneWatchResumableAudioTransfer? = nil) {
+                onEnqueue: @escaping @Sendable (WatchAudioFileMetadata) async -> Void = { _ in }) {
         self.transport = transport
         self.phoneRevision = phoneRevision
-        self.chunkSender = chunkSender
+        self.onEnqueue = onEnqueue
     }
 
     public func transfer(fileURL: URL, trackID: WatchTrackID,
                          expectedBytes: Int64, sha256: String?) async throws {
         let metadata = WatchAudioFileMetadata(
             trackID: trackID, expectedBytes: expectedBytes, sha256: sha256,
+            codec: "aac",
             fileExtension: WatchAudioFileMetadata.fileExtension(for: fileURL),
-            pinned: true, phoneRevision: await phoneRevision())
-        if let chunkSender { try await chunkSender.begin(fileURL: fileURL, audio: metadata) }
-        else { try await transport.transferFile(fileURL, metadata: metadata.dictionary) }
+            pinned: true, phoneRevision: await phoneRevision(), transferID: UUID().uuidString)
+        await onEnqueue(metadata)
+        try await PhoneWatchAudioPreparation.transferWholeFile(fileURL, metadata: metadata, transport: transport)
     }
 
     public func outstandingTransfers() async -> [WatchTrackID] {
-        let planned = await chunkSender?.activeTrackIDs() ?? []
-        return Array(Set(PhoneWatchProtocolAdapter.outstandingAudioTrackIDs() + planned))
+        PhoneWatchProtocolAdapter.outstandingAudioTrackIDs()
     }
 
     public func cancelTransfer(trackID: WatchTrackID) async {
-        if let chunkSender { await chunkSender.suspend(trackID: trackID) }
-        else { PhoneWatchProtocolAdapter.cancelAudioTransfer(trackID: trackID) }
+        PhoneWatchProtocolAdapter.cancelAudioTransfer(trackID: trackID)
     }
 }
 

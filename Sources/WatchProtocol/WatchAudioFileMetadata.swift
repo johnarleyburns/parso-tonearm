@@ -14,10 +14,12 @@ public struct WatchAudioFileMetadata: Codable, Equatable, Sendable {
     public var fileExtension: String?
     public var pinned: Bool
     public var phoneRevision: Int64
+    public var transferID: String?
 
     public init(trackID: WatchTrackID, expectedBytes: Int64, sha256: String? = nil,
                 codec: String? = nil, fileExtension: String? = nil,
-                pinned: Bool = true, phoneRevision: Int64 = 0) {
+                pinned: Bool = true, phoneRevision: Int64 = 0, transferID: String? = nil) {
+        self.transferID = transferID
         self.trackID = trackID
         self.expectedBytes = expectedBytes
         self.sha256 = sha256.flatMap { $0.isEmpty ? nil : $0 }
@@ -37,6 +39,7 @@ public struct WatchAudioFileMetadata: Codable, Equatable, Sendable {
         if let sha256 { out[Key.sha256] = sha256 }
         if let codec { out[Key.codec] = codec }
         if let fileExtension { out[Key.fileExtension] = fileExtension }
+        if let transferID { out["audioTransferID"] = transferID }
         return out
     }
 
@@ -48,6 +51,7 @@ public struct WatchAudioFileMetadata: Codable, Equatable, Sendable {
             return nil
         }
         self.trackID = WatchTrackID(rawID)
+        self.transferID = dictionary["audioTransferID"]
         self.expectedBytes = bytes
         self.sha256 = dictionary[Key.sha256].flatMap { $0.isEmpty ? nil : $0 }
         self.codec = dictionary[Key.codec].flatMap { $0.isEmpty ? nil : $0 }

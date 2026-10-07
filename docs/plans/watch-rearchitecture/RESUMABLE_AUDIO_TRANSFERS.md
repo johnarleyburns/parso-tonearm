@@ -1,5 +1,9 @@
 # Resumable watch audio transfers
 
+Historical design, superseded on 2026-10-07 by
+[whole-file AAC128 transfers](WHOLE_FILE_AAC_TRANSFERS.md) at the owner's request.
+The production assemblies no longer use chunk transfer/assembly.
+
 ## Policy
 
 Audio is sent in 1 MiB (1,048,576 byte) files, with **one unconfirmed chunk

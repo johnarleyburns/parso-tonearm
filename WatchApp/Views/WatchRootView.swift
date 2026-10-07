@@ -406,11 +406,11 @@ struct WatchSyncStatusView: View {
 
     private func stageText(_ stage: WatchDownloadActivity.Stage) -> LocalizedStringKey {
         switch stage {
-        case .queued: "Queued on iPhone"
-        case .preparing: "Preparing audio on iPhone"
-        case .waitingForDelivery: "Waiting for iPhone to send file"
+        case .queued: "Transfer queued"
+        case .preparing: "Preparing 128 kbps AAC"
+        case .waitingForDelivery: "Queued in Apple transfer service"
         case .transferring: "Downloading to this watch"
-        case .awaitingInstallation: "Waiting for watch installation"
+        case .awaitingInstallation: "Transfer submitted — syncing device status"
         case .awaitingChunkConfirmation: "Waiting for chunk confirmation"
         case .waitingForWiFi: "Waiting for Wi-Fi"
         case .failed: "Download failed"

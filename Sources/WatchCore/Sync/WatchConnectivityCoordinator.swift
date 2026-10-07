@@ -253,6 +253,17 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         await sendDurableWithLiveCopy(data)
     }
 
+    public func publishManifestContext(_ manifest: WatchManifestPayload) async {
+        let context = WatchContextSnapshot(pairedLibraryID: boundLibraryID ?? .unknown, manifest: manifest)
+        guard let data = try? WatchProtocolEnvelope.encode(kind: .watchManifest, payload: context,
+            pairedLibraryID: boundLibraryID ?? .unknown) else { return }
+        try? await transport.updateApplicationContext(data)
+        if await transport.isReachable(), let live = try? WatchProtocolEnvelope.encode(kind: .watchManifest,
+            payload: manifest, pairedLibraryID: boundLibraryID ?? .unknown) {
+            _ = try? await transport.sendImmediate(live)
+        }
+    }
+
     /// §7 polish — ask the phone to download (or drop) a single track. The phone stays the
     /// authority; this only asks. Durable so a locked phone still picks it up.
     public func requestDownload(trackID: WatchTrackID, wantsDownload: Bool) async {
@@ -365,6 +376,10 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         } else {
             await observer?.didReceiveAudioFile(at: url, metadata: metadata)
         }
+    }
+
+    public func receiveFileFailure(metadata: [String: String], code: WatchProtocolErrorCode) async {
+        await observer?.didRejectIncomingFile(metadata: metadata, code: code)
     }
 
     // MARK: - Private

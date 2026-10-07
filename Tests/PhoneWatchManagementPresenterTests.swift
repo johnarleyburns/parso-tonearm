@@ -43,7 +43,7 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
             XCTAssertEqual(snapshot.activity.first?.stage, stage)
             XCTAssertEqual(snapshot.activity.first?.fractionComplete, fraction)
             XCTAssertEqual(snapshot.activity.first?.expectedBytes, 174_000_000)
-            XCTAssertTrue(snapshot.activity.first?.canRetry ?? false)
+            XCTAssertFalse(snapshot.activity.first?.canRetry ?? true, "Active Apple transfers must not prompt for premature retries")
             XCTAssertEqual(snapshot.storage?.trackCount, 0)
         }
     }
