@@ -7,6 +7,27 @@ import TonearmWatchProtocol
 /// `WatchSyncActor` turns everything the link reports into local SwiftData truth. These exercise it
 /// directly — no duplex link — so the installer/repository interplay is what is under test.
 final class WatchSyncActorTests: XCTestCase {
+    func testCatalogPageMakesSearchAvailableAndInstallsAudioWithoutWaitingForOtherPages() async throws {
+        let fx = try Fixture()
+        let incoming = try fx.stage("cache-mp3", bytes: Data("home-cooking-audio".utf8))
+        let digest = try WatchFileDigest.measure(incoming)
+        await fx.syncActor.didReceiveAudioFile(at: incoming, metadata: WatchAudioFileMetadata(
+            trackID: "home", expectedBytes: digest.bytes, sha256: digest.sha256,
+            fileExtension: "mp3").dictionary)
+        await fx.syncActor.didReceiveCatalogPage(.init(catalogID: "catalog", revision: 3,
+            pageIndex: 1, pageCount: 2, tracks: [.init(trackID: "home", title: "Home Cooking I")], playlists: []))
+        let tracks = try await fx.repository.tracks(readyOnly: false)
+        let rows = WatchLocalCatalogSearch.rows(query: "Home Cooking", tracks: tracks,
+            playlists: [], onWatchOnly: false)
+        XCTAssertEqual(rows.map(\.id), ["home"], "A missing or slow page must not hide received catalog metadata")
+        XCTAssertEqual(tracks.first?.localFilename, "\(digest.sha256).mp3")
+        XCTAssertEqual(tracks.first?.isReady, true, "Catalog metadata must retry audio that arrived first")
+        let deferred = await fx.installer.deferredTrackIDs()
+        XCTAssertTrue(deferred.isEmpty)
+        let installed = try await fx.repository.manifest().readyTrackIDs
+        XCTAssertEqual(installed, ["home"])
+    }
+
     func testTrackRootCreatesARowThenTheFileMakesItReady() async throws {
         let fx = try Fixture()
         await fx.syncActor.didReceiveDownloadRoots(WatchSetDownloadRoots(revision: 3, roots: [

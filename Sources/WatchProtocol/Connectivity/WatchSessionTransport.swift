@@ -60,14 +60,26 @@ public struct WatchSessionTransport: WatchProtocolTransport {
         session().transferUserInfo(WatchProtocolEnvelope.dictionary(for: data))
     }
 
-    public func transferFile(_ url: URL, metadata: [String: String]) async {
-        session().transferFile(url, metadata: metadata)
+    public func transferFile(_ url: URL, metadata: [String: String]) async throws {
+        let session = session()
+        guard session.activationState == .activated else {
+            throw WatchProtocolFault(code: .phoneUnavailable)
+        }
+        #if os(iOS)
+        guard session.isPaired, session.isWatchAppInstalled else {
+            throw WatchProtocolFault(code: .phoneUnavailable)
+        }
+        #endif
+        guard url.isFileURL, FileManager.default.fileExists(atPath: url.path) else {
+            throw WatchProtocolFault(code: .transferFailed)
+        }
+        session.transferFile(url, metadata: metadata)
     }
 
     /// Maps a WatchConnectivity error onto the §5.5 vocabulary. The error's own description never
     /// travels: A-06 forbids free text on the wire, and `NSError.localizedDescription` is exactly
     /// the kind of string that leaks a path or a title.
-    static func fault(for error: any Error) -> WatchProtocolFault {
+    public static func fault(for error: any Error) -> WatchProtocolFault {
         guard let code = WCError.Code(rawValue: (error as NSError).code),
               (error as NSError).domain == WCErrorDomain else {
             return WatchProtocolFault(code: .transferFailed)

@@ -55,9 +55,8 @@ public actor WatchSyncActor: WatchConnectivityObserver {
         await publishManifest()
     }
 
-    /// Applies a complete phone catalog atomically from the watch's point of view. Search can run
-    /// while pages arrive, but it continues to see the previous complete catalog until every page
-    /// for the new snapshot is present.
+    /// Make received metadata searchable immediately. A delayed background page must
+    /// not hide the entire phone library or strand audio awaiting its track metadata.
     public func didReceiveCatalogPage(_ page: WatchLibraryPage) async {
         guard page.pageCount > 0, page.pageIndex >= 0, page.pageIndex < page.pageCount else { return }
         if page.revision < catalogRevision { return }
@@ -67,26 +66,28 @@ public actor WatchSyncActor: WatchConnectivityObserver {
             catalogPages.removeAll()
         }
         guard page.catalogID == catalogID, page.revision == catalogRevision else { return }
+        guard catalogPages[page.pageIndex] == nil else { return }
         catalogPages[page.pageIndex] = page
-        guard catalogPages.count == page.pageCount,
-              (0..<page.pageCount).allSatisfy({ catalogPages[$0] != nil }) else { return }
-
-        let pages = (0..<page.pageCount).compactMap { catalogPages[$0] }
-        for summary in pages.flatMap(\.tracks) {
+        for summary in page.tracks {
             _ = try? await repository.upsertTrack(.init(
                 trackID: summary.trackID.rawValue, title: summary.title, artist: summary.artist,
                 albumTitle: summary.albumTitle, durationSeconds: summary.durationSeconds,
                 artworkID: summary.artworkID, coverArtworkID: summary.coverArtworkID,
                 customArtworkID: summary.customArtworkID, phoneRevision: page.revision))
         }
-        for playlist in pages.flatMap(\.playlists) {
+        for playlist in page.playlists {
             _ = try? await repository.upsertPlaylist(.init(
                 playlistID: playlist.playlistID, title: playlist.title,
                 trackIDs: playlist.trackIDs.map(\.rawValue), phoneRevision: page.revision))
         }
-        catalogPages.removeAll()
+        let outcomes = await installer.retryDeferred()
+        for outcome in outcomes { await recordInstall(outcome) }
+        await artworkInstaller?.retryDeferred()
+        let complete = page.catalogID == catalogID && page.revision == catalogRevision
+            && catalogPages.count == page.pageCount
+        if complete { catalogPages.removeAll() }
         await onLibraryChanged()
-        await publishManifest()
+        if complete || !outcomes.isEmpty { await publishManifest() }
     }
 
     private func applyRoot(_ root: WatchDownloadRootDescriptor, revision: Int64) async {

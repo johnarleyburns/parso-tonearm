@@ -4,6 +4,17 @@ import XCTest
 /// §5.1–5.5 codec coverage: every kind round-trips, unknown fields and versions behave as
 /// specified, and the error vocabulary stays complete.
 final class WatchProtocolEnvelopeTests: XCTestCase {
+    func testAudioContainerSurvivesMetadataRoundTripAndCacheNaming() throws {
+        let cache = URL(fileURLWithPath: "/cache/" + String(repeating: "a", count: 64) + "-MP3")
+        let metadata = WatchAudioFileMetadata(trackID: "cached", expectedBytes: 42,
+            fileExtension: WatchAudioFileMetadata.fileExtension(for: cache))
+        XCTAssertEqual(metadata.fileExtension, "mp3")
+        XCTAssertEqual(WatchAudioFileMetadata(dictionary: metadata.dictionary), metadata)
+        XCTAssertEqual(WatchAudioFileMetadata.fileExtension(for: URL(fileURLWithPath: "/music/one.M4A")), "m4a")
+        XCTAssertNil(WatchAudioFileMetadata.fileExtension(for: URL(fileURLWithPath: "/cache/arbitrary-mp3")))
+        XCTAssertNil(WatchAudioFileMetadata(dictionary: ["trackID": "old", "expectedBytes": "42"])?.fileExtension)
+    }
+
     private let library = WatchPairedLibraryID("library-A")
 
     // MARK: - Round trips

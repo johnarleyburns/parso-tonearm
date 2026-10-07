@@ -100,7 +100,12 @@ public enum PhoneWatchDownloadPlanner {
 
                 if let job = jobsByTrack[track] {
                     if job.isActive { continue }
-                    if job.state == .sent { continue } // sent but not yet in manifest — wait
+                    if job.state == .sent {
+                        if explicitRetryTrackIDs.contains(track) {
+                            plan.toReset.append(job.requestID)
+                        }
+                        continue // queued with WCSession, not proof of installation
+                    }
                     if job.state == .failed {
                         // `explicitRetryTrackIDs` is the caller's decision — it folds in both the
                         // user's explicit retries and transient failures whose backoff timer has

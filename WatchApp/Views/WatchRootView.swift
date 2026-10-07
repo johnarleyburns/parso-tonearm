@@ -13,8 +13,7 @@ struct WatchRootView: View {
     @ObservedObject private var player = WatchPlayer.shared
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 8) {
+        List {
             if !connected {
                 statusChip
                     .listRowBackground(Color.clear)
@@ -55,10 +54,8 @@ struct WatchRootView: View {
                 .padding(.vertical, 6)
             }
             .accessibilityIdentifier("watch.about")
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
         }
+        .listStyle(.plain)
         .navigationTitle("Platterhead")
         .accessibilityIdentifier("watch.root")
         .task { await model.refresh() }

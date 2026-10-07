@@ -31,11 +31,13 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
         if let reason = asset.unsupportedReason {
             return .unsupported(reason: reason)
         }
-        if let url = Self.localURL(for: asset), FileManager.default.fileExists(atPath: url.path) {
-            return .cached(url, bytes: Self.byteCount(of: url) ?? asset.sizeBytes ?? 0, sha256: nil)
+        if let url = Self.localURL(for: asset), PhoneWatchAudioPreparation.isReadable(url) {
+            return await Self.prepareForWatch(url)
         }
         guard asset.kind == .remote else { return .unavailable }
-        return await Self.materializeRemote(row: row, asset: asset)
+        let remote = await Self.materializeRemote(row: row, asset: asset)
+        if case .cached(let url, _, _) = remote { return await Self.prepareForWatch(url) }
+        return remote
     }
 
     public func transferability(trackID: WatchTrackID) async -> PhoneWatchTransferability {
@@ -45,13 +47,16 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
         if let reason = asset.unsupportedReason {
             return .unsupported(reason: reason)
         }
-        if let url = Self.localURL(for: asset), FileManager.default.fileExists(atPath: url.path) {
+        if let url = Self.localURL(for: asset), PhoneWatchAudioPreparation.isReadable(url) {
             return .ready(bytes: Self.byteCount(of: url) ?? asset.sizeBytes, sha256: nil)
         }
         // A playable remote track may be streaming-only on the phone. It is still transferable:
         // `resolve` materializes it into the durable stream cache immediately before dispatch.
-        guard asset.kind == .remote,
-              asset.remoteURL.flatMap(URL.init(string:)) != nil else { return .unavailable }
+        // Keep requested file references in the job pipeline even if the provider
+        // no longer exposes them: resolve will report a visible preparation failure
+        // instead of leaving a root with no job on "Waiting for the iPhone".
+        if asset.kind != .remote { return .ready(bytes: asset.sizeBytes, sha256: nil) }
+        guard asset.remoteURL.flatMap(URL.init(string:)) != nil else { return .unavailable }
         return .ready(bytes: asset.sizeBytes, sha256: nil)
     }
 
@@ -60,6 +65,19 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
             return try await store.trackRow(id: rowID)
         }
         return try await store.trackRow(syncID: id.rawValue)
+    }
+
+    private static func prepareForWatch(_ source: URL) async -> PhoneWatchAudioResolution {
+        do {
+            let prepared = try await PhoneWatchAudioPreparation.prepare(
+                sourceURL: source, directory: AudioCache.layout.evictableBlobsDirectory)
+            let measured = try WatchFileDigest.measure(prepared)
+            await AudioCache.shared.adoptCompleteFile(byteCount: measured.bytes,
+                for: prepared.lastPathComponent, durable: true)
+            return .cached(prepared, bytes: measured.bytes, sha256: measured.sha256)
+        } catch {
+            return .unavailable
+        }
     }
 
     /// Mirrors `AppState.resolveLocalURL` plus a complete-stream-cache fallback.
@@ -225,9 +243,7 @@ public struct PhoneWatchLibraryArtworkResolver: PhoneWatchArtworkResolving {
 /// property-list-safe `WatchAudioFileMetadata` dictionary — IDs, size, checksum, pin intent — which
 /// the watch's `WatchFileInstaller` is the sole reader of.
 ///
-/// `outstandingTransfers()` returns nothing: rehydrating `WCSession.outstandingFileTransfers` into
-/// job identity is a later refinement. A relaunch conservatively re-queues any job the store left
-/// `transferring`, which the watch manifest then dedupes.
+/// Outstanding transfers and cancellation use the session adapter's typed audio metadata.
 public struct PhoneWatchSessionFileTransfer: PhoneWatchFileTransferring {
     let transport: any WatchProtocolTransport
     let phoneRevision: @Sendable () async -> Int64
@@ -242,13 +258,18 @@ public struct PhoneWatchSessionFileTransfer: PhoneWatchFileTransferring {
                          expectedBytes: Int64, sha256: String?) async throws {
         let metadata = WatchAudioFileMetadata(
             trackID: trackID, expectedBytes: expectedBytes, sha256: sha256,
+            fileExtension: WatchAudioFileMetadata.fileExtension(for: fileURL),
             pinned: true, phoneRevision: await phoneRevision())
-        await transport.transferFile(fileURL, metadata: metadata.dictionary)
+        try await transport.transferFile(fileURL, metadata: metadata.dictionary)
     }
 
-    public func outstandingTransfers() async -> [WatchTrackID] { [] }
+    public func outstandingTransfers() async -> [WatchTrackID] {
+        PhoneWatchProtocolAdapter.outstandingAudioTrackIDs()
+    }
 
-    public func cancelTransfer(trackID: WatchTrackID) async {}
+    public func cancelTransfer(trackID: WatchTrackID) async {
+        PhoneWatchProtocolAdapter.cancelAudioTransfer(trackID: trackID)
+    }
 }
 
 extension PhoneWatchSessionFileTransfer: PhoneWatchArtworkTransferring {
@@ -257,7 +278,7 @@ extension PhoneWatchSessionFileTransfer: PhoneWatchArtworkTransferring {
             artworkID: transfer.artworkID, expectedBytes: transfer.expectedBytes,
             sha256: transfer.sha256, role: transfer.role,
             phoneRevision: await phoneRevision())
-        await transport.transferFile(transfer.fileURL, metadata: metadata.dictionary)
+        try await transport.transferFile(transfer.fileURL, metadata: metadata.dictionary)
     }
 }
 

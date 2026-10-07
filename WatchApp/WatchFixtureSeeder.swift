@@ -1,9 +1,10 @@
 import Foundation
 import TonearmWatchCore
+import TonearmWatchProtocol
 
 /// DEBUG-only deterministic seed for the watch UI smoke test. Copies the bundled `ambient-ocean.wav`
-/// into the store's audio directory, marks it ready with its real checksum, and builds the two
-/// playlists the smoke test browses. No network, no seed-time transfer.
+/// through the real audio installer using an extensionless cache blob delivered before its
+/// metadata, then builds the playlists the smoke test browses. No network or WCSession transfer.
 enum WatchFixtureSeeder {
     static let trackID = "fixture-ambient-ocean"
     static let trackTitle = "ambient-ocean"
@@ -14,21 +15,21 @@ enum WatchFixtureSeeder {
             return
         }
         let fm = FileManager.default
-        let filename = "ambient-ocean.wav"
-        let destination = audioDirectory.appendingPathComponent(filename)
+        let staged = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? fm.removeItem(at: staged) }
         do {
-            try fm.createDirectory(at: audioDirectory, withIntermediateDirectories: true)
-            // UI tests may reuse a simulator's application container after a failed run. Replace
-            // the fixture so a stale/partial prior copy cannot make a ready library point at a
-            // different or corrupt AVPlayer input.
-            if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
-            try fm.copyItem(at: source, to: destination)
-            let measured = try WatchFileDigest.measure(destination)
+            try fm.createDirectory(at: staged, withIntermediateDirectories: true)
+            let incoming = staged.appendingPathComponent(String(repeating: "a", count: 64) + "-wav")
+            try fm.copyItem(at: source, to: incoming)
+            let measured = try WatchFileDigest.measure(incoming)
+            let installer = WatchFileInstaller(repository: repository, audioDirectory: audioDirectory,
+                stagingDirectory: staged.appendingPathComponent("deferred"))
+            _ = await installer.install(stagedURL: incoming, metadata: WatchAudioFileMetadata(
+                trackID: WatchTrackID(trackID), expectedBytes: measured.bytes, sha256: measured.sha256,
+                fileExtension: WatchAudioFileMetadata.fileExtension(for: incoming)).dictionary)
             try await repository.upsertTrack(.init(
                 trackID: trackID, title: trackTitle, artist: "Built-in", albumTitle: "Built-in Sounds"))
-            try await repository.markAsset(
-                trackID: trackID, relativeFilename: filename,
-                installedBytes: measured.bytes, sha256: measured.sha256, state: .ready)
+            _ = await installer.retryDeferred()
             try await repository.upsertPlaylist(
                 .init(playlistID: "fixture-builtin", title: "Built-in Playlist", trackIDs: [trackID]),
                 desiredOnWatch: true)

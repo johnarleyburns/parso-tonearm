@@ -71,7 +71,7 @@ public actor WatchFileInstaller {
         let trackID = metadata.trackID.rawValue
 
         // Step 3a: codec / container support is a permanent decision, checked before hashing.
-        let ext = stagedURL.pathExtension.lowercased()
+        let ext = (metadata.fileExtension ?? stagedURL.pathExtension).lowercased()
         let codecOK = metadata.codec.map { Self.supportedCodecTokens.contains($0.lowercased()) } ?? true
         guard (ext.isEmpty || Self.supportedFileExtensions.contains(ext)), codecOK else {
             try? fileManager.removeItem(at: stagedURL)
@@ -211,8 +211,9 @@ public actor WatchFileInstaller {
     /// the metadata dictionary, so `retryDeferred()` needs nothing from the store to replay it.
     private func retainDeferred(stagedURL: URL, metadata: WatchAudioFileMetadata) throws -> URL {
         let base = Self.sanitised(metadata.trackID.rawValue)
-        let ext = stagedURL.pathExtension.isEmpty ? "audio" : stagedURL.pathExtension
-        let audio = stagingDirectory.appendingPathComponent(base).appendingPathExtension(ext)
+        let ext = metadata.fileExtension ?? stagedURL.pathExtension
+        let audio = ext.isEmpty ? stagingDirectory.appendingPathComponent(base)
+            : stagingDirectory.appendingPathComponent(base).appendingPathExtension(ext)
         if fileManager.fileExists(atPath: audio.path) { try fileManager.removeItem(at: audio) }
         try fileManager.moveItem(at: stagedURL, to: audio)
         let sidecar = audio.appendingPathExtension("meta")
@@ -224,7 +225,8 @@ public actor WatchFileInstaller {
         let base = Self.sanitised(trackID)
         guard let entries = try? fileManager.contentsOfDirectory(
             at: stagingDirectory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return }
-        for url in entries where url.deletingPathExtension().lastPathComponent == base
+        for url in entries where url.lastPathComponent == base
+            || url.deletingPathExtension().lastPathComponent == base
             || url.deletingPathExtension().deletingPathExtension().lastPathComponent == base {
             try? fileManager.removeItem(at: url)
         }

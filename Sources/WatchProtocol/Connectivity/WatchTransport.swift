@@ -18,7 +18,7 @@ public protocol WatchProtocolTransport: Sendable {
     func transferUserInfo(_ data: Data) async
     /// `transferFile`. Metadata is restricted to `String` values so it stays property-list-safe and
     /// cannot smuggle a payload the receiver would have to parse dynamically.
-    func transferFile(_ url: URL, metadata: [String: String]) async
+    func transferFile(_ url: URL, metadata: [String: String]) async throws
 }
 
 /// What a coordinator implements to receive from its peer. The adapter calls these; the

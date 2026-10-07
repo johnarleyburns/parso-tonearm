@@ -266,6 +266,7 @@
 		BD38B111851C766BAB2D808C /* ATTRIBUTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */; };
 		BE20C9CFF3CB74BB6864F917 /* ArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE86C3C1F56FA212DBB6D8F0 /* ArtworkStore.swift */; };
 		BEC4C5E175FF3277F27256EE /* DiscoveryModelResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55CE08A58DEB1BB867E399B /* DiscoveryModelResources.swift */; };
+		BFF0F03CC238BE94D7FF5554 /* ambient-ocean.wav in Resources */ = {isa = PBXBuildFile; fileRef = 74D07216801F19A8231EE98A /* ambient-ocean.wav */; };
 		C02503205EC9C7FC113253AB /* DiscoveryModelResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55CE08A58DEB1BB867E399B /* DiscoveryModelResources.swift */; };
 		C0D5BE09D689D61435BEDCA1 /* WidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDA9501440758DD590489F01 /* WidgetSnapshotPublisher.swift */; };
 		C0E3EB7AB1D02FA2309CE3B2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */; };
@@ -1763,7 +1764,7 @@
 				AFCB0C188CB61B77079A95F9 /* AppShortcuts.xcstrings in Resources */,
 				3B69A3EEB3B798C7E772B384 /* Assets.xcassets in Resources */,
 				944AEFE5BF7BD9D636587F2C /* Localizable.xcstrings in Resources */,
-				E7D8EA806A23E80EA7653ACB /* ambient-ocean.wav in Resources */,
+				BFF0F03CC238BE94D7FF5554 /* ambient-ocean.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

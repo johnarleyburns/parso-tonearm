@@ -15,6 +15,31 @@ private final class Counter: @unchecked Sendable {
 
 @MainActor
 final class WatchSearchPresenterTests: XCTestCase {
+    func testTypingSearchesSyncedCatalogAndMetadataArrivalRefreshesResults() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repository = WatchLibraryRepository(container: try WatchStoreBootstrap.inMemory(),
+            audioDirectory: root, artworkDirectory: root)
+        let presenter = makePresenter(mode: .offline, offline: { query in
+            let tracks = (try? await repository.tracks(readyOnly: false)) ?? []
+            let playlists = (try? await repository.playlists()) ?? []
+            return WatchLocalCatalogSearch.rows(query: query, tracks: tracks, playlists: playlists,
+                                                onWatchOnly: false)
+        })
+        presenter.query = "Home Cooking"
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(presenter.phase, .offlineNoResults)
+        try await repository.upsertTrack(.init(trackID: "home", title: "Home Cooking I"))
+        presenter.refresh()
+        try await Task.sleep(for: .milliseconds(50))
+        guard case .offlineResults(let rows) = presenter.phase else {
+            return XCTFail("Typed query must refresh when catalog metadata arrives")
+        }
+        XCTAssertEqual(rows.map(\.id), ["home"])
+        XCTAssertFalse(rows[0].isDownloadedOnWatch, "Search All Music includes undownloaded catalog tracks")
+        XCTAssertTrue(presenter.recentSearches.isEmpty, "Refresh is not a user submission")
+    }
+
     private func makePresenter(
         mode: WatchSearchPresenter.Mode,
         connected: @escaping WatchSearchPresenter.ConnectedSearch = { _, _ in .failed(.init(code: .transferFailed)) },

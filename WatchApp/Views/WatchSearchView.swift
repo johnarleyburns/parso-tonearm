@@ -2,7 +2,7 @@ import SwiftUI
 import TonearmWatchCore
 import TonearmWatchProtocol
 
-enum WatchSearchMode: Hashable {
+enum WatchSearchMode: Hashable, Sendable {
     case allMusic, thisWatch
     var title: LocalizedStringKey {
         switch self { case .allMusic: "Search All Music"; case .thisWatch: "Search This Watch" }
@@ -14,25 +14,41 @@ enum WatchSearchMode: Hashable {
 struct WatchSearchView: View {
     let mode: WatchSearchMode
     @ObservedObject private var model = WatchAppAssembly.shared.model
+    @StateObject private var presenter: WatchSearchPresenter
     @FocusState private var fieldFocused: Bool
-    @State private var query = ""
-    @State private var rows: [WatchResultRow] = []
-    @State private var isSearching = false
     @State private var pendingDownload: WatchTrackRequest?
     @State private var downloadNavigation: WatchTrackRequest?
     @State private var showDownloadConfirmation = false
 
+    init(mode: WatchSearchMode) {
+        self.mode = mode
+        let model = WatchAppAssembly.shared.model
+        _presenter = StateObject(wrappedValue: WatchSearchPresenter(
+            mode: .offline,
+            connectedSearch: { _, _ in .failed(.init(code: .phoneUnavailable)) },
+            offlineSearch: { query in await model.search(query: query, onWatchOnly: mode == .thisWatch) }))
+    }
+
+    private var rows: [WatchResultRow] {
+        switch presenter.phase {
+        case .results(let rows), .offlineResults(let rows): rows
+        default: []
+        }
+    }
+
+    private var isSearching: Bool { presenter.phase == .loading }
+
     var body: some View {
         List {
-            TextField(mode == .allMusic ? "Search synced catalog" : "Search downloaded music", text: $query)
-                .focused($fieldFocused).submitLabel(.search).onSubmit { search() }
+            TextField(mode == .allMusic ? "Search synced catalog" : "Search downloaded music", text: $presenter.query)
+                .focused($fieldFocused).submitLabel(.search).onSubmit { presenter.submit() }
                 .accessibilityIdentifier("watch.search.field")
                 .listRowBackground(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(WatchPalette.surface))
             if isSearching {
                 HStack { ProgressView(); Text("Searching this watch…").font(.caption2) }
                     .listRowBackground(Color.clear)
             } else if rows.isEmpty {
-                Text(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                Text(presenter.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                      ? (mode == .allMusic ? "Search the synced music catalog." : "Search audio downloaded to this watch.")
                      : "No matches in this watch catalog.")
                     .font(.caption2).foregroundStyle(.secondary).listRowBackground(Color.clear)
@@ -41,6 +57,8 @@ struct WatchSearchView: View {
             }
         }
         .listStyle(.plain).navigationTitle(mode.title)
+        .onChange(of: model.tracks) { _, _ in presenter.refresh() }
+        .onChange(of: model.playlists) { _, _ in presenter.refresh() }
         .onAppear { if !ProcessInfo.processInfo.arguments.contains("UI_TESTING") { fieldFocused = true } }
         .navigationDestination(item: $downloadNavigation) { request in
             WatchTrackDownloadView(trackID: request.trackID, title: request.title)
@@ -104,16 +122,6 @@ struct WatchSearchView: View {
         }
     }
 
-    private func search() {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 2 else { rows = []; return }
-        isSearching = true
-        Task {
-            let result = await model.search(query: trimmed, onWatchOnly: mode == .thisWatch)
-            guard !Task.isCancelled else { return }
-            rows = result; isSearching = false
-        }
-    }
 }
 
 private struct WatchTrackRequest: Identifiable, Hashable {

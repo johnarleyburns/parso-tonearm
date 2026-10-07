@@ -12,9 +12,12 @@ import WatchConnectivity
 /// if that call is skipped.
 public final class PhoneWatchProtocolAdapter: NSObject, WCSessionDelegate, Sendable {
     private let endpoint: any WatchProtocolLifecycle
+    private let onFileTransferFailure: @Sendable (WatchTrackID, WatchProtocolErrorCode) async -> Void
 
-    public init(endpoint: any WatchProtocolLifecycle) {
+    public init(endpoint: any WatchProtocolLifecycle,
+                onFileTransferFailure: @escaping @Sendable (WatchTrackID, WatchProtocolErrorCode) async -> Void = { _, _ in }) {
         self.endpoint = endpoint
+        self.onFileTransferFailure = onFileTransferFailure
         super.init()
     }
 
@@ -51,6 +54,32 @@ public final class PhoneWatchProtocolAdapter: NSObject, WCSessionDelegate, Senda
         let session = WCSession.default
         return Capability(isSupported: true, isPaired: session.isPaired,
                           isWatchAppInstalled: session.isWatchAppInstalled, isReachable: session.isReachable)
+    }
+
+    public static func outstandingAudioTrackIDs() -> [WatchTrackID] {
+        guard WCSession.isSupported() else { return [] }
+        return WCSession.default.outstandingFileTransfers.compactMap {
+            let raw = ($0.file.metadata ?? [:]).compactMapValues { $0 as? String }
+            return WatchAudioFileMetadata(dictionary: raw)?.trackID
+        }
+    }
+
+    public static func cancelAudioTransfer(trackID: WatchTrackID) {
+        guard WCSession.isSupported() else { return }
+        for transfer in WCSession.default.outstandingFileTransfers {
+            let raw = (transfer.file.metadata ?? [:]).compactMapValues { $0 as? String }
+            if WatchAudioFileMetadata(dictionary: raw)?.trackID == trackID { transfer.cancel() }
+        }
+    }
+
+    public func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer,
+                        error: (any Error)?) {
+        guard let error else { return } // Only a watch manifest proves installation.
+        let raw = (fileTransfer.file.metadata ?? [:]).compactMapValues { $0 as? String }
+        guard let metadata = WatchAudioFileMetadata(dictionary: raw) else { return }
+        let code = WatchSessionTransport.fault(for: error).code
+        let callback = onFileTransferFailure
+        Task { await callback(metadata.trackID, code) }
     }
 
     public func activate() {

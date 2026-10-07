@@ -10,6 +10,7 @@ private actor FakeResolver: PhoneWatchAudioResolving {
     private var resolutions: [String: PhoneWatchAudioResolution] = [:]
     private var transferabilities: [String: PhoneWatchTransferability] = [:]
     private(set) var resolveCounts: [String: Int] = [:]
+    private var onResolve: (@Sendable (WatchTrackID) async throws -> Void)?
 
     init(local: Set<String> = [], bytes: Int64 = 1_000,
          unsupported: Set<String> = [], unavailable: Set<String> = []) {
@@ -33,6 +34,8 @@ private actor FakeResolver: PhoneWatchAudioResolving {
         transferabilities[id] = transferability
     }
 
+    func setOnResolve(_ callback: @escaping @Sendable (WatchTrackID) async throws -> Void) { onResolve = callback }
+
     func makeAvailable(_ id: String, bytes: Int64 = 1_000) {
         resolutions[id] = .cached(URL(fileURLWithPath: "/tmp/tonearm-test/\(id).caf"), bytes: bytes, sha256: nil)
         transferabilities[id] = .ready(bytes: bytes, sha256: nil)
@@ -40,6 +43,7 @@ private actor FakeResolver: PhoneWatchAudioResolving {
 
     func resolve(trackID: WatchTrackID) async -> PhoneWatchAudioResolution {
         resolveCounts[trackID.rawValue, default: 0] += 1
+        try? await onResolve?(trackID)
         return resolutions[trackID.rawValue] ?? .unavailable
     }
 
@@ -56,16 +60,19 @@ private actor FakeTransfer: PhoneWatchFileTransferring {
     private var failOnce: Set<String> = []
     private var failAlways: [String: WatchProtocolErrorCode] = [:]
     private var outstanding: [String] = []
+    private var onSend: (@Sendable (WatchTrackID) async throws -> Void)?
 
     func setFailOnce(_ ids: Set<String>) { failOnce = ids }
     func setFailAlways(_ map: [String: WatchProtocolErrorCode]) { failAlways = map }
     func setOutstanding(_ ids: [String]) { outstanding = ids }
+    func setOnSend(_ callback: @escaping @Sendable (WatchTrackID) async throws -> Void) { onSend = callback }
 
     func transfer(fileURL: URL, trackID: WatchTrackID, expectedBytes: Int64, sha256: String?) async throws {
         let id = trackID.rawValue
         if let code = failAlways[id] { throw WatchProtocolFault(code: code) }
         if failOnce.contains(id) { failOnce.remove(id); throw WatchProtocolFault(code: .transferFailed) }
         sent.append(id)
+        try await onSend?(trackID)
     }
 
     func outstandingTransfers() async -> [WatchTrackID] { outstanding.map { WatchTrackID($0) } }
@@ -146,6 +153,104 @@ private func manifest(_ ids: [String], id: String = UUID().uuidString) -> WatchM
 // MARK: - Tests
 
 final class PhoneWatchDownloadTests: XCTestCase {
+    func testCancellationDuringPreparationDoesNotEnqueueAudio() async throws {
+        let db = try freshQueue()
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        let transfer = FakeTransfer()
+        let resolver = FakeResolver(local: ["a"])
+        let manager = makeManager(dbQueue: db, resolver: resolver, transfer: transfer)
+        await resolver.setOnResolve { [weak manager] _ in
+            if let requestID = try await store.jobs().first?.requestID {
+                try await manager?.cancelJob(requestID: requestID)
+            }
+        }
+        try await manager.setRoots([root("r", tracks: ["a"])])
+        let job = try await store.jobs().first
+        let sent = await transfer.sent
+        XCTAssertEqual(job?.state, .cancelled)
+        XCTAssertTrue(sent.isEmpty, "Stopping a download during file conversion must prevent delivery")
+    }
+
+    func testDeliveryFailureDuringEnqueueIsNotOverwrittenAsSent() async throws {
+        let db = try freshQueue()
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]), transfer: transfer)
+        await transfer.setOnSend { [weak manager] trackID in
+            try await manager?.transferFailed(trackID: trackID, code: .transferFailed)
+        }
+        try await manager.setRoots([root("r", tracks: ["a"])])
+        let job = try await store.jobs().first
+        XCTAssertEqual(job?.state, .failed)
+        XCTAssertEqual(job?.failureClass, .transient)
+    }
+
+    func testAsynchronousDeliveryFailureRetriesAfterBackoff() async throws {
+        let db = try freshQueue()
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        let clock = TestClock()
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]),
+                                  transfer: transfer, clock: clock)
+        try await manager.setRoots([root("r", tracks: ["a"])])
+        try await manager.transferFailed(trackID: "a", code: .transferFailed)
+        let failed = try await store.jobs().first
+        XCTAssertEqual(failed?.state, .failed)
+        XCTAssertEqual(failed?.failureClass, .transient)
+        try await manager.tick()
+        let beforeRetry = await transfer.sentCount("a")
+        XCTAssertEqual(beforeRetry, 1)
+        clock.advance(6)
+        try await manager.tick()
+        let afterRetry = await transfer.sentCount("a")
+        XCTAssertEqual(afterRetry, 2)
+        try await manager.ingestManifest(manifest(["a"]))
+        try await manager.transferFailed(trackID: "a", code: .transferFailed)
+        clock.advance(600)
+        try await manager.tick()
+        let afterInstall = await transfer.sentCount("a")
+        XCTAssertEqual(afterInstall, 2, "late delivery errors must not retry installed audio")
+    }
+
+    func testMissingInstallAcknowledgementRecoversWithoutDuplicatingOutstandingTransfer() async throws {
+        let db = try freshQueue()
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        let clock = TestClock()
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]),
+                                  transfer: transfer, clock: clock)
+        try await manager.setRoots([root("r", tracks: ["a"])])
+        await transfer.setOutstanding(["a"])
+        clock.advance(600)
+        try await manager.ingestManifest(manifest([]))
+        try await manager.requestRetry(trackID: "a")
+        let outstandingCount = await transfer.sentCount("a")
+        XCTAssertEqual(outstandingCount, 1)
+        await transfer.setOutstanding([])
+        try await manager.tick()
+        let failed = try await store.jobs().first
+        XCTAssertEqual(failed?.state, .failed)
+        clock.advance(6)
+        try await manager.tick()
+        let recoveredCount = await transfer.sentCount("a")
+        XCTAssertEqual(recoveredCount, 2)
+        try await manager.ingestManifest(manifest(["a"]))
+        clock.advance(600)
+        try await manager.tick()
+        let installedCount = await transfer.sentCount("a")
+        XCTAssertEqual(installedCount, 2)
+    }
+
+    func testExplicitRetryRevivesUnconfirmedSentJob() {
+        let job = PhoneWatchDownloadJob(trackID: "a", rootIDs: ["r"], state: .sent)
+        let plan = PhoneWatchDownloadPlanner.plan(
+            roots: [root("r", tracks: ["a"])], installedTrackIDs: [], existingJobs: [job],
+            transferability: { _ in .ready(bytes: 100, sha256: nil) },
+            explicitRetryTrackIDs: ["a"])
+        XCTAssertEqual(plan.toReset, [job.requestID])
+        XCTAssertTrue(plan.toCreate.isEmpty)
+    }
+
 
     // MARK: schema
 

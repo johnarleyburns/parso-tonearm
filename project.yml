@@ -488,12 +488,12 @@ targets:
       - path: WatchApp
       # The Watch icon is the shared Icon Composer file's watchOS circle (1088 canvas).
       - path: Resources/AppIcon.icon
+      # DEBUG builds do not embed the broad core resource bundle. Declare the
+      # smoke fixture as a resource source so XcodeGen preserves the copy phase.
+      - path: Resources/Audio/ambient-ocean.wav
+        buildPhase: resources
     resources:
       - WatchApp/Localizable.xcstrings
-      # The deterministic smoke fixture's audio. §16: "Replace with … SwiftData
-      # fixtures and bundled audio." DEBUG builds do not embed the TonearmCore
-      # SPM resource bundle, so the WAV is copied into the watch bundle directly.
-      - Resources/Audio/ambient-ocean.wav
     dependencies:
       - package: TonearmCore
         product: TonearmWatchProtocol

@@ -7,6 +7,44 @@ import TonearmWatchProtocol
 /// §8.3 installer: audio/metadata ordering, duplicate delivery, corruption, storage reserve,
 /// replacement, delete/install race, and convergence after a restart.
 final class WatchFileInstallerTests: XCTestCase {
+    func testExplicitContainerInstallsExtensionlessCacheWithOrWithoutMetadataFirst() async throws {
+        for metadataFirst in [true, false] {
+            let fx = try Fixture()
+            if metadataFirst { try await fx.repository.upsertTrack(.init(trackID: "cached", title: "Cached")) }
+            let staged = try fx.stage(String(repeating: "a", count: 64) + "-mp3", bytes: Data("audio".utf8))
+            let digest = try WatchFileDigest.measure(staged)
+            let metadata = WatchAudioFileMetadata(trackID: "cached", expectedBytes: digest.bytes,
+                sha256: digest.sha256, fileExtension: WatchAudioFileMetadata.fileExtension(for: staged))
+            let first = await fx.installer.install(stagedURL: staged, metadata: metadata.dictionary)
+            let expected = WatchInstallOutcome.installed(trackID: "cached",
+                relativeFilename: "\(digest.sha256).mp3", bytes: digest.bytes)
+            if metadataFirst {
+                XCTAssertEqual(first, expected)
+            } else {
+                XCTAssertEqual(first, .deferredAwaitingMetadata(trackID: "cached"))
+                try await fx.repository.upsertTrack(.init(trackID: "cached", title: "Cached"))
+                let outcomes = await fx.installer.retryDeferred()
+                XCTAssertEqual(outcomes, [expected])
+            }
+        }
+    }
+
+    func testExtensionlessCacheAudioBeforeMetadataSurvivesDeferredRetry() async throws {
+        let fx = try Fixture()
+        let staged = try fx.stage("cache-hash-mp3", bytes: Data("cached-audio".utf8))
+        let digest = try WatchFileDigest.measure(staged)
+        let metadata = WatchAudioFileMetadata(trackID: "cached", expectedBytes: digest.bytes,
+                                              sha256: digest.sha256)
+        let deferred = await fx.installer.install(stagedURL: staged, metadata: metadata)
+        XCTAssertEqual(deferred, .deferredAwaitingMetadata(trackID: "cached"))
+        try await fx.repository.upsertTrack(.init(trackID: "cached", title: "Cached"))
+        let outcomes = await fx.installer.retryDeferred()
+        XCTAssertEqual(outcomes, [.installed(trackID: "cached", relativeFilename: digest.sha256,
+                                            bytes: digest.bytes)])
+        let ready = try await fx.repository.tracks(readyOnly: true)
+        XCTAssertEqual(ready.map(\.id), ["cached"])
+    }
+
     func testMetadataBeforeAudioInstallsAndReports() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "one", title: "One", codec: "aac"))

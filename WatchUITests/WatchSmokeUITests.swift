@@ -49,9 +49,9 @@ final class WatchSmokeUITests: XCTestCase {
         // A downloaded track, iPhone not connected (the simulator has no paired phone): find it in
         // the Tracks list, play it, confirm the audio is really running — elapsed advancing — then
         // stop it and confirm the elapsed clock is frozen, not just the button relabelled.
-        // The fixture seeder simulates the download: it copies bundled audio into the store's audio
-        // directory and marks the asset `.ready` with its real checksum, exactly as a real transfer
-        // would leave it.
+        // The fixture seeder runs the real installer, delivering an extensionless cache blob
+        // before metadata and retrying deferred installation. WCSession delivery itself still
+        // requires paired devices; this checks installation and offline playback on watchOS.
         // Watch redesign D1: Songs lives under "On This Watch" (one of Home's four doors).
         openRootRow(app, identifier: "watch.downloads", named: "On This Watch")
         let songs = app.descendants(matching: .any)["watch.songs"]

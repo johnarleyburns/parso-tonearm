@@ -112,7 +112,10 @@ final class PhoneWatchRuntime {
             revisionStore: revisionStore,
             observer: inbound)
         self.coordinator = coordinator
-        self.protocolAdapter = PhoneWatchProtocolAdapter(endpoint: coordinator)
+        self.protocolAdapter = PhoneWatchProtocolAdapter(endpoint: coordinator,
+            onFileTransferFailure: { [inbound] trackID, code in
+                await inbound.fileTransferFailed(trackID, code: code)
+            })
 
         let audioResolver = PhoneWatchLibraryAudioResolver(store: store)
         let artworkResolver = PhoneWatchLibraryArtworkResolver(store: store)
@@ -367,12 +370,19 @@ final class PhoneWatchRuntime {
                 rootID: rootID, kind: .track, sourceID: id.rawValue,
                 title: row.track.title, desiredTrackIDs: [id.rawValue],
                 phoneRevision: (try? await downloadStore.currentRevision()) ?? 0)
+            try? await downloadManager.requestRetry(trackID: id.rawValue)
             try? await downloadManager.addRoot(root)
         } else {
             try? await downloadManager.removeRoot(rootID: rootID)
             _ = await coordinator.sendRemoveAssets([id])
         }
         await refresh()
+    }
+
+    fileprivate func fileTransferFailed(_ trackID: WatchTrackID, code: WatchProtocolErrorCode) async {
+        try? await downloadManager.transferFailed(trackID: trackID, code: code)
+        await refresh()
+        await publishDownloadStatusIfActive(force: true)
     }
 
     // MARK: - Internal
@@ -479,6 +489,10 @@ private actor PhoneWatchInbound: PhoneWatchProtocolObserver {
 
     func downloadRequest(_ request: WatchDownloadRequest) async {
         await runtime?.applyWatchDownloadRequest(request)
+    }
+
+    func fileTransferFailed(_ trackID: WatchTrackID, code: WatchProtocolErrorCode) async {
+        await runtime?.fileTransferFailed(trackID, code: code)
     }
 
     func downloadControl(_ control: WatchDownloadControl) async {

@@ -87,6 +87,13 @@ public final class WatchSearchPresenter: ObservableObject {
         if case .recent = phase { phase = .recent([]) }
     }
 
+    /// Metadata can arrive after the user entered a query. Re-run it without
+    /// requiring another keyboard submission or adding a recent search.
+    public func refresh() {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        run(afterDebounce: true)
+    }
+
     // MARK: - Private
 
     private func queryChanged() {

@@ -133,6 +133,10 @@ public actor PhoneWatchDownloadManager {
     private var desiredArtworkTrackIDs: Set<String> = []
     private var artworkPlans: [String: PhoneWatchArtworkResolution] = [:]
     private var artworkSentIDs: Set<String> = []
+    private var isPumping = false
+
+    /// Allow time for the watch's install acknowledgement after WCSession finishes.
+    public static let installationAcknowledgementTimeout: TimeInterval = 300
 
     public init(store: PhoneWatchDownloadStore,
                 resolver: any PhoneWatchAudioResolving,
@@ -189,6 +193,7 @@ public actor PhoneWatchDownloadManager {
 
     /// A retry the user explicitly asked for — one attempt, higher priority (§8.1 bucket 2).
     public func requestRetry(trackID: String) async throws {
+        guard !Set(await transfer.outstandingTransfers().map(\.rawValue)).contains(trackID) else { return }
         explicitRetryTrackIDs.insert(trackID)
         try await reconcile()
     }
@@ -266,6 +271,15 @@ public actor PhoneWatchDownloadManager {
         try await reconcile()
     }
 
+    /// WCSession reports delivery errors asynchronously, after enqueue has returned.
+    public func transferFailed(trackID: WatchTrackID, code: WatchProtocolErrorCode) async throws {
+        let installed = try await store.installedTrackIDs()
+        guard !installed.contains(trackID.rawValue),
+              var job = try await store.jobs().first(where: { $0.trackID == trackID.rawValue }),
+              job.state == .sent || job.state == .transferring else { return }
+        try await failFromError(&job, code: code)
+    }
+
     // MARK: - Reconcile + pump
 
     /// Recompute the plan from persisted roots, jobs, and the watch manifest, apply it durably,
@@ -307,6 +321,14 @@ public actor PhoneWatchDownloadManager {
         }
 
         let installed = try await store.installedTrackIDs()
+        let outstanding = Set(await transfer.outstandingTransfers().map(\.rawValue))
+        // A queued file is not installed truth. Recover lost deliveries and watch-side
+        // rejections, while leaving transfers still owned by WCSession alone.
+        for var job in try await store.jobs() where job.state == .sent
+            && !installed.contains(job.trackID) && !outstanding.contains(job.trackID)
+            && now().timeIntervalSince(job.updatedAt) >= Self.installationAcknowledgementTimeout {
+            try await failFromError(&job, code: .transferFailed)
+        }
         let existing = try await store.jobs()
 
         var transferability: [String: PhoneWatchTransferability] = [:]
@@ -363,6 +385,8 @@ public actor PhoneWatchDownloadManager {
         }
 
         explicitRetryTrackIDs.subtract(plan.toReset.compactMap { jobsByRequest[$0]?.trackID })
+        explicitRetryTrackIDs.subtract(plan.toCreate.map(\.trackID))
+        explicitRetryTrackIDs.subtract(installed)
 
         // Paused roots keep their settled jobs (a `.sent`-but-unconfirmed job is the dedup guard),
         // so the prune "desired" set spans *all* roots, not just the active ones.
@@ -375,6 +399,9 @@ public actor PhoneWatchDownloadManager {
     /// Dispatch transfers until the in-flight caps or the network gate stop us. Failed jobs with a
     /// future `nextAttemptAt` are naturally excluded, so this terminates.
     public func pump() async throws {
+        guard !isPumping else { return }
+        isPumping = true
+        defer { isPumping = false }
         var canNetwork = false
         while true {
             let jobs = try await store.jobs()
@@ -409,7 +436,10 @@ public actor PhoneWatchDownloadManager {
             job.updatedAt = now()
             try await store.upsertJob(job)
 
-            switch await resolver.resolve(trackID: WatchTrackID(job.trackID)) {
+            let resolution = await resolver.resolve(trackID: WatchTrackID(job.trackID))
+            guard let resolving = try await store.jobs().first(where: { $0.requestID == requestID }),
+                  resolving.state == .resolving else { continue }
+            switch resolution {
             case .unsupported(let reason):
                 try await fail(&job, class: .fileUnsupported, code: .unsupportedAudio, message: reason)
             case .unavailable:
@@ -427,6 +457,10 @@ public actor PhoneWatchDownloadManager {
                 do {
                     try await transfer.transfer(fileURL: url, trackID: WatchTrackID(job.trackID),
                                                 expectedBytes: bytes, sha256: sha)
+                    // Delegate errors or cancellation can arrive while the actor is suspended
+                    // in the transfer seam. Do not overwrite that newer durable state.
+                    guard let latest = try await store.jobs().first(where: { $0.requestID == requestID }),
+                          latest.state == .transferring else { continue }
                     job.state = .sent
                     job.failureClass = nil
                     job.errorCode = nil
