@@ -149,7 +149,9 @@ public actor PhoneWatchResumableAudioTransfer {
                 plan.received.removeAll()
             }
             plans[id] = plan
-            if plan.active, let code = manifest.audioDownloadFailures[id] {
+            if plan.active, let code = manifest.audioDownloadFailures[id],
+               let attempt = manifest.audioFailureTransferIDs[id],
+               plan.pending.values.contains(where: { $0.transferID == attempt }) {
                 plans[id]?.active = false
                 plans[id]?.pending.removeAll()
                 failures.append((plan.audio.trackID, code))

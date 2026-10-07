@@ -35,7 +35,10 @@ and chunk layout must match before any checkpoint is reused.
 
 Pause/restart cancels only unconfirmed system transfers and retains good watch
 chunks. Old attempt callbacks and old manifests cannot fail a replacement or
-erase newer progress. A delivered chunk with no acknowledgement is retried after
+erase newer progress.
+Watch-side rejection reports identify the exact chunk attempt; a delayed failure
+or a track-only legacy failure cannot fail its replacement. A delivered chunk with
+no acknowledgement is retried after
 five minutes; a system-owned transfer is left to WatchConnectivity unless the
 user explicitly restarts it. A watch rejection is shown as a failure rather than
 silently cycling. Restarting retries assembly/installation as well as delivery.

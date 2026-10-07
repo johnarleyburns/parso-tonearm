@@ -291,12 +291,14 @@ public struct WatchManifestPayload: Codable, Equatable, Sendable {
     public var lastAudioInstalledAt: Date?
     public var partialAudioDownloads: [WatchPartialAudioDownload]
     public var audioDownloadFailures: [String: WatchProtocolErrorCode]
+    public var audioFailureTransferIDs: [String: String]
 
     public init(manifestID: String, readyTrackIDs: [WatchTrackID], installedBytes: Int64,
                 capacityBytes: Int64 = 0, freeBytes: Int64 = 0, installedArtworkIDs: [String] = [], generatedAt: Date = Date(),
                 lastCatalogReceivedAt: Date? = nil, lastAudioInstalledAt: Date? = nil,
                 partialAudioDownloads: [WatchPartialAudioDownload] = [],
-                audioDownloadFailures: [String: WatchProtocolErrorCode] = [:]) {
+                audioDownloadFailures: [String: WatchProtocolErrorCode] = [:],
+                audioFailureTransferIDs: [String: String] = [:]) {
         self.manifestID = manifestID
         self.readyTrackIDs = readyTrackIDs
         self.installedBytes = installedBytes
@@ -308,6 +310,7 @@ public struct WatchManifestPayload: Codable, Equatable, Sendable {
         self.lastAudioInstalledAt = lastAudioInstalledAt
         self.partialAudioDownloads = partialAudioDownloads
         self.audioDownloadFailures = audioDownloadFailures
+        self.audioFailureTransferIDs = audioFailureTransferIDs
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -315,6 +318,7 @@ public struct WatchManifestPayload: Codable, Equatable, Sendable {
         case lastCatalogReceivedAt, lastAudioInstalledAt
         case partialAudioDownloads
         case audioDownloadFailures
+        case audioFailureTransferIDs
     }
 
     public init(from decoder: Decoder) throws {
@@ -330,6 +334,7 @@ public struct WatchManifestPayload: Codable, Equatable, Sendable {
         lastAudioInstalledAt = try container.decodeIfPresent(Date.self, forKey: .lastAudioInstalledAt)
         partialAudioDownloads = try container.decodeIfPresent([WatchPartialAudioDownload].self, forKey: .partialAudioDownloads) ?? []
         audioDownloadFailures = try container.decodeIfPresent([String: WatchProtocolErrorCode].self, forKey: .audioDownloadFailures) ?? [:]
+        audioFailureTransferIDs = try container.decodeIfPresent([String: String].self, forKey: .audioFailureTransferIDs) ?? [:]
     }
 }
 

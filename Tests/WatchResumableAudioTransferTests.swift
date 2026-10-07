@@ -8,6 +8,33 @@ import TonearmWatchCore
 import TonearmWatchProtocol
 
 final class WatchResumableAudioTransferTests: XCTestCase {
+    func testFailureReportWithoutCurrentAttemptIdentityCannotFailARestart() async throws {
+        let fx = try ChunkFixture(bytes: 3_000_000)
+        defer { fx.clean() }
+        let sender = fx.sender()
+        try await sender.begin(fileURL: fx.source, audio: fx.audio)
+        _ = await fx.receive(await fx.transport.files[0])
+        try await sender.ingestManifest(fx.manifest(await fx.assembler.partialDownloads(), at: 1))
+        let failed = await fx.transport.files.last!
+        await sender.deliveryFinished(failed.metadata, error: .transferFailed)
+        try await sender.begin(fileURL: fx.source, audio: fx.audio)
+        var stale = fx.manifest(await fx.assembler.partialDownloads(), at: 2)
+        stale.audioDownloadFailures = ["track": .sourceUnavailable]
+        try await sender.ingestManifest(stale)
+        let active = await sender.activeTrackIDs()
+        XCTAssertEqual(active, ["track"], "A track-only failure cannot identify the new chunk attempt")
+        stale.generatedAt = Date(timeIntervalSince1970: 3)
+        stale.audioFailureTransferIDs = ["track": failed.metadata.transferID]
+        try await sender.ingestManifest(stale)
+        let afterOldAttempt = await sender.activeTrackIDs()
+        XCTAssertEqual(afterOldAttempt, ["track"], "An old attempt ID cannot fail its replacement")
+        let current = await fx.transport.files.last!
+        stale.generatedAt = Date(timeIntervalSince1970: 4)
+        stale.audioFailureTransferIDs = ["track": current.metadata.transferID]
+        try await sender.ingestManifest(stale)
+        let afterCurrentAttempt = await sender.activeTrackIDs()
+        XCTAssertTrue(afterCurrentAttempt.isEmpty, "A real rejection of the current attempt must still fail visibly")
+    }
     func testBackgroundRelaunchRemembersChunkCapabilityOnlyForTheSamePairedWatch() async {
         let suite = "watch-capabilities-" + UUID().uuidString
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
@@ -138,8 +165,11 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         let sender = fx.sender()
         try await sender.begin(fileURL: fx.source, audio: fx.audio)
         _ = await fx.receive(await fx.transport.files[0])
-        var manifest = fx.manifest(await fx.assembler.partialDownloads(), at: 1)
+        try await sender.ingestManifest(fx.manifest(await fx.assembler.partialDownloads(), at: 1))
+        let unconfirmed = await fx.transport.files.last!
+        var manifest = fx.manifest(await fx.assembler.partialDownloads(), at: 2)
         manifest.audioDownloadFailures = ["track": .insufficientWatchStorage]
+        manifest.audioFailureTransferIDs = ["track": unconfirmed.metadata.transferID]
         try await sender.ingestManifest(manifest)
         let progress = await sender.progress()["track"]
         XCTAssertEqual(progress?.checkpoint.retainedBytes, 1_048_576)

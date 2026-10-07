@@ -187,6 +187,7 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         XCTAssertNil(decoded.lastAudioInstalledAt)
         XCTAssertTrue(decoded.partialAudioDownloads.isEmpty)
         XCTAssertTrue(decoded.audioDownloadFailures.isEmpty)
+        XCTAssertTrue(decoded.audioFailureTransferIDs.isEmpty)
     }
 
     // MARK: - Correlation
