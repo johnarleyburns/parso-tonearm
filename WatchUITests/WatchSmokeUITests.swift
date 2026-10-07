@@ -30,7 +30,7 @@ final class WatchSmokeUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
-        XCTAssertTrue(app.otherElements["watch.root"].waitForExistence(timeout: 10)
+        XCTAssertTrue(app.descendants(matching: .any)["watch.root"].waitForExistence(timeout: 10)
                       || app.collectionViews.firstMatch.waitForExistence(timeout: 10),
                       "Root never rendered")
         snapshot(app, "H1-home")
@@ -38,8 +38,8 @@ final class WatchSmokeUITests: XCTestCase {
         // The search surface opens with its field. (watchOS full-screen text entry is not
         // scriptable in XCUITest; the typed-query state machine is host-covered by
         // WatchSearchPresenterTests.)
-        let search = app.buttons["watch.search"]
-        XCTAssertTrue(search.waitForExistence(timeout: 10), "Root did not render the Search row")
+        let search = app.descendants(matching: .any)["watch.search"]
+        XCTAssertTrue(reveal(search, in: app), "Root did not render the Search row")
         search.tap()
         XCTAssertTrue(app.textFields["watch.search.field"].waitForExistence(timeout: 8),
                       "Search field never appeared")
@@ -54,7 +54,7 @@ final class WatchSmokeUITests: XCTestCase {
         // would leave it.
         // Watch redesign D1: Songs lives under "On This Watch" (one of Home's four doors).
         openRootRow(app, identifier: "watch.downloads", named: "On This Watch")
-        let songs = app.buttons["watch.songs"]
+        let songs = app.descendants(matching: .any)["watch.songs"]
         XCTAssertTrue(reveal(songs, in: app), "On This Watch did not render the Songs row")
         snapshot(app, "D1-on-this-watch")
         songs.tap()
@@ -151,6 +151,20 @@ final class WatchSmokeUITests: XCTestCase {
         // Exit the app while a session is live; it must terminate cleanly.
         app.terminate()
         XCTAssertTrue(app.wait(for: .notRunning, timeout: 10), "App did not exit")
+    }
+
+    func testWatchAboutShowsInstalledBuild() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UI_TESTING", "SEED_WATCH_FIXTURES"]
+        app.launch()
+
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+        let about = app.descendants(matching: .any)["watch.about"]
+        for _ in 0..<4 where !about.exists { app.swipeUp() }
+        XCTAssertTrue(about.waitForExistence(timeout: 10), "Root did not render the About row")
+        about.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["watch.about.build"].waitForExistence(timeout: 8),
+                      "About did not show the installed watch build")
     }
 
     private func playPlaylist(_ app: XCUIApplication, name: String, requireElapsedAdvance: Bool) -> Bool {
@@ -278,13 +292,14 @@ final class WatchSmokeUITests: XCTestCase {
     }
 
     private func openRootRow(_ app: XCUIApplication, identifier: String, named: String) {
-        let row = app.buttons[identifier]
+        let row = app.descendants(matching: .any)[identifier]
         XCTAssertTrue(reveal(row, in: app), "Root did not render the \(named) row")
         row.tap()
     }
 
     private func firstMatch(in app: XCUIApplication, identifierPrefix: String) -> XCUIElement {
-        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", identifierPrefix)).firstMatch
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", identifierPrefix)).firstMatch
     }
 
     /// Lists keep below-fold rows out of the accessibility tree until they scroll into view — so a
@@ -364,7 +379,8 @@ final class WatchSmokeUITests: XCTestCase {
 
     private func popToRoot(_ app: XCUIApplication) {
         var hops = 0
-        while !app.buttons["watch.playlists"].exists && !app.buttons["watch.search"].exists && hops < 6 {
+        while !app.descendants(matching: .any)["watch.playlists"].exists
+                && !app.descendants(matching: .any)["watch.search"].exists && hops < 6 {
             let back = app.navigationBars.buttons.firstMatch
             guard back.exists else { break }
             back.tap()

@@ -15,8 +15,8 @@ import TonearmWatchProtocol
 // MARK: - Audio resolution
 
 /// Resolves a watch track ID to a phone-local audio file. §8.1: "resolve remote audio into the
-/// existing phone cache before transfer." This phase resolves *already-local* audio — an imported
-/// asset or a complete stream-cache entry. Fetching a remote-only track on demand is Phase 8.
+/// existing phone cache before transfer." Imported assets and complete stream-cache entries are
+/// used directly; a remote-only track is fetched into that same durable cache before transfer.
 public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
     private let store: LibraryStore
 
@@ -31,10 +31,11 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
         if let reason = asset.unsupportedReason {
             return .unsupported(reason: reason)
         }
-        guard let url = Self.localURL(for: asset), FileManager.default.fileExists(atPath: url.path) else {
-            return .unavailable
+        if let url = Self.localURL(for: asset), FileManager.default.fileExists(atPath: url.path) {
+            return .cached(url, bytes: Self.byteCount(of: url) ?? asset.sizeBytes ?? 0, sha256: nil)
         }
-        return .cached(url, bytes: Self.byteCount(of: url) ?? asset.sizeBytes ?? 0, sha256: nil)
+        guard asset.kind == .remote else { return .unavailable }
+        return await Self.materializeRemote(row: row, asset: asset)
     }
 
     public func transferability(trackID: WatchTrackID) async -> PhoneWatchTransferability {
@@ -44,10 +45,14 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
         if let reason = asset.unsupportedReason {
             return .unsupported(reason: reason)
         }
-        guard let url = Self.localURL(for: asset), FileManager.default.fileExists(atPath: url.path) else {
-            return .unavailable
+        if let url = Self.localURL(for: asset), FileManager.default.fileExists(atPath: url.path) {
+            return .ready(bytes: Self.byteCount(of: url) ?? asset.sizeBytes, sha256: nil)
         }
-        return .ready(bytes: Self.byteCount(of: url) ?? asset.sizeBytes, sha256: nil)
+        // A playable remote track may be streaming-only on the phone. It is still transferable:
+        // `resolve` materializes it into the durable stream cache immediately before dispatch.
+        guard asset.kind == .remote,
+              asset.remoteURL.flatMap(URL.init(string:)) != nil else { return .unavailable }
+        return .ready(bytes: asset.sizeBytes, sha256: nil)
     }
 
     private func resolveRow(_ id: WatchTrackID) async throws -> TrackRow? {
@@ -59,6 +64,10 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
 
     /// Mirrors `AppState.resolveLocalURL` plus a complete-stream-cache fallback.
     static func localURL(for asset: Asset) -> URL? {
+        if asset.kind == .builtIn, let channel = asset.relPath,
+           let bundled = BuiltInContentProvider.bundledAudioURL(forChannelId: channel) {
+            return bundled
+        }
         if let bookmark = asset.bookmark, let (url, _) = BookmarkVault.resolve(bookmark) {
             return url
         }
@@ -75,6 +84,50 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
             return AudioCache.fileURL(for: AudioCache.key(for: remote))
         }
         return nil
+    }
+
+    /// Make a streamed phone track into a complete, durable file before handing it to
+    /// `WCSession.transferFile`. The watch must never receive a sparse cache blob: it is an
+    /// offline player and the installer validates the final byte count and checksum.
+    private static func materializeRemote(row: TrackRow, asset: Asset) async -> PhoneWatchAudioResolution {
+        guard let stableURL = asset.remoteURL.flatMap(URL.init(string:)) else { return .unavailable }
+        let cacheKey = AudioCache.key(for: stableURL)
+        let cached = AudioCache.fileURL(for: cacheKey)
+        if AudioCache.completeCacheExists(for: stableURL), FileManager.default.fileExists(atPath: cached.path) {
+            let measured = try? WatchFileDigest.measure(cached)
+            return .cached(cached, bytes: measured?.bytes ?? asset.sizeBytes ?? 0,
+                           sha256: measured?.sha256)
+        }
+
+        let request: URLRequest?
+        if let source = row.source, let provider = try? RemoteLibraryProviderFactory.provider(for: source) {
+            request = await RemoteAssetRefetch.request(for: asset) { node in
+                try await provider.resolve(node: node)
+            }
+        } else {
+            request = await RemoteAssetRefetch.request(for: asset) { _ in
+                throw URLError(.cannotFindHost)
+            }
+        }
+        guard let request else { return .unavailable }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                return .unavailable
+            }
+            guard !data.isEmpty else { return .unavailable }
+            try FileManager.default.createDirectory(
+                at: cached.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: cached, options: .atomic)
+            await AudioCache.shared.adoptCompleteFile(byteCount: Int64(data.count),
+                                                       for: cacheKey, durable: true)
+            guard let measured = try? WatchFileDigest.measure(cached) else { return .unavailable }
+            return .cached(cached, bytes: measured.bytes, sha256: measured.sha256)
+        } catch {
+            try? FileManager.default.removeItem(at: cached)
+            return .unavailable
+        }
     }
 
     private static func byteCount(of url: URL) -> Int64? {

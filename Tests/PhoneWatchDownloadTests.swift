@@ -231,6 +231,23 @@ final class PhoneWatchDownloadTests: XCTestCase {
         XCTAssertEqual(plan.unsupported, ["bad"])
     }
 
+    func testPlannerQueuesRemoteTrackWhenResolverCanMaterializeIt() {
+        // A remote track does not need to be cached on the phone before it is requested from the
+        // watch. The app resolver materializes it during dispatch; the planner must therefore
+        // preserve the job instead of classifying a streaming-only row as unavailable.
+        let plan = PhoneWatchDownloadPlanner.plan(
+            roots: [root("remote", tracks: ["streaming-only"])],
+            installedTrackIDs: [], existingJobs: [],
+            transferability: { id in
+                XCTAssertEqual(id, "streaming-only")
+                return .ready(bytes: 12_345, sha256: nil)
+            })
+
+        XCTAssertEqual(plan.unavailable, [])
+        XCTAssertEqual(plan.toCreate.map(\.trackID), ["streaming-only"])
+        XCTAssertEqual(plan.toCreate.first?.expectedBytes, 12_345)
+    }
+
     func testPlannerCancelsUndesiredActiveJobs() {
         let existing = [PhoneWatchDownloadJob(trackID: "gone", rootIDs: ["r1"], state: .transferring)]
         let plan = PhoneWatchDownloadPlanner.plan(

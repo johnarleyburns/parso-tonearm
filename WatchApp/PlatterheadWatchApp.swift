@@ -68,6 +68,7 @@ struct WatchContentView: View {
                     case .playlist(let id): WatchPlaylistDetailView(playlistID: id)
                     case .album(let id): WatchAlbumDetailView(albumID: id)
                     case .recovery: WatchRecoveryView()
+                    case .about: WatchAboutView()
                     }
                 }
         }

@@ -1763,6 +1763,7 @@
 				AFCB0C188CB61B77079A95F9 /* AppShortcuts.xcstrings in Resources */,
 				3B69A3EEB3B798C7E772B384 /* Assets.xcassets in Resources */,
 				944AEFE5BF7BD9D636587F2C /* Localizable.xcstrings in Resources */,
+				E7D8EA806A23E80EA7653ACB /* ambient-ocean.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

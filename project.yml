@@ -489,12 +489,11 @@ targets:
       # The Watch icon is the shared Icon Composer file's watchOS circle (1088 canvas).
       - path: Resources/AppIcon.icon
     resources:
-      - path: WatchApp/Localizable.xcstrings
+      - WatchApp/Localizable.xcstrings
       # The deterministic smoke fixture's audio. §16: "Replace with … SwiftData
       # fixtures and bundled audio." DEBUG builds do not embed the TonearmCore
       # SPM resource bundle, so the WAV is copied into the watch bundle directly.
-      - path: Resources/Audio/ambient-ocean.wav
-        buildPhase: resources
+      - Resources/Audio/ambient-ocean.wav
     dependencies:
       - package: TonearmCore
         product: TonearmWatchProtocol

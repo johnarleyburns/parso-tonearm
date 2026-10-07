@@ -10,9 +10,11 @@ import TonearmWatchProtocol
 struct WatchRootView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
     @ObservedObject private var chrome = WatchAppAssembly.shared.chrome
+    @ObservedObject private var player = WatchPlayer.shared
 
     var body: some View {
-        List {
+        ScrollView {
+            LazyVStack(spacing: 8) {
             if !connected {
                 statusChip
                     .listRowBackground(Color.clear)
@@ -29,26 +31,34 @@ struct WatchRootView: View {
                     .listRowBackground(Color.clear)
             }
 
-            door(.search, title: "Search All Music",
-                 detail: nil, systemImage: "magnifyingglass", identifier: "watch.search")
-            door(.searchThisWatch, title: "Search This Watch",
-                 detail: String(localized: "\(model.tracks.filter(\.isReady).count) downloaded"),
-                 systemImage: "applewatch", identifier: "watch.search.thisWatch")
-            door(.playlists, title: "Playlists",
-                 detail: String(localized: "\(model.playlists.count) in catalog"),
-                 systemImage: "music.note.list", identifier: "watch.playlists")
-            door(.albums, title: "Albums",
-                 detail: String(localized: "\(model.albums.count) in catalog"),
-                 systemImage: "square.stack", identifier: "watch.albums")
-            door(.downloads, title: "On This Watch", detail: onWatchDetail,
-                 systemImage: "applewatch", identifier: "watch.downloads")
+            ForEach(homeDoors) { item in
+                door(item.nav, title: item.title, detail: item.detail,
+                     systemImage: item.systemImage, identifier: item.identifier)
+            }
 
             if connected {
                 statusChip
                     .listRowBackground(Color.clear)
             }
+
+            Button {
+                player.navigationPath.append(WatchNav.about)
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "info.circle")
+                        .font(.callout)
+                        .foregroundStyle(WatchPalette.accent)
+                        .frame(width: 24)
+                        .accessibilityHidden(true)
+                    Text("About")
+                }
+                .padding(.vertical, 6)
+            }
+            .accessibilityIdentifier("watch.about")
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
         }
-        .listStyle(.plain)
         .navigationTitle("Platterhead")
         .accessibilityIdentifier("watch.root")
         .task { await model.refresh() }
@@ -56,9 +66,29 @@ struct WatchRootView: View {
 
     private var connected: Bool { chrome.showsConnectedFeatures }
 
+    private var homeDoors: [HomeDoor] {
+        [
+            HomeDoor(nav: .search, title: "Search All Music", detail: nil,
+                     systemImage: "magnifyingglass", identifier: "watch.search"),
+            HomeDoor(nav: .searchThisWatch, title: "Search This Watch",
+                     detail: String(localized: "\(model.tracks.filter(\.isReady).count) downloaded"),
+                     systemImage: "applewatch", identifier: "watch.search.thisWatch"),
+            HomeDoor(nav: .playlists, title: "Playlists",
+                     detail: String(localized: "\(model.playlists.count) in catalog"),
+                     systemImage: "music.note.list", identifier: "watch.playlists"),
+            HomeDoor(nav: .albums, title: "Albums",
+                     detail: String(localized: "\(model.albums.count) in catalog"),
+                     systemImage: "square.stack", identifier: "watch.albums"),
+            HomeDoor(nav: .downloads, title: "On This Watch", detail: onWatchDetail,
+                     systemImage: "applewatch", identifier: "watch.downloads")
+        ]
+    }
+
     private func door(_ nav: WatchNav, title: LocalizedStringKey, detail: String?,
                       systemImage: String, identifier: String) -> some View {
-        NavigationLink(value: nav) {
+        Button {
+            player.navigationPath.append(nav)
+        } label: {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
                     .font(.callout)
@@ -76,6 +106,16 @@ struct WatchRootView: View {
         }
         .listRowBackground(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(WatchPalette.surface))
         .accessibilityIdentifier(identifier)
+    }
+
+    private struct HomeDoor: Identifiable {
+        let nav: WatchNav
+        let title: LocalizedStringKey
+        let detail: String?
+        let systemImage: String
+        let identifier: String
+
+        var id: String { identifier }
     }
 
     private var onWatchDetail: String {
@@ -214,4 +254,26 @@ enum WatchNav: Hashable {
     case playlist(String)
     case album(String)
     case recovery
+    case about
+}
+
+struct WatchAboutView: View {
+    private var installedBuild: String {
+        WatchBuildInfo.label(
+            version: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+            build: Bundle.main.infoDictionary?["CFBundleVersion"] as? String)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Label("Platterhead", systemImage: "music.note")
+                Text(installedBuild)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("watch.about.build")
+            }
+        }
+        .navigationTitle("About")
+        .listStyle(.plain)
+    }
 }

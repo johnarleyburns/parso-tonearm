@@ -139,6 +139,9 @@ struct WatchTrackDownloadView: View {
                 Text("Downloading… \(Int(fraction * 100))%").font(.caption2).foregroundStyle(.secondary)
             } else if model.track(id: trackID)?.isReady == true {
                 Text("Downloaded. Starting playback…").font(.caption2).foregroundStyle(WatchPalette.success)
+            } else if model.downloadStatus?.roots.first(where: { $0.rootID == "track:\(trackID)" })?.state == .failed {
+                Text("The iPhone could not prepare this track. Try again.")
+                    .font(.caption2).foregroundStyle(.orange).multilineTextAlignment(.center)
             } else if failed {
                 Text("Keep the iPhone available to download this track.")
                     .font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
