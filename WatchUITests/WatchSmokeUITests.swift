@@ -18,6 +18,31 @@ import XCTest
 /// because the simulator cannot pair a phone.
 @MainActor
 final class WatchSmokeUITests: XCTestCase {
+    func testWatchSyncStatusShowsInstalledCountAndUnknownPhoneQueue() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UI_TESTING", "SEED_WATCH_FIXTURES"]
+        app.launch()
+        let button = app.descendants(matching: .any)["watch.syncStatus"]
+        XCTAssertTrue(reveal(button, in: app), "Sync Status must be accessible from Home")
+        button.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["watch.sync.screen"].waitForExistence(timeout: 10))
+        let connection = app.descendants(matching: .any)["watch.sync.connection"]
+        XCTAssertTrue(reveal(connection, in: app))
+        XCTAssertEqual(connection.label, "iPhone app not reachable")
+        let installed = app.descendants(matching: .any)["watch.sync.installedCount"]
+        XCTAssertTrue(reveal(installed, in: app))
+        XCTAssertEqual(installed.value as? String, "1")
+        let unknown = app.staticTexts["No download report received from iPhone yet."]
+        XCTAssertTrue(reveal(unknown, in: app), "No phone report is unknown, not a completed empty queue")
+        snapshot(app, "Sync-status-offline")
+        let refresh = app.buttons["watch.sync.refresh"]
+        XCTAssertTrue(reveal(refresh, in: app))
+        refresh.tap()
+        let requested = app.descendants(matching: .any)["watch.sync.requested"]
+        XCTAssertTrue(reveal(requested, in: app), "Refresh must acknowledge the queued request, not claim completion")
+        XCTAssertTrue(requested.label.contains("Sync requested"))
+        snapshot(app, "Sync-status-requested")
+    }
 
     override func setUp() {
         super.setUp()

@@ -243,6 +243,9 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         XCTAssertEqual(decoded.activeCount, 1)
         XCTAssertTrue(decoded.activeTransfers.isEmpty)
         XCTAssertNil(decoded.fraction(for: "t1"))
+        XCTAssertTrue(decoded.activities.isEmpty)
+        XCTAssertNil(decoded.generatedAt)
+        XCTAssertNil(decoded.lastWatchReportAt)
     }
 
     func testMessageKindsAreRoutedToTheChannelSection5_2Assigns() {

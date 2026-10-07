@@ -117,6 +117,15 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         if negotiated == nil || wasConfirmedDown { await negotiate() }
     }
 
+    public func refreshReachability() async {
+        let reachable = await transport.isReachable()
+        if reachable {
+            if reducer.connectivity != .connected { await reachabilityChanged(true) }
+        } else if reducer.isConnectedForUI {
+            await reachabilityChanged(false)
+        }
+    }
+
     /// §5.3 `hello`. Failure here is not fatal: an unreachable or incompatible phone leaves every
     /// downloaded track playable, which is A-07's whole point.
     @discardableResult
@@ -241,7 +250,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         guard let data = try? WatchProtocolEnvelope.encode(
             kind: .watchManifest, payload: manifest,
             pairedLibraryID: boundLibraryID ?? .unknown) else { return }
-        await transport.transferUserInfo(data)
+        await sendDurableWithLiveCopy(data)
     }
 
     /// §7 polish — ask the phone to download (or drop) a single track. The phone stays the
@@ -251,7 +260,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         guard let data = try? WatchProtocolEnvelope.encode(
             kind: .requestDownload, payload: payload,
             pairedLibraryID: boundLibraryID ?? .unknown) else { return }
-        await transport.transferUserInfo(data)
+        await sendDurableWithLiveCopy(data)
     }
 
     /// Watch redesign D1 — pause, resume, stop or retry downloads from "On This Watch". Durable, like
@@ -260,7 +269,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         guard let data = try? WatchProtocolEnvelope.encode(
             kind: .downloadControl, payload: control,
             pairedLibraryID: boundLibraryID ?? .unknown) else { return }
-        await transport.transferUserInfo(data)
+        await sendDurableWithLiveCopy(data)
     }
 
     public func requestReconciliation(scope: WatchReconciliationScope = .all,
@@ -269,7 +278,14 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         guard let data = try? WatchProtocolEnvelope.encode(
             kind: .requestReconciliation, payload: payload,
             pairedLibraryID: boundLibraryID ?? .unknown) else { return }
+        await sendDurableWithLiveCopy(data)
+    }
+
+    private func sendDurableWithLiveCopy(_ data: Data) async {
         await transport.transferUserInfo(data)
+        guard await transport.isReachable() else { return }
+        let transport = transport
+        _ = try? await withWatchRequestDeadline { try await transport.sendImmediate(data) }
     }
 
     // MARK: - Paired library identity (A-08)
@@ -316,7 +332,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
     /// allows one stable key in the application-context dictionary, so the phone publishes the whole
     /// `WatchContextSnapshot` every time and uses `kind` only to say which half changed.
     public func receiveApplicationContext(_ data: Data) async {
-        await applyContext(data, provesPeerIsAlive: true)
+        await applyContext(data, provesPeerIsAlive: false)
     }
 
     private func applyContext(_ data: Data, provesPeerIsAlive: Bool) async {
@@ -335,15 +351,15 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
     }
 
     public func receiveUserInfo(_ data: Data) async {
-        guard let envelope = await accept(data) else { return }
+        guard let envelope = await accept(data, notesLiveness: false) else { return }
         // §5.4: durable events are deduplicated by message ID before anything else looks at them.
         guard await ledger.admit(envelope.messageID) == .apply else { return }
         await apply(envelope)
     }
 
     public func receiveFile(_ url: URL, metadata: [String: String]) async {
-        // A delivered file proves the phone is alive, then goes to the installer via the observer.
-        await run(reducer.apply(.peerResponded, at: Date()))
+        // Background delivery can land after the phone becomes unreachable. Only
+        // immediate replies and WCSession reachability prove a live connection.
         if metadata["assetKind"] == WatchArtworkFileMetadata.assetKind {
             await observer?.didReceiveArtworkFile(at: url, metadata: metadata)
         } else {

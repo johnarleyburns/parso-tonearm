@@ -24,6 +24,7 @@ struct PlatterheadWatchApp: App {
                         WatchPlayer.shared.handleAudioEvent(.appDidBackground)
                     case .active:
                         WatchPlayer.shared.handleAudioEvent(.appWillForeground)
+                        Task { await WatchAppAssembly.shared.refreshSyncReachability() }
                     @unknown default:
                         break
                     }
@@ -69,6 +70,7 @@ struct WatchContentView: View {
                     case .album(let id): WatchAlbumDetailView(albumID: id)
                     case .recovery: WatchRecoveryView()
                     case .about: WatchAboutView()
+                    case .syncStatus: WatchSyncStatusView()
                     }
                 }
         }

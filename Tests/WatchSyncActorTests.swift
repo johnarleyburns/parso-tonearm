@@ -7,6 +7,61 @@ import TonearmWatchProtocol
 /// `WatchSyncActor` turns everything the link reports into local SwiftData truth. These exercise it
 /// directly — no duplex link — so the installer/repository interplay is what is under test.
 final class WatchSyncActorTests: XCTestCase {
+    func testOfflinePlaylistRootInstallsAudioAndLaterCatalogEnrichesPlaceholders() async throws {
+        let fx = try Fixture()
+        let file = try fx.stage("home.m4a", bytes: Data("home-audio".utf8))
+        let digest = try WatchFileDigest.measure(file)
+        await fx.syncActor.didReceiveAudioFile(at: file, metadata: WatchAudioFileMetadata(
+            trackID: "home", expectedBytes: digest.bytes, sha256: digest.sha256).dictionary)
+        // This fixture has no live phone coordinator: hydration cannot succeed.
+        await fx.syncActor.didReceiveDownloadRoots(.init(revision: 10, roots: [
+            .init(rootID: "playlist:home", kind: .playlist, sourceID: "home-playlist",
+                  title: "Home Cooking", trackIDs: ["home", "other"])
+        ]))
+        let installed = try await fx.repository.tracks(readyOnly: true)
+        XCTAssertEqual(installed.map(\.id), ["home"])
+        await fx.syncActor.didReceiveCatalogPage(.init(catalogID: "older-queued-catalog", revision: 3,
+            pageIndex: 0, pageCount: 1, tracks: [.init(trackID: "home", title: "Home Cooking I", artist: "Artist")],
+            playlists: []))
+        let enriched = try await fx.repository.tracks(readyOnly: true).first
+        XCTAssertEqual(enriched?.title, "Home Cooking I")
+        XCTAssertEqual(enriched?.artist, "Artist")
+        XCTAssertEqual(enriched?.isReady, true)
+    }
+
+    @MainActor
+    func testProductionFanoutDeliversCatalogMetadataAndUnblocksDeferredInstallation() async throws {
+        let fx = try Fixture()
+        let repository = fx.repository
+        let suite = "watch-sync-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let receipt = Date(timeIntervalSince1970: 50_000)
+        let status = WatchSyncStatusState(defaults: defaults, now: { receipt },
+            latestInstallation: { try? await repository.lastAudioInstallationDate() })
+        let fan = WatchFanoutObserver([fx.syncActor, status])
+        let link = WatchFakeDuplexLink()
+        let coordinator = WatchConnectivityCoordinator(transport: link.transport(for: .watch), observer: fan)
+        await coordinator.activate(reachable: false)
+        let staged = try fx.stage("cached-mp3", bytes: Data("home-cooking".utf8))
+        let digest = try WatchFileDigest.measure(staged)
+        await coordinator.receiveFile(staged, metadata: WatchAudioFileMetadata(trackID: "home",
+            expectedBytes: digest.bytes, sha256: digest.sha256, fileExtension: "mp3").dictionary)
+        XCTAssertNil(status.lastAudioInstalledAt, "Deferred delivery is not an installation")
+        let page = WatchLibraryPage(catalogID: "production", revision: 3, pageIndex: 0, pageCount: 1,
+            tracks: [.init(trackID: "home", title: "Home Cooking I")], playlists: [])
+        let data = try WatchProtocolEnvelope.fromPhone(kind: .catalogPage, payload: page,
+            libraryID: "phone", revision: 3)
+        await coordinator.receiveUserInfo(data)
+        let installed = try await repository.tracks(readyOnly: true)
+        XCTAssertEqual(installed.map(\.id), ["home"])
+        XCTAssertEqual(status.lastCatalogSyncAt, receipt)
+        XCTAssertNotNil(status.lastAudioInstalledAt)
+        let restored = WatchSyncStatusState(defaults: defaults)
+        XCTAssertEqual(restored.lastCatalogSyncAt, receipt)
+        XCTAssertEqual(restored.lastAudioInstalledAt, status.lastAudioInstalledAt)
+    }
+
     func testCatalogPageMakesSearchAvailableAndInstallsAudioWithoutWaitingForOtherPages() async throws {
         let fx = try Fixture()
         let incoming = try fx.stage("cache-mp3", bytes: Data("home-cooking-audio".utf8))

@@ -163,7 +163,15 @@ struct WatchDownloadedCollectionDetailView: View {
     private func statusCard(_ d: PhoneWatchManagementPresenter.CollectionDetail) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Status").font(Typography.callout)
-            statusRow(color: Palette.success, text: "Ready on Apple Watch", count: d.readyCount)
+            if d.readyCount > 0 {
+                statusRow(color: Palette.success, text: "Ready on Apple Watch", count: d.readyCount)
+            } else {
+                Text("No tracks installed on Apple Watch yet.")
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+            }
+            if d.estimatedRemainingCount > 0 {
+                statusRow(color: Palette.accent, text: "Still to download", count: d.estimatedRemainingCount)
+            }
             if d.waitingForWiFiCount > 0 {
                 statusRow(color: Palette.accent, text: "Waiting for Wi-Fi", count: d.waitingForWiFiCount)
             }

@@ -167,7 +167,7 @@ final class PhoneWatchRuntime {
     }
 
     func tick() async {
-        await tickDownloads()
+        await tickDownloads(forceStatus: false)
         await refresh()
         await publishPlaybackIfChanged()
         await publishDownloadStatusIfActive()
@@ -179,17 +179,26 @@ final class PhoneWatchRuntime {
     /// Watch redesign D1: one more push when work *becomes* idle (finished, paused or stopped), so
     /// "On This Watch" never shows a stale "Downloading" — then silence again.
     private func publishDownloadStatusIfActive(force: Bool = false) async {
-        guard var snapshot = try? await downloadManager.statusSnapshot() else { return }
         let fractions = PhoneWatchProtocolAdapter.activeAudioTransferFractions()
+        guard var snapshot = try? await downloadManager.statusSnapshot(transferFractions: fractions) else { return }
+        snapshot.lastWatchReportAt = lastWatchManifest?.generatedAt
+        for index in snapshot.activities.indices {
+            let id = snapshot.activities[index].trackID
+            let row: TrackRow?
+            if let localID = PhoneWatchID.trackRowID(id) { row = try? await store.trackRow(id: localID) }
+            else { row = try? await store.trackRow(syncID: id.rawValue) }
+            if let row { snapshot.activities[index].title = row.track.title }
+        }
         snapshot.activeTransfers = fractions.map {
             WatchTransferProgress(trackID: WatchTrackID($0.key), fractionComplete: $0.value)
         }
         let busy = !snapshot.isIdle || !snapshot.activeTransfers.isEmpty
         let shouldPublish = busy || force || lastDownloadStatusWasBusy || snapshot.roots != lastPublishedRoots
-        lastDownloadStatusWasBusy = busy
         guard shouldPublish else { return }
-        lastPublishedRoots = snapshot.roots
-        await coordinator.publishContext(downloads: snapshot)
+        if await coordinator.publishContext(downloads: snapshot) {
+            lastDownloadStatusWasBusy = busy
+            lastPublishedRoots = snapshot.roots
+        }
     }
 
     // MARK: - Autonomous now-playing push (§7.1)
@@ -333,9 +342,10 @@ final class PhoneWatchRuntime {
         await refresh()
     }
 
-    fileprivate func tickDownloads() async {
+    fileprivate func tickDownloads(forceStatus: Bool = true) async {
         try? await downloadManager.tick()
         await refresh()
+        if forceStatus { await publishDownloadStatusIfActive(force: true) }
     }
 
     /// §7 polish — the watch asked (from its Now Playing screen) to download or drop one track.
@@ -419,7 +429,7 @@ final class PhoneWatchRuntime {
         let cap = PhoneWatchProtocolAdapter.currentCapability()
         guard cap.isSupported else { return .unsupported }
         guard cap.isPaired, cap.isWatchAppInstalled else { return .notPaired }
-        return connected ? .connected(since: connectedSince) : .pairedNotReachable
+        return cap.isReachable ? .connected(since: connectedSince) : .pairedNotReachable
     }
 
     /// The legacy display enum `WatchSettingsView` still reads, now derived from real capability.

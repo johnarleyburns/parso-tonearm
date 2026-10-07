@@ -190,6 +190,25 @@ public struct WatchDownloadRootStatus: Codable, Equatable, Sendable, Identifiabl
     }
 }
 
+public struct WatchDownloadActivity: Codable, Equatable, Sendable, Identifiable {
+    public enum Stage: String, Codable, Sendable {
+        case queued, preparing, waitingForDelivery, transferring, awaitingInstallation
+        case waitingForWiFi, failed, paused
+    }
+    public var trackID: WatchTrackID
+    public var title: String
+    public var stage: Stage
+    public var fractionComplete: Double?
+    public var message: String?
+    public var id: String { trackID.rawValue }
+
+    public init(trackID: WatchTrackID, title: String = "", stage: Stage,
+                fractionComplete: Double? = nil, message: String? = nil) {
+        self.trackID = trackID; self.title = title; self.stage = stage
+        self.fractionComplete = fractionComplete; self.message = message
+    }
+}
+
 public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
     public var revision: Int64
     public var queuedCount: Int
@@ -202,10 +221,15 @@ public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
     public var activeTransfers: [WatchTransferProgress]
     /// Watch redesign D1: per-root progress and state. Empty from an older phone.
     public var roots: [WatchDownloadRootStatus]
+    public var activities: [WatchDownloadActivity]
+    public var generatedAt: Date?
+    public var lastWatchReportAt: Date?
 
     public init(revision: Int64, queuedCount: Int = 0, activeCount: Int = 0,
                 waitingForWiFiCount: Int = 0, failedCount: Int = 0, readyCount: Int = 0,
-                activeTransfers: [WatchTransferProgress] = [], roots: [WatchDownloadRootStatus] = []) {
+                activeTransfers: [WatchTransferProgress] = [], roots: [WatchDownloadRootStatus] = [],
+                activities: [WatchDownloadActivity] = [], generatedAt: Date? = nil,
+                lastWatchReportAt: Date? = nil) {
         self.revision = revision
         self.queuedCount = queuedCount
         self.activeCount = activeCount
@@ -214,11 +238,14 @@ public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
         self.readyCount = readyCount
         self.activeTransfers = activeTransfers
         self.roots = roots
+        self.activities = activities
+        self.generatedAt = generatedAt
+        self.lastWatchReportAt = lastWatchReportAt
     }
 
     private enum CodingKeys: String, CodingKey {
         case revision, queuedCount, activeCount, waitingForWiFiCount, failedCount, readyCount, activeTransfers
-        case roots
+        case roots, activities, generatedAt, lastWatchReportAt
     }
 
     public init(from decoder: any Decoder) throws {
@@ -231,9 +258,15 @@ public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
         readyCount = try c.decodeIfPresent(Int.self, forKey: .readyCount) ?? 0
         activeTransfers = try c.decodeIfPresent([WatchTransferProgress].self, forKey: .activeTransfers) ?? []
         roots = try c.decodeIfPresent([WatchDownloadRootStatus].self, forKey: .roots) ?? []
+        activities = try c.decodeIfPresent([WatchDownloadActivity].self, forKey: .activities) ?? []
+        generatedAt = try c.decodeIfPresent(Date.self, forKey: .generatedAt)
+        lastWatchReportAt = try c.decodeIfPresent(Date.self, forKey: .lastWatchReportAt)
     }
 
-    public var isIdle: Bool { queuedCount == 0 && activeCount == 0 && waitingForWiFiCount == 0 }
+    public var isIdle: Bool {
+        queuedCount == 0 && activeCount == 0 && waitingForWiFiCount == 0
+            && !activities.contains { $0.stage != .failed && $0.stage != .paused }
+    }
 
     public func fraction(for trackID: WatchTrackID) -> Double? {
         activeTransfers.first { $0.trackID == trackID }?.fractionComplete

@@ -7,6 +7,77 @@ import XCTest
 /// every case below is the real phone code talking to the real watch code — no simulator, no
 /// WatchConnectivity, no wall-clock waits beyond a grace period the test itself picks.
 final class WatchProtocolIntegrationTests: XCTestCase {
+    func testBackgroundPacketsDoNotClaimLiveReachabilityOnEitherDevice() async throws {
+        let harness = await makeHarness(boundLibraryID: libraryID)
+        await harness.phone.activate(reachable: false)
+        await harness.watch.activate(reachable: false)
+        let context = WatchContextSnapshot(pairedLibraryID: libraryID,
+            downloads: WatchDownloadStatusSnapshot(revision: 1, queuedCount: 3))
+        let data = try WatchProtocolEnvelope.fromPhone(kind: .downloadStatusSnapshot,
+            payload: context, libraryID: libraryID, revision: 1)
+        await harness.watch.receiveApplicationContext(data)
+        let roots = try WatchProtocolEnvelope.fromPhone(kind: .setDownloadRoots,
+            payload: WatchSetDownloadRoots(revision: 2, roots: []), libraryID: libraryID, revision: 2)
+        await harness.watch.receiveUserInfo(roots)
+        await harness.watch.receiveFile(URL(fileURLWithPath: "/tmp/unused-background-probe"), metadata: [:])
+        let manifest = try WatchProtocolEnvelope.encode(kind: .watchManifest,
+            payload: WatchManifestPayload(manifestID: "background", readyTrackIDs: [], installedBytes: 0),
+            pairedLibraryID: libraryID)
+        await harness.phone.receiveUserInfo(manifest)
+        let watch = await harness.watch.connectionState
+        let phone = await harness.phone.connectionState
+        XCTAssertTrue(watch.isConfirmedDisconnected)
+        XCTAssertTrue(phone.isConfirmedDisconnected)
+        let received = await harness.watchObserver.downloadStatuses
+        XCTAssertEqual(received.last?.queuedCount, 3, "Background state still applies while unreachable")
+    }
+
+    func testSuccessiveDownloadStatusUpdatesReceiveFreshRevisions() async {
+        let harness = await makeConnectedHarness()
+        await harness.phone.publishContext(downloads: .init(revision: 10, queuedCount: 3))
+        await harness.phone.publishContext(downloads: .init(revision: 10, activeCount: 1,
+            activities: [.init(trackID: "home", stage: .transferring, fractionComplete: 0.5)]))
+        await harness.phone.publishContext(downloads: .init(revision: 10, readyCount: 3))
+        let received = await harness.watchObserver.downloadStatuses
+        XCTAssertEqual(received.count, 3, "Progress changes at one root revision must not be discarded")
+        XCTAssertEqual(received.last?.readyCount, 3)
+        XCTAssertEqual(Set(received.map(\.revision)).count, 3)
+        let repeated = await harness.phone.publishContext(downloads: .init(revision: 10, readyCount: 3))
+        XCTAssertFalse(repeated, "An identical status does not need another publication")
+    }
+
+    func testManifestLiveCopyArrivesBeforeQueuedCopyAndIsAppliedOnce() async {
+        let harness = await makeConnectedHarness()
+        await harness.link.setHoldingUserInfo(true)
+        await harness.watch.sendManifest(.init(manifestID: "installed", readyTrackIDs: ["home"], installedBytes: 42))
+        let immediate = await harness.phoneObserver.manifests
+        XCTAssertEqual(immediate.count, 1)
+        await harness.link.flushHeldUserInfo()
+        let afterQueued = await harness.phoneObserver.manifests
+        XCTAssertEqual(afterQueued.count, 1, "Live and durable copies share message identity")
+    }
+
+    func testWatchSyncAndDownloadControlsUseLiveCopyWithoutWaitingForBackgroundDelivery() async {
+        let harness = await makeConnectedHarness()
+        await harness.link.setHoldingUserInfo(true)
+        await harness.watch.requestReconciliation()
+        await harness.watch.requestDownload(trackID: "home", wantsDownload: true)
+        await harness.watch.controlDownloads(.init(action: .retryFailed))
+        let liveReconciliations = await harness.handler.receivedReconciliations
+        let liveDownloads = await harness.handler.receivedDownloadRequests
+        let liveControls = await harness.handler.receivedDownloadControls
+        XCTAssertEqual(liveReconciliations.count, 1)
+        XCTAssertEqual(liveDownloads.count, 1)
+        XCTAssertEqual(liveControls.count, 1)
+        await harness.link.flushHeldUserInfo()
+        let queuedReconciliations = await harness.handler.receivedReconciliations
+        let queuedDownloads = await harness.handler.receivedDownloadRequests
+        let queuedControls = await harness.handler.receivedDownloadControls
+        XCTAssertEqual(queuedReconciliations.count, 1)
+        XCTAssertEqual(queuedDownloads.count, 1)
+        XCTAssertEqual(queuedControls.count, 1)
+    }
+
     private let libraryID = WatchPairedLibraryID("library-A")
 
     private struct Harness {
@@ -594,6 +665,7 @@ private actor FakePhoneHandler: WatchPhoneRequestHandling {
     private(set) var receivedManifests: [WatchManifestPayload] = []
     private(set) var receivedReconciliations: [WatchReconciliationRequest] = []
     private(set) var receivedDownloadRequests: [WatchDownloadRequest] = []
+    private(set) var receivedDownloadControls: [WatchDownloadControl] = []
 
     private var heldQuery: String?
     private var heldRequestArrived = false
@@ -665,6 +737,10 @@ private actor FakePhoneHandler: WatchPhoneRequestHandling {
 
     func handleDownloadRequest(_ request: WatchDownloadRequest) async {
         receivedDownloadRequests.append(request)
+    }
+
+    func handleDownloadControl(_ control: WatchDownloadControl) async {
+        receivedDownloadControls.append(control)
     }
 }
 

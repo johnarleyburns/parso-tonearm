@@ -229,8 +229,9 @@ public actor PhoneWatchDownloadManager {
     /// (the planner change in this phase enforces that); a best-effort transfer cancel is issued in
     /// case delivery has not already won the race.
     public func cancelJob(requestID: String) async throws {
+        let installed = try await store.installedTrackIDs()
         guard var job = try await store.jobs().first(where: { $0.requestID == requestID }),
-              job.state != .sent, job.state != .cancelled else { return }
+              !installed.contains(job.trackID), job.state != .cancelled else { return }
         job.state = .cancelled
         job.updatedAt = now()
         try await store.upsertJob(job)
@@ -517,18 +518,45 @@ public actor PhoneWatchDownloadManager {
 
     // MARK: - Status
 
-    public func statusSnapshot() async throws -> WatchDownloadStatusSnapshot {
+    public func statusSnapshot(transferFractions: [String: Double] = [:]) async throws -> WatchDownloadStatusSnapshot {
         let jobs = try await store.jobs()
         let installed = try await store.installedTrackIDs()
         let roots = try await store.roots()
+        let outstanding = Set(await transfer.outstandingTransfers().map(\.rawValue))
+        let desired = Set(roots.flatMap(\.desiredTrackIDs))
+        let paused = Set(roots.filter(\.paused).map(\.rootID))
+        let activities = jobs.filter { desired.contains($0.trackID) && !installed.contains($0.trackID)
+            && $0.state != .cancelled }.map { job -> WatchDownloadActivity in
+            let stage: WatchDownloadActivity.Stage
+            let fraction = transferFractions[job.trackID]
+            if !job.rootIDs.isEmpty && job.rootIDs.allSatisfy({ paused.contains($0) }) {
+                stage = .paused
+            } else {
+                switch job.state {
+                case .queued: stage = .queued
+                case .resolving, .transferring: stage = .preparing
+                case .waitingForWiFi: stage = .waitingForWiFi
+                case .failed: stage = .failed
+                case .sent:
+                    if let fraction, fraction > 0 && fraction < 1 { stage = .transferring }
+                    else if outstanding.contains(job.trackID) && (fraction ?? 0) < 1 { stage = .waitingForDelivery }
+                    else { stage = .awaitingInstallation }
+                case .cancelled: stage = .paused
+                }
+            }
+            let title = roots.first { $0.kind == .track && $0.desiredTrackIDs.contains(job.trackID) }?.title ?? ""
+            return WatchDownloadActivity(trackID: WatchTrackID(job.trackID), title: title, stage: stage,
+                fractionComplete: fraction, message: job.message)
+        }
         return WatchDownloadStatusSnapshot(
             revision: try await store.currentRevision(),
             queuedCount: jobs.filter { $0.state == .queued || $0.state == .resolving }.count,
-            activeCount: jobs.filter { $0.state == .transferring }.count,
+            activeCount: activities.filter { $0.stage == .transferring }.count,
             waitingForWiFiCount: jobs.filter { $0.state == .waitingForWiFi }.count,
             failedCount: jobs.filter { $0.state == .failed }.count,
             readyCount: installed.count,
-            roots: Self.rootStatuses(roots: roots, jobs: jobs, installed: installed))
+            roots: Self.rootStatuses(roots: roots, jobs: jobs, installed: installed),
+            activities: activities, generatedAt: now())
     }
 
     /// Watch redesign D1 — each root's progress and the specific reason it is waiting. Pure, so the
@@ -542,7 +570,7 @@ public actor PhoneWatchDownloadManager {
             let states = desired.flatMap { jobsByTrack[$0] ?? [] }.map(\.state)
             let failed = states.filter { $0 == .failed }.count
             let state: WatchDownloadRootStatus.State
-            if ready >= desired.count {
+            if !desired.isEmpty && ready >= desired.count {
                 state = .complete
             } else if root.paused {
                 state = .paused

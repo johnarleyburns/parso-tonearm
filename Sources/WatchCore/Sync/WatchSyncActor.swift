@@ -95,6 +95,14 @@ public actor WatchSyncActor: WatchConnectivityObserver {
         case .playlist:
             let summaries = await hydrate(.playlist(WatchPlaylistID(root.sourceID)))
             await upsert(summaries, revision: revision)
+            // A durable root can arrive while immediate collection lookup is unavailable.
+            // Its track IDs must still provide bindings for incoming audio. Use revision 0
+            // for placeholders so an older queued catalog page can enrich them later.
+            let known = Set(((try? await repository.tracks(readyOnly: false)) ?? []).map(\.id))
+            for id in root.trackIDs where !known.contains(id.rawValue) {
+                _ = try? await repository.upsertTrack(.init(trackID: id.rawValue,
+                    title: displayTitle(root.title, fallback: "Track"), phoneRevision: 0))
+            }
             _ = try? await repository.upsertPlaylist(
                 .init(playlistID: root.sourceID, title: displayTitle(root.title, fallback: "Playlist"),
                       trackIDs: root.trackIDs.map(\.rawValue), phoneRevision: revision),
@@ -105,9 +113,10 @@ public actor WatchSyncActor: WatchConnectivityObserver {
             if summaries.isEmpty {
                 // Offline or the phone could not enumerate — keep the IDs as bare rows so a later
                 // reconciliation can fill them; they stay nonplayable until an asset installs.
-                for id in root.trackIDs {
+                let known = Set(((try? await repository.tracks(readyOnly: false)) ?? []).map(\.id))
+                for id in root.trackIDs where !known.contains(id.rawValue) {
                     _ = try? await repository.upsertTrack(.init(trackID: id.rawValue, title: id.rawValue,
-                                                               phoneRevision: revision))
+                                                               phoneRevision: 0))
                 }
             } else {
                 await upsert(summaries, revision: revision)
@@ -116,11 +125,12 @@ public actor WatchSyncActor: WatchConnectivityObserver {
         case .track:
             // A single-track root carries the track's own title in `title` (§5.3 file metadata is
             // ID-only, so the descriptor is the one place the name can ride).
-            for id in root.trackIDs {
+            let known = Set(((try? await repository.tracks(readyOnly: false)) ?? []).map(\.id))
+            for id in root.trackIDs where !known.contains(id.rawValue) {
                 _ = try? await repository.upsertTrack(
                     .init(trackID: id.rawValue,
                           title: displayTitle(root.title, fallback: id.rawValue),
-                          phoneRevision: revision))
+                          phoneRevision: 0))
             }
         }
     }

@@ -91,6 +91,7 @@ public enum PhoneWatchManagementPresenter {
         case waitingForWiFi
         case failed
         case paused
+        case waitingForDelivery
 
         public var isTerminal: Bool { self == .failed }
     }
@@ -196,7 +197,7 @@ public enum PhoneWatchManagementPresenter {
         // Activity — non-settled jobs, plus failed jobs, active first then failed, stable by createdAt.
         let pausedRootIDs = Set(roots.filter(\.paused).map(\.rootID))
         let activity: [ActivityRow] = jobs
-            .filter { $0.isActive || $0.state == .failed }
+            .filter { !installed.contains($0.trackID) && ($0.isActive || $0.state == .failed || $0.state == .sent) }
             .sorted { lhs, rhs in
                 let l = activityRank(lhs.state), r = activityRank(rhs.state)
                 if l != r { return l < r }
@@ -214,7 +215,7 @@ public enum PhoneWatchManagementPresenter {
                     rootIDs: job.rootIDs,
                     failureMessage: job.state == .failed ? job.message : nil,
                     canRetry: job.state == .failed || job.state == .cancelled,
-                    canCancel: job.isActive)
+                    canCancel: job.isActive || job.state == .sent)
             }
 
         // Collections
@@ -230,7 +231,7 @@ public enum PhoneWatchManagementPresenter {
             }
 
         // Banner
-        let activeCount = jobs.filter(\.isActive).count
+        let activeCount = activity.filter { !$0.stage.isTerminal && $0.stage != .paused }.count
         let failedCount = jobs.filter { $0.state == .failed }.count
         let banner = (activeCount > 0 || failedCount > 0)
             ? TransferBanner(activeCount: activeCount, failedCount: failedCount)
@@ -331,7 +332,7 @@ public enum PhoneWatchManagementPresenter {
         let desired = Set(roots.filter { !$0.paused }.flatMap(\.desiredTrackIDs))
         return jobs
             .filter { desired.contains($0.trackID) && !installed.contains($0.trackID)
-                && $0.state != .sent && $0.state != .cancelled }
+                && $0.state != .cancelled }
             .reduce(0) { $0 + ($1.expectedBytes ?? 0) }
     }
 
@@ -364,7 +365,8 @@ public enum PhoneWatchManagementPresenter {
         case .transferring: return .transferring
         case .waitingForWiFi: return .waitingForWiFi
         case .failed: return .failed
-        case .sent, .cancelled: return .queued
+        case .sent: return .waitingForDelivery
+        case .cancelled: return .queued
         }
     }
 

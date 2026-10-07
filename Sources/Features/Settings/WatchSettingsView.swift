@@ -240,8 +240,8 @@ struct WatchSettingsView: View {
 
     private var statusText: String {
         switch appState.watchSessionState {
-        case .reachable: return String(localized: "Connected")
-        case .installedNotReachable: return String(localized: "Paired — Not Reachable")
+        case .reachable: return String(localized: "Watch app reachable")
+        case .installedNotReachable: return String(localized: "Paired · Watch app not reachable")
         case .notInstalled: return String(localized: "Watch Not Paired")
         case .unsupported: return String(localized: "Watch Unavailable")
         }
@@ -253,9 +253,9 @@ struct WatchSettingsView: View {
             if let seconds = snapshot.connectedForSeconds, seconds < 90 {
                 return String(localized: "Connected just now.")
             }
-            return String(localized: "Your Apple Watch is connected and ready.")
+            return String(localized: "The watch app can respond now. Downloaded tracks are counted only after installation on the watch.")
         case .installedNotReachable:
-            return String(localized: "Watch is paired but not currently reachable. Transfers resume when it is in range.")
+            return String(localized: "Background sync can still deliver queued music. Open Platterhead on the watch to see Sync Status.")
         case .notInstalled:
             return String(localized: "Pair an Apple Watch to sync music for offline playback.")
         case .unsupported:
@@ -283,12 +283,13 @@ enum WatchStageCopy {
         case .waitingForWiFi: return String(localized: "Waiting for Wi-Fi")
         case .failed: return String(localized: "Failed")
         case .paused: return String(localized: "Paused")
+        case .waitingForDelivery: return String(localized: "Waiting for watch installation")
         }
     }
 
     static func icon(_ stage: PhoneWatchManagementPresenter.ActivityStage) -> String {
         switch stage {
-        case .queued, .resolving: return "clock"
+        case .queued, .resolving, .waitingForDelivery: return "clock"
         case .transferring: return "arrow.down.circle"
         case .waitingForWiFi: return "wifi.slash"
         case .failed: return "exclamationmark.circle"

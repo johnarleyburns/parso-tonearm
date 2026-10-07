@@ -40,6 +40,9 @@ struct WatchRootView: View {
                     .listRowBackground(Color.clear)
             }
 
+            door(.syncStatus, title: "Sync Status", detail: nil,
+                 systemImage: "arrow.triangle.2.circlepath", identifier: "watch.syncStatus")
+
             Button {
                 player.navigationPath.append(WatchNav.about)
             } label: {
@@ -127,13 +130,13 @@ struct WatchRootView: View {
     private var statusChip: some View {
         switch chrome.banner {
         case .connected:
-            WatchStatusChip(title: String(localized: "iPhone connected"), tone: .good)
+            WatchStatusChip(title: String(localized: "iPhone app reachable"), tone: .good)
                 .accessibilityIdentifier("watch.status")
         case .temporarilyUnavailable:
             WatchStatusChip(title: String(localized: "Reconnecting to iPhone…"), tone: .warning)
                 .accessibilityIdentifier("watch.status")
         case .unavailable:
-            WatchStatusChip(title: String(localized: "iPhone not nearby"), tone: .warning)
+            WatchStatusChip(title: String(localized: "iPhone app unavailable"), tone: .warning)
                 .accessibilityIdentifier("watch.status")
         case .incompatible:
             WatchStatusChip(title: String(localized: "Update Platterhead on iPhone"), tone: .failure)
@@ -252,6 +255,7 @@ enum WatchNav: Hashable {
     case album(String)
     case recovery
     case about
+    case syncStatus
 }
 
 struct WatchAboutView: View {
@@ -272,5 +276,126 @@ struct WatchAboutView: View {
         }
         .navigationTitle("About")
         .listStyle(.plain)
+    }
+}
+
+struct WatchSyncStatusView: View {
+    @ObservedObject private var model = WatchAppAssembly.shared.model
+    @ObservedObject private var chrome = WatchAppAssembly.shared.chrome
+    @ObservedObject private var state = WatchAppAssembly.shared.syncStatus
+
+    var body: some View {
+        List {
+            Section("Connection") {
+                Text(chrome.showsConnectedFeatures ? "iPhone app reachable" : "iPhone app not reachable")
+                    .font(.caption).accessibilityIdentifier("watch.sync.connection")
+                Text("Background downloads can still arrive when the iPhone app is not reachable.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            Section("Sync History") {
+                history("Last catalog update", date: state.lastCatalogSyncAt)
+                history("Last iPhone status", date: state.lastPhoneStatusAt)
+                history("Last audio installed", date: state.lastAudioInstalledAt)
+                if let report = state.downloads?.lastWatchReportAt {
+                    history("Last watch report", date: report)
+                }
+                if let requested = state.lastRequestedAt { history("Sync requested", date: requested) }
+            }
+            Section("Downloads") {
+                count("Installed on this watch", value: model.tracks.filter(\.isReady).count)
+                    .accessibilityIdentifier("watch.sync.installedCount")
+                if let downloads = state.downloads {
+                    let waiting = downloads.activities.filter {
+                        [.queued, .waitingForDelivery, .awaitingInstallation].contains($0.stage)
+                    }.count
+                    count("Waiting", value: downloads.activities.isEmpty ? downloads.queuedCount : waiting)
+                    count("Preparing", value: downloads.activities.filter { $0.stage == .preparing }.count)
+                    count("Actively downloading", value: downloads.activeCount)
+                    count("Waiting for Wi-Fi", value: downloads.waitingForWiFiCount)
+                    count("Failed", value: downloads.failedCount)
+                } else {
+                    Text("No download report received from iPhone yet.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            if let downloads = state.downloads, !downloads.activities.isEmpty {
+                Section("Track Activity") {
+                    ForEach(downloads.activities) { activity in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(activity.title.isEmpty ? (model.track(id: activity.id)?.title ?? "Track") : activity.title)
+                                .font(.caption).lineLimit(2)
+                            Text(stageText(activity.stage)).font(.caption2).foregroundStyle(.secondary)
+                            if activity.stage == .transferring, let fraction = activity.fractionComplete {
+                                ProgressView(value: fraction)
+                                Text("\(Int(fraction * 100))% transferred").font(.caption2)
+                            }
+                            if let message = activity.message {
+                                Text(message).font(.caption2).foregroundStyle(.orange)
+                            }
+                        }
+                    }
+                }
+            }
+            Section {
+                Button("Refresh Sync") {
+                    Task { await WatchAppAssembly.shared.requestSyncStatus() }
+                }
+                .accessibilityIdentifier("watch.sync.refresh")
+                if let requested = state.lastRequestedAt {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Sync requested").font(.caption)
+                        Text(requested.formatted(date: .omitted, time: .shortened))
+                            .font(.caption2).foregroundStyle(.secondary)
+                        Text("Queued for iPhone. Downloads are confirmed only after installation.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("watch.sync.requested")
+                }
+                if (state.downloads?.failedCount ?? 0) > 0 {
+                    Button("Retry Failed Downloads") {
+                        Task { await WatchAppAssembly.shared.controlDownloads(.retryFailed) }
+                    }
+                }
+                NavigationLink(value: WatchNav.downloads) { Text("Manage Downloads") }
+            }
+        }
+        .listStyle(.plain).navigationTitle("Sync Status")
+        .accessibilityIdentifier("watch.sync.screen")
+        .task {
+            while !Task.isCancelled {
+                await WatchAppAssembly.shared.refreshSyncReachability()
+                await model.refresh()
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
+    }
+
+    private func history(_ title: LocalizedStringKey, date: Date?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption2).foregroundStyle(.secondary)
+            if let date { Text(date.formatted(date: .abbreviated, time: .shortened)).font(.caption) }
+            else { Text("Not yet").font(.caption) }
+        }
+    }
+
+    private func count(_ title: LocalizedStringKey, value: Int) -> some View {
+        HStack { Text(title).font(.caption2); Spacer(); Text("\(value)").font(.caption) }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(title))
+            .accessibilityValue(Text("\(value)"))
+    }
+
+    private func stageText(_ stage: WatchDownloadActivity.Stage) -> LocalizedStringKey {
+        switch stage {
+        case .queued: "Queued on iPhone"
+        case .preparing: "Preparing audio on iPhone"
+        case .waitingForDelivery: "Waiting for iPhone to send file"
+        case .transferring: "Downloading to this watch"
+        case .awaitingInstallation: "Waiting for watch installation"
+        case .waitingForWiFi: "Waiting for Wi-Fi"
+        case .failed: "Download failed"
+        case .paused: "Paused"
+        }
     }
 }

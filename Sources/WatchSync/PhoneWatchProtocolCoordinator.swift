@@ -134,22 +134,32 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
     public func publishContext(playback: WatchPhonePlaybackSnapshot? = nil,
                                downloads: WatchDownloadStatusSnapshot? = nil,
                                at date: Date = Date()) async -> Bool {
-        let merged = WatchContextSnapshot(
+        var merged = WatchContextSnapshot(
             pairedLibraryID: libraryID, phoneRevision: await revisionStore.currentRevision(),
             updatedAt: date,
             playback: playback ?? lastPublishedContext?.playback,
             downloads: downloads ?? lastPublishedContext?.downloads)
-        if let previous = lastPublishedContext,
-           previous.playback == merged.playback, previous.downloads == merged.downloads {
-            return false
+        if let previous = lastPublishedContext {
+            var previousDownloads = previous.downloads
+            if let downloads { previousDownloads?.revision = downloads.revision }
+            if previous.playback == merged.playback, previousDownloads == merged.downloads { return false }
+        }
+        if var downloads {
+            downloads.revision = await revisionStore.nextRevision()
+            merged.downloads = downloads
+            merged.phoneRevision = downloads.revision
         }
         guard let data = try? WatchProtocolEnvelope.fromPhone(
             kind: playback != nil ? .phonePlaybackSnapshot : .downloadStatusSnapshot,
             payload: merged, libraryID: libraryID, revision: merged.phoneRevision,
             sentAt: date) else { return false }
-        lastPublishedContext = merged
-        try? await transport.updateApplicationContext(data)
-        return true
+        do {
+            try await transport.updateApplicationContext(data)
+            lastPublishedContext = merged
+            return true
+        } catch {
+            return false // Leave the previous publication intact so the next tick retries.
+        }
     }
 
     /// §5.3 `setDownloadRoots` — always the complete desired set, always at a fresh revision.
@@ -195,6 +205,12 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
 
     public func receiveImmediate(_ data: Data) async -> Data? {
         guard let envelope = await accept(data) else { return errorReply(for: data) }
+        switch envelope.kind {
+        case .watchManifest, .requestReconciliation, .requestDownload, .downloadControl:
+            if await ledger.admit(envelope.messageID) == .apply { await applyDurable(envelope) }
+            return try? envelope.reply(kind: .commandReply, payload: WatchCommandReply.accepted())
+        default: break
+        }
         if envelope.kind == .hello, let hello = try? envelope.decodePayload(WatchHello.self) {
             await observer?.watchDidNegotiate(hello)
         }
@@ -202,12 +218,12 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
     }
 
     public func receiveApplicationContext(_ data: Data) async {
-        guard let envelope = await accept(data) else { return }
+        guard let envelope = await accept(data, notesLiveness: false) else { return }
         await applyDurable(envelope)
     }
 
     public func receiveUserInfo(_ data: Data) async {
-        guard let envelope = await accept(data) else { return }
+        guard let envelope = await accept(data, notesLiveness: false) else { return }
         guard await ledger.admit(envelope.messageID) == .apply else { return }
         await applyDurable(envelope)
     }
@@ -220,12 +236,12 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
                                    revision: { await store.currentRevision() })
     }
 
-    private func accept(_ data: Data) async -> WatchProtocolEnvelope? {
+    private func accept(_ data: Data, notesLiveness: Bool = true) async -> WatchProtocolEnvelope? {
         switch WatchProtocolEnvelope.decode(data) {
         case .failure:
             return nil
         case .success(let envelope):
-            await run(reducer.apply(.peerResponded, at: Date()))
+            if notesLiveness { await run(reducer.apply(.peerResponded, at: Date())) }
             return envelope
         }
     }

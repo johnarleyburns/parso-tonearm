@@ -10,6 +10,7 @@ import TonearmWatchProtocol
 /// persistence path; offline content is whatever `WatchLibraryRepository` says is ready.
 @MainActor
 final class WatchAppAssembly {
+    let syncStatus: WatchSyncStatusState
     static let shared = WatchAppAssembly()
 
     let repository: WatchLibraryRepository?
@@ -93,6 +94,16 @@ final class WatchAppAssembly {
         await coordinator?.controlDownloads(WatchDownloadControl(action: action, rootID: rootID))
     }
 
+    func refreshSyncReachability() async {
+        await coordinator?.refreshReachability()
+        await syncStatus.refreshInstallationDate()
+    }
+
+    func requestSyncStatus() async {
+        syncStatus.requestedSync()
+        await coordinator?.requestReconciliation()
+    }
+
     /// Watch redesign B3 — ask the phone to download one song from a long-press menu.
     func requestDownloads(_ trackIDs: [WatchTrackID]) async {
         for id in trackIDs { await coordinator?.requestDownload(trackID: id, wantsDownload: true) }
@@ -161,6 +172,7 @@ final class WatchAppAssembly {
         self.chrome = chrome
 
         guard let container = bootstrap.container, let audio = bootstrap.audioDirectory else {
+            self.syncStatus = WatchSyncStatusState()
             self.repository = nil
             self.installer = nil
             self.artworkInstaller = nil
@@ -179,6 +191,8 @@ final class WatchAppAssembly {
 
         let artwork = bootstrap.artworkDirectory ?? audio.deletingLastPathComponent().appendingPathComponent("WatchArtwork", isDirectory: true)
         let repo = WatchLibraryRepository(container: container, audioDirectory: audio, artworkDirectory: artwork)
+        let syncStatus = WatchSyncStatusState(latestInstallation: { try? await repo.lastAudioInstallationDate() })
+        self.syncStatus = syncStatus
         let staging = audio.deletingLastPathComponent().appendingPathComponent("Staging", isDirectory: true)
         let inst = WatchFileInstaller(repository: repo, audioDirectory: audio, stagingDirectory: staging)
         let artworkStaging = audio.deletingLastPathComponent().appendingPathComponent("StagingArtwork", isDirectory: true)
@@ -216,7 +230,7 @@ final class WatchAppAssembly {
         let remotePlayback = WatchRemotePlaybackObserver()
         let diagObs = WatchDiagnosticsObserver(diagnostics: diag)
         let downloadStatusObs = WatchDownloadStatusObserver(model: mdl)
-        let fan = WatchFanoutObserver([sync, reach, chromeObs, remotePlayback, diagObs, downloadStatusObs])
+        let fan = WatchFanoutObserver([sync, reach, chromeObs, remotePlayback, diagObs, downloadStatusObs, syncStatus])
         let adpt = WatchProtocolSessionAdapter(endpoint: coord)
 
         self.repository = repo

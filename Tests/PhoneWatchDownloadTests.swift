@@ -153,6 +153,55 @@ private func manifest(_ ids: [String], id: String = UUID().uuidString) -> WatchM
 // MARK: - Tests
 
 final class PhoneWatchDownloadTests: XCTestCase {
+    func testUnconfirmedSentDownloadCanBeCancelledButInstalledAudioCannot() async throws {
+        let db = try freshQueue()
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a", "b"]), transfer: transfer)
+        try await manager.setRoots([root("r", tracks: ["a", "b"])])
+        let jobs = try await store.jobs()
+        let pending = try XCTUnwrap(jobs.first { $0.trackID == "a" })
+        let ready = try XCTUnwrap(jobs.first { $0.trackID == "b" })
+        XCTAssertEqual(pending.state, .sent)
+        try await manager.ingestManifest(manifest(["b"]))
+        // A late persisted job must not cancel a transfer for already installed audio.
+        try await store.upsertJob(ready)
+        try await manager.cancelJob(requestID: ready.requestID)
+        let settled = try await store.jobs()
+        XCTAssertEqual(settled.first { $0.trackID == "b" }?.state, .sent)
+        try await manager.cancelJob(requestID: pending.requestID)
+        let cancelled = await transfer.cancelled
+        XCTAssertEqual(cancelled, ["a"])
+        let after = try await store.jobs()
+        XCTAssertEqual(after.first { $0.trackID == "a" }?.state, .cancelled)
+        let installed = try await store.installedTrackIDs()
+        XCTAssertEqual(installed, ["b"])
+    }
+
+    func testQueuedFilesAndUnconfirmedInstallationsRemainVisibleUntilWatchReportsReady() async throws {
+        let db = try freshQueue()
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]), transfer: transfer)
+        try await manager.setRoots([root("r", tracks: ["a"])])
+        await transfer.setOutstanding(["a"])
+        let queued = try await manager.statusSnapshot(transferFractions: ["a": 0])
+        XCTAssertEqual(queued.activities.first?.stage, .waitingForDelivery)
+        XCTAssertFalse(queued.isIdle)
+        XCTAssertEqual(queued.readyCount, 0)
+        let moving = try await manager.statusSnapshot(transferFractions: ["a": 0.5])
+        XCTAssertEqual(moving.activities.first?.stage, .transferring)
+        XCTAssertEqual(moving.activeCount, 1)
+        await transfer.setOutstanding([])
+        let unconfirmed = try await manager.statusSnapshot()
+        XCTAssertEqual(unconfirmed.activities.first?.stage, .awaitingInstallation)
+        XCTAssertFalse(unconfirmed.isIdle)
+        try await manager.ingestManifest(manifest(["a"]))
+        let installed = try await manager.statusSnapshot()
+        XCTAssertTrue(installed.activities.isEmpty)
+        XCTAssertEqual(installed.readyCount, 1)
+        XCTAssertTrue(installed.isIdle)
+    }
+
     func testCancellationDuringPreparationDoesNotEnqueueAudio() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)

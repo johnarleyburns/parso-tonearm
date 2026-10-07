@@ -76,3 +76,61 @@ public actor WatchInMemorySyncStateStore: WatchSyncStateStore {
     public func loadLastAppliedPhoneRevision() async -> Int64 { lastAppliedPhoneRevision }
     public func saveLastAppliedPhoneRevision(_ revision: Int64) async { lastAppliedPhoneRevision = revision }
 }
+
+/// Fans one coordinator's observer callbacks out to several observers. The coordinator holds exactly
+/// one observer; the watch app needs two — `WatchSyncActor` (turns the link into SwiftData truth)
+/// and `WatchReachabilityObserver` (drives the connection chrome). Every method forwards verbatim.
+public actor WatchFanoutObserver: WatchConnectivityObserver {
+    private let observers: [any WatchConnectivityObserver]
+
+    public init(_ observers: [any WatchConnectivityObserver]) {
+        self.observers = observers
+    }
+
+    public func connectionStateDidChange(_ state: WatchConnectionReducer.State,
+                                        connectivity: WatchConnectivityState) async {
+        for o in observers { await o.connectionStateDidChange(state, connectivity: connectivity) }
+    }
+    public func didConfirmDisconnection() async {
+        for o in observers { await o.didConfirmDisconnection() }
+    }
+    public func didReconnect() async {
+        for o in observers { await o.didReconnect() }
+    }
+    public func didNegotiate(_ session: WatchNegotiatedSession) async {
+        for o in observers { await o.didNegotiate(session) }
+    }
+    public func negotiationDidFail(_ fault: WatchProtocolFault) async {
+        for o in observers { await o.negotiationDidFail(fault) }
+    }
+    public func didReceivePhonePlayback(_ snapshot: WatchPhonePlaybackSnapshot) async {
+        for o in observers { await o.didReceivePhonePlayback(snapshot) }
+    }
+    public func didReceiveDownloadStatus(_ snapshot: WatchDownloadStatusSnapshot) async {
+        for o in observers { await o.didReceiveDownloadStatus(snapshot) }
+    }
+    public func didReceiveDownloadRoots(_ payload: WatchSetDownloadRoots) async {
+        for o in observers { await o.didReceiveDownloadRoots(payload) }
+    }
+    public func didReceiveRemoveAssets(_ payload: WatchRemoveAssets) async {
+        for o in observers { await o.didReceiveRemoveAssets(payload) }
+    }
+    public func didReceiveCatalogPage(_ page: WatchLibraryPage) async {
+        for o in observers { await o.didReceiveCatalogPage(page) }
+    }
+    public func didReceiveAudioFile(at stagedURL: URL, metadata: [String: String]) async {
+        // The staged file is consumed by the first observer that installs it; forward to each in
+        // turn. In practice only the sync actor implements this.
+        for o in observers { await o.didReceiveAudioFile(at: stagedURL, metadata: metadata) }
+    }
+    public func didReceiveArtworkFile(at stagedURL: URL, metadata: [String: String]) async {
+        for o in observers { await o.didReceiveArtworkFile(at: stagedURL, metadata: metadata) }
+    }
+    public func phoneRequestedReconciliation(_ request: WatchReconciliationRequest) async {
+        for o in observers { await o.phoneRequestedReconciliation(request) }
+    }
+    public func pairedLibraryChangeRequiresConfirmation(current: WatchPairedLibraryID,
+                                                 incoming: WatchPairedLibraryID) async {
+        for o in observers { await o.pairedLibraryChangeRequiresConfirmation(current: current, incoming: incoming) }
+    }
+}

@@ -98,11 +98,18 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
         XCTAssertEqual(snap.activity.first?.stage, .paused)
     }
 
-    func testSentAndCancelledJobsAreNotActivity() {
+    func testUnconfirmedSentJobsRemainActivityAndCancelledJobsAreHidden() {
         let jobs = [job("a", roots: ["r"], state: .sent), job("b", roots: ["r"], state: .cancelled)]
         let snap = P.snapshot(pairing: .connected(since: t0), roots: [root("r", tracks: ["a", "b"])],
                               jobs: jobs, manifestEntries: [], watchManifest: nil, now: t0)
-        XCTAssertTrue(snap.activity.isEmpty)
+        XCTAssertEqual(snap.activity.map(\.trackID), ["a"])
+        XCTAssertEqual(snap.activity.first?.stage, .waitingForDelivery)
+        XCTAssertEqual(snap.banner?.activeCount, 1)
+        XCTAssertEqual(snap.collections.first?.readyCount, 0)
+        XCTAssertFalse(snap.collections.first?.isFullyReady ?? true)
+        let confirmed = P.snapshot(pairing: .connected(since: t0), roots: [root("r", tracks: ["a"])],
+            jobs: [jobs[0]], manifestEntries: [entry("a")], watchManifest: nil, now: t0)
+        XCTAssertTrue(confirmed.activity.isEmpty)
     }
 
     // MARK: collections

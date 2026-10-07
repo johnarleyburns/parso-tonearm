@@ -205,6 +205,14 @@ public actor WatchLibraryRepository {
         }.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
+    public func lastAudioInstallationDate() throws -> Date? {
+        let context = ModelContext(container)
+        return try context.fetch(FetchDescriptor<WatchAssetModel>())
+            .filter { $0.validationState == .ready
+                && FileManager.default.fileExists(atPath: audioDirectory.appendingPathComponent($0.relativeFilename).path) }
+            .map(\.installedAt).max()
+    }
+
     public func playlists() throws -> [WatchPlaylistSnapshot] {
         let context = ModelContext(container)
         let ready = Set(try context.fetch(FetchDescriptor<WatchAssetModel>()).filter { $0.validationState == .ready }.map(\.trackID))
