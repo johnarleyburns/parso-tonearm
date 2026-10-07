@@ -77,3 +77,19 @@ production watch receive/installer/offline playback path. Existing download test
 cover durable delivery grace, queued-file concurrency, restart, pause/remove,
 migration, and truthful management status. Apple requires actual paired devices
 for file-transfer validation; simulator and fake-link tests do not replace that check.
+
+## Build 534 device findings (2026-10-07)
+
+The paired phone's persisted journal shows Home Cooking III chunk zero delivered
+by WCSession but no recorded watch manifest, with zero acknowledged chunks.
+The missing acknowledgement occupies the single global slot; other tracks wait.
+The cause of the absent watch report remains unproven. Do not treat successful
+fake-link tests as evidence that the physical-device stall is resolved.
+
+Two iPhone TestFlight crash reports (11:00 and 11:11 local time, build 534)
+both trap in the error callback resuming the checked continuation in
+`WatchSessionTransport.sendImmediate`. The native completion now claims that
+continuation atomically once, ignoring repeated/racing reply and error callbacks.
+Envelope tests exercise error/error/reply, reply/error/reply, and 100 concurrent
+callbacks. Playlist activity labels now use the phone library's per-track titles,
+and About exposes the existing Diagnostics screen with a watch UI regression test.

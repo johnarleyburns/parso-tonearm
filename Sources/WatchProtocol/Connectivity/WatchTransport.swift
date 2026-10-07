@@ -1,4 +1,28 @@
 import Foundation
+import Synchronization
+
+/// Native reply/error callbacks can race or arrive more than once. Claim the
+/// continuation under a lock, then resume outside it; only the first result wins.
+final class WatchImmediateCompletion: Sendable {
+    private let continuation: Mutex<CheckedContinuation<Data, any Error>?>
+
+    init(_ continuation: CheckedContinuation<Data, any Error>) {
+        self.continuation = Mutex(continuation)
+    }
+
+    func finish(_ result: Result<Data, WatchProtocolFault>) {
+        let claimed = continuation.withLock { value in
+            let claimed = value
+            value = nil
+            return claimed
+        }
+        guard let claimed else { return }
+        switch result {
+        case .success(let data): claimed.resume(returning: data)
+        case .failure(let fault): claimed.resume(throwing: fault)
+        }
+    }
+}
 
 /// The transport seam. Everything above this line speaks typed envelopes; everything below it is a
 /// WCSession adapter whose only job is to move `Data`.

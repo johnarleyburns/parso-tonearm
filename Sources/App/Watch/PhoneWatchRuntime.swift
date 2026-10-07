@@ -493,13 +493,21 @@ final class PhoneWatchRuntime {
         if !connected { connectedSince = nil }
 
         let roots = (try? await downloadStore.roots()) ?? []
+        var trackTitles: [String: String] = [:]
+        for job in jobs {
+            let id = WatchTrackID(job.trackID)
+            let row: TrackRow?
+            if let localID = PhoneWatchID.trackRowID(id) { row = try? await store.trackRow(id: localID) }
+            else { row = try? await store.trackRow(syncID: id.rawValue) }
+            if let row { trackTitles[job.trackID] = row.track.title }
+        }
         management = PhoneWatchManagementPresenter.snapshot(
             pairing: currentPairing(),
             roots: roots, jobs: jobs, manifestEntries: entries,
             watchManifest: lastWatchManifest, now: Date(),
             transferFractions: PhoneWatchProtocolAdapter.activeAudioTransferFractions(),
             chunkProgress: await chunkSender.progress(),
-            syncHistory: syncHistory)
+            syncHistory: syncHistory, trackTitles: trackTitles)
 
         onChange?()
     }

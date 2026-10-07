@@ -194,9 +194,10 @@ public enum PhoneWatchManagementPresenter {
                                 now: Date,
                                 transferFractions: [String: Double] = [:],
                                 chunkProgress: [String: PhoneWatchResumableAudioTransfer.Progress] = [:],
-                                syncHistory: SyncHistory = .init()) -> Snapshot {
+                                syncHistory: SyncHistory = .init(),
+                                trackTitles: [String: String] = [:]) -> Snapshot {
         let installed = Set(manifestEntries.map(\.trackID))
-        let titles = trackTitleIndex(roots: roots)
+        let titles = trackTitleIndex(roots: roots).merging(trackTitles) { _, libraryTitle in libraryTitle }
 
         // Storage
         var storage: Storage?

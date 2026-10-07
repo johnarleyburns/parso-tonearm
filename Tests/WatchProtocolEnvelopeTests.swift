@@ -4,6 +4,40 @@ import XCTest
 /// §5.1–5.5 codec coverage: every kind round-trips, unknown fields and versions behave as
 /// specified, and the error vocabulary stays complete.
 final class WatchProtocolEnvelopeTests: XCTestCase {
+    func testImmediateCompletionIgnoresRepeatedErrorsAndLateReply() async {
+        do {
+            let _: Data = try await withCheckedThrowingContinuation { continuation in
+                let completion = WatchImmediateCompletion(continuation)
+                completion.finish(.failure(.init(code: .phoneUnavailable)))
+                completion.finish(.failure(.init(code: .requestTimedOut)))
+                completion.finish(.success(Data([1])))
+            }
+            XCTFail("The first error must win")
+        } catch {
+            XCTAssertEqual((error as? WatchProtocolFault)?.code, .phoneUnavailable)
+        }
+    }
+
+    func testImmediateCompletionIgnoresLateErrorsAfterReply() async throws {
+        let result: Data = try await withCheckedThrowingContinuation { continuation in
+            let completion = WatchImmediateCompletion(continuation)
+            completion.finish(.success(Data([42])))
+            completion.finish(.failure(.init(code: .requestTimedOut)))
+            completion.finish(.success(Data([99])))
+        }
+        XCTAssertEqual(result, Data([42]))
+    }
+
+    func testImmediateCompletionClaimsExactlyOneConcurrentCallback() async throws {
+        let result: Data = try await withCheckedThrowingContinuation { continuation in
+            let completion = WatchImmediateCompletion(continuation)
+            DispatchQueue.concurrentPerform(iterations: 100) { index in
+                completion.finish(.success(Data([UInt8(index)])))
+            }
+        }
+        XCTAssertEqual(result.count, 1)
+    }
+
     func testAudioContainerSurvivesMetadataRoundTripAndCacheNaming() throws {
         let cache = URL(fileURLWithPath: "/cache/" + String(repeating: "a", count: 64) + "-MP3")
         let metadata = WatchAudioFileMetadata(trackID: "cached", expectedBytes: 42,

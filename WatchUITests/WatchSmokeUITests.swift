@@ -190,6 +190,10 @@ final class WatchSmokeUITests: XCTestCase {
         about.tap()
         XCTAssertTrue(app.descendants(matching: .any)["watch.about.build"].waitForExistence(timeout: 8),
                       "About did not show the installed watch build")
+        let diagnostics = app.descendants(matching: .any)["watch.about.diagnostics"]
+        XCTAssertTrue(reveal(diagnostics, in: app), "About must expose sync diagnostics")
+        diagnostics.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["watch.diagnostics.json"].waitForExistence(timeout: 8))
     }
 
     private func playPlaylist(_ app: XCUIApplication, name: String, requireElapsedAdvance: Bool) -> Bool {

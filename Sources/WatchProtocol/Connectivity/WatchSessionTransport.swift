@@ -35,13 +35,14 @@ public struct WatchSessionTransport: WatchProtocolTransport {
         guard session.isReachable else { throw WatchProtocolFault(code: .phoneUnavailable) }
 
         return try await withCheckedThrowingContinuation { continuation in
+            let completion = WatchImmediateCompletion(continuation)
             // `sendMessageData` calls back on WatchConnectivity's own queue. The continuation is the
             // hop; no manual dispatch to main is needed, and adding one would only add latency to
             // the eight-second budget.
             session.sendMessageData(data, replyHandler: { reply in
-                continuation.resume(returning: reply)
+                completion.finish(.success(reply))
             }, errorHandler: { error in
-                continuation.resume(throwing: Self.fault(for: error))
+                completion.finish(.failure(Self.fault(for: error)))
             })
         }
     }

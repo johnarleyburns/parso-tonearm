@@ -273,6 +273,12 @@ struct WatchAboutView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("watch.about.build")
             }
+            NavigationLink {
+                WatchDiagnosticsView()
+            } label: {
+                Label("Diagnostics", systemImage: "waveform.path.ecg")
+            }
+            .accessibilityIdentifier("watch.about.diagnostics")
         }
         .navigationTitle("About")
         .listStyle(.plain)

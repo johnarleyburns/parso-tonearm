@@ -9,6 +9,15 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
 
     private let t0 = Date(timeIntervalSince1970: 100_000)
 
+    func testPlaylistMembersUseLibraryTitlesInsteadOfGUIDs() {
+        let id = "C9FBC56A-1F9B-4775-ABF7-BF92F7374A63"
+        let snapshot = P.snapshot(pairing: .pairedNotReachable,
+            roots: [root("home", title: "Home Cooking", tracks: [id])],
+            jobs: [job(id, roots: ["home"], state: .sent)], manifestEntries: [],
+            watchManifest: nil, now: t0, trackTitles: [id: "Home Cooking III"])
+        XCTAssertEqual(snapshot.activity.first?.title, "Home Cooking III")
+    }
+
     func testChunkProgressShowsSavedCheckpointAndNotWaitingForWholeFileInstallation() {
         let receipt = WatchPartialAudioDownload(trackID: "fred", assetSHA256: String(repeating: "a", count: 64),
             totalBytes: 100 * 1_048_576, chunkBytes: 1_048_576, receivedChunkIndexes: Array(0..<50))
