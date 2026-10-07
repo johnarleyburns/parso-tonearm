@@ -9,6 +9,51 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
 
     private let t0 = Date(timeIntervalSince1970: 100_000)
 
+    func testChunkProgressShowsSavedCheckpointAndNotWaitingForWholeFileInstallation() {
+        let receipt = WatchPartialAudioDownload(trackID: "fred", assetSHA256: String(repeating: "a", count: 64),
+            totalBytes: 100 * 1_048_576, chunkBytes: 1_048_576, receivedChunkIndexes: Array(0..<50))
+        let snapshot = P.snapshot(pairing: .pairedNotReachable,
+            roots: [root("r", tracks: ["fred"])], jobs: [job("fred", roots: ["r"], state: .sent)],
+            manifestEntries: [], watchManifest: nil, now: t0,
+            chunkProgress: ["fred": .init(checkpoint: receipt, stage: .awaitingChunkConfirmation)])
+        XCTAssertEqual(snapshot.activity.first?.stage, .awaitingChunkConfirmation)
+        XCTAssertEqual(snapshot.activity.first?.fractionComplete, 0.5)
+        XCTAssertEqual(snapshot.activity.first?.receivedChunkCount, 50)
+        XCTAssertEqual(snapshot.activity.first?.totalChunkCount, 100)
+        XCTAssertEqual(snapshot.storage?.installedBytes, 0)
+        XCTAssertEqual(snapshot.storage?.trackCount, 0)
+    }
+
+    func testSentJobsUseRealSystemProgressInsteadOfAlwaysWaitingForInstallation() {
+        let roots = [root("r", tracks: ["fred"])]
+        let jobs = [job("fred", roots: ["r"], state: .sent, bytes: 174_000_000)]
+        for (fraction, stage) in [(0.0, P.ActivityStage.waitingForDelivery),
+                                  (0.08, .transferring), (1.0, .awaitingInstallation)] {
+            let snapshot = P.snapshot(pairing: .pairedNotReachable, roots: roots, jobs: jobs,
+                manifestEntries: [], watchManifest: nil, now: t0, transferFractions: ["fred": fraction])
+            XCTAssertEqual(snapshot.activity.first?.stage, stage)
+            XCTAssertEqual(snapshot.activity.first?.fractionComplete, fraction)
+            XCTAssertEqual(snapshot.activity.first?.expectedBytes, 174_000_000)
+            XCTAssertTrue(snapshot.activity.first?.canRetry ?? false)
+            XCTAssertEqual(snapshot.storage?.trackCount, 0)
+        }
+    }
+
+    func testSyncReceiptsAndSystemStorageAreSeparateFromInstalledMusic() {
+        let history = P.SyncHistory(lastWatchReportAt: t0, lastCatalogSentAt: t0,
+            lastCatalogReceivedAt: t0.addingTimeInterval(-5))
+        let snapshot = P.snapshot(pairing: .pairedNotReachable, roots: [], jobs: [], manifestEntries: [],
+            watchManifest: .init(manifestID: "m", readyTrackIDs: [], installedBytes: 0,
+                capacityBytes: 1000, freeBytes: 680), now: t0, syncHistory: history)
+        XCTAssertEqual(snapshot.storage?.usedFraction, 0.32)
+        XCTAssertEqual(snapshot.storage?.installedBytes, 0)
+        XCTAssertEqual(snapshot.storage?.trackCount, 0)
+        XCTAssertEqual(snapshot.syncHistory, history)
+        XCTAssertNil(snapshot.syncHistory.lastAudioInstalledAt)
+        let restored = try? JSONDecoder().decode(P.SyncHistory.self, from: JSONEncoder().encode(history))
+        XCTAssertEqual(restored, history, "Receipt history must survive app relaunch without becoming a success claim")
+    }
+
     private func root(_ id: String, kind: WatchRootKind = .playlist, title: String = "",
                       tracks: [String], paused: Bool = false) -> PhoneWatchDownloadRoot {
         PhoneWatchDownloadRoot(rootID: id, kind: kind, sourceID: "src-\(id)",
@@ -103,7 +148,7 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
         let snap = P.snapshot(pairing: .connected(since: t0), roots: [root("r", tracks: ["a", "b"])],
                               jobs: jobs, manifestEntries: [], watchManifest: nil, now: t0)
         XCTAssertEqual(snap.activity.map(\.trackID), ["a"])
-        XCTAssertEqual(snap.activity.first?.stage, .waitingForDelivery)
+        XCTAssertEqual(snap.activity.first?.stage, .awaitingInstallation)
         XCTAssertEqual(snap.banner?.activeCount, 1)
         XCTAssertEqual(snap.collections.first?.readyCount, 0)
         XCTAssertFalse(snap.collections.first?.isFullyReady ?? true)

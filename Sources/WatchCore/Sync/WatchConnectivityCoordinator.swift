@@ -374,6 +374,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
     private func accept(_ data: Data, notesLiveness: Bool = true) async -> WatchProtocolEnvelope? {
         switch WatchProtocolEnvelope.decode(data) {
         case .failure(let failure):
+            if !notesLiveness, case .unsupportedVersion = failure { return nil }
             if case .unsupportedVersion = failure { await markIncompatible() }
             if case .unsupportedKind = failure { await markIncompatible() }
             await observer?.negotiationDidFail(WatchProtocolFault(code: failure.errorCode))

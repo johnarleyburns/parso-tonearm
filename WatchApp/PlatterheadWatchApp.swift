@@ -42,6 +42,9 @@ struct PlatterheadWatchApp: App {
                 }
             #endif
         }
+        .backgroundTask(.watchConnectivity) {
+            await WatchAppAssembly.shared.finishBackgroundDelivery()
+        }
     }
 }
 

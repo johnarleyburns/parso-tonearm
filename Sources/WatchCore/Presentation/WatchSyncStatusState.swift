@@ -46,6 +46,11 @@ public final class WatchSyncStatusState: ObservableObject, WatchConnectivityObse
 
     public func requestedSync() { lastRequestedAt = now() }
 
+    public func isDownloadStatusStale(at date: Date, after interval: TimeInterval = 30) -> Bool {
+        guard downloads != nil, let lastPhoneStatusAt else { return false }
+        return date.timeIntervalSince(lastPhoneStatusAt) > interval
+    }
+
     public func refreshInstallationDate() async {
         guard let date = await latestInstallation() else { return }
         lastAudioInstalledAt = date

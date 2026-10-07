@@ -247,11 +247,14 @@ public struct PhoneWatchLibraryArtworkResolver: PhoneWatchArtworkResolving {
 public struct PhoneWatchSessionFileTransfer: PhoneWatchFileTransferring {
     let transport: any WatchProtocolTransport
     let phoneRevision: @Sendable () async -> Int64
+    let chunkSender: PhoneWatchResumableAudioTransfer?
 
     public init(transport: any WatchProtocolTransport,
-                phoneRevision: @escaping @Sendable () async -> Int64 = { 0 }) {
+                phoneRevision: @escaping @Sendable () async -> Int64 = { 0 },
+                chunkSender: PhoneWatchResumableAudioTransfer? = nil) {
         self.transport = transport
         self.phoneRevision = phoneRevision
+        self.chunkSender = chunkSender
     }
 
     public func transfer(fileURL: URL, trackID: WatchTrackID,
@@ -260,15 +263,18 @@ public struct PhoneWatchSessionFileTransfer: PhoneWatchFileTransferring {
             trackID: trackID, expectedBytes: expectedBytes, sha256: sha256,
             fileExtension: WatchAudioFileMetadata.fileExtension(for: fileURL),
             pinned: true, phoneRevision: await phoneRevision())
-        try await transport.transferFile(fileURL, metadata: metadata.dictionary)
+        if let chunkSender { try await chunkSender.begin(fileURL: fileURL, audio: metadata) }
+        else { try await transport.transferFile(fileURL, metadata: metadata.dictionary) }
     }
 
     public func outstandingTransfers() async -> [WatchTrackID] {
-        PhoneWatchProtocolAdapter.outstandingAudioTrackIDs()
+        let planned = await chunkSender?.activeTrackIDs() ?? []
+        return Array(Set(PhoneWatchProtocolAdapter.outstandingAudioTrackIDs() + planned))
     }
 
     public func cancelTransfer(trackID: WatchTrackID) async {
-        PhoneWatchProtocolAdapter.cancelAudioTransfer(trackID: trackID)
+        if let chunkSender { await chunkSender.suspend(trackID: trackID) }
+        else { PhoneWatchProtocolAdapter.cancelAudioTransfer(trackID: trackID) }
     }
 }
 

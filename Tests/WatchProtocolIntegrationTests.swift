@@ -7,6 +7,34 @@ import XCTest
 /// every case below is the real phone code talking to the real watch code — no simulator, no
 /// WatchConnectivity, no wall-clock waits beyond a grace period the test itself picks.
 final class WatchProtocolIntegrationTests: XCTestCase {
+    func testCachedPreChunkProtocolPacketsDoNotPoisonAnUpdatedSession() async throws {
+        let harness = await makeConnectedHarness()
+        let stale = try WatchProtocolEnvelope.encode(kind: .downloadStatusSnapshot,
+            payload: WatchDownloadStatusSnapshot(revision: 999, activeCount: 1),
+            pairedLibraryID: libraryID, protocolVersion: 1)
+        await harness.watch.receiveApplicationContext(stale)
+        await harness.watch.receiveUserInfo(stale)
+        let state = await harness.watch.connectionState
+        guard case .connected = state else { return XCTFail("Cached v1 data poisoned the v2 session") }
+        await harness.phone.publishContext(downloads: .init(revision: 1, readyCount: 3))
+        let received = await harness.watchObserver.downloadStatuses
+        XCTAssertEqual(received.last?.readyCount, 3)
+        XCTAssertFalse(received.contains { $0.revision == 999 })
+    }
+    func testLiveDownloadProgressDoesNotWaitForCoalescedApplicationContext() async {
+        let harness = await makeConnectedHarness()
+        await harness.link.setHoldingApplicationContext(true)
+        await harness.phone.publishContext(downloads: .init(revision: 1, activeCount: 1,
+            activities: [.init(trackID: "fred", stage: .transferring, fractionComplete: 0.08)]))
+        await harness.phone.publishContext(downloads: .init(revision: 1, activeCount: 1,
+            activities: [.init(trackID: "fred", stage: .transferring, fractionComplete: 0.09)]))
+        let live = await harness.watchObserver.downloadStatuses
+        XCTAssertEqual(live.map { $0.activities.first?.fractionComplete }, [0.08, 0.09])
+        await harness.link.replayApplicationContext(from: .phone)
+        let afterReplay = await harness.watchObserver.downloadStatuses
+        XCTAssertEqual(afterReplay.count, 2, "Delayed context must not duplicate or replace newer live progress")
+    }
+
     func testBackgroundPacketsDoNotClaimLiveReachabilityOnEitherDevice() async throws {
         let harness = await makeHarness(boundLibraryID: libraryID)
         await harness.phone.activate(reachable: false)
@@ -174,7 +202,7 @@ final class WatchProtocolIntegrationTests: XCTestCase {
 
     func testAPhoneOnANewerProtocolLeavesTheWatchInATerminalUpgradeState() async {
         let harness = await makeHarness()
-        await harness.handler.setHelloProtocolVersion(2)
+        await harness.handler.setHelloProtocolVersion(WatchProtocolEnvelope.currentProtocolVersion + 1)
         await harness.phone.activate(reachable: true)
         await harness.watch.activate(reachable: true)
 

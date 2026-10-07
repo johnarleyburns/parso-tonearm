@@ -41,6 +41,7 @@ public enum PhoneWatchManagementPresenter {
         public var activity: [ActivityRow]
         public var collections: [CollectionRow]
         public var banner: TransferBanner?
+        public var syncHistory = SyncHistory()
 
         public init(pairing: Pairing, connectedForSeconds: TimeInterval?, storage: Storage?,
                     activity: [ActivityRow], collections: [CollectionRow], banner: TransferBanner?) {
@@ -57,6 +58,22 @@ public enum PhoneWatchManagementPresenter {
 
         /// True when there is nothing to manage — no roots, no jobs. Drives the empty state.
         public var isEmpty: Bool { collections.isEmpty && activity.isEmpty }
+    }
+
+    public struct SyncHistory: Codable, Equatable, Sendable {
+        public var lastWatchReportAt: Date?
+        public var lastCatalogSentAt: Date?
+        public var lastStatusSentAt: Date?
+        public var lastCatalogReceivedAt: Date?
+        public var lastAudioInstalledAt: Date?
+
+        public init(lastWatchReportAt: Date? = nil, lastCatalogSentAt: Date? = nil,
+                    lastStatusSentAt: Date? = nil, lastCatalogReceivedAt: Date? = nil,
+                    lastAudioInstalledAt: Date? = nil) {
+            self.lastWatchReportAt = lastWatchReportAt; self.lastCatalogSentAt = lastCatalogSentAt
+            self.lastStatusSentAt = lastStatusSentAt; self.lastCatalogReceivedAt = lastCatalogReceivedAt
+            self.lastAudioInstalledAt = lastAudioInstalledAt
+        }
     }
 
     public struct Storage: Equatable, Sendable {
@@ -92,6 +109,8 @@ public enum PhoneWatchManagementPresenter {
         case failed
         case paused
         case waitingForDelivery
+        case awaitingInstallation
+        case awaitingChunkConfirmation
 
         public var isTerminal: Bool { self == .failed }
     }
@@ -106,6 +125,10 @@ public enum PhoneWatchManagementPresenter {
         public var failureMessage: String?
         public var canRetry: Bool
         public var canCancel: Bool
+        public var fractionComplete: Double? = nil
+        public var expectedBytes: Int64? = nil
+        public var receivedChunkCount: Int? = nil
+        public var totalChunkCount: Int? = nil
 
         public var id: String { requestID }
     }
@@ -168,7 +191,10 @@ public enum PhoneWatchManagementPresenter {
                                 jobs: [PhoneWatchDownloadJob],
                                 manifestEntries: [PhoneWatchManifestEntry],
                                 watchManifest: WatchManifestPayload?,
-                                now: Date) -> Snapshot {
+                                now: Date,
+                                transferFractions: [String: Double] = [:],
+                                chunkProgress: [String: PhoneWatchResumableAudioTransfer.Progress] = [:],
+                                syncHistory: SyncHistory = .init()) -> Snapshot {
         let installed = Set(manifestEntries.map(\.trackID))
         let titles = trackTitleIndex(roots: roots)
 
@@ -206,16 +232,31 @@ public enum PhoneWatchManagementPresenter {
             }
             .map { job in
                 let allRootsPaused = !job.rootIDs.isEmpty && job.rootIDs.allSatisfy { pausedRootIDs.contains($0) }
-                let stage = activityStage(job.state, paused: allRootsPaused)
-                return ActivityRow(
+                let fraction = transferFractions[job.trackID]
+                var stage: ActivityStage
+                if job.state == .sent && !allRootsPaused {
+                    if let fraction, fraction > 0 && fraction < 1 { stage = .transferring }
+                    else if let fraction, fraction < 1 { stage = .waitingForDelivery }
+                    else { stage = .awaitingInstallation }
+                } else { stage = activityStage(job.state, paused: allRootsPaused) }
+                let chunk = chunkProgress[job.trackID]
+                if job.state == .sent && !allRootsPaused, let chunk {
+                    stage = ActivityStage(rawValue: chunk.stage.rawValue) ?? .waitingForDelivery
+                }
+                var row = ActivityRow(
                     requestID: job.requestID,
                     trackID: job.trackID,
                     title: titles[job.trackID] ?? job.trackID,
                     stage: stage,
                     rootIDs: job.rootIDs,
                     failureMessage: job.state == .failed ? job.message : nil,
-                    canRetry: job.state == .failed || job.state == .cancelled,
+                    canRetry: job.state == .failed || job.state == .cancelled || job.state == .sent,
                     canCancel: job.isActive || job.state == .sent)
+                row.fractionComplete = chunk?.checkpoint.fractionRetained ?? fraction
+                row.receivedChunkCount = chunk?.checkpoint.receivedChunkIndexes.count
+                row.totalChunkCount = chunk?.checkpoint.chunkCount
+                row.expectedBytes = job.expectedBytes
+                return row
             }
 
         // Collections
@@ -237,13 +278,15 @@ public enum PhoneWatchManagementPresenter {
             ? TransferBanner(activeCount: activeCount, failedCount: failedCount)
             : nil
 
-        return Snapshot(
+        var snapshot = Snapshot(
             pairing: pairing,
             connectedForSeconds: connectedForSeconds(pairing: pairing, watchManifest: watchManifest, now: now),
             storage: storage,
             activity: activity,
             collections: collections,
             banner: banner)
+        snapshot.syncHistory = syncHistory
+        return snapshot
     }
 
     public static func collectionDetail(rootID: String,

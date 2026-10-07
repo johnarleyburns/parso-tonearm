@@ -99,6 +99,10 @@ final class WatchAppAssembly {
         await syncStatus.refreshInstallationDate()
     }
 
+    func finishBackgroundDelivery() async {
+        await adapter?.waitForBackgroundDelivery()
+    }
+
     func requestSyncStatus() async {
         syncStatus.requestedSync()
         await coordinator?.requestReconciliation()
@@ -202,14 +206,18 @@ final class WatchAppAssembly {
         let reach = WatchReachabilityObserver(model: mdl)
         let diag = diagnostics
         let sync = WatchSyncActor(repository: repo, installer: inst,
+                                  chunkAssembler: WatchAudioChunkAssembler(directory: audio.deletingLastPathComponent()
+                                    .appendingPathComponent("AudioChunks", isDirectory: true),
+                                    storageProvider: { try? await repo.storage() }),
                                   artworkInstaller: artworkInst, diagnostics: diag,
+                                  lastCatalogReceivedAt: syncStatus.lastCatalogSyncAt,
                                   onLibraryChanged: { [weak mdl] in await mdl?.refresh() })
         let coord = WatchConnectivityCoordinator(
             transport: WatchProtocolSessionAdapter.transport,
             stateStore: stateStore,
             configuration: .init(capabilities: [.downloadRoots, .manifestAcknowledgement,
                                                 .reconciliation, .watchInitiatedDownload,
-                                                .artworkAssets, .watchLocalCatalog]),
+                                                .artworkAssets, .watchLocalCatalog, .resumableAudioChunks]),
             diagnostics: diag,
             observer: nil)
 

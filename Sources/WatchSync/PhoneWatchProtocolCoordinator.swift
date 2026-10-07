@@ -156,6 +156,14 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
         do {
             try await transport.updateApplicationContext(data)
             lastPublishedContext = merged
+            // Context delivery is coalesced and scheduled by the OS. Mirror current progress
+            // live when possible, using the same revision so the queued copy remains idempotent.
+            if let downloads = merged.downloads, await transport.isReachable(),
+               let live = try? WatchProtocolEnvelope.fromPhone(kind: .downloadStatusSnapshot,
+                    payload: downloads, libraryID: libraryID, revision: downloads.revision, sentAt: date) {
+                let transport = transport
+                _ = try? await withWatchRequestDeadline { try await transport.sendImmediate(live) }
+            }
             return true
         } catch {
             return false // Leave the previous publication intact so the next tick retries.

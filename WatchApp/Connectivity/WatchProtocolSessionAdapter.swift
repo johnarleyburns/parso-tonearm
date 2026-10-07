@@ -2,6 +2,7 @@ import Foundation
 import Synchronization
 import WatchConnectivity
 import TonearmWatchProtocol
+import TonearmWatchCore
 
 /// The watch's `WCSessionDelegate`. It owns the session and nothing else.
 ///
@@ -14,6 +15,7 @@ import TonearmWatchProtocol
 /// (itself an actor), and `WCSession.default` is read per call rather than stored.
 public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sendable {
     private let endpoint: any WatchProtocolLifecycle
+    private let backgroundDelivery = WatchBackgroundDeliveryTracker()
 
     public init(endpoint: any WatchProtocolLifecycle) {
         self.endpoint = endpoint
@@ -30,6 +32,14 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
         session.activate()
     }
 
+    public func waitForBackgroundDelivery() async {
+        guard WCSession.isSupported() else { return }
+        await backgroundDelivery.waitUntilDrained {
+            let session = WCSession.default
+            return session.activationState != .activated || session.hasContentPending
+        }
+    }
+
     // MARK: - WCSessionDelegate
 
     public func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState,
@@ -39,7 +49,12 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
         let context = WatchProtocolEnvelope.payloadData(in: session.receivedApplicationContext)
         let reachable = state == .activated && session.isReachable
         let endpoint = endpoint
-        Task { await endpoint.activate(reachable: reachable, receivedContext: context) }
+        let delivery = backgroundDelivery
+        delivery.begin()
+        Task {
+            defer { delivery.end() }
+            await endpoint.activate(reachable: reachable, receivedContext: context)
+        }
     }
 
     public func sessionReachabilityDidChange(_ session: WCSession) {
@@ -72,16 +87,22 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
     public func session(_ session: WCSession, didReceiveApplicationContext context: [String: Any]) {
         guard let data = WatchProtocolEnvelope.payloadData(in: context) else { return }
         let endpoint = endpoint
-        Task { await endpoint.receiveApplicationContext(data) }
+        let delivery = backgroundDelivery
+        delivery.begin()
+        Task { defer { delivery.end() }; await endpoint.receiveApplicationContext(data) }
     }
 
     public func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
         guard let data = WatchProtocolEnvelope.payloadData(in: userInfo) else { return }
         let endpoint = endpoint
-        Task { await endpoint.receiveUserInfo(data) }
+        let delivery = backgroundDelivery
+        delivery.begin()
+        Task { defer { delivery.end() }; await endpoint.receiveUserInfo(data) }
     }
 
     public func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        let delivery = backgroundDelivery
+        delivery.begin()
         // The file is deleted when this returns, so it is moved out of the inbox before the endpoint
         // is told about it. Everything past that point — checksum, install, dedupe — is Phase 5's.
         let metadata = (file.metadata ?? [:]).compactMapValues { $0 as? String }
@@ -91,10 +112,11 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
         do {
             try FileManager.default.moveItem(at: file.fileURL, to: staged)
         } catch {
+            delivery.end()
             return
         }
         let endpoint = endpoint
-        Task { await endpoint.receiveFile(staged, metadata: metadata) }
+        Task { defer { delivery.end() }; await endpoint.receiveFile(staged, metadata: metadata) }
     }
 }
 

@@ -13,11 +13,17 @@ import WatchConnectivity
 public final class PhoneWatchProtocolAdapter: NSObject, WCSessionDelegate, Sendable {
     private let endpoint: any WatchProtocolLifecycle
     private let onFileTransferFailure: @Sendable (WatchTrackID, WatchProtocolErrorCode) async -> Void
+    private let onFileTransferCompletion: @Sendable (WatchTrackID) async -> Void
+    private let onChunkCompletion: @Sendable (WatchAudioChunkMetadata, WatchProtocolErrorCode?) async -> Void
 
     public init(endpoint: any WatchProtocolLifecycle,
-                onFileTransferFailure: @escaping @Sendable (WatchTrackID, WatchProtocolErrorCode) async -> Void = { _, _ in }) {
+                onFileTransferFailure: @escaping @Sendable (WatchTrackID, WatchProtocolErrorCode) async -> Void = { _, _ in },
+                onFileTransferCompletion: @escaping @Sendable (WatchTrackID) async -> Void = { _ in },
+                onChunkCompletion: @escaping @Sendable (WatchAudioChunkMetadata, WatchProtocolErrorCode?) async -> Void = { _, _ in }) {
         self.endpoint = endpoint
         self.onFileTransferFailure = onFileTransferFailure
+        self.onFileTransferCompletion = onFileTransferCompletion
+        self.onChunkCompletion = onChunkCompletion
         super.init()
     }
 
@@ -56,11 +62,16 @@ public final class PhoneWatchProtocolAdapter: NSObject, WCSessionDelegate, Senda
                           isWatchAppInstalled: session.isWatchAppInstalled, isReachable: session.isReachable)
     }
 
+    public static func currentWatchIdentifier() -> String? {
+        guard WCSession.isSupported() else { return nil }
+        return WCSession.default.watchDirectoryURL?.lastPathComponent
+    }
+
     public static func outstandingAudioTrackIDs() -> [WatchTrackID] {
         guard WCSession.isSupported() else { return [] }
         return WCSession.default.outstandingFileTransfers.compactMap {
             let raw = ($0.file.metadata ?? [:]).compactMapValues { $0 as? String }
-            return WatchAudioFileMetadata(dictionary: raw)?.trackID
+            return WatchAudioChunkMetadata(dictionary: raw)?.audio.trackID ?? WatchAudioFileMetadata(dictionary: raw)?.trackID
         }
     }
 
@@ -68,15 +79,33 @@ public final class PhoneWatchProtocolAdapter: NSObject, WCSessionDelegate, Senda
         guard WCSession.isSupported() else { return }
         for transfer in WCSession.default.outstandingFileTransfers {
             let raw = (transfer.file.metadata ?? [:]).compactMapValues { $0 as? String }
-            if WatchAudioFileMetadata(dictionary: raw)?.trackID == trackID { transfer.cancel() }
+            if (WatchAudioChunkMetadata(dictionary: raw)?.audio.trackID ?? WatchAudioFileMetadata(dictionary: raw)?.trackID) == trackID { transfer.cancel() }
         }
     }
 
     public func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer,
                         error: (any Error)?) {
-        guard let error else { return } // Only a watch manifest proves installation.
         let raw = (fileTransfer.file.metadata ?? [:]).compactMapValues { $0 as? String }
+        if let chunk = WatchAudioChunkMetadata(dictionary: raw) {
+            let code = error.map { WatchSessionTransport.fault(for: $0).code }
+            let callback = onChunkCompletion
+            Task { await callback(chunk, code) }
+            return
+        }
         guard let metadata = WatchAudioFileMetadata(dictionary: raw) else { return }
+        // A cancelled/restarted transfer can finish after its replacement was queued.
+        // Its late failure must not mark the replacement's job failed.
+        guard !session.outstandingFileTransfers.contains(where: { other in
+            guard other !== fileTransfer else { return false }
+            let otherRaw = (other.file.metadata ?? [:]).compactMapValues { $0 as? String }
+            return (WatchAudioChunkMetadata(dictionary: otherRaw)?.audio.trackID
+                ?? WatchAudioFileMetadata(dictionary: otherRaw)?.trackID) == metadata.trackID
+        }) else { return }
+        guard let error else {
+            let callback = onFileTransferCompletion
+            Task { await callback(metadata.trackID) }
+            return // Only a watch manifest proves installation.
+        }
         let code = WatchSessionTransport.fault(for: error).code
         let callback = onFileTransferFailure
         Task { await callback(metadata.trackID, code) }
@@ -87,6 +116,22 @@ public final class PhoneWatchProtocolAdapter: NSObject, WCSessionDelegate, Senda
         let session = WCSession.default
         session.delegate = self
         session.activate()
+    }
+
+    public static func outstandingChunks() -> [WatchAudioChunkMetadata] {
+        guard WCSession.isSupported() else { return [] }
+        return WCSession.default.outstandingFileTransfers.compactMap {
+            WatchAudioChunkMetadata(dictionary: ($0.file.metadata ?? [:]).compactMapValues { $0 as? String })
+        }
+    }
+
+    public static func chunkTransferFractions() -> [String: Double] {
+        guard WCSession.isSupported() else { return [:] }
+        return Dictionary(WCSession.default.outstandingFileTransfers.compactMap { transfer in
+            let raw = (transfer.file.metadata ?? [:]).compactMapValues { $0 as? String }
+            guard let chunk = WatchAudioChunkMetadata(dictionary: raw) else { return nil }
+            return (chunk.transferID, transfer.progress.fractionCompleted)
+        }, uniquingKeysWith: { max($0, $1) })
     }
 
     // MARK: - WCSessionDelegate

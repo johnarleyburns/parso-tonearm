@@ -55,7 +55,8 @@ public enum PhoneWatchDownloadPlanner {
                             existingJobs: [PhoneWatchDownloadJob],
                             transferability: (String) -> PhoneWatchTransferability,
                             explicitRetryTrackIDs: Set<String> = [],
-                            currentTrackID: String? = nil) -> Plan {
+                            currentTrackID: String? = nil,
+                            outstandingTrackIDs: Set<String> = []) -> Plan {
         var plan = Plan()
 
         // Desired set + reference counts. Order is deterministic: first appearance across roots
@@ -130,7 +131,8 @@ public enum PhoneWatchDownloadPlanner {
             }
         }
 
-        for job in existingJobs where job.isActive && !desired.contains(job.trackID) {
+        for job in existingJobs where !desired.contains(job.trackID) && !installedTrackIDs.contains(job.trackID)
+            && (job.isActive || (job.state == .sent && outstandingTrackIDs.contains(job.trackID))) {
             plan.toCancel.append(job.requestID)
         }
 

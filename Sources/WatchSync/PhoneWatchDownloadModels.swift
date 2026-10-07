@@ -89,13 +89,14 @@ public struct PhoneWatchDownloadJob: Equatable, Sendable, Codable {
     public var message: String?
     public var createdAt: Date
     public var updatedAt: Date
+    public var deliveryCompletedAt: Date?
 
     public init(requestID: String = UUID().uuidString, trackID: String, rootIDs: [String],
                 priority: PhoneWatchDownloadPriority = .trackOrAlbumBatch,
                 state: PhoneWatchJobState = .queued, failureClass: PhoneWatchFailureClass? = nil,
                 attempt: Int = 0, nextAttemptAt: Date? = nil, expectedBytes: Int64? = nil,
                 expectedSHA256: String? = nil, errorCode: String? = nil, message: String? = nil,
-                createdAt: Date = Date(), updatedAt: Date = Date()) {
+                createdAt: Date = Date(), updatedAt: Date = Date(), deliveryCompletedAt: Date? = nil) {
         self.requestID = requestID
         self.trackID = trackID
         self.rootIDs = rootIDs
@@ -110,6 +111,7 @@ public struct PhoneWatchDownloadJob: Equatable, Sendable, Codable {
         self.message = message
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.deliveryCompletedAt = deliveryCompletedAt
     }
 
     public var isActive: Bool {
@@ -188,6 +190,7 @@ struct WatchDownloadJobRecord: Codable, FetchableRecord, MutablePersistableRecor
     var message: String?
     var createdAt: Date
     var updatedAt: Date
+    var deliveryCompletedAt: Date?
 
     init(_ job: PhoneWatchDownloadJob) {
         requestID = job.requestID
@@ -204,6 +207,7 @@ struct WatchDownloadJobRecord: Codable, FetchableRecord, MutablePersistableRecor
         message = job.message
         createdAt = job.createdAt
         updatedAt = job.updatedAt
+        deliveryCompletedAt = job.deliveryCompletedAt
     }
 
     var value: PhoneWatchDownloadJob {
@@ -214,7 +218,7 @@ struct WatchDownloadJobRecord: Codable, FetchableRecord, MutablePersistableRecor
             failureClass: failureClass.flatMap(PhoneWatchFailureClass.init(rawValue:)),
             attempt: attempt, nextAttemptAt: nextAttemptAt, expectedBytes: expectedBytes,
             expectedSHA256: expectedSHA256, errorCode: errorCode, message: message,
-            createdAt: createdAt, updatedAt: updatedAt)
+            createdAt: createdAt, updatedAt: updatedAt, deliveryCompletedAt: deliveryCompletedAt)
     }
 }
 

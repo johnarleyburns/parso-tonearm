@@ -6,7 +6,7 @@ import Foundation
 /// checksum, codec, and pin intent." It is expressed as `[String: String]` on the wire so a
 /// transport adapter never has to parse a dynamic dictionary shape — the keys are fixed, and
 /// `init?(dictionary:)` is the only place a raw metadata dictionary is ever read.
-public struct WatchAudioFileMetadata: Equatable, Sendable {
+public struct WatchAudioFileMetadata: Codable, Equatable, Sendable {
     public var trackID: WatchTrackID
     public var expectedBytes: Int64
     public var sha256: String?

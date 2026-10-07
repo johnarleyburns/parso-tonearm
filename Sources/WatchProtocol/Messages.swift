@@ -69,6 +69,7 @@ public enum WatchCapability: String, Codable, Sendable, CaseIterable {
     case artworkAssets
     /// The watch keeps a local searchable catalog and never asks the phone to search or play.
     case watchLocalCatalog
+    case resumableAudioChunks
 }
 
 public struct WatchHello: Codable, Equatable, Sendable {

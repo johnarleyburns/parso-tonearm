@@ -30,6 +30,7 @@ public actor WatchFakeDuplexLink {
     private var swallowImmediateReplies = false
     private var heldUserInfo: [(Side, Data)] = []
     private var holdingUserInfo = false
+    private var holdingApplicationContext = false
     private var contexts: [Side: Data] = [:]
 
     public private(set) var deliveries: [Delivery] = []
@@ -58,6 +59,7 @@ public actor WatchFakeDuplexLink {
     /// Parks durable deliveries instead of handing them over. `flushHeldUserInfo(reversed:)` then
     /// releases them in the order the test wants — C-06's out-of-order convergence.
     public func setHoldingUserInfo(_ value: Bool) { holdingUserInfo = value }
+    public func setHoldingApplicationContext(_ value: Bool) { holdingApplicationContext = value }
 
     public func flushHeldUserInfo(reversed: Bool = false) async {
         let pending = reversed ? Array(heldUserInfo.reversed()) : heldUserInfo
@@ -103,7 +105,7 @@ public actor WatchFakeDuplexLink {
         // §5.2: coalesced, newest only. Overwriting here is the behavior, not a shortcut.
         contexts[side] = data
         record(from: side, channel: .applicationContext, data: data)
-        guard reachable, let peer = inbound[side.peer] else { return }
+        guard !holdingApplicationContext, reachable, let peer = inbound[side.peer] else { return }
         await peer.receiveApplicationContext(data)
     }
 

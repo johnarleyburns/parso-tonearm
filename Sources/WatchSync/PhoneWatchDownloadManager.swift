@@ -201,8 +201,18 @@ public actor PhoneWatchDownloadManager {
     /// Retry a specific job by request ID (Phase 8 P3 "Try Again"). Resolves the job's track and
     /// funnels through the same explicit-retry path, which revives a failed *or* cancelled job.
     public func requestRetry(requestID: String) async throws {
-        guard let job = try await store.jobs().first(where: { $0.requestID == requestID }) else { return }
-        try await requestRetry(trackID: job.trackID)
+        guard var job = try await store.jobs().first(where: { $0.requestID == requestID }) else { return }
+        if job.state == .sent {
+            guard !(try await store.installedTrackIDs()).contains(job.trackID) else { return }
+            // An explicit restart is different from automatic reconciliation: cancel the
+            // old system-owned transfer before scheduling one replacement, never two copies.
+            job.state = .cancelled
+            job.updatedAt = now()
+            try await store.upsertJob(job)
+            await transfer.cancelTransfer(trackID: WatchTrackID(job.trackID))
+        }
+        explicitRetryTrackIDs.insert(job.trackID)
+        try await reconcile()
     }
 
     /// Phase 8 (P3/P4): pause a desired root from the iPhone. The root stays declared to the watch
@@ -222,6 +232,12 @@ public actor PhoneWatchDownloadManager {
               root.paused != paused else { return }
         root.paused = paused
         try await store.upsertRoot(root)
+        if !paused {
+            let wanted = Set(root.desiredTrackIDs)
+            for job in try await store.jobs() where job.state == .cancelled && wanted.contains(job.trackID) {
+                explicitRetryTrackIDs.insert(job.trackID)
+            }
+        }
         try await reconcile()
     }
 
@@ -281,6 +297,16 @@ public actor PhoneWatchDownloadManager {
         try await failFromError(&job, code: code)
     }
 
+    /// Sender completion is not installation. It starts the watch acknowledgement grace
+    /// period; the file may have spent many minutes in the system's transfer queue first.
+    public func transferDelivered(trackID: WatchTrackID) async throws {
+        guard !(try await store.installedTrackIDs()).contains(trackID.rawValue),
+              var job = try await store.jobs().first(where: { $0.trackID == trackID.rawValue }),
+              job.state == .sent || job.state == .transferring else { return }
+        job.deliveryCompletedAt = now()
+        try await store.upsertJob(job)
+    }
+
     // MARK: - Reconcile + pump
 
     /// Recompute the plan from persisted roots, jobs, and the watch manifest, apply it durably,
@@ -325,10 +351,22 @@ public actor PhoneWatchDownloadManager {
         let outstanding = Set(await transfer.outstandingTransfers().map(\.rawValue))
         // A queued file is not installed truth. Recover lost deliveries and watch-side
         // rejections, while leaving transfers still owned by WCSession alone.
-        for var job in try await store.jobs() where job.state == .sent
-            && !installed.contains(job.trackID) && !outstanding.contains(job.trackID)
-            && now().timeIntervalSince(job.updatedAt) >= Self.installationAcknowledgementTimeout {
-            try await failFromError(&job, code: .transferFailed)
+        for var job in try await store.jobs() where job.state == .sent && !installed.contains(job.trackID) {
+            if outstanding.contains(job.trackID) {
+                if job.deliveryCompletedAt != nil {
+                    job.deliveryCompletedAt = nil
+                    try await store.upsertJob(job)
+                }
+            } else if let completed = job.deliveryCompletedAt {
+                if now().timeIntervalSince(completed) >= Self.installationAcknowledgementTimeout {
+                    try await failFromError(&job, code: .transferFailed)
+                }
+            } else {
+                // Covers a missed completion callback or an app relaunch. The first
+                // observation of delivery finishing starts the persisted grace period.
+                job.deliveryCompletedAt = now()
+                try await store.upsertJob(job)
+            }
         }
         let existing = try await store.jobs()
 
@@ -349,7 +387,7 @@ public actor PhoneWatchDownloadManager {
         let plan = PhoneWatchDownloadPlanner.plan(
             roots: activeRoots, installedTrackIDs: installed, existingJobs: existing,
             transferability: { transferability[$0] ?? .unavailable },
-            explicitRetryTrackIDs: retrySet)
+            explicitRetryTrackIDs: retrySet, outstandingTrackIDs: outstanding)
 
         let jobsByTrack = Dictionary(existing.map { ($0.trackID, $0) },
                                      uniquingKeysWith: { a, b in a.updatedAt >= b.updatedAt ? a : b })
@@ -429,7 +467,8 @@ public actor PhoneWatchDownloadManager {
             }
 
             let next = PhoneWatchTransferScheduler.nextDispatch(
-                jobs: jobs, now: now(), canTransferOnNetwork: canNetwork)
+                jobs: jobs, now: now(), canTransferOnNetwork: canNetwork,
+                outstandingTrackIDs: Set(await transfer.outstandingTransfers().map(\.rawValue)))
             guard let requestID = next.first,
                   var job = jobs.first(where: { $0.requestID == requestID }) else { break }
 
@@ -451,6 +490,7 @@ public actor PhoneWatchDownloadManager {
                                message: WatchProtocolErrorCode.authenticationRequired.safeDisplayMessage)
             case .cached(let url, let bytes, let sha):
                 job.state = .transferring
+                job.deliveryCompletedAt = nil
                 job.expectedBytes = bytes
                 job.expectedSHA256 = sha ?? job.expectedSHA256
                 job.updatedAt = now()
@@ -463,6 +503,7 @@ public actor PhoneWatchDownloadManager {
                     guard let latest = try await store.jobs().first(where: { $0.requestID == requestID }),
                           latest.state == .transferring else { continue }
                     job.state = .sent
+                    job.deliveryCompletedAt = latest.deliveryCompletedAt
                     job.failureClass = nil
                     job.errorCode = nil
                     job.message = nil

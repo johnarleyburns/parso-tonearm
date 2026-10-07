@@ -20,6 +20,7 @@ struct WatchSettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     headerCard
+                    syncHistoryCard
                     if let shortfall = snapshot.storage?.spaceShortfall {
                         shortfallCard(shortfall)
                     }
@@ -70,9 +71,11 @@ struct WatchSettingsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         ProgressView(value: fraction)
                             .tint(fraction > 0.9 ? Palette.danger : Palette.accent)
-                        Text("Watch storage used \(Int((fraction * 100).rounded()))%")
+                        Text("Total watch storage used \(Int((fraction * 100).rounded()))%")
                             .font(Typography.caption)
                             .foregroundStyle(Palette.inkTertiary)
+                        Text("Includes watchOS and other apps. This is not download progress.")
+                            .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                     }
                     .padding(.top, 2)
                 } else if storage.freeBytes > 0 {
@@ -99,6 +102,29 @@ struct WatchSettingsView: View {
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
+    }
+
+    private var syncHistoryCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Sync Status").font(Typography.callout)
+            syncDate("Last watch report received", snapshot.syncHistory.lastWatchReportAt)
+            syncDate("Last catalog queued on iPhone", snapshot.syncHistory.lastCatalogSentAt)
+            syncDate("Catalog received by watch", snapshot.syncHistory.lastCatalogReceivedAt)
+            syncDate("Last iPhone status sent", snapshot.syncHistory.lastStatusSentAt)
+            syncDate("Last audio installed on watch", snapshot.syncHistory.lastAudioInstalledAt)
+            Text("Queued files are not installed tracks. A live connection does not guarantee that Apple's background file transfer is advancing.")
+                .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+        }
+        .padding(15).glassSurface(cornerRadius: 18)
+        .accessibilityIdentifier("settings.watch.syncStatus")
+    }
+
+    private func syncDate(_ title: LocalizedStringKey, _ date: Date?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+            Text(date.map { $0.formatted(date: .abbreviated, time: .standard) } ?? "Not reported yet")
+                .font(Typography.caption)
+        }
     }
 
     // MARK: - Downloading
@@ -283,13 +309,15 @@ enum WatchStageCopy {
         case .waitingForWiFi: return String(localized: "Waiting for Wi-Fi")
         case .failed: return String(localized: "Failed")
         case .paused: return String(localized: "Paused")
-        case .waitingForDelivery: return String(localized: "Waiting for watch installation")
+        case .waitingForDelivery: return String(localized: "Queued in Apple transfer service")
+        case .awaitingInstallation: return String(localized: "Waiting for watch installation")
+        case .awaitingChunkConfirmation: return String(localized: "Waiting for saved-chunk confirmation")
         }
     }
 
     static func icon(_ stage: PhoneWatchManagementPresenter.ActivityStage) -> String {
         switch stage {
-        case .queued, .resolving, .waitingForDelivery: return "clock"
+        case .queued, .resolving, .waitingForDelivery, .awaitingInstallation, .awaitingChunkConfirmation: return "clock"
         case .transferring: return "arrow.down.circle"
         case .waitingForWiFi: return "wifi.slash"
         case .failed: return "exclamationmark.circle"
@@ -327,9 +355,24 @@ private struct WatchActivityRowView: View {
             if let message = row.failureMessage {
                 Text(message).font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(2)
             }
+            if let fraction = row.fractionComplete, let count = row.receivedChunkCount, let total = row.totalChunkCount {
+                ProgressView(value: fraction).tint(Palette.accent)
+                Text("\(Int(fraction * 100))% saved on watch · \(count)/\(total) chunks")
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                Text("Saved chunks are retained when restarting.").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+            } else if let fraction = row.fractionComplete, row.stage == .transferring {
+                ProgressView(value: fraction).tint(Palette.accent)
+                Text("\(Int(fraction * 100))% transferred by Apple transfer service")
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+            }
+            if let size = row.expectedBytes, size > 0 {
+                Text(WatchByteFormat.string(size)).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+            }
             HStack(spacing: 14) {
                 if row.canRetry {
-                    Button("Try Again") { Task { await appState.retryWatchJob(row.requestID) } }
+                    Button(row.canCancel ? "Restart Transfer" : "Try Again") {
+                        Task { await appState.retryWatchJob(row.requestID) }
+                    }
                         .font(Typography.caption).tint(Palette.accent)
                 }
                 if row.canCancel {

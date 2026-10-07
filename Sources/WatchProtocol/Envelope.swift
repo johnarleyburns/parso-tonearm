@@ -23,7 +23,7 @@ public enum WatchTransportChannel: String, Codable, Sendable, CaseIterable {
 /// leaving local downloads alone (A-07), and an unknown kind from a same-version peer is a bug we
 /// want to see rather than swallow.
 public struct WatchProtocolEnvelope: Equatable, Sendable {
-    public static let currentProtocolVersion = 1
+    public static let currentProtocolVersion = 2
 
     /// §5.1: application-context and user-info dictionaries put the encoded envelope under one
     /// stable key. Everything else in those dictionaries is ignored.

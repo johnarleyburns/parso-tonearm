@@ -353,5 +353,12 @@ extension Schema {
                 }
             }
         }
+        if shouldRegister("v32", upTo: target) {
+            migrator.registerMigration("v32") { db in
+                try db.alter(table: "watchDownloadJob") { t in
+                    t.add(column: "deliveryCompletedAt", .datetime)
+                }
+            }
+        }
     }
 }

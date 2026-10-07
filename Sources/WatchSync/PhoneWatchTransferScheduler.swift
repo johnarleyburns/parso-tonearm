@@ -39,8 +39,10 @@ public enum PhoneWatchTransferScheduler {
     /// clock. Never exceeds the in-flight caps; never returns a job gated by `nextAttemptAt`.
     public static func nextDispatch(jobs: [PhoneWatchDownloadJob],
                                     now: Date,
-                                    canTransferOnNetwork: Bool) -> [String] {
-        let audioInFlight = jobs.filter { $0.state == .transferring || $0.state == .resolving }.count
+                                    canTransferOnNetwork: Bool,
+                                    outstandingTrackIDs: Set<String> = []) -> [String] {
+        let preparing = Set(jobs.filter { $0.state == .transferring || $0.state == .resolving }.map(\.trackID))
+        let audioInFlight = preparing.union(outstandingTrackIDs).count
         var audioSlots = max(0, maxAudioInFlight - audioInFlight)
         guard audioSlots > 0, canTransferOnNetwork else { return [] }
 

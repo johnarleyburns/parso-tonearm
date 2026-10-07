@@ -302,11 +302,15 @@ struct WatchSyncStatusView: View {
                 if let requested = state.lastRequestedAt { history("Sync requested", date: requested) }
             }
             Section("Downloads") {
+                if state.isDownloadStatusStale(at: Date()) {
+                    Text("iPhone progress report is out of date. Percentages below are last reported, not live progress.")
+                        .font(.caption2).foregroundStyle(.orange)
+                }
                 count("Installed on this watch", value: model.tracks.filter(\.isReady).count)
                     .accessibilityIdentifier("watch.sync.installedCount")
                 if let downloads = state.downloads {
                     let waiting = downloads.activities.filter {
-                        [.queued, .waitingForDelivery, .awaitingInstallation].contains($0.stage)
+                        [.queued, .waitingForDelivery, .awaitingInstallation, .awaitingChunkConfirmation].contains($0.stage)
                     }.count
                     count("Waiting", value: downloads.activities.isEmpty ? downloads.queuedCount : waiting)
                     count("Preparing", value: downloads.activities.filter { $0.stage == .preparing }.count)
@@ -325,9 +329,17 @@ struct WatchSyncStatusView: View {
                             Text(activity.title.isEmpty ? (model.track(id: activity.id)?.title ?? "Track") : activity.title)
                                 .font(.caption).lineLimit(2)
                             Text(stageText(activity.stage)).font(.caption2).foregroundStyle(.secondary)
-                            if activity.stage == .transferring, let fraction = activity.fractionComplete {
+                            if let fraction = activity.fractionComplete, let count = activity.receivedChunkCount, let total = activity.totalChunkCount {
                                 ProgressView(value: fraction)
-                                Text("\(Int(fraction * 100))% transferred").font(.caption2)
+                                Text("\(Int(fraction * 100))% saved · \(count)/\(total) chunks").font(.caption2)
+                                Text("Resumes from saved chunks").font(.caption2).foregroundStyle(.secondary)
+                            } else if activity.stage == .transferring, let fraction = activity.fractionComplete {
+                                if state.isDownloadStatusStale(at: Date()) {
+                                    Text("Last reported: \(Int(fraction * 100))% transferred").font(.caption2)
+                                } else {
+                                    ProgressView(value: fraction)
+                                    Text("\(Int(fraction * 100))% transferred").font(.caption2)
+                                }
                             }
                             if let message = activity.message {
                                 Text(message).font(.caption2).foregroundStyle(.orange)
@@ -393,6 +405,7 @@ struct WatchSyncStatusView: View {
         case .waitingForDelivery: "Waiting for iPhone to send file"
         case .transferring: "Downloading to this watch"
         case .awaitingInstallation: "Waiting for watch installation"
+        case .awaitingChunkConfirmation: "Waiting for chunk confirmation"
         case .waitingForWiFi: "Waiting for Wi-Fi"
         case .failed: "Download failed"
         case .paused: "Paused"

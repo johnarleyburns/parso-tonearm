@@ -25,6 +25,23 @@ final class TonearmSmokeUITests: XCTestCase {
         XCTAssertTrue(element("listen.settings").waitForExistence(timeout: 5),
                       "Settings should be available from Listen's upper-right action")
 
+        element("listen.settings").tap()
+        let watchSettings = app.buttons["settings.watch"]
+        for _ in 0..<8 where !watchSettings.isHittable { app.swipeUp() }
+        XCTAssertTrue(watchSettings.waitForExistence(timeout: 10))
+        watchSettings.tap()
+        XCTAssertTrue(element("settings.watch.syncStatus").waitForExistence(timeout: 10),
+                      "Phone Watch settings must expose sync receipts, not only pairing and installed count")
+        XCTAssertTrue(app.staticTexts["Last watch report received"].exists)
+        XCTAssertTrue(app.staticTexts["Catalog received by watch"].exists)
+        let syncScreenshot = XCTAttachment(screenshot: app.screenshot())
+        syncScreenshot.name = "Phone-watch-sync-status"
+        syncScreenshot.lifetime = .keepAlways
+        add(syncScreenshot)
+        app.buttons["Done"].firstMatch.tap()
+        let sheetTop = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08))
+        sheetTop.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
+
         // Playlists is a scope within My Music now, not its own root tab
         // (docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md §4).
         app.buttons["My Music"].tap()
@@ -42,16 +59,22 @@ final class TonearmSmokeUITests: XCTestCase {
         let rain = element("ambient.track.ambient-rain")
         XCTAssertTrue(rain.waitForExistence(timeout: 10),
                       "Built-in Rainy Day track should be visible")
-        rain.tap()
+        // Hit the visible play affordance, not the looping video preview inside the tile.
+        rain.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        let playbackScreenshot = XCTAttachment(screenshot: app.screenshot())
+        playbackScreenshot.name = "Ambient-playback-after-watch-settings"
+        playbackScreenshot.lifetime = .keepAlways
+        add(playbackScreenshot)
 
         let miniTitle = app.staticTexts["mini.title"]
         XCTAssertTrue(miniTitle.waitForExistence(timeout: 10),
                       "Mini player title should appear after starting playback")
-        XCTAssertEqual(miniTitle.label, "Rainy Day")
+        XCTAssertTrue(waitForLabel(miniTitle, equals: "Rainy Day", timeout: 10), "Actual mini-player title: \(miniTitle.label)")
 
-        let playPause = app.buttons["mini.playpause"]
+        miniTitle.tap()
+        let playPause = app.buttons["np.playpause"]
         XCTAssertTrue(playPause.waitForExistence(timeout: 10),
-                      "Mini player play/pause control should appear")
+                      "Now Playing play/pause control should appear")
         XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 5),
                       "Starting the built-in track should enter playing state")
 
@@ -62,10 +85,11 @@ final class TonearmSmokeUITests: XCTestCase {
         XCTAssertTrue(waitForValue(playPause, equals: "playing", timeout: 5),
                       "Play/pause should resume playback")
 
-        let nextButton = app.buttons["mini.next"]
+        let nextButton = app.buttons["np.next"]
         XCTAssertTrue(nextButton.waitForExistence(timeout: 5),
-                      "Mini player next control should exist")
+                      "Now Playing next control should exist")
         nextButton.tap()
+        app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(waitForLabel(miniTitle, equals: "Ocean Waves", timeout: 5),
                       "Skipping forward should advance to the next built-in track")
 
@@ -140,10 +164,10 @@ final class TonearmSmokeUITests: XCTestCase {
                               timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if (element.value as? String) == expected { return true }
+            if (element.value as? String)?.caseInsensitiveCompare(expected) == .orderedSame { return true }
             usleep(200_000)
         }
-        return (element.value as? String) == expected
+        return (element.value as? String)?.caseInsensitiveCompare(expected) == .orderedSame
     }
 
     private func waitForLabel(_ element: XCUIElement,

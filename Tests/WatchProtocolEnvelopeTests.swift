@@ -108,7 +108,7 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         guard case .failure(let failure) = WatchProtocolEnvelope.decode(data) else {
             return XCTFail("a version-99 envelope must not decode")
         }
-        XCTAssertEqual(failure, .unsupportedVersion(peer: 99, local: 1))
+        XCTAssertEqual(failure, .unsupportedVersion(peer: 99, local: WatchProtocolEnvelope.currentProtocolVersion))
         XCTAssertEqual(failure.errorCode, .protocolUpgradeRequired)
     }
 
@@ -117,7 +117,7 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .binary
         let data = try encoder.encode(ForwardCompatibleWire(
-            protocolVersion: 1, messageID: UUID(), correlationID: nil, pairedLibraryID: "library-A",
+            protocolVersion: WatchProtocolEnvelope.currentProtocolVersion, messageID: UUID(), correlationID: nil, pairedLibraryID: "library-A",
             phoneRevision: 0, sentAt: Date(), kind: "teleport", payload: Data(),
             unknownFutureField: "ignored", anotherUnknown: 42))
         guard case .failure(let failure) = WatchProtocolEnvelope.decode(data) else {
@@ -132,7 +132,7 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         encoder.outputFormat = .binary
         let messageID = UUID()
         let data = try encoder.encode(ForwardCompatibleWire(
-            protocolVersion: 1, messageID: messageID, correlationID: nil, pairedLibraryID: "library-A",
+            protocolVersion: WatchProtocolEnvelope.currentProtocolVersion, messageID: messageID, correlationID: nil, pairedLibraryID: "library-A",
             phoneRevision: 12, sentAt: Date(timeIntervalSince1970: 500), kind: "hello",
             payload: try WatchProtocolEnvelope.encodePayload(WatchHello()),
             unknownFutureField: "a field we have never heard of", anotherUnknown: 7))
@@ -183,6 +183,10 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         XCTAssertEqual(decoded.readyTrackIDs, [WatchTrackID("t1")])
         XCTAssertEqual(decoded.installedBytes, 42)
         XCTAssertEqual(decoded.installedArtworkIDs, [])
+        XCTAssertNil(decoded.lastCatalogReceivedAt)
+        XCTAssertNil(decoded.lastAudioInstalledAt)
+        XCTAssertTrue(decoded.partialAudioDownloads.isEmpty)
+        XCTAssertTrue(decoded.audioDownloadFailures.isEmpty)
     }
 
     // MARK: - Correlation
@@ -275,7 +279,7 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
         XCTAssertFalse(session.supports(.phonePlaybackControl))
         XCTAssertEqual(session.phoneRevision, 4)
 
-        let futureRemote = WatchHelloReply(protocolVersion: 2, pairedLibraryID: library)
+        let futureRemote = WatchHelloReply(protocolVersion: WatchProtocolEnvelope.currentProtocolVersion + 1, pairedLibraryID: library)
         guard case .failure(let fault) = WatchCapabilityNegotiation.negotiate(local: local, remote: futureRemote) else {
             return XCTFail("a version mismatch must not negotiate")
         }
