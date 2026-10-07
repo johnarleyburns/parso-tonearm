@@ -318,7 +318,7 @@ extension AppState {
             throw error
         }
         await reload()
-        tab = .settings
+        tab = .myMusic
     }
 
     func remoteProvider(for source: Source) throws -> any RemoteLibraryProvider {

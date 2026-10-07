@@ -6,6 +6,8 @@ struct ScreenHeader: View {
     var showAdd = true
     var addAction: (() -> Void)? = nil
     var addAccessibilityIdentifier: String? = nil
+    var actionIcon = "plus"
+    var actionAccessibilityLabel = "Add"
     @EnvironmentObject var appState: AppState
 
     var body: some View {
@@ -18,13 +20,13 @@ struct ScreenHeader: View {
                 Button {
                     if let addAction { addAction() } else { appState.showAddMenu = true }
                 } label: {
-                    Image(systemName: "plus")
+                    Image(systemName: actionIcon)
                         .font(Typography.body)
                         .foregroundStyle(Palette.accent)
                         .frame(width: 33, height: 33)
                         .glassSurface(cornerRadius: 16.5)
                 }
-                .accessibilityLabel("Add")
+                .accessibilityLabel(actionAccessibilityLabel)
                 .accessibilityIdentifier(addAccessibilityIdentifier ?? "")
             }
         }
@@ -246,8 +248,10 @@ struct TrackContextMenu: ViewModifier {
     let row: TrackRow
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
+#if os(iOS)
     @State private var watchConfirmation: WatchTransferConfirmation?
     @State private var showWatchConfirmation = false
+#endif
 
     func body(content: Content) -> some View {
         content.contextMenu {
@@ -290,6 +294,7 @@ struct TrackContextMenu: ViewModifier {
             watchMenuItems
             #endif
         }
+        #if os(iOS)
         .confirmationDialog(watchConfirmation?.title ?? "Apple Watch", isPresented: $showWatchConfirmation,
                             titleVisibility: .visible) {
             Button(watchConfirmation?.confirmTitle ?? "Confirm") {
@@ -305,6 +310,7 @@ struct TrackContextMenu: ViewModifier {
         } message: {
             Text(watchConfirmation?.message ?? "")
         }
+        #endif
     }
 
     #if os(iOS)

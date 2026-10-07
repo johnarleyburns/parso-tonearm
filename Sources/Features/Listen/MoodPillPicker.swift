@@ -27,11 +27,11 @@ struct MoodPillPicker: View {
                                         in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("listen.mood.pill.\(pill.id)")
+                    .accessibilityIdentifier("mood.pill.\(pill.id)")
                 }
             }
             .padding(.horizontal, 2)
         }
-        .accessibilityIdentifier("listen.mood.pills")
+        .accessibilityIdentifier("mood.pills")
     }
 }

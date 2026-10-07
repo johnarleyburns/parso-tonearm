@@ -23,13 +23,6 @@ struct SmartTransitionsView: View {
             Text("On for mixes by default. Platterhead prepares every track in the current queue one at a time.")
                 .font(Typography.caption)
                 .foregroundStyle(Palette.inkSecondary)
-            ForEach(prepWindow, id: \.id) { row in
-                if let id = row.track.id {
-                    LabeledContent(row.track.title,
-                                   value: stateLabel(prep.transitionPrepState(for: id),
-                                                     since: prep.transitionPrepSince(for: id)))
-                }
-            }
             HStack {
                 Button("Prepare whole mix now") { prep.prepare(rows: prepWindow, appState: appState) }
                 Button("Retry failed") { prep.retryFailed(rows: prepWindow, appState: appState) }
@@ -57,24 +50,4 @@ struct SmartTransitionsView: View {
         }
     }
 
-    private func stateLabel(_ state: GridPrepState, since: Date?) -> String {
-        let base = switch state {
-        case .notPrepared: String(localized: "Not prepared")
-        case .ready: String(localized: "Ready")
-        case .queued: String(localized: "Queued")
-        case .downloading(let progress), .analyzing(let progress): progress.formatted(.percent.precision(.fractionLength(0)))
-        case .waitingForNetwork: String(localized: "Waiting for network")
-        case .waitingForWiFi: String(localized: "Waiting for Wi-Fi")
-        case .failed: String(localized: "Failed")
-        case .cancelled: String(localized: "Stopped")
-        }
-        return since.map { String(localized: "\(base) · \(relativeAge($0))") } ?? base
-    }
-
-    private func relativeAge(_ date: Date) -> String {
-        let seconds = max(0, Int(Date().timeIntervalSince(date)))
-        if seconds < 60 { return String(localized: "since now") }
-        let minutes = Duration.seconds(seconds / 60 * 60).formatted(.units(allowed: [.minutes], width: .narrow))
-        return String(localized: "since \(minutes) ago")
-    }
 }

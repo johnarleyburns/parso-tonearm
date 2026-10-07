@@ -18,9 +18,9 @@ struct MacRootView: View {
     @FocusState private var isSearchFocused: Bool
     @State private var isDropTargeted = false
 
-    /// Mirrors `appState.tab` (`.settings` has no sidebar row on Mac, so it
-    /// maps to Listen). Shared code such as "switch to My Music after an
-    /// import" keeps working because it writes `appState.tab`.
+    /// Mirrors `appState.tab` (Mood, Find, and Settings have no Mac sidebar
+    /// row, so they map to Listen). Shared code such as "switch to My Music
+    /// after an import" keeps working because it writes `appState.tab`.
     private var selection: Binding<MacSidebarDestination?> {
         Binding(
             get: { appState.tab == .myMusic ? .myMusic : .listen },

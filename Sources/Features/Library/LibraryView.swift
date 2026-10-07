@@ -20,19 +20,22 @@ struct LibraryView: View {
     private let searchRows: [TrackRow]?
     private let searchRowsRevision: Int
     private let showsSearchField: Bool
+    private let showsHeader: Bool
     @State private var renderedSections: [LibraryBrowse.Section] = []
     @State private var renderedPlaybackRows: [TrackRow] = []
     @State private var isRendering = true
 
     init(ownsNavigationStack: Bool = true, externalMode: Binding<LibraryBrowseMode>? = nil,
          filter: MyMusicFilter = .init(), searchRows: [TrackRow]? = nil,
-         searchRowsRevision: Int = 0, showsSearchField: Bool = true) {
+         searchRowsRevision: Int = 0, showsSearchField: Bool = true,
+         showsHeader: Bool = true) {
         self.ownsNavigationStack = ownsNavigationStack
         self.externalMode = externalMode
         self.filter = filter
         self.searchRows = searchRows
         self.searchRowsRevision = searchRowsRevision
         self.showsSearchField = showsSearchField
+        self.showsHeader = showsHeader
     }
 
     private var mode: LibraryBrowseMode {
@@ -68,7 +71,9 @@ struct LibraryView: View {
                 ZStack(alignment: .trailing) {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
-                            ScreenHeader(title: "Music")
+                            if showsHeader {
+                                ScreenHeader(title: "Music")
+                            }
                             if showsSearchField {
                                 SearchField(text: $appState.searchText, placeholder: "Search all your music…")
                                     .padding(.top, 12)

@@ -146,7 +146,7 @@ extension AppState {
             let service = SourceService(preferFLAC: preferFLAC)
             let preview = try await service.preview(from: rawURL)
             addSourceInBackground(preview: preview, followUpdates: true)
-            tab = .settings
+            tab = .myMusic
         } catch {
             backgroundTitle = String(localized: "Shared source")
             backgroundDone = false

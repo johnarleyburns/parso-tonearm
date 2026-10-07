@@ -4,10 +4,11 @@ import SwiftUI
 import TonearmCore
 import TonearmDiscovery
 
-/// Three root tabs — Playlists/Library unify into My Music and Sources moves
-/// under Settings. Mixes are entered from Listen and playlist actions.
+/// Four iPhone root tabs — My Music is browsing-only, while Mood and Find own
+/// their dedicated discovery/search flows. Settings is presented from Listen
+/// rather than occupying a browsing tab.
 enum AppTab: Int, CaseIterable {
-    case listen, myMusic, settings
+    case listen, myMusic, mood, find
 }
 
 enum PendingImport: Equatable {
@@ -52,10 +53,10 @@ final class AppState: ObservableObject {
             UserDefaults.standard.set(tab.rawValue, forKey: Self.lastTabKey)
         }
     }
-    // v5: DJ removed for good (award-and-mix-plan.md); four tabs → three.
-    // The versioned key prevents an old stored DJ raw value from reopening a
-    // different surface after the removal.
-    private static let lastTabKey = "lastActiveTab.v5"
+    // v6: Mood and Find are now first-class tabs and Settings is no longer a
+    // tab. The versioned key prevents an old Settings raw value from opening
+    // an unrelated new tab after the navigation change.
+    private static let lastTabKey = "lastActiveTab.v6"
     @Published var sources: [Source] = []
     @Published var playlists: [Playlist] = []
     @Published var allTracks: [TrackRow] = []

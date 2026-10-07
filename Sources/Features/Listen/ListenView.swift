@@ -7,49 +7,22 @@ struct ListenView: View {
     @EnvironmentObject var player: AudioPlayer
     @ObservedObject private var support = SupportDevelopmentStore.shared
 
-    /// Deliberately NOT the same instance "Find by sound" uses — see
-    /// `DiscoveryRuntimeController.makeSearchViewModel`'s doc comment
-    /// (docs/plans/mood-based-listening-plan.md §2's audit note). Built once
-    /// on first appear.
-    @State private var moodModel: DiscoverySearchViewModel?
-    /// `nil` while the readiness check hasn't resolved yet; `false` when the
-    /// CLAP model isn't downloaded or nothing is indexed yet. Real report:
-    /// showing the normal prompt/pills/Play UI with everything permanently
-    /// disabled (the old `.modelMissing`/`.zeroIndexed` inline hints) read as
-    /// broken — "Download models"/"Sound-index status" buttons in a cramped
-    /// layout underneath controls that don't work yet. Gating the whole
-    /// section up front on real readiness is clearer.
-    @State private var moodReady: Bool?
-    @StateObject private var indexStatusModel = IndexStatusModel()
-    @State private var showIndexStatus = false
-    @State private var selectedPillIDs: Set<MoodPill.ID> = []
     /// Listening Stats' Top 10 Songs/Artists — collapsed by default (real
     /// report), shown via an explicit "Show More…".
     @State private var showTopLists = false
-    /// The Era/Vibe pill category — generated from this library's own
-    /// BPM/key/energy/duration distribution (`SuggestionChips`), not a fixed
-    /// list (plan §3.2).
-    @State private var eraVibePills: [MoodPill] = []
-    @State private var promptDraft: String = ""
     /// Backs the shared `trackDetailSheet` (plan §3.6) — every track tap on
     /// this screen sets this instead of calling `player.play(...)` directly.
     @State private var selectedTrackForDetail: TrackRow?
-    /// Cycles the prompt field's placeholder (plan §3.1 point 2: "rotating
-    /// through a few evocative examples"). A real, missed requirement caught
-    /// re-auditing against the plan — the first pass shipped one static
-    /// placeholder instead.
-    @State private var placeholderIndex = 0
     @State private var showMixBuilder = false
-    /// `fileprivate` (not `private`) — `MoodEntryPointSection` below, a
-    /// separate type in this same file, reads it too.
-    fileprivate static let promptPlaceholders = [
-        "sunday morning coffee", "focus, no vocals", "storm outside"
-    ]
+    @State private var showSettings = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                ScreenHeader(title: "Listen")
+                ScreenHeader(title: "Listen", addAction: { showSettings = true },
+                             addAccessibilityIdentifier: "listen.settings",
+                             actionIcon: "gearshape.fill",
+                             actionAccessibilityLabel: "Settings")
                 if support.isSupporter {
                     supporterBadge
                         .padding(.top, 6)
@@ -69,42 +42,6 @@ struct ListenView: View {
                 statsCard(appState.listeningStats)
                 favorites
 
-                // `moodModel` is only `@State` here (its identity, not its
-                // `@Published` internals, is what this view needs to react
-                // to) — real bug caught re-auditing against the plan:
-                // reading `moodModel?.results`/`.searchText` directly inside
-                // THIS view's own body, with no `@ObservedObject` anywhere,
-                // means SwiftUI never re-renders when the view model
-                // publishes new results — tap a pill, the query resolves
-                // async, and the Play button / results row would silently
-                // never update. `MoodEntryPointSection` below takes
-                // `@ObservedObject var moodModel`, matching the exact
-                // pattern `DiscoverySearchView` → `DiscoverySearchContent`
-                // already establishes in this codebase.
-                //
-                // Fixed `minHeight` on all three branches (loading/not-ready/
-                // ready) — real report: the page must not re-layout when this
-                // section resolves from "checking" to either outcome.
-                //
-                // Moved to last, below Favorites, at the user's request.
-                Group {
-                    if moodReady == true, let moodModel {
-                        MoodEntryPointSection(
-                            moodModel: moodModel,
-                            selectedPillIDs: $selectedPillIDs,
-                            eraVibePills: eraVibePills,
-                            promptDraft: $promptDraft,
-                            placeholderIndex: placeholderIndex,
-                            selectedTrackForDetail: $selectedTrackForDetail,
-                            showIndexStatus: $showIndexStatus)
-                    } else if moodReady == false {
-                        moodNotReadyView
-                    } else {
-                        moodEntryPointLoading
-                    }
-                }
-                .frame(minHeight: Self.moodSectionMinHeight, alignment: .top)
-                .padding(.top, 26)
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 160)
@@ -112,22 +49,6 @@ struct ListenView: View {
         .foregroundStyle(Palette.ink)
         .task {
             await appState.reload()
-            await prepareMoodModel()
-            moodModel?.setMatchingReferenceTrackID(
-                player.currentTrack?.id, enabled: player.currentTrack?.id != nil)
-            await refreshMoodReadiness()
-        }
-        .onChange(of: player.currentTrack?.id) { _, trackID in
-            moodModel?.setMatchingReferenceTrackID(trackID, enabled: trackID != nil)
-        }
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(3))
-                guard !Task.isCancelled else { return }
-                Motion.perform(Motion.standard) {
-                    placeholderIndex = (placeholderIndex + 1) % Self.promptPlaceholders.count
-                }
-            }
         }
         .trackDetailSheet(for: $selectedTrackForDetail)
         .sheet(isPresented: $showMixBuilder) {
@@ -137,44 +58,9 @@ struct ListenView: View {
                             picksSource: true)
                 .environmentObject(appState)
         }
-        .sheet(isPresented: $showIndexStatus, onDismiss: {
-            // Real report: going to Sound Index, doing something there, then
-            // returning to Listen must re-check readiness — this view's
-            // state (and `moodReady`) survives the sheet dismissal, so
-            // without this the mood section would keep showing whatever it
-            // decided before the trip.
-            Task { await refreshMoodReadiness() }
-        }) {
-            IndexStatusView(model: indexStatusModel)
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
         }
-    }
-
-    /// Real report: the section only reserved space for the baseline prompt/
-    /// pills/Play controls, not the results row that appears once a search
-    /// actually returns something — so running a search still bumped
-    /// everything below it down the page. Baseline controls (~142) plus the
-    /// results row's own height (~160, matching `RecentCard`'s 132pt
-    /// artwork + two text lines + spacing) reserved unconditionally, whether
-    /// or not results are showing right now. (Was ~200 with a Play/"Shake it
-    /// up" button row — removed at the user's request, "I don't use these
-    /// buttons," reclaiming that ~58pt rather than leaving dead space.)
-    private static let moodControlsMinHeight: CGFloat = 142
-    /// `fileprivate` (not `private`) — `MoodEntryPointSection` below, a
-    /// separate type in this same file, reads it too.
-    fileprivate static let moodResultsAreaMinHeight: CGFloat = 160
-    private static let moodSectionMinHeight: CGFloat = moodControlsMinHeight + 14 + moodResultsAreaMinHeight
-
-    /// Real, current readiness — not assumed: the CLAP model must actually be
-    /// downloaded AND at least one track must actually be indexed, or a mood
-    /// query can never return anything (CLAUDE.md "no silent/magic
-    /// background work" — don't show a UI implying mood search works when it
-    /// structurally can't yet).
-    private func refreshMoodReadiness() async {
-        guard let snapshot = await DiscoveryRuntimeController.shared.statusSnapshot() else {
-            moodReady = false
-            return
-        }
-        moodReady = snapshot.modelResourceAvailable && snapshot.coverage.complete > 0
     }
 
     /// Shown only when `SupportDevelopmentStore.isSupporter` is true — the
@@ -191,62 +77,6 @@ struct ListenView: View {
             .accessibilityIdentifier("listen.supporterBadge")
     }
 
-    // MARK: - Mood entry point (plan §3.1/§3.2/§3.3/§5 steps 5/8/9)
-
-    private func prepareMoodModel() async {
-        guard moodModel == nil else { return }
-        let vm = await DiscoveryRuntimeController.shared.makeSearchViewModel(
-            appState: appState, player: player)
-        moodModel = vm
-        let summary = await SuggestionChips.summary(library: appState.store)
-        eraVibePills = SuggestionChips.seed(from: summary).map { chip in
-            MoodPill(id: chip, label: chip, queryTerm: chip)
-        }
-    }
-
-    /// Shown only during the brief window before `prepareMoodModel()`/
-    /// `refreshMoodReadiness()` resolve (mirrors `DiscoverySearchView`'s
-    /// "Preparing search…" state).
-    private var moodEntryPointLoading: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: "What's the mood?")
-            ProgressView()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 14)
-        }
-    }
-
-    /// Shown instead of the prompt/pills/Play UI when the CLAP model isn't
-    /// downloaded yet or nothing is indexed yet — real report: showing the
-    /// normal controls, all permanently disabled, with small inline
-    /// "Download models"/"Sound-index status" buttons underneath, read as
-    /// broken rather than "not ready yet." One clear sentence and one action,
-    /// styled like the real Play button so it reads as the equivalent, real
-    /// next step rather than a demoted afterthought.
-    private var moodNotReadyView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: "What's the mood?")
-            Text("Once you download the mood models and index your tracks, you can come back and search by mood here.")
-                .font(Typography.callout)
-                .foregroundStyle(Palette.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Button {
-                showIndexStatus = true
-            } label: {
-                Label("Index your tracks", systemImage: "waveform.badge.magnifyingglass")
-                    .font(Typography.callout)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 11)
-                    .background(
-                        LinearGradient(colors: [Palette.accent, Palette.accent],
-                                      startPoint: .top, endPoint: .bottom),
-                        in: Capsule())
-                    .foregroundStyle(Palette.ink)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("listen.mood.indexYourTracks")
-        }
-    }
 
     // MARK: - Jump Back In / Favorites
 
@@ -493,6 +323,128 @@ struct ListenView: View {
     }
 }
 
+/// Dedicated mood discovery tab. This used to be appended to Listen, which
+/// made the listening home page a long mixed-purpose feed and hid the mood
+/// workflow below unrelated content.
+struct MoodView: View {
+    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var player: AudioPlayer
+    @State private var moodModel: DiscoverySearchViewModel?
+    @State private var moodReady: Bool?
+    @StateObject private var indexStatusModel = IndexStatusModel()
+    @State private var showIndexStatus = false
+    @State private var selectedPillIDs: Set<MoodPill.ID> = []
+    @State private var eraVibePills: [MoodPill] = []
+    @State private var promptDraft = ""
+    @State private var selectedTrackForDetail: TrackRow?
+    @State private var placeholderIndex = 0
+
+    fileprivate static let promptPlaceholders = [
+        "sunday morning coffee", "focus, no vocals", "storm outside"
+    ]
+    fileprivate static let moodControlsMinHeight: CGFloat = 142
+    fileprivate static let moodResultsAreaMinHeight: CGFloat = 160
+    private static let moodSectionMinHeight = moodControlsMinHeight + 14 + moodResultsAreaMinHeight
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                ScreenHeader(title: "Mood", showAdd: false)
+                Group {
+                    if moodReady == true, let moodModel {
+                        MoodEntryPointSection(
+                            moodModel: moodModel,
+                            selectedPillIDs: $selectedPillIDs,
+                            eraVibePills: eraVibePills,
+                            promptDraft: $promptDraft,
+                            placeholderIndex: placeholderIndex,
+                            selectedTrackForDetail: $selectedTrackForDetail,
+                            showIndexStatus: $showIndexStatus)
+                    } else if moodReady == false {
+                        moodNotReadyView
+                    } else {
+                        VStack(alignment: .leading, spacing: 14) {
+                            SectionHeader(title: "What's the mood?")
+                            ProgressView()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 14)
+                        }
+                    }
+                }
+                .frame(minHeight: Self.moodSectionMinHeight, alignment: .top)
+                .padding(.top, 18)
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 160)
+        }
+        .foregroundStyle(Palette.ink)
+        .task {
+            await appState.reload()
+            await prepareMoodModel()
+            moodModel?.setMatchingReferenceTrackID(
+                player.currentTrack?.id, enabled: player.currentTrack?.id != nil)
+            await refreshMoodReadiness()
+        }
+        .onChange(of: player.currentTrack?.id) { _, trackID in
+            moodModel?.setMatchingReferenceTrackID(trackID, enabled: trackID != nil)
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { return }
+                Motion.perform(Motion.standard) {
+                    placeholderIndex = (placeholderIndex + 1) % Self.promptPlaceholders.count
+                }
+            }
+        }
+        .trackDetailSheet(for: $selectedTrackForDetail)
+        .sheet(isPresented: $showIndexStatus, onDismiss: {
+            Task { await refreshMoodReadiness() }
+        }) {
+            IndexStatusView(model: indexStatusModel)
+        }
+    }
+
+    private func prepareMoodModel() async {
+        guard moodModel == nil else { return }
+        let vm = await DiscoveryRuntimeController.shared.makeSearchViewModel(
+            appState: appState, player: player)
+        moodModel = vm
+        let summary = await SuggestionChips.summary(library: appState.store)
+        eraVibePills = SuggestionChips.seed(from: summary).map { chip in
+            MoodPill(id: chip, label: chip, queryTerm: chip)
+        }
+    }
+
+    private func refreshMoodReadiness() async {
+        guard let snapshot = await DiscoveryRuntimeController.shared.statusSnapshot() else {
+            moodReady = false
+            return
+        }
+        moodReady = snapshot.modelResourceAvailable && snapshot.coverage.complete > 0
+    }
+
+    private var moodNotReadyView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: "What's the mood?")
+            Text("Once you download the mood models and index your tracks, you can come back and search by mood here.")
+                .font(Typography.callout)
+                .foregroundStyle(Palette.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button { showIndexStatus = true } label: {
+                Label("Index your tracks", systemImage: "waveform.badge.magnifyingglass")
+                    .font(Typography.callout)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 11)
+                    .background(Palette.accent, in: Capsule())
+                    .foregroundStyle(Palette.ink)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("mood.indexYourTracks")
+        }
+    }
+}
+
 /// The prompt bar + pill row + Play/Shake-it-up CTA + live mood results
 /// (plan §3.1–§3.3). Split out of `ListenView` itself so `moodModel` can be
 /// held as `@ObservedObject` — `ListenView` only needs `moodModel`'s
@@ -553,13 +505,13 @@ private struct MoodEntryPointSection: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: "What's the mood?")
 
-            TextField(ListenView.promptPlaceholders[placeholderIndex], text: promptBinding)
+            TextField(MoodView.promptPlaceholders[placeholderIndex], text: promptBinding)
                 .textFieldStyle(.plain)
                 .font(Typography.callout)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
                 .glassSurface(cornerRadius: 12)
-                .accessibilityIdentifier("listen.mood.prompt")
+                .accessibilityIdentifier("mood.prompt")
 
             MoodPillPicker(pills: allMoodPills, selection: pillSelectionBinding)
 
@@ -569,7 +521,7 @@ private struct MoodEntryPointSection: View {
                     set: { moodModel.setMatchingTracksOnly($0) }))
                     .font(Typography.callout)
                     .tint(Palette.accent)
-                    .accessibilityIdentifier("listen.mood.matchingTracks")
+                    .accessibilityIdentifier("mood.matchingTracks")
             }
 
             Group {
@@ -588,7 +540,7 @@ private struct MoodEntryPointSection: View {
                     moodStatusHint
                 }
             }
-            .frame(minHeight: ListenView.moodResultsAreaMinHeight, alignment: .top)
+            .frame(minHeight: MoodView.moodResultsAreaMinHeight, alignment: .top)
         }
         .task {
             // Real report: "to prevent nothing showing on default... by

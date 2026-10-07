@@ -16,11 +16,13 @@ struct NowPlayingView: View {
     @State private var showEQ = false
     @State private var showArtworkDeleteAlert = false
     @State private var showAddToPlaylist = false
+#if os(iOS)
     /// Track key whose watch transfer we toasted the *start* of, so we can toast its completion
     /// when it lands in the watch manifest.
     @State private var pendingWatchToastTrackID: String?
     @State private var watchConfirmation: WatchTransferConfirmation?
     @State private var showWatchConfirmation = false
+#endif
 
     var body: some View {
         ZStack {
@@ -123,6 +125,7 @@ struct NowPlayingView: View {
         } message: {
             Text("This will remove the custom artwork for this track.")
         }
+#if os(iOS)
         .confirmationDialog(watchConfirmation?.title ?? "Apple Watch", isPresented: $showWatchConfirmation,
                             titleVisibility: .visible) {
             Button(watchConfirmation?.confirmTitle ?? "Confirm") {
@@ -152,6 +155,7 @@ struct NowPlayingView: View {
             pendingWatchToastTrackID = nil
             ToastCenter.shared.error("Apple Watch download failed", icon: "applewatch.slash", tag: "dl.watch")
         }
+#endif
     }
 
     /// The iPhone screen is sized to the display; the Mac inspector column can

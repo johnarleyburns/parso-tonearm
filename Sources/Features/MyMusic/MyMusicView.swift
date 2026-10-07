@@ -27,11 +27,6 @@ struct MyMusicView: View {
     /// `LibraryBrowse.Entry.self` from `LibraryView` — `NavigationPath`
     /// accepts any `Hashable` without unifying them under one shared type.
     @State private var navigationPath = NavigationPath()
-    @State private var searchMode: MyMusicSearchMode = .all
-    @State private var mixBPMPreset: MixBPMPreset?
-    @State private var mixKey: String?
-    @State private var soundSearchRows: [TrackRow]?
-    @State private var soundSearchRevision = 0
 
     enum Scope: String, CaseIterable, Identifiable {
         case playlists = "Playlists"
@@ -94,16 +89,10 @@ struct MyMusicView: View {
                     JamendoBrowseView(allowsImport: true, showsBackButton: false)
                         .accessibilityIdentifier("mymusic.content.jamendo")
                 case .artists, .albums, .songs, .genres:
-                    MyMusicSearchControls(mode: $searchMode, bpmPreset: $mixBPMPreset,
-                                          mixKey: $mixKey,
-                                          onSoundRows: { rows in
-                                              soundSearchRows = rows
-                                              soundSearchRevision &+= 1
-                                          })
                     LibraryView(ownsNavigationStack: false, externalMode: libraryModeBinding,
-                                filter: currentFilter,
-                                searchRows: searchMode == .sound ? soundSearchRows : nil,
-                                searchRowsRevision: soundSearchRevision,
+                                filter: .init(),
+                                searchRows: nil,
+                                searchRowsRevision: 0,
                                 showsSearchField: false)
                         .accessibilityIdentifier("mymusic.content.music")
                 }
@@ -119,14 +108,6 @@ struct MyMusicView: View {
             #endif
             consumePendingArtistFilter()
         }
-    }
-
-    private var currentFilter: MyMusicFilter {
-        guard searchMode == .mix else { return .init() }
-        return MyMusicFilter(
-            mixBPM: mixBPMPreset.map { ($0.range.lowerBound + $0.range.upperBound) / 2 },
-            mixBPMRange: mixBPMPreset?.range,
-            mixKey: mixKey)
     }
 
     /// One-shot launch-intent consumption for a Top Artist row's tap on the

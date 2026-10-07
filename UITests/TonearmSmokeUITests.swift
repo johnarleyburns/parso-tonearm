@@ -18,6 +18,12 @@ final class TonearmSmokeUITests: XCTestCase {
                       "App should reach the foreground without crashing")
 
         openTab("Listen", anchor: "Listen")
+        XCTAssertTrue(app.buttons["Mood"].waitForExistence(timeout: 5),
+                      "Mood should be a first-class root tab")
+        XCTAssertTrue(app.buttons["Find"].waitForExistence(timeout: 5),
+                      "Find should be a first-class root tab")
+        XCTAssertTrue(element("listen.settings").waitForExistence(timeout: 5),
+                      "Settings should be available from Listen's upper-right action")
 
         // Playlists is a scope within My Music now, not its own root tab
         // (docs/plans/UNIFIED_TONEARM_MY_MUSIC_TRANSITION_LAB_HANDOFF.md §4).

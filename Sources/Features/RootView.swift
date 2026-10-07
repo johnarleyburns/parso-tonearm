@@ -77,9 +77,12 @@ struct RootView: View {
             MyMusicView()
                 .tabItem { Label("My Music", systemImage: "music.note.list") }
                 .tag(AppTab.myMusic)
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-                .tag(AppTab.settings)
+            MoodView()
+                .tabItem { Label("Mood", systemImage: "sparkles") }
+                .tag(AppTab.mood)
+            FindView()
+                .tabItem { Label("Find", systemImage: "magnifyingglass") }
+                .tag(AppTab.find)
         }
     }
 
