@@ -10,6 +10,8 @@ public final class WatchSyncStatusState: ObservableObject, WatchConnectivityObse
     @Published public private(set) var lastPhoneStatusAt: Date?
     @Published public private(set) var lastAudioInstalledAt: Date?
     @Published public private(set) var lastRequestedAt: Date?
+    @Published public private(set) var isSyncing = false
+    @Published public private(set) var syncResult: WatchMetadataSyncResult?
 
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
@@ -44,7 +46,12 @@ public final class WatchSyncStatusState: ObservableObject, WatchConnectivityObse
         defaults.set(lastPhoneStatusAt, forKey: "watch.sync.lastStatus")
     }
 
-    public func requestedSync() { lastRequestedAt = now() }
+    public func requestedSync() { lastRequestedAt = now(); isSyncing = true; syncResult = nil }
+
+    public func completedSync(_ result: WatchMetadataSyncResult) {
+        isSyncing = false
+        syncResult = result
+    }
 
     public func isDownloadStatusStale(at date: Date, after interval: TimeInterval = 30) -> Bool {
         guard downloads != nil, let lastPhoneStatusAt else { return false }

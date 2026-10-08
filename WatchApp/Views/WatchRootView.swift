@@ -136,7 +136,7 @@ struct WatchRootView: View {
             WatchStatusChip(title: String(localized: "Reconnecting to iPhone…"), tone: .warning)
                 .accessibilityIdentifier("watch.status")
         case .unavailable:
-            WatchStatusChip(title: String(localized: "iPhone app unavailable"), tone: .warning)
+            WatchStatusChip(title: String(localized: "Live iPhone messaging unavailable"), tone: .warning)
                 .accessibilityIdentifier("watch.status")
         case .incompatible:
             WatchStatusChip(title: String(localized: "Update Platterhead on iPhone"), tone: .failure)
@@ -292,13 +292,27 @@ struct WatchSyncStatusView: View {
 
     var body: some View {
         List {
+            Section("Phone Sync · Metadata") {
+                Button {
+                    Task { await WatchAppAssembly.shared.requestSyncStatus() }
+                } label: {
+                    Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .disabled(state.isSyncing)
+                .accessibilityIdentifier("watch.sync.refresh")
+                if state.isSyncing { ProgressView("Checking device status…") }
+                if let result = state.syncResult {
+                    Text(result.displayMessage).font(.caption2)
+                        .accessibilityIdentifier("watch.sync.result")
+                }
+            }
             Section("Connection") {
                 Text(chrome.showsConnectedFeatures ? "iPhone app reachable" : "iPhone app not reachable")
                     .font(.caption).accessibilityIdentifier("watch.sync.connection")
-                Text("Background downloads can still arrive when the iPhone app is not reachable.")
+                Text("This is Platterhead's live messaging status, not the watch's Bluetooth connection. Background metadata and audio use separate Apple queues.")
                     .font(.caption2).foregroundStyle(.secondary)
             }
-            Section("Sync History") {
+            Section("Metadata History") {
                 history("Last catalog update", date: state.lastCatalogSyncAt)
                 history("Last iPhone status", date: state.lastPhoneStatusAt)
                 history("Last audio installed", date: state.lastAudioInstalledAt)
@@ -307,7 +321,7 @@ struct WatchSyncStatusView: View {
                 }
                 if let requested = state.lastRequestedAt { history("Sync requested", date: requested) }
             }
-            Section("Downloads") {
+            Section("Audio File Transfers") {
                 if state.isDownloadStatusStale(at: Date()) {
                     Text("iPhone progress report is out of date. Percentages below are last reported, not live progress.")
                         .font(.caption2).foregroundStyle(.orange)
@@ -335,6 +349,10 @@ struct WatchSyncStatusView: View {
                             Text(activity.title.isEmpty ? (model.track(id: activity.id)?.title ?? "Track") : activity.title)
                                 .font(.caption).lineLimit(2)
                             Text(stageText(activity.stage)).font(.caption2).foregroundStyle(.secondary)
+                            if activity.stage == .awaitingInstallation {
+                                Text("iPhone no longer lists an active transfer. Installation on this watch is unconfirmed.")
+                                    .font(.caption2).foregroundStyle(.secondary)
+                            }
                             if let fraction = activity.fractionComplete, let count = activity.receivedChunkCount, let total = activity.totalChunkCount {
                                 ProgressView(value: fraction)
                                 Text("\(Int(fraction * 100))% saved · \(count)/\(total) chunks").font(.caption2)
@@ -355,16 +373,12 @@ struct WatchSyncStatusView: View {
                 }
             }
             Section {
-                Button("Refresh Sync") {
-                    Task { await WatchAppAssembly.shared.requestSyncStatus() }
-                }
-                .accessibilityIdentifier("watch.sync.refresh")
                 if let requested = state.lastRequestedAt {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Sync requested").font(.caption)
                         Text(requested.formatted(date: .omitted, time: .shortened))
                             .font(.caption2).foregroundStyle(.secondary)
-                        Text("Queued for iPhone. Downloads are confirmed only after installation.")
+                        Text("Metadata checks do not restart audio transfers. Downloads are confirmed only after installation.")
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     .accessibilityElement(children: .combine)

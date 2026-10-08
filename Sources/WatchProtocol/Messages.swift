@@ -359,12 +359,18 @@ public struct WatchCommandReply: Codable, Equatable, Sendable {
     public var accepted: Bool
     public var fault: WatchProtocolFault?
     public var snapshot: WatchPhonePlaybackSnapshot?
+    /// Metadata-only round trips: never evidence of audio delivery by themselves.
+    public var downloads: WatchDownloadStatusSnapshot?
+    public var manifest: WatchManifestPayload?
 
     public init(accepted: Bool, fault: WatchProtocolFault? = nil,
-                snapshot: WatchPhonePlaybackSnapshot? = nil) {
+                snapshot: WatchPhonePlaybackSnapshot? = nil,
+                downloads: WatchDownloadStatusSnapshot? = nil, manifest: WatchManifestPayload? = nil) {
         self.accepted = accepted
         self.fault = fault
         self.snapshot = snapshot
+        self.downloads = downloads
+        self.manifest = manifest
     }
 
     public static func accepted(_ snapshot: WatchPhonePlaybackSnapshot? = nil) -> Self {
@@ -468,17 +474,41 @@ public struct WatchRemoveAssets: Codable, Equatable, Sendable {
 }
 
 public enum WatchReconciliationScope: String, Codable, Sendable, CaseIterable {
-    case catalog, downloadRoots, manifest, playbackState, all
+    case catalog, downloadRoots, manifest, playbackState, all, status
+}
+
+/// A live acknowledgement is distinct from a request accepted by Apple's background queue.
+public enum WatchMetadataSyncResult: Equatable, Sendable {
+    case confirmed
+    case queued
+    case failed(WatchProtocolErrorCode)
+
+    public var displayMessage: String {
+        switch self {
+        case .confirmed: return String(localized: "Device status exchanged. Audio delivery is checked separately.")
+        case .queued: return String(localized: "Metadata request queued with Apple. No device reply yet.")
+        case .failed(.requestTimedOut): return String(localized: "No reply within eight seconds. Metadata request remains queued; audio transfers are unchanged.")
+        case .failed(.phoneUnavailable): return String(localized: "Live messaging unavailable. Metadata request remains queued; audio transfers are unchanged.")
+        case .failed(.transferFailed): return String(localized: "Could not confirm metadata exchange. Audio transfers are unchanged.")
+        case .failed(.installationFailed): return String(localized: "Device status could not be read. Audio transfers are unchanged.")
+        case .failed(let code): return code.safeDisplayMessage
+        }
+    }
 }
 
 public struct WatchReconciliationRequest: Codable, Equatable, Sendable {
     public var scope: WatchReconciliationScope
+    public var downloads: WatchDownloadStatusSnapshot?
+    public var manifest: WatchManifestPayload?
     /// Why the request went out — H-07 shows a Reconcile action, and a store rebuild asks on its
     /// own. A code, never a sentence.
     public var trigger: WatchProtocolErrorCode?
 
-    public init(scope: WatchReconciliationScope = .all, trigger: WatchProtocolErrorCode? = nil) {
+    public init(scope: WatchReconciliationScope = .all, trigger: WatchProtocolErrorCode? = nil,
+                downloads: WatchDownloadStatusSnapshot? = nil, manifest: WatchManifestPayload? = nil) {
         self.scope = scope
         self.trigger = trigger
+        self.downloads = downloads
+        self.manifest = manifest
     }
 }

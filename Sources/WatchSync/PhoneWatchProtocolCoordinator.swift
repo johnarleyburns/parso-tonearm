@@ -75,6 +75,8 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
     private let revisionStore: any WatchPhoneRevisionStore
     private let ledger: WatchAppliedMessageLedger
     private let libraryID: WatchPairedLibraryID
+    private let downloadStatusProvider: @Sendable () async -> WatchDownloadStatusSnapshot?
+    private let metadataManifestHandler: (@Sendable (WatchManifestPayload) async -> Void)?
     private weak var observer: (any PhoneWatchProtocolObserver)?
 
     private var reducer: WatchConnectionReducer
@@ -88,10 +90,14 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
                 revisionStore: any WatchPhoneRevisionStore = WatchInMemoryRevisionStore(),
                 ledger: WatchAppliedMessageLedger? = nil,
                 gracePeriod: TimeInterval = WatchConnectionReducer.defaultGracePeriod,
-                observer: (any PhoneWatchProtocolObserver)? = nil) {
+                observer: (any PhoneWatchProtocolObserver)? = nil,
+                downloadStatusProvider: @escaping @Sendable () async -> WatchDownloadStatusSnapshot? = { nil },
+                metadataManifestHandler: (@Sendable (WatchManifestPayload) async -> Void)? = nil) {
         self.transport = transport
         self.handler = handler
         self.libraryID = libraryID
+        self.downloadStatusProvider = downloadStatusProvider
+        self.metadataManifestHandler = metadataManifestHandler
         self.revisionStore = revisionStore
         self.ledger = ledger ?? WatchAppliedMessageLedger()
         self.observer = observer
@@ -133,7 +139,7 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
     @discardableResult
     public func publishContext(playback: WatchPhonePlaybackSnapshot? = nil,
                                downloads: WatchDownloadStatusSnapshot? = nil,
-                               at date: Date = Date()) async -> Bool {
+                               at date: Date = Date(), mirrorLive: Bool = true) async -> Bool {
         var merged = WatchContextSnapshot(
             pairedLibraryID: libraryID, phoneRevision: await revisionStore.currentRevision(),
             updatedAt: date,
@@ -158,7 +164,7 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
             lastPublishedContext = merged
             // Context delivery is coalesced and scheduled by the OS. Mirror current progress
             // live when possible, using the same revision so the queued copy remains idempotent.
-            if let downloads = merged.downloads, await transport.isReachable(),
+            if mirrorLive, let downloads = merged.downloads, await transport.isReachable(),
                let live = try? WatchProtocolEnvelope.fromPhone(kind: .downloadStatusSnapshot,
                     payload: downloads, libraryID: libraryID, revision: downloads.revision, sentAt: date) {
                 let transport = transport
@@ -211,8 +217,48 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
 
     // MARK: - WatchProtocolInbound
 
+    public func synchronizeMetadata() async -> WatchMetadataSyncResult {
+        do {
+            var status = await downloadStatusProvider() ?? lastPublishedContext?.downloads
+            if status != nil { status?.revision = await revisionStore.nextRevision() }
+            let data = try WatchProtocolEnvelope.fromPhone(kind: .requestReconciliation,
+                payload: WatchReconciliationRequest(scope: .status, downloads: status),
+                libraryID: libraryID, revision: await revisionStore.currentRevision())
+            await transport.transferUserInfo(data)
+            guard await transport.isReachable() else { return .queued }
+            guard status != nil else { return .failed(.installationFailed) }
+            let transport = transport
+            let response = try await withWatchRequestDeadline { try await transport.sendImmediate(data) }
+            let request = try WatchProtocolEnvelope.decode(data).get()
+            let envelope = try WatchProtocolEnvelope.decode(response).get()
+            guard envelope.kind == .commandReply, envelope.correlationID == request.messageID,
+                  !envelope.pairedLibraryID.isKnown || envelope.pairedLibraryID == libraryID else {
+                return .failed(.transferFailed)
+            }
+            let reply = try envelope.decodePayload(WatchCommandReply.self)
+            guard reply.accepted, let manifest = reply.manifest else {
+                return .failed(reply.fault?.code ?? .transferFailed)
+            }
+            await applyMetadataManifest(manifest)
+            await run(reducer.apply(.peerResponded, at: Date()))
+            return .confirmed
+        } catch let fault as WatchProtocolFault { return .failed(fault.code) }
+        catch { return .failed(.transferFailed) }
+    }
+
     public func receiveImmediate(_ data: Data) async -> Data? {
         guard let envelope = await accept(data) else { return errorReply(for: data) }
+        if envelope.kind == .requestReconciliation,
+           let request = try? envelope.decodePayload(WatchReconciliationRequest.self), request.scope == .status {
+            if let manifest = request.manifest {
+                await applyMetadataManifest(manifest)
+            }
+            // Reply directly: no nested live publication and no download-manager tick.
+            var status = await downloadStatusProvider() ?? lastPublishedContext?.downloads
+            if status != nil { status?.revision = await revisionStore.nextRevision() }
+            return try? envelope.reply(kind: .commandReply, payload: WatchCommandReply(
+                accepted: status != nil, downloads: status))
+        }
         switch envelope.kind {
         case .watchManifest, .requestReconciliation, .requestDownload, .downloadControl:
             if await ledger.admit(envelope.messageID) == .apply { await applyDurable(envelope) }
@@ -242,6 +288,12 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
     }
 
     // MARK: - Private
+
+    private func applyMetadataManifest(_ manifest: WatchManifestPayload) async {
+        if let metadataManifestHandler { await metadataManifestHandler(manifest) }
+        else { await handler.handleWatchManifest(manifest) }
+        await observer?.watchDidReportManifest(manifest)
+    }
 
     private func router() -> WatchProtocolRouter {
         let store = revisionStore
@@ -277,6 +329,13 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
             await observer?.watchDidReportManifest(manifest)
         case .requestReconciliation:
             guard let request = try? envelope.decodePayload(WatchReconciliationRequest.self) else { return }
+            if let manifest = request.manifest {
+                if request.scope == .status { await applyMetadataManifest(manifest) }
+                else {
+                    await handler.handleWatchManifest(manifest)
+                    await observer?.watchDidReportManifest(manifest)
+                }
+            }
             await handler.handleReconciliationRequest(request)
             await observer?.watchRequestedReconciliation(request)
         case .requestDownload:

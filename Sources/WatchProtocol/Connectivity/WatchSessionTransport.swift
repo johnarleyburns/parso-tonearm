@@ -34,16 +34,20 @@ public struct WatchSessionTransport: WatchProtocolTransport {
         }
         guard session.isReachable else { throw WatchProtocolFault(code: .phoneUnavailable) }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            let completion = WatchImmediateCompletion(continuation)
-            // `sendMessageData` calls back on WatchConnectivity's own queue. The continuation is the
-            // hop; no manual dispatch to main is needed, and adding one would only add latency to
-            // the eight-second budget.
-            session.sendMessageData(data, replyHandler: { reply in
-                completion.finish(.success(reply))
-            }, errorHandler: { error in
-                completion.finish(.failure(Self.fault(for: error)))
-            })
+        let completion = WatchImmediateCompletion()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                completion.install(continuation)
+                guard !Task.isCancelled else { return }
+                // Cancellation releases this wait even if Apple's callback never arrives.
+                session.sendMessageData(data, replyHandler: { reply in
+                    completion.finish(.success(reply))
+                }, errorHandler: { error in
+                    completion.finish(.failure(Self.fault(for: error)))
+                })
+            }
+        } onCancel: {
+            completion.finish(.failure(WatchProtocolFault(code: .requestTimedOut)))
         }
     }
 

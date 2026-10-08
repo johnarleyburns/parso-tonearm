@@ -265,7 +265,7 @@ public actor PhoneWatchDownloadManager {
 
     /// Apply the watch's latest manifest (§1.6 second authority) and re-reconcile. Per-track bytes
     /// are not in the payload, so a known job's `expectedBytes` fills in where available.
-    public func ingestManifest(_ payload: WatchManifestPayload) async throws {
+    public func ingestManifest(_ payload: WatchManifestPayload, reconcileDownloads: Bool = true) async throws {
         let previouslyInstalled = try await store.installedTrackIDs()
         // The watch owns installed truth. Missing prior assets require user approval,
         // not an automatic resend. Apple-owned transfers remain independently tracked.
@@ -288,7 +288,7 @@ public actor PhoneWatchDownloadManager {
                 rootIDs: roots.filter { $0.desiredTrackIDs.contains(id) }.map(\.rootID))
             try await failFromError(&job, code: .transferFailed)
         }
-        try await reconcile()
+        if reconcileDownloads { try await reconcile() }
     }
 
     /// Periodic reconciliation updates status but never retries a failed transfer automatically.

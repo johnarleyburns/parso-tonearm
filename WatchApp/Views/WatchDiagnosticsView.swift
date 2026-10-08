@@ -9,6 +9,7 @@ struct WatchDiagnosticsView: View {
     @State private var eventCount = 0
     @State private var events: [WatchDiagnosticEvent] = []
     @State private var showRawCodes = false
+    @State private var isLoading = true
 
     var body: some View {
         ScrollView {
@@ -19,25 +20,30 @@ struct WatchDiagnosticsView: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .accessibilityIdentifier("watch.diagnostics.refresh")
+                .disabled(isLoading)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Audio receipt").font(.headline)
-                    if let event = events.last(where: { $0.category == .installResult }) {
-                        Text(audioSummary(event.stateCode)).font(.caption)
-                        Text(event.timestamp.formatted(date: .omitted, time: .standard)).font(.caption2)
+                    if isLoading {
+                        ProgressView("Loading diagnostics…")
                     } else {
-                        Text("No audio receipt recorded this session.").font(.caption)
+                        Text("Audio receipt").font(.headline)
+                        if let event = events.last(where: { $0.category == .installResult }) {
+                            Text(audioSummary(event.stateCode)).font(.caption)
+                            Text(event.timestamp.formatted(date: .omitted, time: .standard)).font(.caption2)
+                        } else {
+                            Text("No audio receipt recorded this session.").font(.caption)
+                        }
+                        Text("Watch report").font(.headline)
+                        if let event = events.last(where: { $0.category == .manifestConvergence }) {
+                            Text(reportSummary(event.stateCode))
+                                .font(.caption)
+                            Text(event.timestamp.formatted(date: .omitted, time: .standard)).font(.caption2)
+                        } else {
+                            Text("No watch report recorded this session.").font(.caption)
+                        }
+                        Text("History covers this app session, not previous launches.")
+                            .font(.caption2).foregroundStyle(.secondary)
                     }
-                    Text("Watch report").font(.headline)
-                    if let event = events.last(where: { $0.category == .manifestConvergence }) {
-                        Text(event.stateCode == "reported" ? "Report queued for iPhone." : "Could not read the watch library to report downloads.")
-                            .font(.caption)
-                        Text(event.timestamp.formatted(date: .omitted, time: .standard)).font(.caption2)
-                    } else {
-                        Text("No watch report recorded this session.").font(.caption)
-                    }
-                    Text("History covers this app session, not previous launches.")
-                        .font(.caption2).foregroundStyle(.secondary)
                 }
                 .accessibilityIdentifier("watch.diagnostics.summary")
 
@@ -60,13 +66,23 @@ struct WatchDiagnosticsView: View {
     }
 
     private func reload() async {
+        isLoading = true
         events = await WatchAppAssembly.shared.diagnostics.events()
         let export = await WatchAppAssembly.shared.diagnosticsExport()
+        isLoading = false
         eventCount = export.eventCount
         if let data = try? WatchDiagnosticsExporter.encode(export) {
             json = String(decoding: data, as: UTF8.self)
         } else {
             json = String(localized: "Encoding failed.")
+        }
+    }
+
+    private func reportSummary(_ code: String) -> String {
+        switch code {
+        case "reported": "Report queued for iPhone."
+        case "reportQueueFailed": "Apple did not accept the watch status report."
+        default: "Could not read the watch library to report downloads."
         }
     }
 

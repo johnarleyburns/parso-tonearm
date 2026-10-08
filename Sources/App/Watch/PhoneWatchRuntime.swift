@@ -122,7 +122,9 @@ final class PhoneWatchRuntime {
             handler: requestHandler,
             libraryID: libraryID,
             revisionStore: revisionStore,
-            observer: inbound)
+            observer: inbound,
+            downloadStatusProvider: { [inbound] in await inbound.metadataStatus() },
+            metadataManifestHandler: { [inbound] in await inbound.metadataManifest($0) })
         self.coordinator = coordinator
         self.protocolAdapter = PhoneWatchProtocolAdapter(endpoint: coordinator,
             onAudioCompletion: { [inbound] metadata, code in
@@ -166,12 +168,12 @@ final class PhoneWatchRuntime {
                 await artworkBindings.set(trackID: trackID, coverArtworkID: cover, customArtworkID: custom)
             })
 
-        Task { await inbound.connect(self) }
     }
 
     // MARK: - Lifecycle
 
     func activate() async {
+        await inbound.connect(self)
         protocolAdapter.activate()
         await migrateLegacyTransfers()
         try? await downloadManager.resumeOutstanding()
@@ -192,9 +194,9 @@ final class PhoneWatchRuntime {
     ///
     /// Watch redesign D1: one more push when work *becomes* idle (finished, paused or stopped), so
     /// "On This Watch" never shows a stale "Downloading" — then silence again.
-    private func publishDownloadStatusIfActive(force: Bool = false) async {
+    fileprivate func metadataStatus() async -> WatchDownloadStatusSnapshot? {
         let fractions = PhoneWatchProtocolAdapter.activeAudioTransferFractions()
-        guard var snapshot = try? await downloadManager.statusSnapshot(transferFractions: fractions) else { return }
+        guard var snapshot = try? await downloadManager.statusSnapshot(transferFractions: fractions) else { return nil }
         snapshot.lastWatchReportAt = lastWatchManifest?.generatedAt
         snapshot.catalogTrackCount = catalogTrackCount
         snapshot.readyTrackIDs = installedTrackIDs.sorted().map(WatchTrackID.init)
@@ -211,10 +213,15 @@ final class PhoneWatchRuntime {
         }
         snapshot.activeCount = snapshot.activities.filter { $0.stage == .transferring }.count
         snapshot.queuedCount = snapshot.activities.filter { [.queued, .preparing, .waitingForDelivery].contains($0.stage) }.count
+        return snapshot
+    }
+
+    private func publishDownloadStatusIfActive(force: Bool = false, mirrorLive: Bool = true) async {
+        guard let snapshot = await metadataStatus() else { return }
         let busy = !snapshot.isIdle || !snapshot.activeTransfers.isEmpty
         let shouldPublish = busy || force || lastDownloadStatusWasBusy || snapshot.roots != lastPublishedRoots
         guard shouldPublish else { return }
-        if await coordinator.publishContext(downloads: snapshot) {
+        if await coordinator.publishContext(downloads: snapshot, mirrorLive: mirrorLive) {
             syncHistory.lastStatusSentAt = snapshot.generatedAt
             persistSyncHistory()
             lastDownloadStatusWasBusy = busy
@@ -300,6 +307,15 @@ final class PhoneWatchRuntime {
         await tickDownloads()
     }
 
+    func synchronizeMetadata() async -> WatchMetadataSyncResult {
+        await publishDownloadStatusIfActive(force: true, mirrorLive: false)
+        return await coordinator.synchronizeMetadata()
+    }
+
+    fileprivate func publishMetadataStatus() async {
+        await publishDownloadStatusIfActive(force: true)
+    }
+
     /// Sends the complete catalog after every negotiation or an explicit Settings refresh. Search
     /// on the watch never uses the request handler; this is the sole metadata path.
     func publishCatalog() async {
@@ -362,7 +378,7 @@ final class PhoneWatchRuntime {
 
     // MARK: - Inbound (called back from PhoneWatchInbound)
 
-    fileprivate func ingestManifest(_ payload: WatchManifestPayload) async {
+    fileprivate func ingestManifest(_ payload: WatchManifestPayload, reconcileDownloads: Bool = true) async {
         guard lastWatchManifest.map({ payload.generatedAt > $0.generatedAt }) ?? true else { return }
         lastWatchManifest = payload
         if let data = try? JSONEncoder().encode(payload) { UserDefaults.standard.set(data, forKey: "watch.phone.manifest") }
@@ -370,7 +386,7 @@ final class PhoneWatchRuntime {
         syncHistory.lastCatalogReceivedAt = payload.lastCatalogReceivedAt
         syncHistory.lastAudioInstalledAt = payload.lastAudioInstalledAt
         persistSyncHistory()
-        try? await downloadManager.ingestManifest(payload)
+        try? await downloadManager.ingestManifest(payload, reconcileDownloads: reconcileDownloads)
         for (id, code) in payload.audioDownloadFailures where payload.audioFailureTransferIDs[id] == audioAttempts[id]
             && audioAttempts[id] != nil {
             try? await downloadManager.transferFailed(trackID: WatchTrackID(id), code: code)
@@ -572,7 +588,17 @@ private actor PhoneWatchInbound: PhoneWatchProtocolObserver {
         await runtime?.ingestManifest(payload)
     }
 
+    func metadataStatus() async -> WatchDownloadStatusSnapshot? { await runtime?.metadataStatus() }
+
+    func metadataManifest(_ payload: WatchManifestPayload) async {
+        await runtime?.ingestManifest(payload, reconcileDownloads: false)
+    }
+
     func reconciliation(_ request: WatchReconciliationRequest) async {
+        if request.scope == .status {
+            await runtime?.publishMetadataStatus()
+            return
+        }
         await runtime?.tickDownloads()
     }
 

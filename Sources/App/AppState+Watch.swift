@@ -121,6 +121,12 @@ extension AppState {
         refreshWatchStateFromRuntime()
     }
 
+    func syncWatchMetadata() async -> WatchMetadataSyncResult {
+        let result = await watchRuntime.synchronizeMetadata()
+        refreshWatchStateFromRuntime()
+        return result
+    }
+
     // MARK: - Watch download management (Phase 8, P3/P4)
 
     func pauseWatchCollection(_ rootID: String) async {

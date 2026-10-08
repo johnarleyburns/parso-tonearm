@@ -12,6 +12,8 @@ struct WatchSettingsView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var confirmRemoveAll = false
+    @State private var syncingMetadata = false
+    @State private var metadataResult: WatchMetadataSyncResult?
 
     private var snapshot: PhoneWatchManagementPresenter.Snapshot { appState.watchManagement }
 
@@ -106,7 +108,21 @@ struct WatchSettingsView: View {
 
     private var syncHistoryCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Sync Status").font(Typography.callout)
+            Text("Watch Sync · Metadata").font(Typography.callout)
+            if syncingMetadata { ProgressView("Checking device status…") }
+            if let metadataResult {
+                Text(metadataResult.displayMessage).font(Typography.caption)
+            }
+            Button("Sync now") {
+                syncingMetadata = true
+                metadataResult = nil
+                Task {
+                    metadataResult = await appState.syncWatchMetadata()
+                    syncingMetadata = false
+                }
+            }
+            .disabled(syncingMetadata || !snapshot.pairing.isPaired)
+            .accessibilityIdentifier("settings.watch.syncNow")
             syncDate("Last watch report received", snapshot.syncHistory.lastWatchReportAt)
             syncDate("Last catalog queued on iPhone", snapshot.syncHistory.lastCatalogSentAt)
             syncDate("Catalog received by watch", snapshot.syncHistory.lastCatalogReceivedAt)
@@ -132,7 +148,7 @@ struct WatchSettingsView: View {
     private var downloadingCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Downloading").font(Typography.callout)
+                Text("Audio File Transfers").font(Typography.callout)
                 Spacer()
                 NavigationLink {
                     WatchDownloadQueueView()
@@ -354,6 +370,10 @@ private struct WatchActivityRowView: View {
             }
             if let message = row.failureMessage {
                 Text(message).font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(2)
+            }
+            if row.stage == .awaitingInstallation {
+                Text("Apple no longer lists an active file transfer. The watch has not confirmed that this track is installed.")
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             if let fraction = row.fractionComplete, let count = row.receivedChunkCount, let total = row.totalChunkCount {
                 ProgressView(value: fraction).tint(Palette.accent)

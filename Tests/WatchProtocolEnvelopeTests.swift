@@ -4,6 +4,34 @@ import XCTest
 /// §5.1–5.5 codec coverage: every kind round-trips, unknown fields and versions behave as
 /// specified, and the error vocabulary stays complete.
 final class WatchProtocolEnvelopeTests: XCTestCase {
+    func testCancellationBeforeContinuationInstallationIsNotLost() async {
+        let completion = WatchImmediateCompletion()
+        completion.finish(.failure(.init(code: .requestTimedOut)))
+        do {
+            let _: Data = try await withCheckedThrowingContinuation { completion.install($0) }
+            XCTFail("Cancelled request must finish")
+        } catch { XCTAssertEqual((error as? WatchProtocolFault)?.code, .requestTimedOut) }
+        completion.finish(.success(Data([1])))
+    }
+
+    func testNativeCallbackThatNeverArrivesDoesNotTrapDeadlineTaskGroup() async {
+        let completion = WatchImmediateCompletion()
+        let clock = ContinuousClock()
+        let start = clock.now
+        do {
+            let _: Data = try await withWatchRequestDeadline(.milliseconds(25)) {
+                try await withTaskCancellationHandler {
+                    try await withCheckedThrowingContinuation { completion.install($0) }
+                } onCancel: {
+                    completion.finish(.failure(.init(code: .requestTimedOut)))
+                }
+            }
+            XCTFail("Missing native reply must time out")
+        } catch { XCTAssertEqual((error as? WatchProtocolFault)?.code, .requestTimedOut) }
+        XCTAssertLessThan(start.duration(to: clock.now), .seconds(2))
+        completion.finish(.success(Data([42])))
+    }
+
     func testWatchReconcilesRootUsingItsOwnFilesNotPhoneReadinessClaims() {
         let stalePhone = WatchDownloadRootStatus(rootID: "r", title: "Playlist", desiredCount: 2,
             readyCount: 2, state: .complete, trackIDs: ["a", "b"])

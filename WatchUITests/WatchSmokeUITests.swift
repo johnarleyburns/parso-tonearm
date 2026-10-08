@@ -26,6 +26,15 @@ final class WatchSmokeUITests: XCTestCase {
         XCTAssertTrue(reveal(button, in: app), "Sync Status must be accessible from Home")
         button.tap()
         XCTAssertTrue(app.descendants(matching: .any)["watch.sync.screen"].waitForExistence(timeout: 10))
+        let refresh = app.buttons["watch.sync.refresh"]
+        XCTAssertTrue(reveal(refresh, in: app))
+        XCTAssertTrue(refresh.isHittable)
+        refresh.tap()
+        let result = app.staticTexts["watch.sync.result"]
+        XCTAssertTrue(reveal(result, in: app))
+        XCTAssertEqual(result.label, "Metadata request queued with Apple. No device reply yet.")
+        XCTAssertTrue(refresh.isEnabled, "An offline check must finish and remain user-retryable")
+        snapshot(app, "Metadata-sync-queued")
         let connection = app.descendants(matching: .any)["watch.sync.connection"]
         XCTAssertTrue(reveal(connection, in: app))
         XCTAssertEqual(connection.label, "iPhone app not reachable")
@@ -35,9 +44,6 @@ final class WatchSmokeUITests: XCTestCase {
         let unknown = app.staticTexts["No download report received from iPhone yet."]
         XCTAssertTrue(reveal(unknown, in: app), "No phone report is unknown, not a completed empty queue")
         snapshot(app, "Sync-status-offline")
-        let refresh = app.buttons["watch.sync.refresh"]
-        XCTAssertTrue(reveal(refresh, in: app))
-        refresh.tap()
         let requested = app.descendants(matching: .any)["watch.sync.requested"]
         XCTAssertTrue(reveal(requested, in: app), "Refresh must acknowledge the queued request, not claim completion")
         XCTAssertTrue(requested.label.contains("Sync requested"))

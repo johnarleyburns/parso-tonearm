@@ -36,6 +36,12 @@ final class WatchAVPlayerItemTests: XCTestCase {
         XCTAssertFalse(watch.contains("WatchAudioChunkAssembler("))
         XCTAssertFalse(watch.contains(".resumableAudioChunks"))
         XCTAssertTrue(watch.contains("observer: fan"), "A file delivered at activation must already have a receiver")
+        let activation = try XCTUnwrap(phone.range(of: "func activate() async"))
+        let activationBody = String(phone[activation.lowerBound...])
+        let receiver = try XCTUnwrap(activationBody.range(of: "await inbound.connect(self)"))
+        let native = try XCTUnwrap(activationBody.range(of: "protocolAdapter.activate()"))
+        XCTAssertLessThan(receiver.lowerBound, native.lowerBound,
+            "Early metadata and file callbacks must not arrive before the phone receiver is connected")
         XCTAssertTrue(watch.contains("requiresNormalizedAAC: true"))
         XCTAssertTrue(facade.contains("PhoneWatchAudioPreparation.transferWholeFile("))
         XCTAssertFalse(facade.contains("chunkSender"))

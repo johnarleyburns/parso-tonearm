@@ -4,6 +4,21 @@ import TonearmWatchCore
 import TonearmWatchProtocol
 
 final class WatchBackgroundDeliveryTrackerTests: XCTestCase {
+    @MainActor
+    func testMetadataSyncControlFinishesForQueuedFailureAndConfirmedResults() {
+        let suite = "metadata-sync-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let state = WatchSyncStatusState(defaults: defaults)
+        for result: WatchMetadataSyncResult in [.queued, .failed(.requestTimedOut), .confirmed] {
+            state.requestedSync()
+            XCTAssertTrue(state.isSyncing)
+            state.completedSync(result)
+            XCTAssertFalse(state.isSyncing)
+            XCTAssertEqual(state.syncResult, result)
+            XCTAssertNil(state.lastAudioInstalledAt, "Metadata confirmation must never count as installed audio")
+        }
+    }
     func testBackgroundLifetimeIncludesAsyncInstallationAndPendingSessionContent() async throws {
         let tracker = WatchBackgroundDeliveryTracker()
         let sessionPending = Mutex(true)

@@ -50,7 +50,7 @@ public actor WatchFileInstaller {
 
     // MARK: - Install
 
-    /// Install one freshly-delivered file. `stagedURL` is consumed: on every return path it has
+    /// Install one freshly-delivered file. Successful processing consumes `stagedURL`: it has
     /// either been moved into place, moved into deferred staging, or deleted.
     @discardableResult
     public func install(stagedURL: URL, metadata rawMetadata: [String: String]) async -> WatchInstallOutcome {
@@ -106,8 +106,12 @@ public actor WatchFileInstaller {
             hasTrack = false
         }
         guard hasTrack else {
-            _ = try? retainDeferred(stagedURL: stagedURL, metadata: metadata)
-            return .deferredAwaitingMetadata(trackID: trackID)
+            do {
+                _ = try retainDeferred(stagedURL: stagedURL, metadata: metadata)
+                return .deferredAwaitingMetadata(trackID: trackID)
+            } catch {
+                return .rejected(trackID: trackID, WatchProtocolFault(code: .installationFailed))
+            }
         }
 
         // §5.4 duplicate delivery: an already-ready asset with the same checksum is acknowledged
@@ -214,8 +218,13 @@ public actor WatchFileInstaller {
         let ext = metadata.fileExtension ?? stagedURL.pathExtension
         let audio = ext.isEmpty ? stagingDirectory.appendingPathComponent(base)
             : stagingDirectory.appendingPathComponent(base).appendingPathExtension(ext)
-        if fileManager.fileExists(atPath: audio.path) { try fileManager.removeItem(at: audio) }
-        try fileManager.moveItem(at: stagedURL, to: audio)
+        // retryDeferred passes this same retained file back through installation.
+        // Until its catalog row arrives, retaining it again must be a no-op move,
+        // not deletion of the source followed by a failed move onto itself.
+        if stagedURL.standardizedFileURL != audio.standardizedFileURL {
+            if fileManager.fileExists(atPath: audio.path) { try fileManager.removeItem(at: audio) }
+            try fileManager.moveItem(at: stagedURL, to: audio)
+        }
         let sidecar = audio.appendingPathExtension("meta")
         try JSONEncoder().encode(metadata.dictionary).write(to: sidecar, options: .atomic)
         return audio

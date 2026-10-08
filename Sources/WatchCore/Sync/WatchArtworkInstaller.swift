@@ -84,8 +84,10 @@ public actor WatchArtworkInstaller {
                 try? await repository.markArtworkAsset(artworkID: id, relativeFilename: name,
                                                         installedBytes: measured.bytes, state: .ready)
             } else {
-                _ = try? retainDeferred(stagedURL: stagedURL, metadata: metadata)
-                return .deferredAwaitingMetadata(artworkID: id)
+                do {
+                    try retainDeferred(stagedURL: stagedURL, metadata: metadata)
+                    return .deferredAwaitingMetadata(artworkID: id)
+                } catch { return .rejected(artworkID: id, WatchProtocolFault(code: .installationFailed)) }
             }
             try? fileManager.removeItem(at: stagedURL)
             try? removeDeferred(artworkID: id)
@@ -93,8 +95,10 @@ public actor WatchArtworkInstaller {
         }
 
         guard hasReference else {
-            _ = try? retainDeferred(stagedURL: stagedURL, metadata: metadata)
-            return .deferredAwaitingMetadata(artworkID: id)
+            do {
+                try retainDeferred(stagedURL: stagedURL, metadata: metadata)
+                return .deferredAwaitingMetadata(artworkID: id)
+            } catch { return .rejected(artworkID: id, WatchProtocolFault(code: .installationFailed)) }
         }
         if let storage = await storageProvider(), !storage.canAccept(bytes: measured.bytes) {
             try? fileManager.removeItem(at: stagedURL)
@@ -142,8 +146,10 @@ public actor WatchArtworkInstaller {
         let id = metadata.artworkID.lowercased()
         let artwork = stagingDirectory.appendingPathComponent(id).appendingPathExtension(
             stagedURL.pathExtension.lowercased())
-        if fileManager.fileExists(atPath: artwork.path) { try fileManager.removeItem(at: artwork) }
-        try fileManager.moveItem(at: stagedURL, to: artwork)
+        if stagedURL.standardizedFileURL != artwork.standardizedFileURL {
+            if fileManager.fileExists(atPath: artwork.path) { try fileManager.removeItem(at: artwork) }
+            try fileManager.moveItem(at: stagedURL, to: artwork)
+        }
         try JSONEncoder().encode(metadata.dictionary).write(to: artwork.appendingPathExtension("meta"), options: .atomic)
     }
 

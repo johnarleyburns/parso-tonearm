@@ -4,19 +4,40 @@ import Synchronization
 /// Native reply/error callbacks can race or arrive more than once. Claim the
 /// continuation under a lock, then resume outside it; only the first result wins.
 final class WatchImmediateCompletion: Sendable {
-    private let continuation: Mutex<CheckedContinuation<Data, any Error>?>
+    private struct State {
+        var continuation: CheckedContinuation<Data, any Error>?
+        var result: Result<Data, WatchProtocolFault>?
+    }
+    private let state = Mutex(State())
+
+    init() {}
 
     init(_ continuation: CheckedContinuation<Data, any Error>) {
-        self.continuation = Mutex(continuation)
+        install(continuation)
+    }
+
+    func install(_ continuation: CheckedContinuation<Data, any Error>) {
+        let result: Result<Data, WatchProtocolFault>? = state.withLock { value in
+            if let result = value.result { return result }
+            value.continuation = continuation
+            return nil
+        }
+        if let result { resume(continuation, with: result) }
     }
 
     func finish(_ result: Result<Data, WatchProtocolFault>) {
-        let claimed = continuation.withLock { value in
-            let claimed = value
-            value = nil
+        let claimed = state.withLock { value in
+            guard value.result == nil else { return nil as CheckedContinuation<Data, any Error>? }
+            value.result = result
+            let claimed = value.continuation
+            value.continuation = nil
             return claimed
         }
         guard let claimed else { return }
+        resume(claimed, with: result)
+    }
+
+    private func resume(_ claimed: CheckedContinuation<Data, any Error>, with result: Result<Data, WatchProtocolFault>) {
         switch result {
         case .success(let data): claimed.resume(returning: data)
         case .failure(let fault): claimed.resume(throwing: fault)
@@ -80,8 +101,9 @@ public enum WatchRequestDeadline {
 
 /// Runs `operation` under a deadline and converts a timeout into the §5.5 code for it.
 ///
-/// The losing branch is cancelled, not abandoned: a search that missed its deadline must stop
-/// occupying the link, or a user typing quickly builds a backlog of requests nobody is waiting for.
+/// The losing branch is cancelled. Transports must release awaited callbacks on cancellation;
+/// otherwise structured concurrency waits forever for the losing branch. This releases Swift's
+/// wait, not Apple's underlying message (WatchConnectivity has no message-cancellation API).
 public func withWatchRequestDeadline<Success: Sendable>(
     _ deadline: Duration = WatchRequestDeadline.immediate,
     operation: @escaping @Sendable () async throws -> Success

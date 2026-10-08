@@ -106,7 +106,8 @@ final class WatchAppAssembly {
 
     func requestSyncStatus() async {
         syncStatus.requestedSync()
-        await coordinator?.requestReconciliation()
+        let result = await coordinator?.synchronizeMetadata() ?? .failed(.installationFailed)
+        syncStatus.completedSync(result)
     }
 
     /// Watch redesign B3 — ask the phone to download one song from a long-press menu.
@@ -237,7 +238,8 @@ final class WatchAppAssembly {
             configuration: .init(capabilities: [.downloadRoots, .manifestAcknowledgement,
                                                 .reconciliation, .watchInitiatedDownload,
                                                 .artworkAssets, .watchLocalCatalog]),
-            diagnostics: diag, observer: fan)
+            diagnostics: diag, observer: fan,
+            manifestProvider: { await sync.metadataManifest() })
         let adpt = WatchProtocolSessionAdapter(endpoint: coord, diagnostics: diag)
 
         self.repository = repo

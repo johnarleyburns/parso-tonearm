@@ -7,6 +7,18 @@ import TonearmWatchProtocol
 /// §8.3 installer: audio/metadata ordering, duplicate delivery, corruption, storage reserve,
 /// replacement, delete/install race, and convergence after a restart.
 final class WatchFileInstallerTests: XCTestCase {
+    func testFailedRetentionDoesNotClaimAudioIsSafelyDeferred() async throws {
+        let fx = try Fixture()
+        let blockedDirectory = fx.root.appendingPathComponent("not-a-directory")
+        try Data([1]).write(to: blockedDirectory)
+        let installer = WatchFileInstaller(repository: fx.repository, audioDirectory: fx.audio,
+            stagingDirectory: blockedDirectory)
+        let incoming = try fx.stage("delivered.m4a", bytes: Data("valid-delivered-audio".utf8))
+        let digest = try WatchFileDigest.measure(incoming)
+        let outcome = await installer.install(stagedURL: incoming, metadata: WatchAudioFileMetadata(
+            trackID: "unknown", expectedBytes: digest.bytes, sha256: digest.sha256, fileExtension: "m4a").dictionary)
+        XCTAssertEqual(outcome, .rejected(trackID: "unknown", .init(code: .installationFailed)))
+    }
     func testExplicitContainerInstallsExtensionlessCacheWithOrWithoutMetadataFirst() async throws {
         for metadataFirst in [true, false] {
             let fx = try Fixture()
@@ -268,6 +280,25 @@ private struct Fixture {
 }
 
 final class WatchArtworkInstallerTests: XCTestCase {
+    func testRepeatedDeferredArtworkRetriesPreserveFileUntilBindingArrives() async throws {
+        let fx = try ArtworkFixture()
+        let incoming = try fx.stage("arrived.png", bytes: Data("valid-artwork".utf8))
+        let digest = try WatchFileDigest.measure(incoming)
+        let metadata = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes,
+            sha256: digest.sha256, role: .cover)
+        let initial = await fx.installer.install(stagedURL: incoming, metadata: metadata)
+        XCTAssertEqual(initial, .deferredAwaitingMetadata(artworkID: digest.sha256))
+        for _ in 0..<3 {
+            let retry = await fx.installer.retryDeferred()
+            XCTAssertEqual(retry, [.deferredAwaitingMetadata(artworkID: digest.sha256)])
+            XCTAssertEqual(try WatchFileDigest.measure(fx.staging.appendingPathComponent("\(digest.sha256).png")).sha256,
+                digest.sha256)
+        }
+        try await fx.repository.upsertTrack(.init(trackID: "matching", title: "Matching", coverArtworkID: digest.sha256))
+        let completed = await fx.installer.retryDeferred()
+        XCTAssertEqual(completed, [.installed(artworkID: digest.sha256,
+            relativeFilename: "\(digest.sha256).png", bytes: digest.bytes)])
+    }
     func testArtworkSuccessAndDuplicateDoNotRewrite() async throws {
         let fx = try ArtworkFixture()
         let bytes = Data("jpeg-derivative".utf8)

@@ -7,6 +7,74 @@ import XCTest
 /// every case below is the real phone code talking to the real watch code — no simulator, no
 /// WatchConnectivity, no wall-clock waits beyond a grace period the test itself picks.
 final class WatchProtocolIntegrationTests: XCTestCase {
+    func testMetadataRoundTripExchangesBothTruthsWithoutAudioOrDownloadCommands() async throws {
+        let harness = await makeConnectedHarness()
+        await harness.link.setHoldingUserInfo(true)
+        await harness.phone.publishContext(downloads: .init(revision: 1, catalogTrackCount: 400,
+            readyTrackIDs: ["local-aac"]))
+        let watchResult = await harness.watch.synchronizeMetadata()
+        XCTAssertEqual(watchResult, .confirmed)
+        let phoneResult = await harness.phone.synchronizeMetadata()
+        XCTAssertEqual(phoneResult, .confirmed)
+        let manifests = await harness.handler.receivedManifests
+        XCTAssertEqual(manifests.last?.readyTrackIDs, ["local-aac"])
+        let requests = await harness.handler.receivedDownloadRequests
+        let controls = await harness.handler.receivedDownloadControls
+        XCTAssertTrue(requests.isEmpty)
+        XCTAssertTrue(controls.isEmpty)
+        let statuses = await harness.watchObserver.downloadStatuses
+        XCTAssertEqual(statuses.last?.catalogTrackCount, 400)
+        let deliveries = await harness.link.deliveries
+        XCTAssertFalse(deliveries.contains { $0.channel == .file })
+    }
+
+    func testMetadataReplyTimeoutIsNotShownAsSynced() async {
+        let harness = await makeHarness(boundLibraryID: libraryID, immediateDeadline: .milliseconds(25))
+        await harness.link.setHoldingUserInfo(true)
+        await harness.link.setSwallowImmediateReplies(true)
+        let result = await harness.watch.synchronizeMetadata()
+        XCTAssertEqual(result, .failed(.requestTimedOut))
+        let statuses = await harness.watchObserver.downloadStatuses
+        XCTAssertTrue(statuses.isEmpty)
+    }
+
+    func testUnreadableWatchStoreCannotConfirmMetadataSync() async {
+        let harness = await makeHarness(boundLibraryID: libraryID, localManifest: nil,
+            phoneStatus: .init(revision: 1))
+        await harness.link.setHoldingUserInfo(true)
+        let result = await harness.phone.synchronizeMetadata()
+        XCTAssertEqual(result, .failed(.installationFailed))
+        let watchResult = await harness.watch.synchronizeMetadata()
+        XCTAssertEqual(watchResult, .failed(.installationFailed))
+        let reports = await harness.phoneObserver.manifests
+        XCTAssertTrue(reports.isEmpty)
+    }
+
+    func testWatchMetadataCheckCanReadColdPhoneWithoutPriorContextPublication() async {
+        let harness = await makeHarness(boundLibraryID: libraryID,
+            phoneStatus: .init(revision: 1, catalogTrackCount: 379, readyTrackIDs: []))
+        await harness.link.setHoldingUserInfo(true)
+        let result = await harness.watch.synchronizeMetadata()
+        XCTAssertEqual(result, .confirmed)
+        let phoneResult = await harness.phone.synchronizeMetadata()
+        XCTAssertEqual(phoneResult, .confirmed)
+        let statuses = await harness.watchObserver.downloadStatuses
+        XCTAssertEqual(statuses.last?.catalogTrackCount, 379)
+        let publications = await harness.link.deliveries
+        XCTAssertFalse(publications.contains { $0.channel == .applicationContext || $0.channel == .file })
+    }
+
+    func testMetadataSyncQueuesWhileUnreachableWithoutClaimingConfirmation() async {
+        let harness = await makeHarness(boundLibraryID: libraryID)
+        await harness.link.setReachable(false)
+        await harness.watch.activate(reachable: false)
+        await harness.phone.activate(reachable: false)
+        let watch = await harness.watch.synchronizeMetadata()
+        let phone = await harness.phone.synchronizeMetadata()
+        XCTAssertEqual(watch, .queued)
+        XCTAssertEqual(phone, .queued)
+    }
+
     func testPeriodicCatalogReportsWorkOfflineInBothDirectionsWithoutAudioSends() async throws {
         let harness = await makeHarness(boundLibraryID: libraryID)
         await harness.link.setReachable(false)
@@ -152,7 +220,9 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         gracePeriod: TimeInterval = 0.05,
         immediateDeadline: Duration = .milliseconds(200),
         phoneRevision: Int64 = 0,
-        diagnostics: WatchDiagnosticsRecorder? = nil
+        diagnostics: WatchDiagnosticsRecorder? = nil,
+        localManifest: WatchManifestPayload? = .init(manifestID: "local-truth", readyTrackIDs: ["local-aac"], installedBytes: 512),
+        phoneStatus: WatchDownloadStatusSnapshot? = nil
     ) async -> Harness {
         let id = libraryID ?? self.libraryID
         let link = WatchFakeDuplexLink()
@@ -161,7 +231,8 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         let phoneObserver = RecordingPhoneObserver()
         let phone = PhoneWatchProtocolCoordinator(
             transport: link.transport(for: .phone), handler: handler, libraryID: id,
-            revisionStore: revisions, gracePeriod: gracePeriod, observer: phoneObserver)
+            revisionStore: revisions, gracePeriod: gracePeriod, observer: phoneObserver,
+            downloadStatusProvider: { phoneStatus })
 
         let watchState = WatchInMemorySyncStateStore(pairedLibraryID: boundLibraryID)
         let watchObserver = RecordingWatchObserver()
@@ -170,7 +241,8 @@ final class WatchProtocolIntegrationTests: XCTestCase {
             configuration: .init(capabilities: watchCapabilities,
                                  immediateDeadline: immediateDeadline, gracePeriod: gracePeriod),
             diagnostics: diagnostics,
-            observer: watchObserver)
+            observer: watchObserver,
+            manifestProvider: { localManifest })
 
         await link.attach(phone, as: .phone)
         await link.attach(watch, as: .watch)

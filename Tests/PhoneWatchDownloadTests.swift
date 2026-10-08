@@ -156,6 +156,19 @@ private func manifest(_ ids: [String], id: String = UUID().uuidString) -> WatchM
 // MARK: - Tests
 
 final class PhoneWatchDownloadTests: XCTestCase {
+    func testMetadataOnlyManifestIngestDoesNotStartQueuedAudio() async throws {
+        let db = try freshQueue()
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["queued"]), transfer: transfer)
+        try await store.upsertRoot(root("r", tracks: ["queued"]))
+        try await store.upsertJob(PhoneWatchDownloadJob(trackID: "queued", rootIDs: ["r"]))
+        try await manager.ingestManifest(manifest([]), reconcileDownloads: false)
+        let sends = await transfer.sent
+        XCTAssertTrue(sends.isEmpty)
+        let jobs = try await store.jobs()
+        XCTAssertEqual(jobs.first?.state, .queued)
+    }
     func testLostInstalledAudioAsksForApprovalInsteadOfAutomaticallyDownloadingAgain() async throws {
         let db = try freshQueue()
         let transfer = FakeTransfer()

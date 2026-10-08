@@ -43,6 +43,42 @@ production assembly instantiates the chunk sender/assembler.
 
 ## UI and verification
 
+### Metadata-only check (2026-10-08)
+
+A regression reproduced a destructive deferred-install bug with the real CC0 AAC:
+audio received before its catalog row was retained, then an unrelated catalog page
+triggered retryDeferred. Retention tried to move the retained file onto itself by
+first deleting it. Later matching metadata therefore had no audio left to install.
+Audio/artwork retention now skips self-moves, and retention failures report an
+installation error instead of claiming the bytes are safely deferred. Regression
+coverage includes unrelated pages and repeated deferred processing after a new
+installer is created, then successful installation without another transfer.
+This is a confirmed file-loss path; the owner's exact remaining device stall is
+not established from the diagnostics snapshot alone.
+
+Both Settings surfaces have a Sync now check inspired by Cladiron's Phone Sync.
+It uses a small, correlated request/reply carrying each device's status, with a
+durable background copy when live messaging is unavailable. Confirmed means the
+peer actually answered with its metadata, not merely that Apple accepted a queue
+write. Queued and failed checks remain distinct. This status check does not tick
+the download manager, restart audio transfers, or transcode anything. Full catalog
+republication remains the separate Reconcile action on iPhone.
+
+Native immediate-message cancellation releases the continuation even if Apple's
+reply/error callback never arrives. Otherwise a structured deadline task group
+waits forever for its cancelled, non-cooperative child. Tests exercise the missing
+callback and cancellation-before-install races. This is a confirmed code defect,
+not a proven explanation of the paired-device audio failure.
+
+The phone connects its inbound receiver before activating the native session.
+Periodic watch reports also surface a failed application-context enqueue instead
+of recording it as a successfully queued report. The watch's readable diagnostics
+distinguish that queue failure from a local-library read failure.
+
+Live app reachability is not Bluetooth pairing, metadata delivery, or audio-file
+delivery. Actual audio delivery on the owner's devices remains unresolved; neither
+the fake transport nor simulator playback closes that physical-device criterion.
+
 On This Watch separates Downloaded audio from Catalog on this watch. Diagnostics
 shows readable receipt/report state, with raw codes behind an explicit button.
 No queued transfer is represented as an installed track or successful sync.

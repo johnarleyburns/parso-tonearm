@@ -7,6 +7,46 @@ import TonearmWatchProtocol
 /// `WatchSyncActor` turns everything the link reports into local SwiftData truth. These exercise it
 /// directly — no duplex link — so the installer/repository interplay is what is under test.
 final class WatchSyncActorTests: XCTestCase {
+    func testWholeAACSurvivesUnrelatedCatalogPagesUntilItsMetadataArrives() async throws {
+        let fx = try Fixture()
+        let sync = WatchSyncActor(repository: fx.repository, installer: fx.installer, requiresNormalizedAAC: true)
+        let source = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources/Audio/ambient-ocean-watch-aac128.m4a")
+        let incoming = try fx.stage("delivered.m4a", bytes: Data(contentsOf: source))
+        let digest = try WatchFileDigest.measure(incoming)
+        await sync.didReceiveAudioFile(at: incoming, metadata: WatchAudioFileMetadata(trackID: "late-audio",
+            expectedBytes: digest.bytes, sha256: digest.sha256, codec: "aac", fileExtension: "m4a").dictionary)
+        let retained = fx.staging.appendingPathComponent("late-audio.m4a")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: retained.path))
+        await sync.didReceiveCatalogPage(.init(catalogID: "large-library", revision: 1,
+            pageIndex: 0, pageCount: 2, tracks: [.init(trackID: "unrelated", title: "Other music")], playlists: []))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: retained.path),
+            "Retrying before this track's metadata arrives must not delete Apple's delivered audio")
+        let restartedInstaller = WatchFileInstaller(repository: fx.repository, audioDirectory: fx.audio,
+            stagingDirectory: fx.staging)
+        for _ in 0..<3 {
+            let outcomes = await restartedInstaller.retryDeferred()
+            XCTAssertEqual(outcomes, [.deferredAwaitingMetadata(trackID: "late-audio")])
+            XCTAssertEqual(try WatchFileDigest.measure(retained).sha256, digest.sha256)
+        }
+        await sync.didReceiveCatalogPage(.init(catalogID: "large-library", revision: 1,
+            pageIndex: 1, pageCount: 2, tracks: [.init(trackID: "late-audio", title: "Late catalog audio")], playlists: []))
+        let ready = try await fx.repository.manifest().readyTrackIDs
+        XCTAssertEqual(ready, ["late-audio"], "Installation must finish without a second phone transfer")
+    }
+    func testRejectedMetadataContextIsReportedAsFailureNotQueuedSuccess() async throws {
+        let fx = try Fixture()
+        let diagnostics = WatchDiagnosticsRecorder()
+        let sync = WatchSyncActor(repository: fx.repository, installer: fx.installer, diagnostics: diagnostics)
+        let coordinator = WatchConnectivityCoordinator(transport: RejectingMetadataTransport())
+        await sync.setCoordinator(coordinator)
+        await sync.publishPeriodicStatus()
+        let events = await diagnostics.events().filter { $0.category == .manifestConvergence }
+        XCTAssertEqual(events.last?.stateCode, "reportQueueFailed")
+        XCTAssertFalse(events.contains { $0.stateCode == "reported" })
+        let accepted = await coordinator.publishManifestContext(.init(manifestID: "empty", readyTrackIDs: [], installedBytes: 0))
+        XCTAssertFalse(accepted)
+    }
     func testOfflinePlaylistRootInstallsAudioAndLaterCatalogEnrichesPlaceholders() async throws {
         let fx = try Fixture()
         let file = try fx.stage("home.m4a", bytes: Data("home-audio".utf8))
@@ -169,6 +209,14 @@ final class WatchSyncActorTests: XCTestCase {
         XCTAssertEqual(ready, ["dup"])
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fx.audio.path), ["\(digest.sha256).m4a"])
     }
+}
+
+private struct RejectingMetadataTransport: WatchProtocolTransport {
+    func isReachable() async -> Bool { false }
+    func sendImmediate(_ data: Data) async throws -> Data { throw WatchProtocolFault(code: .phoneUnavailable) }
+    func updateApplicationContext(_ data: Data) async throws { throw WatchProtocolFault(code: .transferFailed) }
+    func transferUserInfo(_ data: Data) async {}
+    func transferFile(_ url: URL, metadata: [String: String]) async throws { throw WatchProtocolFault(code: .transferFailed) }
 }
 
 private struct Fixture {

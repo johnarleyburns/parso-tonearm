@@ -48,6 +48,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
     /// §12 — request-latency and negotiation diagnostics. Optional so `swift test` can drive the
     /// coordinator without one; the watch app injects the shared recorder.
     private let diagnostics: WatchDiagnosticsRecorder?
+    private let manifestProvider: @Sendable () async -> WatchManifestPayload?
     private weak var observer: (any WatchConnectivityObserver)?
 
     private var reducer: WatchConnectionReducer
@@ -66,12 +67,14 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
                 ledger: WatchAppliedMessageLedger? = nil,
                 configuration: Configuration = Configuration(),
                 diagnostics: WatchDiagnosticsRecorder? = nil,
-                observer: (any WatchConnectivityObserver)? = nil) {
+                observer: (any WatchConnectivityObserver)? = nil,
+                manifestProvider: @escaping @Sendable () async -> WatchManifestPayload? = { nil }) {
         self.transport = transport
         self.stateStore = stateStore
         self.configuration = configuration
         self.ledger = ledger ?? WatchAppliedMessageLedger(capacity: configuration.ledgerCapacity)
         self.diagnostics = diagnostics
+        self.manifestProvider = manifestProvider
         self.observer = observer
         let reducer = WatchConnectionReducer(gracePeriod: configuration.gracePeriod)
         self.reducer = reducer
@@ -253,15 +256,19 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         await sendDurableWithLiveCopy(data)
     }
 
-    public func publishManifestContext(_ manifest: WatchManifestPayload) async {
+    @discardableResult
+    public func publishManifestContext(_ manifest: WatchManifestPayload) async -> Bool {
         let context = WatchContextSnapshot(pairedLibraryID: boundLibraryID ?? .unknown, manifest: manifest)
         guard let data = try? WatchProtocolEnvelope.encode(kind: .watchManifest, payload: context,
-            pairedLibraryID: boundLibraryID ?? .unknown) else { return }
-        try? await transport.updateApplicationContext(data)
+            pairedLibraryID: boundLibraryID ?? .unknown) else { return false }
+        do { try await transport.updateApplicationContext(data) }
+        catch { return false }
         if await transport.isReachable(), let live = try? WatchProtocolEnvelope.encode(kind: .watchManifest,
             payload: manifest, pairedLibraryID: boundLibraryID ?? .unknown) {
-            _ = try? await transport.sendImmediate(live)
+            let transport = transport
+            _ = try? await withWatchRequestDeadline { try await transport.sendImmediate(live) }
         }
+        return true
     }
 
     /// §7 polish — ask the phone to download (or drop) a single track. The phone stays the
@@ -290,6 +297,36 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
             kind: .requestReconciliation, payload: payload,
             pairedLibraryID: boundLibraryID ?? .unknown) else { return }
         await sendDurableWithLiveCopy(data)
+    }
+
+    public func synchronizeMetadata() async -> WatchMetadataSyncResult {
+        do {
+            let manifest = await manifestProvider()
+            let data = try WatchProtocolEnvelope.encode(kind: .requestReconciliation,
+                payload: WatchReconciliationRequest(scope: .status, manifest: manifest),
+                pairedLibraryID: boundLibraryID ?? .unknown)
+            await transport.transferUserInfo(data)
+            guard await transport.isReachable() else { return .queued }
+            guard manifest != nil else { return .failed(.installationFailed) }
+            let transport = transport
+            let response = try await withWatchRequestDeadline(configuration.immediateDeadline) {
+                try await transport.sendImmediate(data)
+            }
+            let request = try WatchProtocolEnvelope.decode(data).get()
+            let envelope = try WatchProtocolEnvelope.decode(response).get()
+            guard envelope.correlationID == request.messageID, envelope.kind == .commandReply,
+                  await acceptLibraryIdentity(envelope.pairedLibraryID) else { return .failed(.transferFailed) }
+            let reply = try envelope.decodePayload(WatchCommandReply.self)
+            guard reply.accepted, let downloads = reply.downloads else {
+                return .failed(reply.fault?.code ?? .transferFailed)
+            }
+            await run(reducer.apply(.peerResponded, at: Date()))
+            if revisions.evaluate(scope: .downloadStatus, revision: downloads.revision) == .apply {
+                await observer?.didReceiveDownloadStatus(downloads)
+            }
+            return .confirmed
+        } catch let fault as WatchProtocolFault { return .failed(fault.code) }
+        catch { return .failed(.transferFailed) }
     }
 
     private func sendDurableWithLiveCopy(_ data: Data) async {
@@ -329,6 +366,18 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         switch envelope.kind {
         case .requestReconciliation:
             if let request = try? envelope.decodePayload(WatchReconciliationRequest.self) {
+                if request.scope == .status {
+                    if let downloads = request.downloads {
+                        if revisions.evaluate(scope: .downloadStatus, revision: downloads.revision) == .apply {
+                            await observer?.didReceiveDownloadStatus(downloads)
+                        }
+                    }
+                    // Do not await a nested message back to the requester before replying.
+                    let manifest = await manifestProvider()
+                    return try? envelope.reply(kind: .commandReply,
+                        payload: WatchCommandReply(accepted: manifest != nil,
+                            fault: manifest == nil ? .init(code: .installationFailed) : nil, manifest: manifest))
+                }
                 await observer?.phoneRequestedReconciliation(request)
             }
         default:
@@ -446,6 +495,10 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
 
         case .requestReconciliation:
             guard let request = try? envelope.decodePayload(WatchReconciliationRequest.self) else { return }
+            if let downloads = request.downloads,
+               revisions.evaluate(scope: .downloadStatus, revision: downloads.revision) == .apply {
+                await observer?.didReceiveDownloadStatus(downloads)
+            }
             await observer?.phoneRequestedReconciliation(request)
 
         case .error:

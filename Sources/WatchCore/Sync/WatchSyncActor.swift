@@ -207,6 +207,10 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     }
 
     public func phoneRequestedReconciliation(_ request: WatchReconciliationRequest) async {
+        if request.scope == .status {
+            await publishManifest(periodic: true)
+            return
+        }
         await reconcileAndAdopt()
         await onLibraryChanged()
         await publishManifest()
@@ -344,15 +348,14 @@ public actor WatchSyncActor: WatchConnectivityObserver {
         for outcome in await chunkAssembler?.resumeCompleted() ?? [] { await applyChunkOutcome(outcome) }
     }
 
-    private func publishManifest(periodic: Bool = false) async {
-        guard let coordinator else { return }
+    /// Read local truth without sending a file or awaiting another device's reply.
+    public func metadataManifest() async -> WatchManifestPayload? {
         guard let snapshot = try? await repository.manifest() else {
             await diagnostics?.record(.manifestConvergence, "storeReadFailed")
-            return
+            return nil
         }
-        await chunkAssembler?.remove(trackIDs: Set(snapshot.readyTrackIDs))
         let storage = try? await repository.storage()
-        let payload = WatchManifestPayload(
+        return WatchManifestPayload(
             manifestID: snapshot.manifestID,
             readyTrackIDs: snapshot.readyTrackIDs.map(WatchTrackID.init),
             installedBytes: snapshot.installedBytes,
@@ -366,14 +369,24 @@ public actor WatchSyncActor: WatchConnectivityObserver {
             audioFailureTransferIDs: chunkFailureTransferIDs,
             catalogTrackCount: ((try? await repository.tracks(readyOnly: false)) ?? []).count,
             inProgressTrackIDs: await installer.deferredTrackIDs().map(WatchTrackID.init))
-        if periodic { await coordinator.publishManifestContext(payload) }
+    }
+
+    private func publishManifest(periodic: Bool = false) async {
+        guard let coordinator, let payload = await metadataManifest() else { return }
+        await chunkAssembler?.remove(trackIDs: Set(payload.readyTrackIDs.map(\.rawValue)))
+        if periodic {
+            guard await coordinator.publishManifestContext(payload) else {
+                await diagnostics?.record(.manifestConvergence, "reportQueueFailed")
+                return
+            }
+        }
         else { await coordinator.sendManifest(payload) }
         // §12 manifest-convergence diagnostics: each time the watch reports where it stands, log the
         // ready count and installed bytes. Watching `count` climb toward the desired set across a
         // soak is how convergence is verified without a title ever being recorded.
         await diagnostics?.record(.manifestConvergence, "reported",
-                                  byteCount: snapshot.installedBytes,
-                                  count: snapshot.readyTrackIDs.count)
+                                  byteCount: payload.installedBytes,
+                                  count: payload.readyTrackIDs.count)
     }
 
     private func displayTitle(_ raw: String, fallback: String) -> String {
