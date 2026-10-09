@@ -1,4 +1,5 @@
 import SwiftUI
+import WatchKit
 import TonearmWatchCore
 import TonearmWatchProtocol
 
@@ -13,6 +14,7 @@ struct WatchSearchView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
     @StateObject private var presenter: WatchSearchPresenter
     @FocusState private var fieldFocused: Bool
+    @State private var presentedInitialPrompt = false
 
     init(mode: WatchSearchMode) {
         self.mode = mode
@@ -43,7 +45,9 @@ struct WatchSearchView: View {
                     .font(.caption2).foregroundStyle(.secondary)
             } else {
                 ForEach(rows) { row in
-                    if let ref = row.collectionRef {
+                    if row.kind == .artist {
+                        NavigationLink(value: WatchNav.artist(row.title)) { label(row) }.watchCardRow()
+                    } else if let ref = row.collectionRef {
                         NavigationLink(value: ref.kind == .playlist ? WatchNav.playlist(ref.id) : WatchNav.album(ref.id)) {
                             label(row)
                         }.watchCardRow()
@@ -59,7 +63,21 @@ struct WatchSearchView: View {
         .listStyle(.plain).navigationTitle(mode.title)
         .onChange(of: model.tracks) { _, _ in presenter.refresh() }
         .onChange(of: model.playlists) { _, _ in presenter.refresh() }
-        .onAppear { if !ProcessInfo.processInfo.arguments.contains("UI_TESTING") { fieldFocused = true } }
+        .task {
+            // Present actual text input, not just focus a field that still requires another tap.
+            guard !presentedInitialPrompt, !ProcessInfo.processInfo.arguments.contains("UI_TESTING") else { return }
+            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+            guard let controller = WKExtension.shared().visibleInterfaceController else {
+                fieldFocused = true
+                return
+            }
+            presentedInitialPrompt = true
+            controller.presentTextInputController(withSuggestions: nil, allowedInputMode: .plain) { results in
+                guard let query = results?.first as? String else { return }
+                presenter.query = query
+                presenter.submit()
+            }
+        }
     }
 
     private func label(_ row: WatchResultRow) -> some View {

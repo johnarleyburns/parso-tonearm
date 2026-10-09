@@ -199,6 +199,11 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
         if let data = try? WatchProtocolEnvelope.fromPhone(
             kind: .removeAssets, payload: payload, libraryID: libraryID, revision: revision) {
             await transport.transferUserInfo(data)
+            // Keep durable delivery, but do not make a connected user wait for Apple's
+            // background queue before a removal takes effect. The revision makes duplicates safe.
+            if await transport.isReachable() {
+                _ = try? await withWatchRequestDeadline { [transport] in try await transport.sendImmediate(data) }
+            }
         }
         return revision
     }

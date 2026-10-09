@@ -12,6 +12,7 @@ public enum WatchDownloadRootKind: String, Codable, Sendable { case track, playl
     public var artist: String
     public var normalizedArtist: String
     public var albumTitle: String
+    public var genre: String?
     public var normalizedAlbum: String
     public var durationSeconds: Double?
     public var trackNumber: Int?
@@ -28,7 +29,7 @@ public enum WatchDownloadRootKind: String, Codable, Sendable { case track, playl
     @Relationship(deleteRule: .cascade, inverse: \WatchAssetModel.track) public var asset: WatchAssetModel?
 
     public init(trackID: String, title: String, artist: String = "", albumTitle: String = "",
-                durationSeconds: Double? = nil, trackNumber: Int? = nil, discNumber: Int? = nil,
+                genre: String? = nil, durationSeconds: Double? = nil, trackNumber: Int? = nil, discNumber: Int? = nil,
                 artworkID: String? = nil, coverArtworkID: String? = nil, customArtworkID: String? = nil,
                 localThumbnailFilename: String? = nil, codec: String? = nil,
                 expectedBytes: Int64? = nil, expectedSHA256: String? = nil, phoneRevision: Int64 = 0,
@@ -36,6 +37,7 @@ public enum WatchDownloadRootKind: String, Codable, Sendable { case track, playl
         self.trackID = trackID; self.title = title; normalizedTitle = WatchTextNormalizer.normalize(title)
         self.artist = artist; normalizedArtist = WatchTextNormalizer.normalize(artist)
         self.albumTitle = albumTitle; normalizedAlbum = WatchTextNormalizer.normalize(albumTitle)
+        self.genre = genre
         self.durationSeconds = durationSeconds; self.trackNumber = trackNumber; self.discNumber = discNumber
         self.artworkID = artworkID; self.coverArtworkID = coverArtworkID
         self.customArtworkID = customArtworkID; self.localThumbnailFilename = localThumbnailFilename; self.codec = codec

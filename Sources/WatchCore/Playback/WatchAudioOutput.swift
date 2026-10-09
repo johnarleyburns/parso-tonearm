@@ -6,7 +6,8 @@ import Foundation
     func play() async -> WatchPlayResult
     func pause() async
     func seek(to time: Double) async
-    /// Apply a 0...1 output volume (Crown-driven). Clamped by the implementation.
+    /// Apply a 0...1 player gain, not system output volume. Local playback uses unity;
+    /// the native watch volume control owns the Crown and actual output volume.
     func setVolume(_ volume: Double)
     /// Reconfigure + reactivate the audio session and reload whatever item is current. Used after an
     /// interruption that requires a session rebuild and after a media-services reset.

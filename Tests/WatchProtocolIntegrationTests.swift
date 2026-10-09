@@ -496,6 +496,18 @@ final class WatchProtocolIntegrationTests: XCTestCase {
 
     // MARK: - Durable events (C-05, C-06, C-07)
 
+    func testConnectedRemovalDoesNotWaitForBackgroundQueueAndReplayIsSafe() async {
+        let harness = await makeConnectedHarness()
+        await harness.link.setHoldingUserInfo(true)
+        await harness.phone.sendRemoveAssets(["t1"], reason: .userRemoved)
+        let immediate = await harness.watchObserver.removals
+        XCTAssertEqual(immediate.count, 1)
+        XCTAssertEqual(immediate.first?.trackIDs, ["t1"])
+        await harness.link.flushHeldUserInfo()
+        let replayed = await harness.watchObserver.removals
+        XCTAssertEqual(replayed.count, 1, "Durable replay must not repeat an immediately applied removal")
+    }
+
     func testADuplicatedUserInfoDeliveryIsAppliedOnce() async {
         let harness = await makeConnectedHarness()
         await harness.link.setDuplicateDeliveries(true)

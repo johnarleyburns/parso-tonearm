@@ -8,6 +8,36 @@ import TonearmWatchProtocol
 /// service and is therefore exercised by WatchSmokeUITests plus the on-device audio pass.
 @MainActor
 final class WatchAVPlayerItemTests: XCTestCase {
+    func testWatchCrownControlsSystemVolumeWithoutAppAttenuation() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let view = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchNowPlayingView.swift"), encoding: .utf8)
+        XCTAssertTrue(view.contains("WKInterfaceVolumeControl(origin: .local)"))
+        XCTAssertTrue(view.contains("control.focus()"))
+        XCTAssertTrue(view.contains("control.resignFocus()"))
+        XCTAssertFalse(view.contains(".digitalCrownRotation("), "Native volume control owns direction and system output volume")
+        let output = try String(contentsOf: root.appendingPathComponent("WatchApp/AVPlayerOutput.swift"), encoding: .utf8)
+        XCTAssertTrue(output.contains("private var currentVolume: Float = 1.0"))
+        let player = try String(contentsOf: root.appendingPathComponent("WatchApp/WatchPlayer.swift"), encoding: .utf8)
+        XCTAssertTrue(player.contains("var volume: Double = 1.0"))
+        let runtime = try String(contentsOf: root.appendingPathComponent("Sources/App/Watch/PhoneWatchRuntime.swift"), encoding: .utf8)
+        XCTAssertFalse(runtime.contains("return await negotiatedCapabilities.supports(.artworkAssets)"))
+    }
+    func testLocalWatchBrowsingAndSearchPromptAndJamendoWatchMenuAreWired() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let home = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchRootView.swift"), encoding: .utf8)
+        XCTAssertTrue(home.contains("HomeDoor(nav: .songs, title: \"Songs\""))
+        XCTAssertTrue(home.contains("HomeDoor(nav: .artists"))
+        XCTAssertTrue(home.contains("HomeDoor(nav: .genres"))
+        let groups = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchCollectionViews.swift"), encoding: .utf8)
+        XCTAssertTrue(groups.contains("model.tracks.filter(\\.isReady)"))
+        let search = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchSearchView.swift"), encoding: .utf8)
+        XCTAssertTrue(search.contains("controller.presentTextInputController(withSuggestions: nil, allowedInputMode: .plain)"))
+        XCTAssertTrue(search.contains("WatchNav.artist(row.title)"))
+        let jamendo = try String(contentsOf: root.appendingPathComponent("Sources/Features/Sources/JamendoBrowseView.swift"), encoding: .utf8)
+        XCTAssertTrue(jamendo.contains(".contextMenu"))
+        XCTAssertTrue(jamendo.contains("Download to Apple Watch"))
+        XCTAssertTrue(jamendo.contains("await appState.downloadToWatch(rows: [row])"))
+    }
     func testStartupSyncIsVisibleAndConnectionToastIsTransitionBased() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let watchApp = try String(contentsOf: root.appendingPathComponent("WatchApp/PlatterheadWatchApp.swift"), encoding: .utf8)

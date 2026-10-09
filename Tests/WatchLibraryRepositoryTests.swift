@@ -4,6 +4,18 @@ import XCTest
 @testable import TonearmWatchCore
 
 final class WatchLibraryRepositoryTests: XCTestCase {
+    func testGenreSurvivesRepositoryUpdatesAndOlderMissingGenre() async throws {
+        let fixture = try Fixture()
+        try await fixture.repository.upsertTrack(.init(trackID: "genre", title: "Song", genre: "Classical", phoneRevision: 1))
+        var tracks = try await fixture.repository.tracks()
+        XCTAssertEqual(tracks.first?.genre, "Classical")
+        try await fixture.repository.upsertTrack(.init(trackID: "genre", title: "Song", genre: "Choral", phoneRevision: 2))
+        tracks = try await fixture.repository.tracks()
+        XCTAssertEqual(tracks.first?.genre, "Choral")
+        try await fixture.repository.upsertTrack(.init(trackID: "legacy", title: "Legacy"))
+        tracks = try await fixture.repository.tracks()
+        XCTAssertNil(tracks.first { $0.id == "legacy" }?.genre)
+    }
     func testCRUDRelationshipsSharedMembershipAndPartialCollections() async throws {
         let fixture = try Fixture()
         try await fixture.repository.upsertTrack(.init(trackID: "one", title: "First", artist: "Artist", albumTitle: "Album"))

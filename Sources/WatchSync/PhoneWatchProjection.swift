@@ -103,6 +103,7 @@ public enum PhoneWatchProjection {
             title: row.track.title,
             artist: artistName(for: row),
             albumTitle: row.album?.title ?? "",
+            genre: row.track.genre ?? row.album?.genre,
             durationSeconds: row.track.durationSec,
             artworkID: row.album?.artworkId,
             // `artworkID` is retained as the phone catalog's source identifier for legacy rows;

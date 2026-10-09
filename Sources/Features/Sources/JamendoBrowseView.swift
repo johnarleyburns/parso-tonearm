@@ -36,6 +36,10 @@ struct JamendoBrowseView: View {
     @State private var importMessage: String?
     @State private var visibleTrackID: String?
     @State private var loadedGenrePath: String?
+    #if os(iOS)
+    @State private var watchDownloadNode: RemoteNode?
+    @State private var confirmWatchDownload = false
+    #endif
 
     /// "Dance" isn't a literal node in the curated tree's original set — it's
     /// added alongside Techno/House/etc. under Electronic specifically for
@@ -80,6 +84,18 @@ struct JamendoBrowseView: View {
         }
         .background(Palette.sourcesBackground.ignoresSafeArea())
         .foregroundStyle(Palette.ink)
+        #if os(iOS)
+        .confirmationDialog("Download to Apple Watch?", isPresented: $confirmWatchDownload,
+                            titleVisibility: .visible) {
+            Button("Yes, download") {
+                // Capture before the dialog clears its presentation state.
+                if let node = watchDownloadNode {
+                    Task { await downloadToWatch(node) }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        #endif
         .navigationBarBackButtonHidden()
         .task(id: selectedGenre.path) {
             guard activeQuery == nil, loadedGenrePath != selectedGenre.path else { return }
@@ -270,6 +286,14 @@ struct JamendoBrowseView: View {
                     JamendoTrackRow(node: node)
                 }
                 .buttonStyle(.plain)
+                #if os(iOS)
+                .contextMenu {
+                    Button {
+                        watchDownloadNode = node
+                        confirmWatchDownload = true
+                    } label: { Label("Download to Apple Watch", systemImage: "applewatch") }
+                }
+                #endif
                 Button { Task { await importNode(node) } } label: {
                     Image(systemName: importedIDs.contains(node.id) ? "checkmark.circle.fill" : "plus.circle")
                         .font(Typography.headline)
@@ -300,6 +324,19 @@ struct JamendoBrowseView: View {
             importMessage = String(localized: "Couldn't add this Jamendo track. Try again.")
         }
     }
+
+    #if os(iOS)
+    private func downloadToWatch(_ node: RemoteNode) async {
+        do {
+            let resolved = try await provider.resolve(node: node)
+            let source = JamendoQueueSource.makeSource(query: activeQuery, genre: selectedGenre)
+            let row = RemoteTrackRowFactory.row(source: source, node: node, resolved: resolved, index: 0)
+            await appState.downloadToWatch(rows: [row])
+        } catch {
+            errorText = error.localizedDescription
+        }
+    }
+    #endif
 }
 
 /// Keeps a Jamendo browse queue alive after the tapped track. The initial

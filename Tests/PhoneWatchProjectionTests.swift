@@ -233,6 +233,7 @@ final class PhoneWatchProjectionTests: XCTestCase {
         XCTAssertEqual(response.totalCount, 3)
         XCTAssertEqual(response.tracks.map(\.title), ["So What", "Freddie Freeloader"])
         XCTAssertTrue(response.isPlayable)
+        XCTAssertEqual(response.tracks.first?.genre, "Jazz")
         XCTAssertNotNil(response.nextPageToken)
     }
 
@@ -257,6 +258,15 @@ final class PhoneWatchProjectionTests: XCTestCase {
         // The catalog's IA artwork identifier is retained only as a legacy source field; it is
         // not used as either watch-installed derivative binding.
         XCTAssertEqual(track.artworkID, "art-1")
+        let pages = try await handler.catalogPages(revision: 4,
+            trackIDs: [track.trackID.rawValue], playlistIDs: [])
+        let pushed = try XCTUnwrap(pages.first?.tracks.first)
+        XCTAssertEqual(pushed.coverArtworkID, cover)
+        XCTAssertEqual(pushed.customArtworkID, custom)
+        XCTAssertEqual(pushed.genre, "Jazz")
+        XCTAssertNil(pushed.artworkID)
+        let decoded = try JSONDecoder().decode(WatchTrackSummary.self, from: JSONEncoder().encode(pushed))
+        XCTAssertEqual(decoded, pushed)
     }
 
     func testEmptyPlaylistIsVisiblyNonPlayable() async throws {

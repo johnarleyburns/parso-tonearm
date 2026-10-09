@@ -8,6 +8,34 @@ import TonearmWatchProtocol
 
 // MARK: - Index lists (B1)
 
+/// Groups derived solely from installed songs, never the phone's full catalog.
+struct WatchLocalGroupsView: View {
+    let isGenre: Bool
+    @ObservedObject private var model = WatchAppAssembly.shared.model
+
+    private var names: [String] {
+        Set(model.tracks.filter(\.isReady).compactMap { isGenre ? $0.genre : $0.artist }
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    var body: some View {
+        List {
+            if names.isEmpty {
+                Text(isGenre ? "Genres appear as songs download." : "Artists appear as songs download.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            ForEach(names, id: \.self) { name in
+                NavigationLink(value: isGenre ? WatchNav.genre(name) : WatchNav.artist(name)) {
+                    Label(name, systemImage: isGenre ? "guitars" : "person")
+                }.watchCardRow()
+            }
+        }
+        .navigationTitle(isGenre ? "Genres" : "Artists")
+        .task { await model.refresh() }
+    }
+}
+
 /// Playlists on this watch (offline scope).
 struct WatchPlaylistsView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
@@ -174,6 +202,8 @@ enum WatchCollectionSource: Hashable {
     case localPlaylist(String)
     case localAlbum(String)
     case localSongs
+    case localArtist(String)
+    case localGenre(String)
 }
 
 /// Wrappers kept for the existing navigation destinations.
@@ -280,6 +310,7 @@ struct WatchCollectionDetailView: View {
         case .localPlaylist(let id): model.playlist(id: id)?.title ?? String(localized: "Playlist")
         case .localAlbum(let id): model.album(id: id)?.title ?? String(localized: "Album")
         case .localSongs: String(localized: "Songs")
+        case .localArtist(let name), .localGenre(let name): name
         }
     }
 
@@ -299,6 +330,10 @@ struct WatchCollectionDetailView: View {
             return model.readyTracks(forAlbum: id).map(Self.song)
         case .localSongs:
             return model.tracks.filter(\.isReady).map(Self.song)
+        case .localArtist(let name):
+            return model.tracks.filter { $0.isReady && $0.artist == name }.map(Self.song)
+        case .localGenre(let name):
+            return model.tracks.filter { $0.isReady && $0.genre == name }.map(Self.song)
         }
     }
 
@@ -315,7 +350,7 @@ struct WatchCollectionDetailView: View {
         switch source {
         case .phone(let ref): ref
         case .localPlaylist(let id): WatchCollectionRef(kind: .playlist, id: id)
-        case .localAlbum, .localSongs: nil
+        case .localAlbum, .localSongs, .localArtist, .localGenre: nil
         }
     }
 

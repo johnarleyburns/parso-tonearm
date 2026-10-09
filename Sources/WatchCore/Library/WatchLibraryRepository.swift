@@ -23,6 +23,7 @@ public actor WatchLibraryRepository {
         guard let model = existing else {
             context.insert(WatchTrackModel(
                 trackID: id, title: value.title, artist: value.artist, albumTitle: value.albumTitle,
+                genre: value.genre,
                 durationSeconds: value.durationSeconds, trackNumber: value.trackNumber,
                 discNumber: value.discNumber, artworkID: value.artworkID,
                 coverArtworkID: value.coverArtworkID, customArtworkID: value.customArtworkID,
@@ -37,6 +38,7 @@ public actor WatchLibraryRepository {
         model.title = value.title; model.normalizedTitle = WatchTextNormalizer.normalize(value.title)
         model.artist = value.artist; model.normalizedArtist = WatchTextNormalizer.normalize(value.artist)
         model.albumTitle = value.albumTitle; model.normalizedAlbum = WatchTextNormalizer.normalize(value.albumTitle)
+        model.genre = value.genre
         model.durationSeconds = value.durationSeconds; model.trackNumber = value.trackNumber
         model.discNumber = value.discNumber; model.artworkID = value.artworkID
         model.coverArtworkID = value.coverArtworkID
@@ -453,7 +455,7 @@ public actor WatchLibraryRepository {
     private static func snapshot(_ model: WatchTrackModel, installedArtwork: [String: String] = [:]) -> WatchTrackSnapshot {
         let ready = model.asset?.validationState == .ready
         return WatchTrackSnapshot(id: model.trackID, title: model.title, artist: model.artist,
-                                  albumTitle: model.albumTitle, durationSeconds: model.durationSeconds,
+                                  albumTitle: model.albumTitle, genre: model.genre, durationSeconds: model.durationSeconds,
                                   trackNumber: model.trackNumber, discNumber: model.discNumber,
                                   artworkID: model.artworkID, coverArtworkID: model.coverArtworkID,
                                   customArtworkID: model.customArtworkID,

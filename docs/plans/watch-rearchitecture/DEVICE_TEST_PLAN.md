@@ -1,5 +1,29 @@
 # Paired-device watch test plan
 
+## Playback follow-up after build 541
+
+1. Play the already installed Credo or Fred Again. Start at low volume and turn the
+   crown in both directions. The native watch volume indicator must move in the
+   usual direction and change actual output loudness. Check with the same output
+   device/headphones used by another watch audio app; report the route and watch model
+   if it is still faint. The app now leaves player gain at unity and does not force
+   system volume to maximum.
+2. On iPhone long-press a My Music song or Jamendo result and confirm Download to
+   Apple Watch. Verify it appears in On My Watch, installs and plays. Existing
+   in-progress transfers show an explicit Downloading to Apple Watch menu label.
+3. With the iPhone connected, Sync Now to refresh metadata/artwork bindings for
+   existing downloads. Artwork may arrive separately from audio. Verify the song
+   row and Now Playing show its cover, and record Artwork receipt if not.
+4. Watch home must list Songs, Artists and Genres, containing only installed music.
+   Genres with no supplied genre metadata will not invent a category. Each group
+   must play locally with the phone out of reach.
+5. Tap Search: text input must open without a second tap. Enter a known song or
+   artist and play/navigate its local result. Cancel must not reopen input repeatedly.
+6. Remove one song from On My Watch once while connected. It should disappear
+   after the watch report, without a second deletion; reopen both apps and verify
+   it stays removed. Re-downloading the same song/playlist must still work.
+
+
 Use matching new builds on BOTH devices. The compressed catalog uses protocol 3;
 build 539 is not the counterpart for this build. Record each device's build number.
 Simulator/host tests do not prove physical WatchConnectivity audio delivery.

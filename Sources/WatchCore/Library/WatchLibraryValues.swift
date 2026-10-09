@@ -5,6 +5,7 @@ import Foundation
 /// never handed to another actor; see §4 of the watch re-architecture plan.
 
 public struct WatchTrackUpsert: Hashable, Sendable {
+    public let genre: String?
     public let trackID: String
     public let title: String
     public let artist: String
@@ -22,11 +23,12 @@ public struct WatchTrackUpsert: Hashable, Sendable {
     public let phoneRevision: Int64
 
     public init(trackID: String, title: String, artist: String = "", albumTitle: String = "",
-                durationSeconds: Double? = nil, trackNumber: Int? = nil, discNumber: Int? = nil,
+                genre: String? = nil, durationSeconds: Double? = nil, trackNumber: Int? = nil, discNumber: Int? = nil,
                 artworkID: String? = nil, coverArtworkID: String? = nil,
                 customArtworkID: String? = nil, localThumbnailFilename: String? = nil, codec: String? = nil,
                 expectedBytes: Int64? = nil, expectedSHA256: String? = nil, phoneRevision: Int64 = 0) {
         self.trackID = trackID; self.title = title; self.artist = artist; self.albumTitle = albumTitle
+        self.genre = genre
         self.durationSeconds = durationSeconds; self.trackNumber = trackNumber; self.discNumber = discNumber
         self.artworkID = artworkID; self.coverArtworkID = coverArtworkID
         self.customArtworkID = customArtworkID; self.localThumbnailFilename = localThumbnailFilename; self.codec = codec
@@ -50,6 +52,7 @@ public struct WatchPlaylistUpsert: Hashable, Sendable {
 public enum WatchUpsertOutcome: String, Equatable, Sendable { case inserted, updated, staleIgnored }
 
 public struct WatchTrackSnapshot: Identifiable, Hashable, Sendable {
+    public let genre: String?
     public let id: String
     public let title: String
     public let artist: String
@@ -67,11 +70,12 @@ public struct WatchTrackSnapshot: Identifiable, Hashable, Sendable {
     public let isReady: Bool
 
     public init(id: String, title: String, artist: String, albumTitle: String,
-                durationSeconds: Double?, trackNumber: Int?, discNumber: Int?, artworkID: String?,
+                genre: String? = nil, durationSeconds: Double?, trackNumber: Int?, discNumber: Int?, artworkID: String?,
                 coverArtworkID: String? = nil, customArtworkID: String? = nil,
                 codec: String?, phoneRevision: Int64, localFilename: String?,
                 artworkFilename: String? = nil, isReady: Bool) {
         self.id = id; self.title = title; self.artist = artist; self.albumTitle = albumTitle
+        self.genre = genre
         self.durationSeconds = durationSeconds; self.trackNumber = trackNumber; self.discNumber = discNumber
         self.artworkID = artworkID; self.coverArtworkID = coverArtworkID; self.customArtworkID = customArtworkID
         self.codec = codec; self.phoneRevision = phoneRevision; self.localFilename = localFilename

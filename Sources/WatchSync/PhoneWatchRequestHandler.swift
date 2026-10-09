@@ -65,10 +65,13 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
             trackIDs?.contains(PhoneWatchID.track($0.track).rawValue) ?? true
         }
         let downloaded: Set<WatchTrackID> = []
-        let summaries = allTracks.map {
-            var summary = PhoneWatchProjection.trackSummary(from: $0, downloadedOnWatch: downloaded)
+        var summaries: [WatchTrackSummary] = []
+        for row in allTracks {
+            let binding = await artworkBindingProvider(PhoneWatchID.track(row.track).rawValue)
+            var summary = PhoneWatchProjection.trackSummary(from: row, downloadedOnWatch: downloaded,
+                coverArtworkID: binding.coverArtworkID, customArtworkID: binding.customArtworkID)
             if trackIDs != nil { summary.artworkID = nil }
-            return summary
+            summaries.append(summary)
         }
         let phonePlaylists = selectedPlaylists == nil ? try await store.allPlaylists().filter {
             playlistIDs?.contains(PhoneWatchID.playlist($0)) ?? true

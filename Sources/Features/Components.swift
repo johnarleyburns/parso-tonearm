@@ -331,7 +331,7 @@ struct TrackContextMenu: ViewModifier {
                 Label("Retry Download to Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
             }
         case .transferring:
-            EmptyView()
+            Label("Downloading to Apple Watch", systemImage: "applewatch")
         }
     }
     #endif

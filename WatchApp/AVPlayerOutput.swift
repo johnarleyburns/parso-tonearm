@@ -13,7 +13,7 @@ final class AVPlayerOutput: WatchAudioOutput {
     private var statusObserver: NSKeyValueObservation?
     private var rateObserver: NSKeyValueObservation?
     private var currentURL: URL?
-    private var currentVolume: Float = 0.5
+    private var currentVolume: Float = 1.0
     private var artworkToken = 0
     private var itemFailureReported = false
     private var sessionIsActive = false

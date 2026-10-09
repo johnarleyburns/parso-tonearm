@@ -3,8 +3,7 @@ import WatchKit
 import TonearmWatchCore
 import TonearmWatchProtocol
 
-/// Watch redesign §5 H1–H4 — Home. Now Playing first (the hero follows playback on *either*
-/// device), then exactly four doors in a fixed order: Search, Playlists, Albums, On This Watch.
+/// Home shows local Now Playing followed by Search, Playlists, Albums, Songs, Artists and Genres.
 /// One layout in both scopes — with the phone away the same doors show what's on the watch. The
 /// connection state is a quiet chip at the end, moving to the top only while it changes scope.
 struct WatchRootView: View {
@@ -76,8 +75,12 @@ struct WatchRootView: View {
             HomeDoor(nav: .albums, title: "Albums",
                      detail: String(localized: "\(model.albums.count) on this watch"),
                      systemImage: "square.stack", identifier: "watch.albums"),
-            HomeDoor(nav: .downloads, title: "On This Watch", detail: onWatchDetail,
-                     systemImage: "applewatch", identifier: "watch.downloads")
+            HomeDoor(nav: .songs, title: "Songs", detail: onWatchDetail,
+                     systemImage: "music.note", identifier: "watch.downloads"),
+            HomeDoor(nav: .artists, title: "Artists", detail: nil,
+                     systemImage: "person.2", identifier: "watch.artists"),
+            HomeDoor(nav: .genres, title: "Genres", detail: nil,
+                     systemImage: "guitars", identifier: "watch.genres")
         ]
     }
 
@@ -222,6 +225,10 @@ enum WatchNav: Hashable {
     case playlists
     case albums
     case songs
+    case artists
+    case genres
+    case artist(String)
+    case genre(String)
     case storage
     case playlist(String)
     case album(String)

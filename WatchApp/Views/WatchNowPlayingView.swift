@@ -4,9 +4,27 @@ import WatchKit
 import TonearmWatchCore
 import TonearmWatchProtocol
 
+/// AVPlayer.volume is only a multiplier. Let watchOS control the actual output volume and
+/// respect the user's crown orientation; never force the system volume to maximum.
+struct WatchSystemVolumeControl: WKInterfaceObjectRepresentable {
+    let enabled: Bool
+
+    func makeWKInterfaceObject(context: Context) -> WKInterfaceVolumeControl {
+        WKInterfaceVolumeControl(origin: .local)
+    }
+
+    func updateWKInterfaceObject(_ control: WKInterfaceVolumeControl, context: Context) {
+        if enabled { control.focus() } else { control.resignFocus() }
+    }
+
+    static func dismantleWKInterfaceObject(_ control: WKInterfaceVolumeControl, coordinator: ()) {
+        control.resignFocus()
+    }
+}
+
 /// Watch redesign §5 N1/N2/S1–S5/T3/A1/A3 — one fixed, non-scrolling Now Playing face for both
 /// engines. Artwork colours tint the background; the target chip names where the audio comes out;
-/// big round transport; the Digital Crown is volume only (local or the iPhone's own player); a
+/// big round transport; the Digital Crown controls native watch output volume; a
 /// bottom toolbar holds Output · Up Next · More. Failures replace the transport *in place* with a
 /// Problem Card. Which engine is shown follows `WatchNowPlayingResolver` — playback started on the
 /// iPhone appears here without silently switching the explicit target (§7.1).
@@ -19,8 +37,6 @@ struct WatchNowPlayingView: View {
     @Environment(\.isLuminanceReduced) private var isLuminanceReduced
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var crownValue: Double = 0.5
-    @State private var crownTarget: WatchTarget?
     @State private var showingOutput = false
     @State private var choosingRoute = false
     /// Track we asked the phone to download, so the More row shows a spinner until it lands.
@@ -32,6 +48,9 @@ struct WatchNowPlayingView: View {
             VStack(spacing: 4) {
                 chip
                 content
+                WatchSystemVolumeControl(enabled: crownEnabled)
+                    .frame(height: 24)
+                    .accessibilityIdentifier("watch.now.volume")
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 4)
@@ -44,16 +63,10 @@ struct WatchNowPlayingView: View {
         .background(alignment: .top) {
             if showsDebugOverlay { debugPlaybackState.opacity(0.05).allowsHitTesting(false) }
         }
-        .focusable(crownEnabled)
-#if os(watchOS)
-        .digitalCrownRotation($crownValue, from: 0.0, through: 1.0, by: 0.02,
-                              sensitivity: .low, isContinuous: false, isHapticFeedbackEnabled: true)
-#endif
-        .onChange(of: crownValue) { _, newValue in applyCrown(newValue) }
-        .onAppear { syncCrown(); if shown == .iPhone { remote.startClock() } }
+        .onAppear { if shown == .iPhone { remote.startClock() } }
         .onDisappear { remote.stopClock() }
+        .onChange(of: model.tracks) { _, _ in player.refreshLocalArtwork() }
         .onChange(of: shown) { _, target in
-            syncCrown()
             if target == .iPhone { remote.startClock() } else { remote.stopClock() }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -249,16 +262,23 @@ struct WatchNowPlayingView: View {
     }
 
     private func titles(_ title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(title)
-                .font(.headline)
-                .lineLimit(dynamicTypeSize >= .accessibility1 ? 2 : 1)
-                .accessibilityIdentifier("watch.now.title")
-            if !subtitle.isEmpty && dynamicTypeSize < .accessibility1 {
-                Text(subtitle)
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.75))
-                    .lineLimit(1)
+        HStack(spacing: 6) {
+            if let artwork = player.artwork {
+                Image(uiImage: artwork).resizable().scaledToFill()
+                    .frame(width: 32, height: 32).clipShape(RoundedRectangle(cornerRadius: 5))
+                    .accessibilityLabel("Cover artwork")
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.headline)
+                    .lineLimit(dynamicTypeSize >= .accessibility1 ? 2 : 1)
+                    .accessibilityIdentifier("watch.now.title")
+                if !subtitle.isEmpty && dynamicTypeSize < .accessibility1 {
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(1)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -394,20 +414,6 @@ struct WatchNowPlayingView: View {
         guard !isLuminanceReduced else { return false }
         if shown == .iPhone { return remote.supportsVolume && remote.state?.currentItem != nil }
         return player.currentTrack != nil && player.audioRouteProblem == nil
-    }
-
-    private func syncCrown() {
-        crownTarget = shown
-        crownValue = shown == .iPhone ? remote.volume : player.volume
-    }
-
-    private func applyCrown(_ value: Double) {
-        guard crownTarget == shown else { return }
-        if shown == .iPhone {
-            if abs(value - remote.volume) > 0.005 { remote.setVolume(value) }
-        } else if abs(value - player.volume) > 0.005 {
-            player.volume = value
-        }
     }
 
     private func chooseRoute() {

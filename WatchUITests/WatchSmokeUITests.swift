@@ -83,18 +83,14 @@ final class WatchSmokeUITests: XCTestCase {
         // The fixture seeder runs the real installer, delivering an extensionless cache blob
         // before metadata and retrying deferred installation. WCSession delivery itself still
         // requires paired devices; this checks installation and offline playback on watchOS.
-        // Watch redesign D1: Songs lives under "On This Watch" (one of Home's four doors).
-        openRootRow(app, identifier: "watch.downloads", named: "On This Watch")
-        XCTAssertTrue(reveal(app.staticTexts["Downloaded audio"], in: app))
-        XCTAssertTrue(reveal(app.staticTexts["Downloaded collections"], in: app))
-        let songs = app.descendants(matching: .any)["watch.songs"]
-        XCTAssertTrue(reveal(songs, in: app), "On This Watch did not render the Songs row")
-        snapshot(app, "D1-on-this-watch")
-        songs.tap()
+        // Songs is a direct home destination, not an intermediate storage/catalog screen.
+        openRootRow(app, identifier: "watch.downloads", named: "Songs")
         let track = firstMatch(in: app, identifierPrefix: "watch.track.")
         XCTAssertTrue(track.waitForExistence(timeout: 15), "Seeded track row never appeared")
         snapshot(app, "T1-songs")
         track.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["watch.now.volume"].waitForExistence(timeout: 10),
+                      "Local playback must expose the native watch system-volume control")
         let trackStarted = assertPlaybackStartsThenStops(
             app, context: "a downloaded track (no iPhone)",
             requireElapsedAdvance: true, requireElapsedFrozenAfterStop: true)

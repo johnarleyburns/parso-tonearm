@@ -125,7 +125,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
         for summary in page.tracks {
             _ = try? await repository.upsertTrack(.init(
                 trackID: summary.trackID.rawValue, title: summary.title, artist: summary.artist,
-                albumTitle: summary.albumTitle, durationSeconds: summary.durationSeconds,
+                albumTitle: summary.albumTitle, genre: summary.genre, durationSeconds: summary.durationSeconds,
                 artworkID: summary.artworkID, coverArtworkID: summary.coverArtworkID,
                 customArtworkID: summary.customArtworkID, phoneRevision: page.revision))
         }
@@ -213,6 +213,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
                 trackID: summary.trackID.rawValue,
                 title: displayTitle(summary.title, fallback: summary.trackID.rawValue),
                 artist: summary.artist, albumTitle: summary.albumTitle,
+                genre: summary.genre,
                 durationSeconds: summary.durationSeconds, artworkID: summary.artworkID,
                 coverArtworkID: summary.coverArtworkID, customArtworkID: summary.customArtworkID,
                 phoneRevision: revision))

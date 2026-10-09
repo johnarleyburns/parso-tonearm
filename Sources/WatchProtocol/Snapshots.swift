@@ -5,13 +5,14 @@ import Foundation
 /// identity, no credential-bearing remote address.
 public struct WatchTrackSummary: Codable, Equatable, Sendable, Identifiable {
     private enum CodingKeys: String, CodingKey {
-        case trackID, title, artist, albumTitle, durationSeconds, artworkID
+        case trackID, title, artist, albumTitle, genre, durationSeconds, artworkID
         case coverArtworkID, customArtworkID, isDownloadedOnWatch
     }
     public var trackID: WatchTrackID
     public var title: String
     public var artist: String
     public var albumTitle: String
+    public var genre: String?
     public var durationSeconds: Double?
     public var artworkID: String?
     public var coverArtworkID: String?
@@ -26,6 +27,7 @@ public struct WatchTrackSummary: Codable, Equatable, Sendable, Identifiable {
         title = try values.decode(String.self, forKey: .title)
         artist = try values.decodeIfPresent(String.self, forKey: .artist) ?? ""
         albumTitle = try values.decodeIfPresent(String.self, forKey: .albumTitle) ?? ""
+        genre = try values.decodeIfPresent(String.self, forKey: .genre)
         durationSeconds = try values.decodeIfPresent(Double.self, forKey: .durationSeconds)
         artworkID = try values.decodeIfPresent(String.self, forKey: .artworkID)
         coverArtworkID = try values.decodeIfPresent(String.self, forKey: .coverArtworkID)
@@ -39,6 +41,7 @@ public struct WatchTrackSummary: Codable, Equatable, Sendable, Identifiable {
         try values.encode(title, forKey: .title)
         if !artist.isEmpty { try values.encode(artist, forKey: .artist) }
         if !albumTitle.isEmpty { try values.encode(albumTitle, forKey: .albumTitle) }
+        try values.encodeIfPresent(genre, forKey: .genre)
         try values.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
         try values.encodeIfPresent(artworkID, forKey: .artworkID)
         try values.encodeIfPresent(coverArtworkID, forKey: .coverArtworkID)
@@ -47,13 +50,14 @@ public struct WatchTrackSummary: Codable, Equatable, Sendable, Identifiable {
     }
 
     public init(trackID: WatchTrackID, title: String, artist: String = "", albumTitle: String = "",
-                durationSeconds: Double? = nil, artworkID: String? = nil,
+                genre: String? = nil, durationSeconds: Double? = nil, artworkID: String? = nil,
                 coverArtworkID: String? = nil, customArtworkID: String? = nil,
                 isDownloadedOnWatch: Bool = false) {
         self.trackID = trackID
         self.title = title
         self.artist = artist
         self.albumTitle = albumTitle
+        self.genre = genre
         self.durationSeconds = durationSeconds
         self.artworkID = artworkID
         self.coverArtworkID = coverArtworkID

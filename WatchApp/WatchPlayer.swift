@@ -11,7 +11,7 @@ final class WatchPlayer: ObservableObject {
 
     @Published var currentTrack: WatchTrackSnapshot?
     @Published var isPlaying = false
-    @Published var volume: Double = 0.5 {
+    @Published var volume: Double = 1.0 {
         didSet { output.setVolume(volume) }
     }
     /// Non-nil when the audio route went away; drives the "Choose headphones or a speaker" hint.
@@ -736,6 +736,13 @@ final class WatchPlayer: ObservableObject {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         artwork = nil
         resolvedArtworkTrackID = nil
+    }
+
+    func refreshLocalArtwork() {
+        guard let id = currentTrack?.id,
+              let track = WatchAppAssembly.shared.model.track(id: id),
+              track.artworkFilename != nil else { return }
+        loadResolvedArtwork(for: track)
     }
 
     private func loadResolvedArtwork(for track: WatchTrackSnapshot) {

@@ -148,10 +148,11 @@ final class PhoneWatchRuntime {
             keepsPlaylistsLive: false,
             artworkResolver: artworkResolver,
             artworkTransfer: fileTransfer,
-            artworkCapability: { [negotiatedCapabilities] in
+            artworkCapability: {
                 let session = PhoneWatchProtocolAdapter.currentCapability()
-                guard session.isSupported && session.isPaired && session.isWatchAppInstalled else { return false }
-                return await negotiatedCapabilities.supports(.artworkAssets)
+                // Artwork is mandatory in our phone-push protocol. Production watches no longer
+                // send a hello, so waiting for negotiated capabilities disables artwork forever.
+                return session.isSupported && session.isPaired && session.isWatchAppInstalled
             },
             publishArtworkBindings: { [artworkBindings] trackID, cover, custom in
                 await artworkBindings.set(trackID: trackID, coverArtworkID: cover, customArtworkID: custom)
