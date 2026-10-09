@@ -106,7 +106,9 @@ final class WatchAppAssembly {
 
     func requestSyncStatus() async {
         syncStatus.requestedSync()
+        diagnostics.recordImmediately(.request, "metadataCheckRequested")
         let result = await coordinator?.synchronizeMetadata() ?? .failed(.installationFailed)
+        diagnostics.recordImmediately(.request, "metadataCheckFinished")
         syncStatus.completedSync(result)
     }
 

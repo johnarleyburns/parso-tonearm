@@ -202,6 +202,12 @@ final class WatchSmokeUITests: XCTestCase {
         XCTAssertTrue(reveal(diagnostics, in: app), "About must expose sync diagnostics")
         diagnostics.tap()
         XCTAssertTrue(app.descendants(matching: .any)["watch.diagnostics.summary"].waitForExistence(timeout: 8))
+        let refresh = app.buttons["watch.diagnostics.refresh"]
+        XCTAssertTrue(reveal(refresh, in: app))
+        XCTAssertTrue(refresh.isEnabled, "Diagnostics must not wait for connectivity workers")
+        refresh.tap()
+        XCTAssertTrue(refresh.isEnabled, "Reading the bounded memory log must finish synchronously")
+        XCTAssertFalse(app.staticTexts["Loading diagnostics…"].exists)
         let rawCodes = app.descendants(matching: .any)["watch.diagnostics.raw"]
         XCTAssertTrue(reveal(rawCodes, in: app))
         rawCodes.tap()

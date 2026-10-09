@@ -301,11 +301,14 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
 
     public func synchronizeMetadata() async -> WatchMetadataSyncResult {
         do {
+            diagnostics?.recordImmediately(.request, "metadataLocalReadStarted")
             let manifest = await manifestProvider()
+            diagnostics?.recordImmediately(.request, "metadataLocalReadFinished")
             let data = try WatchProtocolEnvelope.encode(kind: .requestReconciliation,
                 payload: WatchReconciliationRequest(scope: .status, manifest: manifest),
                 pairedLibraryID: boundLibraryID ?? .unknown)
             await transport.transferUserInfo(data)
+            diagnostics?.recordImmediately(.request, "metadataRequestQueued")
             guard await transport.isReachable() else { return .queued }
             guard manifest != nil else { return .failed(.installationFailed) }
             let transport = transport

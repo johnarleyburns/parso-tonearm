@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// A fixed-capacity, in-memory ring of the most recent diagnostic events. Bounded memory is a
 /// Phase 10 definition-of-done item, so this never grows: recording past `capacity` drops the
@@ -29,11 +30,11 @@ public struct WatchDiagnosticsLog: Sendable {
 /// connectivity actor, main-actor UI, the file installer) can record without an isolation dance.
 /// The clock is injectable so tests are deterministic.
 public actor WatchDiagnosticsRecorder {
-    private var log: WatchDiagnosticsLog
+    private nonisolated let log: Mutex<WatchDiagnosticsLog>
     private let clock: @Sendable () -> Date
 
     public init(capacity: Int = 512, clock: @escaping @Sendable () -> Date = { Date() }) {
-        self.log = WatchDiagnosticsLog(capacity: capacity)
+        self.log = Mutex(WatchDiagnosticsLog(capacity: capacity))
         self.clock = clock
     }
 
@@ -43,19 +44,34 @@ public actor WatchDiagnosticsRecorder {
                        durationMillis: Int? = nil,
                        byteCount: Int64? = nil,
                        count: Int? = nil) {
-        log.record(WatchDiagnosticEvent(category: category,
+        recordImmediately(category, stateCode, correlationID: correlationID,
+                          durationMillis: durationMillis, byteCount: byteCount, count: count)
+    }
+
+    /// Bounded memory only: usable from native delegates and the UI even when
+    /// background Swift jobs cannot run. No callbacks or IO under this lock.
+    public nonisolated func recordImmediately(_ category: WatchDiagnosticCategory,
+                       _ stateCode: String,
+                       correlationID: String? = nil,
+                       durationMillis: Int? = nil,
+                       byteCount: Int64? = nil,
+                       count: Int? = nil) {
+        let event = WatchDiagnosticEvent(category: category,
                                         stateCode: stateCode,
                                         timestamp: clock(),
                                         correlationID: correlationID,
                                         durationMillis: durationMillis,
                                         byteCount: byteCount,
-                                        count: count))
+                                        count: count)
+        log.withLock { $0.record(event) }
     }
 
-    public func events() -> [WatchDiagnosticEvent] { log.snapshot() }
+    public nonisolated func snapshot() -> [WatchDiagnosticEvent] { log.withLock { $0.snapshot() } }
+
+    public func events() -> [WatchDiagnosticEvent] { snapshot() }
 
     public func removeAll() {
-        log = WatchDiagnosticsLog(capacity: log.capacity)
+        log.withLock { $0 = WatchDiagnosticsLog(capacity: $0.capacity) }
     }
 
     /// Build the redacted, per-export-hashed payload (see `WatchDiagnosticsExporter`). A fresh
@@ -63,7 +79,7 @@ public actor WatchDiagnosticsRecorder {
     public func export(appVersion: String,
                        generatedAt: Date? = nil,
                        salt: Data? = nil) -> WatchDiagnosticsExport {
-        WatchDiagnosticsExporter.export(events: log.snapshot(),
+        WatchDiagnosticsExporter.export(events: snapshot(),
                                         appVersion: appVersion,
                                         generatedAt: generatedAt ?? clock(),
                                         salt: salt ?? WatchDiagnosticsExporter.randomSalt())

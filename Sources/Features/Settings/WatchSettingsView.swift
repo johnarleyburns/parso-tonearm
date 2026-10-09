@@ -69,22 +69,6 @@ struct WatchSettingsView: View {
                 Divider().overlay(Palette.hairline).padding(.vertical, 2)
                 Text("Downloaded \(storage.trackCount) tracks · \(bytes(storage.installedBytes))")
                     .font(Typography.callout)
-                if let fraction = storage.usedFraction {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ProgressView(value: fraction)
-                            .tint(fraction > 0.9 ? Palette.danger : Palette.accent)
-                        Text("Total watch storage used \(Int((fraction * 100).rounded()))%")
-                            .font(Typography.caption)
-                            .foregroundStyle(Palette.inkTertiary)
-                        Text("Includes watchOS and other apps. This is not download progress.")
-                            .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                    }
-                    .padding(.top, 2)
-                } else if storage.freeBytes > 0 {
-                    Text("\(bytes(storage.freeBytes)) free on Apple Watch")
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.inkTertiary)
-                }
             }
         }
         .padding(15)

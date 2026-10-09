@@ -51,6 +51,7 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
         let context = WatchProtocolEnvelope.payloadData(in: session.receivedApplicationContext)
         let reachable = state == .activated && session.isReachable
         let endpoint = endpoint
+        diagnostics?.recordImmediately(.activation, "nativeActivated")
         let delivery = backgroundDelivery
         delivery.begin()
         Task {
@@ -68,6 +69,7 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
     public func session(_ session: WCSession, didReceiveMessageData messageData: Data,
                         replyHandler: @escaping (Data) -> Void) {
         let endpoint = endpoint
+        diagnostics?.recordImmediately(.activation, "nativeLiveMessageReceived")
         // WatchConnectivity's reply handler predates `Sendable`: it is documented as callable
         // from any queue, exactly once, and the compiler has no way to see that. `nonisolated(unsafe)`
         // states it for this one binding — the narrowest possible scope — and the box below turns the
@@ -83,6 +85,7 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
 
     public func session(_ session: WCSession, didReceiveMessageData messageData: Data) {
         let endpoint = endpoint
+        diagnostics?.recordImmediately(.activation, "nativeLiveMessageReceived")
         Task { _ = await endpoint.receiveImmediate(messageData) }
     }
 
@@ -91,6 +94,7 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
         let endpoint = endpoint
         let delivery = backgroundDelivery
         delivery.begin()
+        diagnostics?.recordImmediately(.activation, "nativeContextReceived")
         Task { defer { delivery.end() }; await endpoint.receiveApplicationContext(data) }
     }
 
@@ -99,6 +103,7 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
         let endpoint = endpoint
         let delivery = backgroundDelivery
         delivery.begin()
+        diagnostics?.recordImmediately(.activation, "nativeUserInfoReceived")
         Task { defer { delivery.end() }; await endpoint.receiveUserInfo(data) }
     }
 
@@ -109,6 +114,9 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
         // is told about it. Everything past that point — checksum, install, dedupe — is Phase 5's.
         let metadata = (file.metadata ?? [:]).compactMapValues { $0 as? String }
         let diagnostics = diagnostics
+        if metadata["assetKind"] != WatchArtworkFileMetadata.assetKind {
+            diagnostics?.recordImmediately(.installResult, "nativeAudioFileReceived")
+        }
         let staged = FileManager.default.temporaryDirectory
             .appendingPathComponent("inbox-\(UUID().uuidString)")
             .appendingPathExtension(file.fileURL.pathExtension)
@@ -116,14 +124,17 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
             try FileManager.default.moveItem(at: file.fileURL, to: staged)
         } catch {
             let endpoint = endpoint
+            diagnostics?.recordImmediately(.installResult, "inboxStagingFailed")
             Task {
                 defer { delivery.end() }
-                await diagnostics?.record(.installResult, "inboxStagingFailed")
                 await endpoint.receiveFileFailure(metadata: metadata, code: .installationFailed)
             }
             return
         }
         let endpoint = endpoint
+        if metadata["assetKind"] != WatchArtworkFileMetadata.assetKind {
+            diagnostics?.recordImmediately(.installResult, "audioSavedAwaitingWorker")
+        }
         Task {
             defer { delivery.end() }
             if metadata["assetKind"] == WatchAudioChunkMetadata.assetKind {

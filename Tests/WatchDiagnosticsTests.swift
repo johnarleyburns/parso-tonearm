@@ -5,6 +5,35 @@ import TonearmWatchProtocol
 /// Phase 10b — privacy-safe structured diagnostics and the in-app export (§12).
 final class WatchDiagnosticsTests: XCTestCase {
 
+    func testNativeReceiptAndSnapshotRequireNoBackgroundTask() {
+        let fixed = Date(timeIntervalSince1970: 42)
+        let recorder = WatchDiagnosticsRecorder(capacity: 2, clock: { fixed })
+        recorder.recordImmediately(.installResult, "nativeAudioFileReceived")
+        recorder.recordImmediately(.installResult, "audioSavedAwaitingWorker")
+        XCTAssertEqual(recorder.snapshot().map(\.stateCode),
+                       ["nativeAudioFileReceived", "audioSavedAwaitingWorker"])
+        XCTAssertEqual(recorder.snapshot().last?.timestamp, fixed)
+    }
+
+    func testConcurrentImmediateReceiptsRemainBounded() {
+        let recorder = WatchDiagnosticsRecorder(capacity: 32)
+        DispatchQueue.concurrentPerform(iterations: 512) { i in
+            recorder.recordImmediately(.request, "event\(i)")
+            XCTAssertLessThanOrEqual(recorder.snapshot().count, 32)
+        }
+        XCTAssertEqual(recorder.snapshot().count, 32)
+    }
+
+    func testProductionDiagnosticsReadsMemoryWithoutAwaitingSyncWorkers() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let view = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchDiagnosticsView.swift"), encoding: .utf8)
+        XCTAssertTrue(view.contains("diagnostics.snapshot()"))
+        XCTAssertFalse(view.contains("await "))
+        let phone = try String(contentsOf: root.appendingPathComponent("Sources/Features/Settings/WatchSettingsView.swift"), encoding: .utf8)
+        XCTAssertFalse(phone.contains("storage.usedFraction"))
+        XCTAssertFalse(phone.contains("Total watch storage used"))
+    }
+
     // MARK: - Bounded ring
 
     func testRingDropsOldestPastCapacity() {

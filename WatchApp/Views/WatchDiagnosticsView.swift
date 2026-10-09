@@ -15,7 +15,7 @@ struct WatchDiagnosticsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 Button {
-                    Task { await reload() }
+                    reload()
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
@@ -43,6 +43,20 @@ struct WatchDiagnosticsView: View {
                         }
                         Text("History covers this app session, not previous launches.")
                             .font(.caption2).foregroundStyle(.secondary)
+                        Text("Last native delivery").font(.headline)
+                        if let event = events.last(where: { $0.stateCode.hasPrefix("native") }) {
+                            Text(nativeSummary(event.stateCode)).font(.caption)
+                            Text(event.timestamp.formatted(date: .omitted, time: .standard)).font(.caption2)
+                        } else {
+                            Text("No native delivery recorded this session.").font(.caption)
+                        }
+                        Text("Metadata check").font(.headline)
+                        if let event = events.last(where: { $0.category == .request && $0.stateCode.hasPrefix("metadata") }) {
+                            Text(metadataSummary(event.stateCode)).font(.caption)
+                            Text(event.timestamp.formatted(date: .omitted, time: .standard)).font(.caption2)
+                        } else {
+                            Text("No metadata check recorded this session.").font(.caption)
+                        }
                     }
                 }
                 .accessibilityIdentifier("watch.diagnostics.summary")
@@ -62,13 +76,15 @@ struct WatchDiagnosticsView: View {
             .padding(.vertical, 4)
         }
         .navigationTitle("Diagnostics")
-        .task { await reload() }
+        .onAppear { reload() }
     }
 
-    private func reload() async {
+    private func reload() {
         isLoading = true
-        events = await WatchAppAssembly.shared.diagnostics.events()
-        let export = await WatchAppAssembly.shared.diagnosticsExport()
+        events = WatchAppAssembly.shared.diagnostics.snapshot()
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        let export = WatchDiagnosticsExporter.export(events: events, appVersion: version,
+            generatedAt: Date(), salt: WatchDiagnosticsExporter.randomSalt())
         isLoading = false
         eventCount = export.eventCount
         if let data = try? WatchDiagnosticsExporter.encode(export) {
@@ -88,8 +104,10 @@ struct WatchDiagnosticsView: View {
 
     private func audioSummary(_ code: String) -> LocalizedStringKey {
         switch code {
+        case "nativeAudioFileReceived": "Apple delivered audio; saving the inbox file."
+        case "audioSavedAwaitingWorker": "Audio saved from Apple's inbox; installation worker has not started."
         case "chunkReceived": "Audio chunk reached the watch."
-        case "audioFileReceived": "Audio file reached the watch."
+        case "audioFileReceived": "Audio installation worker started."
         case "chunkRetained": "Audio chunk saved and verified."
         case "inboxStagingFailed": "Received file could not be saved from Apple's inbox."
         case "installed": "Audio installed and ready to play."
@@ -99,6 +117,26 @@ struct WatchDiagnosticsView: View {
         case "checksumMismatch": "Received audio failed its integrity check."
         case "insufficientWatchStorage": "Not enough space to save audio."
         default: "Audio processing failed. Expand Raw Codes for details."
+        }
+    }
+
+    private func nativeSummary(_ code: String) -> LocalizedStringKey {
+        switch code {
+        case "nativeAudioFileReceived": "Audio file callback received."
+        case "nativeLiveMessageReceived": "Live message callback received."
+        case "nativeContextReceived": "Device status callback received."
+        case "nativeUserInfoReceived": "Background metadata callback received."
+        default: "Apple connectivity session activated."
+        }
+    }
+
+    private func metadataSummary(_ code: String) -> LocalizedStringKey {
+        switch code {
+        case "metadataCheckRequested": "Requested in the UI; waiting for the sync worker."
+        case "metadataLocalReadStarted": "Sync worker started; reading the watch library."
+        case "metadataLocalReadFinished": "Watch library read finished; preparing the request."
+        case "metadataRequestQueued": "Request queued; checking live messaging."
+        default: "Metadata check finished."
         }
     }
 }

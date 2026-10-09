@@ -83,6 +83,16 @@ On This Watch separates Downloaded audio from Catalog on this watch. Diagnostics
 shows readable receipt/report state, with raw codes behind an explicit button.
 No queued transfer is represented as an installed track or successful sync.
 
+Build 537 device feedback showed both metadata checks and diagnostics stuck,
+despite responsive watch navigation. The restricted-worker host suite did not
+reproduce the stall; its cause remains unproven. Diagnostics now takes a synchronous,
+bounded-memory snapshot without awaiting the watch's background actors. Native
+callbacks record receipt and inbox ownership before scheduling installation, and
+metadata checks record their local preparation checkpoints. These changes expose
+where work stops; they do not claim to fix physical-device delivery. iPhone Settings
+also omits total-device storage utilization, retaining actual downloaded audio
+counts/bytes and actionable insufficient-space warnings.
+
 The real Nox_Sound CC0 ocean recording is encoded by the production iPhone
 preparation implementation in the host test. Tests verify AAC format, bitrate,
 one whole `transferFile`, installation and decoding. That generated M4A is bundled
