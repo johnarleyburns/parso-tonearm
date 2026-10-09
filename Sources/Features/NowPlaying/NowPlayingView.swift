@@ -23,6 +23,9 @@ struct NowPlayingView: View {
     /// Track key whose watch transfer we toasted the *start* of, so we can toast its completion
     /// when it lands in the watch manifest.
     @State private var pendingWatchToastTrackID: String?
+    @State private var submittingWatchDownload = false
+    @State private var watchDownloadDisplayID: String?
+    @State private var watchDownloadSourceID: Int64?
     @State private var watchConfirmation: WatchTransferConfirmation?
     @State private var watchConfirmationTarget: TrackRow?
     @State private var showWatchConfirmation = false
@@ -155,10 +158,17 @@ struct NowPlayingView: View {
                             titleVisibility: .visible) {
             Button(watchConfirmation?.confirmTitle ?? "Confirm") {
                 guard let row = watchConfirmationTarget, let action = watchConfirmation else { return }
+                if action == .download {
+                    submittingWatchDownload = true
+                    watchDownloadSourceID = row.id
+                }
                 Task {
                     switch action {
                     case .download:
-                        pendingWatchToastTrackID = await appState.downloadToWatch(rows: [row])
+                        let id = await appState.downloadToWatch(rows: [row])
+                        pendingWatchToastTrackID = id
+                        watchDownloadDisplayID = id
+                        submittingWatchDownload = false
                     case .remove:
                         await appState.removeFromWatch(rows: [row])
                     }
@@ -461,7 +471,7 @@ struct NowPlayingView: View {
     #if os(iOS)
     @ViewBuilder
     private func watchButton(for row: TrackRow?) -> some View {
-        let state = row.map { appState.watchGlyphState(for: $0) } ?? .notOnWatch
+        let state = displayedWatchState(for: row)
         Button {
             switch state {
             case .notOnWatch, .failed:
@@ -495,7 +505,7 @@ struct NowPlayingView: View {
         Group {
             if case .transferring = fallback, let row {
                 TimelineView(.periodic(from: .now, by: 0.6)) { _ in
-                    WatchGlyphView(state: appState.watchGlyphState(for: row))
+                    WatchGlyphView(state: displayedWatchState(for: row))
                 }
             } else {
                 WatchGlyphView(state: fallback)
@@ -504,6 +514,15 @@ struct NowPlayingView: View {
         .frame(width: 45, height: 45)
         .background(.ultraThinMaterial, in: Circle())
         .contentShape(Circle())
+    }
+
+    private func displayedWatchState(for row: TrackRow?) -> WatchGlyphState {
+        guard let row else { return .notOnWatch }
+        if watchDownloadSourceID == row.id {
+            if submittingWatchDownload { return .transferring(progress: nil) }
+            if let id = watchDownloadDisplayID { return appState.watchGlyphState(forTrackID: id) }
+        }
+        return appState.watchGlyphState(for: row)
     }
     #endif
 

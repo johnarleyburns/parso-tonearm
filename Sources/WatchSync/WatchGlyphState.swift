@@ -37,7 +37,7 @@ public enum WatchGlyph {
             case .sending:
                 return .transferring(progress: sendingProgress)
             case .sent:
-                return .onWatch
+                return manifest.contains(trackKey) ? .onWatch : .transferring(progress: nil)
             case .failed:
                 return .failed
             }
@@ -66,7 +66,8 @@ public enum WatchGlyph {
         let fraction = Double(onWatchCount) / Double(trackKeys.count)
 
         let hasTransferring = trackKeys.contains { key in
-            if let ts = transferStates[key], ts == .queued || ts == .sending { return true }
+            if let ts = transferStates[key], ts == .queued || ts == .sending
+                || (ts == .sent && !manifest.contains(key)) { return true }
             return false
         }
         let hasFailed = trackKeys.contains { key in

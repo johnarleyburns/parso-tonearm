@@ -32,11 +32,11 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
             return .unsupported(reason: reason)
         }
         if let url = Self.localURL(for: asset), PhoneWatchAudioPreparation.isReadable(url) {
-            return await Self.prepareForWatch(url)
+            return await Self.prepareForWatch(url, asset: asset)
         }
         guard asset.kind == .remote else { return .unavailable }
         let remote = await Self.materializeRemote(row: row, asset: asset)
-        if case .cached(let url, _, _) = remote { return await Self.prepareForWatch(url) }
+        if case .cached(let url, _, _) = remote { return await Self.prepareForWatch(url, asset: asset) }
         return remote
     }
 
@@ -67,10 +67,16 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
         return try await store.trackRow(syncID: id.rawValue)
     }
 
-    private static func prepareForWatch(_ source: URL) async -> PhoneWatchAudioResolution {
+    private static func prepareForWatch(_ source: URL, asset: Asset) async -> PhoneWatchAudioResolution {
         do {
+            let remotes = [asset.remoteURL, asset.altRemoteURL, asset.opusRemoteURL].compactMap { $0.flatMap(URL.init(string:)) }
+            let cachedOrigin = remotes.first { AudioCache.key(for: $0) == source.lastPathComponent }
+            // A managed local file with a known format keeps that format. Use the remote hint
+            // for its matching cache blob, or as a fallback only for extensionless input.
+            let origin = cachedOrigin ?? (WatchAudioFileMetadata.fileExtension(for: source) == nil ? remotes.first : nil)
             let prepared = try await PhoneWatchAudioPreparation.prepare(
-                sourceURL: source, directory: AudioCache.layout.evictableBlobsDirectory)
+                sourceURL: source, directory: AudioCache.layout.evictableBlobsDirectory,
+                sourceMIMEType: origin.flatMap(PhoneWatchAudioPreparation.sourceMIMEType(for:)))
             let measured = try WatchFileDigest.measure(prepared)
             await AudioCache.shared.adoptCompleteFile(byteCount: measured.bytes,
                 for: prepared.lastPathComponent, durable: true)

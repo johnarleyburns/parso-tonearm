@@ -11,6 +11,25 @@ final class TonearmSmokeUITests: XCTestCase {
         app = nil
     }
 
+    func testFindModesMatchBrowseChipHeightAndSettingsCanDismiss() throws {
+        launch()
+        app.buttons["Find"].tap()
+        let all = app.buttons["All"]
+        let mood = app.buttons["Find Mood"]
+        let mix = app.buttons["Find Mix"]
+        XCTAssertTrue(all.waitForExistence(timeout: 10))
+        XCTAssertLessThan(all.frame.minX, mood.frame.minX)
+        XCTAssertLessThan(mood.frame.minX, mix.frame.minX)
+        XCTAssertEqual(all.frame.height, app.buttons["Artists"].frame.height, accuracy: 1)
+        app.buttons["Listen"].tap()
+        element("listen.settings").tap()
+        let done = element("settings.done")
+        XCTAssertTrue(done.waitForExistence(timeout: 10))
+        done.tap()
+        XCTAssertTrue(element("listen.settings").waitForExistence(timeout: 10))
+        XCTAssertFalse(element("settings.section.playback").exists)
+    }
+
     func testSettingsCardsHaveEqualMarginsAndWatchSyncIsClear() throws {
         launch()
         openTab("Listen", anchor: "Listen")
@@ -167,9 +186,9 @@ final class TonearmSmokeUITests: XCTestCase {
         launch()
         openTab("Mood", anchor: "Mood")
         XCTAssertTrue(app.buttons["mood.play"].waitForExistence(timeout: 10), "Mood must expose a direct Play action")
-        let card = app.buttons["mood.buildMix"]
+        let card = app.buttons["mood.makeMix"]
         for _ in 0..<6 where !card.exists { app.swipeUp() }
-        XCTAssertTrue(card.waitForExistence(timeout: 20), "Build a Mix belongs on Mood, not Listen")
+        XCTAssertTrue(card.waitForExistence(timeout: 20), "Make a Mix belongs beside Play on Mood")
         let ready = expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: card)
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 60), .completed,
                        "The initial library load must finish before capturing mix candidates")

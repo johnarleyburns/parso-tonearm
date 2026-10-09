@@ -8,6 +8,17 @@ struct RootView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @Namespace private var nowPlayingTransition
+    @State private var transferBannerDismissed = false
+
+    private var showsTransferBanner: Bool {
+        appState.watchManagement.banner != nil && !transferBannerDismissed
+    }
+
+    private var accessoryHeight: CGFloat {
+        guard !appState.showNowPlaying else { return 0 }
+        let count = (player.currentTrack != nil ? 1 : 0) + (showsTransferBanner ? 1 : 0)
+        return count == 0 ? 0 : CGFloat(count) * 56 + CGFloat(count - 1) * 4 + 12
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -21,7 +32,7 @@ struct RootView: View {
                     }
             }
 
-            if player.currentTrack != nil && !appState.showNowPlaying {
+            if accessoryHeight > 0 {
                 tabAccessory
                     .padding(.horizontal, 12)
                     // Keep the accessory above the tab bar while remaining
@@ -40,6 +51,9 @@ struct RootView: View {
         .task { await announceWatchConnection() }
         .tint(Palette.accent)
         .modifier(AppPresentations())
+        .onChange(of: appState.watchManagement.banner == nil) { _, empty in
+            if empty { transferBannerDismissed = false }
+        }
     }
 
     // MARK: - Apple Watch connection toast
@@ -72,15 +86,19 @@ struct RootView: View {
     private var baseTabs: some View {
         TabView(selection: $appState.tab) {
             ListenView()
+                .safeAreaInset(edge: .bottom, spacing: 0) { accessoryClearance }
                 .tabItem { Label("Listen", systemImage: "play.circle.fill") }
                 .tag(AppTab.listen)
             MyMusicView()
+                .safeAreaInset(edge: .bottom, spacing: 0) { accessoryClearance }
                 .tabItem { Label("My Music", systemImage: "music.note.list") }
                 .tag(AppTab.myMusic)
             MoodView()
+                .safeAreaInset(edge: .bottom, spacing: 0) { accessoryClearance }
                 .tabItem { Label("Mood", systemImage: "sparkles") }
                 .tag(AppTab.mood)
             FindView()
+                .safeAreaInset(edge: .bottom, spacing: 0) { accessoryClearance }
                 .tabItem { Label("Find", systemImage: "magnifyingglass") }
                 .tag(AppTab.find)
         }
@@ -88,20 +106,22 @@ struct RootView: View {
 
     @ViewBuilder
     private var tabAccessory: some View {
-        if player.currentTrack != nil && !appState.showNowPlaying {
-            VStack(spacing: 2) {
+        VStack(spacing: 4) {
+            if showsTransferBanner {
+                TransferPill { transferBannerDismissed = true }
+            }
+            if player.currentTrack != nil {
                 MiniPlayerAccessory(transitionNamespace: nowPlayingTransition)
                     // Recreate the accessory when a playlist tap replaces an
                     // existing queue item so SwiftUI cannot retain an empty
                     // accessory subtree during the navigation transition.
                     .id(player.currentTrack?.id ?? -1)
-                if appState.watchManagement.banner != nil {
-                    TransferPill()
-                }
             }
-        } else if appState.watchManagement.banner != nil {
-            TransferPill()
         }
+    }
+
+    private var accessoryClearance: some View {
+        Color.clear.frame(height: accessoryHeight).allowsHitTesting(false)
     }
 
     private var backgroundLayer: some View {

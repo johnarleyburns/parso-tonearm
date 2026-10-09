@@ -331,21 +331,9 @@ struct MoodView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ScreenHeader(title: "Mood", showAdd: false)
-                Button {
-                    Task { await playMood() }
-                } label: {
-                    Label("Play", systemImage: "play.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent).tint(Palette.accent)
-                .disabled(startingPlayback || (moodModel?.results.isEmpty ?? true))
-                .accessibilityIdentifier("mood.play")
                 if let playbackMessage {
                     Text(playbackMessage).font(Typography.caption).foregroundStyle(Palette.inkSecondary)
                 }
-                MixEntryCard { appState.requestBuildAMix() }
-                    .disabled(!appState.didLoadLibraryOnce)
-                    .padding(.top, 12)
                 Group {
                     if moodReady == true, let moodModel {
                         MoodEntryPointSection(
@@ -355,7 +343,9 @@ struct MoodView: View {
                             promptDraft: $promptDraft,
                             placeholderIndex: placeholderIndex,
                             selectedTrackForDetail: $selectedTrackForDetail,
-                            showIndexStatus: $showIndexStatus)
+                            showIndexStatus: $showIndexStatus,
+                            startingPlayback: startingPlayback,
+                            onPlay: { Task { await playMood() } })
                     } else if moodReady == false {
                         moodNotReadyView
                     } else {
@@ -369,6 +359,11 @@ struct MoodView: View {
                 }
                 .frame(minHeight: Self.moodSectionMinHeight, alignment: .top)
                 .padding(.top, 18)
+                if moodReady != true || moodModel == nil {
+                    MoodActionRow(canPlay: false, starting: false,
+                                  canMakeMix: appState.didLoadLibraryOnce,
+                                  onPlay: {}, onMakeMix: { appState.requestBuildAMix() })
+                }
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 160)
@@ -477,6 +472,8 @@ private struct MoodEntryPointSection: View {
     /// gate uses, so there's one "open Sound Index" trigger for this whole
     /// screen, not two independent ones.
     @Binding var showIndexStatus: Bool
+    let startingPlayback: Bool
+    let onPlay: () -> Void
 
     private var allMoodPills: [MoodPill] {
         MoodPillTaxonomy.fixedCategories + eraVibePills
@@ -522,6 +519,7 @@ private struct MoodEntryPointSection: View {
                 .font(Typography.callout)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
+                .frame(height: 44)
                 .glassSurface(cornerRadius: 12)
                 .accessibilityIdentifier("mood.prompt")
 
@@ -536,16 +534,17 @@ private struct MoodEntryPointSection: View {
                     .accessibilityIdentifier("mood.matchingTracks")
             }
 
+            MoodActionRow(canPlay: !moodModel.results.isEmpty, starting: startingPlayback,
+                          canMakeMix: appState.didLoadLibraryOnce, onPlay: onPlay) {
+                if moodModel.results.isEmpty { appState.requestBuildAMix() }
+                else {
+                    appState.mixBuilderRequest = MixBuilderRequest(rows: moodModel.results.map(\.track), lockedFirst: nil)
+                }
+            }
+
             Group {
                 if !moodModel.results.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Button {
-                            appState.mixBuilderRequest = MixBuilderRequest(
-                                rows: moodModel.results.map(\.track), lockedFirst: nil)
-                        } label: {
-                            Label("Make a Mix", systemImage: "waveform.path.ecg")
-                        }
-                        .buttonStyle(.bordered)
                         moodResultsRow
                     }
                 } else {
@@ -649,6 +648,35 @@ private struct MoodEntryPointSection: View {
             }
             .padding(.horizontal, 2)
         }
+    }
+}
+
+private struct MoodActionRow: View {
+    let canPlay: Bool
+    let starting: Bool
+    let canMakeMix: Bool
+    let onPlay: () -> Void
+    let onMakeMix: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: onPlay) {
+                Label(starting ? "Starting…" : "Play", systemImage: "play.fill")
+                    .frame(maxWidth: .infinity).frame(height: 44)
+                    .background(Palette.accent, in: RoundedRectangle(cornerRadius: 12))
+                    .foregroundStyle(Palette.accentOnFill)
+            }
+            .buttonStyle(.plain).disabled(starting || !canPlay)
+            .accessibilityIdentifier("mood.play")
+            Button(action: onMakeMix) {
+                Label("Make a Mix", systemImage: "waveform.path.ecg")
+                    .frame(maxWidth: .infinity).frame(height: 44)
+                    .glassSurface(cornerRadius: 12)
+            }
+            .buttonStyle(.plain).disabled(!canMakeMix)
+            .accessibilityIdentifier("mood.makeMix")
+        }
+        .font(Typography.callout)
     }
 }
 

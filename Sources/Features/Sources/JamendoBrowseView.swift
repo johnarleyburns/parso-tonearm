@@ -36,6 +36,8 @@ struct JamendoBrowseView: View {
     @State private var importMessage: String?
     @State private var visibleTrackID: String?
     @State private var loadedGenrePath: String?
+    @State private var showGenrePicker = false
+    @State private var loadGeneration = UUID()
     #if os(iOS)
     @State private var watchDownloadNode: RemoteNode?
     @State private var confirmWatchDownload = false
@@ -97,6 +99,12 @@ struct JamendoBrowseView: View {
         }
         #endif
         .navigationBarBackButtonHidden()
+        .sheet(isPresented: $showGenrePicker) {
+            JamendoBrowseGenrePicker { genre in
+                selectedGenre = genre
+                showGenrePicker = false
+            }
+        }
         .task(id: selectedGenre.path) {
             guard activeQuery == nil, loadedGenrePath != selectedGenre.path else { return }
             await reload()
@@ -152,16 +160,7 @@ struct JamendoBrowseView: View {
     }
 
     private var genrePicker: some View {
-        Menu {
-            ForEach(JamendoGenreTree.roots) { root in
-                Menu(root.name) {
-                    Button(root.name) { selectedGenre = root }
-                    ForEach(root.children) { child in
-                        Button(child.name) { selectedGenre = child }
-                    }
-                }
-            }
-        } label: {
+        Button { showGenrePicker = true } label: {
             HStack(spacing: 6) {
                 Text(selectedGenre.name).font(Typography.callout)
                 Image(systemName: "chevron.down").font(Typography.caption)
@@ -174,6 +173,7 @@ struct JamendoBrowseView: View {
         .padding(.horizontal, 18)
         .padding(.top, 12)
         .padding(.bottom, 4)
+        .accessibilityIdentifier("mymusic.jamendo.chooseGenre")
     }
 
     @ViewBuilder
@@ -220,17 +220,23 @@ struct JamendoBrowseView: View {
     }
 
     private func reload() async {
+        let generation = UUID()
+        loadGeneration = generation
         visibleTrackID = nil
         offset = 0
         canLoadMore = true
         isLoading = true
+        isLoadingMore = false
         errorText = nil
-        defer { isLoading = false }
+        defer { if loadGeneration == generation { isLoading = false } }
         do {
-            nodes = try await fetchPage(offset: 0)
+            let page = try await fetchPage(offset: 0)
+            guard !Task.isCancelled, loadGeneration == generation else { return }
+            nodes = page
             offset = nodes.count
             loadedGenrePath = activeQuery == nil ? selectedGenre.path : nil
         } catch {
+            guard !Task.isCancelled, loadGeneration == generation else { return }
             nodes = []
             errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
@@ -238,10 +244,12 @@ struct JamendoBrowseView: View {
 
     private func loadMore() async {
         guard !isLoading, !isLoadingMore, canLoadMore else { return }
+        let generation = loadGeneration
         isLoadingMore = true
-        defer { isLoadingMore = false }
+        defer { if loadGeneration == generation { isLoadingMore = false } }
         do {
             let page = try await fetchPage(offset: offset)
+            guard !Task.isCancelled, loadGeneration == generation else { return }
             canLoadMore = !page.isEmpty
             // Popularity changes can overlap page boundaries. Duplicate SwiftUI IDs
             // invalidate scroll anchors; advance the server cursor by the raw page.
@@ -249,6 +257,7 @@ struct JamendoBrowseView: View {
             nodes.append(contentsOf: page.filter { existingIDs.insert($0.id).inserted })
             offset += page.count
         } catch {
+            guard !Task.isCancelled, loadGeneration == generation else { return }
             // A load-more failure isn't worth replacing the whole list with
             // an error — just stop paging quietly.
             canLoadMore = false
@@ -337,6 +346,43 @@ struct JamendoBrowseView: View {
         }
     }
     #endif
+}
+
+/// Browsing a parent does not select it or reload the music behind the picker. Navigation and
+/// scroll position belong to this sheet until the user explicitly selects a genre.
+private struct JamendoBrowseGenrePicker: View {
+    @Environment(\.dismiss) private var dismiss
+    let select: (JamendoGenreNode) -> Void
+
+    var body: some View {
+        NavigationStack {
+            genreList(JamendoGenreTree.roots)
+                .navigationTitle("Genres")
+                .navigationDestination(for: JamendoGenreNode.self) { node in
+                    genreList(node.children, parent: node).navigationTitle(node.name)
+                }
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                }
+        }
+    }
+
+    private func genreList(_ nodes: [JamendoGenreNode], parent: JamendoGenreNode? = nil) -> some View {
+        List {
+            if let parent {
+                Button("All \(parent.name)") { select(parent) }.buttonStyle(.borderless)
+            }
+            ForEach(nodes) { node in
+                if node.children.isEmpty {
+                    Button(node.name) { select(node) }.buttonStyle(.borderless)
+                        .accessibilityIdentifier("jamendo.genre.\(node.path)")
+                } else {
+                    NavigationLink(node.name, value: node)
+                        .accessibilityIdentifier("jamendo.genre.\(node.path)")
+                }
+            }
+        }
+    }
 }
 
 /// Keeps a Jamendo browse queue alive after the tapped track. The initial

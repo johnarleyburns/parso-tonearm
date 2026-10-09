@@ -16,7 +16,7 @@ public enum PhoneWatchAudioPreparation {
     }
 
     public static func prepare(
-        sourceURL: URL, directory: URL,
+        sourceURL: URL, directory: URL, sourceMIMEType: String? = nil,
         startAccess: @Sendable (URL) -> Bool = { $0.startAccessingSecurityScopedResource() },
         stopAccess: @Sendable (URL) -> Void = { $0.stopAccessingSecurityScopedResource() }
     ) async throws -> URL {
@@ -39,7 +39,8 @@ public enum PhoneWatchAudioPreparation {
             input = sourceURL
         }
         try await encodeAAC(source: input, destination: temporary,
-                            sourceExtension: WatchAudioFileMetadata.fileExtension(for: input) ?? ext)
+                            sourceExtension: WatchAudioFileMetadata.fileExtension(for: input) ?? ext,
+                            sourceMIMEType: input == sourceURL ? sourceMIMEType : nil)
         // Publish only a complete snapshot. Concurrent preparations can converge on
         // an existing destination without replacing a file WCSession may be reading.
         if !fm.fileExists(atPath: destination.path) {
@@ -48,7 +49,29 @@ public enum PhoneWatchAudioPreparation {
         return destination
     }
 
-    private static func encodeAAC(source: URL, destination: URL, sourceExtension: String) async throws {
+    /// Query-only audio URLs (notably Jamendo's `format=mp32`) become extensionless cache files.
+    /// Preserve the provider's format knowledge independently of the local filename.
+    public static func sourceMIMEType(for remote: URL) -> String? {
+        let query = URLComponents(url: remote, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let formats = ["format", "audioformat", "audiodlformat"].compactMap { name in
+            query.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }?.value?.lowercased()
+        } + [remote.pathExtension.lowercased()]
+        for format in formats {
+            switch format {
+            case "mp3", "mp31", "mp32", "mpeg": return "audio/mpeg"
+            case "m4a", "aac", "mp4": return "audio/mp4"
+            case "flac": return "audio/flac"
+            case "wav": return "audio/wav"
+            case "aif", "aiff": return "audio/aiff"
+            case "caf": return "audio/x-caf"
+            default: continue
+            }
+        }
+        return nil
+    }
+
+    private static func encodeAAC(source: URL, destination: URL, sourceExtension: String,
+                                  sourceMIMEType: String?) async throws {
         // Complete cache blobs are named <sha256>-<ext>, without a dotted extension.
         // Preserve the same format knowledge used by cached phone playback.
         let mime: String? = switch sourceExtension {
@@ -60,7 +83,7 @@ public enum PhoneWatchAudioPreparation {
         case "caf": "audio/x-caf"
         default: nil
         }
-        let asset = AVURLAsset(url: source, options: mime.map { [AVURLAssetOverrideMIMETypeKey: $0] })
+        let asset = AVURLAsset(url: source, options: (sourceMIMEType ?? mime).map { [AVURLAssetOverrideMIMETypeKey: $0] })
         guard let track = try await asset.loadTracks(withMediaType: .audio).first else {
             throw CocoaError(.fileReadCorruptFile)
         }

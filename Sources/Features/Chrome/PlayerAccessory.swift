@@ -43,6 +43,7 @@ struct MiniPlayerAccessory: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
+        .frame(height: 56)
         .adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Now Playing")
@@ -84,6 +85,7 @@ private extension TransitionPlan {
 /// player, with a specific state and a route into Settings for controls.
 struct TransferPill: View {
     @EnvironmentObject var appState: AppState
+    var dismiss: () -> Void = {}
 
     private var banner: PhoneWatchManagementPresenter.TransferBanner? {
         appState.watchManagement.banner
@@ -91,28 +93,40 @@ struct TransferPill: View {
 
     var body: some View {
         if let banner {
-            Button {
-                appState.showWatchSettings = true
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: banner.hasFailure
-                          ? "exclamationmark.triangle.fill" : "applewatch")
-                        .foregroundStyle(banner.hasFailure ? Palette.danger : Palette.accent)
-                    Text(label(banner))
-                        .font(Typography.caption)
-                        .foregroundStyle(banner.hasFailure ? Palette.danger : Palette.inkSecondary)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(Palette.inkTertiary)
+            HStack(spacing: 0) {
+                Button {
+                    appState.showWatchSettings = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: banner.hasFailure
+                              ? "exclamationmark.triangle.fill" : "applewatch")
+                            .foregroundStyle(banner.hasFailure ? Palette.danger : Palette.accent)
+                        Text(label(banner))
+                            .font(Typography.caption)
+                            .foregroundStyle(banner.hasFailure ? Palette.danger : Palette.inkSecondary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(Palette.inkTertiary)
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)
+                .buttonStyle(.plain)
+                .accessibilityLabel(label(banner))
+                .accessibilityHint("Opens Apple Watch settings")
+                .accessibilityIdentifier("watch.transferBanner")
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                        .frame(width: 44, height: 56).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss watch transfer notice")
+                .accessibilityIdentifier("watch.transferBanner.dismiss")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(label(banner))
-            .accessibilityHint("Opens Apple Watch settings")
-            .accessibilityIdentifier("watch.transferBanner")
+            .frame(height: 56)
+            .adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)
+            .contentShape(Rectangle())
         }
     }
 

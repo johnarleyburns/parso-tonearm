@@ -1,5 +1,30 @@
 # Paired-device watch test plan
 
+## Phone follow-up: Jamendo and bottom controls
+
+1. Play a song so the mini-player is visible. Start a watch transfer, then scroll
+   Playlists and On My Watch to their last rows. The last row and its buttons must
+   be fully above the controls. The transfer notice must sit ABOVE the mini-player,
+   have the same height, and its X must hide only the notice, not stop the transfer.
+   Tap a failed notice outside the X: Apple Watch settings must open, not an
+   underlying row.
+2. From My Music → Jamendo, open the genre picker, navigate Electronic, scroll to
+   Chillwave and select it. Opening Electronic must not fetch/reload music; only
+   selecting Chillwave (or explicitly All Electronic) does. Returning from another
+   tab must keep the current results and scroll position.
+3. Play and completely cache Veronica Kosh — River in the Sky on iPhone. Confirm
+   Download to Apple Watch in Now Playing. The watch icon must immediately indicate
+   preparation/transfer, including for a temporary remote row subsequently saved
+   with a permanent library ID. Verify installed count and actual watch playback.
+4. In On My Watch, tap Try Again on a failed row. It must retry only, with NO removal
+   dialog. Tap the trash separately: only that action must ask about removal.
+5. Mood must have one Play / Make a Mix row, equal-width buttons matching the
+   prompt's height, and no duplicate Build a Mix card above it. Find must show
+   All / Find Mood / Find Mix, with the same chip font/height as Artists / Albums.
+6. Open Settings on Catalyst and press Done; Settings must dismiss without needing
+   a swipe or closing the app.
+
+
 ## Playback follow-up after build 541
 
 1. Play the already installed Credo or Fred Again. Start at low volume and turn the

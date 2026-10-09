@@ -8,6 +8,58 @@ import TonearmWatchProtocol
 /// service and is therefore exercised by WatchSmokeUITests plus the on-device audio pass.
 @MainActor
 final class WatchAVPlayerItemTests: XCTestCase {
+    func testJamendoQueryOnlyCachedMP3ConvertsToPlayableWatchAAC() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = try XCTUnwrap(Bundle.module.url(forResource: "cc0-ocean-jamendo", withExtension: "mp3", subdirectory: "Fixtures"))
+        let cached = root.appendingPathComponent(String(repeating: "b", count: 64) + "-")
+        try FileManager.default.copyItem(at: source, to: cached)
+        let url = try XCTUnwrap(URL(string: "https://prod-1.storage.jamendo.com/?trackid=1&format=mp32"))
+        let mime = PhoneWatchAudioPreparation.sourceMIMEType(for: url)
+        XCTAssertEqual(mime, "audio/mpeg")
+        let prepared = try await PhoneWatchAudioPreparation.prepare(sourceURL: cached,
+            directory: root.appendingPathComponent("prepared"), sourceMIMEType: mime)
+        let audio = try AVAudioFile(forReading: prepared)
+        XCTAssertEqual(audio.fileFormat.streamDescription.pointee.mFormatID, kAudioFormatMPEG4AAC)
+        XCTAssertGreaterThan(audio.length, 0)
+        let item = AVPlayerItem(url: prepared)
+        let tracks = try await item.asset.loadTracks(withMediaType: .audio)
+        XCTAssertFalse(tracks.isEmpty)
+    }
+
+    func testJamendoFormatHintsAndBottomAccessoryAndRetryWiring() throws {
+        for format in ["mp3", "mp31", "mp32"] {
+            XCTAssertEqual(PhoneWatchAudioPreparation.sourceMIMEType(for: URL(string: "https://example.com/audio?format=\(format)")!), "audio/mpeg")
+        }
+        XCTAssertEqual(PhoneWatchAudioPreparation.sourceMIMEType(for: URL(string: "https://example.com/audio?format=json&audioformat=mp32")!), "audio/mpeg")
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let shell = try String(contentsOf: root.appendingPathComponent("Sources/Features/RootView.swift"), encoding: .utf8)
+        XCTAssertTrue(shell.contains(".safeAreaInset(edge: .bottom, spacing: 0) { accessoryClearance }"))
+        XCTAssertTrue(shell.contains("TransferPill { transferBannerDismissed = true }"))
+        XCTAssertLessThan(try XCTUnwrap(shell.range(of: "TransferPill {")).lowerBound,
+                          try XCTUnwrap(shell.range(of: "MiniPlayerAccessory(")).lowerBound)
+        let music = try String(contentsOf: root.appendingPathComponent("Sources/Features/MyMusic/MyMusicView.swift"), encoding: .utf8)
+        XCTAssertTrue(music.contains(".buttonStyle(.borderless)"))
+        let now = try String(contentsOf: root.appendingPathComponent("Sources/Features/NowPlaying/NowPlayingView.swift"), encoding: .utf8)
+        XCTAssertTrue(now.contains("submittingWatchDownload = true"))
+        XCTAssertTrue(now.contains("appState.watchGlyphState(forTrackID: id)"))
+        let resolver = try String(contentsOf: root.appendingPathComponent("Sources/App/Watch/PhoneWatchDownloadAdapter.swift"), encoding: .utf8)
+        XCTAssertTrue(resolver.contains("AudioCache.key(for: $0) == source.lastPathComponent"))
+        XCTAssertTrue(resolver.contains("sourceMIMEType: origin.flatMap"))
+        let accessory = try String(contentsOf: root.appendingPathComponent("Sources/Features/Chrome/PlayerAccessory.swift"), encoding: .utf8)
+        XCTAssertTrue(accessory.contains("watch.transferBanner.dismiss"))
+        XCTAssertTrue(accessory.contains(".contentShape(Rectangle())"))
+        let settings = try String(contentsOf: root.appendingPathComponent("Sources/Features/Settings/SettingsView.swift"), encoding: .utf8)
+        XCTAssertTrue(settings.contains("Button(\"Done\") { dismiss() }.accessibilityIdentifier(\"settings.done\")"))
+        let mood = try String(contentsOf: root.appendingPathComponent("Sources/Features/Listen/ListenView.swift"), encoding: .utf8)
+        XCTAssertFalse(mood.contains("MixEntryCard { appState.requestBuildAMix() }"))
+        XCTAssertTrue(mood.contains("mood.makeMix"))
+        let jamendo = try String(contentsOf: root.appendingPathComponent("Sources/Features/Sources/JamendoBrowseView.swift"), encoding: .utf8)
+        XCTAssertTrue(jamendo.contains("JamendoBrowseGenrePicker { genre in"))
+        XCTAssertTrue(jamendo.contains("NavigationLink(node.name, value: node)"))
+        XCTAssertTrue(jamendo.contains("loadGeneration == generation"))
+    }
     func testWatchCrownControlsSystemVolumeWithoutAppAttenuation() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let view = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchNowPlayingView.swift"), encoding: .utf8)

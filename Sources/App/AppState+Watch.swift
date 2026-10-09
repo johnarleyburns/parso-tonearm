@@ -30,7 +30,14 @@ extension AppState {
         #if os(macOS)
         .notOnWatch
         #else
-        let id = PhoneWatchID.track(row.track).rawValue
+        return watchGlyphState(forTrackID: PhoneWatchID.track(row.track).rawValue)
+        #endif
+    }
+
+    func watchGlyphState(forTrackID id: String) -> WatchGlyphState {
+        #if os(macOS)
+        .notOnWatch
+        #else
         return WatchGlyph.state(trackKey: id, manifest: watchInstalledTrackIDs,
                                 transferState: watchTransferState(forID: id), errorText: nil,
                                 sendingProgress: liveWatchTransferFraction(forID: id))

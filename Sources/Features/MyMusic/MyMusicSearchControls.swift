@@ -4,8 +4,8 @@ import TonearmDiscovery
 
 enum MyMusicSearchMode: String, CaseIterable, Identifiable {
     case all = "All"
-    case mix = "Search by Mix"
-    case sound = "Search by Sound"
+    case sound = "Find Mood"
+    case mix = "Find Mix"
 
     var id: String { rawValue }
 }
@@ -56,12 +56,18 @@ struct MyMusicSearchControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Picker("Search", selection: $mode) {
+            HStack(spacing: 8) {
                 ForEach(MyMusicSearchMode.allCases) { option in
-                    Text(option.rawValue).tag(option)
+                    Button { mode = option } label: {
+                        Text(option.rawValue)
+                            .font(Typography.callout)
+                            .foregroundStyle(mode == option ? Palette.accentOnFill : Palette.inkSecondary)
+                            .padding(.horizontal, 16).padding(.vertical, 8)
+                            .background(mode == option ? Palette.accent : Palette.ink.opacity(0.07), in: Capsule())
+                    }.buttonStyle(.plain)
+                        .accessibilityIdentifier("find.mode.\(option == .all ? "all" : option == .sound ? "mood" : "mix")")
                 }
             }
-            .pickerStyle(.segmented)
             .accessibilityIdentifier("mymusic.search.mode")
 
             switch mode {

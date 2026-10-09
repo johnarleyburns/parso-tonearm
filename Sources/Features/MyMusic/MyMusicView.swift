@@ -210,7 +210,7 @@ private struct OnMyWatchMusicView: View {
                         Spacer()
                         Button(role: .destructive) { removal = row } label: {
                             Image(systemName: "trash")
-                        }.disabled(pendingRemovalIDs.contains(row.id))
+                        }.buttonStyle(.borderless).disabled(pendingRemovalIDs.contains(row.id))
                             .accessibilityIdentifier("mymusic.watch.remove.\(row.id)")
                     }
                     if pendingRemovalIDs.contains(row.id) {
@@ -226,6 +226,7 @@ private struct OnMyWatchMusicView: View {
                         if let message = activity.failureMessage { Text(message).font(Typography.caption) }
                         if activity.canRetry {
                             Button("Try Again") { Task { await appState.retryWatchJob(activity.requestID) } }
+                                .buttonStyle(.borderless)
                         }
                     } else {
                         Text("Scheduled for Apple Watch").font(Typography.caption)
@@ -236,6 +237,10 @@ private struct OnMyWatchMusicView: View {
             }
         }
         .listStyle(.plain)
+        .onChange(of: appState.watchManagement.watchTracks.map(\.id)) { _, ids in
+            // A later re-download of the same stable ID is not the old pending removal.
+            pendingRemovalIDs.formIntersection(Set(ids))
+        }
         .task {
             while !Task.isCancelled {
                 await appState.refreshWatchState()

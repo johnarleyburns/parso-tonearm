@@ -28,6 +28,7 @@ enum MacPreferencesPane {
 }
 
 struct SettingsView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     var macPane: MacPreferencesPane?
@@ -107,6 +108,13 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(Palette.libraryBackground.ignoresSafeArea())
             .navigationTitle("Settings")
+            #if os(iOS)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.accessibilityIdentifier("settings.done")
+                }
+            }
+            #endif
         }
         .task { await refresh() }
         .sheet(item: $activeSheet) { sheet in

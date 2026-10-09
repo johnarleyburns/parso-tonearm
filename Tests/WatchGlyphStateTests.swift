@@ -29,9 +29,17 @@ final class WatchGlyphStateTests: XCTestCase {
         XCTAssertEqual(state, .transferring(progress: 0.6))
     }
 
-    func testOnWatchWhenSent() {
+    func testSentIsStillTransferringUntilWatchReportsInstallation() {
         let state = WatchGlyph.state(trackKey: "t1", manifest: [], transferState: .sent, errorText: nil)
-        XCTAssertEqual(state, .onWatch)
+        XCTAssertEqual(state, .transferring(progress: nil))
+        XCTAssertEqual(WatchGlyph.state(trackKey: "t1", manifest: ["t1"], transferState: .sent, errorText: nil), .onWatch)
+    }
+
+    func testCollectionStillShowsProgressWhenAppleTransferFinishedButInstallationIsUnknown() {
+        let (state, fraction) = WatchGlyph.aggregateState(trackKeys: ["t1"], manifest: [],
+            transferStates: ["t1": .sent], errorTexts: [:])
+        XCTAssertEqual(state, .transferring(progress: 0))
+        XCTAssertEqual(fraction, 0)
     }
 
     func testFailedWhenTransferFailed() {
