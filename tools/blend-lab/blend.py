@@ -87,10 +87,9 @@ class Grid:
         return Grid(self.beats / factor, self.downbeats / factor, self.bpm * factor, self.kind)
 
 
-# The analyser's beat times and tempo run fast by exactly 441/440 on every track measured
-# (folding the kicks onto the analysed period smears; folding onto period x 441/440 is sharp, and
-# the kick-to-grid offset is then constant from the first beat to the last). See README.md.
-ANALYSER_TIME_SCALE = 441 / 440
+# 2026-10-04 this was 441/440, from a lab measurement bug (envelope hops that don't divide SR, read
+# as exact milliseconds). The analyser's time base is correct; see README.md (2026-10-08).
+ANALYSER_TIME_SCALE = 1.0
 
 
 def raw_grid(t):
@@ -98,7 +97,7 @@ def raw_grid(t):
 
 
 def corrected_grid(t, duration):
-    """The analyser's grid with its 441/440 time-scale error removed, then regularised."""
+    """The analyser's grid, regularised."""
     fixed = dict(t, beats=[b * ANALYSER_TIME_SCALE for b in t["beats"]],
                  downbeats=[b * ANALYSER_TIME_SCALE for b in t["downbeats"]],
                  bpm=t["bpm"] / ANALYSER_TIME_SCALE)
@@ -260,7 +259,7 @@ def render(pair, tracks, cache, out_dir, variants):
     return results
 
 
-def onset_env(audio, hop=SR // 200):
+def onset_env(audio, hop=SR // 200):          # 220 samples (~5 ms); only used for lags
     """Low-frequency onset strength at 5 ms hops: energy below ~150 Hz (FFT band-limit), rectified flux."""
     mono = audio.mean(axis=1).astype(np.float64)
     spec = np.fft.rfft(mono)
@@ -285,18 +284,21 @@ def kick_offset_ms(a_seg, b_seg, beat_seconds):
     scores = [np.dot(ea[max(0, -l):len(ea) - max(0, l)], eb[max(0, l):len(eb) - max(0, -l)]) for l in lags]
     best = int(np.argmax(scores))
     contrast = scores[best] / (np.median(scores) + 1e-12)
-    return lags[best] * 5.0, contrast
+    return lags[best] * (SR // 200) / SR * 1000, contrast
 
 
 def kick_lag_ms(audio, beats):
     """Median lag (ms) from grid beats to the strongest low-band onset within ±150 ms.
     Absolute values include a constant decoder/onset offset; the difference between two tracks
     is what you hear as flamming kicks."""
-    env = onset_env(audio, hop=SR // 1000)       # 1 ms hops
+    hop = 45                                     # ~1 ms; hops must divide SR exactly
+    rate = SR / hop
+    env = onset_env(audio, hop=hop)
+    w150 = int(round(0.150 * rate))
     lags = []
     for b in beats:
-        i = int(round(b * 1000)); w = env[max(0, i - 150):i + 151]
-        if len(w) == 301 and w.max() > 0.2: lags.append(int(np.argmax(w)) - 150)
+        i = int(round(b * rate)); w = env[max(0, i - w150):i + w150 + 1]
+        if len(w) == 2 * w150 + 1 and w.max() > 0.2: lags.append((int(np.argmax(w)) - w150) / rate * 1000)
     return float(np.median(lags)) if lags else float("nan")
 
 
@@ -355,7 +357,7 @@ def main():
     os.makedirs(out_dir, exist_ok=True); os.makedirs(cache, exist_ok=True)
     tracks = json.load(open(cand))
     variants = [("shipped-linear", "raw", 96),       # the plan as shipped: analyser grid, 96 beats
-                ("equal-power", "corrected", 96),    # grid fixed (441/440, regular), equal-power, 96 beats
+                ("equal-power", "corrected", 96),    # regular fitted grid, equal-power, 96 beats
                 ("bass-swap", "corrected", 64)]      # grid fixed, DJ-style 16 bars with a bass swap
     results = []
     for spec in sys.argv[4:]:

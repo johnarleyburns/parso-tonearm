@@ -10,10 +10,12 @@ tracks = json.load(open(sys.argv[1])); cache = sys.argv[2]
 for tid in sys.argv[3:]:
     T = tracks[tid]
     audio = decode(fetch(T, cache, tid)); dur = len(audio) / SR
-    env = onset_env(audio)                      # 5 ms hops
+    env = onset_env(audio)                      # 220-sample hops (~5 ms)
+    rate = SR / 220                             # exact, never 200: that mis-times beats by 441/440
+    ms = 1000 / rate
     for g in (raw_grid(T), fitted_grid(T, dur)):
         lags = np.arange(-30, 31)               # ±150 ms
-        idx = np.round(g.beats * 200).astype(int)
+        idx = np.round(g.beats * rate).astype(int)
         scores = []
         for l in lags:
             j = idx + l; j = j[(j >= 0) & (j < len(env))]
@@ -23,6 +25,6 @@ for tid in sys.argv[3:]:
         per = []
         for i in idx:
             w = env[max(0, i - 12):i + 13]
-            if len(w) == 25 and w.max() > 0.1: per.append((np.argmax(w) - 12) * 5)
-        print(f"{tid} {T['title'][:26]:26s} {g.kind:6s} phase error {lags[best]*5:+4d} ms "
+            if len(w) == 25 and w.max() > 0.1: per.append((np.argmax(w) - 12) * ms)
+        print(f"{tid} {T['title'][:26]:26s} {g.kind:6s} phase error {lags[best]*ms:+4.0f} ms "
               f"(peak x{scores[best]/np.median(scores):.1f}); per-beat kick spread p90 {np.percentile(np.abs(per),90) if per else float('nan'):.0f} ms")
