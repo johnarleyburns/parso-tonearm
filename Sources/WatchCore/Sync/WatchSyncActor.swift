@@ -12,6 +12,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     private let installer: WatchFileInstaller
     private let chunkAssembler: WatchAudioChunkAssembler?
     private let requiresNormalizedAAC: Bool
+    private let localDownloadsOnly: Bool
     private let artworkInstaller: WatchArtworkInstaller?
     private let diagnostics: WatchDiagnosticsRecorder?
     private weak var coordinator: WatchConnectivityCoordinator?
@@ -39,6 +40,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
                 installer: WatchFileInstaller,
                 chunkAssembler: WatchAudioChunkAssembler? = nil,
                 requiresNormalizedAAC: Bool = false,
+                localDownloadsOnly: Bool = false,
                 artworkInstaller: WatchArtworkInstaller? = nil,
                 coordinator: WatchConnectivityCoordinator? = nil,
                 diagnostics: WatchDiagnosticsRecorder? = nil,
@@ -49,6 +51,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
         self.installer = installer
         self.chunkAssembler = chunkAssembler
         self.requiresNormalizedAAC = requiresNormalizedAAC
+        self.localDownloadsOnly = localDownloadsOnly
         self.artworkInstaller = artworkInstaller
         self.diagnostics = diagnostics
         self.lastCatalogReceivedAt = lastCatalogReceivedAt
@@ -63,6 +66,16 @@ public actor WatchSyncActor: WatchConnectivityObserver {
 
     // MARK: - Downloads
 
+    public func removeLegacyCatalogMetadata() async {
+        guard localDownloadsOnly else { return }
+        let tracks = (try? await repository.metadata("watch.selectedTrackIDs")) ?? "[]"
+        let playlists = (try? await repository.metadata("watch.selectedPlaylistIDs")) ?? "[]"
+        let selected = (try? JSONDecoder().decode([String].self, from: Data(tracks.utf8))) ?? []
+        let selectedPlaylists = (try? JSONDecoder().decode([String].self, from: Data(playlists.utf8))) ?? []
+        let deferred = Set(await installer.deferredTrackIDs())
+        try? await repository.retainDownloadMetadata(trackIDs: Set(selected).union(deferred), playlistIDs: Set(selectedPlaylists))
+    }
+
     public func didRejectIncomingFile(metadata: [String: String], code: WatchProtocolErrorCode) async {
         guard let audio = WatchAudioFileMetadata(dictionary: metadata) else { return }
         chunkFailures[audio.trackID.rawValue] = code
@@ -72,6 +85,18 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     }
 
     public func didReceiveDownloadRoots(_ payload: WatchSetDownloadRoots) async {
+        if localDownloadsOnly {
+            let ids = Set(payload.roots.flatMap { $0.trackIDs.map(\.rawValue) })
+            let playlists = Set(payload.roots.filter { $0.kind == .playlist }.map(\.sourceID))
+            let deferred = Set(await installer.deferredTrackIDs())
+            try? await repository.retainDownloadMetadata(trackIDs: ids.union(deferred), playlistIDs: playlists)
+            if let data = try? JSONEncoder().encode(Array(ids)) {
+                try? await repository.setMetadata("watch.selectedTrackIDs", to: String(decoding: data, as: UTF8.self))
+            }
+            if let data = try? JSONEncoder().encode(Array(playlists)) {
+                try? await repository.setMetadata("watch.selectedPlaylistIDs", to: String(decoding: data, as: UTF8.self))
+            }
+        }
         await chunkAssembler?.allow(trackIDs: Set(payload.roots.flatMap { $0.trackIDs.map(\.rawValue) }))
         for root in payload.roots {
             await applyRoot(root, revision: payload.revision)
@@ -85,6 +110,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     /// Make received metadata searchable immediately. A delayed background page must
     /// not hide the entire phone library or strand audio awaiting its track metadata.
     public func didReceiveCatalogPage(_ page: WatchLibraryPage) async {
+        guard !localDownloadsOnly || page.downloadSelectionOnly == true else { return }
         guard page.pageCount > 0, page.pageIndex >= 0, page.pageIndex < page.pageCount else { return }
         if page.revision < catalogRevision { return }
         if page.revision > catalogRevision || (page.catalogID != catalogID && catalogPages.isEmpty) {
@@ -121,7 +147,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
     private func applyRoot(_ root: WatchDownloadRootDescriptor, revision: Int64) async {
         switch root.kind {
         case .playlist:
-            let summaries = await hydrate(.playlist(WatchPlaylistID(root.sourceID)))
+            let summaries = localDownloadsOnly ? [] : await hydrate(.playlist(WatchPlaylistID(root.sourceID)))
             await upsert(summaries, revision: revision)
             // A durable root can arrive while immediate collection lookup is unavailable.
             // Its track IDs must still provide bindings for incoming audio. Use revision 0
@@ -137,7 +163,7 @@ public actor WatchSyncActor: WatchConnectivityObserver {
                 desiredOnWatch: true)
 
         case .albumBatch:
-            let summaries = await hydrate(.album(WatchAlbumID(root.sourceID)))
+            let summaries = localDownloadsOnly ? [] : await hydrate(.album(WatchAlbumID(root.sourceID)))
             if summaries.isEmpty {
                 // Offline or the phone could not enumerate — keep the IDs as bare rows so a later
                 // reconciliation can fill them; they stay nonplayable until an asset installs.

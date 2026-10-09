@@ -100,6 +100,23 @@ final class DiscoverySearchViewModelTests: XCTestCase {
 
     // MARK: - Metadata path
 
+    func testPlayMoodEnqueuesAllCompatibleResultsAndStartsOnceWithoutOpeningBuilder() async throws {
+        let rows = [Self.trackRow(id: 1, title: "First"), Self.trackRow(id: 2, title: "Second"), Self.trackRow(id: 3, title: "Incompatible")]
+        let d = try await makeVM(metadata: { _ in .success(rows) })
+        d.vm.inputMode = .metadata
+        d.vm.searchText = "mood"
+        await settle(d.vm) { $0.screen.hasResults }
+        var started: [[Int64]] = []
+        let played = d.vm.playMood(metadata: [1: .init(bpm: 100, camelotKey: "8A"),
+            2: .init(bpm: 104, camelotKey: "9A"), 3: .init(bpm: 170, camelotKey: "4B")]) {
+                started.append($0.map(\.id))
+            }
+        XCTAssertTrue(played)
+        XCTAssertEqual(started, [[1, 2]])
+        XCTAssertTrue(d.played.value.isEmpty, "Queue playback must not invoke single-track playback")
+        XCTAssertFalse(d.vm.playMood(metadata: [:], onPlayQueue: { _ in XCTFail("Do not start an incompatible/empty queue") }))
+    }
+
     func testMetadataTextSearchProducesBrowseResults() async throws {
         let rows = [Self.trackRow(id: 1, title: "Blue"), Self.trackRow(id: 2, title: "Bluer")]
         let d = try await makeVM(metadata: { q in

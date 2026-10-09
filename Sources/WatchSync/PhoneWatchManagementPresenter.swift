@@ -42,6 +42,7 @@ public enum PhoneWatchManagementPresenter {
         public var collections: [CollectionRow]
         public var banner: TransferBanner?
         public var syncHistory = SyncHistory()
+        public var watchTracks: [WatchTrackRow] = []
 
         public init(pairing: Pairing, connectedForSeconds: TimeInterval?, storage: Storage?,
                     activity: [ActivityRow], collections: [CollectionRow], banner: TransferBanner?) {
@@ -91,6 +92,13 @@ public enum PhoneWatchManagementPresenter {
         public var spaceShortfall: SpaceShortfall?
 
         public var hasReportedCapacity: Bool { capacityBytes > 0 }
+    }
+
+    public struct WatchTrackRow: Equatable, Sendable, Identifiable {
+        public var id: String
+        public var title: String
+        public var isInstalled: Bool
+        public var activity: ActivityRow?
     }
 
     public struct SpaceShortfall: Equatable, Sendable {
@@ -287,13 +295,19 @@ public enum PhoneWatchManagementPresenter {
             collections: collections,
             banner: banner)
         snapshot.syncHistory = syncHistory
+        let selected = installed.union(roots.flatMap(\.desiredTrackIDs))
+        snapshot.watchTracks = selected.map { id in
+            WatchTrackRow(id: id, title: titles[id] ?? "Track", isInstalled: installed.contains(id),
+                activity: installed.contains(id) ? nil : activity.first { $0.trackID == id })
+        }.sorted { $0.title == $1.title ? $0.id < $1.id : $0.title.localizedStandardCompare($1.title) == .orderedAscending }
         return snapshot
     }
 
     public static func collectionDetail(rootID: String,
                                         roots: [PhoneWatchDownloadRoot],
                                         jobs: [PhoneWatchDownloadJob],
-                                        manifestEntries: [PhoneWatchManifestEntry]) -> CollectionDetail? {
+                                        manifestEntries: [PhoneWatchManifestEntry],
+                                        keepsPlaylistsLive: Bool = true) -> CollectionDetail? {
         guard let root = roots.first(where: { $0.rootID == rootID }) else { return nil }
         let installed = Set(manifestEntries.map(\.trackID))
         let s = rootStatus(root, jobs: jobs, installed: installed)
@@ -315,7 +329,7 @@ public enum PhoneWatchManagementPresenter {
 
         return CollectionDetail(
             rootID: root.rootID, title: root.title, kind: kind(for: root.kind), paused: root.paused,
-            autoSyncs: root.kind == .playlist,
+            autoSyncs: root.kind == .playlist && keepsPlaylistsLive,
             desiredCount: root.desiredTrackIDs.count,
             readyCount: s.ready, waitingForWiFiCount: s.waiting,
             unavailableCount: s.unavailable, failedCount: s.failed,

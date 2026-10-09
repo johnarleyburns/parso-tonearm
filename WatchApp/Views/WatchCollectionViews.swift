@@ -468,14 +468,6 @@ struct WatchCollectionDetailView: View {
                 Label("Play on Watch", systemImage: "applewatch")
             }
             .tint(WatchPalette.accent)
-        } else {
-            Button {
-                requestedDownloads.insert(song.id)
-                Task { await WatchAppAssembly.shared.requestDownloads([WatchTrackID(song.id)]) }
-            } label: {
-                Label("Download to Watch", systemImage: "arrow.down.circle")
-            }
-            .tint(WatchPalette.success)
         }
         if !song.albumTitle.isEmpty, model.album(id: song.albumTitle) != nil {
             NavigationLink(value: WatchNav.album(song.albumTitle)) {

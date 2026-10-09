@@ -27,11 +27,18 @@ struct WatchDiagnosticsView: View {
                         ProgressView("Loading diagnostics…")
                     } else {
                         Text("Audio receipt").font(.headline)
-                        if let event = events.last(where: { $0.category == .installResult }) {
+                        if let event = events.last(where: { $0.category == .installResult && !$0.stateCode.hasPrefix("artwork") }) {
                             Text(audioSummary(event.stateCode)).font(.caption)
                             Text(event.timestamp.formatted(date: .omitted, time: .standard)).font(.caption2)
                         } else {
                             Text("No audio receipt recorded this session.").font(.caption)
+                        }
+                        Text("Artwork receipt").font(.headline)
+                        if let event = events.last(where: { $0.category == .installResult && $0.stateCode.hasPrefix("artwork") }) {
+                            Text("Artwork processed; this does not confirm downloaded audio.").font(.caption)
+                            Text(event.timestamp.formatted(date: .omitted, time: .standard)).font(.caption2)
+                        } else {
+                            Text("No artwork receipt recorded this session.").font(.caption)
                         }
                         Text("Watch report").font(.headline)
                         if let event = events.last(where: { $0.category == .manifestConvergence }) {

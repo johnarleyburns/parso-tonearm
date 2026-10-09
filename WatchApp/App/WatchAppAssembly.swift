@@ -89,11 +89,6 @@ final class WatchAppAssembly {
         WatchPlayer.shared.startLocalPlayback(tracks: tracks, selectedTrackID: selected.id)
     }
 
-    /// Watch redesign D1 — Pause / Resume / Stop / Retry from "On This Watch".
-    func controlDownloads(_ action: WatchDownloadControlAction, rootID: String? = nil) async {
-        await coordinator?.controlDownloads(WatchDownloadControl(action: action, rootID: rootID))
-    }
-
     func refreshSyncReachability() async {
         await coordinator?.refreshReachability()
         await syncActor?.publishPeriodicStatus()
@@ -112,19 +107,6 @@ final class WatchAppAssembly {
         syncStatus.completedSync(result)
     }
 
-    /// Watch redesign B3 — ask the phone to download one song from a long-press menu.
-    func requestDownloads(_ trackIDs: [WatchTrackID]) async {
-        for id in trackIDs { await coordinator?.requestDownload(trackID: id, wantsDownload: true) }
-    }
-
-
-    /// §7.1: ask the phone for a fresh authoritative playback snapshot (drives the W7 correction
-    /// poll). No-op when the link is unavailable.
-    /// §7 polish — ask the phone to download (or drop) one track to this watch, from Now Playing.
-    /// The phone stays the download authority; this only asks.
-    func requestDownloadToThisWatch(_ trackID: WatchTrackID, wants: Bool = true) async {
-        await coordinator?.requestDownload(trackID: trackID, wantsDownload: wants)
-    }
 
     func refreshRemotePlayback() async {
         // Deliberately empty. The phone is a sync/download authority only; playback snapshots
@@ -211,6 +193,7 @@ final class WatchAppAssembly {
         let diag = diagnostics
         let sync = WatchSyncActor(repository: repo, installer: inst,
                                   requiresNormalizedAAC: true,
+                                  localDownloadsOnly: true,
                                   artworkInstaller: artworkInst, diagnostics: diag,
                                   lastCatalogReceivedAt: syncStatus.lastCatalogSyncAt,
                                   onLibraryChanged: { [weak mdl] in await mdl?.refresh() })
@@ -218,7 +201,7 @@ final class WatchAppAssembly {
             mode: .offline,
             connectedSearch: { _, _ in .failed(.init(code: .phoneUnavailable)) },
             offlineSearch: { [weak repo] query in
-                let hits = (try? await repo?.search(query, readyOnly: false)) ?? []
+                let hits = (try? await repo?.search(query, readyOnly: true)) ?? []
                 return hits.map {
                     WatchResultRow(kind: .track, id: $0.id, title: $0.title,
                                    subtitle: $0.artist.isEmpty ? nil : $0.artist,
@@ -228,18 +211,16 @@ final class WatchAppAssembly {
         self.search = searchPresenter
 
         let chromeObs = WatchChromeObserver(chrome: chrome, model: mdl, search: searchPresenter)
-        let remotePlayback = WatchRemotePlaybackObserver()
         let diagObs = WatchDiagnosticsObserver(diagnostics: diag)
         let downloadStatusObs = WatchDownloadStatusObserver(model: mdl)
-        let fan = WatchFanoutObserver([sync, reach, chromeObs, remotePlayback, diagObs, downloadStatusObs, syncStatus])
+        let fan = WatchFanoutObserver([sync, reach, chromeObs, diagObs, downloadStatusObs, syncStatus])
         // The observer is installed before native activation, not in a later Task.
         // A background file can arrive immediately when WCSession activates.
         let coord = WatchConnectivityCoordinator(
             transport: WatchProtocolSessionAdapter.transport,
             stateStore: stateStore,
             configuration: .init(capabilities: [.downloadRoots, .manifestAcknowledgement,
-                                                .reconciliation, .watchInitiatedDownload,
-                                                .artworkAssets, .watchLocalCatalog]),
+                                                .reconciliation, .artworkAssets]),
             diagnostics: diag, observer: fan,
             manifestProvider: { await sync.metadataManifest() })
         let adpt = WatchProtocolSessionAdapter(endpoint: coord, diagnostics: diag)
@@ -263,7 +244,10 @@ final class WatchAppAssembly {
     /// Called once from the app's `init`. Activates the WCSession delegate and runs the one-time
     /// migration of audio left behind by the pre-cutover watch build.
     func start() {
-        adapter?.activate()
+        Task {
+            await syncActor?.removeLegacyCatalogMetadata()
+            adapter?.activate()
+        }
         WatchWidgetPublisher.shared.start()
         let launch = launchState
         Task {

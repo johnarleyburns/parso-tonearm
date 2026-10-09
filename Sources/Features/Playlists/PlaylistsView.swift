@@ -132,7 +132,11 @@ struct PlaylistsView: View {
                     .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18))
                     .listRowBackground(Color.clear)
 
-                    if appState.playlists.isEmpty {
+                    if appState.playlists.isEmpty && !appState.didLoadLibraryOnce {
+                        ProgressView("Loading playlists…")
+                            .frame(maxWidth: .infinity).padding(.vertical, 24)
+                            .accessibilityIdentifier("playlists.loading")
+                    } else if appState.playlists.isEmpty {
                         EmptyStateView(icon: "music.note.list",
                                        title: "Create a playlist",
                                        message: "Tap + to create a playlist from Music, or add a local folder.")

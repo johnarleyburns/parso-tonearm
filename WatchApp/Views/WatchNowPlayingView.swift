@@ -324,7 +324,7 @@ struct WatchNowPlayingView: View {
             }
             : nil
         return WatchProblemCard(systemImage: "applewatch.slash", title: "Track Isn't on This Watch",
-                                message: String(localized: "Only fully downloaded audio can play here. Download it from the synced catalog first."),
+                                message: String(localized: "Only downloaded audio can play here. Send music from Platterhead on your iPhone."),
                                 actions: action.map { [$0] } ?? [], code: failure.code)
     }
 

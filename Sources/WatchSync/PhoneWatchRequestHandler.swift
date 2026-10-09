@@ -58,14 +58,20 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
 
     /// Builds the complete searchable My Music projection. It is chunked by the caller for
     /// WatchConnectivity rather than exposed through the watch's request/search path.
-    public func catalogPages(revision: Int64) async throws -> [WatchLibraryPage] {
-        let allTracks = try await store.allTrackRows()
+    public func catalogPages(revision: Int64, trackIDs: Set<String>? = nil,
+                             playlistIDs: Set<String>? = nil,
+                             selectedPlaylists: [WatchLibraryPlaylist]? = nil) async throws -> [WatchLibraryPage] {
+        let allTracks = try await store.allTrackRows().filter {
+            trackIDs?.contains(PhoneWatchID.track($0.track).rawValue) ?? true
+        }
         let downloaded: Set<WatchTrackID> = []
         let summaries = allTracks.map {
             PhoneWatchProjection.trackSummary(from: $0, downloadedOnWatch: downloaded)
         }
-        let phonePlaylists = try await store.allPlaylists()
-        var playlists: [WatchLibraryPlaylist] = []
+        let phonePlaylists = selectedPlaylists == nil ? try await store.allPlaylists().filter {
+            playlistIDs?.contains(PhoneWatchID.playlist($0)) ?? true
+        } : []
+        var playlists: [WatchLibraryPlaylist] = selectedPlaylists ?? []
         for playlist in phonePlaylists {
             let ids: [WatchTrackID]
             if let id = playlist.id {
@@ -76,7 +82,7 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
                 ids = []
             }
             playlists.append(WatchLibraryPlaylist(playlistID: PhoneWatchID.playlist(playlist),
-                                                  title: playlist.title, trackIDs: ids))
+                title: playlist.title, trackIDs: ids.filter { trackIDs?.contains($0.rawValue) ?? true }))
         }
         let trackPageSize = 20
         let playlistPageSize = 10
@@ -92,7 +98,8 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
             let playlistRows = playlistStart < playlists.count
                 ? Array(playlists[playlistStart..<min(playlistStart + playlistPageSize, playlists.count)]) : []
             return WatchLibraryPage(catalogID: catalogID, revision: revision, pageIndex: index,
-                                    pageCount: pageCount, tracks: tracks, playlists: playlistRows)
+                                    pageCount: pageCount, tracks: tracks, playlists: playlistRows,
+                                    downloadSelectionOnly: trackIDs == nil ? nil : true)
         }
     }
 

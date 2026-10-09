@@ -1,6 +1,7 @@
 #if !os(watchOS)
 import Foundation
 import ParsoAudioAnalysis
+import TonearmCore
 
 /// The explicit DJ compatibility gate shared by mood, Keep Playing, and
 /// Find Music. This is intentionally separate from the softer hybrid score:
@@ -16,6 +17,26 @@ public struct MusicalMatchReference: Sendable, Equatable {
 }
 
 public enum MusicalMatchPolicy {
+    /// Preserve mood ranking while making every consecutive queue transition
+    /// satisfy the same hard BPM/key gate as matching search and Keep Playing.
+    public static func queueTrackIDs(_ ids: [Int64], metadata: [Int64: DJLoadTrackInfo],
+                                     startingFrom referenceID: Int64? = nil) -> [Int64] {
+        func reference(_ id: Int64) -> MusicalMatchReference? {
+            guard let info = metadata[id], let bpm = info.bpm, bpm.isFinite, bpm > 0,
+                  let code = info.camelotKey, let key = CamelotKey(code: code) else { return nil }
+            return .init(bpm: bpm, camelot: key)
+        }
+        var previous = referenceID.flatMap(reference)
+        var seen: Set<Int64> = []
+        var queue: [Int64] = []
+        for id in ids where seen.insert(id).inserted {
+            guard let candidate = reference(id) else { continue }
+            if let previous, !matches(candidateBPM: candidate.bpm, candidateKey: candidate.camelot, reference: previous) { continue }
+            queue.append(id)
+            previous = candidate
+        }
+        return queue
+    }
     public static let bpmToleranceRatio = 0.08
 
     public static func compatibleKeys(for reference: CamelotKey) -> Set<CamelotKey> {

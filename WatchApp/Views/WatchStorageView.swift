@@ -9,7 +9,6 @@ struct WatchStorageView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
     @ObservedObject private var player = WatchPlayer.shared
     @ObservedObject private var chrome = WatchAppAssembly.shared.chrome
-    @State private var confirmRemoveAll = false
 
     var body: some View {
         List {
@@ -74,10 +73,7 @@ struct WatchStorageView: View {
 
             if !model.tracks.isEmpty {
                 Section {
-                    Button("Remove All Downloads", role: .destructive) { confirmRemoveAll = true }
-                        .watchCardRow()
-                        .disabled(!chrome.showsConnectedFeatures)
-                        .accessibilityIdentifier("watch.storage.removeAll")
+                    Text("Remove downloads in My Music → On My Watch on your iPhone.")
                 } footer: {
                     if !chrome.showsConnectedFeatures {
                         Text("Your iPhone manages downloads. Bring it nearby to remove them.")
@@ -88,14 +84,6 @@ struct WatchStorageView: View {
         .listStyle(.plain)
         .navigationTitle("Storage")
         .task { await model.refresh() }
-        .confirmationDialog("Remove all downloads?", isPresented: $confirmRemoveAll, titleVisibility: .visible) {
-            Button("Remove All", role: .destructive) {
-                Task { await WatchAppAssembly.shared.controlDownloads(.stop) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("All music is removed from this watch. You can download it again from your iPhone.")
-        }
     }
 
     private var usedFraction: Double {

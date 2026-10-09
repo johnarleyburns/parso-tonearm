@@ -47,6 +47,10 @@ struct SettingsView: View {
     @State var icloudSync = SyncGating.isEnabled
     @State var showWatchSettings = false
     @AppStorage("appearanceMode") var appearanceMode = AppearanceMode.system.rawValue
+    @AppStorage("settings.playbackExpanded") private var playbackExpanded = false
+    @AppStorage("settings.libraryExpanded") private var libraryExpanded = false
+    @AppStorage("settings.accountExpanded") private var accountExpanded = false
+    @AppStorage("settings.advancedExpanded") private var advancedExpanded = false
     let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
         ("500 MB", 500 * 1024 * 1024),
@@ -61,30 +65,30 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                #if os(iOS)
+                Section("Apple Watch") { watchCard }
+                #endif
                 if shows(.playback) {
-                    Section("Playback") {
+                    collapsibleSection("Playback", expanded: $playbackExpanded, identifier: "settings.section.playback") {
                         behaviorCard
                         keepPlayingCard
                         #if os(iOS)
                         SiriSettingsCard()
                         #endif
+                        SmartTransitionsView()
                     }
-                    SmartTransitionsView()
                 }
                 if shows(.library) {
-                    Section("Library & Storage") {
+                    collapsibleSection("Library & Storage", expanded: $libraryExpanded, identifier: "settings.section.library") {
                         musicLibrariesCard
                         soundIndexCard
                         analysisCard
                         cacheSummaryCard
-                        #if os(iOS)
-                        watchCard
-                        #endif
                         syncCard
                     }
                 }
                 if shows(.account) {
-                    Section("Account & About") {
+                    collapsibleSection("Account & About", expanded: $accountExpanded, identifier: "settings.section.account") {
                         appearanceCard
                         privacyCard
                         SupportDevelopmentCard()
@@ -92,7 +96,7 @@ struct SettingsView: View {
                     }
                 }
                 if shows(.advanced) {
-                    Section("Advanced") {
+                    collapsibleSection("Advanced", expanded: $advancedExpanded, identifier: "settings.section.advanced") {
                         advancedSection
                     }
                 }
@@ -162,6 +166,19 @@ struct SettingsView: View {
             Text("This removes cached waveform, beat-grid, BPM and key analysis. It will be rebuilt when needed.")
         }
         .sensoryFeedback(.warning, trigger: showClearAnalysisConfirm)
+    }
+
+    @ViewBuilder
+    private func collapsibleSection<Content: View>(_ title: LocalizedStringKey,
+        expanded: Binding<Bool>, identifier: String, @ViewBuilder content: @escaping () -> Content) -> some View {
+        if macPane == nil {
+            Section {
+                DisclosureGroup(title, isExpanded: expanded, content: content)
+                    .accessibilityIdentifier(identifier)
+            }
+        } else {
+            Section(title, content: content)
+        }
     }
 
 }

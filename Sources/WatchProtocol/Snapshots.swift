@@ -50,6 +50,8 @@ public struct WatchLibraryPlaylist: Codable, Equatable, Sendable, Identifiable {
 /// Chunk of the complete My Music catalog. The watch assembles all pages before applying them so a
 /// reconnect cannot expose a half-updated searchable library.
 public struct WatchLibraryPage: Codable, Equatable, Sendable {
+    /// Present only for phone-selected watch downloads, never a full-library mirror.
+    public var downloadSelectionOnly: Bool?
     public let catalogID: String
     public let revision: Int64
     public let pageIndex: Int
@@ -58,7 +60,8 @@ public struct WatchLibraryPage: Codable, Equatable, Sendable {
     public let playlists: [WatchLibraryPlaylist]
 
     public init(catalogID: String, revision: Int64, pageIndex: Int, pageCount: Int,
-                tracks: [WatchTrackSummary], playlists: [WatchLibraryPlaylist]) {
+                tracks: [WatchTrackSummary], playlists: [WatchLibraryPlaylist], downloadSelectionOnly: Bool? = nil) {
+        self.downloadSelectionOnly = downloadSelectionOnly
         self.catalogID = catalogID
         self.revision = revision
         self.pageIndex = pageIndex

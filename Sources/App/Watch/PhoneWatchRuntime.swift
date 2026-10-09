@@ -107,14 +107,13 @@ final class PhoneWatchRuntime {
             player: playbackAdapter,
             libraryID: libraryID,
             revisionStore: revisionStore,
+            capabilities: [.downloadRoots, .manifestAcknowledgement, .reconciliation, .artworkAssets],
             downloadedProvider: downloadedProvider,
             artworkBindingProvider: { [artworkBindings] trackID in
                 await artworkBindings.binding(for: trackID)
             },
             onManifest: { [inbound] payload in await inbound.manifest(payload) },
-            onReconciliation: { [inbound] request in await inbound.reconciliation(request) },
-            onDownloadRequest: { [inbound] request in await inbound.downloadRequest(request) },
-            onDownloadControl: { [inbound] control in await inbound.downloadControl(control) })
+            onReconciliation: { [inbound] request in await inbound.reconciliation(request) })
         self.requestHandler = requestHandler
 
         let coordinator = PhoneWatchProtocolCoordinator(
@@ -123,6 +122,7 @@ final class PhoneWatchRuntime {
             libraryID: libraryID,
             revisionStore: revisionStore,
             observer: inbound,
+            allowsWatchDownloadCommands: false,
             downloadStatusProvider: { [inbound] in await inbound.metadataStatus() },
             metadataManifestHandler: { [inbound] in await inbound.metadataManifest($0) })
         self.coordinator = coordinator
@@ -138,25 +138,15 @@ final class PhoneWatchRuntime {
             phoneRevision: { [weak downloadStore] in (try? await downloadStore?.currentRevision()) ?? 0 },
             onEnqueue: { [inbound] metadata in await inbound.audioEnqueued(metadata) })
 
-        let rootExpander: @Sendable (PhoneWatchDownloadRoot) async -> [String] = { [weak store] root in
-            guard root.kind == .playlist, let store else { return root.desiredTrackIDs }
-            var pid = PhoneWatchID.playlistRowID(root.sourceID)
-            if pid == nil {
-                pid = (try? await store.localID(table: "playlist", syncID: root.sourceID)) ?? nil
-            }
-            guard let pid else { return root.desiredTrackIDs }
-            let rows = (try? await store.playlistTrackRows(playlistId: pid)) ?? []
-            return rows.map { PhoneWatchID.track($0.row.track).rawValue }
-        }
-
         self.downloadManager = PhoneWatchDownloadManager(
             store: downloadStore,
             resolver: audioResolver,
             transfer: fileTransfer,
-            emitRoots: { [weak coordinator] descriptors, _ in
+            emitRoots: { [weak coordinator, inbound] descriptors, _ in
                 _ = await coordinator?.sendDownloadRoots(descriptors)
+                await inbound.publishSelectedMetadata()
             },
-            rootExpander: rootExpander,
+            keepsPlaylistsLive: false,
             artworkResolver: artworkResolver,
             artworkTransfer: fileTransfer,
             artworkCapability: { [negotiatedCapabilities] in
@@ -179,13 +169,11 @@ final class PhoneWatchRuntime {
         try? await downloadManager.resumeOutstanding()
         await publishCatalog()
         await refresh()
-        await publishPlaybackIfChanged()
     }
 
     func tick() async {
         await tickDownloads(forceStatus: false)
         await refresh()
-        await publishPlaybackIfChanged()
         await publishDownloadStatusIfActive(force: true)
     }
 
@@ -287,10 +275,15 @@ final class PhoneWatchRuntime {
 
     func removeTracks(_ rows: [TrackRow]) async {
         let ids = rows.map { PhoneWatchID.track($0.track) }
-        for id in ids {
-            try? await downloadManager.removeRoot(rootID: "track:\(id.rawValue)")
-        }
+        try? await downloadManager.removeTracks(Set(ids.map(\.rawValue)))
         _ = await coordinator.sendRemoveAssets(ids)
+        await refresh()
+    }
+
+    func removeTrackFromWatch(_ id: String) async {
+        try? await downloadManager.removeTracks([id])
+        _ = await coordinator.sendRemoveAssets([WatchTrackID(id)])
+        await publishCatalog()
         await refresh()
     }
 
@@ -322,7 +315,15 @@ final class PhoneWatchRuntime {
         // A catalog snapshot gets its own monotonic revision. This prevents a late page from an
         // earlier reconnect (with a different catalog UUID) from replacing a newer snapshot.
         let revision = (try? await downloadStore.bumpRevision()) ?? 0
-        guard let pages = try? await requestHandler.catalogPages(revision: revision) else { return }
+        let roots = (try? await downloadStore.roots()) ?? []
+        let ids = installedTrackIDs.union(roots.flatMap(\.desiredTrackIDs))
+        let playlists = Set(roots.filter { $0.kind == .playlist }.map(\.sourceID))
+        let selectedPlaylists = roots.filter { $0.kind == .playlist }.map {
+            WatchLibraryPlaylist(playlistID: $0.sourceID, title: $0.title,
+                                 trackIDs: $0.desiredTrackIDs.map(WatchTrackID.init))
+        }
+        guard let pages = try? await requestHandler.catalogPages(revision: revision,
+            trackIDs: ids, playlistIDs: playlists, selectedPlaylists: selectedPlaylists) else { return }
         catalogTrackCount = pages.reduce(0) { $0 + $1.tracks.count }
         for page in pages { await coordinator.sendCatalogPage(page) }
         syncHistory.lastCatalogSentAt = Date()
@@ -373,7 +374,7 @@ final class PhoneWatchRuntime {
         let jobs = (try? await downloadStore.jobs()) ?? []
         let entries = (try? await downloadStore.manifestEntries()) ?? []
         return PhoneWatchManagementPresenter.collectionDetail(
-            rootID: rootID, roots: roots, jobs: jobs, manifestEntries: entries)
+            rootID: rootID, roots: roots, jobs: jobs, manifestEntries: entries, keepsPlaylistsLive: false)
     }
 
     // MARK: - Inbound (called back from PhoneWatchInbound)
@@ -502,12 +503,12 @@ final class PhoneWatchRuntime {
 
         let roots = (try? await downloadStore.roots()) ?? []
         var trackTitles: [String: String] = [:]
-        for job in jobs {
-            let id = WatchTrackID(job.trackID)
+        for rawID in installedTrackIDs.union(roots.flatMap(\.desiredTrackIDs)).union(jobs.map(\.trackID)) {
+            let id = WatchTrackID(rawID)
             let row: TrackRow?
             if let localID = PhoneWatchID.trackRowID(id) { row = try? await store.trackRow(id: localID) }
             else { row = try? await store.trackRow(syncID: id.rawValue) }
-            if let row { trackTitles[job.trackID] = row.track.title }
+            if let row { trackTitles[rawID] = row.track.title }
         }
         management = PhoneWatchManagementPresenter.snapshot(
             pairing: currentPairing(),
@@ -570,6 +571,7 @@ private actor PhoneWatchDownloadRevisionAdapter: WatchPhoneRevisionStore {
 /// needs them at construction — before `PhoneWatchRuntime` exists — so they land here and are
 /// forwarded once `connect` supplies the runtime.
 private actor PhoneWatchInbound: PhoneWatchProtocolObserver {
+    func publishSelectedMetadata() async { await runtime?.publishCatalog() }
     private let negotiatedCapabilities: PhoneWatchNegotiatedCapabilities
     private weak var runtime: PhoneWatchRuntime?
 

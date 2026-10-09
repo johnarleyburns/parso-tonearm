@@ -7,6 +7,32 @@ import TonearmWatchProtocol
 /// `WatchSyncActor` turns everything the link reports into local SwiftData truth. These exercise it
 /// directly — no duplex link — so the installer/repository interplay is what is under test.
 final class WatchSyncActorTests: XCTestCase {
+    func testLocalOnlyWatchDropsLegacyCatalogButPreservesInstalledAudioAndSelectedMetadata() async throws {
+        let fx = try Fixture()
+        try await fx.repository.upsertTrack(.init(trackID: "installed", title: "Installed", albumTitle: "Downloaded Album"))
+        let installedURL = fx.audio.appendingPathComponent("installed.m4a")
+        try Data("validated audio".utf8).write(to: installedURL)
+        let digest = try WatchFileDigest.measure(installedURL)
+        try await fx.repository.markAsset(trackID: "installed", relativeFilename: "installed.m4a",
+            installedBytes: digest.bytes, sha256: digest.sha256, state: .ready)
+        try await fx.repository.upsertTrack(.init(trackID: "remote", title: "Full phone catalog"))
+        try await fx.repository.upsertPlaylist(.init(playlistID: "remote-list", title: "Not on watch", trackIDs: ["remote"]))
+        let sync = WatchSyncActor(repository: fx.repository, installer: fx.installer, localDownloadsOnly: true)
+        await sync.removeLegacyCatalogMetadata()
+        let rows = try await fx.repository.tracks()
+        XCTAssertEqual(rows.map(\.id), ["installed"])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: installedURL.path))
+        await sync.didReceiveCatalogPage(.init(catalogID: "old", revision: 20, pageIndex: 0, pageCount: 1,
+            tracks: [.init(trackID: "remote", title: "Unselected")], playlists: []))
+        let ignored = try await fx.repository.tracks()
+        XCTAssertEqual(ignored.map(\.id), ["installed"])
+        await sync.didReceiveCatalogPage(.init(catalogID: "selected", revision: 21, pageIndex: 0, pageCount: 1,
+            tracks: [.init(trackID: "queued", title: "Selected audio")], playlists: [], downloadSelectionOnly: true))
+        let selected = try await fx.repository.tracks()
+        XCTAssertEqual(Set(selected.map(\.id)), ["installed", "queued"])
+        let playable = try await fx.repository.tracks(readyOnly: true)
+        XCTAssertEqual(playable.map(\.id), ["installed"])
+    }
     func testWholeAACSurvivesUnrelatedCatalogPagesUntilItsMetadataArrives() async throws {
         let fx = try Fixture()
         let sync = WatchSyncActor(repository: fx.repository, installer: fx.installer, requiresNormalizedAAC: true)

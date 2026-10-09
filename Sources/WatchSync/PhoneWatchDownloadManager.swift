@@ -123,6 +123,7 @@ public actor PhoneWatchDownloadManager {
     private let networkGate: any PhoneWatchNetworkGate
     private let emitRoots: @Sendable ([WatchDownloadRootDescriptor], Int64) async -> Void
     private let rootExpander: @Sendable (PhoneWatchDownloadRoot) async -> [String]
+    private let keepsPlaylistsLive: Bool
     private let now: @Sendable () -> Date
     private let artworkResolver: (any PhoneWatchArtworkResolving)?
     private let artworkTransfer: (any PhoneWatchArtworkTransferring)?
@@ -144,6 +145,7 @@ public actor PhoneWatchDownloadManager {
                 networkGate: any PhoneWatchNetworkGate = PhoneWatchAlwaysOnNetworkGate(),
                 emitRoots: @escaping @Sendable ([WatchDownloadRootDescriptor], Int64) async -> Void = { _, _ in },
                 rootExpander: @escaping @Sendable (PhoneWatchDownloadRoot) async -> [String] = { $0.desiredTrackIDs },
+                keepsPlaylistsLive: Bool = true,
                 now: @escaping @Sendable () -> Date = { Date() },
                 artworkResolver: (any PhoneWatchArtworkResolving)? = nil,
                 artworkTransfer: (any PhoneWatchArtworkTransferring)? = nil,
@@ -155,6 +157,7 @@ public actor PhoneWatchDownloadManager {
         self.networkGate = networkGate
         self.emitRoots = emitRoots
         self.rootExpander = rootExpander
+        self.keepsPlaylistsLive = keepsPlaylistsLive
         self.now = now
         self.artworkResolver = artworkResolver
         self.artworkTransfer = artworkTransfer
@@ -187,6 +190,23 @@ public actor PhoneWatchDownloadManager {
 
     public func removeRoot(rootID: String) async throws {
         try await store.deleteRoot(rootID: rootID)
+        try await reconcile()
+        try await emitCurrentRoots()
+    }
+
+    /// Remove a track from every selected collection, not just its single-track root.
+    /// Frozen selections ensure a later playlist refresh cannot silently add it back.
+    public func removeTracks(_ trackIDs: Set<String>) async throws {
+        var roots = try await store.roots()
+        for index in roots.indices { roots[index].desiredTrackIDs.removeAll { trackIDs.contains($0) } }
+        try await store.replaceRoots(roots.filter { !$0.desiredTrackIDs.isEmpty })
+        for var job in try await store.jobs() where trackIDs.contains(job.trackID) {
+            await transfer.cancelTransfer(trackID: WatchTrackID(job.trackID))
+            job.state = .cancelled
+            job.updatedAt = now()
+            try await store.upsertJob(job)
+            explicitRetryTrackIDs.remove(job.trackID)
+        }
         try await reconcile()
         try await emitCurrentRoots()
     }
@@ -324,7 +344,7 @@ public actor PhoneWatchDownloadManager {
         // Playlist roots stay live: re-expand them; track/album batches are frozen snapshots.
         var roots: [PhoneWatchDownloadRoot] = []
         for root in storedRoots {
-            if root.kind == .playlist {
+            if root.kind == .playlist && keepsPlaylistsLive {
                 var live = root
                 live.desiredTrackIDs = await rootExpander(root)
                 roots.append(live)

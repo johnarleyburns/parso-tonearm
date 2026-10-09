@@ -68,7 +68,7 @@ struct WatchContentView: View {
                 .navigationTitle("Platterhead")
                 .navigationDestination(for: WatchNav.self) { nav in
                     switch nav {
-                    case .search: WatchSearchView(mode: .allMusic)
+                    case .search: WatchSearchView(mode: .thisWatch)
                     case .searchThisWatch: WatchSearchView(mode: .thisWatch)
                     case .downloads: WatchDownloadsView()
                     case .playlists: WatchPlaylistsView()

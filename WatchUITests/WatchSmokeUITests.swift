@@ -86,7 +86,7 @@ final class WatchSmokeUITests: XCTestCase {
         // Watch redesign D1: Songs lives under "On This Watch" (one of Home's four doors).
         openRootRow(app, identifier: "watch.downloads", named: "On This Watch")
         XCTAssertTrue(reveal(app.staticTexts["Downloaded audio"], in: app))
-        XCTAssertTrue(reveal(app.staticTexts["Catalog on this watch"], in: app))
+        XCTAssertTrue(reveal(app.staticTexts["Downloaded collections"], in: app))
         let songs = app.descendants(matching: .any)["watch.songs"]
         XCTAssertTrue(reveal(songs, in: app), "On This Watch did not render the Songs row")
         snapshot(app, "D1-on-this-watch")

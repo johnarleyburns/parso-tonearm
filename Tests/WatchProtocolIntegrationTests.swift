@@ -7,6 +7,19 @@ import XCTest
 /// every case below is the real phone code talking to the real watch code — no simulator, no
 /// WatchConnectivity, no wall-clock waits beyond a grace period the test itself picks.
 final class WatchProtocolIntegrationTests: XCTestCase {
+    func testPhoneOnlyDownloadsRejectWatchOriginatedRequestsOnLiveAndDurableChannels() async throws {
+        let harness = await makeHarness(allowsWatchDownloadCommands: false)
+        await harness.phone.activate(reachable: true)
+        await harness.watch.activate(reachable: true)
+        await harness.watch.requestDownload(trackID: "unselected", wantsDownload: true)
+        await harness.watch.controlDownloads(.init(action: .retryFailed))
+        let requests = await harness.handler.receivedDownloadRequests
+        let controls = await harness.handler.receivedDownloadControls
+        XCTAssertTrue(requests.isEmpty)
+        XCTAssertTrue(controls.isEmpty)
+        let response = await harness.watch.search("music")
+        XCTAssertEqual(response, .failed(.init(code: .contentNotFound)))
+    }
     func testMetadataRoundTripExchangesBothTruthsWithoutAudioOrDownloadCommands() async throws {
         let harness = await makeConnectedHarness()
         await harness.link.setHoldingUserInfo(true)
@@ -222,7 +235,8 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         phoneRevision: Int64 = 0,
         diagnostics: WatchDiagnosticsRecorder? = nil,
         localManifest: WatchManifestPayload? = .init(manifestID: "local-truth", readyTrackIDs: ["local-aac"], installedBytes: 512),
-        phoneStatus: WatchDownloadStatusSnapshot? = nil
+        phoneStatus: WatchDownloadStatusSnapshot? = nil,
+        allowsWatchDownloadCommands: Bool = true
     ) async -> Harness {
         let id = libraryID ?? self.libraryID
         let link = WatchFakeDuplexLink()
@@ -232,6 +246,7 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         let phone = PhoneWatchProtocolCoordinator(
             transport: link.transport(for: .phone), handler: handler, libraryID: id,
             revisionStore: revisions, gracePeriod: gracePeriod, observer: phoneObserver,
+            allowsWatchDownloadCommands: allowsWatchDownloadCommands,
             downloadStatusProvider: { phoneStatus })
 
         let watchState = WatchInMemorySyncStateStore(pairedLibraryID: boundLibraryID)

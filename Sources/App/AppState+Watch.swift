@@ -104,6 +104,11 @@ extension AppState {
         refreshWatchStateFromRuntime()
     }
 
+    func removeTrackFromWatch(_ id: String) async {
+        await watchRuntime.removeTrackFromWatch(id)
+        refreshWatchStateFromRuntime()
+    }
+
     func downloadAllToWatch(playlistId: Int64) async {
         await watchRuntime.downloadPlaylist(id: playlistId)
         refreshWatchStateFromRuntime()

@@ -183,14 +183,6 @@ struct LibraryView: View {
             renderedSections = result.1
             isRendering = false
         }
-        .task {
-            // My Music recreates this child when its scope changes. Do not
-            // re-read the entire catalog on every scope switch; the root
-            // app state owns the initial load and publishes targeted musical
-            // metadata refreshes thereafter.
-            guard !appState.didLoadLibraryOnce else { return }
-            await appState.reload()
-        }
     }
 
     @ViewBuilder

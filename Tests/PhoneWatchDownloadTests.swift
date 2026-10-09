@@ -156,6 +156,27 @@ private func manifest(_ ids: [String], id: String = UUID().uuidString) -> WatchM
 // MARK: - Tests
 
 final class PhoneWatchDownloadTests: XCTestCase {
+    func testFrozenWatchSelectionsAndTrackRemovalDoNotReexpandOrRestartPlaylistAudio() async throws {
+        let db = try freshQueue()
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        let transfer = FakeTransfer()
+        let manager = PhoneWatchDownloadManager(store: store, resolver: FakeResolver(local: ["a", "b", "new"]),
+            transfer: transfer, rootExpander: { _ in XCTFail("Frozen phone selection must not reexpand"); return ["a", "b", "new"] },
+            keepsPlaylistsLive: false)
+        try await manager.setRoots([root("playlist", kind: .playlist, tracks: ["a", "b"]), root("single", tracks: ["a"])])
+        await transfer.setOutstanding(["a", "b"])
+        try await manager.removeTracks(["a"])
+        try await manager.tick()
+        let roots = try await store.roots()
+        XCTAssertEqual(roots.count, 1)
+        XCTAssertEqual(roots.first?.desiredTrackIDs, ["b"])
+        let sent = await transfer.sentSet()
+        XCTAssertFalse(sent.contains("new"))
+        let count = await transfer.sentCount("a")
+        XCTAssertEqual(count, 1, "Removed audio must not silently redownload through a playlist")
+        let cancelled = await transfer.cancelled
+        XCTAssertTrue(cancelled.contains("a"))
+    }
     func testMetadataOnlyManifestIngestDoesNotStartQueuedAudio() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)

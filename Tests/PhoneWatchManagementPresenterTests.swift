@@ -9,6 +9,19 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
 
     private let t0 = Date(timeIntervalSince1970: 100_000)
 
+    func testOnMyWatchMirrorIncludesOnlyInstalledOrSelectedTracksAndNeverChecksSubmittedAudio() {
+        let snapshot = P.snapshot(pairing: .pairedNotReachable,
+            roots: [root("r", tracks: ["sending", "submitted", "queued"])],
+            jobs: [job("sending", roots: ["r"], state: .sent), job("submitted", roots: ["r"], state: .sent)],
+            manifestEntries: [entry("installed-orphan")], watchManifest: nil, now: t0,
+            transferFractions: ["sending": 0.5, "submitted": 1],
+            trackTitles: ["installed-orphan": "Installed", "sending": "Sending", "submitted": "Submitted", "queued": "Queued"])
+        XCTAssertEqual(Set(snapshot.watchTracks.map(\.id)), ["installed-orphan", "sending", "submitted", "queued"])
+        XCTAssertEqual(snapshot.watchTracks.filter(\.isInstalled).map(\.id), ["installed-orphan"])
+        XCTAssertEqual(snapshot.watchTracks.first { $0.id == "sending" }?.activity?.fractionComplete, 0.5)
+        XCTAssertEqual(snapshot.watchTracks.first { $0.id == "submitted" }?.activity?.stage, .awaitingInstallation)
+    }
+
     func testPlaylistMembersUseLibraryTitlesInsteadOfGUIDs() {
         let id = "C9FBC56A-1F9B-4775-ABF7-BF92F7374A63"
         let snapshot = P.snapshot(pairing: .pairedNotReachable,

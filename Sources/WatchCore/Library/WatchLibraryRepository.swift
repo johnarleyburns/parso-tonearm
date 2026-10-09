@@ -194,6 +194,23 @@ public actor WatchLibraryRepository {
 
     // MARK: - Queries
 
+    /// Forget the former full-library mirror without deleting validated audio.
+    public func retainDownloadMetadata(trackIDs: Set<String>, playlistIDs: Set<String>) throws {
+        let context = ModelContext(container)
+        let tracks = try context.fetch(FetchDescriptor<WatchTrackModel>())
+        let installed = Set(tracks.filter { $0.asset?.validationState == .ready }.map(\.trackID))
+        for track in tracks where !trackIDs.contains(track.trackID) && !installed.contains(track.trackID) {
+            context.delete(track)
+        }
+        for playlist in try context.fetch(FetchDescriptor<WatchPlaylistModel>()) {
+            if !playlistIDs.contains(playlist.playlistID) && !playlist.entries.contains(where: { installed.contains($0.trackID) }) {
+                context.delete(playlist)
+            }
+        }
+        try context.save()
+        try sweepUnreferencedArtwork(context: context)
+    }
+
     public func tracks(readyOnly: Bool = false) throws -> [WatchTrackSnapshot] {
         let context = ModelContext(container)
         let installedArtwork = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<WatchArtworkAssetModel>())

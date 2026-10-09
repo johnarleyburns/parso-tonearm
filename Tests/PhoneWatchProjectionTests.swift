@@ -115,6 +115,25 @@ final class PhoneWatchProjectionTests: XCTestCase {
 
     // MARK: - Search
 
+    func testSelectedDownloadMetadataDoesNotMirrorFullPhoneCatalog() async throws {
+        let fixture = try await makeFixture(extraTracks: 40)
+        let selected = try XCTUnwrap(fixture.trackIDs.first)
+        let pages = try await makeHandler(fixture).catalogPages(revision: 9,
+            trackIDs: [selected.rawValue], playlistIDs: [fixture.playlistRef.id])
+        XCTAssertEqual(pages.flatMap(\.tracks).map(\.trackID), [selected])
+        XCTAssertTrue(pages.allSatisfy { $0.downloadSelectionOnly == true })
+        XCTAssertEqual(pages.flatMap(\.playlists).count, 1)
+        XCTAssertEqual(pages.flatMap(\.playlists).first?.trackIDs, [selected])
+        let empty = try await makeHandler(fixture).catalogPages(revision: 10, trackIDs: [], playlistIDs: [])
+        XCTAssertTrue(empty.flatMap(\.tracks).isEmpty)
+        XCTAssertTrue(empty.flatMap(\.playlists).isEmpty)
+        let ordered = [fixture.trackIDs[1], fixture.trackIDs[0]]
+        let playlist = WatchLibraryPlaylist(playlistID: fixture.playlistRef.id, title: "Explicit selection", trackIDs: ordered)
+        let selectedPages = try await makeHandler(fixture).catalogPages(revision: 11,
+            trackIDs: Set(ordered.map(\.rawValue)), playlistIDs: [fixture.playlistRef.id], selectedPlaylists: [playlist])
+        XCTAssertEqual(selectedPages.flatMap(\.playlists), [playlist], "Transfer the explicitly selected playlist name and order")
+    }
+
     func testConnectedSearchSpansTracksAlbumsAndPlaylists() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)

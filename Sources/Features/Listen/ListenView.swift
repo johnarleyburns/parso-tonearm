@@ -13,7 +13,7 @@ struct ListenView: View {
     /// Backs the shared `trackDetailSheet` (plan §3.6) — every track tap on
     /// this screen sets this instead of calling `player.play(...)` directly.
     @State private var selectedTrackForDetail: TrackRow?
-    @State private var showMixBuilder = false
+    @ScaledMetric(relativeTo: .body) private var collectionContentHeight: CGFloat = 188
     @State private var showSettings = false
 
     var body: some View {
@@ -31,16 +31,11 @@ struct ListenView: View {
                     Spacer().frame(height: 16)
                 }
 
-                if !appState.recentlyPlayed.isEmpty {
-                    cardRow(title: "Jump Back In", rows: appState.recentlyPlayed)
-                }
-                MixEntryCard { showMixBuilder = true }
-                    .padding(.bottom, 14)
-                // "Recently Added" removed at the user's request — it duplicated "Jump Back In"
-                // in practice and wasn't used. `appState.recentlyAdded` is left in place (still
-                // populated by `reload()`) in case another surface wants it later.
-                statsCard(appState.listeningStats)
+                cardRow(title: "Jump Back In", rows: appState.recentlyPlayed,
+                        emptyMessage: "Your recently played music will appear here.", identifier: "listen.recent")
                 favorites
+                statsCard(appState.listeningStats)
+                    .redacted(reason: appState.didLoadLibraryOnce ? [] : .placeholder)
 
             }
             .padding(.horizontal, 18)
@@ -48,16 +43,10 @@ struct ListenView: View {
         }
         .foregroundStyle(Palette.ink)
         .task {
+            guard appState.didLoadLibraryOnce else { return }
             await appState.reload()
         }
         .trackDetailSheet(for: $selectedTrackForDetail)
-        .sheet(isPresented: $showMixBuilder) {
-            // A first mix should represent the music the listener owns, not
-            // whatever happened to be queued or played last.
-            MixBuilderSheet(rows: appState.allTracks.isEmpty ? appState.recentlyPlayed : appState.allTracks,
-                            picksSource: true)
-                .environmentObject(appState)
-        }
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
@@ -80,53 +69,43 @@ struct ListenView: View {
 
     // MARK: - Jump Back In / Favorites
 
-    private func cardRow(title: LocalizedStringKey, rows: [TrackRow]) -> some View {
+    private func cardRow(title: LocalizedStringKey, rows: [TrackRow],
+                         emptyMessage: LocalizedStringKey, identifier: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: title)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(rows) { row in
-                        Button {
-                            selectedTrackForDetail = row
-                        } label: {
-                            RecentCard(row: row)
+            Group {
+                if !appState.didLoadLibraryOnce {
+                    HStack { ProgressView(); Text("Loading…") }
+                        .accessibilityIdentifier(identifier == "listen.recent" ? "listen.loading" : "listen.favorites.loading")
+                } else if rows.isEmpty {
+                    Text(emptyMessage).font(Typography.callout).foregroundStyle(Palette.inkTertiary)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(rows) { row in
+                                Button {
+                                    selectedTrackForDetail = row
+                                } label: {
+                                    RecentCard(row: row)
+                                }
+                                .buttonStyle(.plain)
+                                .trackContextMenu(row)
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .trackContextMenu(row)
+                        .padding(.horizontal, 2)
                     }
                 }
-                .padding(.horizontal, 2)
             }
-            .padding(.bottom, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: collectionContentHeight, alignment: .topLeading)
         }
+        .padding(.bottom, 20)
+        .accessibilityIdentifier(identifier)
     }
 
     private var favorites: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(title: "Favorites",
-                          trailing: appState.favoriteRows.isEmpty ? nil : "\(appState.favoriteRows.count)")
-            if appState.favoriteRows.isEmpty {
-                Text("Favorite a track and it will show up here.")
-                    .font(Typography.callout)
-                    .foregroundStyle(Palette.inkTertiary)
-                    .padding(.vertical, 18)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(appState.favoriteRows) { row in
-                            Button {
-                                selectedTrackForDetail = row
-                            } label: {
-                                RecentCard(row: row)
-                            }
-                            .buttonStyle(.plain)
-                            .trackContextMenu(row)
-                        }
-                    }
-                    .padding(.horizontal, 2)
-                }
-            }
-        }
+        cardRow(title: "Favorites", rows: appState.favoriteRows,
+                emptyMessage: "Your favorite music will appear here.", identifier: "listen.favorites")
     }
 
     // MARK: - Listening Stats
@@ -338,6 +317,8 @@ struct MoodView: View {
     @State private var promptDraft = ""
     @State private var selectedTrackForDetail: TrackRow?
     @State private var placeholderIndex = 0
+    @State private var startingPlayback = false
+    @State private var playbackMessage: String?
 
     fileprivate static let promptPlaceholders = [
         "sunday morning coffee", "focus, no vocals", "storm outside"
@@ -350,6 +331,21 @@ struct MoodView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ScreenHeader(title: "Mood", showAdd: false)
+                Button {
+                    Task { await playMood() }
+                } label: {
+                    Label("Play", systemImage: "play.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).tint(Palette.accent)
+                .disabled(startingPlayback || (moodModel?.results.isEmpty ?? true))
+                .accessibilityIdentifier("mood.play")
+                if let playbackMessage {
+                    Text(playbackMessage).font(Typography.caption).foregroundStyle(Palette.inkSecondary)
+                }
+                MixEntryCard { appState.requestBuildAMix() }
+                    .disabled(!appState.didLoadLibraryOnce)
+                    .padding(.top, 12)
                 Group {
                     if moodReady == true, let moodModel {
                         MoodEntryPointSection(
@@ -378,7 +374,8 @@ struct MoodView: View {
             .padding(.bottom, 160)
         }
         .foregroundStyle(Palette.ink)
-        .task {
+        .task(id: appState.didLoadLibraryOnce) {
+            guard appState.didLoadLibraryOnce else { return }
             await appState.reload()
             await prepareMoodModel()
             moodModel?.setMatchingReferenceTrackID(
@@ -413,6 +410,21 @@ struct MoodView: View {
         let summary = await SuggestionChips.summary(library: appState.store)
         eraVibePills = SuggestionChips.seed(from: summary).map { chip in
             MoodPill(id: chip, label: chip, queryTerm: chip)
+        }
+    }
+
+    private func playMood() async {
+        guard let moodModel, !startingPlayback else { return }
+        startingPlayback = true
+        playbackMessage = nil
+        defer { startingPlayback = false }
+        var ids = moodModel.results.map(\.trackID)
+        if let reference = moodModel.matchingReferenceTrackID { ids.append(reference) }
+        let metadata = (try? await appState.store.djLoadTrackInfo(trackIds: ids)) ?? [:]
+        if !moodModel.playMood(metadata: metadata, onPlayQueue: { tracks in
+            player.play(tracks: tracks, startAt: 0, source: .library)
+        }) {
+            playbackMessage = String(localized: "No mix-compatible tracks for this mood yet. Index BPM and key, or choose another mood.")
         }
     }
 

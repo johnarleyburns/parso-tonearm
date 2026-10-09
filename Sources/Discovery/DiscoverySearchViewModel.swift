@@ -323,6 +323,18 @@ public final class DiscoverySearchViewModel: ObservableObject {
 
     public func play(_ result: DiscoverySearchResult) { onPlay(result) }
 
+    /// Start the current mood directly, not a single result or a mix-builder sheet.
+    @discardableResult
+    public func playMood(metadata: [Int64: DJLoadTrackInfo], onPlayQueue: ([TrackRow]) -> Void) -> Bool {
+        let ids = MusicalMatchPolicy.queueTrackIDs(results.map(\.trackID), metadata: metadata,
+            startingFrom: matchingTracksOnly ? matchingReferenceTrackID : nil)
+        let rows = Dictionary(results.map { ($0.trackID, $0.track) }, uniquingKeysWith: { first, _ in first })
+        let queue = ids.compactMap { rows[$0] }
+        guard !queue.isEmpty else { return false }
+        onPlayQueue(queue)
+        return true
+    }
+
     /// "Analyze this track" for a stale/missing reference embedding (plan §9).
     public func analyzeReference() {
         if case .analyzeReference(let trackID) = screen, trackID > 0 {

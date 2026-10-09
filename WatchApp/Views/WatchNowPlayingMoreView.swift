@@ -18,9 +18,6 @@ struct WatchNowPlayingMoreView: View {
     var body: some View {
         List {
             switchRow
-            if shown == .iPhone, let item = remote.state?.currentItem {
-                downloadRow(item)
-            }
             Section {
                 HStack(spacing: 6) {
                     Button { toggleShuffle() } label: {
@@ -100,34 +97,6 @@ struct WatchNowPlayingMoreView: View {
         dismiss()
     }
 
-    // MARK: Download
-
-    @ViewBuilder
-    private func downloadRow(_ item: WatchTrackSummary) -> some View {
-        if item.isDownloadedOnWatch {
-            Label("On This Watch", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(WatchPalette.success)
-                .accessibilityIdentifier("watch.now.download")
-                .accessibilityValue("downloaded")
-        } else if let fraction = model.transferFraction(forTrackID: item.trackID.rawValue) {
-            HStack { WatchTransferRing(fraction: fraction); Text("Downloading") }
-                .accessibilityIdentifier("watch.now.download")
-                .accessibilityValue("downloading \(Int(fraction * 100)) percent")
-        } else if pendingDownloadTrackID == item.trackID.rawValue {
-            HStack { WatchTransferRing(fraction: nil); Text("Asked iPhone…") }
-                .accessibilityIdentifier("watch.now.download")
-                .accessibilityValue("downloading")
-        } else {
-            Button {
-                pendingDownloadTrackID = item.trackID.rawValue
-                Task { await WatchAppAssembly.shared.requestDownloadToThisWatch(item.trackID) }
-            } label: {
-                Label("Download to Watch", systemImage: "arrow.down.circle")
-            }
-            .accessibilityIdentifier("watch.now.download")
-            .accessibilityValue("not downloaded")
-        }
-    }
 
     // MARK: Shuffle / repeat (addresses the shown engine)
 

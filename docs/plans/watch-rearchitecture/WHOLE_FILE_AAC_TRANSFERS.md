@@ -104,6 +104,34 @@ failure, restart recovery, and bidirectional offline status reports. Simulator
 playback proves decoding and playback state, not audible hardware output or
 actual paired-device WatchConnectivity delivery.
 
+### Local-only simplification (2026-10-08)
+
+The watch is an installed-audio
+player. Search, playlists, and albums include playable local tracks only. It exposes no
+download, retry, pause, or removal commands; iPhone protocol routing rejects watch-originated
+download/control/search requests. The phone sends only metadata for explicitly selected
+watch downloads and reported installed audio. Selected-only pages are marked, so old full
+catalog deliveries still queued by Apple are ignored. Legacy uninstalled catalog metadata
+is pruned without removing validated audio. Playlist selections are frozen until another
+explicit iPhone download, preventing removed tracks from being added back automatically.
+
+My Music defaults to Playlists, with On My Watch second and persisted scope selection.
+On My Watch mirrors last-reported installed IDs plus selected pending IDs, includes real
+active-transfer progress, and reserves completion checkmarks for reported installed IDs.
+Its removal action cancels pending transfers, withdraws a track from every selected root,
+and queues watch removal without removing the iPhone copy. The report timestamp remains
+visible: this is last-reported device truth, not a claim of live reachability. Listen and
+My Music show loading until the initial library read completes; Listen cannot race bootstrap
+with an early empty read. Jump Back In and Favorites reserve the same height while
+loading, empty, and populated. Mix building lives on Mood; its Play action starts
+a queue of mix-compatible results directly. Settings sections are collapsible,
+with Apple Watch immediately accessible and Playback initially collapsed.
+
+Audio and artwork receipts are separate diagnostics: an artwork callback cannot
+overwrite the latest audio receipt. Build 538 device testing confirmed metadata
+and artwork activity but zero installed audio; the physical audio stall remains
+unresolved. Queued reports and submitted files are not installation confirmation.
+
 Apple references:
 
 - [File delivery and synchronous inbox ownership](https://developer.apple.com/documentation/watchconnectivity/wcsessiondelegate/session(_:didreceive:))

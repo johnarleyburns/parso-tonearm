@@ -14,7 +14,7 @@ import TonearmDiscovery
 /// LibraryView's own one, which read as two nested pickers).
 struct MyMusicView: View {
     @EnvironmentObject var appState: AppState
-    @State private var scope: Scope = .artists
+    @AppStorage("myMusic.selectedScope.v1") private var scope: Scope = .playlists
     /// Real gap found auditing the mood-based-listening plan (docs/plans/
     /// mood-based-listening-plan.md §3.5's second audit note): landing on a
     /// specific artist from another tab is a genuinely PUSHED navigation
@@ -30,6 +30,9 @@ struct MyMusicView: View {
 
     enum Scope: String, CaseIterable, Identifiable {
         case playlists = "Playlists"
+        #if os(iOS)
+        case onMyWatch = "On My Watch"
+        #endif
         case artists = "Artists"
         case albums = "Albums"
         case songs = "Songs"
@@ -45,6 +48,9 @@ struct MyMusicView: View {
             case .songs: "Songs"
             case .genres: "Genres"
             case .jamendo: "Jamendo"
+            #if os(iOS)
+            case .onMyWatch: "On My Watch"
+            #endif
             }
         }
 
@@ -56,6 +62,9 @@ struct MyMusicView: View {
             case .songs: return .songs
             case .genres: return .genres
             case .jamendo: return nil
+            #if os(iOS)
+            case .onMyWatch: return nil
+            #endif
             }
         }
 
@@ -81,20 +90,29 @@ struct MyMusicView: View {
             VStack(spacing: 0) {
                 scopePicker
 
-                switch scope {
-                case .playlists:
-                    PlaylistsView(ownsNavigationStack: false)
-                        .accessibilityIdentifier("mymusic.content.playlists")
-                case .jamendo:
-                    JamendoBrowseView(allowsImport: true, showsBackButton: false)
-                        .accessibilityIdentifier("mymusic.content.jamendo")
-                case .artists, .albums, .songs, .genres:
-                    LibraryView(ownsNavigationStack: false, externalMode: libraryModeBinding,
-                                filter: .init(),
-                                searchRows: nil,
-                                searchRowsRevision: 0,
-                                showsSearchField: false)
-                        .accessibilityIdentifier("mymusic.content.music")
+                if !appState.didLoadLibraryOnce {
+                    ProgressView("Loading your music…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityIdentifier("mymusic.loading")
+                } else {
+                    switch scope {
+                    #if os(iOS)
+                    case .onMyWatch:
+                        OnMyWatchMusicView()
+                            .accessibilityIdentifier("mymusic.content.watch")
+                    #endif
+                    case .playlists:
+                        PlaylistsView(ownsNavigationStack: false)
+                            .accessibilityIdentifier("mymusic.content.playlists")
+                    case .jamendo:
+                        JamendoBrowseView(allowsImport: true, showsBackButton: false)
+                            .accessibilityIdentifier("mymusic.content.jamendo")
+                    case .artists, .albums, .songs, .genres:
+                        LibraryView(ownsNavigationStack: false, externalMode: libraryModeBinding,
+                                    filter: .init(), searchRows: nil, searchRowsRevision: 0,
+                                    showsSearchField: false)
+                            .accessibilityIdentifier("mymusic.content.music")
+                    }
                 }
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
@@ -145,7 +163,7 @@ struct MyMusicView: View {
                                         in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("mymusic.scope.\(candidate.rawValue.lowercased())")
+                    .accessibilityIdentifier("mymusic.scope.\(candidate.rawValue.lowercased().replacingOccurrences(of: " ", with: ""))")
                 }
             }
             .padding(.horizontal, 18)
@@ -155,3 +173,87 @@ struct MyMusicView: View {
         .accessibilityIdentifier("mymusic.scope")
     }
 }
+
+#if os(iOS)
+/// A mirror of watch-confirmed audio plus the phone's explicitly selected transfers.
+private struct OnMyWatchMusicView: View {
+    @EnvironmentObject var appState: AppState
+    @State private var removal: PhoneWatchManagementPresenter.WatchTrackRow?
+    @State private var pendingRemovalIDs: Set<String> = []
+
+    var body: some View {
+        List {
+            Section {
+                if let date = appState.watchManagement.syncHistory.lastWatchReportAt {
+                    Text("Last watch report: \(date.formatted(date: .abbreviated, time: .shortened))")
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                } else {
+                    Text("No watch report yet. Scheduled transfers below are not confirmed installed.")
+                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                }
+                Text("Choose music elsewhere in My Music and use Download to Watch to send it here.")
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+            }
+            if appState.watchManagement.watchTracks.isEmpty {
+                Text(appState.watchManagement.syncHistory.lastWatchReportAt == nil
+                     ? "Watch contents are unknown until its first report. No transfers are scheduled."
+                     : "No audio reported on your watch or scheduled for transfer.")
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            ForEach(appState.watchManagement.watchTracks) { row in
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: row.isInstalled ? "checkmark.circle.fill" : "applewatch")
+                            .foregroundStyle(row.isInstalled ? Palette.accent : Palette.inkTertiary)
+                            .accessibilityLabel(row.isInstalled ? "Installed on Apple Watch" : "Not confirmed installed")
+                        Text(row.title).font(Typography.callout)
+                        Spacer()
+                        Button(role: .destructive) { removal = row } label: {
+                            Image(systemName: "trash")
+                        }.disabled(pendingRemovalIDs.contains(row.id))
+                            .accessibilityIdentifier("mymusic.watch.remove.\(row.id)")
+                    }
+                    if pendingRemovalIDs.contains(row.id) {
+                        Text("Removal requested; waiting for the watch report.").font(Typography.caption)
+                    } else if row.isInstalled {
+                        Text("Installed on Apple Watch").font(Typography.caption)
+                    } else if let activity = row.activity {
+                        Text(WatchStageCopy.text(activity.stage)).font(Typography.caption)
+                        if activity.stage == .transferring, let fraction = activity.fractionComplete {
+                            ProgressView(value: fraction)
+                            Text("\(Int(fraction * 100))% transferred").font(Typography.caption)
+                        }
+                        if let message = activity.failureMessage { Text(message).font(Typography.caption) }
+                        if activity.canRetry {
+                            Button("Try Again") { Task { await appState.retryWatchJob(activity.requestID) } }
+                        }
+                    } else {
+                        Text("Scheduled for Apple Watch").font(Typography.caption)
+                    }
+                }
+                .padding(.vertical, 4)
+                .accessibilityIdentifier("mymusic.watch.track.\(row.id)")
+            }
+        }
+        .listStyle(.plain)
+        .task {
+            while !Task.isCancelled {
+                await appState.refreshWatchState()
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
+        .confirmationDialog("Remove from Apple Watch?", isPresented: Binding(
+            get: { removal != nil }, set: { if !$0 { removal = nil } }), titleVisibility: .visible) {
+            Button("Remove", role: .destructive) {
+                guard let row = removal else { return }
+                removal = nil
+                pendingRemovalIDs.insert(row.id)
+                Task { await appState.removeTrackFromWatch(row.id) }
+            }
+            Button("Cancel", role: .cancel) { removal = nil }
+        } message: {
+            Text("Cancel its pending transfer and remove it from every selected watch collection. Your iPhone copy is kept.")
+        }
+    }
+}
+#endif

@@ -177,6 +177,11 @@ final class AppState: ObservableObject {
     }
 
     func bootstrap() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("UI_TEST_SLOW_LIBRARY_LOAD") {
+            try? await Task.sleep(for: .seconds(12))
+        }
+        #endif
         await fixLegacySourceTitles()
         await repairDuplicatePlaylistsOnce()
         // Before DiscoveryRuntimeController.startAfterBootstrap() (called
@@ -337,7 +342,7 @@ extension Notification.Name {
 }
 
 extension AppState {
-    /// Build a Mix as offered on Listen: the builder picks its own source
+    /// Build a Mix as offered on Mood: the builder picks its own source
     /// (genre, playlist or all tracks) from the music the listener owns.
     func requestBuildAMix() {
         mixBuilderRequest = MixBuilderRequest(

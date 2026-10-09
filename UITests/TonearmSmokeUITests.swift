@@ -12,12 +12,28 @@ final class TonearmSmokeUITests: XCTestCase {
     }
 
     func testIPhoneSmokeOpensPlaylistPlaysAndSkips() throws {
-        launch()
+        launch(arguments: ["UI_TEST_SLOW_LIBRARY_LOAD"])
 
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10),
                       "App should reach the foreground without crashing")
 
         openTab("Listen", anchor: "Listen")
+        XCTAssertTrue(element("listen.loading").waitForExistence(timeout: 5))
+        let recentHeightWhileLoading = element("listen.recent").frame.height
+        let favoriteHeightWhileLoading = element("listen.favorites").frame.height
+        XCTAssertGreaterThan(recentHeightWhileLoading, 180)
+        XCTAssertGreaterThan(favoriteHeightWhileLoading, 180)
+        XCTAssertFalse(app.buttons["listen.buildMix"].exists)
+        XCTAssertFalse(app.staticTexts["Favorite a track and it will show up here."].exists)
+        app.buttons["My Music"].tap()
+        XCTAssertTrue(element("mymusic.loading").waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Your music is empty"].exists)
+        XCTAssertFalse(app.staticTexts["Create a playlist"].exists)
+        app.buttons["Listen"].tap()
+        let loaded = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: element("listen.loading"))
+        XCTAssertEqual(XCTWaiter.wait(for: [loaded], timeout: 20), .completed)
+        XCTAssertEqual(element("listen.recent").frame.height, recentHeightWhileLoading, accuracy: 1)
+        XCTAssertEqual(element("listen.favorites").frame.height, favoriteHeightWhileLoading, accuracy: 1)
         XCTAssertTrue(app.buttons["Mood"].waitForExistence(timeout: 5),
                       "Mood should be a first-class root tab")
         XCTAssertTrue(app.buttons["Find"].waitForExistence(timeout: 5),
@@ -26,8 +42,16 @@ final class TonearmSmokeUITests: XCTestCase {
                       "Settings should be available from Listen's upper-right action")
 
         element("listen.settings").tap()
+        let playbackSection = element("settings.section.playback")
+        XCTAssertTrue(playbackSection.waitForExistence(timeout: 10))
+        if element("settings.streamOnCellular").exists { playbackSection.tap() }
+        XCTAssertFalse(element("settings.streamOnCellular").exists)
+        playbackSection.tap()
+        XCTAssertTrue(element("settings.streamOnCellular").waitForExistence(timeout: 5))
+        playbackSection.tap()
+        XCTAssertFalse(element("settings.streamOnCellular").exists)
         let watchSettings = app.buttons["settings.watch"]
-        for _ in 0..<8 where !watchSettings.isHittable { app.swipeUp() }
+        XCTAssertTrue(watchSettings.isHittable, "Apple Watch must be reachable without pages of scrolling")
         XCTAssertTrue(watchSettings.waitForExistence(timeout: 10))
         watchSettings.tap()
         XCTAssertTrue(element("settings.watch.syncStatus").waitForExistence(timeout: 10),
@@ -47,6 +71,17 @@ final class TonearmSmokeUITests: XCTestCase {
         app.buttons["My Music"].tap()
         XCTAssertTrue(element("mymusic.scope").waitForExistence(timeout: 10),
                       "My Music tab should show the unified scope bar")
+        let scopeBar = element("mymusic.scope")
+        let onWatch = app.buttons["mymusic.scope.onmywatch"]
+        for _ in 0..<5 where !onWatch.isHittable { scopeBar.swipeLeft() }
+        XCTAssertTrue(onWatch.isHittable, "My Music must expose On My Watch")
+        onWatch.tap()
+        XCTAssertTrue(element("mymusic.content.watch").waitForExistence(timeout: 10))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(element("mymusic.content.watch").waitForExistence(timeout: 15),
+                      "Relaunch must restore both My Music and its On My Watch scope")
+        for _ in 0..<5 where !app.buttons["mymusic.scope.playlists"].isHittable { element("mymusic.scope").swipeRight() }
         app.buttons["mymusic.scope.playlists"].tap()
         XCTAssertTrue(app.staticTexts["Playlists"].waitForExistence(timeout: 10),
                       "Selecting the Playlists scope chip should render Playlists")
@@ -99,10 +134,14 @@ final class TonearmSmokeUITests: XCTestCase {
     /// Mix for You with an enabled Play Mix, and playing it closes the sheet and starts the mix.
     func testBuildAMixAndPlayIt() throws {
         launch()
-        openTab("Listen", anchor: "Listen")
-        let card = app.buttons["listen.buildMix"]
+        openTab("Mood", anchor: "Mood")
+        XCTAssertTrue(app.buttons["mood.play"].waitForExistence(timeout: 10), "Mood must expose a direct Play action")
+        let card = app.buttons["mood.buildMix"]
         for _ in 0..<6 where !card.exists { app.swipeUp() }
-        XCTAssertTrue(card.waitForExistence(timeout: 20), "Build a Mix card should be on Listen")
+        XCTAssertTrue(card.waitForExistence(timeout: 20), "Build a Mix belongs on Mood, not Listen")
+        let ready = expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: card)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 60), .completed,
+                       "The initial library load must finish before capturing mix candidates")
 
         // The first launch merges the Mood Starter library in the background; retry until the
         // builder has mixable tracks.

@@ -51,7 +51,8 @@ struct FindView: View {
             .background(Palette.libraryBackground.ignoresSafeArea())
             .hiddenNavigationBar()
         }
-        .task {
+        .task(id: appState.didLoadLibraryOnce) {
+            guard appState.didLoadLibraryOnce else { return }
             await appState.reload()
         }
     }

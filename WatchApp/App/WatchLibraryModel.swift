@@ -71,16 +71,16 @@ final class WatchLibraryModel: ObservableObject {
 
     func search(query: String, onWatchOnly: Bool) async -> [WatchResultRow] {
         guard let repository else { return [] }
-        let tracks = (try? await repository.tracks(readyOnly: false)) ?? []
+        let tracks = (try? await repository.tracks(readyOnly: true)) ?? []
         let playlists = (try? await repository.playlists()) ?? []
         return WatchLocalCatalogSearch.rows(query: query, tracks: tracks, playlists: playlists,
-                                            onWatchOnly: onWatchOnly)
+                                            onWatchOnly: true)
     }
 
     func refresh() async {
         guard let repository else { return }
-        let loadedTracks = (try? await repository.tracks(readyOnly: false)) ?? []
-        let loadedPlaylists = (try? await repository.playlists()) ?? []
+        let loadedTracks = (try? await repository.tracks(readyOnly: true)) ?? []
+        let loadedPlaylists = ((try? await repository.playlists()) ?? []).filter { !$0.readyTrackIDs.isEmpty }
         let loadedStorage = try? await repository.storage()
         tracks = loadedTracks
         playlists = loadedPlaylists

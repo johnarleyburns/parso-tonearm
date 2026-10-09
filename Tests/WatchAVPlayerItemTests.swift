@@ -8,6 +8,24 @@ import TonearmWatchProtocol
 /// service and is therefore exercised by WatchSmokeUITests plus the on-device audio pass.
 @MainActor
 final class WatchAVPlayerItemTests: XCTestCase {
+    func testProductionWatchIsLocalOnlyAndPhoneOwnsTransferCommands() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let assembly = try String(contentsOf: root.appendingPathComponent("WatchApp/App/WatchAppAssembly.swift"), encoding: .utf8)
+        let model = try String(contentsOf: root.appendingPathComponent("WatchApp/App/WatchLibraryModel.swift"), encoding: .utf8)
+        XCTAssertTrue(assembly.contains("localDownloadsOnly: true"))
+        XCTAssertFalse(assembly.contains(".watchInitiatedDownload"))
+        XCTAssertFalse(assembly.contains("func requestDownloads"))
+        XCTAssertFalse(assembly.contains("func controlDownloads"))
+        XCTAssertFalse(model.contains("readyOnly: false"))
+        let phone = try String(contentsOf: root.appendingPathComponent("Sources/App/Watch/PhoneWatchRuntime.swift"), encoding: .utf8)
+        XCTAssertTrue(phone.contains("allowsWatchDownloadCommands: false"))
+        XCTAssertTrue(phone.contains("trackIDs: ids, playlistIDs: playlists"))
+        XCTAssertTrue(phone.contains("keepsPlaylistsLive: false"))
+        let diagnostics = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchDiagnosticsView.swift"), encoding: .utf8)
+        XCTAssertTrue(diagnostics.contains("$0.category == .installResult && !$0.stateCode.hasPrefix(\"artwork\")"),
+            "Artwork events must not replace the latest audio receipt")
+        XCTAssertTrue(diagnostics.contains("Text(\"Artwork receipt\")"))
+    }
     func testInboxSaveFailureReportsCurrentAttemptWithoutClaimingInstalledAudio() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

@@ -75,6 +75,7 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
     private let revisionStore: any WatchPhoneRevisionStore
     private let ledger: WatchAppliedMessageLedger
     private let libraryID: WatchPairedLibraryID
+    private let allowsWatchDownloadCommands: Bool
     private let downloadStatusProvider: @Sendable () async -> WatchDownloadStatusSnapshot?
     private let metadataManifestHandler: (@Sendable (WatchManifestPayload) async -> Void)?
     private weak var observer: (any PhoneWatchProtocolObserver)?
@@ -91,11 +92,13 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
                 ledger: WatchAppliedMessageLedger? = nil,
                 gracePeriod: TimeInterval = WatchConnectionReducer.defaultGracePeriod,
                 observer: (any PhoneWatchProtocolObserver)? = nil,
+                allowsWatchDownloadCommands: Bool = true,
                 downloadStatusProvider: @escaping @Sendable () async -> WatchDownloadStatusSnapshot? = { nil },
                 metadataManifestHandler: (@Sendable (WatchManifestPayload) async -> Void)? = nil) {
         self.transport = transport
         self.handler = handler
         self.libraryID = libraryID
+        self.allowsWatchDownloadCommands = allowsWatchDownloadCommands
         self.downloadStatusProvider = downloadStatusProvider
         self.metadataManifestHandler = metadataManifestHandler
         self.revisionStore = revisionStore
@@ -248,6 +251,9 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
 
     public func receiveImmediate(_ data: Data) async -> Data? {
         guard let envelope = await accept(data) else { return errorReply(for: data) }
+        if !allowsWatchDownloadCommands && [.requestDownload, .downloadControl, .searchRequest, .collectionRequest, .browseRequest].contains(envelope.kind) {
+            return try? envelope.reply(kind: .error, payload: WatchProtocolFault(code: .contentNotFound))
+        }
         if envelope.kind == .requestReconciliation,
            let request = try? envelope.decodePayload(WatchReconciliationRequest.self), request.scope == .status {
             if let manifest = request.manifest {
@@ -322,6 +328,7 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
     }
 
     private func applyDurable(_ envelope: WatchProtocolEnvelope) async {
+        guard allowsWatchDownloadCommands || ![.requestDownload, .downloadControl].contains(envelope.kind) else { return }
         switch envelope.kind {
         case .watchManifest:
             guard let manifest = try? envelope.decodePayload(WatchManifestPayload.self) else { return }

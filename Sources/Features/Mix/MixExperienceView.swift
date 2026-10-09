@@ -29,7 +29,7 @@ struct MixEntryCard: View {
         }
         .buttonStyle(.plain)
         .adaptiveGlass(cornerRadius: 18)
-        .accessibilityIdentifier("listen.buildMix")
+        .accessibilityIdentifier("mood.buildMix")
     }
 }
 

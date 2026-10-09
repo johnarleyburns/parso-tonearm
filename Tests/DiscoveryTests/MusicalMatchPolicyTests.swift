@@ -1,10 +1,20 @@
 #if !os(watchOS)
 import ParsoAudioAnalysis
 import XCTest
+import TonearmCore
 
 @testable import TonearmDiscovery
 
 final class MusicalMatchPolicyTests: XCTestCase {
+    func testMoodQueuePreservesOrderAndOnlyIncludesConsecutiveMixCompatibleTracks() {
+        let info: [Int64: DJLoadTrackInfo] = [
+            1: .init(bpm: 100, camelotKey: "8A"), 2: .init(bpm: 108, camelotKey: "9A"),
+            3: .init(bpm: 92, camelotKey: "8A"), 4: .init(bpm: 108, camelotKey: "9B"),
+            5: .init(bpm: .nan, camelotKey: "9B"), 6: .init(bpm: 108, camelotKey: nil)]
+        XCTAssertEqual(MusicalMatchPolicy.queueTrackIDs([1, 2, 3, 4, 5, 6, 1], metadata: info), [1, 2, 4])
+        XCTAssertTrue(MusicalMatchPolicy.queueTrackIDs([5, 6], metadata: info).isEmpty)
+        XCTAssertEqual(MusicalMatchPolicy.queueTrackIDs([3, 2], metadata: info, startingFrom: 1), [3])
+    }
     func testCompatibleKeysIncludeSameAdjacentWrapAndRelative() throws {
         let reference = try XCTUnwrap(CamelotKey(code: "1A"))
         let codes = MusicalMatchPolicy.compatibleKeyCodes(for: reference)

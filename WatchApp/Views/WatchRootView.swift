@@ -9,16 +9,10 @@ import TonearmWatchProtocol
 /// connection state is a quiet chip at the end, moving to the top only while it changes scope.
 struct WatchRootView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
-    @ObservedObject private var chrome = WatchAppAssembly.shared.chrome
     @ObservedObject private var player = WatchPlayer.shared
 
     var body: some View {
         List {
-            if !connected {
-                statusChip
-                    .listRowBackground(Color.clear)
-            }
-
             // Its own view with its own observers so churny playback updates invalidate only the
             // hero, not the whole list (see memory: carousel List + observers).
             WatchHomeHero()
@@ -33,11 +27,6 @@ struct WatchRootView: View {
             ForEach(homeDoors) { item in
                 door(item.nav, title: item.title, detail: item.detail,
                      systemImage: item.systemImage, identifier: item.identifier)
-            }
-
-            if connected {
-                statusChip
-                    .listRowBackground(Color.clear)
             }
 
             door(.syncStatus, title: "Sync Status", detail: nil,
@@ -64,20 +53,16 @@ struct WatchRootView: View {
         .task { await model.refresh() }
     }
 
-    private var connected: Bool { chrome.showsConnectedFeatures }
 
     private var homeDoors: [HomeDoor] {
         [
-            HomeDoor(nav: .search, title: "Search All Music", detail: nil,
+            HomeDoor(nav: .search, title: "Search", detail: nil,
                      systemImage: "magnifyingglass", identifier: "watch.search"),
-            HomeDoor(nav: .searchThisWatch, title: "Search This Watch",
-                     detail: String(localized: "\(model.tracks.filter(\.isReady).count) downloaded"),
-                     systemImage: "applewatch", identifier: "watch.search.thisWatch"),
             HomeDoor(nav: .playlists, title: "Playlists",
-                     detail: String(localized: "\(model.playlists.count) in catalog"),
+                     detail: String(localized: "\(model.playlists.count) on this watch"),
                      systemImage: "music.note.list", identifier: "watch.playlists"),
             HomeDoor(nav: .albums, title: "Albums",
-                     detail: String(localized: "\(model.albums.count) in catalog"),
+                     detail: String(localized: "\(model.albums.count) on this watch"),
                      systemImage: "square.stack", identifier: "watch.albums"),
             HomeDoor(nav: .downloads, title: "On This Watch", detail: onWatchDetail,
                      systemImage: "applewatch", identifier: "watch.downloads")
@@ -126,39 +111,14 @@ struct WatchRootView: View {
         return bytes > 0 ? "\(songs) · \(WatchTimeFmt.megabytes(bytes))" : songs
     }
 
-    @ViewBuilder
-    private var statusChip: some View {
-        switch chrome.banner {
-        case .connected:
-            WatchStatusChip(title: String(localized: "iPhone app reachable"), tone: .good)
-                .accessibilityIdentifier("watch.status")
-        case .temporarilyUnavailable:
-            WatchStatusChip(title: String(localized: "Reconnecting to iPhone…"), tone: .warning)
-                .accessibilityIdentifier("watch.status")
-        case .unavailable:
-            WatchStatusChip(title: String(localized: "Live iPhone messaging unavailable"), tone: .warning)
-                .accessibilityIdentifier("watch.status")
-        case .incompatible:
-            WatchStatusChip(title: String(localized: "Update Platterhead on iPhone"), tone: .failure)
-                .accessibilityIdentifier("watch.status")
-        }
-    }
 
     /// H4 — empty states always end in an action.
     private var firstRunCard: some View {
         VStack(spacing: 6) {
             Image(systemName: "applewatch").font(.title3).foregroundStyle(WatchPalette.accent)
             Text("Nothing on this watch yet").font(.headline).multilineTextAlignment(.center)
-            if connected {
-                Text("Your iPhone can sync music here. Downloaded tracks play directly on this watch.")
-                    .font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                NavigationLink(value: WatchNav.playlists) { Text("Browse synced catalog") }
-                    .buttonStyle(.watchPrimarySmall)
-                    .accessibilityIdentifier("watch.home.browsePhone")
-            } else {
-                Text("On iPhone, open Platterhead › Settings › Apple Watch and choose music to download.")
-                    .font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            }
+            Text("Send music from My Music on your iPhone. Manage it in On My Watch.")
+                .font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .padding(10)
         .frame(maxWidth: .infinity)
@@ -384,12 +344,8 @@ struct WatchSyncStatusView: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("watch.sync.requested")
                 }
-                if (state.downloads?.failedCount ?? 0) > 0 {
-                    Button("Retry Failed Downloads") {
-                        Task { await WatchAppAssembly.shared.controlDownloads(.retryFailed) }
-                    }
-                }
-                NavigationLink(value: WatchNav.downloads) { Text("Manage Downloads") }
+                Text("Start, retry, or remove downloads in My Music → On My Watch on your iPhone.")
+                    .font(.caption2).foregroundStyle(.secondary)
             }
         }
         .listStyle(.plain).navigationTitle("Sync Status")
