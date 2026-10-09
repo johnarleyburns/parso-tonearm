@@ -23,7 +23,7 @@ public enum WatchTransportChannel: String, Codable, Sendable, CaseIterable {
 /// leaving local downloads alone (A-07), and an unknown kind from a same-version peer is a bug we
 /// want to see rather than swallow.
 public struct WatchProtocolEnvelope: Equatable, Sendable {
-    public static let currentProtocolVersion = 2
+    public static let currentProtocolVersion = 3
 
     /// §5.1: application-context and user-info dictionaries put the encoded envelope under one
     /// stable key. Everything else in those dictionaries is ignored.
@@ -66,6 +66,7 @@ public struct WatchProtocolEnvelope: Equatable, Sendable {
         var sentAt: Date
         var kind: String
         var payload: Data
+        var payloadCompression: String?
     }
 
     /// Reads only the version, so an envelope from a future peer whose `kind` we cannot parse still
@@ -79,10 +80,12 @@ public struct WatchProtocolEnvelope: Equatable, Sendable {
     }
 
     public func encoded() throws -> Data {
-        try Self.encoder().encode(Wire(
+        let compressed: Data? = kind == .catalogPage ? try (payload as NSData).compressed(using: .lzfse) as Data : nil
+        return try Self.encoder().encode(Wire(
             protocolVersion: protocolVersion, messageID: messageID, correlationID: correlationID,
             pairedLibraryID: pairedLibraryID.rawValue, phoneRevision: phoneRevision,
-            sentAt: sentAt, kind: kind.rawValue, payload: payload))
+            sentAt: sentAt, kind: kind.rawValue, payload: compressed ?? payload,
+            payloadCompression: compressed == nil ? nil : "lzfse"))
     }
 
     public static func encodePayload(_ payload: some Encodable) throws -> Data {
@@ -115,10 +118,17 @@ public struct WatchProtocolEnvelope: Equatable, Sendable {
         guard let kind = WatchMessageKind(rawValue: wire.kind) else {
             return .failure(.unsupportedKind(wire.kind))
         }
+        let payload: Data
+        if let compression = wire.payloadCompression {
+            guard compression == "lzfse", kind == .catalogPage,
+                  let decompressed = try? (wire.payload as NSData).decompressed(using: .lzfse) as Data,
+                  decompressed.count <= 1_048_576 else { return .failure(.malformed) }
+            payload = decompressed
+        } else { payload = wire.payload }
         return .success(WatchProtocolEnvelope(
             protocolVersion: wire.protocolVersion, messageID: wire.messageID,
             correlationID: wire.correlationID, pairedLibraryID: WatchPairedLibraryID(wire.pairedLibraryID),
-            phoneRevision: wire.phoneRevision, sentAt: wire.sentAt, kind: kind, payload: wire.payload))
+            phoneRevision: wire.phoneRevision, sentAt: wire.sentAt, kind: kind, payload: payload))
     }
 
     public func decodePayload<Payload: Decodable>(_ type: Payload.Type) throws -> Payload {

@@ -8,6 +8,75 @@ import TonearmWatchProtocol
 /// service and is therefore exercised by WatchSmokeUITests plus the on-device audio pass.
 @MainActor
 final class WatchAVPlayerItemTests: XCTestCase {
+    func testStartupSyncIsVisibleAndConnectionToastIsTransitionBased() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let watchApp = try String(contentsOf: root.appendingPathComponent("WatchApp/PlatterheadWatchApp.swift"), encoding: .utf8)
+        XCTAssertFalse(watchApp.contains(".task { await WatchAppAssembly.shared.requestSyncStatus() }"))
+        let home = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchRootView.swift"), encoding: .utf8)
+        XCTAssertTrue(home.contains("watch.home.syncStatus"))
+        let assembly = try String(contentsOf: root.appendingPathComponent("WatchApp/App/WatchAppAssembly.swift"), encoding: .utf8)
+        XCTAssertTrue(assembly.contains("let deadline = Task { @MainActor in"))
+        XCTAssertTrue(assembly.contains("requestID: requestID"))
+        XCTAssertTrue(assembly.contains("phonePushOnly: true"))
+        XCTAssertTrue(home.contains(".disabled(state.isSyncing || !state.phoneReachable)"))
+        let phone = try String(contentsOf: root.appendingPathComponent("Sources/App/AppState+Watch.swift"), encoding: .utf8)
+        XCTAssertTrue(phone.contains("if !wasReachable && watchSessionState == .reachable"))
+        XCTAssertTrue(phone.contains("Apple Watch connected"))
+        XCTAssertTrue(phone.contains("watchSessionState == .reachable"))
+        let runtime = try String(contentsOf: root.appendingPathComponent("Sources/App/Watch/PhoneWatchRuntime.swift"), encoding: .utf8)
+        XCTAssertTrue(runtime.contains("guard force || content != lastPublishedStatusContent"))
+        XCTAssertTrue(runtime.contains("mirrorLive: Bool = false"))
+        XCTAssertFalse(assembly.contains("await syncActor?.publishPeriodicStatus()"))
+    }
+    func testAdHocWatchDownloadsPersistBeforeQueueingAndSettingsOpenDirectly() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let app = try String(contentsOf: root.appendingPathComponent("Sources/App/AppState+Watch.swift"), encoding: .utf8)
+        let persist = try XCTUnwrap(app.range(of: "await persistRemoteTrack(row)"))
+        let queue = try XCTUnwrap(app.range(of: "try await watchRuntime.downloadTracks(savedRows)"))
+        XCTAssertLessThan(persist.lowerBound, queue.lowerBound)
+        XCTAssertTrue(app.contains("Couldn't queue the Apple Watch download"))
+        let downloads = try String(contentsOf: root.appendingPathComponent("Sources/App/AppState+Downloads.swift"), encoding: .utf8)
+        XCTAssertTrue(downloads.contains("if source.id == nil"))
+        XCTAssertTrue(downloads.contains("await store.insertSource(source)"))
+        let settings = try String(contentsOf: root.appendingPathComponent("Sources/Features/Settings/SettingsView.swift"), encoding: .utf8)
+        XCTAssertTrue(settings.contains("Section { watchCard }"))
+        XCTAssertFalse(settings.contains("collapsibleSection(\"Advanced\""))
+        XCTAssertFalse(settings.contains("DisclosureGroup(title"), "Expanded cards must not inherit one-sided disclosure indentation")
+        XCTAssertTrue(settings.contains("if expanded.wrappedValue {"))
+        XCTAssertTrue(settings.contains("VStack(alignment: .leading, spacing: 16) { content() }"))
+        XCTAssertTrue(settings.contains(".padding(.horizontal, 18)"))
+        let nowPlaying = try String(contentsOf: root.appendingPathComponent("Sources/Features/NowPlaying/NowPlayingView.swift"), encoding: .utf8)
+        XCTAssertTrue(nowPlaying.contains("guard let row = watchConfirmationTarget, let action = watchConfirmation"))
+    }
+    func testCachedAudioWithoutDottedExtensionConvertsToWatchAAC() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = try XCTUnwrap(BuiltInContentProvider.bundledAudioURL(forChannelId: "ambient-ocean"))
+        let ext = try XCTUnwrap(WatchAudioFileMetadata.fileExtension(for: source))
+        let cached = root.appendingPathComponent(String(repeating: "a", count: 64) + "-" + ext)
+        try FileManager.default.copyItem(at: source, to: cached)
+        let prepared = try await PhoneWatchAudioPreparation.prepare(sourceURL: cached, directory: root.appendingPathComponent("prepared"))
+        let audio = try AVAudioFile(forReading: prepared)
+        XCTAssertEqual(audio.fileFormat.streamDescription.pointee.mFormatID, kAudioFormatMPEG4AAC)
+        XCTAssertGreaterThan(audio.length, 0)
+    }
+
+    func testMetadataNeverUsesNativeFileTransferAndControlsRequireConfirmation() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let coordinator = try String(contentsOf: root.appendingPathComponent("Sources/WatchSync/PhoneWatchProtocolCoordinator.swift"), encoding: .utf8)
+        XCTAssertFalse(coordinator.contains("transferFile("))
+        XCTAssertTrue(coordinator.contains("await transport.transferUserInfo(data)"))
+        let transport = try String(contentsOf: root.appendingPathComponent("Sources/WatchProtocol/Connectivity/WatchSessionTransport.swift"), encoding: .utf8)
+        XCTAssertTrue(transport.contains("guard WatchArtworkFileMetadata(dictionary: metadata) != nil"))
+        XCTAssertTrue(transport.contains("?.codec == \"aac\""))
+        let view = try String(contentsOf: root.appendingPathComponent("Sources/Features/NowPlaying/NowPlayingView.swift"), encoding: .utf8)
+        XCTAssertTrue(view.contains("arrow.down.circle.fill"))
+        XCTAssertTrue(view.contains("phoneDownloadIsRemoval ? \"Remove downloaded audio?\" : \"Download this track?\""))
+        let watch = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchRootView.swift"), encoding: .utf8)
+        XCTAssertTrue(watch.contains("watch.sync.diagnostics"))
+        XCTAssertFalse(watch.contains("watch.about.diagnostics"))
+    }
     func testProductionWatchIsLocalOnlyAndPhoneOwnsTransferCommands() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let assembly = try String(contentsOf: root.appendingPathComponent("WatchApp/App/WatchAppAssembly.swift"), encoding: .utf8)

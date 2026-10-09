@@ -70,10 +70,18 @@ final class StreamingCacheTests: XCTestCase {
     }
 
     private func loader(_ store: SparseCacheStore, url: URL,
-                        headers: [String: String] = [:]) -> CachingResourceLoader {
-        CachingResourceLoader(originalURL: url, store: store,
-                              config: AudioCache.loaderConfig(headers: headers),
-                              session: stubSession())
+                        headers: [String: String] = [:]) throws -> CachingResourceLoader {
+        let loader = CachingResourceLoader(originalURL: url, store: store,
+            config: AudioCache.loaderConfig(headers: headers), session: stubSession())
+        // Isolate HTTP/cache behavior from background-QoS filesystem admission.
+        // An empty blob is NOT cached audio: range coverage is still zero and
+        // every test must receive/write its bytes through the real warm path.
+        // Under host IO contention Foundation's background createFile can block
+        // in rename before the URLProtocol stub ever receives a request.
+        let blob = store.layout.blobURL(for: loader.cacheKey)
+        try FileManager.default.createDirectory(at: blob.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: blob)
+        return loader
     }
 
     private func poll(_ c: @Sendable () async -> Bool) async {
@@ -108,11 +116,11 @@ final class StreamingCacheTests: XCTestCase {
 
     // MARK: - Serve / replay offline (old manual smoke)
 
-    func testStreamedTrackReplaysFromCacheWithNetworkGone() async {
+    func testStreamedTrackReplaysFromCacheWithNetworkGone() async throws {
         RangeStub.reset(blob: Data((0..<8192).map { UInt8($0 & 0xff) }))
         let store = makeStore()
         let url = URL(string: "https://archive.org/download/item/track.flac")!
-        let l = loader(store, url: url)
+        let l = try loader(store, url: url)
 
         l.warm(upTo: 8192)
         await poll { await store.rangeMap(for: l.cacheKey).contiguousBytes(from: 0) >= 8192 }
@@ -125,10 +133,10 @@ final class StreamingCacheTests: XCTestCase {
         XCTAssertEqual(RangeStub.requestCount, after)
     }
 
-    func testProviderAuthHeadersRideEveryRequest() async {
+    func testProviderAuthHeadersRideEveryRequest() async throws {
         RangeStub.reset(blob: Data(repeating: 0xEE, count: 4096))
         let store = makeStore()
-        let l = loader(store, url: URL(string: "https://jellyfin.example/audio/1/stream.flac")!,
+        let l = try loader(store, url: URL(string: "https://jellyfin.example/audio/1/stream.flac")!,
                        headers: ["Authorization": "MediaBrowser Token=\"abc123\""])
         l.warm(upTo: 4096)
         await poll { await store.rangeMap(for: l.cacheKey).contiguousBytes(from: 0) >= 4096 }

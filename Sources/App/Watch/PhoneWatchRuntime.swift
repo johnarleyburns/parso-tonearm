@@ -51,8 +51,7 @@ final class PhoneWatchRuntime {
     private var syncHistory = PhoneWatchManagementPresenter.SyncHistory()
     private var connectedSince: Date?
     /// Watch redesign D1: download-status publishing state (see `publishDownloadStatusIfActive`).
-    private var lastDownloadStatusWasBusy = false
-    private var lastPublishedRoots: [WatchDownloadRootStatus] = []
+    private var lastPublishedStatusContent: WatchDownloadStatusSnapshot?
 
     init(store: LibraryStore, player: AudioPlayer) {
         if let data = UserDefaults.standard.data(forKey: "watch.phone.manifest") {
@@ -174,7 +173,7 @@ final class PhoneWatchRuntime {
     func tick() async {
         await tickDownloads(forceStatus: false)
         await refresh()
-        await publishDownloadStatusIfActive(force: true)
+        await publishDownloadStatusIfActive()
     }
 
     /// Push a download-status context (with per-track byte progress) while a transfer is in flight,
@@ -204,16 +203,14 @@ final class PhoneWatchRuntime {
         return snapshot
     }
 
-    private func publishDownloadStatusIfActive(force: Bool = false, mirrorLive: Bool = true) async {
+    private func publishDownloadStatusIfActive(force: Bool = false, mirrorLive: Bool = false) async {
         guard let snapshot = await metadataStatus() else { return }
-        let busy = !snapshot.isIdle || !snapshot.activeTransfers.isEmpty
-        let shouldPublish = busy || force || lastDownloadStatusWasBusy || snapshot.roots != lastPublishedRoots
-        guard shouldPublish else { return }
+        let content = snapshot.coalescingContent
+        guard force || content != lastPublishedStatusContent else { return }
         if await coordinator.publishContext(downloads: snapshot, mirrorLive: mirrorLive) {
             syncHistory.lastStatusSentAt = snapshot.generatedAt
             persistSyncHistory()
-            lastDownloadStatusWasBusy = busy
-            lastPublishedRoots = snapshot.roots
+            lastPublishedStatusContent = content
             await refresh()
         }
     }
@@ -246,7 +243,7 @@ final class PhoneWatchRuntime {
 
     // MARK: - AppState-facing operations
 
-    func downloadTracks(_ rows: [TrackRow]) async {
+    func downloadTracks(_ rows: [TrackRow]) async throws {
         let baseRevision = (try? await downloadStore.currentRevision()) ?? 0
         for row in rows {
             let id = PhoneWatchID.track(row.track)
@@ -254,7 +251,7 @@ final class PhoneWatchRuntime {
                 rootID: "track:\(id.rawValue)", kind: .track, sourceID: id.rawValue,
                 title: row.track.title, desiredTrackIDs: [id.rawValue],
                 phoneRevision: baseRevision)
-            try? await downloadManager.addRoot(root)
+            try await downloadManager.addRoot(root)
         }
         await refresh()
     }
@@ -599,6 +596,7 @@ private actor PhoneWatchInbound: PhoneWatchProtocolObserver {
     func reconciliation(_ request: WatchReconciliationRequest) async {
         if request.scope == .status {
             await runtime?.publishMetadataStatus()
+            await runtime?.publishCatalog()
             return
         }
         await runtime?.tickDownloads()

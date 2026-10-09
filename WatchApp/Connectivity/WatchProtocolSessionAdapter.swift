@@ -26,6 +26,9 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
 
     /// The transport half, for handing to the coordinator.
     public static var transport: WatchSessionTransport { WatchSessionTransport() }
+    public static var isPhoneReachable: Bool {
+        WCSession.isSupported() && WCSession.default.activationState == .activated && WCSession.default.isReachable
+    }
 
     public func activate() {
         guard WCSession.isSupported() else { return }
@@ -50,6 +53,7 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
         // rather than waited for. The coordinator decides what that cached state is worth.
         let context = WatchProtocolEnvelope.payloadData(in: session.receivedApplicationContext)
         let reachable = state == .activated && session.isReachable
+        Task { @MainActor in WatchAppAssembly.shared.syncStatus.setPhoneReachable(reachable) }
         let endpoint = endpoint
         diagnostics?.recordImmediately(.activation, "nativeActivated")
         let delivery = backgroundDelivery
@@ -62,6 +66,7 @@ public final class WatchProtocolSessionAdapter: NSObject, WCSessionDelegate, Sen
 
     public func sessionReachabilityDidChange(_ session: WCSession) {
         let reachable = session.isReachable
+        Task { @MainActor in WatchAppAssembly.shared.syncStatus.setPhoneReachable(reachable) }
         let endpoint = endpoint
         Task { await endpoint.reachabilityChanged(reachable) }
     }

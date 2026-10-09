@@ -5,6 +5,41 @@ import TonearmWatchProtocol
 
 final class WatchBackgroundDeliveryTrackerTests: XCTestCase {
     @MainActor
+    func testLiveSyncWaitsForPhonePushAndDoesNotCallRequestAcceptanceAnUpdate() async {
+        let suite = "phone-push-sync-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let state = WatchSyncStatusState(defaults: defaults)
+        let request = state.requestedSync()
+        state.completedSync(.sent, requestID: request)
+        XCTAssertTrue(state.isSyncing)
+        XCTAssertEqual(state.syncResult, .sent)
+        await state.didReceiveDownloadStatus(.init(revision: 1))
+        XCTAssertFalse(state.isSyncing)
+        XCTAssertEqual(state.syncResult, .confirmed)
+        XCTAssertNil(state.lastAudioInstalledAt)
+        state.completedSync(.sent, requestID: request)
+        XCTAssertEqual(state.syncResult, .confirmed, "A late transport reply must not overwrite an applied push")
+    }
+    @MainActor
+    func testLateMetadataCheckCannotOverwriteANewerStartupOrManualCheck() {
+        let suite = "metadata-sync-generation-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let state = WatchSyncStatusState(defaults: defaults)
+        let old = state.requestedSync()
+        state.completedSync(.failed(.requestTimedOut), requestID: old)
+        XCTAssertFalse(state.isSyncing)
+        let current = state.requestedSync()
+        state.completedSync(.confirmed, requestID: old)
+        XCTAssertTrue(state.isSyncing)
+        XCTAssertNil(state.syncResult)
+        state.completedSync(.confirmed, requestID: current)
+        XCTAssertFalse(state.isSyncing)
+        XCTAssertEqual(state.syncResult, .confirmed)
+        XCTAssertNil(state.lastAudioInstalledAt)
+    }
+    @MainActor
     func testMetadataSyncControlFinishesForQueuedFailureAndConfirmedResults() {
         let suite = "metadata-sync-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

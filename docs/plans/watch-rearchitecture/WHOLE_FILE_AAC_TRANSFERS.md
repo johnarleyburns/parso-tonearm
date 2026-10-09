@@ -132,6 +132,60 @@ overwrite the latest audio receipt. Build 538 device testing confirmed metadata
 and artwork activity but zero installed audio; the physical audio stall remains
 unresolved. Queued reports and submitted files are not installation confirmation.
 
+### Follow-up controls and transport audit (2026-10-09)
+
+Production watch coordination is phone-push-only: no automatic hello, catalog
+refresh, remote search, browse, playback, download, or reconciliation requests.
+Startup displays native app reachability without requesting metadata. Sync Now
+is disabled while disconnected and sends a live-only status/sync request while
+connected; it never queues a watch-originated request. Watch status reports and
+responses remain separate from requests. The phone may query watch truth live
+or through durable messaging and pushes selected metadata after a sync request.
+The live watch request carries no manifest and does not read the watch database.
+Its acknowledgement means request acceptance only; the UI finishes on the
+phone's pushed update, with a separate eight-second UI timeout. Routine watch
+status polling is removed. The phone coalesces unchanged status and uses context
+rather than mirroring every update through another request/reply.
+
+Settings adapts Voxglass's grouped raised cards, icon-led headings, consistent
+gutters and explanatory subtitles. Apple Watch Settings groups connection,
+downloaded audio, last update and a prominent sync action without a user-facing
+“metadata confirmation” flow. Diagnostic history remains available.
+
+This matches Cladiron's `WatchWorkoutManagerSync.requestSettingsSync`: require
+an activated/reachable session, then `sendMessage` with no queued fallback.
+Cladiron's phone publishes coalesced application context, which its watch also
+reads at activation. Its phone's “synced” toast follows successful context
+submission rather than proving audio delivery (it has no music-file workflow).
+
+Catalog pages contain selected/installed track IDs, display/search fields,
+duration, artwork references, and explicitly downloaded playlist names/order.
+Empty fields, false readiness flags, and legacy redundant artwork identifiers
+are omitted. Catalog payloads are binary property lists compressed with LZFSE,
+then transported through WatchConnectivity user-info, never transferFile.
+Protocol version 3 makes this compression contract explicit: both apps need
+the new build. Older queued envelopes cannot silently be treated as new-format
+metadata. The physical-device audio criterion is still unresolved.
+
+All standalone metadata (selected catalog pages, playlist membership, roots,
+device reports, sync checks, errors, and removal commands) uses WatchConnectivity
+messages, application context, or durable user-info envelopes. It does not use
+file transfer. The native `transferFile` adapter now rejects descriptors other
+than whole AAC/M4A audio or artwork; descriptor fields accompanying those files
+are still necessary to identify and validate the delivered asset.
+
+Diagnostics and its Refresh control are reached from Sync Status, not About.
+Now Playing uses outlined/filled download icons and requires explicit confirmation
+for both download and local-download removal. Find no longer browses the library
+before a query/filter, and its controls no longer have a clipping height cap.
+
+Watch preparation checks complete primary, alternate and Opus caches, and does not
+let a stale managed path hide those cache entries. AAC conversion supplies format
+hints for extensionless cache blobs. Conversion failures have a distinct preparation
+result and visible message instead of falsely claiming the remote source is
+unreachable. The exact physical-device failure remains unproven. Native iPhone/watch
+compilation and 117 focused host tests passed; updated UI assertions were not run.
+
 Apple references:
 
 - [File delivery and synchronous inbox ownership](https://developer.apple.com/documentation/watchconnectivity/wcsessiondelegate/session(_:didreceive:))

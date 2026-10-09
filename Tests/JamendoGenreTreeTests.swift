@@ -12,6 +12,16 @@ import XCTest
 /// and slow, matching this codebase's existing convention of keeping
 /// pure/structural logic unit-tested and live-network behavior separate).
 final class JamendoGenreTreeTests: XCTestCase {
+    func testGenreBrowserRetainsStableScrollAnchorsDuringPaging() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let view = try String(contentsOf: root.appendingPathComponent("Sources/Features/Sources/JamendoBrowseView.swift"), encoding: .utf8)
+        XCTAssertTrue(view.contains(".scrollPosition(id: $visibleTrackID, anchor: .top)"))
+        XCTAssertTrue(view.contains(".scrollTargetLayout()"))
+        XCTAssertTrue(view.contains(".id(node.id)"))
+        XCTAssertTrue(view.contains("existingIDs.insert($0.id).inserted"), "Paging must not introduce duplicate scroll-target identities")
+        XCTAssertTrue(view.contains("loadedGenrePath != selectedGenre.path"), "Reappearance must not reload the same genre and replace its list")
+        XCTAssertTrue(view.contains("offset += page.count"), "Deduplicating rows must not alter the API cursor")
+    }
     func testMyMusicJamendoImportPolicyUsesADurableSearchSource() {
         XCTAssertEqual(JamendoImportPolicy.sourceIdentifier, "catalog-search")
         XCTAssertEqual(JamendoImportPolicy.sourceTitle, "Jamendo Search")

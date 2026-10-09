@@ -12,10 +12,14 @@ public final class WatchSyncStatusState: ObservableObject, WatchConnectivityObse
     @Published public private(set) var lastRequestedAt: Date?
     @Published public private(set) var isSyncing = false
     @Published public private(set) var syncResult: WatchMetadataSyncResult?
+    @Published public private(set) var phoneReachable = false
+
+    public func setPhoneReachable(_ reachable: Bool) { phoneReachable = reachable }
 
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
     private let latestInstallation: @Sendable () async -> Date?
+    private var currentRequestID: UUID?
 
     public init(defaults: UserDefaults = .standard,
                 now: @escaping @Sendable () -> Date = { Date() },
@@ -29,6 +33,7 @@ public final class WatchSyncStatusState: ObservableObject, WatchConnectivityObse
     public func didReceiveCatalogPage(_ page: WatchLibraryPage) async {
         lastCatalogSyncAt = now()
         defaults.set(lastCatalogSyncAt, forKey: "watch.sync.lastCatalog")
+        completedSync(.confirmed)
         await refreshInstallationDate()
     }
 
@@ -44,12 +49,22 @@ public final class WatchSyncStatusState: ObservableObject, WatchConnectivityObse
         downloads = snapshot
         lastPhoneStatusAt = snapshot.generatedAt ?? now()
         defaults.set(lastPhoneStatusAt, forKey: "watch.sync.lastStatus")
+        completedSync(.confirmed)
     }
 
-    public func requestedSync() { lastRequestedAt = now(); isSyncing = true; syncResult = nil }
+    @discardableResult
+    public func requestedSync() -> UUID {
+        let id = UUID()
+        currentRequestID = id
+        lastRequestedAt = now(); isSyncing = true; syncResult = nil
+        return id
+    }
 
-    public func completedSync(_ result: WatchMetadataSyncResult) {
-        isSyncing = false
+    public func completedSync(_ result: WatchMetadataSyncResult, requestID: UUID? = nil) {
+        if let requestID, requestID != currentRequestID { return }
+        if result == .sent && syncResult == .confirmed { return }
+        if result == .sent && syncResult == .failed(.requestTimedOut) { return }
+        isSyncing = result == .sent
         syncResult = result
     }
 

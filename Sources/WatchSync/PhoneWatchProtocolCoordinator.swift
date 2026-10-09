@@ -260,6 +260,11 @@ public actor PhoneWatchProtocolCoordinator: WatchProtocolLifecycle {
                 await applyMetadataManifest(manifest)
             }
             // Reply directly: no nested live publication and no download-manager tick.
+            let handler = handler
+            Task { await handler.handleReconciliationRequest(request) }
+            if !allowsWatchDownloadCommands && request.manifest == nil {
+                return try? envelope.reply(kind: .commandReply, payload: WatchCommandReply.accepted())
+            }
             var status = await downloadStatusProvider() ?? lastPublishedContext?.downloads
             if status != nil { status?.revision = await revisionStore.nextRevision() }
             return try? envelope.reply(kind: .commandReply, payload: WatchCommandReply(

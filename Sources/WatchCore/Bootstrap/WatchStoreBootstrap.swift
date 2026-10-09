@@ -34,12 +34,57 @@ public struct WatchStoreBootstrapResult: @unchecked Sendable {
 public enum WatchStoreBootstrap {
     public static let schema = Schema(WatchSchemaV1.models)
     public static let storeName = "PlatterheadWatch"
+    public static let resetPendingKey = "watch.resetToDefault.pending"
+
+    /// Only called before opening the model container. Never delete an active store.
+    @discardableResult
+    public static func performPendingReset(root: URL, legacyDirectories: [URL] = [],
+        temporaryDirectory: URL? = nil, defaults: UserDefaults = .standard,
+        defaultsDomain: String) throws -> Bool {
+        guard defaults.bool(forKey: resetPendingKey) else { return false }
+        guard root.isFileURL, root.lastPathComponent == storeName,
+              !defaultsDomain.isEmpty,
+              legacyDirectories.allSatisfy({ $0.isFileURL && $0.lastPathComponent == "WatchAudio" }) else {
+            throw CocoaError(.fileWriteInvalidFileName)
+        }
+        let fm = FileManager.default
+        for directory in [root] + legacyDirectories where fm.fileExists(atPath: directory.path) {
+            try fm.removeItem(at: directory)
+        }
+        if let temporaryDirectory,
+           let files = try? fm.contentsOfDirectory(at: temporaryDirectory, includingPropertiesForKeys: [.isRegularFileKey]) {
+            for file in files where file.lastPathComponent.hasPrefix("inbox-") &&
+                (try? file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true {
+                try fm.removeItem(at: file)
+            }
+        }
+        defaults.removePersistentDomain(forName: defaultsDomain)
+        defaults.removeObject(forKey: resetPendingKey)
+        return true
+    }
 
     public static func inMemory() throws -> ModelContainer { try makeContainer(inMemory: true, storeURL: nil) }
 
     public static func open() -> WatchStoreBootstrapResult {
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent(storeName, isDirectory: true)
+        do {
+            let fm = FileManager.default
+            let legacy = [fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
+                          fm.urls(for: .cachesDirectory, in: .userDomainMask).first]
+                .compactMap { $0?.appendingPathComponent("WatchAudio", isDirectory: true) }
+            if try performPendingReset(root: root, legacyDirectories: legacy,
+                temporaryDirectory: fm.temporaryDirectory,
+                defaultsDomain: Bundle.main.bundleIdentifier ?? "") {
+                WatchNowPlayingWidgetStore.save(nil)
+            }
+        } catch {
+            return WatchStoreBootstrapResult(container: nil, state: .degraded,
+                recoveryNotice: "Watch reset did not finish. Close and reopen Platterhead to try again.",
+                quarantinedStoreURL: nil, recoverableFiles: [],
+                audioDirectory: root.appendingPathComponent("WatchAudio"),
+                artworkDirectory: root.appendingPathComponent("WatchArtwork"))
+        }
         return open(storeURL: root.appendingPathComponent("library.store"),
                     audioDirectory: root.appendingPathComponent("WatchAudio", isDirectory: true),
                     artworkDirectory: root.appendingPathComponent("WatchArtwork", isDirectory: true))

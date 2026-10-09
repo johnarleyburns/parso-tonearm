@@ -38,7 +38,8 @@ public enum PhoneWatchAudioPreparation {
         } else {
             input = sourceURL
         }
-        try await encodeAAC(source: input, destination: temporary)
+        try await encodeAAC(source: input, destination: temporary,
+                            sourceExtension: WatchAudioFileMetadata.fileExtension(for: input) ?? ext)
         // Publish only a complete snapshot. Concurrent preparations can converge on
         // an existing destination without replacing a file WCSession may be reading.
         if !fm.fileExists(atPath: destination.path) {
@@ -47,8 +48,19 @@ public enum PhoneWatchAudioPreparation {
         return destination
     }
 
-    private static func encodeAAC(source: URL, destination: URL) async throws {
-        let asset = AVURLAsset(url: source)
+    private static func encodeAAC(source: URL, destination: URL, sourceExtension: String) async throws {
+        // Complete cache blobs are named <sha256>-<ext>, without a dotted extension.
+        // Preserve the same format knowledge used by cached phone playback.
+        let mime: String? = switch sourceExtension {
+        case "mp3", "mpeg": "audio/mpeg"
+        case "m4a", "mp4", "aac": "audio/mp4"
+        case "flac": "audio/flac"
+        case "wav": "audio/wav"
+        case "aif", "aiff": "audio/aiff"
+        case "caf": "audio/x-caf"
+        default: nil
+        }
+        let asset = AVURLAsset(url: source, options: mime.map { [AVURLAssetOverrideMIMETypeKey: $0] })
         guard let track = try await asset.loadTracks(withMediaType: .audio).first else {
             throw CocoaError(.fileReadCorruptFile)
         }

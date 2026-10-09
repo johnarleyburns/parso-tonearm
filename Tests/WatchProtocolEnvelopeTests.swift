@@ -4,6 +4,40 @@ import XCTest
 /// §5.1–5.5 codec coverage: every kind round-trips, unknown fields and versions behave as
 /// specified, and the error vocabulary stays complete.
 final class WatchProtocolEnvelopeTests: XCTestCase {
+    func testStatusPushesCoalesceClockChangesButNotRealProgress() {
+        var first = WatchDownloadStatusSnapshot(revision: 1, activeTransfers: [.init(trackID: "a", fractionComplete: 0.2)], generatedAt: Date(timeIntervalSince1970: 1))
+        var later = first
+        later.revision = 99
+        later.generatedAt = Date(timeIntervalSince1970: 99)
+        later.lastWatchReportAt = Date()
+        XCTAssertEqual(first.coalescingContent, later.coalescingContent)
+        first.activeTransfers[0].fractionComplete = 0.3
+        XCTAssertNotEqual(first.coalescingContent, later.coalescingContent)
+    }
+    func testSelectedCatalogIsLZFSECompressedAndRoundTrips() throws {
+        let tracks = (0..<20).map { index in
+            WatchTrackSummary(trackID: WatchTrackID("track-\(index)"),
+                title: String(repeating: "Long searchable track title \(index) ", count: 8),
+                artist: "Same artist", albumTitle: "Same album")
+        }
+        let page = WatchLibraryPage(catalogID: "selected", revision: 1, pageIndex: 0,
+            pageCount: 1, tracks: tracks, playlists: [], downloadSelectionOnly: true)
+        let encoded = try WatchProtocolEnvelope.fromPhone(kind: .catalogPage, payload: page,
+            libraryID: "library", revision: 1)
+        let dictionary = try XCTUnwrap(PropertyListSerialization.propertyList(from: encoded, format: nil) as? [String: Any])
+        XCTAssertEqual(dictionary["payloadCompression"] as? String, "lzfse")
+        let compressed = try XCTUnwrap(dictionary["payload"] as? Data)
+        XCTAssertLessThan(compressed.count, try WatchProtocolEnvelope.encodePayload(page).count)
+        let decoded = try WatchProtocolEnvelope.decode(encoded).get().decodePayload(WatchLibraryPage.self)
+        XCTAssertEqual(decoded, page)
+    }
+    func testMinimalTrackMetadataOmitsEmptyAndDerivedFields() throws {
+        let track = WatchTrackSummary(trackID: "id", title: "Title")
+        let data = try WatchProtocolEnvelope.encodePayload(track)
+        let fields = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        XCTAssertEqual(Set(fields.keys), ["trackID", "title"])
+        XCTAssertEqual(try PropertyListDecoder().decode(WatchTrackSummary.self, from: data), track)
+    }
     func testCancellationBeforeContinuationInstallationIsNotLost() async {
         let completion = WatchImmediateCompletion()
         completion.finish(.failure(.init(code: .requestTimedOut)))

@@ -16,11 +16,15 @@ struct NowPlayingView: View {
     @State private var showEQ = false
     @State private var showArtworkDeleteAlert = false
     @State private var showAddToPlaylist = false
+    @State private var phoneDownloadTarget: TrackRow?
+    @State private var phoneDownloadIsRemoval = false
+    @State private var showPhoneDownloadConfirmation = false
 #if os(iOS)
     /// Track key whose watch transfer we toasted the *start* of, so we can toast its completion
     /// when it lands in the watch manifest.
     @State private var pendingWatchToastTrackID: String?
     @State private var watchConfirmation: WatchTransferConfirmation?
+    @State private var watchConfirmationTarget: TrackRow?
     @State private var showWatchConfirmation = false
 #endif
 
@@ -97,6 +101,27 @@ struct NowPlayingView: View {
             ArtworkInvalidation.shared.invalidate()
         }
         .sheet(isPresented: $showEQ) { EQView() }
+        .confirmationDialog(phoneDownloadIsRemoval ? "Remove downloaded audio?" : "Download this track?",
+                            isPresented: $showPhoneDownloadConfirmation, titleVisibility: .visible) {
+            Button(phoneDownloadIsRemoval ? "Remove Download" : "Download",
+                   role: phoneDownloadIsRemoval ? .destructive : nil) {
+                guard let row = phoneDownloadTarget else { return }
+                let removing = phoneDownloadIsRemoval
+                Task {
+                    if removing {
+                        await appState.removeDownloadFromPhone(rows: [row])
+                        ToastCenter.shared.info("Removed download")
+                    } else {
+                        ToastCenter.shared.progress("Downloading…", tag: "dl.phone")
+                        let added = await appState.download(rows: [row])
+                        ToastCenter.shared.success(added > 0 ? "Download saved" : "Already saved", tag: "dl.phone")
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(phoneDownloadIsRemoval ? "Remove the local download, keeping the track in your library." : "Save this track for offline playback.")
+        }
         .onChange(of: invalidation.version) { _, _ in
             Task {
                 guard var row = player.currentTrack else { return }
@@ -129,13 +154,11 @@ struct NowPlayingView: View {
         .confirmationDialog(watchConfirmation?.title ?? "Apple Watch", isPresented: $showWatchConfirmation,
                             titleVisibility: .visible) {
             Button(watchConfirmation?.confirmTitle ?? "Confirm") {
-                guard let row = player.currentTrack else { return }
+                guard let row = watchConfirmationTarget, let action = watchConfirmation else { return }
                 Task {
-                    guard let action = watchConfirmation else { return }
                     switch action {
                     case .download:
-                        pendingWatchToastTrackID = PhoneWatchID.track(row.track).rawValue
-                        await appState.downloadToWatch(rows: [row])
+                        pendingWatchToastTrackID = await appState.downloadToWatch(rows: [row])
                     case .remove:
                         await appState.removeFromWatch(rows: [row])
                     }
@@ -392,24 +415,15 @@ struct NowPlayingView: View {
             switch state {
             case .notDownloaded:
                 if let row {
-                    ToastCenter.shared.progress("Downloading…", tag: "dl.phone")
-                    Task {
-                        let added = await appState.download(rows: [row])
-                        #if os(macOS)
-                        ToastCenter.shared.success(added > 0 ? "Saved to this Mac" : "Already saved",
-                                                   tag: "dl.phone")
-                        #else
-                        ToastCenter.shared.success(added > 0 ? "Saved to iPhone" : "Already saved",
-                                                   tag: "dl.phone")
-                        #endif
-                    }
+                    phoneDownloadTarget = row
+                    phoneDownloadIsRemoval = false
+                    showPhoneDownloadConfirmation = true
                 }
             case .downloaded:
                 if let row {
-                    Task {
-                        await appState.removeDownloadFromPhone(rows: [row])
-                        ToastCenter.shared.info("Removed download")
-                    }
+                    phoneDownloadTarget = row
+                    phoneDownloadIsRemoval = true
+                    showPhoneDownloadConfirmation = true
                 }
             case .downloading:
                 break
@@ -419,6 +433,7 @@ struct NowPlayingView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("np.download")
+        .accessibilityLabel(state == .downloaded ? "Downloaded. Manage download" : "Download track")
         .disabled(row == nil)
     }
 
@@ -433,7 +448,9 @@ struct NowPlayingView: View {
                     CacheGlyph(state: cacheGlyphState(from: appState.phoneDownloadState(for: row)))
                 }
             } else {
-                CacheGlyph(state: cacheGlyphState(from: fallback))
+                Image(systemName: fallback == .downloaded ? "arrow.down.circle.fill" : "arrow.down.circle")
+                    .font(.system(size: 24))
+                    .foregroundStyle(fallback == .downloaded ? Palette.accent : Palette.inkSecondary)
             }
         }
         .frame(width: 45, height: 45)
@@ -451,11 +468,13 @@ struct NowPlayingView: View {
                 if let row {
                     pendingWatchToastTrackID = PhoneWatchID.track(row.track).rawValue
                     watchConfirmation = .download
+                    watchConfirmationTarget = row
                     showWatchConfirmation = true
                 }
             case .onWatch:
                 if let row {
                     watchConfirmation = .remove
+                    watchConfirmationTarget = row
                     showWatchConfirmation = true
                 }
             case .transferring:

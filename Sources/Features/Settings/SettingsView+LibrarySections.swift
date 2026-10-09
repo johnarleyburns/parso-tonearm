@@ -190,14 +190,16 @@ extension SettingsView {
     #if os(iOS)
     var watchCard: some View {
         Button { showWatchSettings = true } label: {
-            HStack {
+            HStack(spacing: 12) {
+                Image(systemName: "applewatch")
+                    .font(.title2).foregroundStyle(Palette.accent).frame(width: 26)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Apple Watch").font(Typography.callout)
-                    Text("Download music for offline playback on your watch")
+                    Text("Apple Watch").font(Typography.headline)
+                    Text("Downloads, connection and sync")
                         .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
                 }
                 Spacer()
-                Image(systemName: "applewatch")
+                Image(systemName: "chevron.right")
                     .font(Typography.body)
                     .foregroundStyle(Palette.inkTertiary)
             }

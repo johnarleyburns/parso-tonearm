@@ -85,18 +85,43 @@ extension AppState {
     }
 
     func refreshWatchStateFromRuntime() {
+        let wasReachable = watchSessionState == .reachable
         watchInstalledTrackIDs = watchRuntime.installedTrackIDs
         watchJobStates = watchRuntime.jobStateByTrackID
         watchTransferActiveCount = watchRuntime.activeJobCount
         watchFailedCount = watchRuntime.failedJobCount
         watchInstalledBytes = watchRuntime.installedBytes
         watchSessionState = watchRuntime.sessionDisplayState
+        if !wasReachable && watchSessionState == .reachable {
+            ToastCenter.shared.success("Apple Watch connected", icon: "applewatch", tag: "watch.connection")
+        }
         watchManagement = watchRuntime.management
     }
 
-    func downloadToWatch(rows: [TrackRow]) async {
-        await watchRuntime.downloadTracks(rows)
+    @discardableResult
+    func downloadToWatch(rows: [TrackRow]) async -> String? {
+        var savedRows: [TrackRow] = []
+        for row in rows {
+            if row.id < 0 {
+                guard let persisted = await persistRemoteTrack(row), persisted.id >= 0 else {
+                    ToastCenter.shared.error("Couldn't save this track for Apple Watch", tag: "dl.watch")
+                    return nil
+                }
+                savedRows.append(persisted)
+            } else {
+                savedRows.append(row)
+            }
+        }
+        do {
+            try await watchRuntime.downloadTracks(savedRows)
+        } catch {
+            ToastCenter.shared.error("Couldn't queue the Apple Watch download", tag: "dl.watch")
+            refreshWatchStateFromRuntime()
+            return nil
+        }
         refreshWatchStateFromRuntime()
+        ToastCenter.shared.info("Queued for Apple Watch", tag: "dl.watch")
+        return savedRows.first.map { PhoneWatchID.track($0.track).rawValue }
     }
 
     func removeFromWatch(rows: [TrackRow]) async {

@@ -4,6 +4,10 @@ import Foundation
 /// phone catalog, so this carries what a watch row draws and nothing else — no file URL, no source
 /// identity, no credential-bearing remote address.
 public struct WatchTrackSummary: Codable, Equatable, Sendable, Identifiable {
+    private enum CodingKeys: String, CodingKey {
+        case trackID, title, artist, albumTitle, durationSeconds, artworkID
+        case coverArtworkID, customArtworkID, isDownloadedOnWatch
+    }
     public var trackID: WatchTrackID
     public var title: String
     public var artist: String
@@ -15,6 +19,32 @@ public struct WatchTrackSummary: Codable, Equatable, Sendable, Identifiable {
     public var isDownloadedOnWatch: Bool
 
     public var id: WatchTrackID { trackID }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        trackID = try values.decode(WatchTrackID.self, forKey: .trackID)
+        title = try values.decode(String.self, forKey: .title)
+        artist = try values.decodeIfPresent(String.self, forKey: .artist) ?? ""
+        albumTitle = try values.decodeIfPresent(String.self, forKey: .albumTitle) ?? ""
+        durationSeconds = try values.decodeIfPresent(Double.self, forKey: .durationSeconds)
+        artworkID = try values.decodeIfPresent(String.self, forKey: .artworkID)
+        coverArtworkID = try values.decodeIfPresent(String.self, forKey: .coverArtworkID)
+        customArtworkID = try values.decodeIfPresent(String.self, forKey: .customArtworkID)
+        isDownloadedOnWatch = try values.decodeIfPresent(Bool.self, forKey: .isDownloadedOnWatch) ?? false
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(trackID, forKey: .trackID)
+        try values.encode(title, forKey: .title)
+        if !artist.isEmpty { try values.encode(artist, forKey: .artist) }
+        if !albumTitle.isEmpty { try values.encode(albumTitle, forKey: .albumTitle) }
+        try values.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
+        try values.encodeIfPresent(artworkID, forKey: .artworkID)
+        try values.encodeIfPresent(coverArtworkID, forKey: .coverArtworkID)
+        try values.encodeIfPresent(customArtworkID, forKey: .customArtworkID)
+        if isDownloadedOnWatch { try values.encode(true, forKey: .isDownloadedOnWatch) }
+    }
 
     public init(trackID: WatchTrackID, title: String, artist: String = "", albumTitle: String = "",
                 durationSeconds: Double? = nil, artworkID: String? = nil,
@@ -229,6 +259,15 @@ public struct WatchDownloadActivity: Codable, Equatable, Sendable, Identifiable 
 }
 
 public struct WatchDownloadStatusSnapshot: Codable, Equatable, Sendable {
+    /// Clock/revision churn is not a content change and must not trigger another push.
+    public var coalescingContent: Self {
+        var value = self
+        value.revision = 0
+        value.generatedAt = nil
+        value.lastWatchReportAt = nil
+        value.activeTransfers.sort { $0.trackID.rawValue < $1.trackID.rawValue }
+        return value
+    }
     public var catalogTrackCount: Int
     public var readyTrackIDs: [WatchTrackID]
     public var revision: Int64

@@ -230,8 +230,20 @@ extension AppState {
     /// Turns an in-memory browsed row into a durable library row while retaining
     /// its transient authorization long enough to pin the bytes.
     func persistRemoteTrack(_ row: TrackRow) async -> TrackRow? {
-        guard row.id < 0, let source = row.source, let asset = row.asset,
+        guard row.id < 0, var source = row.source, let asset = row.asset,
               let rawURL = asset.remoteURL, let url = URL(string: rawURL) else { return row }
+        // Ad-hoc Jamendo browsing uses a synthetic source. Persist/reuse it
+        // before ingest: RemotePlaylistIngest cannot save tracks without a source ID.
+        if source.id == nil {
+            if let existing = (try? await store.allSources())?.first(where: {
+                $0.kind == source.kind && $0.iaIdentifier == source.iaIdentifier && $0.originalURL == source.originalURL
+            }) {
+                source = existing
+            } else {
+                guard let inserted = try? await store.insertSource(source) else { return nil }
+                source = inserted
+            }
+        }
         // Prefer the REAL provider node reference `RemoteTrackRowFactory.row`
         // already attached to this in-memory asset — falling back to the old
         // resolved-URL-as-path placeholder only when it's genuinely absent

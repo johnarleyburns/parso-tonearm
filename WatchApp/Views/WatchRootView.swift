@@ -10,9 +10,21 @@ import TonearmWatchProtocol
 struct WatchRootView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
     @ObservedObject private var player = WatchPlayer.shared
+    @ObservedObject private var syncStatus = WatchAppAssembly.shared.syncStatus
 
     var body: some View {
         List {
+            Section {
+                Text(syncStatus.phoneReachable ? "iPhone connected" : "iPhone not connected").font(.caption2)
+                if syncStatus.isSyncing {
+                    ProgressView("Checking iPhone sync…")
+                } else if let result = syncStatus.syncResult {
+                    Text(result.displayMessage).font(.caption2)
+                } else {
+                    Text(syncStatus.phoneReachable ? "Sync Now is available." : "Sync Now available when connected to iPhone.").font(.caption2)
+                }
+            }
+            .accessibilityIdentifier("watch.home.syncStatus")
             // Its own view with its own observers so churny playback updates invalidate only the
             // hero, not the whole list (see memory: carousel List + observers).
             WatchHomeHero()
@@ -219,6 +231,8 @@ enum WatchNav: Hashable {
 }
 
 struct WatchAboutView: View {
+    @State private var confirmReset = false
+    @AppStorage(WatchStoreBootstrap.resetPendingKey) private var resetPending = false
     private var installedBuild: String {
         WatchBuildInfo.label(
             version: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
@@ -233,15 +247,24 @@ struct WatchAboutView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("watch.about.build")
             }
-            NavigationLink {
-                WatchDiagnosticsView()
-            } label: {
-                Label("Diagnostics", systemImage: "waveform.path.ecg")
+            Section {
+                Button("Reset to Default", role: .destructive) { confirmReset = true }
+                    .disabled(resetPending)
+                    .accessibilityIdentifier("watch.about.reset")
+                if resetPending {
+                    Text("Reset scheduled. Close Platterhead from the watch app switcher, then reopen it.")
+                        .font(.caption2)
+                }
             }
-            .accessibilityIdentifier("watch.about.diagnostics")
         }
         .navigationTitle("About")
         .listStyle(.plain)
+        .confirmationDialog("Reset Platterhead on this watch?", isPresented: $confirmReset, titleVisibility: .visible) {
+            Button("Reset Watch", role: .destructive) { resetPending = true }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("On the next launch, all Platterhead watch audio, artwork, playlists, catalog, playback position, sync history, and preferences will be deleted. iPhone music is kept. Close and reopen the watch app, then use the iPhone to sync and explicitly download tracks again.")
+        }
     }
 }
 
@@ -252,27 +275,36 @@ struct WatchSyncStatusView: View {
 
     var body: some View {
         List {
-            Section("Phone Sync · Metadata") {
+            Section("Phone Sync") {
+                NavigationLink {
+                    WatchDiagnosticsView()
+                } label: {
+                    Label("Diagnostics & Refresh", systemImage: "waveform.path.ecg")
+                }
+                .accessibilityIdentifier("watch.sync.diagnostics")
                 Button {
                     Task { await WatchAppAssembly.shared.requestSyncStatus() }
                 } label: {
                     Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
                 }
-                .disabled(state.isSyncing)
+                .disabled(state.isSyncing || !state.phoneReachable)
                 .accessibilityIdentifier("watch.sync.refresh")
-                if state.isSyncing { ProgressView("Checking device status…") }
+                if !state.phoneReachable {
+                    Text("Sync Now available when connected to iPhone.").font(.caption2)
+                }
+                if state.isSyncing { ProgressView("Syncing with iPhone…") }
                 if let result = state.syncResult {
                     Text(result.displayMessage).font(.caption2)
                         .accessibilityIdentifier("watch.sync.result")
                 }
             }
             Section("Connection") {
-                Text(chrome.showsConnectedFeatures ? "iPhone app reachable" : "iPhone app not reachable")
+                Text(state.phoneReachable ? "iPhone connected" : "iPhone not connected")
                     .font(.caption).accessibilityIdentifier("watch.sync.connection")
                 Text("This is Platterhead's live messaging status, not the watch's Bluetooth connection. Background metadata and audio use separate Apple queues.")
                     .font(.caption2).foregroundStyle(.secondary)
             }
-            Section("Metadata History") {
+            Section("Sync History") {
                 history("Last catalog update", date: state.lastCatalogSyncAt)
                 history("Last iPhone status", date: state.lastPhoneStatusAt)
                 history("Last audio installed", date: state.lastAudioInstalledAt)

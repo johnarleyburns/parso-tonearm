@@ -76,7 +76,7 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
                 for: prepared.lastPathComponent, durable: true)
             return .cached(prepared, bytes: measured.bytes, sha256: measured.sha256)
         } catch {
-            return .unavailable
+            return .preparationFailed
         }
     }
 
@@ -95,11 +95,14 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
         if let relPath = asset.relPath {
             let base = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                     appropriateFor: nil, create: false)
-            return base?.appendingPathComponent(relPath)
+            if let local = base?.appendingPathComponent(relPath), PhoneWatchAudioPreparation.isReadable(local) {
+                return local
+            }
         }
-        if let remote = asset.remoteURL.flatMap(URL.init(string:)),
-           AudioCache.completeCacheExists(for: remote) {
-            return AudioCache.fileURL(for: AudioCache.key(for: remote))
+        for raw in [asset.remoteURL, asset.altRemoteURL, asset.opusRemoteURL] {
+            if let remote = raw.flatMap(URL.init(string:)), AudioCache.completeCacheExists(for: remote) {
+                return AudioCache.fileURL(for: AudioCache.key(for: remote))
+            }
         }
         return nil
     }

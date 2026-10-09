@@ -50,7 +50,6 @@ struct SettingsView: View {
     @AppStorage("settings.playbackExpanded") private var playbackExpanded = false
     @AppStorage("settings.libraryExpanded") private var libraryExpanded = false
     @AppStorage("settings.accountExpanded") private var accountExpanded = false
-    @AppStorage("settings.advancedExpanded") private var advancedExpanded = false
     let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
         ("500 MB", 500 * 1024 * 1024),
@@ -64,9 +63,9 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            settingsLayout {
                 #if os(iOS)
-                Section("Apple Watch") { watchCard }
+                Section { watchCard }
                 #endif
                 if shows(.playback) {
                     collapsibleSection("Playback", expanded: $playbackExpanded, identifier: "settings.section.playback") {
@@ -96,7 +95,7 @@ struct SettingsView: View {
                     }
                 }
                 if shows(.advanced) {
-                    collapsibleSection("Advanced", expanded: $advancedExpanded, identifier: "settings.section.advanced") {
+                    Section {
                         advancedSection
                     }
                 }
@@ -169,15 +168,70 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
+    private func settingsLayout<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
+        #if os(macOS)
+        Form { content() }
+        #else
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) { content() }
+                .padding(.horizontal, 18)
+                .padding(.top, 16)
+                .padding(.bottom, 48)
+        }
+        #endif
+    }
+
+    @ViewBuilder
     private func collapsibleSection<Content: View>(_ title: LocalizedStringKey,
         expanded: Binding<Bool>, identifier: String, @ViewBuilder content: @escaping () -> Content) -> some View {
         if macPane == nil {
-            Section {
-                DisclosureGroup(title, isExpanded: expanded, content: content)
+            VStack(alignment: .leading, spacing: 0) {
+                Button {
+                    withAnimation { expanded.wrappedValue.toggle() }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: sectionIcon(identifier)).foregroundStyle(Palette.accent)
+                            .frame(width: 26)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(title).font(Typography.headline)
+                            Text(sectionDetail(identifier)).font(Typography.caption)
+                                .foregroundStyle(Palette.inkTertiary)
+                        }
+                        Spacer()
+                        Image(systemName: expanded.wrappedValue ? "chevron.down" : "chevron.right")
+                            .foregroundStyle(Palette.inkTertiary)
+                    }
+                    .padding(15)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed")
                     .accessibilityIdentifier(identifier)
+                if expanded.wrappedValue {
+                    Divider().overlay(Palette.hairline).padding(.horizontal, 15)
+                    VStack(alignment: .leading, spacing: 14) { content() }
+                        .padding(15)
+                }
             }
+            .background(Palette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
         } else {
             Section(title, content: content)
+        }
+    }
+
+    private func sectionIcon(_ id: String) -> String {
+        switch id {
+        case "settings.section.playback": "play.circle"
+        case "settings.section.library": "externaldrive"
+        default: "person.crop.circle"
+        }
+    }
+
+    private func sectionDetail(_ id: String) -> LocalizedStringKey {
+        switch id {
+        case "settings.section.playback": "Listening, transitions and Siri"
+        case "settings.section.library": "Sources, indexing and storage"
+        default: "Appearance, privacy and support"
         }
     }
 

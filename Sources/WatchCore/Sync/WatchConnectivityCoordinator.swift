@@ -29,15 +29,18 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         public var immediateDeadline: Duration
         public var gracePeriod: TimeInterval
         public var ledgerCapacity: Int
+        public var phonePushOnly: Bool
 
         public init(capabilities: [WatchCapability] = WatchCapability.allCases,
                     immediateDeadline: Duration = WatchRequestDeadline.immediate,
                     gracePeriod: TimeInterval = WatchConnectionReducer.defaultGracePeriod,
-                    ledgerCapacity: Int = WatchAppliedMessageLedger.defaultCapacity) {
+                    ledgerCapacity: Int = WatchAppliedMessageLedger.defaultCapacity,
+                    phonePushOnly: Bool = false) {
             self.capabilities = capabilities
             self.immediateDeadline = immediateDeadline
             self.gracePeriod = gracePeriod
             self.ledgerCapacity = ledgerCapacity
+            self.phonePushOnly = phonePushOnly
         }
     }
 
@@ -105,7 +108,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         // published hours ago. Draw it, but do not let it argue that the phone is awake — a watch
         // out of range would otherwise show a connected UI built entirely from cached state.
         if let receivedContext { await applyContext(receivedContext, provesPeerIsAlive: false) }
-        guard reachable else { return }
+        guard reachable, !configuration.phonePushOnly else { return }
         await negotiate()
     }
 
@@ -116,7 +119,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
         // prevent.
         let wasConfirmedDown = reducer.state.isConfirmedDisconnected
         await run(reducer.apply(.reachabilityChanged(reachable), at: Date()))
-        guard reachable else { return }
+        guard reachable, !configuration.phonePushOnly else { return }
         if negotiated == nil || wasConfirmedDown { await negotiate() }
     }
 
@@ -292,6 +295,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
 
     public func requestReconciliation(scope: WatchReconciliationScope = .all,
                                       trigger: WatchProtocolErrorCode? = nil) async {
+        guard !configuration.phonePushOnly else { return }
         let payload = WatchReconciliationRequest(scope: scope, trigger: trigger)
         guard let data = try? WatchProtocolEnvelope.encode(
             kind: .requestReconciliation, payload: payload,
@@ -300,6 +304,25 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
     }
 
     public func synchronizeMetadata() async -> WatchMetadataSyncResult {
+        if configuration.phonePushOnly {
+            guard await transport.isReachable() else { return .failed(.phoneUnavailable) }
+            do {
+                let data = try WatchProtocolEnvelope.encode(kind: .requestReconciliation,
+                    payload: WatchReconciliationRequest(scope: .status),
+                    pairedLibraryID: boundLibraryID ?? .unknown)
+                let transport = transport
+                let response = try await withWatchRequestDeadline(configuration.immediateDeadline) {
+                    try await transport.sendImmediate(data)
+                }
+                let request = try WatchProtocolEnvelope.decode(data).get()
+                let reply = try WatchProtocolEnvelope.decode(response).get()
+                guard reply.correlationID == request.messageID, reply.kind == .commandReply,
+                      try reply.decodePayload(WatchCommandReply.self).accepted else { return .failed(.transferFailed) }
+                // The phone pushes its update separately. No manifest read, pull or queued fallback.
+                return .sent
+            } catch let fault as WatchProtocolFault { return .failed(fault.code) }
+            catch { return .failed(.transferFailed) }
+        }
         do {
             diagnostics?.recordImmediately(.request, "metadataLocalReadStarted")
             let manifest = await manifestProvider()
@@ -307,9 +330,10 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
             let data = try WatchProtocolEnvelope.encode(kind: .requestReconciliation,
                 payload: WatchReconciliationRequest(scope: .status, manifest: manifest),
                 pairedLibraryID: boundLibraryID ?? .unknown)
-            await transport.transferUserInfo(data)
-            diagnostics?.recordImmediately(.request, "metadataRequestQueued")
-            guard await transport.isReachable() else { return .queued }
+            if !configuration.phonePushOnly { await transport.transferUserInfo(data) }
+            guard await transport.isReachable() else {
+                return configuration.phonePushOnly ? .failed(.phoneUnavailable) : .queued
+            }
             guard manifest != nil else { return .failed(.installationFailed) }
             let transport = transport
             let response = try await withWatchRequestDeadline(configuration.immediateDeadline) {
@@ -333,6 +357,9 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
     }
 
     private func sendDurableWithLiveCopy(_ data: Data) async {
+        if configuration.phonePushOnly {
+            guard let envelope = try? WatchProtocolEnvelope.decode(data).get(), envelope.kind == .watchManifest else { return }
+        }
         await transport.transferUserInfo(data)
         guard await transport.isReachable() else { return }
         let transport = transport
@@ -533,6 +560,7 @@ public actor WatchConnectivityCoordinator: WatchProtocolLifecycle {
     /// correlated to this request and of the kind we asked for.
     private func request(kind: WatchMessageKind, payload: some Encodable,
                          expecting: WatchMessageKind) async throws -> WatchProtocolEnvelope {
+        guard !configuration.phonePushOnly else { throw WatchProtocolFault(code: .contentNotFound) }
         if let blocked = reducer.blockingErrorCode {
             await recordRequest(kind, since: nil, failure: blocked)
             throw WatchProtocolFault(code: blocked)

@@ -481,15 +481,17 @@ public enum WatchReconciliationScope: String, Codable, Sendable, CaseIterable {
 public enum WatchMetadataSyncResult: Equatable, Sendable {
     case confirmed
     case queued
+    case sent
     case failed(WatchProtocolErrorCode)
 
     public var displayMessage: String {
         switch self {
-        case .confirmed: return String(localized: "Device status exchanged. Audio delivery is checked separately.")
-        case .queued: return String(localized: "Metadata request queued with Apple. No device reply yet.")
-        case .failed(.requestTimedOut): return String(localized: "No reply within eight seconds. Metadata request remains queued; audio transfers are unchanged.")
-        case .failed(.phoneUnavailable): return String(localized: "Live messaging unavailable. Metadata request remains queued; audio transfers are unchanged.")
-        case .failed(.transferFailed): return String(localized: "Could not confirm metadata exchange. Audio transfers are unchanged.")
+        case .confirmed: return String(localized: "Sync updated.")
+        case .queued: return String(localized: "Sync scheduled for when the watch is available.")
+        case .sent: return String(localized: "Syncing with iPhone…")
+        case .failed(.requestTimedOut): return String(localized: "Sync did not finish within eight seconds. Open both apps and try again.")
+        case .failed(.phoneUnavailable): return String(localized: "Sync Now available when connected to iPhone.")
+        case .failed(.transferFailed): return String(localized: "Sync could not be sent. Try again with both apps open.")
         case .failed(.installationFailed): return String(localized: "Device status could not be read. Audio transfers are unchanged.")
         case .failed(let code): return code.safeDisplayMessage
         }

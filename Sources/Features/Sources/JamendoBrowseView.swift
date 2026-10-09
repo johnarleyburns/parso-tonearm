@@ -34,6 +34,8 @@ struct JamendoBrowseView: View {
     @State private var importingIDs: Set<String> = []
     @State private var importedIDs: Set<String> = []
     @State private var importMessage: String?
+    @State private var visibleTrackID: String?
+    @State private var loadedGenrePath: String?
 
     /// "Dance" isn't a literal node in the curated tree's original set — it's
     /// added alongside Techno/House/etc. under Electronic specifically for
@@ -80,7 +82,7 @@ struct JamendoBrowseView: View {
         .foregroundStyle(Palette.ink)
         .navigationBarBackButtonHidden()
         .task(id: selectedGenre.path) {
-            guard activeQuery == nil else { return }
+            guard activeQuery == nil, loadedGenrePath != selectedGenre.path else { return }
             await reload()
         }
     }
@@ -177,12 +179,15 @@ struct JamendoBrowseView: View {
                         .padding(.top, 24)
                 } else {
                     ForEach(Array(nodes.enumerated()), id: \.element.id) { index, node in
+                        VStack(spacing: 0) {
                         resultRow(node: node, index: index)
                         .onAppear {
                             guard index == nodes.count - 1 else { return }
                             Task { await loadMore() }
                         }
                         Divider().overlay(Palette.hairline)
+                        }
+                        .id(node.id)
                     }
                     if isLoadingMore {
                         ProgressView().tint(Palette.accent).padding(.vertical, 16)
@@ -190,12 +195,16 @@ struct JamendoBrowseView: View {
                     }
                 }
             }
+            .scrollTargetLayout()
             .padding(.horizontal, 18)
             .padding(.bottom, 160)
         }
+        .scrollPosition(id: $visibleTrackID, anchor: .top)
+        .accessibilityIdentifier("mymusic.jamendo.tracks")
     }
 
     private func reload() async {
+        visibleTrackID = nil
         offset = 0
         canLoadMore = true
         isLoading = true
@@ -204,6 +213,7 @@ struct JamendoBrowseView: View {
         do {
             nodes = try await fetchPage(offset: 0)
             offset = nodes.count
+            loadedGenrePath = activeQuery == nil ? selectedGenre.path : nil
         } catch {
             nodes = []
             errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -217,7 +227,10 @@ struct JamendoBrowseView: View {
         do {
             let page = try await fetchPage(offset: offset)
             canLoadMore = !page.isEmpty
-            nodes.append(contentsOf: page)
+            // Popularity changes can overlap page boundaries. Duplicate SwiftUI IDs
+            // invalidate scroll anchors; advance the server cursor by the raw page.
+            var existingIDs = Set(nodes.map(\.id))
+            nodes.append(contentsOf: page.filter { existingIDs.insert($0.id).inserted })
             offset += page.count
         } catch {
             // A load-more failure isn't worth replacing the whole list with

@@ -11,6 +11,8 @@ public enum PhoneWatchAudioResolution: Sendable, Equatable {
     case unsupported(reason: String)
     /// No local asset and the remote source could not be reached right now.
     case unavailable
+    /// Local bytes were found, but preparing the watch's AAC copy failed.
+    case preparationFailed
     /// The source needs re-authentication before it can be fetched.
     case needsAuth
 }
@@ -512,6 +514,9 @@ public actor PhoneWatchDownloadManager {
             case .unavailable:
                 try await fail(&job, class: .sourceUnavailable, code: .sourceUnavailable,
                                message: WatchProtocolErrorCode.sourceUnavailable.safeDisplayMessage)
+            case .preparationFailed:
+                try await fail(&job, class: .sourceUnavailable, code: .transferFailed,
+                               message: "iPhone could not convert the local audio to watch AAC. No audio file was submitted.")
             case .needsAuth:
                 try await fail(&job, class: .needsAuth, code: .authenticationRequired,
                                message: WatchProtocolErrorCode.authenticationRequired.safeDisplayMessage)

@@ -52,6 +52,8 @@ struct WatchSettingsView: View {
 
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Label("Apple Watch & Sync", systemImage: "applewatch")
+                .font(Typography.headline).foregroundStyle(Palette.accent)
             HStack {
                 Image(systemName: statusIcon)
                     .font(Typography.headline)
@@ -65,6 +67,8 @@ struct WatchSettingsView: View {
                     .font(Typography.caption)
                     .foregroundStyle(Palette.inkTertiary)
             }
+            Text("Music comes from this iPhone. Download tracks or playlists from My Music or Now Playing.")
+                .font(Typography.caption).foregroundStyle(Palette.inkSecondary)
             if let storage = snapshot.storage {
                 Divider().overlay(Palette.hairline).padding(.vertical, 2)
                 Text("Downloaded \(storage.trackCount) tracks · \(bytes(storage.installedBytes))")
@@ -92,8 +96,8 @@ struct WatchSettingsView: View {
 
     private var syncHistoryCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Watch Sync · Metadata").font(Typography.callout)
-            if syncingMetadata { ProgressView("Checking device status…") }
+            Label("Sync", systemImage: "arrow.triangle.2.circlepath").font(Typography.headline)
+            if syncingMetadata { ProgressView("Syncing with watch…") }
             if let metadataResult {
                 Text(metadataResult.displayMessage).font(Typography.caption)
             }
@@ -106,13 +110,15 @@ struct WatchSettingsView: View {
                 }
             }
             .disabled(syncingMetadata || !snapshot.pairing.isPaired)
+            .buttonStyle(.borderedProminent)
+            .tint(Palette.accent)
             .accessibilityIdentifier("settings.watch.syncNow")
             syncDate("Last watch report received", snapshot.syncHistory.lastWatchReportAt)
             syncDate("Last catalog queued on iPhone", snapshot.syncHistory.lastCatalogSentAt)
             syncDate("Catalog received by watch", snapshot.syncHistory.lastCatalogReceivedAt)
             syncDate("Last iPhone status sent", snapshot.syncHistory.lastStatusSentAt)
             syncDate("Last audio installed on watch", snapshot.syncHistory.lastAudioInstalledAt)
-            Text("Queued files are not installed tracks. A live connection does not guarantee that Apple's background file transfer is advancing.")
+            Text("Sync updates your watch's music list and status. Audio files transfer separately; submitted files count as downloaded only after installation.")
                 .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
         }
         .padding(15).glassSurface(cornerRadius: 18)

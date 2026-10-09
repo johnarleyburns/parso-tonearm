@@ -7,6 +7,27 @@ import XCTest
 /// every case below is the real phone code talking to the real watch code — no simulator, no
 /// WatchConnectivity, no wall-clock waits beyond a grace period the test itself picks.
 final class WatchProtocolIntegrationTests: XCTestCase {
+    func testPushOnlyWatchNeverQueuesSyncOrOtherRequests() async {
+        let harness = await makeHarness(boundLibraryID: libraryID, phoneStatus: .init(revision: 1), phonePushOnly: true)
+        await harness.link.setReachable(false)
+        await harness.watch.activate(reachable: false)
+        let result = await harness.watch.synchronizeMetadata()
+        XCTAssertEqual(result, .failed(.phoneUnavailable))
+        await harness.watch.requestReconciliation()
+        await harness.watch.requestDownload(trackID: "forbidden", wantsDownload: true)
+        await harness.watch.controlDownloads(.init(action: .retryFailed))
+        let offlineDeliveries = await harness.link.deliveries
+        XCTAssertTrue(offlineDeliveries.isEmpty)
+        await harness.link.setReachable(true)
+        await harness.watch.activate(reachable: true)
+        await harness.watch.reachabilityChanged(true)
+        let beforeSync = await harness.link.deliveries
+        XCTAssertTrue(beforeSync.isEmpty, "Activation and reconnection must not send hello or metadata requests")
+        let liveResult = await harness.watch.synchronizeMetadata()
+        XCTAssertEqual(liveResult, .sent)
+        let deliveries = await harness.link.deliveries
+        XCTAssertFalse(deliveries.contains { $0.channel == .userInfo || $0.channel == .file })
+    }
     func testPhoneOnlyDownloadsRejectWatchOriginatedRequestsOnLiveAndDurableChannels() async throws {
         let harness = await makeHarness(allowsWatchDownloadCommands: false)
         await harness.phone.activate(reachable: true)
@@ -236,7 +257,8 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         diagnostics: WatchDiagnosticsRecorder? = nil,
         localManifest: WatchManifestPayload? = .init(manifestID: "local-truth", readyTrackIDs: ["local-aac"], installedBytes: 512),
         phoneStatus: WatchDownloadStatusSnapshot? = nil,
-        allowsWatchDownloadCommands: Bool = true
+        allowsWatchDownloadCommands: Bool = true,
+        phonePushOnly: Bool = false
     ) async -> Harness {
         let id = libraryID ?? self.libraryID
         let link = WatchFakeDuplexLink()
@@ -254,7 +276,8 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         let watch = WatchConnectivityCoordinator(
             transport: link.transport(for: .watch), stateStore: watchState,
             configuration: .init(capabilities: watchCapabilities,
-                                 immediateDeadline: immediateDeadline, gracePeriod: gracePeriod),
+                                 immediateDeadline: immediateDeadline, gracePeriod: gracePeriod,
+                                 phonePushOnly: phonePushOnly),
             diagnostics: diagnostics,
             observer: watchObserver,
             manifestProvider: { localManifest })

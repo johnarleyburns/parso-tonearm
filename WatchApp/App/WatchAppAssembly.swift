@@ -91,7 +91,6 @@ final class WatchAppAssembly {
 
     func refreshSyncReachability() async {
         await coordinator?.refreshReachability()
-        await syncActor?.publishPeriodicStatus()
         await syncStatus.refreshInstallationDate()
     }
 
@@ -100,11 +99,24 @@ final class WatchAppAssembly {
     }
 
     func requestSyncStatus() async {
-        syncStatus.requestedSync()
+        guard WatchProtocolSessionAdapter.isPhoneReachable else {
+            syncStatus.setPhoneReachable(false)
+            syncStatus.completedSync(.failed(.phoneUnavailable))
+            return
+        }
+        guard !syncStatus.isSyncing else { return }
+        let requestID = syncStatus.requestedSync()
+        // UI deadline is independent of the coordinator's local database reads.
+        let deadline = Task { @MainActor in
+            do { try await Task.sleep(for: .seconds(8)) } catch { return }
+            guard syncStatus.isSyncing else { return }
+            syncStatus.completedSync(.failed(.requestTimedOut), requestID: requestID)
+        }
         diagnostics.recordImmediately(.request, "metadataCheckRequested")
         let result = await coordinator?.synchronizeMetadata() ?? .failed(.installationFailed)
+        if result != .sent { deadline.cancel() }
         diagnostics.recordImmediately(.request, "metadataCheckFinished")
-        syncStatus.completedSync(result)
+        syncStatus.completedSync(result, requestID: requestID)
     }
 
 
@@ -220,7 +232,7 @@ final class WatchAppAssembly {
             transport: WatchProtocolSessionAdapter.transport,
             stateStore: stateStore,
             configuration: .init(capabilities: [.downloadRoots, .manifestAcknowledgement,
-                                                .reconciliation, .artworkAssets]),
+                                                .reconciliation, .artworkAssets], phonePushOnly: true),
             diagnostics: diag, observer: fan,
             manifestProvider: { await sync.metadataManifest() })
         let adpt = WatchProtocolSessionAdapter(endpoint: coord, diagnostics: diag)

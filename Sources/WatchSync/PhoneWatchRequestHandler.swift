@@ -66,7 +66,9 @@ public actor PhoneWatchRequestHandler: WatchPhoneRequestHandling {
         }
         let downloaded: Set<WatchTrackID> = []
         let summaries = allTracks.map {
-            PhoneWatchProjection.trackSummary(from: $0, downloadedOnWatch: downloaded)
+            var summary = PhoneWatchProjection.trackSummary(from: $0, downloadedOnWatch: downloaded)
+            if trackIDs != nil { summary.artworkID = nil }
+            return summary
         }
         let phonePlaylists = selectedPlaylists == nil ? try await store.allPlaylists().filter {
             playlistIDs?.contains(PhoneWatchID.playlist($0)) ?? true

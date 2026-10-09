@@ -11,6 +11,29 @@ final class TonearmSmokeUITests: XCTestCase {
         app = nil
     }
 
+    func testSettingsCardsHaveEqualMarginsAndWatchSyncIsClear() throws {
+        launch()
+        openTab("Listen", anchor: "Listen")
+        XCTAssertTrue(element("listen.settings").waitForExistence(timeout: 10))
+        element("listen.settings").tap()
+        let playback = element("settings.section.playback")
+        XCTAssertTrue(playback.waitForExistence(timeout: 10))
+        if element("settings.streamOnCellular").exists { playback.tap() }
+        let watch = app.buttons["settings.watch"]
+        XCTAssertTrue(watch.isHittable)
+        XCTAssertEqual(watch.frame.minX, app.frame.maxX - watch.frame.maxX, accuracy: 1)
+        XCTAssertEqual(playback.frame.minX, watch.frame.minX, accuracy: 1)
+        XCTAssertEqual(playback.frame.maxX, watch.frame.maxX, accuracy: 1)
+        XCTAssertTrue(element("settings.advanced").isHittable)
+        watch.tap()
+        XCTAssertTrue(app.staticTexts["Apple Watch & Sync"].waitForExistence(timeout: 10))
+        XCTAssertTrue(element("settings.watch.syncNow").isHittable)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Watch-sync-settings"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     func testIPhoneSmokeOpensPlaylistPlaysAndSkips() throws {
         launch(arguments: ["UI_TEST_SLOW_LIBRARY_LOAD"])
 
@@ -38,6 +61,14 @@ final class TonearmSmokeUITests: XCTestCase {
                       "Mood should be a first-class root tab")
         XCTAssertTrue(app.buttons["Find"].waitForExistence(timeout: 5),
                       "Find should be a first-class root tab")
+        app.buttons["Find"].tap()
+        XCTAssertTrue(element("find.awaitingQuery").waitForExistence(timeout: 5))
+        XCTAssertFalse(element("find.results").exists,
+                       "Find must not browse the whole library before a query")
+        XCTAssertTrue(element("mymusic.search.text").isHittable)
+        XCTAssertTrue(element("find.scope").isHittable,
+                       "Find controls must not be clipped by a fixed-height header")
+        app.buttons["Listen"].tap()
         XCTAssertTrue(element("listen.settings").waitForExistence(timeout: 5),
                       "Settings should be available from Listen's upper-right action")
 

@@ -22,10 +22,17 @@ struct FindView: View {
             mixKey: mixKey)
     }
 
+    private var hasSearchInput: Bool {
+        switch mode {
+        case .all: LibrarySearchPolicy.shouldSearch(appState.searchText)
+        case .mix: bpmPreset != nil || mixKey != nil
+        case .sound: soundSearchRows != nil
+        }
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
                         ScreenHeader(title: "Find", showAdd: false)
                         MyMusicSearchControls(mode: $mode, bpmPreset: $bpmPreset,
@@ -36,9 +43,9 @@ struct FindView: View {
                                               })
                         findScopePicker
                     }
-                }
-                .frame(maxHeight: 170)
+                    .fixedSize(horizontal: false, vertical: true)
 
+                if hasSearchInput {
                 LibraryView(ownsNavigationStack: false,
                             externalMode: $browseMode,
                             filter: filter,
@@ -47,6 +54,13 @@ struct FindView: View {
                             showsSearchField: false,
                             showsHeader: false)
                     .accessibilityIdentifier("find.results")
+                } else {
+                    Text("Search your music to see results.")
+                        .font(Typography.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityIdentifier("find.awaitingQuery")
+                }
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
             .hiddenNavigationBar()

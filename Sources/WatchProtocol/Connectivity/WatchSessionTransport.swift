@@ -66,6 +66,11 @@ public struct WatchSessionTransport: WatchProtocolTransport {
     }
 
     public func transferFile(_ url: URL, metadata: [String: String]) async throws {
+        guard WatchArtworkFileMetadata(dictionary: metadata) != nil ||
+              (WatchAudioFileMetadata(dictionary: metadata)?.codec == "aac" &&
+               WatchAudioFileMetadata(dictionary: metadata)?.fileExtension == "m4a") else {
+            throw WatchProtocolFault(code: .transferFailed)
+        }
         let session = session()
         guard session.activationState == .activated else {
             throw WatchProtocolFault(code: .phoneUnavailable)

@@ -198,8 +198,19 @@ final class WatchSmokeUITests: XCTestCase {
         about.tap()
         XCTAssertTrue(app.descendants(matching: .any)["watch.about.build"].waitForExistence(timeout: 8),
                       "About did not show the installed watch build")
-        let diagnostics = app.descendants(matching: .any)["watch.about.diagnostics"]
-        XCTAssertTrue(reveal(diagnostics, in: app), "About must expose sync diagnostics")
+        let reset = app.buttons["watch.about.reset"]
+        XCTAssertTrue(reveal(reset, in: app), "About must offer a confirmed watch-only reset")
+        reset.tap()
+        XCTAssertTrue(app.buttons["Reset Watch"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(reset.isEnabled, "Cancel must not schedule a reset")
+        XCTAssertFalse(app.descendants(matching: .any)["watch.about.diagnostics"].exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        let sync = app.descendants(matching: .any)["watch.syncStatus"]
+        XCTAssertTrue(reveal(sync, in: app))
+        sync.tap()
+        let diagnostics = app.descendants(matching: .any)["watch.sync.diagnostics"]
+        XCTAssertTrue(reveal(diagnostics, in: app), "Sync Status must expose refreshable diagnostics")
         diagnostics.tap()
         XCTAssertTrue(app.descendants(matching: .any)["watch.diagnostics.summary"].waitForExistence(timeout: 8))
         let refresh = app.buttons["watch.diagnostics.refresh"]
