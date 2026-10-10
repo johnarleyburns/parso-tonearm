@@ -300,6 +300,7 @@ extension AudioPlayer {
         }
         prefetchNext()
         preloadNextItem()
+        mixDecks?.upcomingChanged()
         persist(reason: .transportEvent)
         // The newly-appended rows are real tracks the player was waiting on
         // — actually start them instead of leaving them queued-but-silent.

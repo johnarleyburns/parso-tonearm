@@ -19,7 +19,7 @@ let package = Package(
         // parenthesis, previously hashed to a different cache key than the
         // one callers computed from the same raw URL, causing eviction/
         // offline-lookup mismatches — "shows cached, play does nothing").
-        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.2.4")
+        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.3.0")
     ],
     targets: [
         .target(
@@ -30,7 +30,14 @@ let package = Package(
                 "TonearmWatchCore",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "ParsoAudioStreaming", package: "parso-audio-engine"),
-                .product(name: "ParsoAudioPlayback", package: "parso-audio-engine")
+                .product(name: "ParsoAudioPlayback", package: "parso-audio-engine"),
+                // Mix queues play on the stereo blend engine (AudioPlayer+MixDecks.swift).
+                .product(name: "ParsoMixEngine", package: "parso-audio-engine",
+                         condition: .when(platforms: [.iOS, .macOS])),
+                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine",
+                         condition: .when(platforms: [.iOS, .macOS])),
+                .product(name: "ParsoAudioCore", package: "parso-audio-engine",
+                         condition: .when(platforms: [.iOS, .macOS]))
             ],
             path: ".",
             exclude: [

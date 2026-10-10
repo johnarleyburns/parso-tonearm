@@ -40930,6 +40930,19 @@
         }
       }
     },
+    "Skipped %@: %@" : {
+      "comment" : "UI text shown in: Audio Player Mix Decks (Sources/Audio/AudioPlayer+MixDecks.swift). %1$@ is a track title, %2$@ the reason it could not play.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ übersprungen: %2$@" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Skipped %1$@: %2$@" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Se omitió %1$@: %2$@" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ ignoré : %2$@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ をスキップしました：%2$@" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ ignorada: %2$@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已跳过 %1$@：%2$@" } }
+      }
+    },
     "Skipped %@: Wi-Fi only" : {
       "comment" : "UI text shown in: Audio Player Loading (Sources/Audio/AudioPlayer+Loading.swift)",
       "localizations" : {

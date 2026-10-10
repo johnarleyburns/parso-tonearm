@@ -11,6 +11,8 @@ extension AudioPlayer {
     /// plain fade with an honest preparation reason.
     func scheduleTransitionPlan() {
         transitionPlanningTask?.cancel()
+        // The mix decks plan their own blends from the audio and publish them.
+        guard mixDecks == nil else { return }
         guard smartTransitionsEnabled else {
             transitionPlan = nil
             transitionPrepState = .cancelled
@@ -98,6 +100,11 @@ extension AudioPlayer {
         let source = MixPlan(steps: steps, excluded: [], summary: MixSummary(),
                              request: MixRequest(candidates: []), transitionPlans: [plan])
         play(tracks: [outgoing, incoming], startAt: 0, source: .mix(source))
+        if let mixDecks {
+            // The decks plan this pair from its audio; audition their blend.
+            mixDecks.auditionNextBlend()
+            return
+        }
         transitionPlan = plan
         transitionPrepState = .ready
         Task { [weak self] in

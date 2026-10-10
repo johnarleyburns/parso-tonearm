@@ -49,7 +49,7 @@ packages:
   # 1.1.0 ships the Internet Archive streaming cache-key fix (see Package.swift).
   ParsoAudioEngine:
     url: https://github.com/johnarleyburns/parso-audio-engine.git
-    exactVersion: 1.2.4
+    exactVersion: 1.3.0
 
 settings:
   base:

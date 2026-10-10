@@ -13,6 +13,8 @@ extension AudioPlayer {
         timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             guard let self else { return }
             Task { @MainActor in
+                // The mix decks publish their own clock (AudioPlayer+MixDecks.swift).
+                guard self.mixDecks == nil else { return }
                 let previous = self.currentTime
                 self.currentTime = time.seconds
                 if let d = self.player.currentItem?.duration.seconds, d.isFinite, d > 0 {
@@ -65,7 +67,7 @@ extension AudioPlayer {
     }
 
     func handleTimeControlChange(_ status: AVPlayer.TimeControlStatus) {
-        guard !isAmbient else { return }
+        guard !isAmbient, mixDecks == nil else { return }
         let wasAdvancing = isAdvancing
         let wasPlaying = isPlaying
         switch status {

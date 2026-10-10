@@ -10,6 +10,7 @@ extension AudioPlayer {
 
     public func playAmbient(channelId: String) {
         guard let url = BuiltInContentProvider.bundledAudioURL(forChannelId: channelId) else { return }
+        stopMixDecks()
         cancelCrossfade(resetVolume: true)
         shutdownLoopPlayer()
         shutdownLoaders()

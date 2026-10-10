@@ -34,6 +34,8 @@ extension AudioPlayer {
             return
         }
 
+        if wantsMixDecks, loadCurrentOnMixDecks(row: row, autoplay: autoplay) { return }
+        stopMixDecks()
         cancelCrossfade(resetVolume: true)
         shutdownLoaders()
 
@@ -157,7 +159,7 @@ extension AudioPlayer {
         return [AVURLAssetOverrideMIMETypeKey: mime]
     }
 
-    private func remoteAudioMIMEType(for remote: URL) -> String? {
+    func remoteAudioMIMEType(for remote: URL) -> String? {
         if let mime = RemoteAudioURL.contentTypeMIME(for: remote) {
             return mime
         }
@@ -243,7 +245,7 @@ extension AudioPlayer {
     /// player down and rebuilding (T2.5). No-op when there is no next track, when
     /// the next item is unsupported, or when it is already preloaded.
     func preloadNextItem() {
-        guard !isAmbient, repeatMode != .one else { return }
+        guard !isAmbient, repeatMode != .one, mixDecks == nil else { return }
         guard crossfadePlayer == nil else { return }
         guard let nextIndex = upcomingQueueIndex() else { return }
         guard queue.indices.contains(nextIndex) else { return }

@@ -121,6 +121,7 @@ public final class AudioPlayer: ObservableObject {
         UserDefaults.standard.object(forKey: "smartTransitionsEnabled") as? Bool ?? true {
         didSet {
             guard smartTransitionsEnabled != oldValue else { return }
+            mixDecks?.blendsEnabled = smartTransitionsEnabled
             if smartTransitionsEnabled { scheduleTransitionPlan() }
             else { cancelTransition() }
         }
@@ -171,6 +172,8 @@ public final class AudioPlayer: ObservableObject {
     var preloadedNextLoader: CachingResourceLoader?
     var loadedSourceSampleRate: Double = 0
     var crossfadePlayer: AVPlayer?
+    /// Mix queues play here instead of on `player` (AudioPlayer+MixDecks.swift).
+    var mixDecks: MixDeckPlayer?
     var crossfadeNextTrackId: Int64?
     var crossfadeNextIndex: Int?
     /// Whether the incoming player has been prerolled (only possible once it is ready to play).
@@ -383,6 +386,12 @@ public final class AudioPlayer: ObservableObject {
             updateNowPlaying()
             return
         }
+        if let mixDecks {
+            if isPlaying { mixDecks.pause() } else { resumeMixDecks(mixDecks) }
+            isPlaying.toggle()
+            updateNowPlaying()
+            return
+        }
         if isPlaying {
             player.pause()
         } else {
@@ -449,6 +458,7 @@ public final class AudioPlayer: ObservableObject {
         case .cancel:
             sleepAtEndOfTrack = false
         }
+        mixDecks?.upcomingChanged()
     }
 
     public func next() {
@@ -456,6 +466,7 @@ public final class AudioPlayer: ObservableObject {
         guard !queue.isEmpty else { return }
         if repeatMode == .one {
             seek(to: 0)
+            mixDecks?.resume()
             let rate = mixPlaybackRate(for: currentTrack?.id ?? -1)
             if rate == 1 { player.play() } else { player.playImmediately(atRate: rate) }
             return
@@ -477,6 +488,7 @@ public final class AudioPlayer: ObservableObject {
                     isWaitingForKeepPlayingToResume = true
                 }
             }
+            mixDecks?.pause()
             player.pause(); isPlaying = false; updateNowPlaying(); return
         }
         loadCurrent(autoplay: true)
@@ -500,6 +512,14 @@ public final class AudioPlayer: ObservableObject {
     public func seek(to seconds: Double) {
         guard !isAmbient else { return }
         pendingRestoreSeek = nil  // user-initiated seek cancels restore confirmation
+        if let mixDecks {
+            mixDecks.seek(to: seconds)
+            currentTime = seconds
+            updateNowPlayingTime()
+            persist(reason: .userSeek)
+            bridge.publishSnapshot(self)
+            return
+        }
         let time = CMTime(seconds: seconds, preferredTimescale: 600)
         player.seek(to: time)
         currentTime = seconds
@@ -531,6 +551,7 @@ public final class AudioPlayer: ObservableObject {
     }
 
     func clearQueuePlayback() {
+        stopMixDecks()
         cancelCrossfade(resetVolume: true)
         shutdownLoaders()
         for loader in prefetchLoaders.values {
