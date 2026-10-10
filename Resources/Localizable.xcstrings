@@ -1,6 +1,18 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "How the two tracks overlap" : {
+      "comment" : "UI text shown in: Mix Explanation Views (Sources/Features/Mix/MixExplanationViews.swift)",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Wie sich die beiden Titel überlagern" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "How the two tracks overlap" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Cómo se superponen las dos pistas" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Comment les deux morceaux se chevauchent" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "2曲の重なり方" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Como as duas faixas se sobrepõem" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "两首曲目如何重叠" } }
+      }
+    },
     "Loading genres from your library…" : {
       "localizations" : {
         "de" : {
@@ -5610,53 +5622,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "专辑"
-          }
-        }
-      }
-    },
-    "Aligned outgoing and incoming transition waveforms" : {
-      "comment" : "UI text shown in: Mix Explanations (Sources/Features/Mix/MixExplanationViews.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Ausgerichtete Wellenformen des aus- und eingehenden Übergangs"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aligned outgoing and incoming transition waveforms"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Formas de onda alineadas de la transición saliente y entrante"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Formes d’onde alignées de la transition sortante et entrante"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "揃えられた前後のトランジション波形"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Formas de onda alinhadas da transição de saída e de entrada"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "已对齐的前后过渡波形"
           }
         }
       }
@@ -44983,53 +44948,6 @@
         }
       }
     },
-    "The next phrase blends in on the beat, then returns to its original tempo." : {
-      "comment" : "UI text shown in: Mix Explanations (Sources/Features/Mix/MixExplanationViews.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Die nächste Phrase blendet taktgenau ein und kehrt dann zu ihrem ursprünglichen Tempo zurück."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The next phrase blends in on the beat, then returns to its original tempo."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "La siguiente frase entra a tempo y luego vuelve a su tempo original."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "La phrase suivante entre en rythme, puis revient à son tempo d’origine."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "次のフレーズがビートに合わせて入り、その後元のテンポに戻ります。"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "A próxima frase entra no ritmo e depois volta ao andamento original."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "下一个乐句按节拍混入，然后恢复原始速度。"
-          }
-        }
-      }
-    },
     "The next phrase enters on a short equal-power fade." : {
       "comment" : "UI text shown in: Mix Explanations (Sources/Features/Mix/MixExplanationViews.swift)",
       "localizations" : {
@@ -45075,6 +44993,18 @@
             "value" : "下一个乐句以短暂的等功率淡入进入。"
           }
         }
+      }
+    },
+    "The next track is locked to this one's beat: its highs come in, the basses swap on a downbeat, then this track's highs fade out." : {
+      "comment" : "UI text shown in: Mix Explanation Views (Sources/Features/Mix/MixExplanationViews.swift)",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Der nächste Titel ist auf den Beat dieses Titels gelockt: Seine Höhen kommen hinzu, die Bässe wechseln auf einem Downbeat, dann blenden die Höhen dieses Titels aus." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The next track is locked to this one's beat: its highs come in, the basses swap on a downbeat, then this track's highs fade out." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "La siguiente pista se sincroniza con el ritmo de esta: entran sus agudos, los graves se intercambian en un tiempo fuerte y luego se desvanecen los agudos de esta pista." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Le morceau suivant est calé sur le tempo de celui-ci : ses aigus entrent, les basses s'échangent sur un temps fort, puis les aigus de ce morceau s'estompent." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次の曲はこの曲のビートに同期します。高音が入り、ダウンビートでベースが入れ替わり、最後にこの曲の高音がフェードアウトします。" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "A próxima faixa fica travada na batida desta: os agudos entram, os graves trocam em um tempo forte e depois os agudos desta faixa somem." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一首曲目与这首的节拍锁定：先引入它的高音，在强拍上交换低音，然后这首曲目的高音淡出。" } }
       }
     },
     "The optional \"Also export MP3\" option on a finished recording uses LAME 3.100 (libmp3lame), licensed LGPL-2.1-or-later. LAME's source is vendored in this app's own source tree (Sources/CLAMEBridge) — parso-audio-engine itself never links or depends on LAME; it only declares the protocol this app's LAME wrapper implements. Recordings themselves are always saved as M4A/AAC; MP3 is produced only as an additional copy at export time. See docs/GPL-BACKENDS.md and docs/BYO-CODEC.md (parso-audio-engine) for how this works." : {
