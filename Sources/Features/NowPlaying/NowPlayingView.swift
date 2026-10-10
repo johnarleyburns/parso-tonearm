@@ -459,7 +459,7 @@ struct NowPlayingView: View {
                 }
             } else {
                 Image(systemName: fallback == .downloaded ? "arrow.down.circle.fill" : "arrow.down.circle")
-                    .font(.system(size: 24))
+                    .font(Typography.title)
                     .foregroundStyle(fallback == .downloaded ? Palette.accent : Palette.inkSecondary)
             }
         }

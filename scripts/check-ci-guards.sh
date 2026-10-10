@@ -16,6 +16,13 @@ set -uo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+# Several guards search with ripgrep. Without it each search came back empty and
+# the guard passed, which is how a fixed font size reached main unflagged.
+if ! command -v rg >/dev/null; then
+  echo "ripgrep (rg) is required for the structural guards: brew install ripgrep" >&2
+  exit 1
+fi
+
 status=0
 
 # ── Design ratchet ─────────────────────────────────────────────────────────

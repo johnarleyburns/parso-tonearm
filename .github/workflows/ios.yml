@@ -33,6 +33,10 @@ jobs:
       - name: Accept Xcode License
         run: sudo xcodebuild -license accept
 
+      # The guards search with ripgrep, which the macOS runner image doesn't carry.
+      - name: Install ripgrep
+        run: brew install ripgrep
+
       - name: Structural guards (Swift 6, StoreKit boundary, codename leak)
         # One script rather than three inline blocks, so the same checks can be
         # run before pushing (`make ci-guards`). They were CI-only until
