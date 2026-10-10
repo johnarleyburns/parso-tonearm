@@ -11,7 +11,9 @@ import GRDB
 /// `starter.sqlite`, a build input fetched by `scripts/fetch-starter.sh`, not committed.
 public final class StarterLibrary: Sendable {
     /// 2: the per-track transition-prep table (waveform, beat grid, sections) is gone.
-    public static let formatVersion = 2
+    /// 3: embeddings ship as principal-component coordinates (`starter_projection`), rebuilt
+    ///    to full CLAP vectors when read.
+    public static let formatVersion = 3
     public static let resourceNames = ["starter"]
 
     /// The bundled starter DB, or nil when the build doesn't carry one.
@@ -41,6 +43,8 @@ public final class StarterLibrary: Sendable {
     }
 
     private let dbQueue: DatabaseQueue
+    /// How the shipped embeddings were reduced, nil when they are stored in full.
+    public let projection: EmbeddingProjection?
     /// Content identity of this starter DB (from `starter_meta`), used to re-merge after an update.
     public let contentVersion: String
 
@@ -58,6 +62,13 @@ public final class StarterLibrary: Sendable {
         contentVersion = try dbQueue.read { db in
             try String.fetchOne(db, sql: "SELECT value FROM starter_meta WHERE key = 'content_version'")
         } ?? "unknown"
+        projection = try dbQueue.read { db -> EmbeddingProjection? in
+            guard let row = try Row.fetchOne(db, sql: "SELECT source_dims, dims, data FROM starter_projection") else {
+                return nil
+            }
+            return EmbeddingProjection(sourceDimensions: row["source_dims"], dimensions: row["dims"],
+                                       encoded: row["data"])
+        }
     }
 
     public func meta(_ key: String) throws -> String? {
@@ -66,7 +77,25 @@ public final class StarterLibrary: Sendable {
         }
     }
 
+    /// Every track, with its full CLAP embedding (rebuilt from the projection when the
+    /// starter DB ships projected coordinates).
     public func tracks() throws -> [BuiltInMoodTrack] {
+        let stored = try storedTracks()
+        guard let projection else { return stored }
+        return stored.map { track in
+            let z = EmbeddingProjection.dequantize(track.quantizedVector, scale: track.scale)
+            let (data, scale) = EmbeddingProjection.quantize(projection.reconstruct(z))
+            return BuiltInMoodTrack(
+                id: track.id, title: track.title, artist: track.artist, genre: track.genre,
+                license: track.license, licenseURL: track.licenseURL, durationSec: track.durationSec,
+                streamURL: track.streamURL, artworkURL: track.artworkURL,
+                dimensions: projection.sourceDimensions, scale: scale, quantizedVector: data,
+                bpm: track.bpm, key: track.key, energy: track.energy,
+                analysisScopeSeconds: track.analysisScopeSeconds)
+        }
+    }
+
+    private func storedTracks() throws -> [BuiltInMoodTrack] {
         try dbQueue.read { db in
             try Row.fetchAll(db, sql: """
                 SELECT id, title, artist, genre, license, license_url, duration, stream_url, artwork_url,
@@ -87,11 +116,34 @@ public final class StarterLibrary: Sendable {
 
 public enum StarterLibraryError: Error, Equatable {
     case unsupportedFormat(String)
+    case projectionFailed
 }
 
 /// Builds a starter DB (BuiltInAnalyzer `build-starter`).
 public enum StarterLibraryWriter {
-    public static func create(at url: URL, tracks: [BuiltInMoodTrack], meta: [String: String]) throws {
+    /// `embeddingDimensions`: ship each embedding as that many principal-component
+    /// coordinates (fitted on `tracks`) instead of in full.
+    public static func create(at url: URL, tracks: [BuiltInMoodTrack], meta: [String: String],
+                              embeddingDimensions: Int? = nil) throws {
+        var projection: EmbeddingProjection?
+        var stored = tracks
+        if let embeddingDimensions {
+            let vectors = tracks.map { EmbeddingProjection.dequantize($0.quantizedVector, scale: $0.scale) }
+            guard let fitted = EmbeddingProjection.fit(vectors, dimensions: embeddingDimensions) else {
+                throw StarterLibraryError.projectionFailed
+            }
+            projection = fitted
+            stored = zip(tracks, vectors).map { track, vector in
+                let (data, scale) = EmbeddingProjection.quantize(fitted.project(vector))
+                return BuiltInMoodTrack(
+                    id: track.id, title: track.title, artist: track.artist, genre: track.genre,
+                    license: track.license, licenseURL: track.licenseURL, durationSec: track.durationSec,
+                    streamURL: track.streamURL, artworkURL: track.artworkURL,
+                    dimensions: fitted.dimensions, scale: scale, quantizedVector: data,
+                    bpm: track.bpm, key: track.key, energy: track.energy,
+                    analysisScopeSeconds: track.analysisScopeSeconds)
+            }
+        }
         try? FileManager.default.removeItem(at: url)
         var config = Configuration()
         config.journalMode = .default
@@ -105,8 +157,13 @@ public enum StarterLibraryWriter {
                     duration REAL NOT NULL, stream_url TEXT NOT NULL UNIQUE, artwork_url TEXT,
                     bpm REAL, camelot TEXT, energy REAL, analysis_scope REAL,
                     emb_dimensions INTEGER NOT NULL, emb_scale REAL NOT NULL, emb_vector BLOB NOT NULL);
+                CREATE TABLE starter_projection (source_dims INTEGER NOT NULL, dims INTEGER NOT NULL, data BLOB NOT NULL);
                 """)
-            for track in tracks {
+            if let projection {
+                try db.execute(sql: "INSERT INTO starter_projection VALUES (?, ?, ?)", arguments: [
+                    projection.sourceDimensions, projection.dimensions, projection.encoded])
+            }
+            for track in stored {
                 try db.execute(sql: """
                     INSERT INTO starter_track VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, arguments: [

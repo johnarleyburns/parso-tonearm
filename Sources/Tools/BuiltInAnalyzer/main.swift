@@ -24,7 +24,9 @@ struct BuiltInAnalyzer {
     static func main() async {
         let args = CommandLine.arguments
         if args.count >= 4, args[1] == "build-starter" {
-            buildStarter(source: URL(fileURLWithPath: args[2]), output: URL(fileURLWithPath: args[3]))
+            let dims = args.firstIndex(of: "--embedding-dims").flatMap { $0 + 1 < args.count ? Int(args[$0 + 1]) : nil }
+            buildStarter(source: URL(fileURLWithPath: args[2]), output: URL(fileURLWithPath: args[3]),
+                         embeddingDimensions: dims ?? 128)
             return
         }
         guard args.count >= 2 else {
@@ -170,18 +172,21 @@ struct BuiltInAnalyzer {
         FileHandle.standardOutput.write((line + "\n").data(using: .utf8)!)
     }
 
-    static func buildStarter(source: URL, output: URL) {
+    /// `embeddingDimensions`: principal-component coordinates per track (0: full embeddings).
+    static func buildStarter(source: URL, output: URL, embeddingDimensions: Int) {
         do {
             let sourceData = try Data(contentsOf: source)
             let tracks = try JSONDecoder().decode([BuiltInMoodTrack].self, from: sourceData)
             var hasher = SHA256()
             hasher.update(data: sourceData)
-            hasher.update(data: Data("format-\(StarterLibrary.formatVersion)".utf8))
+            hasher.update(data: Data("format-\(StarterLibrary.formatVersion)-emb\(embeddingDimensions)".utf8))
             let contentVersion = hasher.finalize().prefix(8).map { String(format: "%02x", $0) }.joined()
             try StarterLibraryWriter.create(
                 at: output, tracks: tracks,
                 meta: ["content_version": contentVersion, "track_count": String(tracks.count),
-                       "built_at": ISO8601DateFormatter().string(from: Date())])
+                       "embedding_dims": String(embeddingDimensions > 0 ? embeddingDimensions : tracks.first?.dimensions ?? 0),
+                       "built_at": ISO8601DateFormatter().string(from: Date())],
+                embeddingDimensions: embeddingDimensions > 0 ? embeddingDimensions : nil)
             let size = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
             say("starter DB → \(output.path): \(tracks.count) tracks, \(size / 1_024) KB, content \(contentVersion)")
         } catch {
