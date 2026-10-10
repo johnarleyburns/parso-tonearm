@@ -155,6 +155,15 @@ def render(spec, tracks, cache, out_dir):
             check = check_mix(res[0]["file"], start_a, start_a + OVERLAP * pa, pa)
             swap_t = start_a + HALF * pa
             for r in res:
+                r.update(plan={"outgoingPeriod": pa, "incomingPeriod": pb, "ratio": ratio, "gain": gain,
+                               "blendStart": start_a, "incomingShiftSamples": shift, "sampleRate": SR,
+                               "outgoingSwapBeat": int(sa), "incomingSwapBeat": int(sb),
+                               "outgoingGridPhase": float(A.grid[0]), "incomingGridPhase": float(B.grid[0]),
+                               "grooveLagMs": -delta * 1000, "bandOnsetsMs": [o * 1000 for o in g[1]],
+                               "outgoingDrops": [int(i) for i in A.drops], "outgoingExits": [int(i) for i in A.exits],
+                               "incomingDrops": [int(i) for i in B.drops], "incomingExits": [int(i) for i in B.exits],
+                               "outgoingBar": A.bar, "outgoingPhrase": A.phrase,
+                               "incomingBar": B.bar, "incomingPhrase": B.phrase})
                 r.update(label=label, style=kind, check=check, reading=reading,
                          why=f"swap on the outgoing's {style} at {mmss(A.grid[sa])} and the incoming's {why} "
                              f"at {mmss(B.grid[sb])} of its own track")
