@@ -160,36 +160,4 @@ final class CrossfadeCurveTests: XCTestCase {
         XCTAssertFalse(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: differentAlbum))
         XCTAssertFalse(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: nonAdjacent))
     }
-
-    func testThreePhraseBlendHasIncomingRampEqualMiddleAndOutgoingFade() {
-        let start = 0.0
-        let duration = 96.0
-
-        let first = CrossfadeCurve.threePhraseGains(position: 0, fadeStart: start, fadeSeconds: duration)
-        XCTAssertEqual(first.incoming, 0, accuracy: 0.001)
-        XCTAssertEqual(first.outgoing, 1, accuracy: 0.001)
-
-        // Field test 2026-10-03: the middle phrase holds both at −3 dB (not both at full, +6 dB).
-        let phraseBoundary = CrossfadeCurve.threePhraseGains(position: 32, fadeStart: start, fadeSeconds: duration)
-        XCTAssertEqual(phraseBoundary.incoming, 0.7071, accuracy: 0.001)
-        XCTAssertEqual(phraseBoundary.outgoing, 0.7071, accuracy: 0.001)
-
-        let middle = CrossfadeCurve.threePhraseGains(position: 48, fadeStart: start, fadeSeconds: duration)
-        XCTAssertEqual(middle.incoming, 0.7071, accuracy: 0.001)
-        XCTAssertEqual(middle.outgoing, 0.7071, accuracy: 0.001)
-
-        // Constant combined power everywhere in the overlap, and no step between ticks.
-        var previous = CrossfadeCurve.threePhraseGains(position: 0, fadeStart: start, fadeSeconds: duration)
-        for tenth in stride(from: 0.1, through: 96, by: 0.1) {
-            let gains = CrossfadeCurve.threePhraseGains(position: tenth, fadeStart: start, fadeSeconds: duration)
-            XCTAssertEqual(gains.incoming * gains.incoming + gains.outgoing * gains.outgoing, 1, accuracy: 0.0001)
-            XCTAssertLessThan(abs(gains.incoming - previous.incoming), 0.02)
-            XCTAssertLessThan(abs(gains.outgoing - previous.outgoing), 0.02)
-            previous = gains
-        }
-
-        let final = CrossfadeCurve.threePhraseGains(position: 96, fadeStart: start, fadeSeconds: duration)
-        XCTAssertEqual(final.incoming, 1, accuracy: 0.001)
-        XCTAssertEqual(final.outgoing, 0, accuracy: 0.001)
-    }
 }

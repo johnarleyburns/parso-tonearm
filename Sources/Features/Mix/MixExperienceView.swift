@@ -354,7 +354,6 @@ struct MixPreviewView: View {
     @State private var whyMix = false
     @State private var plan: MixPlan
     @State private var plainFadeEdges: Set<String> = []
-    @State private var transitionPayloads: [Int64: DJTrackPrepPayload] = [:]
     @State private var undoPlaylistID: Int64?
     @State private var undoPlaylistOrder: [Int64] = []
     @EnvironmentObject private var prep: TransitionPrepService
@@ -421,15 +420,11 @@ struct MixPreviewView: View {
                                 prep.prepare(rows: rowsToPrepare, appState: appState, allowsCellular: true)
                             },
                             onAudition: {
-                                guard let auditionPlan = transitionPlan(at: index),
-                                      let outgoing = rowByID[plan.steps[index - 1].trackID],
+                                guard let outgoing = rowByID[plan.steps[index - 1].trackID],
                                       let incoming = rowByID[step.trackID] else { return }
-                                AudioPlayer.shared.auditionTransition(
-                                    outgoing: outgoing, incoming: incoming, plan: auditionPlan)
+                                AudioPlayer.shared.auditionTransition(outgoing: outgoing, incoming: incoming)
                             },
-                            outgoingPayload: transitionPayloads[plan.steps[index - 1].trackID],
-                            incomingPayload: transitionPayloads[step.trackID],
-                            preparationState: preparationState(for: step.trackID))
+                            preparationState: prep.transitionPrepState(for: step.trackID))
                             .listRowSeparator(.hidden)
                     }
                     if let row = rowByID[step.trackID] {
@@ -587,67 +582,41 @@ struct MixPreviewView: View {
         }
     }
 
-    /// A track whose payload is already loaded (prepared earlier, or shipped in the starter DB) is
-    /// ready, even outside the small window the prep service is working through.
-    private func preparationState(for trackID: Int64) -> GridPrepState {
-        if let payload = transitionPayloads[trackID],
-           payload.algorithmID == DJTrackPrepPayload.currentAlgorithmID,
-           payload.version == DJTrackPrepPayload.currentVersion {
-            return .ready
-        }
-        return prep.transitionPrepState(for: trackID)
-    }
-
+    /// The blend into the track at `index`: what the listener chose (plain fade), gapless for
+    /// consecutive album tracks, else the blend the shared planner made for the decks
+    /// (`BlendPlanCache`), or a pending blend while it is still being prepared.
     private func transitionPlan(at index: Int) -> TransitionPlan? {
         guard index > 0, index < plan.steps.count else { return nil }
-        let from = plan.steps[index - 1]
-        let to = plan.steps[index]
-        return plan.transitionPlans.first(where: {
-            $0.fromTrackID == from.trackID && $0.toTrackID == to.trackID
-        }) ?? makeTransitionPlan(from: from, to: to)
+        return makeTransitionPlan(from: plan.steps[index - 1], to: plan.steps[index])
     }
 
     private func makeTransitionPlan(from: MixStep, to: MixStep) -> TransitionPlan {
-        let fromRow = rowByID[from.trackID]
-        let toRow = rowByID[to.trackID]
-        let sameAlbumInOrder: Bool = {
-            guard let fromRow, let toRow else { return false }
-            return CrossfadeCurve.suppressesForGaplessAlbum(
-                current: CrossfadeCurve.AlbumContinuity(row: fromRow),
-                next: CrossfadeCurve.AlbumContinuity(row: toRow))
-        }()
-        let context = TonearmCore.TransitionPlanningContext(
-            fromTrackID: from.trackID, toTrackID: to.trackID,
-            fromDuration: fromRow?.track.durationSec ?? 0,
-            toDuration: toRow?.track.durationSec ?? 0,
-            sameAlbumInOrder: sameAlbumInOrder,
-            userChosePlainFade: plainFadeEdges.contains("\(from.trackID)-\(to.trackID)"),
-            prepState: transitionPayloads[from.trackID] != nil && transitionPayloads[to.trackID] != nil
-                ? .ready : .notPrepared,
-            incomingBuffered: transitionPayloads[to.trackID] != nil)
-        return TonearmCore.TransitionPlanner.plan(from: transitionPayloads[from.trackID],
-                                      to: transitionPayloads[to.trackID], context: context)
+        if plainFadeEdges.contains("\(from.trackID)-\(to.trackID)") {
+            return TransitionPlan(fromTrackID: from.trackID, toTrackID: to.trackID, style: .plainCrossfade,
+                                  overlapSeconds: 8, confidence: 1, reasons: [.userChosePlainFade])
+        }
+        if let fromRow = rowByID[from.trackID], let toRow = rowByID[to.trackID],
+           CrossfadeCurve.suppressesForGaplessAlbum(current: CrossfadeCurve.AlbumContinuity(row: fromRow),
+                                                    next: CrossfadeCurve.AlbumContinuity(row: toRow)) {
+            return TransitionPlan(fromTrackID: from.trackID, toTrackID: to.trackID, style: .gapless,
+                                  confidence: 1, reasons: [.sameAlbumGapless])
+        }
+        return BlendPlanCache.shared.transitionPlan(from: from.trackID, to: to.trackID)
+            ?? TransitionPlan(fromTrackID: from.trackID, toTrackID: to.trackID, style: .beatmatchedBlend,
+                              confidence: 0, reasons: [.gridNotReady(prep.transitionPrepState(for: to.trackID))])
     }
 
     private static let prepWindow = 6
 
     private func resolveTransitionPlans() async {
-        var payloads: [Int64: DJTrackPrepPayload] = [:]
-        for step in plan.steps {
-            guard payloads[step.trackID] == nil else { continue }
-            if let payload = try? await appState.store.transitionPrepPayload(trackId: step.trackID) {
-                payloads[step.trackID] = payload
-            }
-        }
-        transitionPayloads = payloads
         plan.transitionPlans = plan.steps.dropFirst().enumerated().map { offset, step in
             makeTransitionPlan(from: plan.steps[offset], to: step)
         }
         // Prepare the opening transitions only — the prep service is a small, visible window, and
-        // Up Next prepares the rest as playback reaches it. Handing it a whole-library mix queued
+        // the decks plan the rest as playback reaches it. Handing it a whole-library mix queued
         // thousands of downloads and decodes.
         prep.prepare(rows: plan.steps.prefix(Self.prepWindow).compactMap { rowByID[$0.trackID] },
-                     appState: appState, allowsCellular: true)
+                     appState: appState, allowsCellular: true, plainFadeEdges: plainFadeEdges)
     }
 
     private func loadPersistedConfiguration() async {

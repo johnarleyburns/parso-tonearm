@@ -9,8 +9,8 @@ app (not Catalyst, not "Designed for iPhone"): it compiles the same `Sources/App
 Build: `xcodebuild build -project Tonearm.xcodeproj -scheme TonearmMac -destination
 'platform=macOS' CODE_SIGNING_ALLOWED=NO` (never with `-sdk`; run builds one at a time).
 Deployment target macOS 26 (the shared UI uses Liquid Glass APIs). Same bundle ID as iOS
-(Universal Purchase). The Mac bundles `Resources/Audio/starter-mac.sqlite` (full waveforms,
-`make starter`); without it `StarterLibrary.shared` is nil and the app still runs.
+(Universal Purchase). The Mac and the iPhone bundle the same `Resources/Starter/starter.sqlite`
+(`make starter`); without it `StarterLibrary.shared` is nil and the app still runs.
 
 ## Legend
 
@@ -128,7 +128,7 @@ system Sound menu) and two have none (CarPlay, Apple Watch).
 | Background indexing scheduler | Adapted | No `BGTaskScheduler` on Mac (apps are not suspended): `NoopBackgroundTaskScheduler`, the foreground loop indexes while the app runs; app state always reads foreground. |
 | Power / thermal gating | Adapted | Real Mac power source via IOKit (`MacPowerSource`): AC power counts as charging and a laptop's battery level is read. Previously the Mac read "battery unknown, not charging", which the policy treats as low battery and would never index. No memory-warning notification on Mac. |
 | Diagnostics device family | Adapted | Reports "Mac" and the macOS version. |
-| Mood Starter starter DB | Adapted | Mac bundles `starter-mac.sqlite` (full waveforms); iPhone bundles `starter-iphone.sqlite`. |
+| Mood Starter starter DB | Same | Mac and iPhone bundle the same `starter.sqlite` (format 2, no per-track transition prep). |
 | Build a Mix, Mix for You, Keep Playing endless mix, transition prep, crossfades | Works | Same planner, prep service and player. |
 | iCloud sync (library, playlists, Sound Index results) | Works | CloudKit entitlements on the Mac target. |
 

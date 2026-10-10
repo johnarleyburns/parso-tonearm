@@ -1,18 +1,18 @@
 # Mood Starter databases (StarterLibrary), pinned.
 #
-# Build inputs, not source: the Mac database carries every track's full transition-prep waveform
-# (~108 MB), over GitHub's 100 MB file limit, and binary rebuilds would bloat history. They are
-# release assets fetched by scripts/fetch-starter.sh (`make starter`), which the CI test and
-# archive jobs run before testing and generating the project.
+# Build inputs, not source: binary rebuilds would bloat history. They are release assets fetched
+# by scripts/fetch-starter.sh (`make starter`), which the CI test and archive jobs run before
+# testing and generating the project. Since starter-v2 (format 2) the iPhone and the Mac ship
+# the same database: track metadata, embeddings and tempo/key/energy only (~4.6 MB). Blends are
+# planned on the device from the audio; the tempo here is the planner's starting point.
 #
 # One row per database:
 #
 #   <url>  <sha256>  <file name in Resources/Starter/>
 #
 # Built with `swift run -c release BuiltInAnalyzer build-starter data/mood-starter/source-index.json
-# <payload-dir> <out.sqlite> [--full]` from a BUILTIN_ANALYZER_PREP run. To publish a new build,
+# Resources/Starter/starter.sqlite`. To publish a new build,
 # upload it under a new release tag (never replace bytes at a URL a build already resolves) and
 # update these rows.
 
-https://github.com/johnarleyburns/parso-tonearm/releases/download/starter-v1/starter-iphone.sqlite  a92ec10ed805842fce6130060ec052fccb6427ee161a910fdcff8e3cc6344254  starter-iphone.sqlite
-https://github.com/johnarleyburns/parso-tonearm/releases/download/starter-v1/starter-mac.sqlite  56277eadf9126a4bab700a4871cc0c1f4d5471d7abc364e9fb4cbb983fd8358c  starter-mac.sqlite
+https://github.com/johnarleyburns/parso-tonearm/releases/download/starter-v2/starter.sqlite  091b63e33d909daca329e55b4bfea1313da1728949b363bde039ed3c80304012  starter.sqlite

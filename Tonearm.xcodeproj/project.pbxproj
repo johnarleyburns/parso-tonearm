@@ -77,6 +77,7 @@
 		2F3A40B92265A4853AC54F8F /* ParsoAudioPlayback in Frameworks */ = {isa = PBXBuildFile; productRef = 6647207692C56A15D1A0C61E /* ParsoAudioPlayback */; };
 		30487CE5289BB55F2472813F /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB454D89725B61725520B04A /* NowPlayingView.swift */; };
 		309C4A7BE4BFBADC96076097 /* night.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 88A33FCC489E05C9B60F3ACC /* night.jpg */; };
+		320005BA5B70E49186D44A25 /* starter.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = 0859440909886A9E4FBC97C4 /* starter.sqlite */; };
 		33B2A3407DBFB5D040283178 /* CreatePlaylistSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75E7A69FA687317AC246E026 /* CreatePlaylistSheet.swift */; };
 		33EBEAE2CF5C8AE33E3FCEDE /* CacheGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071CC5C8B79CC1A10F456254 /* CacheGlyph.swift */; };
 		34532A4505591A95D2765EFF /* OAuthSignInCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD5669565C3C31C5DAB9A3D3 /* OAuthSignInCoordinator.swift */; };
@@ -108,7 +109,6 @@
 		48DEAA104867887CA96C2A42 /* AppPresentations.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1546F30649364893DBDC24F /* AppPresentations.swift */; };
 		493D2A5834C417A802025D18 /* KeywordArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1348A12821BE0F3A575DD9AC /* KeywordArtwork.swift */; };
 		497875BCE7882AEA22A4F432 /* SiriSettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB385B4AB921E5BA4F27DB0 /* SiriSettingsCard.swift */; };
-		49B5F0DCC9DC0134F190AAD6 /* starter-mac.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = 9ED8DDC8F86F9615E1BFA259 /* starter-mac.sqlite */; };
 		4A262164FCDD82C3501F78B1 /* AppState+Watch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 642414839821D38BCEA39933 /* AppState+Watch.swift */; };
 		4A74E01C056E4544258DDB9A /* RemoteNodeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807F6AF04290951989A6C983 /* RemoteNodeRow.swift */; };
 		4B9CBD27BCB2241D428B353C /* SourceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9894FCBA2B17EE64A57067E8 /* SourceDetailView.swift */; };
@@ -153,7 +153,6 @@
 		6C6773658C0B2E87D9472EA9 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50DA465263A2171C1396F13F /* RootView.swift */; };
 		6CFE722B8F266B1A6BDFA47B /* ToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E666B8D84233392E2587377A /* ToolsView.swift */; };
 		6DA8AD1D2B20E57AD89886BB /* IndexStatusModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F19092FD2541A8590FF65C4 /* IndexStatusModel.swift */; };
-		6E7484814710BC5263FB5866 /* starter-iphone.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = AF879D1D1BA2257741E5CAFD /* starter-iphone.sqlite */; };
 		6F92340A366D9E75B106285F /* SettingsView+LibrarySections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53FE3201FB2A76A7F351F268 /* SettingsView+LibrarySections.swift */; };
 		6FF649FB95E0F82150307951 /* AddFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764B46CE0EAFEC605FE2CE5D /* AddFolderSheet.swift */; };
 		70B335C9F25257F926ADD07A /* WatchDownloadDetailViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA9DA16335431A3B294A331 /* WatchDownloadDetailViews.swift */; };
@@ -310,6 +309,7 @@
 		DA431A641AF843C00F285BCE /* TrackDetailCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A36CFE314EF66DE2810ECBA9 /* TrackDetailCard.swift */; };
 		DBFC0C10A9C34B013B4E0817 /* AppState+EditMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF0E2281F937ABC12F3DA08 /* AppState+EditMetadata.swift */; };
 		DC9E55629FAE22308EEBCD22 /* CLAPTextEncoder.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 337A303240BEF94DD0F0C34B /* CLAPTextEncoder.mlpackage */; };
+		DD93FE8ED9D4D4CE14EC6123 /* starter.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = 0859440909886A9E4FBC97C4 /* starter.sqlite */; };
 		DE2BEC06DBD57AB6777880B0 /* splash_screen.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 390F5E4BCDCBB5C6D4A3A98D /* splash_screen.jpg */; };
 		E1A24216237BD50119B2C416 /* OAuthClientConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFD37144613B3E4468ED3D2 /* OAuthClientConfiguration.swift */; };
 		E2363E8E141CBC87334B04C6 /* ArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE86C3C1F56FA212DBB6D8F0 /* ArtworkStore.swift */; };
@@ -465,6 +465,7 @@
 		071CC5C8B79CC1A10F456254 /* CacheGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheGlyph.swift; sourceTree = "<group>"; };
 		07BB75BFAD34B2382CE704F9 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		080C57977F143B9824ED300E /* PhoneWatchPlaybackAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchPlaybackAdapter.swift; sourceTree = "<group>"; };
+		0859440909886A9E4FBC97C4 /* starter.sqlite */ = {isa = PBXFileReference; lastKnownFileType = file; path = starter.sqlite; sourceTree = "<group>"; };
 		089C841BE7459AF20665F7B0 /* Tonearm.Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.Debug.entitlements; sourceTree = "<group>"; };
 		0A0EA57A9A9BC3350FCC805C /* GlassSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSurface.swift; sourceTree = "<group>"; };
 		0A5E3A5360F20929E181F8F9 /* CarPlayVoiceSearchController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayVoiceSearchController.swift; sourceTree = "<group>"; };
@@ -603,7 +604,6 @@
 		99B5C2A8DF388B98813C58E7 /* ATTRIBUTION.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ATTRIBUTION.md; sourceTree = "<group>"; };
 		9BD8625177C1F1696B158A63 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		9C765C8245D110BFA6F78BAC /* WatchActionPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchActionPill.swift; sourceTree = "<group>"; };
-		9ED8DDC8F86F9615E1BFA259 /* starter-mac.sqlite */ = {isa = PBXFileReference; lastKnownFileType = file; path = "starter-mac.sqlite"; sourceTree = "<group>"; };
 		9EEEBFBA5ECD81C525D48E2D /* UIRegressionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIRegressionSupport.swift; sourceTree = "<group>"; };
 		A00F6FDF943434896481BB2F /* ToastBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastBanner.swift; sourceTree = "<group>"; };
 		A36CFE314EF66DE2810ECBA9 /* TrackDetailCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackDetailCard.swift; sourceTree = "<group>"; };
@@ -616,7 +616,6 @@
 		AE88E0E38F38D3267A0EBF38 /* Tonearm.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.entitlements; sourceTree = "<group>"; };
 		AF4C2C74CE7D4768E86F3D57 /* AppState+BuiltInMoodIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+BuiltInMoodIndex.swift"; sourceTree = "<group>"; };
 		AF56562C6A06D424B53E60AE /* WidgetArtworkStore+Save.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WidgetArtworkStore+Save.swift"; sourceTree = "<group>"; };
-		AF879D1D1BA2257741E5CAFD /* starter-iphone.sqlite */ = {isa = PBXFileReference; lastKnownFileType = file; path = "starter-iphone.sqlite"; sourceTree = "<group>"; };
 		B47DD3B84A16E9E29F467F25 /* IndexStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexStatusView.swift; sourceTree = "<group>"; };
 		B89D48292A9F33EF6D60C975 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		B8EB48574C2697BB77C636A0 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
@@ -933,8 +932,7 @@
 		44AE95CA9E50F7F3FA156D93 /* Starter */ = {
 			isa = PBXGroup;
 			children = (
-				AF879D1D1BA2257741E5CAFD /* starter-iphone.sqlite */,
-				9ED8DDC8F86F9615E1BFA259 /* starter-mac.sqlite */,
+				0859440909886A9E4FBC97C4 /* starter.sqlite */,
 			);
 			path = Starter;
 			sourceTree = "<group>";
@@ -1733,7 +1731,7 @@
 				AA45CC211DE671A639448F4C /* night.jpg in Resources */,
 				5062C8816D2CD5C0BD165B7D /* rain.jpg in Resources */,
 				BBA39FDE3E78505D96B6F9C2 /* splash_screen.jpg in Resources */,
-				49B5F0DCC9DC0134F190AAD6 /* starter-mac.sqlite in Resources */,
+				320005BA5B70E49186D44A25 /* starter.sqlite in Resources */,
 				ED1E0EA3A4E2803ECD955444 /* vocab.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1769,7 +1767,7 @@
 				309C4A7BE4BFBADC96076097 /* night.jpg in Resources */,
 				65318BD0EF55380DE2058F79 /* rain.jpg in Resources */,
 				DE2BEC06DBD57AB6777880B0 /* splash_screen.jpg in Resources */,
-				6E7484814710BC5263FB5866 /* starter-iphone.sqlite in Resources */,
+				DD93FE8ED9D4D4CE14EC6123 /* starter.sqlite in Resources */,
 				6AA9B6354B01CCBC02AC6DC0 /* vocab.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2869,7 +2867,7 @@
 			repositoryURL = "https://github.com/johnarleyburns/parso-audio-engine.git";
 			requirement = {
 				kind = exactVersion;
-				version = 1.3.0;
+				version = 1.3.1;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

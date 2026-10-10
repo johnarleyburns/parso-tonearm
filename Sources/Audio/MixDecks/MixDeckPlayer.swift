@@ -26,6 +26,20 @@ protocol MixDeckHost: AnyObject, Sendable {
     func mixDecksLoading(_ loading: Bool)
     /// The next blend and the honest state of its preparation.
     func mixDecksPublish(plan: TransitionPlan?, state: GridPrepState)
+    /// How the track at `from` hands over to the one at `to`.
+    func mixDecksEdge(from: Int, to: Int) -> MixDeckEdge
+}
+
+/// How one track hands over to the next on the mix decks.
+enum MixDeckEdge: Equatable, Sendable {
+    /// The planned DJ blend (bass swap / double drop, or a phrase cut).
+    case blend
+    /// A plain fade the listener chose for this edge: the outgoing fades out over
+    /// its last seconds and the next track starts as it ends.
+    case fade
+    /// Gapless (consecutive tracks of an album): the next track starts exactly as
+    /// this one ends.
+    case gapless
 }
 
 /// Plays a mix queue on two decks of ParsoMixEngine with the approved "dj2"
@@ -42,6 +56,8 @@ final class MixDeckPlayer {
     nonisolated static let sampleRate = 44_100.0
     /// A blend scheduled closer than this to now is played as a plain follow-on.
     static let scheduleLeadSeconds = 1.0
+    /// A plain fade's length (the edge the listener chose "plain fade" for).
+    static let plainFadeSeconds = 8.0
     /// Combined deck gain limits: loudness matching never boosts into clipping.
     static let gainRange: ClosedRange<Double> = 0.5...1.6
 
@@ -57,8 +73,11 @@ final class MixDeckPlayer {
         /// Master frame at which played time 0 of the track is (played time =
         /// source time / tempo).
         var zeroFrame: Double
-        /// The track as this deck plays it, for planning the next blend.
+        /// The track as this deck plays it, for planning the next blend (built on
+        /// demand: the source itself at tempo 1, else a keylocked render).
         var played: PlayedTrack?
+        /// Its analysis in that time base, when known from a plan.
+        var playedAnalysis: BlendTrackAnalysis?
         var duration: Double { Double(audio.audio.frameCount) / MixDeckPlayer.sampleRate }
         var endFrame: Double { zeroFrame + Double(audio.audio.frameCount) / tempo }
     }
@@ -66,7 +85,11 @@ final class MixDeckPlayer {
     struct Upcoming {
         let index: Int
         let audio: MixTrackAudio
-        let planning: BlendPlanning
+        /// Best first; all share one tempo.
+        let plans: [BlendPlan]
+        /// The incoming as its deck will play it, when the planning produced it here.
+        let incomingPlayed: PlayedTrack?
+        let incomingPlayedAnalysis: BlendTrackAnalysis
         /// The outgoing track (and its tempo) the planning was made against.
         let outgoingTrackID: Int64
         let outgoingTempo: Double
@@ -77,8 +100,9 @@ final class MixDeckPlayer {
         /// When the incoming deck becomes audible, and when it becomes the current track.
         let joinFrame: Double
         let flipFrame: Double
-        /// A planned blend, or a plain follow-on at the end of the outgoing track.
-        let isBlend: Bool
+        /// The handover it was scheduled for (a late blend falls back to a follow-on
+        /// but is still the `.blend` edge).
+        let edge: MixDeckEdge
     }
 
     /// What a planning in flight is for; a matching request leaves it running.
@@ -184,7 +208,7 @@ final class MixDeckPlayer {
 
         if keepsTrack, let previous {
             begin(index: index, audio: previous.audio, tempo: previous.tempo, gain: previous.gain,
-                  played: previous.played, at: seconds)
+                  played: previous.played, playedAnalysis: previous.playedAnalysis, at: seconds)
             return
         }
         guard let track = host.mixDecksTrack(at: index) else {
@@ -200,7 +224,7 @@ final class MixDeckPlayer {
                 guard let self, self.epoch == myEpoch else { return }
                 self.startTask = nil
                 self.host.mixDecksLoading(false)
-                self.begin(index: index, audio: audio, tempo: 1, gain: 1, played: nil, at: seconds)
+                self.begin(index: index, audio: audio, tempo: 1, gain: 1, played: nil, playedAnalysis: nil, at: seconds)
             } catch {
                 guard let self, self.epoch == myEpoch, !(error is CancellationError) else { return }
                 self.startTask = nil
@@ -248,7 +272,9 @@ final class MixDeckPlayer {
         let nextID = next.flatMap { host.mixDecksTrack(at: $0)?.trackID }
         if let scheduled {
             let unchanged = scheduled.incoming.index == next && scheduled.incoming.trackID == nextID
-            if unchanged && scheduled.isBlend == blendsEnabled { return }
+            let edge = blendsEnabled && next != nil
+                ? host.mixDecksEdge(from: host.mixDecksCurrentIndex, to: next!) : .gapless
+            if unchanged && scheduled.edge == edge { return }
             guard Double(output.mix.masterFrame) < scheduled.joinFrame else { return }
             output.mix.clearRecipe()
             output.mix.stop(scheduled.incoming.deck)
@@ -262,7 +288,8 @@ final class MixDeckPlayer {
 
     // MARK: - Decks
 
-    private func begin(index: Int, audio: MixTrackAudio, tempo: Double, gain: Double, played: PlayedTrack?, at seconds: Double) {
+    private func begin(index: Int, audio: MixTrackAudio, tempo: Double, gain: Double, played: PlayedTrack?,
+                       playedAnalysis: BlendTrackAnalysis?, at seconds: Double) {
         let mix = output.mix
         let lead = 1_024.0
         let startFrame = Double(mix.masterFrame) + lead
@@ -275,12 +302,14 @@ final class MixDeckPlayer {
             return
         }
         current = Deck(index: index, trackID: audio.trackID, deck: .a, audio: audio, tempo: tempo, gain: gain,
-                       zeroFrame: startFrame - sourcePosition / tempo, played: played)
+                       zeroFrame: startFrame - sourcePosition / tempo, played: played,
+                       playedAnalysis: playedAnalysis)
         host.mixDecksPosition(seconds: sourcePosition / Self.sampleRate)
         if upcoming != nil { trySchedule() } else { prepareUpcoming() }
     }
 
-    /// Loads and plans the blend into the next queue track.
+    /// Loads the next queue track and plans the blend into it (or takes the plan
+    /// the transition preparation already made: same planner, shared cache).
     private func prepareUpcoming() {
         guard let current else { return }
         guard let nextIndex = host.mixDecksUpcomingIndex(after: host.mixDecksCurrentIndex),
@@ -309,23 +338,34 @@ final class MixDeckPlayer {
             do {
                 let audio = try await load.value
                 guard let self, self.planning == target, !Task.isCancelled else { return }
-                self.host.mixDecksPublish(plan: nil, state: .analyzing(0.5))
-                let outgoingPlayed = outgoing.played, outgoingAudio = outgoing.audio
-                let planning = try await Task.detached(priority: .utility) {
-                    let played = outgoingPlayed
-                        ?? PlayedTrack(source: outgoingAudio.audio, analysis: outgoingAudio.analysis)
-                    guard let planning = BlendPlanner.planBlend(outgoing: played, incoming: audio.analysis,
-                                                                incomingAudio: audio.audio) else {
-                        throw MixTrackLoaderError.empty
-                    }
-                    return planning
-                }.value
-                guard self.planning == target, !Task.isCancelled else { return }
+                let cached = BlendPlanCache.shared.entry(from: outgoing.trackID, to: audio.trackID,
+                                                         outgoingTempo: outgoing.tempo)
+                let plans: [BlendPlan], incomingPlayed: PlayedTrack?, incomingAnalysis: BlendTrackAnalysis
+                if let cached {
+                    (plans, incomingPlayed, incomingAnalysis) = (cached.plans, nil, cached.incomingPlayed)
+                } else {
+                    self.host.mixDecksPublish(plan: nil, state: .analyzing(0.5))
+                    let deck = outgoing
+                    let planning = try await Task.detached(priority: .utility) { () throws -> BlendPlanning in
+                        guard let played = deck.played
+                                ?? BlendEdgePlanner.played(deck.audio, tempo: deck.tempo, analysis: deck.playedAnalysis),
+                              let planning = BlendEdgePlanner.plan(outgoing: played, incoming: audio) else {
+                            throw MixTrackLoaderError.empty
+                        }
+                        return planning
+                    }.value
+                    guard self.planning == target, !Task.isCancelled else { return }
+                    (plans, incomingPlayed, incomingAnalysis) = (planning.plans, planning.incoming, planning.incoming.analysis)
+                    BlendPlanCache.shared.store(.init(plans: plans, incomingPlayed: incomingAnalysis,
+                                                      outgoingTempo: outgoing.tempo),
+                                                from: outgoing.trackID, to: audio.trackID)
+                }
                 self.planning = nil
-                if let plan = planning.plans.first {
+                if let plan = plans.first {
                     Self.log.notice("mix decks: \(plan.style.rawValue, privacy: .public) (\(plan.placement.rawValue, privacy: .public)): \(plan.reason, privacy: .public)")
                 }
-                self.upcoming = Upcoming(index: nextIndex, audio: audio, planning: planning,
+                self.upcoming = Upcoming(index: nextIndex, audio: audio, plans: plans,
+                                         incomingPlayed: incomingPlayed, incomingPlayedAnalysis: incomingAnalysis,
                                          outgoingTrackID: outgoing.trackID, outgoingTempo: outgoing.tempo)
                 self.trySchedule()
             } catch {
@@ -344,7 +384,8 @@ final class MixDeckPlayer {
         planning = nil
     }
 
-    /// Puts the planned blend on the free deck once that deck is released.
+    /// Puts the next track on the free deck once that deck is released: the
+    /// planned blend, a plain fade, or a gapless follow-on.
     private func trySchedule() {
         guard let current, let upcoming, scheduled == nil else { return }
         let mix = output.mix
@@ -357,7 +398,7 @@ final class MixDeckPlayer {
         let sr = Self.sampleRate
         let now = Double(mix.masterFrame)
         let nowPlayed = (now - current.zeroFrame) / sr
-        guard var plan = upcoming.planning.plans.first else { return }
+        guard var plan = upcoming.plans.first else { return }
         if auditionPending {
             auditionPending = false
             let target = max(0, plan.blendStart - Self.auditionLeadSeconds) * current.tempo
@@ -365,35 +406,47 @@ final class MixDeckPlayer {
             return
         }
         plan.incomingGain = min(max(current.gain * plan.incomingGain, Self.gainRange.lowerBound), Self.gainRange.upperBound)
+        let edge = blendsEnabled ? host.mixDecksEdge(from: host.mixDecksCurrentIndex, to: upcoming.index) : .gapless
         let join = plan.style == .phraseCut ? plan.blendStart - 0.003 : plan.blendStart
         do {
-            if blendsEnabled, join > nowPlayed + Self.scheduleLeadSeconds {
+            if edge == .blend, join > nowPlayed + Self.scheduleLeadSeconds {
                 try mix.schedule(plan, outgoing: current.deck, outgoingStartFrame: Int64(current.zeroFrame.rounded()),
                                  incoming: upcoming.audio.audio)
                 let outgoingZero = Double(Int64(current.zeroFrame.rounded()))
                 let incoming = Deck(index: upcoming.index, trackID: upcoming.audio.trackID, deck: other,
                                     audio: upcoming.audio, tempo: plan.tempo, gain: plan.incomingGain,
                                     zeroFrame: outgoingZero + plan.incomingOffset * sr,
-                                    played: upcoming.planning.incoming)
+                                    played: upcoming.incomingPlayed, playedAnalysis: upcoming.incomingPlayedAnalysis)
                 let flip = plan.style == .phraseCut ? plan.blendStart : plan.swapTime
                 scheduled = Scheduled(incoming: incoming, joinFrame: outgoingZero + join * sr,
-                                      flipFrame: outgoingZero + flip * sr, isBlend: true)
-                host.mixDecksPublish(plan: transitionPlan(plan, from: current, to: upcoming), state: .ready)
-            } else {
-                // Too late for the planned blend (a seek past it, a slow download): the next
-                // track follows the end of this one at its own tempo.
-                let startFrame = max(current.endFrame, now + 1_024)
-                try mix.prepare(other, buffer: upcoming.audio.audio, sourcePosition: 0, tempo: 1,
-                                gain: Float(plan.incomingGain))
-                try mix.start(other, atFrame: Int64(startFrame))
-                let incoming = Deck(index: upcoming.index, trackID: upcoming.audio.trackID, deck: other,
-                                    audio: upcoming.audio, tempo: 1, gain: plan.incomingGain,
-                                    zeroFrame: startFrame, played: nil)
-                scheduled = Scheduled(incoming: incoming, joinFrame: startFrame, flipFrame: startFrame, isBlend: false)
-                host.mixDecksPublish(plan: TransitionPlan(fromTrackID: current.trackID, toTrackID: upcoming.audio.trackID,
-                                                          style: .gapless, exitTime: current.duration),
+                                      flipFrame: outgoingZero + flip * sr, edge: edge)
+                host.mixDecksPublish(plan: BlendPlanCache.transitionPlan(plan, from: current.trackID,
+                                                                         to: upcoming.audio.trackID,
+                                                                         outgoingTempo: current.tempo),
                                      state: .ready)
+                return
             }
+            // A plain fade, a gapless edge, or too late for the planned blend (a seek past it,
+            // a slow download): the next track starts as this one ends, at its own tempo.
+            let end = current.endFrame
+            let startFrame = max(end, now + 1_024)
+            var style = TransitionStyle.gapless
+            if edge == .fade, end - now > Self.plainFadeSeconds * sr * 0.5 {
+                style = .plainCrossfade
+                mix.scheduleCut(from: current.deck, to: other, cutFrame: end,
+                                fadeFrames: min(Self.plainFadeSeconds * sr, end - now))
+            }
+            try mix.prepare(other, buffer: upcoming.audio.audio, sourcePosition: 0, tempo: 1,
+                            gain: Float(plan.incomingGain))
+            try mix.start(other, atFrame: Int64(startFrame))
+            let incoming = Deck(index: upcoming.index, trackID: upcoming.audio.trackID, deck: other,
+                                audio: upcoming.audio, tempo: 1, gain: plan.incomingGain,
+                                zeroFrame: startFrame, played: nil, playedAnalysis: nil)
+            scheduled = Scheduled(incoming: incoming, joinFrame: startFrame, flipFrame: startFrame, edge: edge)
+            host.mixDecksPublish(plan: TransitionPlan(fromTrackID: current.trackID, toTrackID: upcoming.audio.trackID,
+                                                      style: style, exitTime: current.duration,
+                                                      overlapSeconds: style == .plainCrossfade ? Self.plainFadeSeconds : 0),
+                                 state: .ready)
         } catch {
             Self.log.error("mix decks: scheduling failed: \(String(describing: error), privacy: .public)")
         }
@@ -451,7 +504,7 @@ final class MixDeckPlayer {
         let task = Task.detached(priority: .userInitiated) { () throws -> MixTrackAudio in
             let storedBPM: Double?
             if bpm == nil {
-                storedBPM = (try? await LibraryStore.shared.transitionPrepPayload(trackId: trackID))?.bpm
+                storedBPM = (try? await LibraryStore.shared.blendTempoHint(trackId: trackID)) ?? nil
             } else {
                 storedBPM = bpm
             }
@@ -474,20 +527,6 @@ final class MixDeckPlayer {
             task.cancel()
             loads[id] = nil
         }
-    }
-
-    private func transitionPlan(_ plan: BlendPlan, from current: Deck, to upcoming: Upcoming) -> TransitionPlan {
-        TransitionPlan(fromTrackID: current.trackID, toTrackID: upcoming.audio.trackID,
-                       style: plan.style == .phraseCut ? .phraseFade : .beatmatchedBlend,
-                       exitTime: plan.blendStart * current.tempo,
-                       entryTime: max(0, (plan.blendStart - plan.incomingOffset) * plan.tempo),
-                       overlapBeats: plan.overlapBeats,
-                       overlapSeconds: Double(plan.overlapBeats) * plan.period,
-                       blendRate: plan.tempo,
-                       gainMatchDB: 20 * log10(max(plan.incomingGain, 1e-6)),
-                       bpmDeltaPct: (plan.tempo - 1) * 100,
-                       confidence: plan.placement == .none ? 0.5 : 1,
-                       reasons: [.tempoMatched(pct: (plan.tempo - 1) * 100)])
     }
 }
 #endif

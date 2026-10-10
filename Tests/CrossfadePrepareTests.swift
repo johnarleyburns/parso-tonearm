@@ -3,9 +3,8 @@ import XCTest
 @testable import TonearmCore
 
 /// Drives the real `AudioPlayer` into a crossfade whose incoming track hasn't loaded yet — the
-/// normal case for a remote stream. TestFlight 520 aborted here: `AVPlayer.preroll(atRate:)`
-/// raises an Objective-C exception unless the player is `.readyToPlay`, and a test that hits it
-/// crashes the test process, so this fails loudly if that call comes back.
+/// normal case for a remote stream. TestFlight 520 aborted when the incoming player was
+/// driven before it was `.readyToPlay`; preparing it must leave it untouched until it has loaded.
 @MainActor
 final class CrossfadePrepareTests: XCTestCase {
     private let source = Source(id: 1, kind: .iaItem, iaIdentifier: "x", originalURL: nil,
@@ -35,15 +34,10 @@ final class CrossfadePrepareTests: XCTestCase {
         XCTAssertTrue(player.prepareCrossfadePlayer(for: row, at: 1))
         XCTAssertEqual(player.crossfadeNextTrackId, 9_001)
         XCTAssertNotEqual(player.crossfadePlayer?.status, .readyToPlay)
-        XCTAssertFalse(player.crossfadePrerolled, "preroll must wait for .readyToPlay")
+        XCTAssertEqual(player.crossfadePlayer?.rate, 0, "an unloaded incoming track must not be started")
 
         // Every periodic tick re-enters with the same edge; it must stay safe while unloaded.
         for _ in 0..<5 { XCTAssertTrue(player.prepareCrossfadePlayer(for: row, at: 1)) }
-        XCTAssertFalse(player.crossfadePrerolled)
-    }
-
-    func testPrerollOnlyRunsForAReadyPlayer() {
-        let unloaded = AVPlayer(playerItem: AVPlayerItem(url: URL(string: "https://example.invalid/a.mp3")!))
-        XCTAssertFalse(TransitionPlayerControl.preroll(unloaded, rate: 1))
+        XCTAssertEqual(player.crossfadePlayer?.rate, 0)
     }
 }

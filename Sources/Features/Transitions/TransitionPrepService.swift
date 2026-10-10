@@ -5,21 +5,19 @@ import SwiftUI
 import TonearmCore
 import TonearmDiscovery
 
-/// Owns the small, visible preparation window used by Smart transitions.
-/// The service intentionally publishes every wait/failure state so there is
+/// Owns the small, visible preparation window used by Smart transitions: it
+/// plans the opening blends of a queue ahead of playback with the same planner
+/// the mix decks use (`BlendPreparation`), so the Mix preview and Up Next show
+/// the blends that will play. It publishes every wait/failure state so there is
 /// no silent background work.
 @MainActor
 final class TransitionPrepService: ObservableObject {
-    typealias Resolver = @Sendable (TrackRow, AppState) async throws -> URL
-    typealias Analyzer = @Sendable (URL, String?) throws -> (payload: DJTrackPrepPayload,
-                                                               frameCount: Int64)
-
     @Published private(set) var states: [Int64: GridPrepState] = [:]
     @Published private(set) var stateSince: [Int64: Date] = [:]
-    @Published private(set) var preparedTrackIDs: Set<Int64> = []
+    /// Bumped whenever a blend is planned, so views showing planned blends refresh.
+    @Published private(set) var plannedRevision = 0
 
-    /// Settings → "Prepare remote tracks on Wi-Fi only" (it used to be a separate flag the
-    /// switch never reached).
+    /// Settings → "Prepare remote tracks on Wi-Fi only".
     var wifiOnly: Bool {
         UserDefaults.standard.object(forKey: "smartTransitionsWiFiOnly") as? Bool ?? true
     }
@@ -29,22 +27,10 @@ final class TransitionPrepService: ObservableObject {
     private var cellularBlocked: Bool { wifiOnly && !allowsCellularForWindow }
     private var task: Task<Void, Never>?
     private let pathMonitor = NWPathMonitor()
-    private let resolver: Resolver
-    private let analyzer: Analyzer
     private var waitingRows: [TrackRow] = []
-    private weak var waitingAppState: AppState?
+    private var plainFadeEdges: Set<String> = []
 
-    init(
-        resolver: @escaping Resolver = { row, appState in
-            try await appState.analysisPlayableURL(for: row)
-        },
-        analyzer: @escaping Analyzer = { url, codec in
-            let result = try TrackGridAnalyzer.analyze(url: url, codec: codec)
-            return (result.payload, result.frameCount)
-        }
-    ) {
-        self.resolver = resolver
-        self.analyzer = analyzer
+    init() {
         pathMonitor.pathUpdateHandler = { [weak self] _ in
             Task { @MainActor [weak self] in self?.resumeWhenNetworkAllows() }
         }
@@ -53,21 +39,36 @@ final class TransitionPrepService: ObservableObject {
 
     deinit { task?.cancel(); pathMonitor.cancel() }
 
-    func prepare(rows: [TrackRow], appState: AppState, allowsCellular: Bool = false) {
+    /// Plans the blends between consecutive `rows`, in order. `plainFadeEdges`
+    /// ("fromID-toID") are edges the listener chose a plain fade for: not planned.
+    func prepare(rows: [TrackRow], appState: AppState, allowsCellular: Bool = false,
+                 plainFadeEdges: Set<String> = []) {
         task?.cancel()
         allowsCellularForWindow = allowsCellular
+        self.plainFadeEdges = plainFadeEdges
         var seen = Set<Int64>()
         let window = rows.filter { row in
             guard let id = row.track.id else { return false }
             return seen.insert(id).inserted
         }
         waitingRows = window
-        waitingAppState = appState
+        for row in window {
+            if let id = row.track.id, states[id] != .ready { setState(.queued, for: id) }
+        }
+        run(window)
+    }
+
+    private func run(_ window: [TrackRow]) {
+        task?.cancel()
         task = Task { [weak self] in
-            for row in window {
-                guard !Task.isCancelled, let id = row.track.id else { continue }
-                await self?.prepare(row: row, id: id, appState: appState)
-            }
+            await BlendPreparation.prepare(
+                rows: window,
+                gate: { [weak self] row in self?.blocker(for: row) },
+                blends: { [weak self] from, to in self?.blends(from: from, to: to) ?? true },
+                progress: { [weak self] id, state in
+                    self?.setState(state, for: id)
+                    if state == .ready { self?.plannedRevision += 1 }
+                })
         }
     }
 
@@ -75,19 +76,13 @@ final class TransitionPrepService: ObservableObject {
         task?.cancel()
         task = nil
         waitingRows = []
-        waitingAppState = nil
-        for id in states.keys where !preparedTrackIDs.contains(id) {
+        for (id, state) in states where state != .ready {
             setState(.cancelled, for: id)
         }
     }
 
     func retryFailed(rows: [TrackRow], appState: AppState) {
-        let failed = rows.filter { row in
-            guard let id = row.track.id else { return false }
-            if case .failed = states[id] { return true }
-            return false
-        }
-        prepare(rows: failed, appState: appState)
+        prepare(rows: rows, appState: appState, plainFadeEdges: plainFadeEdges)
     }
 
     func transitionPrepState(for trackID: Int64) -> GridPrepState {
@@ -99,65 +94,33 @@ final class TransitionPrepService: ObservableObject {
     }
 
     private func setState(_ state: GridPrepState, for id: Int64) {
+        guard states[id] != state else { return }
         states[id] = state
         stateSince[id] = Date()
     }
 
-    private func prepare(row: TrackRow, id: Int64, appState: AppState) async {
-        if preparedTrackIDs.contains(id) { return }
-        // Prepared on this device, or shipped in the starter DB (Mood Starter tracks) —
-        // checked before the network, which shipped prep never needs.
-        if (try? await appState.store.hasCurrentTransitionPrep(trackId: id)) == true {
-            preparedTrackIDs.insert(id)
-            setState(.ready, for: id)
-            return
+    private func blends(from: TrackRow, to: TrackRow) -> Bool {
+        if let fromID = from.track.id, let toID = to.track.id, plainFadeEdges.contains("\(fromID)-\(toID)") {
+            return false
         }
-        let requiresNetwork = row.asset?.kind == .remote
-        if requiresNetwork {
+        return !CrossfadeCurve.suppressesForGaplessAlbum(current: CrossfadeCurve.AlbumContinuity(row: from),
+                                                         next: CrossfadeCurve.AlbumContinuity(row: to))
+    }
+
+    /// Why `row` can't be prepared now, said plainly in the prep list.
+    private func blocker(for row: TrackRow) -> GridPrepState? {
+        if row.asset?.kind == .remote {
             let path = pathMonitor.currentPath
-            if path.status != .satisfied {
-                setState(.waitingForNetwork, for: id)
-                return
-            }
-            if cellularBlocked && path.usesInterfaceType(.cellular) {
-                setState(.waitingForWiFi, for: id)
-                return
-            }
+            if path.status != .satisfied { return .waitingForNetwork }
+            if cellularBlocked && path.usesInterfaceType(.cellular) { return .waitingForWiFi }
         }
-        setState(.queued, for: id)
-        do {
-            let url = try await resolver(row, appState)
-            guard !Task.isCancelled else { setState(.cancelled, for: id); return }
-            let fileBytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
-            let peak = TransitionDecodeBudget.estimatedPeakBytes(
-                durationSec: row.track.durationSec, sampleRate: row.track.sampleRate, fileBytes: fileBytes)
-            guard TransitionDecodeBudget.fits(estimatedPeakBytes: peak, availableBytes: Self.availableMemory()) else {
-                // Said plainly in the prep list, never a crash: this track plays normally; it just
-                // gets a standard crossfade instead of a beat-matched one.
-                setState(.failed(String(localized: "Too long to prepare on this device")), for: id)
-                return
-            }
-            setState(.analyzing(0.1), for: id)
-            let analyze = analyzer
-            let result = try await TransitionDecodeGate.shared.run {
-                try analyze(url, row.track.codec)
-            }
-            guard !Task.isCancelled else { setState(.cancelled, for: id); return }
-            setState(.analyzing(0.8), for: id)
-            try await appState.store.saveDJAnalysis(
-                result.payload.encoded(),
-                meta: (result.payload.algorithmID, result.payload.version,
-                       result.payload.sampleRate, result.frameCount,
-                       result.payload.bpm, result.payload.key.camelot),
-                trackId: id)
-            preparedTrackIDs.insert(id)
-            setState(.analyzing(1), for: id)
-            setState(.ready, for: id)
-        } catch is CancellationError {
-            setState(.cancelled, for: id)
-        } catch {
-            setState(.failed(error.localizedDescription), for: id)
+        let peak = TransitionDecodeBudget.estimatedPeakBytes(
+            durationSec: row.track.durationSec, sampleRate: row.track.sampleRate, fileBytes: nil)
+        guard TransitionDecodeBudget.fits(estimatedPeakBytes: peak, availableBytes: Self.availableMemory()) else {
+            // This track plays normally; it just gets no planned blend ahead of time.
+            return .failed(String(localized: "Too long to prepare on this device"))
         }
+        return nil
     }
 
     /// What this process can still allocate before the OS ends it (iOS), or nil where there's no
@@ -172,9 +135,9 @@ final class TransitionPrepService: ObservableObject {
 
     private func resumeWhenNetworkAllows() {
         guard !waitingRows.isEmpty,
-              let waitingAppState,
+              states.values.contains(where: { $0 == .waitingForNetwork || $0 == .waitingForWiFi }),
               pathMonitor.currentPath.status == .satisfied,
               (!cellularBlocked || !pathMonitor.currentPath.usesInterfaceType(.cellular)) else { return }
-        prepare(rows: waitingRows, appState: waitingAppState, allowsCellular: allowsCellularForWindow)
+        run(waitingRows)
     }
 }

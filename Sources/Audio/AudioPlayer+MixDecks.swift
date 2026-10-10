@@ -5,15 +5,21 @@ import OSLog
 
 private let mixDecksLog = Logger(subsystem: "guru.parso.tonearm", category: "MixDecks")
 
-/// Mix queues play on the mix decks (MixDeckPlayer) instead of AVPlayer: the
-/// approved dj2 blends need both tracks on one sample clock with a crossover
-/// in their path, which two AVPlayers can't give. Everything else about the
-/// queue (index, Now Playing, persistence, Keep Playing) stays in AudioPlayer.
+/// Smart transitions play on the mix decks (MixDeckPlayer), the app's one
+/// planner and mixer for blends: the approved dj2 blends need both tracks on one
+/// sample clock with a crossover in their path, which two AVPlayers can't give.
+/// Everything else about the queue (index, Now Playing, persistence, Keep
+/// Playing) stays in AudioPlayer. AVPlayer plays queues without smart
+/// transitions, with the user's plain crossfade at most.
 extension AudioPlayer: MixDeckHost {
-    /// Whether the current queue plays on the mix decks.
+    /// Whether the current queue plays on the mix decks: mixes, every queue when
+    /// "Use for everything" is on, and auditions.
     var wantsMixDecks: Bool {
-        guard smartTransitionsEnabled, !isAmbient, case .mix = queueSource else { return false }
-        return true
+        guard !isAmbient else { return false }
+        if auditionRequested { return true }
+        guard smartTransitionsEnabled else { return false }
+        if case .mix = queueSource { return true }
+        return UserDefaults.standard.bool(forKey: "smartTransitionsEverywhere")
     }
 
     /// Loads the current track onto the mix decks. False when the decks can't
@@ -36,8 +42,6 @@ extension AudioPlayer: MixDeckHost {
         preloadedNextLoader = nil
         player.pause()
         player.replaceCurrentItem(with: nil)
-        transitionPlanningTask?.cancel()
-        transitionPlanningTask = nil
         transitionPlan = nil
 
         mixDecks.volume = outputLevel
@@ -91,6 +95,22 @@ extension AudioPlayer: MixDeckHost {
         guard let asset = queue[next].asset, asset.unsupportedReason == nil,
               playbackDecision(for: asset) != .skipWiFiOnly else { return nil }
         return next
+    }
+
+    func mixDecksEdge(from: Int, to: Int) -> MixDeckEdge {
+        guard queue.indices.contains(from), queue.indices.contains(to) else { return .blend }
+        if CrossfadeCurve.suppressesForGaplessAlbum(current: CrossfadeCurve.AlbumContinuity(row: queue[from]),
+                                                    next: CrossfadeCurve.AlbumContinuity(row: queue[to])) {
+            return .gapless
+        }
+        if case .mix(let mix) = queueSource,
+           mix.transitionPlans.contains(where: {
+               $0.fromTrackID == queue[from].track.id && $0.toTrackID == queue[to].track.id
+                   && $0.style == .plainCrossfade
+           }) {
+            return .fade
+        }
+        return .blend
     }
 
     func mixDecksTrack(at index: Int) -> (trackID: Int64, source: MixTrackSource, bpm: Double?)? {
@@ -188,7 +208,8 @@ extension AudioPlayer: MixDeckHost {
                                  securityScoped: false)
                 }
             }
-            return .remote(remote, headers: asset.transientRemoteHeaders, container: container)
+            let cacheKey = asset.transientRemoteSupportsByteRanges ? AudioCache.key(for: remote) : nil
+            return .remote(remote, headers: asset.transientRemoteHeaders, container: container, cacheKey: cacheKey)
         }
         if let bookmark = asset.bookmark, let (url, _) = BookmarkVault.resolve(bookmark) {
             return .file(url, container: .auto, securityScoped: true)

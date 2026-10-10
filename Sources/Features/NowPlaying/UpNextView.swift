@@ -77,9 +77,8 @@ struct UpNextView: View {
                 },
                 onAudition: {
                     guard let outgoing = player.currentTrack,
-                          let incoming = player.upNextTracks.first,
-                          let plan = player.transitionPlan else { return }
-                    player.auditionTransition(outgoing: outgoing, incoming: incoming, plan: plan)
+                          let incoming = player.upNextTracks.first else { return }
+                    player.auditionTransition(outgoing: outgoing, incoming: incoming)
                 },
                 preparationState: player.upNextTracks.first?.track.id.flatMap {
                     transitionPrep.transitionPrepState(for: $0)

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Fetches the Mood Starter databases (StarterLibrary) pinned in Config/starter.lock into
-# Resources/Starter/. They are build inputs, not source: the Mac one carries every track's full
-# transition-prep waveform (~100 MB), and committing binary rebuilds would bloat history and run
-# into GitHub's 100 MB file limit — the same reason Core ML models are fetched (fetch-models.sh).
+# Resources/Starter/. They are build inputs, not source: committing binary rebuilds would bloat
+# history — the same reason Core ML models are fetched (fetch-models.sh).
 #
 # A file already present with the pinned checksum is kept; a mismatch is replaced, a failed
 # download or checksum is a hard failure (a build without its starter DB would ship an empty
@@ -55,5 +54,15 @@ while read -r url sha file; do
   echo "==> starter: $file verified"
   fetched=$((fetched + 1))
 done < "$LOCK"
+
+# Databases no longer pinned (an older format) would be bundled by the project's Resources glob.
+for stale in "$DEST"/*.sqlite; do
+  [[ -e "$stale" ]] || continue
+  name="$(basename "$stale")"
+  if ! awk -v n="$name" '$1 !~ /^#/ && $3 == n { found = 1 } END { exit !found }' "$LOCK"; then
+    echo "==> starter: removing $name (not in $LOCK)"
+    rm -f "$stale"
+  fi
+done
 
 echo "==> starter: $fetched fetched, $kept already present"

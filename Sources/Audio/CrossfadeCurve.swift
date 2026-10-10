@@ -47,36 +47,6 @@ public enum CrossfadeCurve: String, CaseIterable, Codable, Equatable {
         return gains(position: position, fadeStart: fadeStart, fadeSeconds: fadeWindow, curve: curve)
     }
 
-    /// Three-phrase DJ handoff on an equal-power path: over phrase one the incoming track rises
-    /// to −3 dB while the outgoing one eases to −3 dB, both hold there for phrase two, and over
-    /// phrase three the outgoing one fades out as the incoming one reaches full level.
-    /// `fadeSeconds` is the complete 96-beat overlap.
-    ///
-    /// Field test 2026-10-03: holding both tracks at full level for the middle phrase summed to
-    /// about +6 dB and then dropped by the same amount, which sounded abrupt rather than smooth;
-    /// the linear amplitude ramps also made the entry and exit sudden. The angle path keeps the
-    /// combined power constant throughout.
-    public static func threePhraseGains(position: TimeInterval,
-                                        fadeStart: TimeInterval,
-                                        fadeSeconds: TimeInterval) -> Gains {
-        guard fadeStart.isFinite, fadeSeconds.isFinite, fadeSeconds > 0 else {
-            return Gains(outgoing: 1, incoming: 0, active: false)
-        }
-        guard position >= fadeStart else { return Gains(outgoing: 1, incoming: 0, active: false) }
-        let progress = min(max((position - fadeStart) / fadeSeconds, 0), 1)
-        // Angle 0 → π/4 over phrase one (eased), hold π/4, then π/4 → π/2 over phrase three.
-        func ease(_ t: Double) -> Double { t * t * (3 - 2 * t) }
-        let angle: Double
-        if progress < 1.0 / 3.0 {
-            angle = ease(progress * 3) * .pi / 4
-        } else if progress < 2.0 / 3.0 {
-            angle = .pi / 4
-        } else {
-            angle = .pi / 4 + ease((progress - 2.0 / 3.0) * 3) * .pi / 4
-        }
-        return Gains(outgoing: cos(angle), incoming: sin(angle), active: true)
-    }
-
     /// Calculates a fade at an analyzed phrase boundary rather than always
     /// pinning it to the file's final seconds.
     public static func gains(position: TimeInterval,

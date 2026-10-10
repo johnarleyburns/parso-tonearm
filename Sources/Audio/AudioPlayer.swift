@@ -122,8 +122,6 @@ public final class AudioPlayer: ObservableObject {
         didSet {
             guard smartTransitionsEnabled != oldValue else { return }
             mixDecks?.blendsEnabled = smartTransitionsEnabled
-            if smartTransitionsEnabled { scheduleTransitionPlan() }
-            else { cancelTransition() }
         }
     }
 
@@ -176,23 +174,17 @@ public final class AudioPlayer: ObservableObject {
     var mixDecks: MixDeckPlayer?
     var crossfadeNextTrackId: Int64?
     var crossfadeNextIndex: Int?
-    /// Whether the incoming player has been prerolled (only possible once it is ready to play).
-    var crossfadePrerolled = false
     var crossfadeNextLoader: CachingResourceLoader?
     var crossfadeCompletionInFlight = false
     var transitionStartedForCurrentEdge = false
-    var transitionTask: Task<Void, Never>?
-    /// Runs updateCrossfade 20 times a second while a transition is armed, so the incoming start is
-    /// scheduled ahead of the exit and the volume ramps in small steps (the 0.5 s time observer
-    /// alone made both late and steppy).
+    /// Runs updateCrossfade 20 times a second while a plain crossfade is armed, so the volume
+    /// ramps in small steps (the 0.5 s time observer alone was steppy).
     var transitionTicker: Task<Void, Never>?
     /// Outgoing item time at which a late incoming start happened; its gain fades in from there.
     var transitionLateStartPosition: Double?
-    /// Outgoing item time of the last beat-alignment check.
-    var lastTransitionDriftCheck: Double = -.infinity
-    /// After a non-mix blend, returns the incoming track to its own tempo once it plays alone.
-    var tempoReturnTask: Task<Void, Never>?
-    var transitionPlanningTask: Task<Void, Never>?
+    /// Set while `auditionTransition` starts its two-track queue: it plays on the mix decks even
+    /// with Smart transitions off.
+    var auditionRequested = false
     /// EQ (T4.1): a single tap engine shared across items; reattached to the
     /// preloaded next item so EQ survives near-gapless swaps.
     var eqTap: EQAudioTap?
@@ -396,8 +388,7 @@ public final class AudioPlayer: ObservableObject {
             player.pause()
         } else {
             seekToStartIfAtEnd()
-            let rate = mixPlaybackRate(for: currentTrack?.id ?? -1)
-            if rate == 1 { player.play() } else { player.playImmediately(atRate: rate) }
+            player.play()
         }
         isPlaying.toggle()
         updateNowPlaying()
@@ -466,9 +457,7 @@ public final class AudioPlayer: ObservableObject {
         guard !queue.isEmpty else { return }
         if repeatMode == .one {
             seek(to: 0)
-            mixDecks?.resume()
-            let rate = mixPlaybackRate(for: currentTrack?.id ?? -1)
-            if rate == 1 { player.play() } else { player.playImmediately(atRate: rate) }
+            if let mixDecks { mixDecks.resume() } else { player.play() }
             return
         }
         if index < queue.count - 1 {
@@ -544,7 +533,6 @@ public final class AudioPlayer: ObservableObject {
             loadCurrent(autoplay: autoplay)
         } else {
             invalidatePreloadedNext()
-            scheduleTransitionPlan()
             prefetchNext()
             updateNowPlaying()
         }

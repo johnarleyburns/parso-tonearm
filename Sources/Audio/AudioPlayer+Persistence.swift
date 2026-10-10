@@ -25,8 +25,7 @@ extension AudioPlayer {
             return
         }
         seekToStartIfAtEnd()
-        let rate = mixPlaybackRate(for: currentTrack?.id ?? -1)
-        if rate == 1 { player.play() } else { player.playImmediately(atRate: rate) }
+        player.play()
         isPlaying = true
         updateNowPlaying()
     }

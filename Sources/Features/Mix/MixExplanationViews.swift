@@ -122,20 +122,15 @@ private struct MixExplanationArcChart: View {
 struct WhyThisTransitionView: View {
     @EnvironmentObject private var player: AudioPlayer
     let plan: TransitionPlan
-    let outgoingPayload: DJTrackPrepPayload?
-    let incomingPayload: DJTrackPrepPayload?
     var onAudition: (() -> Void)?
     var onUsePlainFade: (() -> Void)?
     var onPrepareNow: (() -> Void)?
     var preparationState: GridPrepState?
 
-    init(plan: TransitionPlan, outgoingPayload: DJTrackPrepPayload? = nil,
-         incomingPayload: DJTrackPrepPayload? = nil, onAudition: (() -> Void)? = nil,
+    init(plan: TransitionPlan, onAudition: (() -> Void)? = nil,
          onUsePlainFade: (() -> Void)? = nil, onPrepareNow: (() -> Void)? = nil,
          preparationState: GridPrepState? = nil) {
         self.plan = plan
-        self.outgoingPayload = outgoingPayload
-        self.incomingPayload = incomingPayload
         self.onAudition = onAudition
         self.onUsePlainFade = onUsePlainFade
         self.onPrepareNow = onPrepareNow
@@ -145,7 +140,7 @@ struct WhyThisTransitionView: View {
     var body: some View {
         List {
             Section("What you'll hear") {
-                MiniTransitionWaveforms(plan: plan, outgoing: outgoingPayload, incoming: incomingPayload)
+                BlendCurves(plan: plan)
                     .frame(height: 84)
                 Text(sentence)
                     .font(Typography.body)
@@ -176,10 +171,9 @@ struct WhyThisTransitionView: View {
             Button("Audition") {
                 if let onAudition {
                     onAudition()
-                } else if player.currentTrack?.track.id == plan.fromTrackID,
-                          player.upNextTracks.first?.track.id == plan.toTrackID {
-                    player.seek(to: max(0, plan.exitTime - 10))
-                    player.resumePlayback()
+                } else if let outgoing = player.currentTrack, outgoing.track.id == plan.fromTrackID,
+                          let incoming = player.upNextTracks.first, incoming.track.id == plan.toTrackID {
+                    player.auditionTransition(outgoing: outgoing, incoming: incoming)
                 }
             }
             .disabled(onAudition == nil && player.currentTrack?.track.id != plan.fromTrackID)
@@ -191,7 +185,7 @@ struct WhyThisTransitionView: View {
     private var sentence: String {
         switch plan.style {
         case .gapless: String(localized: "These adjacent album tracks continue without a fade.")
-        case .beatmatchedBlend: String(localized: "The next phrase blends in on the beat, then returns to its original tempo.")
+        case .beatmatchedBlend: String(localized: "The next track is locked to this one's beat: its highs come in, the basses swap on a downbeat, then this track's highs fade out.")
         case .phraseFade: String(localized: "The next phrase enters on a short equal-power fade.")
         case .plainCrossfade: String(localized: "The tracks use the regular crossfade.")
         }
@@ -222,41 +216,54 @@ extension GridPrepState {
     }
 }
 
-private struct MiniTransitionWaveforms: View {
+/// The blend as the mix decks play it, drawn from the plan: band levels of the
+/// outgoing (top) and incoming (bottom) track over the overlap.
+private struct BlendCurves: View {
     let plan: TransitionPlan
-    let outgoing: DJTrackPrepPayload?
-    let incoming: DJTrackPrepPayload?
 
     var body: some View {
         Canvas { context, size in
             let mid = size.height / 2
-            let half = size.width / 2
-            drawWave(context: &context, rect: CGRect(x: 0, y: 0, width: half - 4, height: mid - 5), bins: outgoing?.waveform ?? [])
-            drawWave(context: &context, rect: CGRect(x: half + 4, y: mid + 5, width: half - 4, height: mid - 5), bins: incoming?.waveform ?? [])
-            var marker = Path()
-            marker.move(to: CGPoint(x: half, y: 0))
-            marker.addLine(to: CGPoint(x: half, y: size.height))
-            context.stroke(marker, with: .color(Palette.accent), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            let top = CGRect(x: 0, y: 0, width: size.width, height: mid - 4)
+            let bottom = CGRect(x: 0, y: mid + 4, width: size.width, height: mid - 4)
+            for (index, curve) in curves.enumerated() {
+                let rect = index < 2 ? top : bottom
+                draw(curve.gain, in: rect, context: &context,
+                     color: curve.bass ? Palette.accent : Palette.inkSecondary)
+            }
         }
         .accessibilityElement()
-        .accessibilityLabel("Aligned outgoing and incoming transition waveforms")
+        .accessibilityLabel("How the two tracks overlap")
         .accessibilityValue("Overlap \(String(format: "%.1f", plan.overlapSeconds)) seconds")
     }
 
-    private func drawWave(context: inout GraphicsContext, rect: CGRect,
-                          bins: [DJTrackPrepPayload.WaveformBin]) {
-        var path = Path()
-        let count = max(1, bins.count - 1)
-        for index in 0...count {
-            let x = rect.minX + rect.width * CGFloat(index) / CGFloat(count)
-            let bin = bins.isEmpty ? nil : bins[min(index, bins.count - 1)]
-            let minimum = CGFloat(bin?.min ?? 0)
-            let maximum = CGFloat(bin?.max ?? 0)
-            let y = rect.midY - ((minimum + maximum) / 2) * rect.height * 0.45
-            if index == 0 { path.move(to: CGPoint(x: x, y: y)) }
-            else { path.addLine(to: CGPoint(x: x, y: y)) }
+    /// Gain over the overlap (0...1 progress) for outgoing highs, outgoing bass,
+    /// incoming highs, incoming bass — the curves MixEngine's bass swap applies.
+    private var curves: [(gain: (Double) -> Double, bass: Bool)] {
+        func smooth(_ x: Double) -> Double { let t = min(max(x, 0), 1); return t * t * (3 - 2 * t) }
+        switch plan.style {
+        case .beatmatchedBlend:
+            let swap = { (p: Double) in smooth((p - 0.5 + 1 / 256) * 256) }
+            return [({ 1 - smooth($0 * 4 - 3) }, false), ({ 1 - swap($0) }, true),
+                    ({ smooth($0 * 4) }, false), ({ swap($0) }, true)]
+        case .plainCrossfade:
+            return [({ 1 - $0 }, false), ({ 1 - $0 }, true), ({ $0 }, false), ({ $0 }, true)]
+        case .phraseFade, .gapless:
+            let cut = plan.style == .gapless ? 1.0 : 0.85
+            return [({ $0 < cut ? 1 : 0 }, false), ({ $0 < cut ? 1 : 0 }, true),
+                    ({ $0 >= cut ? 1 : 0 }, false), ({ $0 >= cut ? 1 : 0 }, true)]
         }
-        context.stroke(path, with: .color(Palette.accent.opacity(0.82)), lineWidth: 1.5)
+    }
+
+    private func draw(_ gain: (Double) -> Double, in rect: CGRect, context: inout GraphicsContext, color: Color) {
+        var path = Path()
+        let steps = 120
+        for step in 0...steps {
+            let p = Double(step) / Double(steps)
+            let point = CGPoint(x: rect.minX + rect.width * p, y: rect.maxY - rect.height * gain(p))
+            if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        context.stroke(path, with: .color(color.opacity(0.85)), lineWidth: 1.5)
     }
 }
 

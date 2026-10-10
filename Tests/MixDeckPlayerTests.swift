@@ -16,6 +16,8 @@ final class MixDeckPlayerTests: XCTestCase {
         /// Mix time (s) at which each planned blend becomes audible.
         var joins: [Double] = []
         var lastState: GridPrepState = .ready
+        var states: [GridPrepState] = []
+        var edge: MixDeckEdge = .blend
         weak var player: MixDeckPlayer?
 
         var mixDecksCurrentIndex = 0
@@ -36,8 +38,10 @@ final class MixDeckPlayerTests: XCTestCase {
         func mixDecksCouldNotPlay(index: Int, reason: String) { failures.append(reason) }
         func mixDecksPosition(seconds: Double) {}
         func mixDecksLoading(_ loading: Bool) {}
+        func mixDecksEdge(from: Int, to: Int) -> MixDeckEdge { edge }
         func mixDecksPublish(plan: TransitionPlan?, state: GridPrepState) {
             lastState = state
+            states.append(state)
             if let plan, plans.last != plan {
                 plans.append(plan)
                 joins.append((player?.scheduled?.joinFrame ?? 0) / MixDeckPlayer.sampleRate)
@@ -85,21 +89,51 @@ final class MixDeckPlayerTests: XCTestCase {
         XCTAssertEqual(MixTrackLoader.fileExtension(for: .mp3), "mp3")
     }
 
-    func testQueuePlaysThroughBothTracksOnTheDecks() async throws {
+    private func playTwoTracks(edge: MixDeckEdge, ids: (a: URL, b: URL)) async throws -> (Host, MixDeckPlayer) {
         let host = Host()
-        let a = try clickTrack(bpm: 124, seconds: 12)
-        let b = try clickTrack(bpm: 122, seconds: 10)
-        defer { [a, b].forEach { try? FileManager.default.removeItem(at: $0) } }
-        host.tracks = [(a, 124), (b, 122)]
+        host.edge = edge
+        host.tracks = [(ids.a, 124), (ids.b, 122)]
         let player = try MixDeckPlayer(host: host, offline: true)
         host.player = player
         player.start(index: 0, at: 0, autoplay: true)
         try await render(player, host: host, limit: 120)
+        return (host, player)
+    }
+
+    func testQueuePlaysThroughBothTracksOnTheDecks() async throws {
+        let a = try clickTrack(bpm: 124, seconds: 12)
+        let b = try clickTrack(bpm: 122, seconds: 10)
+        defer { [a, b].forEach { try? FileManager.default.removeItem(at: $0) } }
+        let (host, player) = try await playTwoTracks(edge: .blend, ids: (a, b))
         XCTAssertEqual(host.failures, [])
         XCTAssertEqual(host.advanced.map(\.index), [1])
         XCTAssertEqual(host.ended, [1])
         XCTAssertEqual(player.current?.index, 1)
         XCTAssertNotNil(host.plans.first)
+
+        // The plan is in the shared cache: a second run (the preview prepared it, or this
+        // queue again) plays it without planning again.
+        XCTAssertNotNil(BlendPlanCache.shared.entry(from: 1, to: 2, outgoingTempo: 1))
+        let (again, _) = try await playTwoTracks(edge: .blend, ids: (a, b))
+        XCTAssertEqual(again.advanced.map(\.index), [1])
+        XCTAssertFalse(again.states.contains(.analyzing(0.5)), "a cached plan is not planned again")
+        XCTAssertEqual(again.plans.first?.style, host.plans.first?.style)
+    }
+
+    func testPlainFadeAndGaplessEdgesFollowTheOutgoingEnd() async throws {
+        let a = try clickTrack(bpm: 124, seconds: 12)
+        let b = try clickTrack(bpm: 122, seconds: 10)
+        defer { [a, b].forEach { try? FileManager.default.removeItem(at: $0) } }
+        for edge in [MixDeckEdge.fade, .gapless] {
+            let (host, _) = try await playTwoTracks(edge: edge, ids: (a, b))
+            XCTAssertEqual(host.failures, [], "\(edge)")
+            XCTAssertEqual(host.ended, [1], "\(edge)")
+            let expected: TransitionStyle = edge == .fade ? .plainCrossfade : .gapless
+            XCTAssertEqual(host.plans.last?.style, expected)
+            // The next track takes over where the first one ends (12 s + the 1,024-frame lead).
+            let handover = try XCTUnwrap(host.advanced.first?.seconds)
+            XCTAssertEqual(handover, 12 + 1_024 / MixDeckPlayer.sampleRate, accuracy: 0.1, "\(edge)")
+        }
     }
 
     /// A listening render of a whole mix through the playback path. Set

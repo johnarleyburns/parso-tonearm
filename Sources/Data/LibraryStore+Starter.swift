@@ -155,16 +155,4 @@ extension LibraryStore {
         try db.execute(sql: "UPDATE discovery_index_job SET musicalAnalysisStageState = ? WHERE trackId = ?",
                        arguments: [DiscoveryStageState.complete.rawValue, trackID])
     }
-
-    /// The shipped transition-prep payload for a Mood Starter track (read from the starter DB, never
-    /// copied into the library), or nil when the track isn't a starter track.
-    func starterTransitionPrep(trackId: Int64, starter: StarterLibrary?) throws -> DJTrackPrepPayload? {
-        guard let starter else { return nil }
-        let url = try dbQueue.read { db in
-            try String.fetchOne(db, sql: "SELECT remoteURL FROM asset WHERE trackId = ? AND remoteURL IS NOT NULL LIMIT 1",
-                                arguments: [trackId])
-        }
-        guard let url else { return nil }
-        return try starter.transitionPrep(streamURL: url)
-    }
 }

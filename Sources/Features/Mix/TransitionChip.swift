@@ -7,21 +7,16 @@ struct TransitionChip: View {
     let onUsePlainFade: (() -> Void)?
     let onPrepareNow: (() -> Void)?
     let onAudition: (() -> Void)?
-    let outgoingPayload: DJTrackPrepPayload?
-    let incomingPayload: DJTrackPrepPayload?
     let preparationState: GridPrepState?
     @State private var showWhy = false
 
     init(plan: TransitionPlan? = nil, onUsePlainFade: (() -> Void)? = nil,
          onPrepareNow: (() -> Void)? = nil, onAudition: (() -> Void)? = nil,
-         outgoingPayload: DJTrackPrepPayload? = nil, incomingPayload: DJTrackPrepPayload? = nil,
          preparationState: GridPrepState? = nil) {
         self.planned = plan
         self.onUsePlainFade = onUsePlainFade
         self.onPrepareNow = onPrepareNow
         self.onAudition = onAudition
-        self.outgoingPayload = outgoingPayload
-        self.incomingPayload = incomingPayload
         self.preparationState = preparationState
     }
 
@@ -40,8 +35,7 @@ struct TransitionChip: View {
             .accessibilityValue("Confidence \(Int(plan.confidence * 100)) percent")
             .sheet(isPresented: $showWhy) {
                 NavigationStack {
-                    WhyThisTransitionView(plan: plan, outgoingPayload: outgoingPayload,
-                                         incomingPayload: incomingPayload,
+                    WhyThisTransitionView(plan: plan,
                                          onAudition: onAudition,
                                          onUsePlainFade: onUsePlainFade,
                                          onPrepareNow: onPrepareNow,

@@ -1,6 +1,7 @@
 #if !os(watchOS)
 import Foundation
 import ParsoAudioCore
+import ParsoAudioStreaming
 import ParsoAudioAnalysis
 
 /// Where a mix track's whole audio comes from. The mix decks play decoded PCM
@@ -8,7 +9,9 @@ import ParsoAudioAnalysis
 /// is downloaded completely before it can join a mix.
 enum MixTrackSource: Sendable, Equatable {
     case file(URL, container: AudioContainer, securityScoped: Bool)
-    case remote(URL, headers: [String: String], container: AudioContainer)
+    /// `cacheKey`: the stream cache entry the downloaded file is kept under, so the
+    /// track isn't downloaded again (nil: not cacheable).
+    case remote(URL, headers: [String: String], container: AudioContainer, cacheKey: String?)
 }
 
 /// A decoded mix track at the mix decks' sample rate, and its blend analysis.
@@ -48,10 +51,14 @@ enum MixTrackLoader {
             let access = scoped && url.startAccessingSecurityScopedResource()
             defer { if access { url.stopAccessingSecurityScopedResource() } }
             decoded = try decode(url, container: container)
-        case .remote(let url, let headers, let container):
+        case .remote(let url, let headers, let container, let cacheKey):
             let file = try await download(url, headers: headers, container: container, progress: progress)
-            defer { try? FileManager.default.removeItem(at: file) }
-            decoded = try decode(file, container: container)
+            if let cacheKey, let cached = await adoptIntoCache(file, key: cacheKey) {
+                decoded = try decode(cached, container: container)
+            } else {
+                defer { try? FileManager.default.removeItem(at: file) }
+                decoded = try decode(file, container: container)
+            }
         }
         try Task.checkCancellation()
         progress(.analyzing)
@@ -125,6 +132,26 @@ enum MixTrackLoader {
         }
         progress(.downloading(1))
         return file
+    }
+
+    /// Keeps a complete download as the stream cache's entry for the track, so it plays
+    /// (and joins a mix) from disk next time. Nil, leaving the file where it is, on failure.
+    static func adoptIntoCache(_ file: URL, key: String) async -> URL? {
+        let destination = AudioCache.fileURL(for: key)
+        let bytes = ((try? FileManager.default.attributesOfItem(atPath: file.path)[.size]) as? NSNumber)?.int64Value ?? 0
+        guard bytes > 0 else { return nil }
+        do {
+            try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(),
+                                                    withIntermediateDirectories: true)
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: file, to: destination)
+        } catch {
+            return nil
+        }
+        await AudioCache.shared.adoptCompleteFile(byteCount: bytes, for: key)
+        return destination
     }
 
     static func fileExtension(for container: AudioContainer) -> String? {

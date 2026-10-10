@@ -2,24 +2,14 @@ import Foundation
 import GRDB
 
 extension LibraryStore {
-    /// The complete, version-checked transition analysis used by both the
-    /// preview and the playback executor. A missing or stale payload is nil;
-    /// callers must show the preparation state instead of inventing values.
-    public func transitionPrepPayload(trackId: Int64) throws -> DJTrackPrepPayload? {
-        guard trackId >= 0 else { return nil }
-        if let row = try dbQueue.read({ db in try DJTrackPrep.fetchOne(db, key: trackId) }),
-           let data = row.analysisPayload {
-            return try DJTrackPrepPayload.decoded(data)
+    /// The approximate tempo the blend analysis starts from (it searches ±1% around it): a
+    /// DJ's BPM override, else the library's musical analysis, else the DJ prep BPM. Nil when
+    /// nothing is known yet; the mix decks then estimate it from the audio.
+    public func blendTempoHint(trackId: Int64) throws -> Double? {
+        guard let bpm = try djLoadTrackInfo(trackIds: [trackId])[trackId]?.bpm, bpm.isFinite, bpm > 0 else {
+            return nil
         }
-        // A Mood Starter track's prep ships in the bundled starter DB and is read in place.
-        return try starterTransitionPrep(trackId: trackId, starter: starterLibrary)
-    }
-
-    /// Whether a current transition-prep payload exists — prepared on device or shipped.
-    public func hasCurrentTransitionPrep(trackId: Int64) throws -> Bool {
-        guard let payload = try transitionPrepPayload(trackId: trackId) else { return false }
-        return payload.algorithmID == DJTrackPrepPayload.currentAlgorithmID
-            && payload.version == DJTrackPrepPayload.currentVersion
+        return bpm
     }
 
     /// Reads the authoritative discovery embedding in planner-friendly form.

@@ -2,21 +2,17 @@ import Foundation
 import GRDB
 
 /// The bundled Mood Starter library as an SQLite database ("starter DB") built on the Mac by
-/// BuiltInAnalyzer: track metadata, the CLAP embedding, tempo/key/energy, and each track's
-/// transition-prep record. It replaces the old JSON index + separate pack.
+/// BuiltInAnalyzer: track metadata, the CLAP embedding and tempo/key/energy. Nothing else: blends
+/// are planned on the device from the audio itself (MixDeckPlayer), and the tempo here is all
+/// the planner takes from it (a hint it searches ±1% around).
 ///
-/// The app opens it read-only from the bundle. The small rows are merged into the library in one
-/// transaction (`LibraryStore.mergeStarterLibrary`); the transition-prep blobs stay here and are
-/// read on demand, so the library database never grows by them. The iPhone build ships
-/// `starter-iphone.sqlite` (one waveform bin per second), the Mac `starter-mac.sqlite` (full
-/// waveform). Both are build inputs fetched by `scripts/fetch-starter.sh`, not committed.
+/// The app opens it read-only from the bundle and merges its rows into the library in one
+/// transaction (`LibraryStore.mergeStarterLibrary`). The iPhone and the Mac ship the same
+/// `starter.sqlite`, a build input fetched by `scripts/fetch-starter.sh`, not committed.
 public final class StarterLibrary: Sendable {
-    public static let formatVersion = 1
-    #if os(macOS)
-    public static let resourceNames = ["starter-mac", "starter-iphone"]
-    #else
-    public static let resourceNames = ["starter-iphone"]
-    #endif
+    /// 2: the per-track transition-prep table (waveform, beat grid, sections) is gone.
+    public static let formatVersion = 2
+    public static let resourceNames = ["starter"]
 
     /// The bundled starter DB, or nil when the build doesn't carry one.
     public static let shared: StarterLibrary? = {
@@ -87,21 +83,6 @@ public final class StarterLibrary: Sendable {
             }
         }
     }
-
-    /// The shipped transition-prep payload for the starter track streamed from `streamURL`.
-    public func transitionPrep(streamURL: String) throws -> DJTrackPrepPayload? {
-        let blob = try dbQueue.read { db in
-            try Data.fetchOne(db, sql: """
-                SELECT p.payload FROM starter_prep p JOIN starter_track t ON t.id = p.id
-                WHERE t.stream_url = ?
-                """, arguments: [streamURL])
-        }
-        return try blob.map(BuiltInTransitionPrepPack.decodeRecord)
-    }
-
-    public func preparedCount() throws -> Int {
-        try dbQueue.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM starter_prep") ?? 0 }
-    }
 }
 
 public enum StarterLibraryError: Error, Equatable {
@@ -110,9 +91,7 @@ public enum StarterLibraryError: Error, Equatable {
 
 /// Builds a starter DB (BuiltInAnalyzer `build-starter`).
 public enum StarterLibraryWriter {
-    public static func create(at url: URL, tracks: [BuiltInMoodTrack],
-                              prep: [String: DJTrackPrepPayload], fullWaveform: Bool,
-                              meta: [String: String]) throws {
+    public static func create(at url: URL, tracks: [BuiltInMoodTrack], meta: [String: String]) throws {
         try? FileManager.default.removeItem(at: url)
         var config = Configuration()
         config.journalMode = .default
@@ -126,9 +105,6 @@ public enum StarterLibraryWriter {
                     duration REAL NOT NULL, stream_url TEXT NOT NULL UNIQUE, artwork_url TEXT,
                     bpm REAL, camelot TEXT, energy REAL, analysis_scope REAL,
                     emb_dimensions INTEGER NOT NULL, emb_scale REAL NOT NULL, emb_vector BLOB NOT NULL);
-                CREATE TABLE starter_prep (
-                    id TEXT PRIMARY KEY NOT NULL REFERENCES starter_track(id),
-                    algorithm TEXT NOT NULL, version INTEGER NOT NULL, payload BLOB NOT NULL);
                 """)
             for track in tracks {
                 try db.execute(sql: """
@@ -138,15 +114,9 @@ public enum StarterLibraryWriter {
                         track.durationSec, track.streamURL, track.artworkURL, track.bpm, track.key,
                         track.energy, track.analysisScopeSeconds, track.dimensions, track.scale,
                         track.quantizedVector])
-                if let payload = prep[track.id] {
-                    try db.execute(sql: "INSERT INTO starter_prep VALUES (?, ?, ?, ?)", arguments: [
-                        track.id, payload.algorithmID, payload.version,
-                        try BuiltInTransitionPrepPack.encodeRecord(payload, coarseWaveform: !fullWaveform)])
-                }
             }
             var allMeta = meta
             allMeta["format_version"] = String(StarterLibrary.formatVersion)
-            allMeta["waveform"] = fullWaveform ? "full" : "compact"
             for (key, value) in allMeta {
                 try db.execute(sql: "INSERT INTO starter_meta VALUES (?, ?)", arguments: [key, value])
             }

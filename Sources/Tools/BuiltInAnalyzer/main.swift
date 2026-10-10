@@ -23,9 +23,8 @@ import TonearmDiscovery
 struct BuiltInAnalyzer {
     static func main() async {
         let args = CommandLine.arguments
-        if args.count >= 5, args[1] == "build-starter" {
-            buildStarter(source: URL(fileURLWithPath: args[2]), prepDirectory: URL(fileURLWithPath: args[3]),
-                         output: URL(fileURLWithPath: args[4]), full: args.contains("--full"))
+        if args.count >= 4, args[1] == "build-starter" {
+            buildStarter(source: URL(fileURLWithPath: args[2]), output: URL(fileURLWithPath: args[3]))
             return
         }
         guard args.count >= 2 else {
@@ -40,9 +39,7 @@ struct BuiltInAnalyzer {
             exit(1)
         }
         let pending = entries.indices.filter { index in
-            prepMode
-                ? entries[index]["transitionPrep"] == nil && entries[index]["transitionPrepUnavailable"] == nil
-                : entries[index]["bpm"] == nil && entries[index]["analysisUnavailable"] == nil
+            entries[index]["bpm"] == nil && entries[index]["analysisUnavailable"] == nil
         }
         say("\(entries.count) tracks, \(pending.count) to analyse, \(parallelism) at a time")
 
@@ -56,19 +53,12 @@ struct BuiltInAnalyzer {
                 let entry = Entry(id: entries[index]["id"] as? String ?? "?",
                                   streamURL: entries[index]["streamURL"] as? String,
                                   duration: (entries[index]["durationSec"] as? NSNumber)?.doubleValue)
-                group.addTask { (index, prepMode ? await prepare(entry) : await analyse(entry)) }
+                group.addTask { (index, await analyse(entry)) }
             }
             for _ in 0..<parallelism { enqueue() }
             while let (index, analysis) = await group.next() {
                 done += 1
-                if prepMode {
-                    if let prep = analysis?.prep {
-                        entries[index]["transitionPrep"] = true
-                        entries[index]["transitionPrepFrameCount"] = prep.frameCount
-                    } else {
-                        entries[index]["transitionPrepUnavailable"] = true
-                    }
-                } else if let analysis {
+                if let analysis {
                     entries[index]["bpm"] = analysis.bpm
                     entries[index]["key"] = analysis.key
                     entries[index]["energy"] = analysis.energy
@@ -77,61 +67,19 @@ struct BuiltInAnalyzer {
                     entries[index]["analysisUnavailable"] = true
                 }
                 let id = entries[index]["id"] as? String ?? "?"
-                if prepMode {
-                    say("[\(done)/\(pending.count)] \(id) \(analysis?.prep.map { "prep \($0.payloadBase64.count) b64 bytes" } ?? "unavailable")")
-                } else {
                 say("[\(done)/\(pending.count)] \(id) \(analysis.map { "bpm \($0.bpm.map { String(format: "%.1f", $0) } ?? "—") key \($0.key ?? "—")" } ?? "unavailable")")
-                }
                 if done % 25 == 0 { write(entries, to: indexURL) }
                 enqueue()
             }
         }
         write(entries, to: indexURL)
-        if prepMode {
-            let prepared = entries.filter { $0["transitionPrep"] != nil }.count
-            say("done: \(prepared)/\(entries.count) tracks have transition prep")
-        } else {
-            let analysed = entries.filter { $0["bpm"] != nil && $0["key"] != nil }.count
-            say("done: \(analysed)/\(entries.count) tracks have BPM and key")
-        }
+        let analysed = entries.filter { $0["bpm"] != nil && $0["key"] != nil }.count
+        say("done: \(analysed)/\(entries.count) tracks have BPM and key")
     }
 
     struct Entry: Sendable { let id: String; let streamURL: String?; let duration: Double? }
     struct Analysis: Sendable {
         let bpm: Double?; let key: String?; let energy: Double?; let scopeSeconds: Double
-        var prep: Prep? = nil
-    }
-    struct Prep: Sendable { let payloadBase64: String; let frameCount: Int64 }
-
-    /// `BUILTIN_ANALYZER_PREP=1`: also ship each track's transition-prep payload (beat grid,
-    /// phrases, cue points) — exactly what TransitionPrepService computes on the phone with
-    /// `TrackGridAnalyzer.analyze` after downloading and decoding the whole track. With it, Build
-    /// a Mix's transitions are ready on install instead of "Preparing…" track by track.
-    static let prepMode = ProcessInfo.processInfo.environment["BUILTIN_ANALYZER_PREP"] == "1"
-    static let prepDirectory = URL(fileURLWithPath:
-        ProcessInfo.processInfo.environment["BUILTIN_ANALYZER_PREP_DIR"] ?? "/tmp/builtin-prep")
-
-    static func prepare(_ entry: Entry) async -> Analysis? {
-        guard let streamURL = entry.streamURL.flatMap(URL.init(string:)) else { return nil }
-        let temp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("builtin-prep-\(entry.id)-\(UUID().uuidString).mp3")
-        defer { try? FileManager.default.removeItem(at: temp) }
-        var downloaded = false
-        for attempt in 0..<3 where !downloaded {
-            downloaded = await curl(streamURL, to: temp)
-            if !downloaded && attempt < 2 { try? await Task.sleep(for: .seconds(2)) }
-        }
-        guard downloaded else { say("  \(entry.id): download failed"); return nil }
-        return await Task.detached(priority: .utility) { () -> Analysis? in
-            guard let result = try? TrackGridAnalyzer.analyze(url: temp, codec: "mp3") else { return nil }
-            // Full payload, one file per track; `pack` makes the iPhone (coarse waveform) and Mac
-            // (full waveform) resources from these.
-            guard let data = try? result.payload.encoded() else { return nil }
-            let file = prepDirectory.appendingPathComponent("\(entry.id).plz")
-            guard (try? data.write(to: file, options: .atomic)) != nil else { return nil }
-            return Analysis(bpm: nil, key: nil, energy: nil, scopeSeconds: 0,
-                            prep: Prep(payloadBase64: "\(data.count) bytes", frameCount: result.frameCount))
-        }.value
     }
 
     static func analyse(_ entry: Entry) async -> Analysis? {
@@ -222,29 +170,20 @@ struct BuiltInAnalyzer {
         FileHandle.standardOutput.write((line + "\n").data(using: .utf8)!)
     }
 
-    static func buildStarter(source: URL, prepDirectory: URL, output: URL, full: Bool) {
+    static func buildStarter(source: URL, output: URL) {
         do {
             let sourceData = try Data(contentsOf: source)
             let tracks = try JSONDecoder().decode([BuiltInMoodTrack].self, from: sourceData)
-            var prep: [String: DJTrackPrepPayload] = [:]
-            for track in tracks {
-                let file = prepDirectory.appendingPathComponent("\(track.id).plz")
-                guard let data = try? Data(contentsOf: file),
-                      let payload = try? DJTrackPrepPayload.decoded(data) else { continue }
-                prep[track.id] = payload
-            }
             var hasher = SHA256()
             hasher.update(data: sourceData)
-            for id in prep.keys.sorted() { hasher.update(data: Data(id.utf8)) }
-            hasher.update(data: Data((full ? "full" : "compact").utf8))
+            hasher.update(data: Data("format-\(StarterLibrary.formatVersion)".utf8))
             let contentVersion = hasher.finalize().prefix(8).map { String(format: "%02x", $0) }.joined()
             try StarterLibraryWriter.create(
-                at: output, tracks: tracks, prep: prep, fullWaveform: full,
+                at: output, tracks: tracks,
                 meta: ["content_version": contentVersion, "track_count": String(tracks.count),
-                       "prep_count": String(prep.count), "prep_algorithm": DJTrackPrepPayload.currentAlgorithmID,
                        "built_at": ISO8601DateFormatter().string(from: Date())])
             let size = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-            say("starter DB → \(output.path): \(tracks.count) tracks, \(prep.count) with transition prep, \(size / 1_048_576) MB (\(full ? "full" : "compact") waveform), content \(contentVersion)")
+            say("starter DB → \(output.path): \(tracks.count) tracks, \(size / 1_024) KB, content \(contentVersion)")
         } catch {
             say("build-starter failed: \(error)")
         }
