@@ -16,11 +16,20 @@ extension AudioPlayer: MixDeckHost {
     /// "Use for everything" is on, and auditions.
     var wantsMixDecks: Bool {
         guard !isAmbient else { return false }
-        if auditionRequested { return true }
+        if auditionRequested || isMixQueue { return true }
         guard smartTransitionsEnabled else { return false }
-        if case .mix = queueSource { return true }
         return UserDefaults.standard.bool(forKey: "smartTransitionsEverywhere")
     }
+
+    /// A Build a Mix queue is the best DJ mix we can make: it always blends
+    /// (double drop, bass swap, else a phrase cut), whatever the Smart
+    /// transitions settings say. Other queues blend when those are on.
+    var isMixQueue: Bool {
+        if case .mix = queueSource { return true }
+        return false
+    }
+
+    var mixDecksBlend: Bool { smartTransitionsEnabled || isMixQueue }
 
     /// Loads the current track onto the mix decks. False when the decks can't
     /// be created, and the caller plays it on AVPlayer instead.
@@ -45,7 +54,7 @@ extension AudioPlayer: MixDeckHost {
         transitionPlan = nil
 
         mixDecks.volume = outputLevel
-        mixDecks.blendsEnabled = smartTransitionsEnabled
+        mixDecks.blendsEnabled = mixDecksBlend
         currentTime = 0
         duration = row.track.durationSec ?? 0
         isPlaying = autoplay

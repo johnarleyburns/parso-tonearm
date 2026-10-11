@@ -121,7 +121,7 @@ public final class AudioPlayer: ObservableObject {
         UserDefaults.standard.object(forKey: "smartTransitionsEnabled") as? Bool ?? true {
         didSet {
             guard smartTransitionsEnabled != oldValue else { return }
-            mixDecks?.blendsEnabled = smartTransitionsEnabled
+            mixDecks?.blendsEnabled = mixDecksBlend
         }
     }
 

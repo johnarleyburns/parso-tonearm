@@ -67,6 +67,22 @@ struct MixBuilderSheet: View {
     @State private var generationMessage: String?
     @State private var showingPreview = false
     @State private var detent: PresentationDetent = .medium
+    @EnvironmentObject private var prep: TransitionPrepService
+
+    /// Build Mix: choose the tracks, then download every one and plan every blend, so the
+    /// whole mix plays from disk with its blends known in advance (a blend planned while a
+    /// track still streams can miss its swap point).
+    enum BuildPhase: Equatable {
+        case idle
+        case choosing
+        case preparing
+        case ready
+        /// Preparation stopped on a track: why, said plainly.
+        case stopped(String)
+    }
+    @State private var phase: BuildPhase = .idle
+    @State private var trackStates: [Int64: GridPrepState] = [:]
+    @State private var buildTask: Task<Void, Never>?
 
     init(rows: [TrackRow], lockedFirst: Int64? = nil, sourcePlaylist: Playlist? = nil,
          picksSource: Bool = false) {
@@ -90,11 +106,6 @@ struct MixBuilderSheet: View {
                         .font(Typography.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .accessibilityIdentifier("mix.builder.message")
-                    }
-                } else if let plan {
-                    Section {
-                        Button("Review \(plan.steps.count) tracks") { showingPreview = true }
-                            .accessibilityIdentifier("mix.builder.review")
                     }
                 }
                 Section("Source") {
@@ -164,15 +175,22 @@ struct MixBuilderSheet: View {
                     }
                 }
             }
+            .disabled(phase == .choosing || phase == .preparing)
+            .safeAreaInset(edge: .bottom) { buildPanel }
             .navigationTitle("Build a Mix")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isLoading ? "Generating…" : "Generate") { generate() }
-                        .disabled(isLoading || rows.isEmpty)
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { cancelBuild(); dismiss() }
                 }
             }
-            // Only the genre list loads up front; tracks load when Generate is tapped.
+            // A different source or length makes a different mix: build again.
+            .onChange(of: buildInputs) { _, _ in
+                guard phase != .choosing, phase != .preparing else { return }
+                plan = nil
+                phase = .idle
+            }
+            .onDisappear { cancelBuild() }
+            // Only the genre list loads up front; tracks load when Build Mix is tapped.
             .task {
                 guard picksSource, genreChoices == nil else { return }
                 genreChoices = (try? await appState.store.mixableGenreCounts()) ?? []
@@ -186,6 +204,178 @@ struct MixBuilderSheet: View {
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
+    }
+
+    // MARK: - Build Mix
+
+    private var buildInputs: String {
+        "\(sourceChoice.rawValue)|\(chosenGenre ?? "")|\(chosenPlaylistID ?? 0)|\(Int(duration))"
+    }
+
+    private var planRows: [TrackRow] {
+        let byID = Dictionary(rows.compactMap { row in row.track.id.map { ($0, row) } },
+                              uniquingKeysWith: { first, _ in first })
+        return (plan?.steps ?? []).compactMap { byID[$0.trackID] }
+    }
+
+    /// 0…1: choosing the tracks is the first 5%, then each track's download (70%) and
+    /// blend planning (30%) in equal shares.
+    private var buildProgress: Double {
+        switch phase {
+        case .idle, .choosing: return phase == .choosing ? 0.02 : 0
+        case .ready: return 1
+        case .preparing, .stopped:
+            let ids = planRows.compactMap(\.track.id)
+            guard !ids.isEmpty else { return 0.05 }
+            let done = ids.reduce(0.0) { sum, id in
+                switch trackStates[id] {
+                case .ready: sum + 1
+                case .downloading(let f): sum + 0.7 * f
+                case .analyzing: sum + 0.8
+                default: sum
+                }
+            }
+            return 0.05 + 0.95 * done / Double(ids.count)
+        }
+    }
+
+    /// The step the build is on, in words.
+    private var buildStep: String {
+        switch phase {
+        case .idle, .ready: return ""
+        case .choosing: return String(localized: "Choosing tracks…")
+        case .stopped(let reason): return reason
+        case .preparing:
+            let rows = planRows
+            guard let index = rows.firstIndex(where: { row in
+                row.track.id.map { trackStates[$0] != .ready } ?? false
+            }) else { return String(localized: "Finishing…") }
+            let title = rows[index].track.title
+            let (n, total) = (index + 1, rows.count)
+            switch rows[index].track.id.flatMap({ trackStates[$0] }) {
+            case .downloading:
+                return String(localized: "Downloading “\(title)” (\(n) of \(total))")
+            case .analyzing where index == 0:
+                return String(localized: "Analyzing “\(title)” (\(n) of \(total))")
+            case .analyzing:
+                return String(localized: "Planning the blend into “\(title)” (\(n) of \(total))")
+            case .waitingForNetwork:
+                return String(localized: "Waiting for a network connection")
+            case .waitingForWiFi:
+                return String(localized: "Waiting for Wi-Fi")
+            default:
+                return String(localized: "Preparing track \(n) of \(total)")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var buildPanel: some View {
+        VStack(spacing: 12) {
+            switch phase {
+            case .idle:
+                Button { generate() } label: {
+                    Label("Build Mix", systemImage: "waveform.path.ecg")
+                        .font(Typography.headline)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Palette.accent)
+                .disabled(rows.isEmpty)
+                .accessibilityIdentifier("mix.builder.build")
+            case .choosing, .preparing:
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(buildStep)
+                            .font(Typography.callout)
+                            .lineLimit(2)
+                        Spacer()
+                        Text(buildProgress, format: .percent.precision(.fractionLength(0)))
+                            .font(Typography.callout)
+                            .monospacedDigit()
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    ProgressView(value: buildProgress)
+                        .tint(Palette.accent)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("mix.builder.progress")
+                Button("Stop", role: .cancel) { cancelBuild(); phase = .idle }
+                    .accessibilityIdentifier("mix.builder.stop")
+            case .ready:
+                Label("Your mix is ready to play", systemImage: "checkmark.circle.fill")
+                    .font(Typography.headline)
+                    .foregroundStyle(Palette.accent)
+                    .accessibilityIdentifier("mix.builder.ready")
+                Button { playBuiltMix() } label: {
+                    Label("Play Mix", systemImage: "play.fill")
+                        .font(Typography.headline)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Palette.accent)
+                .accessibilityIdentifier("mix.builder.play")
+                if let plan {
+                    Button("Review \(plan.steps.count) tracks") { showingPreview = true }
+                        .accessibilityIdentifier("mix.builder.review")
+                }
+            case .stopped(let reason):
+                Label(reason, systemImage: "exclamationmark.triangle")
+                    .font(Typography.callout)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityIdentifier("mix.builder.stopped")
+                HStack {
+                    Button("Retry") { prepareBuiltMix() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Palette.accent)
+                    Button("Play Anyway") { playBuiltMix() }
+                        .buttonStyle(.bordered)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+    }
+
+    private func cancelBuild() {
+        buildTask?.cancel()
+        buildTask = nil
+    }
+
+    /// Downloads every track of the chosen mix and plans every blend, in order.
+    private func prepareBuiltMix() {
+        let rows = planRows
+        guard !rows.isEmpty else { return }
+        cancelBuild()
+        phase = .preparing
+        buildTask = Task {
+            await prep.prepareAll(rows: rows) { id, state in trackStates[id] = state }
+            guard !Task.isCancelled else { return }
+            if let stuck = rows.first(where: { row in row.track.id.map { trackStates[$0] != .ready } ?? false }),
+               let id = stuck.track.id {
+                let why: String
+                switch trackStates[id] {
+                case .failed(let reason): why = reason
+                case .waitingForNetwork: why = String(localized: "Waiting for a network connection")
+                case .waitingForWiFi: why = String(localized: "Waiting for Wi-Fi")
+                default: why = String(localized: "Stopped")
+                }
+                phase = .stopped(String(localized: "Couldn't prepare “\(stuck.track.title)”: \(why)"))
+            } else {
+                phase = .ready
+            }
+        }
+    }
+
+    /// Plays the built mix in the mini player and closes Build a Mix.
+    private func playBuiltMix() {
+        guard let plan else { return }
+        let ordered = planRows
+        guard !ordered.isEmpty else { return }
+        cancelBuild()
+        AudioPlayer.shared.play(tracks: ordered, startAt: 0, source: .mix(plan))
+        dismiss()
     }
 
     private var genreByTrack: [Int64: String] {
@@ -256,7 +446,8 @@ struct MixBuilderSheet: View {
     private func generate() {
         isLoading = true
         generationMessage = nil
-        Task {
+        phase = .choosing
+        buildTask = Task {
             // The source rows arrive before the async DJ/discovery metadata.
             // Previously a fast tap generated a plan from an empty candidate
             // array, left no preview to navigate to, and appeared to do
@@ -316,11 +507,10 @@ struct MixBuilderSheet: View {
                 } ?? .given
                 if !generated.steps.isEmpty { MixHistory.record(source) }
             }
+            guard !Task.isCancelled else { return }
             plan = generated
-            // Show the outcome where it can be seen: the full-height sheet, and the preview itself
-            // when there is a mix.
-            detent = .large
-            if !generated.steps.isEmpty { showingPreview = true }
+            trackStates = [:]
+            if !generated.steps.isEmpty { prepareBuiltMix() } else { phase = .idle }
             if generated.steps.isEmpty {
                 generationMessage = rows.isEmpty
                     ? String(localized: "Add music to your library before building a mix.")

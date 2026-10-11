@@ -58,6 +58,27 @@ final class TransitionPrepService: ObservableObject {
         run(window)
     }
 
+    /// Build a Mix: downloads every track and plans every blend of the whole mix,
+    /// in order, and returns when that is done, stopped or cancelled (the caller's
+    /// task). `progress` gets each track's state as it changes, like `states`.
+    func prepareAll(rows: [TrackRow], plainFadeEdges: Set<String> = [],
+                    progress: @escaping @MainActor (Int64, GridPrepState) -> Void) async {
+        task?.cancel()
+        task = nil
+        waitingRows = []
+        allowsCellularForWindow = true
+        self.plainFadeEdges = plainFadeEdges
+        await BlendPreparation.prepare(
+            rows: rows,
+            gate: { [weak self] row in self?.blocker(for: row) },
+            blends: { [weak self] from, to in self?.blends(from: from, to: to) ?? true },
+            progress: { [weak self] id, state in
+                self?.setState(state, for: id)
+                if state == .ready { self?.plannedRevision += 1 }
+                progress(id, state)
+            })
+    }
+
     private func run(_ window: [TrackRow]) {
         task?.cancel()
         task = Task { [weak self] in

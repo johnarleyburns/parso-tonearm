@@ -38,12 +38,18 @@ public enum BlendPreparation {
                 progress(id, blocked)
                 return
             }
-            guard let previous = outgoing else {
-                progress(id, .ready)
-                outgoing = Outgoing(row: row, id: id, audio: nil, tempo: 1, playedAnalysis: nil)
-                continue
-            }
-            guard blends(previous.row, row) else {
+            // The first track, or one after a plain fade / gapless edge: nothing to plan,
+            // but it is downloaded too, so the whole queue plays from disk.
+            guard let previous = outgoing, blends(previous.row, row) else {
+                do {
+                    try await download(row) { progress(id, $0) }
+                } catch is CancellationError {
+                    progress(id, .cancelled)
+                    return
+                } catch {
+                    progress(id, .failed(error.localizedDescription))
+                    return
+                }
                 progress(id, .ready)
                 outgoing = Outgoing(row: row, id: id, audio: nil, tempo: 1, playedAnalysis: nil)
                 continue
@@ -86,6 +92,25 @@ public enum BlendPreparation {
                 return
             }
         }
+    }
+
+    /// Downloads a remote track into the stream cache unless it is there already
+    /// (local files, and streams that can't be cached, need nothing).
+    static func download(_ row: TrackRow,
+                         progress: @escaping @MainActor (GridPrepState) -> Void) async throws {
+        guard let asset = row.asset,
+              case .remote(let url, let headers, let container, let key?) = AudioPlayer.shared.mixTrackSource(for: asset)
+        else { return }
+        try await Task.detached(priority: .utility) {
+            let file = try await MixTrackLoader.download(url, headers: headers, container: container) { stage in
+                if case .downloading(let fraction) = stage {
+                    Task { @MainActor in progress(.downloading(fraction)) }
+                }
+            }
+            if await MixTrackLoader.adoptIntoCache(file, key: key) == nil {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }.value
     }
 
     /// Decodes and analyses one track for planning, as the decks do.
