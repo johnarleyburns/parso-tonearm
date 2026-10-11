@@ -29,6 +29,8 @@ public final class DiscoverySearchViewModel: ObservableObject {
     @Published public var bpmMaxText: String = "" { didSet { refresh() } }
     @Published public var compatibleKey: String = "" { didSet { refresh() } }
     @Published public var resultLimit: Int = ValidatedQuery.defaultLimit { didSet { refresh() } }
+    /// Only these genres (the Listen tab's genre tags); empty: all.
+    @Published public var genres: Set<String> = [] { didSet { refresh() } }
 
     @Published public private(set) var positiveRefinements: [String] = []
     @Published public private(set) var negativeRefinements: [String] = []
@@ -109,6 +111,7 @@ public final class DiscoverySearchViewModel: ObservableObject {
             bpmMin: parseBPM(bpmMinText),
             bpmMax: parseBPM(bpmMaxText),
             compatibleKey: key.isEmpty ? nil : key,
+            genres: genres.isEmpty ? nil : genres.sorted(),
             limit: resultLimit)
     }
 
@@ -365,6 +368,7 @@ public final class DiscoverySearchViewModel: ObservableObject {
             && query.compatibleKey == nil
             && query.sourceIDs == nil
             && query.playlistID == nil
+            && (query.genres ?? []).isEmpty
     }
 
     /// Score-detail components for a result row (plan §10.1). Pure pass-through

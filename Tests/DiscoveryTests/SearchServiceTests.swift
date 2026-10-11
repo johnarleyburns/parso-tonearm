@@ -395,6 +395,75 @@ final class SearchServiceTests: XCTestCase {
         XCTAssertEqual(response.state, .modelMissing)
     }
 
+    // MARK: - Keywords (title / artist / album / genre via FTS)
+
+    private func seedKeywordLibrary(_ queue: DatabaseQueue) async throws -> [String: Int64] {
+        try await queue.write { db in
+            let s = try SearchFixture.seedSource(db)
+            var ids: [String: Int64] = [:]
+            // (title, genre, embedding or nil for not indexed yet)
+            let rows: [(String, String, [Float]?)] = [
+                ("sound match", "Ambient", [1, 0, 0, 0, 0, 0, 0, 0]),
+                ("genre far", "Progressive House", [0, 1, 0, 0, 0, 0, 0, 0]),
+                ("genre near", "Progressive House", [0.8, 0.6, 0, 0, 0, 0, 0, 0]),
+                ("progressive anthem", "Deep House", [0, 0, 1, 0, 0, 0, 0, 0]),
+                ("genre unindexed", "Progressive House", nil),
+            ]
+            for (title, genre, vector) in rows {
+                let t = try SearchFixture.seedTrack(db, sourceId: s, title: title)
+                if let vector {
+                    let a = try SearchFixture.seedAsset(db, trackId: t)
+                    try SearchFixture.seedEmbedding(db, trackId: t, assetId: a, vector: vector)
+                }
+                try db.execute(sql: "UPDATE track SET genre = ? WHERE id = ?", arguments: [genre, t])
+                try db.execute(sql: """
+                    INSERT INTO track_fts(rowid, title, artist, album, genre, filename)
+                    VALUES (?, ?, '', '', ?, '')
+                    """, arguments: [t, title, genre])
+                ids[title] = t
+            }
+            return ids
+        }
+    }
+
+    func testKeywordHitsRankAboveSoundOnlyMatches() async throws {
+        let queue = try SearchFixture.makeQueue()
+        _ = try await seedKeywordLibrary(queue)
+        let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
+        let response = await service.search(DiscoverySearchQuery(text: "progressive house"))
+
+        XCTAssertEqual(response.state, .ready)
+        // Genre phrase hits first (ordered by sound, unindexed last), then the
+        // title+genre word hit, then the sound-only match.
+        XCTAssertEqual(response.results.map(\.track.track.title), [
+            "genre near", "genre far", "genre unindexed", "progressive anthem", "sound match",
+        ])
+    }
+
+    func testKeywordsStillWorkWithoutTheTextModel() async throws {
+        let queue = try SearchFixture.makeQueue()
+        _ = try await seedKeywordLibrary(queue)
+        let service = await makeService(queue)
+        let response = await service.search(DiscoverySearchQuery(text: "progressive hou"))
+
+        XCTAssertEqual(response.state, .ready)
+        XCTAssertEqual(Set(response.results.prefix(3).map(\.track.track.title)),
+                       ["genre near", "genre far", "genre unindexed"])
+        XCTAssertEqual(response.results.last?.track.track.title, "progressive anthem")
+    }
+
+    func testGenreTagsFilterEveryMode() async throws {
+        let queue = try SearchFixture.makeQueue()
+        _ = try await seedKeywordLibrary(queue)
+        let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
+
+        let mood = await service.search(DiscoverySearchQuery(text: "warm", genres: ["Progressive House"]))
+        XCTAssertEqual(mood.results.map(\.track.track.title), ["genre near", "genre far"])
+
+        let browse = await service.search(DiscoverySearchQuery(genres: ["Deep House", "Ambient"]))
+        XCTAssertEqual(Set(browse.results.map(\.track.track.title)), ["progressive anthem", "sound match"])
+    }
+
     // MARK: - Coverage states
 
     func testCoverageReportsIndexingInProgress() async throws {

@@ -9,6 +9,8 @@ import TonearmCore
 struct MoodPillPicker: View {
     let pills: [MoodPill]
     @Binding var selection: Set<MoodPill.ID>
+    /// "mood" or "genre": the row's accessibility identifiers.
+    var kind = "mood"
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -27,11 +29,11 @@ struct MoodPillPicker: View {
                                         in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("mood.pill.\(pill.id)")
+                    .accessibilityIdentifier("\(kind).pill.\(pill.id)")
                 }
             }
             .padding(.horizontal, 2)
         }
-        .accessibilityIdentifier("mood.pills")
+        .accessibilityIdentifier("\(kind).pills")
     }
 }

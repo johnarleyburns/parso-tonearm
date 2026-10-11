@@ -237,13 +237,26 @@ public actor SearchService {
         matchingReferenceTrackID: Int64?, matchingTracksOnly: Bool,
         isCancelled: @escaping @Sendable () -> Bool, start: DispatchTime
     ) async -> DiscoverySearchResponse {
+        // Typed words also match titles, artists, albums and genres through
+        // the FTS index, so "progressive house" or "boiler room" finds those
+        // tracks first; the sound match then orders them.
+        let keywords: [Int64: SearchRepository.KeywordMatch]
+        do {
+            keywords = try repo.keywordMatches(q.text)
+        } catch {
+            return response(mode: .semantic, state: .searchFailed, results: [], coverage: coverage,
+                generation: nil, start: start)
+        }
+
         let encoder: any SemanticModel
         do {
             encoder = try await models.textEncoder(context: executionContext())
         } catch ModelManager.ModelManagerError.resourcesUnavailable {
+            if !keywords.isEmpty { return keywordOnly(q, keywords, coverage: coverage, start: start) }
             return response(mode: .semantic, state: .modelMissing, results: [], coverage: coverage,
                 generation: nil, start: start)
         } catch {
+            if !keywords.isEmpty { return keywordOnly(q, keywords, coverage: coverage, start: start) }
             return response(mode: .semantic, state: .modelDownloadFailed, results: [],
                 coverage: coverage, generation: nil, start: start)
         }
@@ -286,7 +299,7 @@ public actor SearchService {
         return await scanAndRank(
             mode: .semantic, query: q, queryVector: queryVector, target: target,
             musicalMatch: musicalMatch, excludeTrackID: nil,
-            includeUnknownMusical: !q.hasHardMusicalFilter,
+            includeUnknownMusical: !q.hasHardMusicalFilter, keywords: keywords,
             coverage: coverage, isCancelled: isCancelled, start: start)
     }
 
@@ -352,6 +365,7 @@ public actor SearchService {
         mode: DiscoverySearchMode, query q: ValidatedQuery, queryVector: [Float],
         target: RankTarget, musicalMatch: MusicalMatchReference?,
         excludeTrackID: Int64?, includeUnknownMusical: Bool,
+        keywords: [Int64: SearchRepository.KeywordMatch] = [:],
         coverage: SearchRepository.Coverage,
         isCancelled: @escaping @Sendable () -> Bool, start: DispatchTime,
         attempt: Int = 0
@@ -365,6 +379,7 @@ public actor SearchService {
                 generation: nil, start: start)
         }
         guard snapshot.rowCount > 0, snapshot.dimensions == queryVector.count else {
+            if !keywords.isEmpty { return keywordOnly(q, keywords, coverage: coverage, start: start) }
             return response(
                 mode: mode, state: coverage.indexed == 0 ? .zeroIndexed : .noMatches,
                 results: [], coverage: coverage, generation: snapshot.generation, start: start)
@@ -409,8 +424,26 @@ public actor SearchService {
                     candidate, target: target, weights: weights)
                 topK.insert(
                     Scored(
-                        trackID: trackID, similarity: similarity, finalScore: breakdown.fused,
+                        trackID: trackID, similarity: similarity,
+                        finalScore: breakdown.fused + Self.keywordBoost(keywords[trackID]),
                         breakdown: breakdown))
+            }
+        }
+
+        // Keyword hits with no embedding yet (not indexed) still belong in
+        // the results; they rank on the keyword and musical fit alone.
+        if !keywords.isEmpty {
+            let indexed = Set(snapshot.trackIDByRow)
+            for (trackID, match) in keywords
+            where trackID != excludeTrackID && eligible.contains(trackID) && !indexed.contains(trackID) {
+                let attr = attributes[trackID]
+                let breakdown = HybridRanker.fusedScore(
+                    RankCandidate(semantic: 0, bpm: attr?.bpm, camelot: attr?.camelot,
+                                  energy: attr?.energy, phraseLength: attr?.phraseLength),
+                    target: target, weights: weights)
+                topK.insert(Scored(trackID: trackID, similarity: 0,
+                                   finalScore: breakdown.fused + Self.keywordBoost(match),
+                                   breakdown: breakdown))
             }
         }
 
@@ -446,6 +479,7 @@ public actor SearchService {
                 mode: mode, query: q, queryVector: queryVector, target: target,
                 musicalMatch: musicalMatch,
                 excludeTrackID: excludeTrackID, includeUnknownMusical: includeUnknownMusical,
+                keywords: keywords,
                 coverage: coverage, isCancelled: isCancelled, start: start, attempt: 1)
         }
 
@@ -459,6 +493,49 @@ public actor SearchService {
         return response(
             mode: mode, state: results.isEmpty ? .noMatches : .ready, results: results,
             coverage: coverage, generation: snapshot.generation, start: start)
+    }
+
+    // MARK: - Keywords
+
+    /// Added to the fused score (itself 0…1), so every keyword hit ranks
+    /// above every sound-only match, and a phrase in the artist, album or
+    /// genre above words scattered across fields.
+    static func keywordBoost(_ match: SearchRepository.KeywordMatch?) -> Double {
+        switch match {
+        case .phrase: 1.25
+        case .words: 1
+        case nil: 0
+        }
+    }
+
+    /// Keyword results when the text model or vector index isn't available:
+    /// the typed words still find tracks, phrase hits first, then library order.
+    private func keywordOnly(
+        _ q: ValidatedQuery, _ keywords: [Int64: SearchRepository.KeywordMatch],
+        coverage: SearchRepository.Coverage, start: DispatchTime
+    ) -> DiscoverySearchResponse {
+        do {
+            let eligible = try repo.eligibleTrackIDs(for: q)
+            let ids = keywords.keys.filter { eligible.contains($0) }
+                .sorted { a, b in
+                    let (ba, bb) = (Self.keywordBoost(keywords[a]), Self.keywordBoost(keywords[b]))
+                    return ba != bb ? ba > bb : a < b
+                }
+                .prefix(q.limit)
+            let rows = try repo.materialize(Array(ids))
+            var rowByID: [Int64: TrackRow] = [:]
+            for r in rows { rowByID[r.id] = r }
+            let results = ids.compactMap { id in
+                rowByID[id].map {
+                    DiscoverySearchResult(track: $0, similarity: nil, finalScore: nil, breakdown: nil)
+                }
+            }
+            return response(mode: .semantic, state: results.isEmpty ? .noMatches : .ready,
+                results: results, coverage: coverage, generation: nil, start: start)
+        } catch {
+            return response(mode: .semantic, state: .searchFailed, results: [], coverage: coverage,
+                generation: nil, start: start)
+        }
     }
 
     // MARK: - Query vector

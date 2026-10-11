@@ -42,6 +42,11 @@ public struct SearchRepository: Sendable {
             clauses.append("t.id IN (SELECT trackId FROM playlist_item WHERE playlistId = ?)")
             args.append(playlistID)
         }
+        if !query.genres.isEmpty {
+            // Indexed (track_on_genre).
+            clauses.append("t.genre IN (\(query.genres.map { _ in "?" }.joined(separator: ",")))")
+            args.append(contentsOf: query.genres)
+        }
         let whereClause = clauses.isEmpty ? "1" : clauses.joined(separator: " AND ")
         return ScopeSQL(whereClause: whereClause, arguments: StatementArguments(args))
     }
@@ -122,6 +127,7 @@ public struct SearchRepository: Sendable {
                 var a: [any DatabaseValueConvertible] = []
                 if let sourceIDs = query.sourceIDs { a.append(contentsOf: sourceIDs) }
                 if let playlistID = query.playlistID { a.append(playlistID) }
+                a.append(contentsOf: query.genres)
                 a.append(pipelineVersion)
                 a.append(contentsOf: states)
                 return try Int.fetchOne(
@@ -148,6 +154,7 @@ public struct SearchRepository: Sendable {
                 var a: [any DatabaseValueConvertible] = []
                 if let sourceIDs = query.sourceIDs { a.append(contentsOf: sourceIDs) }
                 if let playlistID = query.playlistID { a.append(playlistID) }
+                a.append(contentsOf: query.genres)
                 a.append(contentsOf: hardArgs)
                 matching = try Int.fetchOne(
                     db,
@@ -191,6 +198,7 @@ public struct SearchRepository: Sendable {
             var args: [any DatabaseValueConvertible] = []
             if let sourceIDs = query.sourceIDs { args.append(contentsOf: sourceIDs) }
             if let playlistID = query.playlistID { args.append(playlistID) }
+            args.append(contentsOf: query.genres)
 
             if query.hasHardMusicalFilter || musicalMatch != nil {
                 let (clause, hardArgs) = Self.hardFilterClause(query, musicalMatch: musicalMatch)
@@ -202,6 +210,31 @@ public struct SearchRepository: Sendable {
             }
             let ids = try Int64.fetchAll(db, sql: sql, arguments: StatementArguments(args))
             return Set(ids)
+        }
+    }
+
+    /// Keyword hits for typed text, from the `track_fts` FTS5 index (never a
+    /// table scan): every track whose title, artist, album or genre contains
+    /// all of the words (prefix-matched), mapped to its tier — `.phrase` when
+    /// the words appear together as a phrase in the artist, album or genre
+    /// ("progressive house" as a genre), `.words` otherwise. Capped so a
+    /// one-letter prefix can't return the whole library.
+    public enum KeywordMatch: Sendable, Equatable { case words, phrase }
+
+    public static let keywordMatchLimit = 5000
+
+    public func keywordMatches(_ text: String) throws -> [Int64: KeywordMatch] {
+        let terms = SearchQueryBuilder.tokenize(text).prefix(SearchQueryBuilder.maxTerms)
+        guard !terms.isEmpty else { return [:] }
+        let quote = { (s: String) in "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
+        let words = "{title artist album genre} : (" + terms.map { quote($0) + "*" }.joined(separator: " ") + ")"
+        let phrase = "{artist album genre} : " + quote(terms.joined(separator: " ")) + "*"
+        return try reader.read { db in
+            var out: [Int64: KeywordMatch] = [:]
+            let sql = "SELECT rowid FROM track_fts WHERE track_fts MATCH ? LIMIT \(Self.keywordMatchLimit)"
+            for id in try Int64.fetchAll(db, sql: sql, arguments: [words]) { out[id] = .words }
+            for id in try Int64.fetchAll(db, sql: sql, arguments: [phrase]) { out[id] = .phrase }
+            return out
         }
     }
 
@@ -284,6 +317,7 @@ public struct SearchRepository: Sendable {
             var args: [any DatabaseValueConvertible] = []
             if let sourceIDs = query.sourceIDs { args.append(contentsOf: sourceIDs) }
             if let playlistID = query.playlistID { args.append(playlistID) }
+            args.append(contentsOf: query.genres)
             if applyHardFilters && query.hasHardMusicalFilter {
                 let (clause, hardArgs) = Self.hardFilterClause(query)
                 sql += " JOIN discovery_track_analysis a ON a.trackId = t.id"

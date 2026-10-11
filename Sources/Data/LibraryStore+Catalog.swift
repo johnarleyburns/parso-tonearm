@@ -361,6 +361,21 @@ extension LibraryStore {
         }
     }
 
+    // MARK: - Genres
+
+    /// The library's genres with at least `minimumTracks` tracks, A to Z
+    /// (the Listen tab's genre tags). Reads the track_on_genre index only.
+    public func genres(minimumTracks: Int = 3) throws -> [String] {
+        let names = try dbQueue.read { db in
+            try String.fetchAll(db, sql: """
+                SELECT genre FROM track
+                WHERE genre IS NOT NULL AND genre != ''
+                GROUP BY genre HAVING COUNT(*) >= ?
+                """, arguments: [minimumTracks])
+        }
+        return names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
     // MARK: - Search (FTS5)
 
     public func search(_ query: String) throws -> [TrackRow] {

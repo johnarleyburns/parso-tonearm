@@ -314,6 +314,7 @@ struct MoodView: View {
     @State private var showIndexStatus = false
     @State private var selectedPillIDs: Set<MoodPill.ID> = []
     @State private var eraVibePills: [MoodPill] = []
+    @State private var genres: [String] = []
     @State private var promptDraft = ""
     @State private var selectedTrackForDetail: TrackRow?
     @State private var placeholderIndex = 0
@@ -323,7 +324,7 @@ struct MoodView: View {
     fileprivate static let promptPlaceholders = [
         "sunday morning coffee", "focus, no vocals", "storm outside"
     ]
-    fileprivate static let moodControlsMinHeight: CGFloat = 142
+    fileprivate static let moodControlsMinHeight: CGFloat = 190
     fileprivate static let moodResultsAreaMinHeight: CGFloat = 160
     private static let moodSectionMinHeight = moodControlsMinHeight + 14 + moodResultsAreaMinHeight
 
@@ -340,6 +341,7 @@ struct MoodView: View {
                             moodModel: moodModel,
                             selectedPillIDs: $selectedPillIDs,
                             eraVibePills: eraVibePills,
+                            genres: genres,
                             promptDraft: $promptDraft,
                             placeholderIndex: placeholderIndex,
                             selectedTrackForDetail: $selectedTrackForDetail,
@@ -401,11 +403,15 @@ struct MoodView: View {
         guard moodModel == nil else { return }
         let vm = await DiscoveryRuntimeController.shared.makeSearchViewModel(
             appState: appState, player: player)
+        // The prompt is a mood: matched by sound, with the pills, and boosted
+        // by title/artist/album/genre keywords — not a title-only lookup.
+        vm.inputMode = .findBySound
         moodModel = vm
         let summary = await SuggestionChips.summary(library: appState.store)
         eraVibePills = SuggestionChips.seed(from: summary).map { chip in
             MoodPill(id: chip, label: chip, queryTerm: chip)
         }
+        genres = (try? await appState.store.genres()) ?? []
     }
 
     private func playMood() async {
@@ -465,6 +471,8 @@ private struct MoodEntryPointSection: View {
     @ObservedObject var moodModel: DiscoverySearchViewModel
     @Binding var selectedPillIDs: Set<MoodPill.ID>
     let eraVibePills: [MoodPill]
+    /// The library's genres, A to Z: the second tag row.
+    let genres: [String]
     @Binding var promptDraft: String
     let placeholderIndex: Int
     @Binding var selectedTrackForDetail: TrackRow?
@@ -475,8 +483,19 @@ private struct MoodEntryPointSection: View {
     let startingPlayback: Bool
     let onPlay: () -> Void
 
+    /// A to Z, so a mood is easy to find.
     private var allMoodPills: [MoodPill] {
-        MoodPillTaxonomy.fixedCategories + eraVibePills
+        (MoodPillTaxonomy.fixedCategories + eraVibePills)
+            .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
+    }
+
+    private var genrePills: [MoodPill] {
+        genres.map { MoodPill(id: $0, label: $0, queryTerm: $0) }
+    }
+
+    /// Selected genres filter the results to those genres (any of them).
+    private var genreSelectionBinding: Binding<Set<MoodPill.ID>> {
+        Binding(get: { moodModel.genres }, set: { moodModel.genres = $0 })
     }
 
     private var promptBinding: Binding<String> {
@@ -524,6 +543,10 @@ private struct MoodEntryPointSection: View {
                 .accessibilityIdentifier("mood.prompt")
 
             MoodPillPicker(pills: allMoodPills, selection: pillSelectionBinding)
+
+            if !genrePills.isEmpty {
+                MoodPillPicker(pills: genrePills, selection: genreSelectionBinding, kind: "genre")
+            }
 
             if moodModel.matchingReferenceTrackID != nil {
                 Toggle("Mix-compatible tracks", isOn: Binding(

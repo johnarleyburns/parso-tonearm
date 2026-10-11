@@ -31,6 +31,9 @@ public struct DiscoverySearchQuery: Codable, Equatable, Sendable {
     public var bpmMax: Double?
     /// Camelot code, e.g. "8A". A hard harmonic gate (plan §9).
     public var compatibleKey: String?
+    /// Only tracks of these genres (exact `track.genre`, any of them) — the
+    /// Listen tab's genre tags. `nil` or empty: every genre.
+    public var genres: [String]?
     public var limit: Int
 
     public init(
@@ -42,6 +45,7 @@ public struct DiscoverySearchQuery: Codable, Equatable, Sendable {
         bpmMin: Double? = nil,
         bpmMax: Double? = nil,
         compatibleKey: String? = nil,
+        genres: [String]? = nil,
         limit: Int = ValidatedQuery.defaultLimit
     ) {
         self.text = text
@@ -52,6 +56,7 @@ public struct DiscoverySearchQuery: Codable, Equatable, Sendable {
         self.bpmMin = bpmMin
         self.bpmMax = bpmMax
         self.compatibleKey = compatibleKey
+        self.genres = genres
         self.limit = limit
     }
 }
@@ -109,6 +114,8 @@ public struct ValidatedQuery: Equatable, Sendable {
     public let playlistID: Int64?
     public let bpmRange: ClosedRange<Double>?
     public let compatibleKey: CamelotKey?
+    /// Empty: every genre.
+    public let genres: [String]
     public let limit: Int
 
     /// True when the request carries a hard musical gate (BPM range or key).
@@ -189,6 +196,7 @@ public struct ValidatedQuery: Equatable, Sendable {
                 playlistID: raw.playlistID,
                 bpmRange: bpmRange,
                 compatibleKey: key,
+                genres: (raw.genres ?? []).filter { !$0.isEmpty },
                 limit: raw.limit))
     }
 
@@ -200,6 +208,7 @@ public struct ValidatedQuery: Equatable, Sendable {
         playlistID: Int64?,
         bpmRange: ClosedRange<Double>?,
         compatibleKey: CamelotKey?,
+        genres: [String] = [],
         limit: Int
     ) {
         self.text = text
@@ -209,6 +218,7 @@ public struct ValidatedQuery: Equatable, Sendable {
         self.playlistID = playlistID
         self.bpmRange = bpmRange
         self.compatibleKey = compatibleKey
+        self.genres = genres
         self.limit = limit
     }
 

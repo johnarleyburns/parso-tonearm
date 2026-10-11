@@ -369,5 +369,12 @@ extension Schema {
                 try db.execute(sql: "CREATE INDEX IF NOT EXISTS artist_on_name_nocase ON artist(name COLLATE NOCASE)")
             }
         }
+        if shouldRegister("v34", upTo: target) {
+            migrator.registerMigration("v34") { db in
+                // The Listen tab's genre tags filter by exact genre (and list the
+                // library's genres): indexed, not a scan of every track.
+                try db.execute(sql: "CREATE INDEX IF NOT EXISTS track_on_genre ON track(genre)")
+            }
+        }
     }
 }
