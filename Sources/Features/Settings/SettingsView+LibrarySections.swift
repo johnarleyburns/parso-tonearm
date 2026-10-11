@@ -6,6 +6,36 @@ import UIKit
 #endif
 
 extension SettingsView {
+    /// Adding the bundled Mood Starter tracks to the library: real progress, since when, and
+    /// Pause/Resume (CLAUDE.md: visible, in the user's control).
+    @ViewBuilder var starterMergeCard: some View {
+        if let merge = appState.starterMerge {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Adding Mood Starter tracks").font(Typography.callout)
+                    Spacer()
+                    Button(merge.paused ? "Resume" : "Pause") { appState.toggleStarterMergePause() }
+                        .font(Typography.callout)
+                        .tint(Palette.accent)
+                }
+                ProgressView(value: merge.fraction)
+                    .tint(Palette.accent)
+                Text(starterMergeStatus(merge))
+                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+            }
+            .padding(15)
+            .glassSurface(cornerRadius: 18)
+            .accessibilityIdentifier("settings.starterMerge")
+        }
+    }
+
+    private func starterMergeStatus(_ merge: StarterMergeProgress) -> String {
+        if let failure = merge.failure { return String(localized: "Stopped: \(failure)") }
+        if merge.paused { return String(localized: "Paused at \(merge.added) of \(merge.total) tracks") }
+        let since = merge.since.formatted(date: .omitted, time: .shortened)
+        return String(localized: "\(merge.added) of \(merge.total) tracks, since \(since)")
+    }
+
     var musicLibrariesCard: some View {
         Button { activeSheet = .musicLibraries } label: {
             HStack {

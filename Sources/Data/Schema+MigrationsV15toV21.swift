@@ -360,5 +360,14 @@ extension Schema {
                 }
             }
         }
+        if shouldRegister("v33", upTo: target) {
+            migrator.registerMigration("v33") { db in
+                // Every track row looks up its asset by track, and the starter merge looks
+                // artists up by name: without these, both scanned whole tables per row, so
+                // loading a 40k-track library took ~23 s and merging the starter ~1 minute.
+                try db.execute(sql: "CREATE INDEX IF NOT EXISTS asset_on_trackId ON asset(trackId)")
+                try db.execute(sql: "CREATE INDEX IF NOT EXISTS artist_on_name_nocase ON artist(name COLLATE NOCASE)")
+            }
+        }
     }
 }

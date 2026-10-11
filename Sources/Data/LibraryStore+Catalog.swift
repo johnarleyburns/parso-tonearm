@@ -254,16 +254,14 @@ extension LibraryStore {
 
     public func allTrackRows() throws -> [TrackRow] {
         try dbQueue.read { db in
-            let tracks = try Track.order(Column("sortKey")).fetchAll(db)
-            return try tracks.map { try self.hydrate($0, db: db) }
+            try self.hydrateAll(Track.order(Column("sortKey")).fetchAll(db), db: db)
         }
     }
 
     public func smartPlaylistRows(_ playlist: SmartPlaylist) throws -> [TrackRow] {
         let query = playlist.compiledQuery()
         return try dbQueue.read { db in
-            let tracks = try Track.fetchAll(db, sql: query.sql, arguments: query.arguments)
-            return try tracks.map { try self.hydrate($0, db: db) }
+            try self.hydrateAll(Track.fetchAll(db, sql: query.sql, arguments: query.arguments), db: db)
         }
     }
 

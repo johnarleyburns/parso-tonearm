@@ -84,7 +84,17 @@ struct BuiltInAnalyzer {
         let bpm: Double?; let key: String?; let energy: Double?; let scopeSeconds: Double
     }
 
+    /// `BUILTIN_ANALYZER_AUDIO_DIR`: read `<dir>/<id>.mp3` when it is there instead of
+    /// downloading the track again (the starter expansion downloads each track once, for the
+    /// embedder and this tool).
+    static let audioDirectory = ProcessInfo.processInfo.environment["BUILTIN_ANALYZER_AUDIO_DIR"]
+        .map { URL(fileURLWithPath: $0) }
+
     static func analyse(_ entry: Entry) async -> Analysis? {
+        if let local = audioDirectory?.appendingPathComponent("\(entry.id).mp3"),
+           FileManager.default.fileExists(atPath: local.path) {
+            return await analyseFile(local, entry: entry)
+        }
         guard let streamURL = entry.streamURL.flatMap(URL.init(string:)) else { return nil }
         let temp = FileManager.default.temporaryDirectory
             .appendingPathComponent("builtin-analyzer-\(entry.id)-\(UUID().uuidString).mp3")
@@ -97,7 +107,11 @@ struct BuiltInAnalyzer {
             if !downloaded && attempt < 2 { try? await Task.sleep(for: .seconds(2)) }
         }
         guard downloaded else { say("  \(entry.id): download failed"); return nil }
-        return await Task.detached(priority: .utility) { () -> Analysis? in
+        return await analyseFile(temp, entry: entry)
+    }
+
+    static func analyseFile(_ temp: URL, entry: Entry) async -> Analysis? {
+        await Task.detached(priority: .utility) { () -> Analysis? in
             let reader = WindowedAudioReader()
             let duration = entry.duration ?? 0
             guard duration > 0 else { return nil }

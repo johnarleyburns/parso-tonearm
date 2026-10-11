@@ -80,6 +80,7 @@ struct SettingsView: View {
                 }
                 if shows(.library) {
                     collapsibleSection("Library & Storage", expanded: $libraryExpanded, identifier: "settings.section.library") {
+                        if appState.starterMerge != nil { starterMergeCard }
                         musicLibrariesCard
                         soundIndexCard
                         analysisCard

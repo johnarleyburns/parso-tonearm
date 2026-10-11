@@ -122,6 +122,26 @@ public actor LibraryStore {
         return TrackRow(track: track, album: album, source: source, asset: asset, artist: artist)
     }
 
+    /// `hydrate` for many tracks with one query per table instead of four per track (the whole
+    /// library is loaded this way at launch). Same rows: each track's first asset by id.
+    func hydrateAll(_ tracks: [Track], db: Database) throws -> [TrackRow] {
+        guard tracks.count > 16 else { return try tracks.map { try hydrate($0, db: db) } }
+        let albums = Dictionary(try Album.fetchAll(db).compactMap { a in a.id.map { ($0, a) } },
+                                uniquingKeysWith: { first, _ in first })
+        let artists = Dictionary(try Artist.fetchAll(db).compactMap { a in a.id.map { ($0, a) } },
+                                 uniquingKeysWith: { first, _ in first })
+        let sources = Dictionary(try Source.fetchAll(db).compactMap { s in s.id.map { ($0, s) } },
+                                 uniquingKeysWith: { first, _ in first })
+        var assets: [Int64: Asset] = [:]
+        for asset in try Asset.order(Column("id")).fetchAll(db) where assets[asset.trackId] == nil {
+            assets[asset.trackId] = asset
+        }
+        return tracks.map { track in
+            TrackRow(track: track, album: track.albumId.flatMap { albums[$0] }, source: sources[track.sourceId],
+                     asset: track.id.flatMap { assets[$0] }, artist: track.artistId.flatMap { artists[$0] })
+        }
+    }
+
     func artistID(for rawName: String, db: Database) throws -> Int64? {
         guard let name = ArtistNamePolicy.normalize(rawName) else { return nil }
         if let existing = try Artist.fetchOne(
