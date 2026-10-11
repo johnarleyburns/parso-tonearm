@@ -147,8 +147,8 @@ def done_ids():
     return out
 
 
-def download(t):
-    path = os.path.join(AUDIO, t['id'] + '.mp3')
+def download(t, folder):
+    path = os.path.join(folder, t['id'] + '.mp3')
     for attempt in range(3):
         r = subprocess.run(['curl', '-sfL', '--max-time', '120', '-o', path, t['streamURL']])
         if r.returncode == 0 and os.path.getsize(path) > 10_000:
@@ -168,22 +168,34 @@ def cmd_process(args):
     pending = [t for t in picked if t['id'] not in done]
     say(f'{len(picked)} tracks to add, {len(done)} processed, {len(pending)} to go')
     start = time.time()
-    for b in range(0, len(pending), args.batch):
-        batch = pending[b:b + args.batch]
-        shutil.rmtree(AUDIO, ignore_errors=True)
-        os.makedirs(AUDIO)
-        with concurrent.futures.ThreadPoolExecutor(8) as pool:
-            ok = list(pool.map(download, batch))
+    batches = [pending[b:b + args.batch] for b in range(0, len(pending), args.batch)]
+    folders = [AUDIO + '-a', AUDIO + '-b']
+
+    def fetch(batch, folder):
+        shutil.rmtree(folder, ignore_errors=True)
+        os.makedirs(folder)
+        with concurrent.futures.ThreadPoolExecutor(12) as pool:
+            return list(pool.map(lambda t: download(t, folder), batch))
+
+    # The network is the bottleneck: the next batch downloads while this one is processed.
+    prefetch = concurrent.futures.ThreadPoolExecutor(1)
+    upcoming = prefetch.submit(fetch, batches[0], folders[0]) if batches else None
+    processed = 0
+    for k, batch in enumerate(batches):
+        folder = folders[k % 2]
+        ok = upcoming.result()
+        if k + 1 < len(batches):
+            upcoming = prefetch.submit(fetch, batches[k + 1], folders[(k + 1) % 2])
         fetched = [t for t, good in zip(batch, ok) if good]
         emb_path = os.path.join(WORK, 'batch-embeddings.json')
-        subprocess.run([os.path.join(BIN, 'BuiltInEmbedder'), AUDIO, emb_path],
+        subprocess.run([os.path.join(BIN, 'BuiltInEmbedder'), folder, emb_path],
                        check=True, stdout=subprocess.DEVNULL)
         embeddings = {e['id']: e for e in json.load(open(emb_path))}
         index_path = os.path.join(WORK, 'batch-index.json')
         json.dump([{'id': t['id'], 'streamURL': t['streamURL'], 'durationSec': t['durationSec']}
                    for t in fetched], open(index_path, 'w'))
         subprocess.run([os.path.join(BIN, 'BuiltInAnalyzer'), index_path, '4'], check=True,
-                       stdout=subprocess.DEVNULL, env=dict(os.environ, BUILTIN_ANALYZER_AUDIO_DIR=AUDIO))
+                       stdout=subprocess.DEVNULL, env=dict(os.environ, BUILTIN_ANALYZER_AUDIO_DIR=folder))
         analysis = {e['id']: e for e in json.load(open(index_path))}
         with open(DONE, 'a') as out:
             for t, good in zip(batch, ok):
@@ -197,12 +209,13 @@ def cmd_process(args):
                                bpm=a.get('bpm'), key=a.get('key'), energy=a.get('energy'),
                                analysisScopeSeconds=a.get('analysisScopeSeconds'))
                 out.write(json.dumps(row) + '\n')
-        shutil.rmtree(AUDIO, ignore_errors=True)
-        n = b + len(batch)
-        rate = n / max(1, time.time() - start)
-        say(f'[{n}/{len(pending)}] batch done: {len(fetched)}/{len(batch)} downloaded, '
+        shutil.rmtree(folder, ignore_errors=True)
+        processed += len(batch)
+        rate = processed / max(1, time.time() - start)
+        say(f'[{processed}/{len(pending)}] batch done: {len(fetched)}/{len(batch)} downloaded, '
             f'{len(embeddings)} embedded; {rate * 3600:.0f} tracks/h, '
-            f'~{(len(pending) - n) / max(rate, 1e-9) / 3600:.1f} h left')
+            f'~{(len(pending) - processed) / max(rate, 1e-9) / 3600:.1f} h left')
+    prefetch.shutdown()
 
 
 def cmd_assemble(args):
