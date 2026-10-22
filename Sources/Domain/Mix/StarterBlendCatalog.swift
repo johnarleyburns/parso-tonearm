@@ -33,18 +33,18 @@ public enum StarterBlendCatalog {
     private static let epoch = Date(timeIntervalSince1970: 1_767_225_600)
 
     public static let blends: [StarterBlend] = [
-        make(0, "starter.morning-light", "Morning Light", "Gentle and bright, slow to mid tempo",
-             "sunrise.fill", 0.10, ["1884163", "1876521", "1892244", "1869875", "1873110", "1890332"]),
-        make(1, "starter.deep-focus", "Deep Focus", "Calm, steady and unobtrusive, slow tempo",
-             "brain.head.profile", 0.58, ["1856120", "1861977", "1879406", "1884521", "1865003", "1870618"]),
-        make(2, "starter.night-drive", "Night Drive", "Moody electronic pulse, mid tempo",
-             "car.fill", 0.72, ["1877801", "1881290", "1863347", "1888952", "1859614", "1874025"]),
-        make(3, "starter.acoustic-evening", "Acoustic Evening", "Warm guitars and voices, relaxed tempo",
-             "guitars.fill", 0.07, ["1867332", "1872840", "1890117", "1855491", "1882706", "1868259"]),
-        make(4, "starter.upbeat-energy", "Upbeat Energy", "Driving and positive, fast tempo",
-             "bolt.fill", 0.95, ["1878644", "1860823", "1886037", "1871552", "1893408", "1857790"]),
-        make(5, "starter.rainy-day", "Rainy Day", "Soft piano and ambient textures, very slow",
-             "cloud.rain.fill", 0.55, ["1862095", "1875318", "1889731", "1858246", "1883459", "1866871"])
+        make(0, "starter.morning-light", "Morning Light", "Singer-Songwriter · Gentle and bright, slow to mid tempo",
+             "sunrise.fill", 0.10, ["337997", "1424003", "337069", "1180864", "642026", "1077690"]),
+        make(1, "starter.deep-focus", "Deep Focus", "Ambient · Calm, steady and unobtrusive, slow tempo",
+             "brain.head.profile", 0.58, ["455018", "117009", "971563", "1097061", "26403", "1100130"]),
+        make(2, "starter.night-drive", "Night Drive", "Synthwave · Moody electronic pulse, mid tempo",
+             "car.fill", 0.72, ["1163782", "1828808", "1121468", "1739551", "1493402", "1560522"]),
+        make(3, "starter.acoustic-evening", "Acoustic Evening", "Singer-Songwriter · Warm guitars and voices, relaxed tempo",
+             "guitars.fill", 0.07, ["1229422", "398193", "1418240", "1308980", "1849464", "1212932"]),
+        make(4, "starter.upbeat-energy", "Upbeat Energy", "Dance Pop · Driving and positive, fast tempo",
+             "bolt.fill", 0.95, ["2053669", "2228244", "1901830", "2126638", "2133921", "1977152"]),
+        make(5, "starter.rainy-day", "Rainy Day", "Contemporary Piano · Soft piano and ambient textures, very slow",
+             "cloud.rain.fill", 0.55, ["1891078", "1891935", "1974389", "2220789", "2169489", "1960412"])
     ]
 
     public static func blend(id: String) -> StarterBlend? { blends.first { $0.id == id } }

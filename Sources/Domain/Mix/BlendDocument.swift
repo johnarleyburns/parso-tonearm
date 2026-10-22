@@ -6,7 +6,7 @@ import Foundation
 /// bookmarks or expiring stream URLs — so every source is re-resolved when the
 /// blend is replayed.
 public struct BlendDocument: Codable, Sendable, Equatable, Identifiable {
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
 
     public enum Origin: String, Codable, Sendable, Equatable {
         case starter, manualQueue, blendLab
@@ -50,10 +50,12 @@ public struct BlendDocument: Codable, Sendable, Equatable, Identifiable {
         public var toOccurrenceID: UUID
         /// `TransitionStyle.rawValue`; nil means "automatic / not specified".
         public var requestedStyle: String?
+        /// Immutable catalog-backed recipe for this one occurrence edge.
+        public var catalogPlan: CatalogEdgePlan?
         public init(id: UUID = UUID(), fromOccurrenceID: UUID, toOccurrenceID: UUID,
-                    requestedStyle: String? = nil) {
+                    requestedStyle: String? = nil, catalogPlan: CatalogEdgePlan? = nil) {
             self.id = id; self.fromOccurrenceID = fromOccurrenceID
-            self.toOccurrenceID = toOccurrenceID; self.requestedStyle = requestedStyle
+            self.toOccurrenceID = toOccurrenceID; self.requestedStyle = requestedStyle; self.catalogPlan = catalogPlan
         }
     }
 

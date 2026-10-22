@@ -53,7 +53,9 @@ struct BoundedOverlapPlan: Equatable, Sendable {
 /// deck holds `minIncomingBufferedFrames`, so a stalled disk delays the fade instead of starting it
 /// over silence. Control calls and `render` must be serialized by the caller (offline: one thread;
 /// live: a single audio-thread mailbox).
-final class BoundedDeckMixer {
+/// Deck storage is SPSC/atomic; renderer ownership is held by the output's
+/// audio callback once live command dispatch is installed.
+final class BoundedDeckMixer: @unchecked Sendable {
     enum Overlap: Equatable {
         case none
         case pending(BoundedOverlapPlan)

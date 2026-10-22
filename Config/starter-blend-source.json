@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "audioFormat": "aac-lc-128k-m4a",
+  "licenseReview": {
+    "status": "owner-verified",
+    "license": "CC0",
+    "verifiedAt": "2026-10-21",
+    "note": "Owner verified redistribution permission for every catalog track. Jamendo API metadata is recorded for diagnostics but is not the licensing authority."
+  },
+  "catalogSelection": {
+    "sourceRelease": "starter-v4",
+    "sourceAsset": "source-index.json.gz",
+    "policy": "Mood is selected by exact catalog subgenre. Every adjacent pair must be within 8% BPM and Camelot-compatible. This is a curation-time rule, not a playback gate."
+  },
+  "blends": [
+    {"id":"starter.morning-light","title":"Morning Light","subtitle":"Singer-Songwriter · Gentle and bright, slow to mid tempo","genre":"Singer-Songwriter","tracks":["337997","1424003","337069","1180864","642026","1077690"]},
+    {"id":"starter.deep-focus","title":"Deep Focus","subtitle":"Ambient · Calm, steady and unobtrusive, slow tempo","genre":"Ambient","tracks":["455018","117009","971563","1097061","26403","1100130"]},
+    {"id":"starter.night-drive","title":"Night Drive","subtitle":"Synthwave · Moody electronic pulse, mid tempo","genre":"Synthwave","tracks":["1163782","1828808","1121468","1739551","1493402","1560522"]},
+    {"id":"starter.acoustic-evening","title":"Acoustic Evening","subtitle":"Singer-Songwriter · Warm guitars and voices, relaxed tempo","genre":"Singer-Songwriter","tracks":["1229422","398193","1418240","1308980","1849464","1212932"]},
+    {"id":"starter.upbeat-energy","title":"Upbeat Energy","subtitle":"Dance Pop · Driving and positive, fast tempo","genre":"Dance Pop","tracks":["2053669","2228244","1901830","2126638","2133921","1977152"]},
+    {"id":"starter.rainy-day","title":"Rainy Day","subtitle":"Contemporary Piano · Soft piano and ambient textures, very slow","genre":"Contemporary Piano","tracks":["1891078","1891935","1974389","2220789","2169489","1960412"]}
+  ]
+}

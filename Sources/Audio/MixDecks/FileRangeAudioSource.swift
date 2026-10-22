@@ -50,7 +50,7 @@ final class SourceAccessLease: @unchecked Sendable {
 /// by the decoder (it must open, report a length and actually produce frames from the middle), not
 /// by its extension or a FLAC seek table alone; anything else throws `unsupportedBoundedDecode`
 /// and the caller falls back to sequential playback. Never decodes more than the range asked for.
-final class FileRangeAudioSource: RangeAudioSource, DeckChunkSource, @unchecked Sendable {
+final class FileRangeAudioSource: RangeAudioSource, DeckChunkSource, AsyncDeckChunkSource, @unchecked Sendable {
     let sampleRate: Double
     let channelCount: Int
     let totalFrames: Int64

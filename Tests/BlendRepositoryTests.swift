@@ -38,6 +38,23 @@ final class BlendRepositoryTests: XCTestCase {
         XCTAssertEqual(BlendReplay.playableQueue(entries).map(\.track.syncID), ["A", "B", "A"])
     }
 
+    func testCatalogEdgePlanRoundTripsWithTheUniqueOccurrenceEdge() async throws {
+        let occurrences = [BlendDocument.Occurrence(source: .init(syncID: "A", title: "A")),
+                           BlendDocument.Occurrence(source: .init(syncID: "B", title: "B"))]
+        var doc = BlendDocument(title: "Catalog", origin: .starter, now: t0, occurrences: occurrences)
+        doc.edges[0].catalogPlan = CatalogEdgePlan(fromCatalogTrackID: "jamendo:A", toCatalogTrackID: "jamendo:B",
+                                                   analysisVersion: 1, style: "bass-swap",
+                                                   outgoingPhraseSeconds: 64, incomingPhraseSeconds: 16,
+                                                   overlapBeats: 64, blendStartSeconds: 40, swapSeconds: 64,
+                                                   blendEndSeconds: 88, incomingOffsetSeconds: 0,
+                                                   tempo: 1.01, incomingGain: 0.9)
+        try await BlendRepository(url: url).save(doc)
+        let snapshot = await BlendRepository(url: url).load()
+        let restored = try XCTUnwrap(snapshot.blends.first)
+        XCTAssertEqual(restored.edges[0].catalogPlan, doc.edges[0].catalogPlan)
+        XCTAssertEqual(restored.schemaVersion, BlendDocument.currentSchemaVersion)
+    }
+
     func testDuplicateOccurrencesStayDistinctAndEditsAreIndependent() {
         let doc = BlendReplay.document(from: [row(1, sync: "A"), row(1, sync: "A")], title: "AA", origin: .manualQueue, now: t0)
         XCTAssertEqual(Set(doc.occurrences.map(\.id)).count, 2)

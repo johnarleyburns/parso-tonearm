@@ -1,0 +1,38 @@
+name: Publish Starter Blend AAC Pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: New immutable tag, for example starter-blends-aac-v1
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TONEARM_JAMENDO_CLIENT_ID: ${{ secrets.TONEARM_JAMENDO_CLIENT_ID }}
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse an existing release tag
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "release tag already exists; release assets are immutable" >&2
+            exit 1
+          fi
+      - name: Build owner-approved AAC assets
+        run: scripts/publish-starter-blend-aac.sh "$RELEASE_TAG"
+      - name: Publish immutable release assets
+        run: |
+          gh release create "$RELEASE_TAG" \
+            "dist/starter-blends-$RELEASE_TAG/starter-blends-manifest.json" \
+            "dist/starter-blends-$RELEASE_TAG"/audio/*.m4a \
+            --title "Starter Blend AAC Pack $RELEASE_TAG" \
+            --notes "Immutable owner-approved CC0 AAC assets and verified manifest for Starter Blend playback."

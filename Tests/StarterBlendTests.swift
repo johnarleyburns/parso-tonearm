@@ -30,6 +30,21 @@ final class StarterBlendTests: XCTestCase {
         }
     }
 
+    func testCatalogSubtitlesNameTheirCuratedSubgenre() {
+        let expected = [
+            "starter.morning-light": "Singer-Songwriter",
+            "starter.deep-focus": "Ambient",
+            "starter.night-drive": "Synthwave",
+            "starter.acoustic-evening": "Singer-Songwriter",
+            "starter.upbeat-energy": "Dance Pop",
+            "starter.rainy-day": "Contemporary Piano"
+        ]
+        XCTAssertEqual(Set(StarterBlendCatalog.blends.map(\.id)), Set(expected.keys))
+        for blend in StarterBlendCatalog.blends {
+            XCTAssertTrue(blend.summary.contains(try! XCTUnwrap(expected[blend.id])), blend.id)
+        }
+    }
+
     func testPlayProducesOneRequestWithOrderedOccurrences() async throws {
         let blend = StarterBlendCatalog.blends[0]
         let log = StartLog()

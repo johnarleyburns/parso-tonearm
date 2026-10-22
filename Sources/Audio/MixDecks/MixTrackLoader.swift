@@ -21,6 +21,15 @@ struct MixTrackAudio: Sendable {
     let analysis: BlendTrackAnalysis
 }
 
+/// The bounded MixDeck input. It deliberately contains a seekable decoder,
+/// not decoded samples; resident memory is fixed by the two deck buffers.
+struct StreamingMixTrack: @unchecked Sendable {
+    let trackID: Int64
+    let source: any AsyncDeckChunkSource
+    let totalFrames: Int64
+    let sampleRate: Double
+}
+
 enum MixTrackLoaderError: Error, LocalizedError, Equatable {
     case download(Int)
     case decode(String)
@@ -54,6 +63,28 @@ enum MixTrackLoader {
     enum Stage: Sendable, Equatable {
         case downloading(Double)
         case analyzing
+    }
+
+    /// Opens exactly the decoder needed by the bounded deck. Remote assets
+    /// retain their sparse loader and begin from the media container header;
+    /// they are never copied through `download` or `PCMBuffer`.
+    static func openStreaming(trackID: Int64, source: MixTrackSource) async throws -> StreamingMixTrack {
+        switch source {
+        case .file(let url, let container, let securityScoped):
+            let lease = try SourceAccessLease(url: url, securityScoped: securityScoped)
+            do {
+                let opened = try FileRangeAudioSource.open(url: url, container: container, lease: lease)
+                return StreamingMixTrack(trackID: trackID, source: opened,
+                                         totalFrames: opened.totalFrames, sampleRate: opened.sampleRate)
+            } catch {
+                lease.release()
+                throw error
+            }
+        case .remote(let url, let headers, _, _):
+            let opened = try await RemoteAVAssetDeckChunkSource(url: url, headers: headers)
+            return StreamingMixTrack(trackID: trackID, source: opened,
+                                     totalFrames: opened.totalFrames, sampleRate: 44_100)
+        }
     }
 
     static func load(trackID: Int64, source: MixTrackSource, approximateBPM: Double?, sampleRate: Double,

@@ -43,6 +43,8 @@ Mixes plan order, tempo shape, key relationships, and transition preparation fro
 
 ## TestFlight and human QA
 
+See [QA workflow](docs/QA_WORKFLOW.md) for the evidence, delivery-state, and human-device-QA contract.
+
 The release system reconciles accepted uploads with App Store Connect on a
 schedule. `testflight-uploaded` means Apple accepted the archive;
 `testflight-processing` means it is not ready; `ready-for-qa` means the exact

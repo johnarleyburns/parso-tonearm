@@ -1,0 +1,5 @@
+.venv/
+audio/
+work/
+plans/*.json
+!plans/.gitkeep

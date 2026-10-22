@@ -52,6 +52,7 @@ let package = Package(
                 "ExportOptions-Mac.plist",
                 "IMPLEMENTATION_PLAN.md",
                 "LICENSE",
+                "linux-blender",
                 "Makefile",
                 "Package.resolved",
                 "README.md",

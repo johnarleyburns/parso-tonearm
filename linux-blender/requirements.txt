@@ -1,0 +1,4 @@
+# Local-only analysis environment. Essentia is AGPL; do not include this
+# environment or any of its binaries in a distributable Tonearm artifact.
+essentia
+numpy
