@@ -78,16 +78,30 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
         }
     }
 
-    /// The Starter Release locator of this row, when that is its source.
-    public func resolvedLocator(in pack: StarterBlendPack) -> AudioLocator? {
-        if case .starterRelease? = audioLocator(in: pack) { return audioLocator(in: pack) }
-        return nil
+    /// Catalog key of a session track ID: the 36 mirrored Starter IDs live under the pack tag, every
+    /// other ID is an ordinary Jamendo catalog row.
+    public static func catalogKey(forTrackID id: String, pack: StarterBlendPack) -> String {
+        pack.contains(trackID: id) ? key(pack: pack, trackID: id) : jamendoKey(trackID: id)
     }
 
-    /// Whether Keep Playing may append this row: eligible state, complete planner facts, valid
-    /// genre and Camelot key, and a resolvable source. Never consults a model or the network.
+    /// Source-aware Keep Playing admission: eligible state, complete planner facts, canonical genre and
+    /// valid Camelot key (all persisted), and a real `AudioLocator` - a verified mirrored asset for a
+    /// Starter ID, or a Jamendo provider identity whose numeric ID matches the row for any other.
+    /// Never consults a model, the network, or a GitHub URL for a Jamendo row.
+    public func keepPlayingLocator(in pack: StarterBlendPack) -> AudioLocator? {
+        guard isSelectable, let locator = audioLocator(in: pack) else { return nil }
+        switch locator {
+        case .starterRelease:
+            return packTag == pack.releaseTag && catalogKey == Self.key(pack: pack, trackID: trackID) ? locator : nil
+        case .jamendo(let id, _, _):
+            guard packTag == Self.jamendoPackTag, catalogKey == Self.jamendoKey(trackID: id),
+                  Int64(id) != nil else { return nil }
+            return locator
+        }
+    }
+
     public func isKeepPlayingCandidate(in pack: StarterBlendPack) -> Bool {
-        isSelectable && resolvedLocator(in: pack) != nil
+        keepPlayingLocator(in: pack) != nil
     }
 
     /// The stored facts, when complete.

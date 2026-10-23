@@ -238,6 +238,8 @@ public final class AudioPlayer: ObservableObject {
     var pendingStarterSession: StarterSession?
     /// Test seam: replaces the release byte-range sources (and the audio device) with procedural ones.
     var starterSourceFactoryOverride: StarterStreamPlayer.SourceFactory?
+    /// Metadata seam for catalog rows Keep Playing appends (the bundled starter catalog by default).
+    var keepPlayingMetadataResolver: StarterBlendPlayback.MetadataResolver = StarterBlendPlayback.bundledResolver
     /// What the Starter path is doing now; nil outside a starter session.
     @Published public internal(set) var starterStatus: StarterStreamStatus? {
         didSet { if let starterStatus, starterStatus != oldValue { starterStatusHandler?(starterStatus) } }
