@@ -42,7 +42,7 @@ final class CatalogSourceOpenerTests: XCTestCase {
 
     private func jamendoStore(cached: URL?) async throws -> LibraryStore {
         let store = try LibraryStore(inMemory: true)
-        try await store.registerJamendoCatalogTrack(trackID: jamendoID)
+        try await store.upsertJamendoCatalogTrack(trackID: jamendoID, cachedURL: nil)
         if let cached { try await store.updateCachedLocator(key: BlendCatalogTrack.jamendoKey(trackID: jamendoID), url: cached, expiry: nil) }
         return store
     }
@@ -160,7 +160,7 @@ final class CatalogSourceOpenerTests: XCTestCase {
         XCTAssertNil(StarterBlendPack.v1.assetURL(for: .jamendo(trackID: "1", cachedURL: nil, expiry: nil)))
         // A Starter ID is never registered as a Jamendo row, nor accepted if one is forced in.
         let starter = try XCTUnwrap(StarterBlendCatalog.starterTrackIDs.first)
-        try await store.registerJamendoCatalogTrack(trackID: starter)
+        try await store.upsertJamendoCatalogTrack(trackID: starter, cachedURL: nil)
         let none = try await store.blendCatalogTrack(key: BlendCatalogTrack.jamendoKey(trackID: starter))
         XCTAssertNil(none)
         let seeded = try await store.blendCatalogTrack(key: BlendCatalogTrack.key(pack: .v1, trackID: starter))

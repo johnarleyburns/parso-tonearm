@@ -14,7 +14,10 @@ public struct RemotePlaylistIngest: Sendable {
         nodes: [RemoteNode],
         resolve: @Sendable (RemoteNode) async throws -> ResolvedAsset,
         source: Source,
-        store: LibraryStore
+        store: LibraryStore,
+        catalogUpsert: @Sendable (LibraryStore, String, URL) async throws -> Void = { store, nodeID, url in
+            try await store.upsertJamendoCatalogTrack(trackID: nodeID, cachedURL: url)
+        }
     ) async -> Result {
         guard let sourceID = source.id else { return Result(trackIDs: [], skipped: nodes.count) }
         let existingRows = (try? await store.tracks(forSource: sourceID)) ?? []
@@ -61,6 +64,16 @@ public struct RemotePlaylistIngest: Sendable {
                     remoteURL: url, altRemoteURL: nil,
                     sizeBytes: resolved.sizeBytes ?? node.sizeBytes, unsupportedReason: nil,
                     remoteNodeID: node.id, remoteNodePath: node.path))
+                if source.kind == .jamendoGenre {
+                    do {
+                        // `node.id`, not the resolved URL, is the durable Jamendo identity.
+                        try await catalogUpsert(store, node.id, resolved.url)
+                    } catch {
+                        // Never report the node as imported without its blend identity.
+                        try? await store.deleteTrack(id: trackID)
+                        throw error
+                    }
+                }
                 existing[url] = trackID
                 ids.append(trackID)
             } catch {

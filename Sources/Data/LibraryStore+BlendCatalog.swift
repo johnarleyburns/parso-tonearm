@@ -77,17 +77,23 @@ extension LibraryStore {
 
     /// Adds a general catalog track (provider `jamendo`, stable ID) at `.unindexed`, keeping any row it has.
     /// A Starter Pack ID is never registered this way: it has only its pinned Release asset.
-    public func registerJamendoCatalogTrack(trackID: String, at date: Date = Date()) throws {
+    public func upsertJamendoCatalogTrack(trackID: String, cachedURL: URL?,
+                                          expiry: Date? = nil, at date: Date = Date()) throws {
         guard !trackID.isEmpty, !StarterBlendPack.v1.contains(trackID: trackID) else { return }
         try dbQueue.write { db in
             let key = BlendCatalogTrack.jamendoKey(trackID: trackID)
-            guard try BlendCatalogTrack.fetchOne(db, key: key) == nil else { return }
-            var row = BlendCatalogTrack(catalogKey: key, packTag: BlendCatalogTrack.jamendoPackTag, state: .unindexed,
-                                        durationSeconds: nil, bpm: nil, beatPeriod: nil, beatPhase: nil, rmsDB: nil,
-                                        updatedAt: date)
+            var row = try BlendCatalogTrack.fetchOne(db, key: key)
+                ?? BlendCatalogTrack(catalogKey: key, packTag: BlendCatalogTrack.jamendoPackTag,
+                                     state: .unindexed, durationSeconds: nil, bpm: nil, beatPeriod: nil,
+                                     beatPhase: nil, rmsDB: nil, updatedAt: date)
             row.sourceKind = .jamendo
             row.providerTrackID = trackID
-            try row.insert(db)
+            if let cachedURL, !StarterBlendPack.v1.owns(cachedURL) {
+                row.cachedURL = cachedURL.absoluteString
+                row.cachedURLExpiry = expiry
+            }
+            row.updatedAt = date
+            try row.save(db)
         }
     }
 

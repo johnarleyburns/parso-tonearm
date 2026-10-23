@@ -51,4 +51,97 @@ final class RemotePlaylistIngestTests: XCTestCase {
         XCTAssertEqual(result.trackIDs.count, 1)
         XCTAssertEqual(result.skipped, 1)
     }
+
+    // MARK: - Jamendo durable catalog identity
+
+    private func source(_ kind: SourceKind, in store: LibraryStore) async throws -> Source {
+        try await store.insertSource(Source(
+            id: nil, kind: kind, iaIdentifier: nil, originalURL: nil, title: "Src",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
+    }
+
+    private func jamendoSource(in store: LibraryStore) async throws -> Source {
+        try await source(.jamendoGenre, in: store)
+    }
+
+    func testJamendoIngestCreatesDurableCatalogLocatorFromProviderNodeID() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let source = try await jamendoSource(in: store)
+        let node = RemoteNode(id: "99123", title: "Song", path: "track/99123", kind: .audio)
+        let stream = URL(string: "https://stream.example.test/?trackid=99123&format=mp32")!
+        _ = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in ResolvedAsset(url: stream) },
+                                               source: source, store: store)
+        let row = try await store.blendCatalogTrack(key: BlendCatalogTrack.jamendoKey(trackID: "99123"))
+        XCTAssertEqual(row?.sourceKind, .jamendo)
+        XCTAssertEqual(row?.providerTrackID, "99123")
+        XCTAssertEqual(row?.cachedURL, stream.absoluteString)
+        XCTAssertEqual(row?.state, .unindexed)
+        XCTAssertEqual(row?.audioLocator(), .jamendo(trackID: "99123", cachedURL: stream, expiry: nil))
+    }
+
+    func testJamendoReingestRefreshesOnlyLocatorCacheAndNeverClobbersIndexedFacts() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let source = try await jamendoSource(in: store)
+        let node = RemoteNode(id: "99123", title: "Song", path: "track/99123", kind: .audio)
+        let other = RemoteNode(id: "99124", title: "Other", path: "track/99124", kind: .audio)
+        let first = URL(string: "https://stream.example.test/?trackid=99123&n=1")!
+        _ = await RemotePlaylistIngest.persist(nodes: [node, other], resolve: { n in
+            ResolvedAsset(url: URL(string: "https://stream.example.test/?trackid=\(n.id)&n=1")!)
+        }, source: source, store: store)
+        let a = BlendCatalogTrack.jamendoKey(trackID: "99123"), b = BlendCatalogTrack.jamendoKey(trackID: "99124")
+        func facts(_ id: String) -> StarterTrackFacts {
+            StarterTrackFacts(id: id, durationSeconds: 240, bpm: 120, beatPeriod: 0.5, beatPhase: 0.1, rmsDB: -12)
+        }
+        let traits = BlendTraits(genre: "Jazz", subgenre: nil, camelotKey: "8A")
+        try await store.markBlendEligible(key: a, facts: facts("99123"), traits: traits)
+        try await store.markBlendEligible(key: b, facts: facts("99124"), traits: traits)
+        let plan = try XCTUnwrap(CatalogEdgePlanner.plan(blendID: "x", edge: 1, outgoing: facts("99123"),
+                                                         incoming: facts("99124")))
+        try await store.recordBlendEdgePlan(plan, from: a, to: b, packTag: BlendCatalogTrack.jamendoPackTag)
+        let beforeRow = try await store.blendCatalogTrack(key: a)
+        let before = try XCTUnwrap(beforeRow)
+        XCTAssertEqual(before.cachedURL, first.absoluteString)
+
+        let refreshed = URL(string: "https://stream.example.test/?trackid=99123&n=2")!
+        let result = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in ResolvedAsset(url: refreshed) },
+                                                        source: source, store: store)
+        XCTAssertEqual(result.skipped, 0)
+        let afterRow = try await store.blendCatalogTrack(key: a)
+        let after = try XCTUnwrap(afterRow)
+        XCTAssertEqual(after.cachedURL, refreshed.absoluteString)
+        XCTAssertEqual(after.state, .edgePlanned)
+        XCTAssertEqual(after.facts, before.facts)
+        XCTAssertEqual(after.traits, before.traits)
+        XCTAssertEqual(after.providerTrackID, "99123")
+        let storedPlan = try await store.blendCatalogEdgePlan(from: a, to: b)
+        XCTAssertEqual(storedPlan, plan)
+    }
+
+    func testNonJamendoRemoteIngestDoesNotCreateJamendoCatalogRow() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let source = try await source(.iaItem, in: store)
+        let node = RemoteNode(id: "99123", title: "Song", path: "/99123.mp3", kind: .audio)
+        _ = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in
+            ResolvedAsset(url: URL(string: "https://example.test/99123.mp3")!)
+        }, source: source, store: store)
+        let row = try await store.blendCatalogTrack(key: BlendCatalogTrack.jamendoKey(trackID: "99123"))
+        XCTAssertNil(row)
+    }
+
+    func testJamendoCatalogCompanionFailureDoesNotReportTheNodeAsPersisted() async throws {
+        struct Boom: Error {}
+        let store = try LibraryStore(inMemory: true)
+        let source = try await jamendoSource(in: store)
+        let node = RemoteNode(id: "99123", title: "Song", path: "track/99123", kind: .audio)
+        let result = await RemotePlaylistIngest.persist(
+            nodes: [node], resolve: { _ in ResolvedAsset(url: URL(string: "https://stream.example.test/?trackid=99123")!) },
+            source: source, store: store, catalogUpsert: { _, _, _ in throw Boom() })
+        XCTAssertEqual(result.skipped, 1)
+        XCTAssertTrue(result.trackIDs.isEmpty)
+        let tracks = try await store.tracks(forSource: source.id!)
+        XCTAssertTrue(tracks.isEmpty)
+        let row = try await store.blendCatalogTrack(key: BlendCatalogTrack.jamendoKey(trackID: "99123"))
+        XCTAssertNil(row)
+    }
 }

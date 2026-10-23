@@ -300,7 +300,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
     private func indexJamendoFollower(id: String, tail: BlendCatalogTrack, key: String? = nil, bpmScale: Double = 1,
                                       subgenre: String? = nil, index: Bool = true) async throws {
         let store = LibraryStore.shared
-        try await store.registerJamendoCatalogTrack(trackID: id)
+        try await store.upsertJamendoCatalogTrack(trackID: id, cachedURL: nil)
         guard index else { return }
         let tailTraits = try XCTUnwrap(tail.traits), tailFacts = try XCTUnwrap(tail.facts)
         let traits = BlendTraits(genre: tailTraits.genre, subgenre: subgenre ?? tailTraits.subgenre,
@@ -385,7 +385,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
         try await indexJamendoFollower(id: "9900013", tail: tail, index: false)                   // incomplete facts (unindexed)
         // A different genre: stored through the lifecycle, never by rewriting a seeded row.
         let tailFacts = try XCTUnwrap(tail.facts), tailTraits = try XCTUnwrap(tail.traits)
-        try await store.registerJamendoCatalogTrack(trackID: "9900014")
+        try await store.upsertJamendoCatalogTrack(trackID: "9900014", cachedURL: nil)
         try await store.markBlendEligible(
             key: BlendCatalogTrack.jamendoKey(trackID: "9900014"),
             facts: StarterTrackFacts(id: "9900014", durationSeconds: 240, bpm: tailFacts.bpm, beatPeriod: tailFacts.beatPeriod,
