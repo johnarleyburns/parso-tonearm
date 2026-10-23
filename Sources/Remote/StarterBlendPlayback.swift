@@ -53,6 +53,8 @@ struct CatalogPlaybackMetadata: Sendable, Equatable {
     let artist: String
     let genre: String
     let artworkURL: URL?
+    /// Catalog duration, display/transport metadata only; must be finite and positive.
+    let durationSeconds: Double
 }
 
 /// Drives the per-card Play of the starter blends. Rows come from the checked-in catalog (release
@@ -93,7 +95,8 @@ public final class StarterBlendPlayback: ObservableObject {
     nonisolated static let bundledResolver: MetadataResolver = { ids in
         try StarterCatalogAdapter.bundled().resolve(trackIDs: ids).map {
             CatalogPlaybackMetadata(trackID: $0.trackID, title: $0.title, artist: $0.artist,
-                                    genre: $0.genre, artworkURL: $0.artworkURL)
+                                    genre: $0.genre, artworkURL: $0.artworkURL,
+                                    durationSeconds: $0.durationSeconds)
         }
     }
 
@@ -109,6 +112,9 @@ public final class StarterBlendPlayback: ObservableObject {
                                  resolver: MetadataResolver = bundledResolver) throws -> [TrackRow] {
         let metadata = try resolver(trackIDs)
         guard metadata.map(\.trackID) == trackIDs else { throw StarterCatalogError.missing(trackIDs) }
+        for meta in metadata where !(meta.durationSeconds.isFinite && meta.durationSeconds > 0) {
+            throw StarterCatalogError.invalid(id: StarterCatalogAdapter.catalogIDPrefix + meta.trackID, reason: "duration")
+        }
         let source = Source(id: nil, kind: .local, iaIdentifier: blendID, originalURL: nil,
                             title: title, addedAt: Date(), lastResolvedAt: nil,
                             followUpdates: false, licenseText: StarterBlendCatalog.attribution,
@@ -119,7 +125,7 @@ public final class StarterBlendPlayback: ObservableObject {
             let artist = Artist(id: nil, name: meta.artist, sortName: meta.artist)
             let album = Album(id: nil, sourceId: 0, title: title, artist: nil, genre: meta.genre, artworkId: nil)
             let track = Track(id: id, albumId: nil, sourceId: 0, title: meta.title,
-                              trackNo: offset + 1, discNo: nil, durationSec: nil,
+                              trackNo: offset + 1, discNo: nil, durationSec: meta.durationSeconds,
                               codec: "AAC", sampleRate: nil, bitDepthOrBitrate: "128 kbps",
                               sortKey: String(format: "%06d", offset + 1), genre: meta.genre, artistId: nil)
             var asset = Asset(id: nil, trackId: id, kind: .remote, bookmark: nil, relPath: nil,

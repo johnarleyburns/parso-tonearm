@@ -187,7 +187,24 @@ final class StarterBlendCatalogMetadataTests: XCTestCase {
             throw StarterCatalogError.invalid(id: "jamendo-x", reason: "title")
         }))
         XCTAssertThrowsError(try StarterBlendPlayback.catalogRows(for: blend, resolver: { ids in
-            ids.dropLast().map { CatalogPlaybackMetadata(trackID: $0, title: "T", artist: "A", genre: "g", artworkURL: nil) }
+            ids.dropLast().map { CatalogPlaybackMetadata(trackID: $0, title: "T", artist: "A", genre: "g", artworkURL: nil, durationSeconds: 60) }
         }))
+        for bad in [0.0, -1, .nan, .infinity] {
+            XCTAssertThrowsError(try StarterBlendPlayback.catalogRows(for: blend, resolver: { ids in
+                ids.map { CatalogPlaybackMetadata(trackID: $0, title: "T", artist: "A", genre: "g", artworkURL: nil, durationSeconds: bad) }
+            }), "duration \(bad) must fail")
+        }
+    }
+
+    func testPrecomputedRowsCarryValidatedCatalogDuration() throws {
+        for blend in StarterBlendCatalog.blends {
+            let rows = try StarterBlendPlayback.catalogRows(for: blend)
+            let entries = try StarterCatalogAdapter.bundled().resolve(trackIDs: blend.trackIDs)
+            XCTAssertEqual(rows.count, entries.count)
+            for (row, entry) in zip(rows, entries) {
+                XCTAssertEqual(try XCTUnwrap(row.track.durationSec), entry.durationSeconds, accuracy: 0.000_001)
+                XCTAssertGreaterThan(try XCTUnwrap(row.track.durationSec), 0)
+            }
+        }
     }
 }

@@ -351,5 +351,24 @@ final class StarterBlendProductionPathTests: XCTestCase {
         XCTAssertNil(player.starterStream)
         player.pause()
     }
+
+    func testBoundedPrecomputedPlaybackPublishesDurationAndDecreasingRemainingTime() async throws {
+        let blend = StarterBlendCatalog.blends[0]
+        let player = try await start(blend, factory: SynthCatalog.Factory(blend))
+        let expected = try XCTUnwrap(player.queue[0].track.durationSec)
+        XCTAssertEqual(player.duration, expected, accuracy: 0.000_001)
+        XCTAssertGreaterThan(player.duration, 0)
+
+        player.starterStreamPosition(seconds: 17.25)
+        XCTAssertEqual(player.currentTime, 17.25, accuracy: 0.01)
+        XCTAssertEqual(player.duration - player.currentTime, expected - 17.25, accuracy: 0.01)
+
+        player.starterStreamDidAdvance(to: 1)
+        let secondDuration = try XCTUnwrap(player.queue[1].track.durationSec)
+        XCTAssertEqual(player.currentTime, 0)
+        XCTAssertEqual(player.duration, secondDuration, accuracy: 0.000_001)
+        XCTAssertGreaterThan(player.duration, 0)
+        player.pause()
+    }
 }
 #endif
