@@ -114,7 +114,11 @@ struct CatalogSourceOpener: Sendable {
         let box = ResultBox<T>()
         let done = DispatchSemaphore(value: 0)
         let task = Task.detached {
-            box.set(await Result { try await operation() })
+            do {
+                box.set(.success(try await operation()))
+            } catch {
+                box.set(.failure(error))
+            }
             done.signal()
         }
         cancellation.register { task.cancel() }
