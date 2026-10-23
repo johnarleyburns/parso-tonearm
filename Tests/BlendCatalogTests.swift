@@ -150,11 +150,25 @@ final class BlendCatalogTests: XCTestCase {
         return StarterCatalogAdapter(url: copy)
     }
 
+    func testStarterCatalogAdapterResolvesRealPlaybackMetadataForAllPackTracks() throws {
+        let adapter = try StarterCatalogAdapter.bundled()
+        let ids = StarterBlendCatalog.blends.flatMap(\.trackIDs)
+        let entries = try adapter.resolve(trackIDs: ids)
+        XCTAssertEqual(entries.count, 36)
+        XCTAssertEqual(entries.map(\.trackID), ids)
+        XCTAssertTrue(entries.allSatisfy { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+        XCTAssertTrue(entries.allSatisfy { !$0.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+    }
+
     func testStarterSeedFailsAtomicallyOnABadCatalog() throws {
         let first = StarterBlendCatalog.blends[0].trackIDs[0], last = StarterBlendCatalog.blends[5].trackIDs[5]
         let cases: [(String, (Database) throws -> Void, StarterCatalogError)] = [
             ("absent", { try $0.execute(sql: "DELETE FROM starter_track WHERE id = ?", arguments: ["jamendo-\(last)"]) },
              .missing(["jamendo-\(last)"])),
+            ("title", { try $0.execute(sql: "UPDATE starter_track SET title = '  ' WHERE id = ?", arguments: ["jamendo-\(last)"]) },
+             .invalid(id: "jamendo-\(last)", reason: "title")),
+            ("artist", { try $0.execute(sql: "UPDATE starter_track SET artist = '' WHERE id = ?", arguments: ["jamendo-\(last)"]) },
+             .invalid(id: "jamendo-\(last)", reason: "artist")),
             ("bpm", { try $0.execute(sql: "UPDATE starter_track SET bpm = NULL WHERE id = ?", arguments: ["jamendo-\(last)"]) },
              .invalid(id: "jamendo-\(last)", reason: "bpm")),
             ("camelot", { try $0.execute(sql: "UPDATE starter_track SET camelot = '13A' WHERE id = ?", arguments: ["jamendo-\(last)"]) },

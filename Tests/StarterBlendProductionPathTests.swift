@@ -177,6 +177,11 @@ final class StarterBlendProductionPathTests: XCTestCase {
         XCTAssertEqual(request.trackIDs, blend.trackIDs)
         XCTAssertEqual(request.pack, StarterBlendPack.v1)
         XCTAssertEqual(request.blendID, blend.id)
+        let expected = try StarterBlendPlayback.catalogRows(for: blend)
+        XCTAssertEqual(request.rows.map(\.track.title), expected.map(\.track.title))
+        XCTAssertEqual(request.rows.compactMap(\.artist?.name), expected.compactMap(\.artist?.name))
+        XCTAssertEqual(Set(request.rows.compactMap(\.album?.title)), [blend.title])
+        XCTAssertFalse(request.rows.contains { $0.track.title == "\(blend.title) \($0.track.trackNo ?? 0)" })
 
         let player = AudioPlayer.shared
         player.starterSourceFactoryOverride = SynthCatalog.Factory(blend).make
@@ -185,6 +190,9 @@ final class StarterBlendProductionPathTests: XCTestCase {
         XCTAssertEqual(player.starterSession?.plans, blend.edgePlans, "the persisted plans reach the renderer's session")
         XCTAssertEqual(player.starterSession?.pack, .v1)
         XCTAssertNil(player.mixDecks)
+        XCTAssertEqual(player.queue.map(\.track.title), expected.map(\.track.title))
+        XCTAssertEqual(player.queue.compactMap(\.artist?.name), expected.compactMap(\.artist?.name))
+        XCTAssertEqual(player.queue.first?.album?.title, blend.title)
     }
 
     func testDocumentWithoutPlansDoesNotReplayAsABlend() {
@@ -323,7 +331,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
         let blend = StarterBlendCatalog.blends[0]
         let player = try await start(blend, factory: SynthCatalog.Factory(blend))
         XCTAssertNotNil(player.starterStream)
-        player.play(tracks: [StarterBlendPlayback.rows(for: StarterBlendCatalog.blends[1])[0]], startAt: 0)
+        player.play(tracks: [try StarterBlendPlayback.catalogRows(for: StarterBlendCatalog.blends[1])[0]], startAt: 0)
         // The new queue is itself a plain (non-session) queue.
         XCTAssertNil(player.starterSession)
         XCTAssertNil(player.starterStream)

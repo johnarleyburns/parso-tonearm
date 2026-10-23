@@ -218,7 +218,11 @@ extension AudioPlayer {
             }
             previous = id
         }
-        let rows = StarterBlendPlayback.rows(blendID: session.blendID, title: "Keep Playing", trackIDs: chain, pack: pack)
+        guard let rows = try? StarterBlendPlayback.rows(blendID: session.blendID, title: "Keep Playing", trackIDs: chain, pack: pack),
+              rows.count == chain.count else {
+            finishKeepPlayingExtension(with: [], isFallback: true, reason: .unavailable)
+            return
+        }
         guard var current = starterSession, current.blendID == session.blendID, !current.sequential else { return }
         current.append(trackIDs: chain, plans: plans, rowIDs: rows.map(\.track.id))
         starterSession = current
@@ -235,7 +239,7 @@ extension AudioPlayer {
         let cards = StarterBlendCatalog.blends.filter { $0.pack.releaseTag == pack.releaseTag }
         let used = Set(session.trackIDs)
         func complete(_ blend: StarterBlend) -> [TrackRow]? {
-            let rows = StarterBlendPlayback.rows(for: blend)
+            let rows = (try? StarterBlendPlayback.catalogRows(for: blend)) ?? []
             return !rows.isEmpty && rows.count == blend.trackIDs.count ? rows : nil
         }
         let fresh = cards.first { card in
