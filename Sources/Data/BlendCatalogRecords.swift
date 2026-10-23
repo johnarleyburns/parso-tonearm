@@ -71,5 +71,5 @@ public struct BlendCatalogEdge: Codable, Equatable, Sendable, FetchableRecord, P
     public var packTag: String
     public var planJSON: Data
 
-    public var plan: StarterEdgePlan? { try? JSONDecoder().decode(StarterEdgePlan.self, from: planJSON) }
+    public var plan: BlendEdgePlan? { try? JSONDecoder().decode(BlendEdgePlan.self, from: planJSON) }
 }

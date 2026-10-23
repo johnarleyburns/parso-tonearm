@@ -85,7 +85,7 @@ public enum CatalogEdgePlanner {
     static let gainRange: ClosedRange<Double> = 0.5...1.6
 
     public static func plan(blendID: String, edge: Int, outgoing: StarterTrackFacts,
-                            incoming: StarterTrackFacts) -> StarterEdgePlan? {
+                            incoming: StarterTrackFacts) -> BlendEdgePlan? {
         guard outgoing.isBlendReady, incoming.isBlendReady else { return nil }
         let tempo = outgoing.bpm / incoming.bpm
         guard abs(tempo - 1) <= maxTempoDifference else { return nil }
@@ -97,7 +97,7 @@ public enum CatalogEdgePlanner {
         let incomingNeeded = incoming.beatPhase + Double(overlapBeats) * incoming.beatPeriod + 8
         guard incoming.durationSeconds > incomingNeeded else { return nil }
         let gain = min(max(pow(10, (outgoing.rmsDB - incoming.rmsDB) / 20), gainRange.lowerBound), gainRange.upperBound)
-        return StarterEdgePlan(
+        return BlendEdgePlan(
             blendID: blendID, edge: edge, outgoingTrackID: outgoing.id, incomingTrackID: incoming.id,
             style: .bassSwap, tempo: tempo, overlapBeats: overlapBeats, incomingGain: gain,
             outgoingSwapBeat: startBeat + 16, incomingSwapBeat: 16, blendStartSeconds: start,

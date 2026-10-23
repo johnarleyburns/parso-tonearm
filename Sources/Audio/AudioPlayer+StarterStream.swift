@@ -11,10 +11,10 @@ struct StarterSession {
     let blendID: String
     let pack: StarterBlendPack
     private var trackIDsStorage: [String]
-    private var plansStorage: [StarterEdgePlan]
+    private var plansStorage: [BlendEdgePlan]
     private var rowIDsStorage: [Int64?]
     var trackIDs: [String] { trackIDsStorage }
-    var plans: [StarterEdgePlan] { plansStorage }
+    var plans: [BlendEdgePlan] { plansStorage }
     var rowIDs: [Int64?] { rowIDsStorage }
     /// Streaming stopped (or was never possible): the rest plays in order, with no blend.
     var sequential = false
@@ -27,7 +27,7 @@ struct StarterSession {
         rowIDsStorage = request.rows.map(\.track.id)
     }
 
-    mutating func append(trackIDs ids: [String], plans more: [StarterEdgePlan], rowIDs rows: [Int64?]) {
+    mutating func append(trackIDs ids: [String], plans more: [BlendEdgePlan], rowIDs rows: [Int64?]) {
         trackIDsStorage += ids; plansStorage += more; rowIDsStorage += rows
     }
 
@@ -179,11 +179,11 @@ extension AudioPlayer {
         var traits: [String: BlendTraits] = [:]
         for row in selectable { facts[row.trackID] = row.facts; traits[row.trackID] = row.traits }
         var candidates = selectable.map(\.trackID).filter { !session.trackIDs.contains($0) }
-        var chain: [String] = [], plans: [StarterEdgePlan] = []
+        var chain: [String] = [], plans: [BlendEdgePlan] = []
         var tail = session.trackIDs.last
         while chain.count < min(keepPlayingBatchSize, 5), let tailID = tail, let outgoing = facts[tailID],
               let outgoingTraits = traits[tailID] {
-            let options = candidates.compactMap { id -> (String, StarterEdgePlan)? in
+            let options = candidates.compactMap { id -> (String, BlendEdgePlan)? in
                 guard let incoming = facts[id], let incomingTraits = traits[id],
                       outgoingTraits.isCompatible(with: incomingTraits),
                       let plan = CatalogEdgePlanner.plan(blendID: session.blendID,
@@ -239,7 +239,7 @@ extension AudioPlayer {
         }
     }
 
-    static func displayStyle(_ style: StarterEdgePlan.Style) -> TransitionDisplayStyle {
+    static func displayStyle(_ style: BlendEdgePlan.Style) -> TransitionDisplayStyle {
         switch style {
         case .bassSwap: return .bassSwap
         case .doubleDrop: return .doubleDrop

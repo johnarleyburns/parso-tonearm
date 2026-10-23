@@ -18,7 +18,7 @@ public struct StarterBlend: Identifiable, Sendable, Equatable {
     /// The immutable release these tracks stream from.
     public let pack: StarterBlendPack
     /// The supplied plan for every adjacent pair, in play order (`trackIDs.count - 1` entries).
-    public let edgePlans: [StarterEdgePlan]
+    public let edgePlans: [BlendEdgePlan]
 
     /// The card's second line (presentation only; never used to admit a candidate).
     public var subtitle: String { summary }

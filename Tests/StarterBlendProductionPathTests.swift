@@ -173,6 +173,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
         XCTAssertEqual(saved.edges.compactMap(\.plan), blend.edgePlans)
         let request = try XCTUnwrap(BlendReplay.starterRequest(for: saved))
         XCTAssertEqual(request.edgePlans, blend.edgePlans)
+        XCTAssertEqual(request.edgePlans.compactMap { $0.schedule() }.count, 5)
         XCTAssertEqual(request.trackIDs, blend.trackIDs)
         XCTAssertEqual(request.pack, StarterBlendPack.v1)
         XCTAssertEqual(request.blendID, blend.id)

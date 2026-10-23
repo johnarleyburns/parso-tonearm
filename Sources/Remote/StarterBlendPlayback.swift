@@ -11,12 +11,12 @@ public struct StarterPlayRequest: Sendable {
     public let trackIDs: [String]
     /// `edgePlans[i]` joins `rows[i]` to `rows[i + 1]`. Consumed by the streaming renderer, never
     /// summarised away: this is what makes every planned edge audible.
-    public let edgePlans: [StarterEdgePlan]
+    public let edgePlans: [BlendEdgePlan]
     /// False plays the same rows one after another, with no blend and no claim of one.
     public let isBlended: Bool
 
     public init(blendID: String, pack: StarterBlendPack = StarterBlendCatalog.pack, occurrenceIDs: [UUID],
-                rows: [TrackRow], trackIDs: [String], edgePlans: [StarterEdgePlan], isBlended: Bool = true) {
+                rows: [TrackRow], trackIDs: [String], edgePlans: [BlendEdgePlan], isBlended: Bool = true) {
         self.blendID = blendID
         self.pack = pack
         self.occurrenceIDs = occurrenceIDs
