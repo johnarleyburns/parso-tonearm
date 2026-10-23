@@ -1,6 +1,14 @@
 import Foundation
 import GRDB
 
+/// Which kind of source a catalog row plays from.
+public enum BlendCatalogSourceKind: String, Codable, Sendable, Equatable {
+    /// An immutable asset on the pinned Starter Release (the 36 mirrored IDs only).
+    case starterRelease
+    /// A Jamendo catalog track: provider `jamendo` plus a stable track ID.
+    case jamendo
+}
+
 /// Persistent catalog row for one blendable track: its lifecycle state and every fact a blend needs.
 /// `catalogKey` is `<pack release tag>:<track id>` for Starter assets.
 public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
@@ -24,6 +32,17 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
     /// Immutable provider/catalog identity from `starter-v4.sqlite` (`jamendo-<id>`, v37). Distinct from
     /// `catalogKey` (local storage identity) and `packTag` (the Starter audio pack release).
     public var catalogID: String? = nil
+    /// Durable audio source (v38). `sourceURL` above is legacy display data and is never identity.
+    public var sourceKind: BlendCatalogSourceKind? = nil
+    /// Stable Jamendo track ID for `.jamendo` rows.
+    public var providerTrackID: String? = nil
+    /// Refreshable Jamendo stream URL and optional expiry: cache data, never identity.
+    public var cachedURL: String? = nil
+    public var cachedURLExpiry: Date? = nil
+
+    /// Pack tag of general (non-Starter) catalog rows.
+    public static let jamendoPackTag = "jamendo"
+    public static func jamendoKey(trackID: String) -> String { "\(jamendoPackTag):\(trackID)" }
 
     public static func key(pack: StarterBlendPack, trackID: String) -> String { "\(pack.releaseTag):\(trackID)" }
 
@@ -41,12 +60,28 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
         state >= .blendEligible && (facts?.isBlendReady ?? false) && traits != nil
     }
 
-    /// The explicit source for this row: only a mirrored Starter asset of `pack` whose stored
-    /// `sourceURL` is that asset. Nil for unmirrored/synthetic IDs or a row without a stored source.
+    /// The explicit source of this row. A Starter row yields only the pinned Release asset of one of the
+    /// 36 mirrored IDs; a Jamendo row yields provider identity plus its cached URL. A Release locator is
+    /// never produced for a non-starter ID, and a Jamendo locator never for a Starter ID.
+    public func audioLocator(in pack: StarterBlendPack = .v1) -> AudioLocator? {
+        switch sourceKind {
+        case .starterRelease?:
+            guard packTag == pack.releaseTag else { return nil }
+            return pack.locator(trackID: trackID)
+        case .jamendo?:
+            guard let id = providerTrackID, !id.isEmpty, !pack.contains(trackID: id),
+                  !pack.contains(trackID: trackID) else { return nil }
+            let url = cachedURL.flatMap(URL.init(string:)).flatMap { pack.owns($0) ? nil : $0 }
+            return .jamendo(trackID: id, cachedURL: url, expiry: cachedURLExpiry)
+        case nil:
+            return nil
+        }
+    }
+
+    /// The Starter Release locator of this row, when that is its source.
     public func resolvedLocator(in pack: StarterBlendPack) -> AudioLocator? {
-        guard packTag == pack.releaseTag, let sourceURL, let url = URL(string: sourceURL),
-              pack.assetURL(trackID: trackID) == url else { return nil }
-        return pack.locator(trackID: trackID)
+        if case .starterRelease? = audioLocator(in: pack) { return audioLocator(in: pack) }
+        return nil
     }
 
     /// Whether Keep Playing may append this row: eligible state, complete planner facts, valid

@@ -37,13 +37,14 @@ final class ReleaseM4ADeckSource: StarterDeckSource, @unchecked Sendable {
     fileprivate var assetLength: Int64 = 0
 
     /// Opens the asset (blocking: reads the container index). Throws `ReleaseRangeError`.
-    init(reader: ReleaseRangeReader) throws {
+    /// `fileType` is the container hint: M4A for Starter assets, MP3 for Jamendo streams.
+    init(reader: ReleaseRangeReader, fileType: AudioFileTypeID = kAudioFileM4AType) throws {
         self.reader = reader
         assetLength = try reader.totalLength()
         let me = Unmanaged.passUnretained(self).toOpaque()
         var fileID: AudioFileID?
         let opened = AudioFileOpenWithCallbacks(me, releaseReadProc, nil, releaseSizeProc, nil,
-                                                kAudioFileM4AType, &fileID)
+                                                fileType, &fileID)
         guard opened == noErr, let fileID else { throw failure ?? .permanent("not an M4A (\(opened))") }
         audioFile = fileID
         var wrapped: ExtAudioFileRef?

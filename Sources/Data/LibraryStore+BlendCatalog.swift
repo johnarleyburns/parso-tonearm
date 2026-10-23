@@ -43,6 +43,10 @@ extension LibraryStore {
             record.camelotKey = entry.camelot
             record.catalogID = entry.catalogID
             record.sourceURL = assetURL.absoluteString
+            record.sourceKind = .starterRelease
+            record.providerTrackID = nil
+            record.cachedURL = nil
+            record.cachedURLExpiry = nil
             record.analysisVersion = provenance
             record.updatedAt = now
             try record.save(db)
@@ -51,6 +55,49 @@ extension LibraryStore {
             try BlendCatalogEdge(fromKey: BlendCatalogTrack.key(pack: pack, trackID: plan.outgoingTrackID),
                                  toKey: BlendCatalogTrack.key(pack: pack, trackID: plan.incomingTrackID),
                                  packTag: pack.releaseTag, planJSON: JSONEncoder().encode(plan)).save(db)
+        }
+    }
+
+    /// Gives every pre-v38 row an explicit source: mirrored Starter assets become `.starterRelease`; any
+    /// other row is a Jamendo track whose old `sourceURL` is demoted to refreshable cache data (a
+    /// GitHub Release URL is dropped, never kept as a Jamendo locator).
+    static func backfillCatalogSources(_ db: Database, pack: StarterBlendPack = .v1) throws {
+        for var row in try BlendCatalogTrack.fetchAll(db) where row.sourceKind == nil {
+            if row.packTag == pack.releaseTag, pack.contains(trackID: row.trackID) {
+                row.sourceKind = .starterRelease
+            } else {
+                row.sourceKind = .jamendo
+                row.providerTrackID = row.catalogID?.replacingOccurrences(of: "jamendo-", with: "") ?? row.trackID
+                if let old = row.sourceURL, !pack.owns(URL(string: old) ?? URL(fileURLWithPath: "/")),
+                   URL(string: old)?.scheme?.hasPrefix("http") == true { row.cachedURL = old }
+            }
+            try row.update(db)
+        }
+    }
+
+    /// Adds a general catalog track (provider `jamendo`, stable ID) at `.unindexed`, keeping any row it has.
+    /// A Starter Pack ID is never registered this way: it has only its pinned Release asset.
+    public func registerJamendoCatalogTrack(trackID: String, at date: Date = Date()) throws {
+        guard !trackID.isEmpty, !StarterBlendPack.v1.contains(trackID: trackID) else { return }
+        try dbQueue.write { db in
+            let key = BlendCatalogTrack.jamendoKey(trackID: trackID)
+            guard try BlendCatalogTrack.fetchOne(db, key: key) == nil else { return }
+            var row = BlendCatalogTrack(catalogKey: key, packTag: BlendCatalogTrack.jamendoPackTag, state: .unindexed,
+                                        durationSeconds: nil, bpm: nil, beatPeriod: nil, beatPhase: nil, rmsDB: nil,
+                                        updatedAt: date)
+            row.sourceKind = .jamendo
+            row.providerTrackID = trackID
+            try row.insert(db)
+        }
+    }
+
+    /// Persists a refreshed Jamendo stream URL (cache data) for a Jamendo row; a no-op for any other row.
+    public func updateCachedLocator(key: String, url: URL, expiry: Date?) throws {
+        try dbQueue.write { db in
+            guard var row = try BlendCatalogTrack.fetchOne(db, key: key), row.sourceKind == .jamendo else { return }
+            row.cachedURL = url.absoluteString
+            row.cachedURLExpiry = expiry
+            try row.update(db)
         }
     }
 
