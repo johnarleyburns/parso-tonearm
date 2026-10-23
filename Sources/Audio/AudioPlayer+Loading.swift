@@ -127,14 +127,16 @@ extension AudioPlayer {
 
     /// Classified HTTP failure from the ordinary remote loader for the current Jamendo item: a stale
     /// link refreshes once for the exact occurrence; a second one (or a permanent one) fails truthfully.
-    func handleOrdinaryJamendoLoaderFailure(httpStatus: Int) {
+    func handleOrdinaryJamendoLoaderFailure(httpStatus: Int, terminal: Bool = false) {
         guard let load = ordinaryJamendoLoad,
               load.generation == catalogPlaybackLoadGeneration,
               queueOccurrences.indices.contains(index),
               queueOccurrences[index] == load.occurrence else { return }
         switch JamendoLocatorFailure.classify(httpStatus: httpStatus) {
         case .transient:
-            return   // the loader's own bounded retry/backoff owns this
+            // The loader's own bounded retry/backoff owns a live request; a terminal failure
+            // (retry exhausted / item already failed) must not strand the item.
+            if terminal { failRemotePlayback(.jamendoLocatorUnavailable) }
         case .permanent:
             failRemotePlayback(.jamendoLocatorUnavailable)
         case .expiredOrInvalid:
@@ -145,6 +147,21 @@ extension AudioPlayer {
             var retry = load
             retry.retried = true
             startOrdinaryJamendoLoad(retry, autoplay: catalogPlaybackAutoplay || isPlaying)
+        }
+    }
+
+    /// A terminal failure of the current ordinary Jamendo item (failed AVPlayer item or the loader's
+    /// exhausted retry). Always on the main actor; stale occurrences/generations are ignored.
+    /// Without a usable HTTP status the cached URL cannot be called valid, so it fails truthfully.
+    func handleOrdinaryJamendoTerminalLoaderFailure(httpStatus: Int?) {
+        guard let load = ordinaryJamendoLoad,
+              load.generation == catalogPlaybackLoadGeneration,
+              queueOccurrences.indices.contains(index),
+              queueOccurrences[index] == load.occurrence else { return }
+        if let httpStatus {
+            handleOrdinaryJamendoLoaderFailure(httpStatus: httpStatus, terminal: true)
+        } else {
+            failRemotePlayback(.jamendoLocatorUnavailable)
         }
     }
 
@@ -484,8 +501,8 @@ extension AudioPlayer {
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak item] status in
                 if let self, status == .failed, let item, self.player.currentItem === item,
-                   self.ordinaryJamendoLoad != nil, let code = Self.httpStatus(of: item) {
-                    self.handleOrdinaryJamendoLoaderFailure(httpStatus: code)
+                   self.ordinaryJamendoLoad != nil {
+                    self.handleOrdinaryJamendoTerminalLoaderFailure(httpStatus: Self.httpStatus(of: item))
                     return
                 }
                 if let self, let local = item as? LocalPlayerItem, self.player.currentItem === local {
