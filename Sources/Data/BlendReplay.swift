@@ -83,7 +83,8 @@ public enum BlendReplay {
               zip(plans, zip(ids, ids.dropFirst())).allSatisfy({
                   $0.outgoingTrackID == $1.0 && $0.incomingTrackID == $1.1 }) else { return nil }
         let blendID = StarterBlendCatalog.blends.first { $0.document.id == document.id }?.id ?? document.title
-        let rows = StarterBlendPlayback.rows(blendID: blendID, title: document.title, trackIDs: ids, pack: pack)
+        guard let rows = try? StarterBlendPlayback.rows(blendID: blendID, title: document.title, trackIDs: ids, pack: pack),
+              rows.count == ids.count else { return nil }
         return StarterPlayRequest(blendID: blendID, pack: pack, occurrenceIDs: document.occurrences.map(\.id), rows: rows,
                                   trackIDs: ids, edgePlans: plans)
     }

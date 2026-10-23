@@ -46,6 +46,15 @@ public enum StarterStreamStatus: Equatable, Sendable {
     }
 }
 
+/// Real track metadata for one starter track, projected from the pinned catalog.
+struct CatalogPlaybackMetadata: Sendable, Equatable {
+    let trackID: String
+    let title: String
+    let artist: String
+    let genre: String
+    let artworkURL: URL?
+}
+
 /// Drives the per-card Play of the starter blends. Rows come from the checked-in catalog (release
 /// asset URLs), so starting needs no network lookup, model, index or download; the player streams
 /// the first assets after ordinary buffering. A failure is scoped to the card that hit it, and a
@@ -77,29 +86,47 @@ public final class StarterBlendPlayback: ObservableObject {
 
     public func state(for blend: StarterBlend) -> CardState { states[blend.id] ?? .idle }
 
-    /// The release-backed rows of `blend`, in play order. Display names are the blend's own: the
-    /// release carries audio and plans, not tags.
-    nonisolated static func rows(for blend: StarterBlend) -> [TrackRow] {
-        rows(blendID: blend.id, title: blend.title, trackIDs: blend.trackIDs, pack: blend.pack)
+    /// Resolves catalog metadata for track ids; the single seam rows are built through.
+    typealias MetadataResolver = @Sendable ([String]) throws -> [CatalogPlaybackMetadata]
+
+    /// Reads the pinned, bundled catalog only: no network, artwork fetch, audio inspection or analysis.
+    nonisolated static let bundledResolver: MetadataResolver = { ids in
+        try StarterCatalogAdapter.bundled().resolve(trackIDs: ids).map {
+            CatalogPlaybackMetadata(trackID: $0.trackID, title: $0.title, artist: $0.artist,
+                                    genre: $0.genre, artworkURL: $0.artworkURL)
+        }
     }
 
-    nonisolated static func rows(blendID: String, title: String, trackIDs: [String], pack: StarterBlendPack) -> [TrackRow] {
+    /// The release-backed rows of `blend`, in play order, with the catalog's real title/artist/genre.
+    /// Throws when the catalog is unavailable or its metadata is corrupt.
+    nonisolated static func catalogRows(for blend: StarterBlend,
+                                        resolver: MetadataResolver = bundledResolver) throws -> [TrackRow] {
+        try rows(blendID: blend.id, title: blend.title, trackIDs: blend.trackIDs, pack: blend.pack, resolver: resolver)
+    }
+
+    /// `title` is the collection context (shown as the album), never the song title.
+    nonisolated static func rows(blendID: String, title: String, trackIDs: [String], pack: StarterBlendPack,
+                                 resolver: MetadataResolver = bundledResolver) throws -> [TrackRow] {
+        let metadata = try resolver(trackIDs)
+        guard metadata.map(\.trackID) == trackIDs else { throw StarterCatalogError.missing(trackIDs) }
         let source = Source(id: nil, kind: .local, iaIdentifier: blendID, originalURL: nil,
                             title: title, addedAt: Date(), lastResolvedAt: nil,
                             followUpdates: false, licenseText: StarterBlendCatalog.attribution,
                             memberCapHit: false)
-        return trackIDs.enumerated().compactMap { offset, trackID in
-            guard let assetURL = pack.assetURL(trackID: trackID) else { return nil }
-            let id = -(Int64(trackID) ?? Int64(offset + 1))
-            let track = Track(id: id, albumId: nil, sourceId: 0, title: "\(title) \(offset + 1)",
+        return metadata.enumerated().compactMap { offset, meta in
+            guard let assetURL = pack.assetURL(trackID: meta.trackID) else { return nil }
+            let id = -(Int64(meta.trackID) ?? Int64(offset + 1))
+            let artist = Artist(id: nil, name: meta.artist, sortName: meta.artist)
+            let album = Album(id: nil, sourceId: 0, title: title, artist: nil, genre: meta.genre, artworkId: nil)
+            let track = Track(id: id, albumId: nil, sourceId: 0, title: meta.title,
                               trackNo: offset + 1, discNo: nil, durationSec: nil,
                               codec: "AAC", sampleRate: nil, bitDepthOrBitrate: "128 kbps",
-                              sortKey: String(format: "%06d", offset + 1), genre: nil, artistId: nil)
+                              sortKey: String(format: "%06d", offset + 1), genre: meta.genre, artistId: nil)
             var asset = Asset(id: nil, trackId: id, kind: .remote, bookmark: nil, relPath: nil,
                               remoteURL: assetURL.absoluteString,
                               altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
             asset.transientRemoteSupportsByteRanges = true
-            return TrackRow(track: track, album: nil, source: source, asset: asset, artist: nil)
+            return TrackRow(track: track, album: album, source: source, asset: asset, artist: artist)
         }
     }
 
@@ -113,7 +140,11 @@ public final class StarterBlendPlayback: ObservableObject {
         guard inFlight.insert(blend.id).inserted else { return }
         defer { inFlight.remove(blend.id) }
         states[blend.id] = .loading
-        let rows = Self.rows(for: blend)
+        let rows: [TrackRow]
+        do { rows = try Self.catalogRows(for: blend) } catch {
+            states[blend.id] = .failed("This blend is incomplete.")
+            return
+        }
         let occurrences = blend.document.occurrences.map(\.id)
         guard rows.count == blend.trackIDs.count, occurrences.count == rows.count,
               blend.edgePlans.count == rows.count - 1 else {

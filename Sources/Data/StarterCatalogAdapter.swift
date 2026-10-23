@@ -7,7 +7,11 @@ struct StarterCatalogEntry: Equatable, Sendable {
     let catalogID: String
     /// The pack's track id (the `<track id>` part).
     let trackID: String
+    let title: String
+    let artist: String
     let genre: String
+    /// Catalog artwork URL; absent or invalid is non-fatal and never affects audio playback.
+    let artworkURL: URL?
     let durationSeconds: Double
     let bpm: Double
     /// Normalised Camelot code, e.g. `8A`.
@@ -49,7 +53,7 @@ struct StarterCatalogAdapter: Sendable {
             var entries: [StarterCatalogEntry] = [], missing: [String] = [], duplicated: [String] = []
             for trackID in trackIDs {
                 let catalogID = Self.catalogIDPrefix + trackID
-                let rows = try Row.fetchAll(db, sql: "SELECT id, genre, duration, bpm, camelot FROM starter_track WHERE id = ?",
+                let rows = try Row.fetchAll(db, sql: "SELECT id, title, artist, genre, duration, artwork_url, bpm, camelot FROM starter_track WHERE id = ?",
                                             arguments: [catalogID])
                 guard let row = rows.first else { missing.append(catalogID); continue }
                 if rows.count > 1 { duplicated.append(catalogID); continue }
@@ -83,12 +87,19 @@ struct StarterCatalogAdapter: Sendable {
 
     private static func entry(_ row: Row, catalogID: String, trackID: String) throws -> StarterCatalogEntry {
         func invalid(_ reason: String) -> StarterCatalogError { .invalid(id: catalogID, reason: reason) }
+        let title = (row["title"] as String?)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !title.isEmpty else { throw invalid("title") }
+        let artist = (row["artist"] as String?)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !artist.isEmpty else { throw invalid("artist") }
+        let artwork = (row["artwork_url"] as String?)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let artworkURL = artwork.isEmpty ? nil : URL(string: artwork).flatMap { $0.scheme != nil ? $0 : nil }
         let genre = (row["genre"] as String?)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !genre.isEmpty else { throw invalid("genre") }
         guard let duration = row["duration"] as Double?, duration.isFinite, duration > 0 else { throw invalid("duration") }
         guard let bpm = row["bpm"] as Double?, bpm.isFinite, bpmRange.contains(bpm) else { throw invalid("bpm") }
         guard let rawKey = row["camelot"] as String?, BlendTraits.parseCamelot(rawKey) != nil else { throw invalid("camelot") }
-        return StarterCatalogEntry(catalogID: catalogID, trackID: trackID, genre: genre, durationSeconds: duration,
+        return StarterCatalogEntry(catalogID: catalogID, trackID: trackID, title: title, artist: artist, genre: genre,
+                                   artworkURL: artworkURL, durationSeconds: duration,
                                    bpm: bpm, camelot: rawKey.trimmingCharacters(in: .whitespaces).uppercased())
     }
 }

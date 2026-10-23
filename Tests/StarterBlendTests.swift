@@ -84,13 +84,13 @@ final class StarterBlendTests: XCTestCase {
         XCTAssertEqual(drop.incomingSwapBeat, 131)
     }
 
-    func testAssetsComeFromTheImmutableReleaseNeverJamendo() {
+    func testAssetsComeFromTheImmutableReleaseNeverJamendo() throws {
         let pack = StarterBlendCatalog.pack
         XCTAssertEqual(pack.releaseTag, "starter-blends-aac-v1")
         XCTAssertEqual(pack.assetURL(trackID: "337997")?.absoluteString,
                        "https://github.com/johnarleyburns/parso-tonearm/releases/download/starter-blends-aac-v1/337997.m4a")
         for blend in StarterBlendCatalog.blends {
-            for row in StarterBlendPlayback.rows(for: blend) {
+            for row in try StarterBlendPlayback.catalogRows(for: blend) {
                 let url = URL(string: row.asset?.remoteURL ?? "")
                 XCTAssertNotNil(url)
                 XCTAssertTrue(pack.owns(url!), "\(url!)")
@@ -162,5 +162,32 @@ final class StarterBlendTests: XCTestCase {
                 XCTAssertFalse(text.contains(banned), "\(file) must not contain \(banned)")
             }
         }
+    }
+}
+
+
+final class StarterBlendCatalogMetadataTests: XCTestCase {
+    func testStarterRowsUseCatalogSongAndArtistMetadataNotSyntheticCardSlots() throws {
+        let blend = try XCTUnwrap(StarterBlendCatalog.blend(id: "starter.upbeat-energy"))
+        let rows = try StarterBlendPlayback.catalogRows(for: blend)
+        XCTAssertEqual(rows.count, 6)
+        let adapter = try StarterCatalogAdapter.bundled()
+        for (row, id) in zip(rows, blend.trackIDs) {
+            XCTAssertNotEqual(row.track.title, "\(blend.title) \(row.track.trackNo ?? 0)")
+            XCTAssertFalse(row.track.title.isEmpty)
+            XCTAssertFalse((row.artist?.name ?? "").isEmpty)
+            XCTAssertEqual(row.album?.title, blend.title)
+            XCTAssertEqual(row.track.genre, try XCTUnwrap(adapter.resolve(trackIDs: [id]).first).genre)
+        }
+    }
+
+    func testStarterRowConstructionRefusesMissingCatalogMetadataRatherThanUsingSyntheticNames() throws {
+        let blend = try XCTUnwrap(StarterBlendCatalog.blend(id: "starter.upbeat-energy"))
+        XCTAssertThrowsError(try StarterBlendPlayback.catalogRows(for: blend, resolver: { _ in
+            throw StarterCatalogError.invalid(id: "jamendo-x", reason: "title")
+        }))
+        XCTAssertThrowsError(try StarterBlendPlayback.catalogRows(for: blend, resolver: { ids in
+            ids.dropLast().map { CatalogPlaybackMetadata(trackID: $0, title: "T", artist: "A", genre: "g", artworkURL: nil) }
+        }))
     }
 }
