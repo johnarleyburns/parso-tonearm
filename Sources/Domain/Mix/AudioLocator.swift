@@ -23,6 +23,15 @@ public enum JamendoLocatorFailure: Error, Sendable, Equatable {
     case transient
     /// Not recoverable (e.g. not licensed for streaming): stop and report truthfully.
     case permanent
+
+    /// Maps an HTTP status from the ordinary remote loader: 401/403/404/410 stale, 408/429/5xx transient.
+    public static func classify(httpStatus: Int) -> JamendoLocatorFailure {
+        switch httpStatus {
+        case 401, 403, 404, 410: return .expiredOrInvalid
+        case 408, 429, 500...599: return .transient
+        default: return .permanent
+        }
+    }
 }
 
 public enum JamendoResolveError: Error, Sendable, Equatable {
@@ -90,6 +99,15 @@ public struct JamendoLocatorResolver: Sendable {
                 }
             }
         }
+    }
+
+    /// Resolves a fresh URL from durable identity for an AVPlayer load. Unlike `open`, it does
+    /// not trust a cached URL whose validity AVFoundation cannot preflight.
+    public func refreshOnly(_ locator: AudioLocator) async throws -> (url: URL, expiry: Date?) {
+        guard case .jamendo(let trackID, _, _) = locator else { throw JamendoResolveError.permanent }
+        do { return try await refresh(trackID) }
+        catch is CancellationError { throw CancellationError() }
+        catch { throw JamendoResolveError.refreshFailed }
     }
 
     private func refreshURL(_ trackID: String) async throws -> URL {
