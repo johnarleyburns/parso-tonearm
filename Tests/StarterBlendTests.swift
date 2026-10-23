@@ -39,7 +39,7 @@ final class StarterBlendTests: XCTestCase {
 
     func testEveryPlanResolvesAgainstItsTracksAndFitsInside() throws {
         let facts = StarterTestFacts.byID
-        var styles: [StarterEdgePlan.Style: Int] = [:]
+        var styles: [BlendEdgePlan.Style: Int] = [:]
         for plan in StarterBlendRuntimeData.edges {
             styles[plan.style, default: 0] += 1
             let out = try XCTUnwrap(facts[plan.outgoingTrackID]), inc = try XCTUnwrap(facts[plan.incomingTrackID])

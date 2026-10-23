@@ -98,7 +98,7 @@ extension LibraryStore {
 
     /// Stores a concrete plan for `from → to`; both ends must be blend-eligible, and each moves to
     /// `edgePlanned`. Replacing an edge's plan keeps one row per pair.
-    public func recordBlendEdgePlan(_ plan: StarterEdgePlan, from fromKey: String, to toKey: String,
+    public func recordBlendEdgePlan(_ plan: BlendEdgePlan, from fromKey: String, to toKey: String,
                                     packTag: String, at date: Date = Date()) throws {
         try dbQueue.write { db in
             for key in [fromKey, toKey] {
@@ -111,7 +111,7 @@ extension LibraryStore {
         }
     }
 
-    public func blendCatalogEdgePlan(from fromKey: String, to toKey: String) throws -> StarterEdgePlan? {
+    public func blendCatalogEdgePlan(from fromKey: String, to toKey: String) throws -> BlendEdgePlan? {
         try dbQueue.read { db in
             try BlendCatalogEdge.filter(Column("fromKey") == fromKey && Column("toKey") == toKey).fetchOne(db)?.plan
         }

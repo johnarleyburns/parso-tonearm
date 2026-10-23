@@ -20,7 +20,7 @@ struct StarterStreamFailure: Equatable, Sendable {
 enum StarterEdgeEvent: Equatable, Sendable {
     /// The supplied plan was resolved and handed to the renderer (`executed == planned`), or the
     /// edge could not honour it and will follow on without a blend (`executed == nil`).
-    case scheduled(edge: Int, plan: StarterEdgePlan, executed: StarterEdgePlan.Style?)
+    case scheduled(edge: Int, plan: BlendEdgePlan, executed: BlendEdgePlan.Style?)
     case overlapBegan(edge: Int, atFrame: Int64)
     case handedOff(edge: Int, atFrame: Int64)
 }
@@ -187,7 +187,7 @@ final class StarterStreamPlayer {
     struct Config {
         var trackIDs: [String]
         /// `plans[i]` joins track `i` to track `i + 1`.
-        var plans: [StarterEdgePlan]
+        var plans: [BlendEdgePlan]
         var deckSeconds = 8.0
         var startBufferSeconds = 1.0
         var incomingBufferSeconds = 0.75
@@ -330,7 +330,7 @@ final class StarterStreamPlayer {
     }
 
     /// Appends tracks (and the plans joining them) to a session in progress, e.g. Keep Playing.
-    func extend(trackIDs: [String], plans: [StarterEdgePlan]) {
+    func extend(trackIDs: [String], plans: [BlendEdgePlan]) {
         config.trackIDs += trackIDs
         config.plans += plans
         reportedFinish = false
@@ -515,7 +515,7 @@ final class StarterStreamPlayer {
         let position = cell.perform { $0.decks[$0.main].currentFrame }
         let schedule = plan.schedule()
         var bounded: BoundedOverlapPlan
-        var executed: StarterEdgePlan.Style?
+        var executed: BlendEdgePlan.Style?
         if let schedule {
             let trigger = Int64(schedule.outgoingStart * rate)
             let cut = schedule.style == .phraseCut

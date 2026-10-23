@@ -52,9 +52,9 @@ public struct BlendDocument: Codable, Sendable, Equatable, Identifiable {
         public var requestedStyle: String?
         /// The concrete, immutable plan this edge executes (Starter Blends), persisted with the
         /// blend so a replay plays exactly what was saved. Nil for edges planned at play time.
-        public var plan: StarterEdgePlan?
+        public var plan: BlendEdgePlan?
         public init(id: UUID = UUID(), fromOccurrenceID: UUID, toOccurrenceID: UUID,
-                    requestedStyle: String? = nil, plan: StarterEdgePlan? = nil) {
+                    requestedStyle: String? = nil, plan: BlendEdgePlan? = nil) {
             self.id = id; self.fromOccurrenceID = fromOccurrenceID
             self.toOccurrenceID = toOccurrenceID; self.requestedStyle = requestedStyle
             self.plan = plan
