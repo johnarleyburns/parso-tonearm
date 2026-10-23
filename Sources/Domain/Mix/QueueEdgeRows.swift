@@ -102,8 +102,15 @@ public enum QueueEdgeResolver {
             } else if repeatMode == .one && i == currentIndex {
                 reason = String(localized: "Repeating this track", bundle: .module)
             } else if i == liveIndex, live.phase != .noEdge, matches(live, key) {
-                presentation = live.applying(edgeSnapshot)
-                isActive = live.phase == .overlap || live.phase == .outgoingTail
+                if live.phase == .fallback, let edgeSnapshot,
+                   edgeSnapshot.phase != .denied, edgeSnapshot.phase != .cancelled,
+                   edgeSnapshot.executedStyle?.overlaps == true {
+                    presentation = Self.presentation(of: edgeSnapshot, key: key)
+                    isActive = edgeSnapshot.phase == .overlapping || edgeSnapshot.phase == .handedOff
+                } else {
+                    presentation = live.applying(edgeSnapshot)
+                    isActive = live.phase == .overlap || live.phase == .outgoingTail
+                }
             } else if let edgeSnapshot {
                 presentation = Self.presentation(of: edgeSnapshot, key: key)
             } else if loops {
