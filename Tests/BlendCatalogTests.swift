@@ -69,7 +69,7 @@ final class BlendCatalogTests: XCTestCase {
         XCTAssertFalse(make(real, state: .unindexed, source: url).isKeepPlayingCandidate(in: pack))
         let row = make(real, source: url)
         XCTAssertTrue(row.isKeepPlayingCandidate(in: pack))
-        XCTAssertEqual(row.resolvedLocator(in: pack), pack.locator(trackID: real))
+        XCTAssertEqual(row.keepPlayingLocator(in: pack), pack.locator(trackID: real))
         // Each missing or invalid fact rejects.
         var bad = row; bad.camelotKey = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "missing key")
         bad = row; bad.camelotKey = "13A"; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "invalid key")
@@ -78,12 +78,20 @@ final class BlendCatalogTests: XCTestCase {
         bad = row; bad.sourceKind = nil; bad.sourceURL = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "no source")
         bad = row; bad.sourceKind = .jamendo; bad.providerTrackID = real
         XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "a Jamendo source is never a Starter asset")
+        var jamendo = BlendCatalogTrack(catalogKey: BlendCatalogTrack.jamendoKey(trackID: "4242"), packTag: BlendCatalogTrack.jamendoPackTag,
+                                        state: .blendEligible, durationSeconds: 240, bpm: 100, beatPeriod: 0.6, beatPhase: 0.2,
+                                        rmsDB: -12, updatedAt: Date(), genre: "Electronic", subgenre: nil, camelotKey: "8A")
+        jamendo.sourceKind = .jamendo; jamendo.providerTrackID = "4242"
+        XCTAssertEqual(jamendo.keepPlayingLocator(in: pack), .jamendo(trackID: "4242", cachedURL: nil, expiry: nil),
+                       "an ordinary Jamendo row needs no GitHub URL")
+        jamendo.providerTrackID = ""; XCTAssertNil(jamendo.keepPlayingLocator(in: pack), "no provider identity")
+        jamendo.providerTrackID = "4243"; XCTAssertNil(jamendo.keepPlayingLocator(in: pack), "identity must match the row")
         XCTAssertNil(bad.audioLocator(in: pack), "and a Starter ID never resolves through Jamendo")
         bad = row; bad.state = .unindexed; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "not eligible")
         // A synthetic / unmirrored ID has no locator and no Release URL.
         let synthetic = make("999999999", source: "https://github.com/johnarleyburns/parso-tonearm/releases/download/\(pack.releaseTag)/999999999.m4a")
         XCTAssertTrue(synthetic.isSelectable)
-        XCTAssertNil(synthetic.resolvedLocator(in: pack))
+        XCTAssertNil(synthetic.keepPlayingLocator(in: pack))
         XCTAssertFalse(synthetic.isKeepPlayingCandidate(in: pack))
     }
 

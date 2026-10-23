@@ -168,11 +168,16 @@ extension AudioPlayer {
     /// `edgePlanned`. Nothing is selected from outside the catalog, and no model runs.
     func extendStarterSessionFromCatalog(_ session: StarterSession) async {
         let pack = session.pack
-        let catalog = (try? await LibraryStore.shared.blendCatalogTracks(atLeast: .blendEligible, packTag: pack.releaseTag)) ?? []
+        let catalog = (try? await LibraryStore.shared.blendCatalogTracks(atLeast: .blendEligible)) ?? []
         guard !Task.isCancelled else { return }
-        // Only rows with every required fact (tempo grid, genre, valid key) and a resolvable mirrored
-        // locator are ever considered. Camelot rule: same code, ±1 same mode, or relative major/minor.
-        let selectable = catalog.filter { $0.isKeepPlayingCandidate(in: pack) }
+        // Only rows with every persisted fact (tempo grid, genre, valid key) and a real locator (a mirrored
+        // Starter asset or a Jamendo identity) are ever considered; nothing here mutates the catalog. Camelot rule: same code, ±1 same mode, or relative major/minor.
+        var locators: [String: AudioLocator] = [:]
+        let selectable = catalog.filter { row in
+            guard let locator = row.keepPlayingLocator(in: pack) else { return false }
+            locators[row.trackID] = locator
+            return true
+        }
         var facts: [String: StarterTrackFacts] = [:]
         var traits: [String: BlendTraits] = [:]
         for row in selectable { facts[row.trackID] = row.facts; traits[row.trackID] = row.traits }
@@ -203,23 +208,25 @@ extension AudioPlayer {
             appendPlayableContinuationFallback(for: session)
             return
         }
+        guard let rows = try? StarterBlendPlayback.rows(blendID: session.blendID, title: "Keep Playing", trackIDs: chain, pack: pack,
+                                                   locators: locators, resolver: keepPlayingMetadataResolver),
+              rows.count == chain.count else {
+            // No metadata for a chosen row: nothing is planned or persisted, and playback stays sequential.
+            appendPlayableContinuationFallback(for: session)
+            return
+        }
         var previous = session.trackIDs.last ?? ""
         for (id, plan) in zip(chain, plans) {
             // An edge that cannot be persisted is not a real plan: stop here and extend nothing.
             do {
                 try await LibraryStore.shared.recordBlendEdgePlan(
-                    plan, from: BlendCatalogTrack.key(pack: pack, trackID: previous),
-                    to: BlendCatalogTrack.key(pack: pack, trackID: id), packTag: pack.releaseTag)
+                    plan, from: BlendCatalogTrack.catalogKey(forTrackID: previous, pack: pack),
+                    to: BlendCatalogTrack.catalogKey(forTrackID: id, pack: pack), packTag: pack.releaseTag)
             } catch {
                 finishKeepPlayingExtension(with: [], isFallback: true, reason: .unavailable)
                 return
             }
             previous = id
-        }
-        guard let rows = try? StarterBlendPlayback.rows(blendID: session.blendID, title: "Keep Playing", trackIDs: chain, pack: pack),
-              rows.count == chain.count else {
-            finishKeepPlayingExtension(with: [], isFallback: true, reason: .unavailable)
-            return
         }
         guard var current = starterSession, current.blendID == session.blendID, !current.sequential else { return }
         current.append(trackIDs: chain, plans: plans, rowIDs: rows.map(\.track.id))

@@ -108,7 +108,10 @@ public final class StarterBlendPlayback: ObservableObject {
     }
 
     /// `title` is the collection context (shown as the album), never the song title.
+    /// `locators` (by track ID) supplies each row's own source; a Starter ID without one reads the pinned
+    /// pack asset, and a Jamendo row without a cached URL has no remote URL (the stream resolves it).
     nonisolated static func rows(blendID: String, title: String, trackIDs: [String], pack: StarterBlendPack,
+                                 locators: [String: AudioLocator] = [:],
                                  resolver: MetadataResolver = bundledResolver) throws -> [TrackRow] {
         let metadata = try resolver(trackIDs)
         guard metadata.map(\.trackID) == trackIDs else { throw StarterCatalogError.missing(trackIDs) }
@@ -120,7 +123,13 @@ public final class StarterBlendPlayback: ObservableObject {
                             followUpdates: false, licenseText: StarterBlendCatalog.attribution,
                             memberCapHit: false)
         return metadata.enumerated().compactMap { offset, meta in
-            guard let assetURL = pack.assetURL(trackID: meta.trackID) else { return nil }
+            let assetURL: URL?
+            switch locators[meta.trackID] {
+            case .jamendo(_, let cached, _)?: assetURL = cached
+            case .starterRelease?, nil:
+                guard let url = pack.assetURL(trackID: meta.trackID) else { return nil }
+                assetURL = url
+            }
             let id = -(Int64(meta.trackID) ?? Int64(offset + 1))
             let artist = Artist(id: nil, name: meta.artist, sortName: meta.artist)
             let album = Album(id: nil, sourceId: 0, title: title, artist: nil, genre: meta.genre, artworkId: nil)
@@ -129,7 +138,7 @@ public final class StarterBlendPlayback: ObservableObject {
                               codec: "AAC", sampleRate: nil, bitDepthOrBitrate: "128 kbps",
                               sortKey: String(format: "%06d", offset + 1), genre: meta.genre, artistId: nil)
             var asset = Asset(id: nil, trackId: id, kind: .remote, bookmark: nil, relPath: nil,
-                              remoteURL: assetURL.absoluteString,
+                              remoteURL: assetURL?.absoluteString,
                               altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
             asset.transientRemoteSupportsByteRanges = true
             return TrackRow(track: track, album: album, source: source, asset: asset, artist: artist)
