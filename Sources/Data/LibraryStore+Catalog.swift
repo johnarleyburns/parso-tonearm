@@ -243,6 +243,17 @@ extension LibraryStore {
         }
     }
 
+    /// Rewrites only the remote asset row of `trackID` (refreshed locator/size); throws when it has none.
+    public func updateRemoteAssetURL(trackID: Int64, remoteURL: URL, sizeBytes: Int64?) throws {
+        try dbQueue.write { db in
+            guard var asset = try Asset.filter(Column("trackId") == trackID).fetchOne(db),
+                  asset.kind == .remote else { throw LibraryStoreError.assetNotFound(trackID) }
+            asset.remoteURL = remoteURL.absoluteString
+            asset.sizeBytes = sizeBytes ?? asset.sizeBytes
+            try asset.update(db)
+        }
+    }
+
     public func tracks(forSource sourceId: Int64) throws -> [TrackRow] {
         try dbQueue.read { db in
             let tracks = try Track.filter(Column("sourceId") == sourceId)
@@ -393,4 +404,8 @@ extension LibraryStore {
         }
     }
 
+}
+
+public enum LibraryStoreError: Error, Equatable {
+    case assetNotFound(Int64)
 }

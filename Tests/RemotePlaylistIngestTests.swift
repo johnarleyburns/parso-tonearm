@@ -144,4 +144,69 @@ final class RemotePlaylistIngestTests: XCTestCase {
         let row = try await store.blendCatalogTrack(key: BlendCatalogTrack.jamendoKey(trackID: "99123"))
         XCTAssertNil(row)
     }
+
+    func testJamendoReimportWithRefreshedURLKeepsOneTrackAndRefreshesOnlyCacheData() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let source = try await jamendoSource(in: store)
+        let node = RemoteNode(id: "99123", title: "Song", path: "track/99123", kind: .audio)
+        let old = URL(string: "https://old.example/?trackid=99123")!
+        let fresh = URL(string: "https://new.example/?trackid=99123")!
+        let first = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in ResolvedAsset(url: old) },
+                                                       source: source, store: store)
+        let trackID = try XCTUnwrap(first.trackIDs.first)
+        let key = BlendCatalogTrack.jamendoKey(trackID: node.id)
+        let facts = StarterTrackFacts(id: "99123", durationSeconds: 240, bpm: 120, beatPeriod: 0.5,
+                                      beatPhase: 0.1, rmsDB: -12)
+        try await store.markBlendEligible(key: key, facts: facts,
+                                          traits: BlendTraits(genre: "Jazz", subgenre: nil, camelotKey: "8A"))
+        let beforeRow = try await store.blendCatalogTrack(key: key)
+        let before = try XCTUnwrap(beforeRow)
+        let second = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in ResolvedAsset(url: fresh) },
+                                                        source: source, store: store)
+        XCTAssertEqual(second.trackIDs, [trackID])
+        XCTAssertEqual(second.skipped, 0)
+        let rows = try await store.tracks(forSource: try XCTUnwrap(source.id))
+        XCTAssertEqual(rows.count, 1)
+        let freshRow = try await store.trackRow(id: trackID)
+        XCTAssertEqual(freshRow?.asset?.remoteURL, fresh.absoluteString)
+        let catalogRow = try await store.blendCatalogTrack(key: key)
+        let catalog = try XCTUnwrap(catalogRow)
+        XCTAssertEqual(catalog.cachedURL, fresh.absoluteString)
+        XCTAssertEqual(catalog.state, before.state)
+        XCTAssertEqual(catalog.facts, before.facts)
+        XCTAssertEqual(catalog.traits, before.traits)
+    }
+
+    func testSameURLDifferentJamendoNodeIDsRemainDistinctTracks() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let source = try await jamendoSource(in: store)
+        let a = RemoteNode(id: "1", title: "A", path: "track/1", kind: .audio)
+        let b = RemoteNode(id: "2", title: "B", path: "track/2", kind: .audio)
+        let url = URL(string: "https://same.example/stream")!
+        let result = await RemotePlaylistIngest.persist(nodes: [a, b], resolve: { _ in ResolvedAsset(url: url) },
+                                                        source: source, store: store)
+        XCTAssertEqual(result.trackIDs.count, 2)
+        let rows = try await store.tracks(forSource: try XCTUnwrap(source.id))
+        XCTAssertEqual(rows.count, 2)
+    }
+
+    func testCatalogRefreshFailureDoesNotPartiallyRefreshAssetOrReportImportSuccess() async throws {
+        struct Boom: Error {}
+        let store = try LibraryStore(inMemory: true)
+        let source = try await jamendoSource(in: store)
+        let node = RemoteNode(id: "99123", title: "Song", path: "track/99123", kind: .audio)
+        let old = URL(string: "https://old.example/?trackid=99123")!
+        let first = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in ResolvedAsset(url: old) },
+                                                       source: source, store: store)
+        let trackID = try XCTUnwrap(first.trackIDs.first)
+        let second = await RemotePlaylistIngest.persist(
+            nodes: [node], resolve: { _ in ResolvedAsset(url: URL(string: "https://new.example/?trackid=99123")!) },
+            source: source, store: store, catalogUpsert: { _, _, _ in throw Boom() })
+        XCTAssertEqual(second.skipped, 1)
+        XCTAssertTrue(second.trackIDs.isEmpty)
+        let oldRow = try await store.trackRow(id: trackID)
+        XCTAssertEqual(oldRow?.asset?.remoteURL, old.absoluteString)
+        let rows = try await store.tracks(forSource: try XCTUnwrap(source.id))
+        XCTAssertEqual(rows.count, 1)
+    }
 }
