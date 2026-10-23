@@ -21,6 +21,9 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
     public var sourceURL: String? = nil
     /// Provenance of the stored facts (e.g. `starter-blends-aac-v1`); nil when unknown.
     public var analysisVersion: String? = nil
+    /// Immutable provider/catalog identity from `starter-v4.sqlite` (`jamendo-<id>`, v37). Distinct from
+    /// `catalogKey` (local storage identity) and `packTag` (the Starter audio pack release).
+    public var catalogID: String? = nil
 
     public static func key(pack: StarterBlendPack, trackID: String) -> String { "\(pack.releaseTag):\(trackID)" }
 
