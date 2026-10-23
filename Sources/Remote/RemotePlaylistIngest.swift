@@ -24,6 +24,14 @@ public struct RemotePlaylistIngest: Sendable {
         var existing = Dictionary(uniqueKeysWithValues: existingRows.compactMap { row in
             row.asset?.remoteURL.map { ($0, row.id) }
         })
+        // A provider node ID, unlike a stream URL, survives locator refresh.
+        var existingJamendoNode: [String: Int64] = [:]
+        if source.kind == .jamendoGenre {
+            for row in existingRows {
+                if let nodeID = row.asset?.remoteNodeID, !nodeID.isEmpty { existingJamendoNode[nodeID] = row.id }
+            }
+        }
+        let oldAssets = Dictionary(existingRows.map { ($0.id, $0.asset) }, uniquingKeysWith: { a, _ in a })
         let album: Album
         if let found = try? await store.firstAlbum(sourceId: sourceID, title: source.title) {
             album = found
@@ -41,7 +49,27 @@ public struct RemotePlaylistIngest: Sendable {
             do {
                 let resolved = try await resolve(node)
                 let url = resolved.url.absoluteString
-                if let id = existing[url] { ids.append(id); continue }
+                if source.kind == .jamendoGenre, let id = existingJamendoNode[node.id] {
+                    // Refresh cache data and the asset URL, but never make a second library track.
+                    let old = oldAssets[id] ?? nil
+                    try await store.updateRemoteAssetURL(trackID: id, remoteURL: resolved.url,
+                                                         sizeBytes: resolved.sizeBytes ?? node.sizeBytes)
+                    do {
+                        try await catalogUpsert(store, node.id, resolved.url)
+                    } catch {
+                        // Keep asset and catalog from diverging: restore the previous locator.
+                        if let oldURL = old?.remoteURL.flatMap(URL.init(string:)) {
+                            try? await store.updateRemoteAssetURL(trackID: id, remoteURL: oldURL,
+                                                                  sizeBytes: old?.sizeBytes)
+                        }
+                        throw error
+                    }
+                    existing[url] = id
+                    ids.append(id)
+                    continue
+                }
+                // Jamendo identity is the node ID; a shared stream URL must not merge distinct tracks.
+                if source.kind != .jamendoGenre, let id = existing[url] { ids.append(id); continue }
                 let metadata = resolved.metadata ?? node.metadata
                 let number = metadata?.trackNumber ?? index + 1
                 let track = try await store.insertTrack(Track(
@@ -75,6 +103,7 @@ public struct RemotePlaylistIngest: Sendable {
                     }
                 }
                 existing[url] = trackID
+                if source.kind == .jamendoGenre { existingJamendoNode[node.id] = trackID }
                 ids.append(trackID)
             } catch {
                 skipped += 1
