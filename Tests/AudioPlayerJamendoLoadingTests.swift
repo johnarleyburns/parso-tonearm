@@ -61,7 +61,8 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
             persist: { _, _, _ in })
         player.ordinaryBuildItemHook = { asset in
             spy.built(asset.remoteURL)
-            return (AVPlayerItem(url: URL(string: asset.remoteURL ?? "https://example.test/x")!), nil)
+            // A non-failing item: a real unreachable URL would now (correctly) fail statuslessly.
+            return (AVPlayerItem(asset: AVMutableComposition()), nil)
         }
     }
 
@@ -132,6 +133,58 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         XCTAssertEqual(spy.refreshes, 2)
         XCTAssertEqual(player.networkSkipMessage, RemotePlaybackFailure.jamendoLocatorUnavailable.userMessage)
         XCTAssertFalse(player.isPlaying)
+    }
+
+    func testStatuslessFailedJamendoItemPublishesTruthfulFailure() async throws {
+        let spy = Spy()
+        try install(spy: spy)
+        let player = AudioPlayer.shared
+        player.ordinaryBuildItemHook = { _ in
+            (AVPlayerItem(url: URL(fileURLWithPath: "/nonexistent/tonearm-missing.mp3")), nil)
+        }
+        player.networkSkipMessage = nil
+        load([jamendo()])
+        for _ in 0..<100 where player.networkSkipMessage == nil {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        XCTAssertEqual(player.networkSkipMessage, RemotePlaybackFailure.jamendoLocatorUnavailable.userMessage)
+        XCTAssertNil(player.player.currentItem)
+        XCTAssertFalse(player.isPlaying)
+    }
+
+    func testTerminalTransientLoaderFailureDoesNotLeaveFailedItemStranded() async throws {
+        let spy = Spy()
+        try install(spy: spy)
+        let player = AudioPlayer.shared
+        player.networkSkipMessage = nil
+        load([jamendo()])
+        await settle()
+        let builds = spy.urls.count, refreshes = spy.refreshes
+        player.handleOrdinaryJamendoTerminalLoaderFailure(httpStatus: 503)
+        await settle()
+        XCTAssertEqual(player.networkSkipMessage, RemotePlaybackFailure.jamendoLocatorUnavailable.userMessage)
+        XCTAssertNil(player.player.currentItem)
+        XCTAssertEqual(spy.urls.count, builds, "no extra build/open loop")
+        XCTAssertEqual(spy.refreshes, refreshes, "no extra refresh")
+        player.handleOrdinaryJamendoTerminalLoaderFailure(httpStatus: 503)
+        XCTAssertEqual(spy.refreshes, refreshes)
+    }
+
+    func testStaleTerminalLoaderFailureCannotStopReplacementQueue() async throws {
+        let spy = Spy()
+        try install(spy: spy)
+        let player = AudioPlayer.shared
+        load([jamendo()])
+        await settle()
+        load([CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/ia.mp3")])
+        await settle()
+        player.networkSkipMessage = nil
+        let item = player.player.currentItem
+        XCTAssertNotNil(item)
+        player.handleOrdinaryJamendoTerminalLoaderFailure(httpStatus: nil)
+        player.handleOrdinaryJamendoTerminalLoaderFailure(httpStatus: 503)
+        XCTAssertTrue(player.player.currentItem === item)
+        XCTAssertNil(player.networkSkipMessage)
     }
 
     func testTransientBrowseRowPlaysFreshURLWithoutCatalogInsert() async throws {
