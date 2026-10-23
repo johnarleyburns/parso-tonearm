@@ -154,5 +154,17 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         XCTAssertEqual(spy.urls, ["https://example.test/ia.mp3"], "synchronous, no resolver")
         XCTAssertEqual(spy.refreshes, 0)
     }
+
+    func testJamendoRowMissingNodeIDFailsAndNeverBuildsRawURLItem() async throws {
+        let spy = Spy()
+        try install(spy: spy)
+        let player = AudioPlayer.shared
+        player.networkSkipMessage = nil
+        load([CatalogPlaybackURLResolverTests.row(kind: .jamendoGenre, nodeID: nil, url: "https://stale.example")])
+        await settle()
+        XCTAssertEqual(player.networkSkipMessage, RemotePlaybackFailure.jamendoLocatorUnavailable.userMessage)
+        XCTAssertTrue(spy.urls.isEmpty, "raw URL must never reach buildItem")
+        XCTAssertEqual(spy.refreshes, 0)
+    }
 }
 #endif

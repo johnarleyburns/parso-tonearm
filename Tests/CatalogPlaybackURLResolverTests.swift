@@ -113,5 +113,27 @@ final class CatalogPlaybackURLResolverTests: XCTestCase {
         }
         XCTAssertTrue(calls.refreshIDs.isEmpty)
     }
+
+    func testWhitespaceAndNonNumericJamendoNodeIDsAreRejected() async throws {
+        for bad in [nil, "", "   ", "abc", "12x", "1 2"] as [String?] {
+            let calls = Calls()
+            let row = Self.row(kind: .jamendoGenre, nodeID: bad, url: stale.absoluteString)
+            do {
+                _ = try await resolver(FakeCatalog(), calls).resolve(row: row)
+                XCTFail("\(String(describing: bad)) must be rejected")
+            } catch {
+                XCTAssertEqual(error as? JamendoResolveError, .permanent)
+            }
+            XCTAssertTrue(calls.refreshIDs.isEmpty)
+        }
+    }
+
+    func testNonJamendoRemoteWithoutNodeIDRetainsExistingPlaybackPath() async throws {
+        let calls = Calls()
+        let row = Self.row(kind: .iaItem, nodeID: nil, url: stale.absoluteString)
+        let resolved = try await resolver(FakeCatalog(), calls).resolve(row: row)
+        XCTAssertNil(resolved)
+        XCTAssertEqual(calls.lookupCount, 0)
+    }
 }
 #endif
