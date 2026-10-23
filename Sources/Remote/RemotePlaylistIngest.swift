@@ -1,5 +1,7 @@
 import Foundation
 
+private enum JamendoIngestError: Error { case invalidProviderTrackID }
+
 public struct RemotePlaylistIngest: Sendable {
     public struct Result: Sendable, Equatable {
         public let trackIDs: [Int64]
@@ -47,6 +49,10 @@ public struct RemotePlaylistIngest: Sendable {
         var skipped = 0
         for (index, node) in nodes.enumerated() {
             do {
+                if source.kind == .jamendoGenre {
+                    guard !node.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                          Int64(node.id) != nil else { throw JamendoIngestError.invalidProviderTrackID }
+                }
                 let resolved = try await resolve(node)
                 let url = resolved.url.absoluteString
                 if source.kind == .jamendoGenre, let id = existingJamendoNode[node.id] {

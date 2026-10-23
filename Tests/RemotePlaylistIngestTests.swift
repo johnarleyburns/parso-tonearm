@@ -118,6 +118,24 @@ final class RemotePlaylistIngestTests: XCTestCase {
         XCTAssertEqual(storedPlan, plan)
     }
 
+    func testInvalidJamendoNodeIDsAreSkippedButNonJamendoIsNotValidated() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let jamendo = try await jamendoSource(in: store)
+        let url = URL(string: "https://stream.example.test/x")!
+        let bad = ["", "  ", "abc", "12x"].map { RemoteNode(id: $0, title: "T", path: "p/\($0)", kind: .audio) }
+        let result = await RemotePlaylistIngest.persist(nodes: bad, resolve: { _ in ResolvedAsset(url: url) },
+                                                        source: jamendo, store: store)
+        XCTAssertEqual(result.skipped, bad.count)
+        XCTAssertTrue(result.trackIDs.isEmpty)
+
+        let other = try await source(.iaItem, in: store)
+        let node = RemoteNode(id: "abc", title: "T", path: "/abc.mp3", kind: .audio)
+        let ok = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in ResolvedAsset(url: url) },
+                                                    source: other, store: store)
+        XCTAssertEqual(ok.skipped, 0)
+        XCTAssertEqual(ok.trackIDs.count, 1)
+    }
+
     func testNonJamendoRemoteIngestDoesNotCreateJamendoCatalogRow() async throws {
         let store = try LibraryStore(inMemory: true)
         let source = try await source(.iaItem, in: store)
