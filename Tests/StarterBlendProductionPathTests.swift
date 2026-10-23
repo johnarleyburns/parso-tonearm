@@ -69,7 +69,8 @@ final class StarterBlendProductionPathTests: XCTestCase {
                 try await wait({ stream }) { cell.perform { $0.decks[$0.incomingIndex].bufferedFrames } >= pending.minIncomingBufferedFrames + 4_096 }
             }
             let main = cell.perform { $0.main }
-            try await wait({ stream }) { stream.bufferedFrames(deck: main) >= 4_096 }
+            try await wait({ stream }) { stream.bufferedFrames(deck: main) >= 4_096 || player.index >= index }
+            if player.index >= index { break }
             _ = stream.renderOffline(frames: 512)
             rendered += 512
             if (rendered / 512) % 4 == 0 { stream.tick(); await Task.yield() }
@@ -135,6 +136,76 @@ final class StarterBlendProductionPathTests: XCTestCase {
         XCTAssertNotNil(snapshot.handoffFrame)
         // Starter definitions carry no per-track facts, so the row's duration is whatever the catalog supplied (none here).
         XCTAssertEqual(player.duration, player.queue[1].track.durationSec ?? 0, accuracy: 0.01)
+    }
+
+    /// Drives every supplied edge of every blend through the production player and bounded renderer.
+    func testAllThirtySuppliedEdgesExecuteThroughTheProductionRenderer() async throws {
+        var executed = 0
+        for blend in StarterBlendCatalog.blends {
+            for i in 0..<5 {
+                reset()
+                let plan = blend.edgePlans[i]
+                let label = "\(blend.id) edge \(plan.edge)"
+                let schedule = try XCTUnwrap(plan.schedule(), label)
+                let player = try await start(blend, factory: SynthCatalog.Factory(blend))
+                let stream = try XCTUnwrap(player.starterStream, label)
+                let key = TransitionEdgeKey(from: player.queueOccurrences[i], to: player.queueOccurrences[i + 1])
+                let planned = try XCTUnwrap(player.transitionExecution.snapshot(for: key), label)
+                XCTAssertEqual(planned.plannedStyle, AudioPlayer.displayStyle(plan.style), label)
+                XCTAssertEqual(planned.executedStyle, AudioPlayer.displayStyle(plan.style), "\(label): no synthetic re-plan")
+                if i > 0 { player.skipToIndex(i) }
+                try await wait({ stream }) { !stream.isBuffering }
+                player.seek(to: max(0, schedule.outgoingStart - 3))
+                try await wait({ stream }) { stream.cell?.perform { if case .pending = $0.overlap { return true }; return false } ?? false }
+                do { try await render(until: i + 1, player: player) } catch { XCTFail("\(label) \(schedule)"); throw error }
+                XCTAssertEqual(player.index, i + 1, label)
+                let snapshot = try XCTUnwrap(player.transitionExecution.snapshot(for: key), label)
+                XCTAssertEqual(snapshot.plannedStyle, AudioPlayer.displayStyle(plan.style), label)
+                XCTAssertEqual(snapshot.executedStyle, AudioPlayer.displayStyle(plan.style), label)
+                XCTAssertNotNil(snapshot.handoffFrame, label)
+                XCTAssertNil(snapshot.reason, label)
+                executed += 1
+            }
+        }
+        XCTAssertEqual(executed, 30)
+        let night = try XCTUnwrap(StarterBlendRuntimeData.edges.first { $0.blendID == "starter.night-drive" && $0.edge == 5 })
+        XCTAssertEqual(night.schedule()?.outgoingStart, 17.481796056227534)
+        XCTAssertEqual(night.schedule()?.incomingStart, 0)
+        let rainy = try XCTUnwrap(StarterBlendRuntimeData.edges.first { $0.blendID == "starter.rainy-day" && $0.edge == 1 })
+        XCTAssertEqual(rainy.schedule()?.outgoingStart, 83.738989863914227)
+        XCTAssertEqual(rainy.schedule()?.incomingStart, 0.401727281007933)
+    }
+
+    func testIncompleteLegacyPlanFallsBackTruthfullyWithoutReplanning() async throws {
+        let blend = StarterBlendCatalog.blends[0]
+        var legacy = blend.document
+        legacy.edges[1].plan?.blendEndSeconds = nil
+        let request = try XCTUnwrap(BlendReplay.starterRequest(for: legacy))
+        XCTAssertNil(request.edgePlans[1].schedule(), "an incomplete plan is never completed from audio or a fact table")
+        var statuses: [StarterStreamStatus] = []
+        let player = AudioPlayer.shared
+        player.starterStatusHandler = { statuses.append($0) }
+        player.starterSourceFactoryOverride = SynthCatalog.Factory(blend).make
+        player.playStarterBlend(request)
+        XCTAssertNil(player.starterStream)
+        XCTAssertNil(player.mixDecks)
+        XCTAssertTrue(player.transitionExecution.liveSnapshots.isEmpty, "no edge claims a blend")
+        guard case .sequential(_, let reason, let canRetry)? = statuses.last else { return XCTFail("\(statuses)") }
+        XCTAssertEqual(reason, "This blend's transition plan is incomplete.")
+        XCTAssertFalse(canRetry)
+        player.pause()
+    }
+
+    func testStarterDefinitionsHaveNoDuplicateTrackFactsOrOldScheduleSignature() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let sources = root.appendingPathComponent("Sources")
+        let walker = try XCTUnwrap(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        for case let url as URL in walker where url.pathExtension == "swift" {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            for banned in ["StarterBlendRuntimeData.tracks", "StarterBlendPack.trackFacts", "schedule(outgoing:", ".schedule(outgoing"] {
+                XCTAssertFalse(text.contains(banned), "\(url.lastPathComponent) must not contain \(banned)")
+            }
+        }
     }
 
     func testUnavailableAssetFallsBackToSequentialWithoutClaimingABlend() async throws {
