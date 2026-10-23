@@ -252,7 +252,7 @@ extension AudioPlayer {
         keepPlayingExtensionTask?.cancel()
         keepPlayingExtensionTask = nil
         keepPlayingExtensionInFlight = false
-        isWaitingForKeepPlayingToResume = false
+        resetKeepPlayingBoundary()
     }
 
     internal func performQueueRestore() async {

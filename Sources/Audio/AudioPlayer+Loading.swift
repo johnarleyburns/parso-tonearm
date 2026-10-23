@@ -39,6 +39,8 @@ extension AudioPlayer {
             loadingLog.error("loadCurrent: track \(row.track.id ?? -1, privacy: .public) \"\(row.track.title, privacy: .public)\" has no asset row — nothing to play")
             return
         }
+        // Loading any item ends the terminal boundary (waiting or exhausted).
+        if keepPlayingBoundaryState != .idle { resetKeepPlayingBoundary() }
         if let trackId = row.track.id { recordKeepPlayingHistory(trackId) }
 
         if let reason = asset.unsupportedReason {
