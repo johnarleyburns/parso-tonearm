@@ -34,8 +34,8 @@ final class CatalogPlaybackURLResolverTests: XCTestCase {
     private let stale = URL(string: "https://example.test/stale.mp3")!
     private let fresh = URL(string: "https://example.test/fresh.mp3")!
 
-    static func row(kind: SourceKind, nodeID: String?, url: String) -> TrackRow {
-        let source = Source(id: 1, kind: kind, iaIdentifier: nil, originalURL: nil, title: "S", addedAt: Date(),
+    static func row(kind: SourceKind, nodeID: String?, url: String, sourceID: Int64? = 1) -> TrackRow {
+        let source = Source(id: sourceID, kind: kind, iaIdentifier: nil, originalURL: nil, title: "S", addedAt: Date(),
                             lastResolvedAt: nil, followUpdates: false, licenseText: nil, memberCapHit: false)
         let track = Track(id: 7, albumId: nil, sourceId: 1, title: "T", trackNo: nil, discNo: nil, durationSec: 100,
                           codec: nil, sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "t")
@@ -85,6 +85,29 @@ final class CatalogPlaybackURLResolverTests: XCTestCase {
         do {
             _ = try await resolver(store, calls).resolve(row: row)
             XCTFail("must not fall back to Asset.remoteURL")
+        } catch {
+            XCTAssertEqual(error as? JamendoResolveError, .permanent)
+        }
+        XCTAssertTrue(calls.refreshIDs.isEmpty)
+    }
+
+    func testTransientJamendoBrowseRowRefreshesByNodeIDWithoutCatalogLookupOrPersistence() async throws {
+        let store = FakeCatalog()
+        let calls = Calls()
+        let row = Self.row(kind: .jamendoGenre, nodeID: "99123", url: stale.absoluteString, sourceID: nil)
+        let result = try await resolver(store, calls).resolve(row: row)
+        XCTAssertEqual(result?.url, fresh)
+        XCTAssertEqual(calls.refreshIDs, ["99123"])
+        XCTAssertEqual(calls.lookupCount, 0)
+        XCTAssertNil(store.row(BlendCatalogTrack.jamendoKey(trackID: "99123")))
+    }
+
+    func testPersistedJamendoRowWithoutCatalogIdentityFailsInsteadOfUsingTransientBrowsePath() async throws {
+        let calls = Calls()
+        let row = Self.row(kind: .jamendoGenre, nodeID: "99123", url: stale.absoluteString, sourceID: 1)
+        do {
+            _ = try await resolver(FakeCatalog(), calls).resolve(row: row)
+            XCTFail("persisted row must not use the transient path")
         } catch {
             XCTAssertEqual(error as? JamendoResolveError, .permanent)
         }
