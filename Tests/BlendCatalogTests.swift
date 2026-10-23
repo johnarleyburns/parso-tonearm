@@ -58,10 +58,12 @@ final class BlendCatalogTests: XCTestCase {
         let real = try XCTUnwrap(StarterBlendCatalog.starterTrackIDs.sorted().first)
         let url = try XCTUnwrap(pack.assetURL(trackID: real)).absoluteString
         func make(_ id: String, state: BlendCatalogState = .blendEligible, source: String?) -> BlendCatalogTrack {
-            BlendCatalogTrack(catalogKey: BlendCatalogTrack.key(pack: pack, trackID: id), packTag: pack.releaseTag,
+            var row = BlendCatalogTrack(catalogKey: BlendCatalogTrack.key(pack: pack, trackID: id), packTag: pack.releaseTag,
                               state: state, durationSeconds: 240, bpm: 100, beatPeriod: 0.6, beatPhase: 0.2, rmsDB: -12,
                               updatedAt: Date(), genre: "Electronic", subgenre: "Synthwave", camelotKey: "8A",
                               sourceURL: source)
+            row.sourceKind = source == nil ? nil : .starterRelease
+            return row
         }
         // Seeded and unindexed: never a candidate, even though the catalog gave it a key and a source.
         XCTAssertFalse(make(real, state: .unindexed, source: url).isKeepPlayingCandidate(in: pack))
@@ -73,8 +75,10 @@ final class BlendCatalogTests: XCTestCase {
         bad = row; bad.camelotKey = "13A"; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "invalid key")
         bad = row; bad.genre = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "missing genre")
         bad = row; bad.beatPeriod = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "incomplete planner facts")
-        bad = row; bad.sourceURL = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "no source")
-        bad = row; bad.sourceURL = "https://example.test/\(real).m4a"; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "foreign source")
+        bad = row; bad.sourceKind = nil; bad.sourceURL = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "no source")
+        bad = row; bad.sourceKind = .jamendo; bad.providerTrackID = real
+        XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "a Jamendo source is never a Starter asset")
+        XCTAssertNil(bad.audioLocator(in: pack), "and a Starter ID never resolves through Jamendo")
         bad = row; bad.state = .unindexed; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "not eligible")
         // A synthetic / unmirrored ID has no locator and no Release URL.
         let synthetic = make("999999999", source: "https://github.com/johnarleyburns/parso-tonearm/releases/download/\(pack.releaseTag)/999999999.m4a")
@@ -182,7 +186,8 @@ final class BlendCatalogTests: XCTestCase {
                 try db.execute(sql: """
                     CREATE TABLE blend_catalog_track (catalogKey TEXT PRIMARY KEY, packTag TEXT, state TEXT, durationSeconds REAL,
                         bpm REAL, beatPeriod REAL, beatPhase REAL, rmsDB REAL, updatedAt DATETIME, genre TEXT, subgenre TEXT,
-                        camelotKey TEXT, sourceURL TEXT, analysisVersion TEXT, catalogID TEXT);
+                        camelotKey TEXT, sourceURL TEXT, analysisVersion TEXT, catalogID TEXT,
+                        sourceKind TEXT, providerTrackID TEXT, cachedURL TEXT, cachedURLExpiry DATETIME);
                     CREATE TABLE blend_catalog_edge (fromKey TEXT, toKey TEXT, packTag TEXT, planJSON BLOB, PRIMARY KEY (fromKey, toKey));
                     """)
             }
@@ -200,7 +205,8 @@ final class BlendCatalogTests: XCTestCase {
             try db.execute(sql: """
                 CREATE TABLE blend_catalog_track (catalogKey TEXT PRIMARY KEY, packTag TEXT, state TEXT, durationSeconds REAL,
                     bpm REAL, beatPeriod REAL, beatPhase REAL, rmsDB REAL, updatedAt DATETIME, genre TEXT, subgenre TEXT,
-                    camelotKey TEXT, sourceURL TEXT, analysisVersion TEXT, catalogID TEXT);
+                    camelotKey TEXT, sourceURL TEXT, analysisVersion TEXT, catalogID TEXT,
+                        sourceKind TEXT, providerTrackID TEXT, cachedURL TEXT, cachedURLExpiry DATETIME);
                 CREATE TABLE blend_catalog_edge (fromKey TEXT, toKey TEXT, packTag TEXT, planJSON BLOB, PRIMARY KEY (fromKey, toKey));
                 CREATE TRIGGER fail_edge BEFORE INSERT ON blend_catalog_edge BEGIN SELECT RAISE(ABORT, 'injected'); END;
                 """)
@@ -311,6 +317,6 @@ final class BlendCatalogTests: XCTestCase {
     }
 
     func testMigrationListIncludesTheCatalog() {
-        XCTAssertEqual(Schema.migrationOrder.last, "v37")
+        XCTAssertEqual(Schema.migrationOrder.last, "v38")
     }
 }

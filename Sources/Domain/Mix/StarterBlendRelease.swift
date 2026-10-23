@@ -28,6 +28,13 @@ public struct StarterBlendPack: Codable, Sendable, Equatable, Hashable {
         contains(trackID: trackID) ? .starterRelease(packTag: releaseTag, assetName: "\(trackID).m4a") : nil
     }
 
+    /// The pinned asset URL for a Starter locator; nil for a Jamendo locator, another pack or any asset
+    /// name that is not `<mirrored id>.m4a`.
+    public func assetURL(for locator: AudioLocator) -> URL? {
+        guard case .starterRelease(let tag, let asset) = locator, tag == releaseTag, asset.hasSuffix(".m4a") else { return nil }
+        return assetURL(trackID: String(asset.dropLast(4)))
+    }
+
     /// Whether `url` is an asset of this pack (what the Starter path is allowed to read).
     public func owns(_ url: URL) -> Bool {
         url.absoluteString.hasPrefix("https://github.com/johnarleyburns/parso-tonearm/releases/download/\(releaseTag)/")

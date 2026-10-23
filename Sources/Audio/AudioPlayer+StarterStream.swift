@@ -147,7 +147,7 @@ extension AudioPlayer {
     }
 
     private func makeStarterStream(_ session: StarterSession) -> StarterStreamPlayer {
-        let pack = session.pack
+        let opener = CatalogSourceOpener.live()
         let override = starterSourceFactoryOverride
         let output: StarterLiveOutput? = override == nil
             ? StarterLiveOutput(cell: { [weak self] in self?.starterStream?.cell },
@@ -157,11 +157,9 @@ extension AudioPlayer {
             config: .init(trackIDs: session.trackIDs, plans: session.plans),
             host: self, output: output,
             makeSource: override ?? { trackID, cancellation in
-                // Only the pinned release is ever read: byte ranges over HTTPS, bounded cache, no temp file.
-                guard let assetURL = pack.assetURL(trackID: trackID) else { throw URLError(.unsupportedURL) }
-                let reader = ReleaseRangeReader(url: assetURL)
-                cancellation.register { reader.cancel() }
-                return try ReleaseM4ADeckSource(reader: reader)
+                // Resolved from the catalog row's durable locator: Starter assets read only the pinned
+                // release, Jamendo rows resolve/refresh through the Jamendo client. Byte ranges only.
+                try opener.openBlocking(trackID: trackID, cancellation: cancellation)
             })
     }
 

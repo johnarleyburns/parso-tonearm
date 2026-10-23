@@ -415,7 +415,21 @@ extension Schema {
                 // Durable provider/catalog identity, kept apart from the local key and the pack tag.
                 // Seeding lives here (not in v36) so every column it writes exists; existing rows keep
                 // their grid, loudness and state while canonical fields are refreshed.
+                // Seeding moved to v38, which adds the durable source columns the seed now writes.
                 try db.alter(table: "blend_catalog_track") { $0.add(column: "catalogID", .text) }
+            }
+        }
+        if shouldRegister("v38", upTo: target) {
+            migrator.registerMigration("v38") { db in
+                // Explicit durable audio source: a Starter Release asset, or Jamendo provider + stable track
+                // ID with a refreshable cached URL. `sourceURL` stays for old readers but is no identity.
+                try db.alter(table: "blend_catalog_track") { t in
+                    t.add(column: "sourceKind", .text)
+                    t.add(column: "providerTrackID", .text)
+                    t.add(column: "cachedURL", .text)
+                    t.add(column: "cachedURLExpiry", .datetime)
+                }
+                try LibraryStore.backfillCatalogSources(db)
                 try LibraryStore.seedStarterCatalog(db)
             }
         }
