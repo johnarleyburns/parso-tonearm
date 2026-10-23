@@ -53,7 +53,13 @@ public final class AudioPlayer: ObservableObject {
     @Published public var keepPlayingEnabled = true {
         didSet {
             guard keepPlayingEnabled != oldValue else { return }
-            if !keepPlayingEnabled { removeUnplayedKeepPlayingTracks() }
+            if !keepPlayingEnabled {
+                resetKeepPlayingBoundary()
+                keepPlayingExtensionTask?.cancel()
+                keepPlayingExtensionTask = nil
+                keepPlayingExtensionInFlight = false
+                removeUnplayedKeepPlayingTracks()
+            }
         }
     }
     /// How many tracks a single Keep Playing extension appends. Exposed so
@@ -105,7 +111,11 @@ public final class AudioPlayer: ObservableObject {
     /// extension was still in flight; `finishKeepPlayingExtension` checks it
     /// to resume automatically once real tracks land, instead of leaving
     /// them queued-but-silent.
-    var isWaitingForKeepPlayingToResume = false
+    var keepPlayingBoundaryState: KeepPlayingBoundaryState = .idle
+    /// Bumped whenever the queue/session is replaced, Keep Playing is
+    /// disabled, or the wait is cancelled, so a completion computed for an
+    /// older boundary can never resume (or exhaust) a newer one.
+    var keepPlayingBoundaryGeneration = 0
     /// The queue `index` Keep Playing last attempted an extension from, so a
     /// second `loadCurrent` for the same index (no queue-shape change) never
     /// double-fires the lookup.
@@ -350,7 +360,7 @@ public final class AudioPlayer: ObservableObject {
         keepPlayingExtensionTask?.cancel()
         keepPlayingExtensionTask = nil
         keepPlayingExtensionInFlight = false
-        isWaitingForKeepPlayingToResume = false
+        resetKeepPlayingBoundary()
         keepPlayingHistory = []
         keepPlayingAutoAddedTrackIDs = []
         keepPlayingLastExtensionAttemptIndex = nil
@@ -508,6 +518,7 @@ public final class AudioPlayer: ObservableObject {
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
                     guard let self, self.sleepTimerEndsAt == end else { return }
+                    self.resetKeepPlayingBoundary()
                     self.pausePlayback()
                     self.sleepTimerEndsAt = nil
                     self.sleepTimerTask = nil
@@ -540,11 +551,12 @@ public final class AudioPlayer: ObservableObject {
                 // started from the second-to-last track. Kick off the final
                 // attempt here as well so that race can never strand the
                 // player paused at the queue boundary.
-                if !keepPlayingExtensionInFlight {
+                if !keepPlayingExtensionInFlight, !keepPlayingBoundaryState.isExhausted {
                     maybeExtendKeepPlayingQueue()
                 }
                 if keepPlayingExtensionInFlight {
-                    isWaitingForKeepPlayingToResume = true
+                    keepPlayingBoundaryState = .waiting(
+                        queueGeneration: keepPlayingBoundaryGeneration, terminalIndex: index)
                 }
             }
             mixDecks?.pause()

@@ -69,8 +69,31 @@ public enum KeepPlayingFallbackReason: Equatable, Sendable {
     case matchingUnavailable
 }
 
+/// The terminal end-of-queue state of Keep Playing, tied to a queue
+/// generation so completions from a replaced queue are ignored.
+enum KeepPlayingBoundaryState: Equatable {
+    case idle
+    /// `next()` hit the last item while an extension was in flight.
+    case waiting(queueGeneration: Int, terminalIndex: Int)
+    /// The extension finished with no playable rows; nothing retries until
+    /// the queue changes or the user loads another item.
+    case exhausted(queueGeneration: Int, terminalIndex: Int)
+
+    var isExhausted: Bool {
+        if case .exhausted = self { return true }
+        return false
+    }
+}
+
 extension AudioPlayer {
     // MARK: - Keep Playing
+
+    /// Drops any waiting/exhausted boundary and invalidates completions that
+    /// were computed for it.
+    func resetKeepPlayingBoundary() {
+        keepPlayingBoundaryGeneration &+= 1
+        keepPlayingBoundaryState = .idle
+    }
 
     /// Records a track as played in the current continuous-play session, so
     /// Keep Playing never re-suggests it. Cheap no-op re-append guard: this is
@@ -289,9 +312,22 @@ extension AudioPlayer {
         // extension was still running (real report: dead air after a mood
         // search's matches finish) — clear it either way, since the wait is
         // over regardless of whether it produced anything playable.
-        let shouldResume = isWaitingForKeepPlayingToResume
-        isWaitingForKeepPlayingToResume = false
+        var resumeIndex: Int?
+        var exhaustedGeneration: Int?
+        if case .waiting(let generation, let terminalIndex) = keepPlayingBoundaryState {
+            if generation == keepPlayingBoundaryGeneration, keepPlayingEnabled,
+               terminalIndex == index, terminalIndex == queue.count - 1 {
+                resumeIndex = terminalIndex
+                exhaustedGeneration = generation
+            } else {
+                // Stale or disabled: drop the wait without resuming.
+                keepPlayingBoundaryState = .idle
+            }
+        }
         guard !rows.isEmpty else {
+            if let terminal = resumeIndex, let generation = exhaustedGeneration {
+                keepPlayingBoundaryState = .exhausted(queueGeneration: generation, terminalIndex: terminal)
+            }
             // An empty result is not a terminal queue state. Allow the end
             // callback to make one fresh fallback attempt instead of being
             // suppressed forever by the per-index gate.
@@ -313,7 +349,10 @@ extension AudioPlayer {
         // Still gated on keepPlayingEnabled: if the user turned it off while
         // this extension was in flight, honor that rather than resuming
         // playback they just asked to stop auto-extending.
-        if shouldResume, keepPlayingEnabled { next() }
+        if resumeIndex != nil {
+            keepPlayingBoundaryState = .idle
+            next()
+        }
     }
 
     /// Removes the not-yet-played auto-added tail from the queue — called

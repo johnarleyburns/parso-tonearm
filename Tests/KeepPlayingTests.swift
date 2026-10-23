@@ -448,7 +448,8 @@ final class KeepPlayingTests: XCTestCase {
         player.next()  // the track just finished; queue is exhausted
 
         XCTAssertFalse(player.isPlaying, "nothing to play yet — this is the real dead-air moment")
-        XCTAssertTrue(player.isWaitingForKeepPlayingToResume,
+        XCTAssertEqual(player.keepPlayingBoundaryState,
+                       .waiting(queueGeneration: player.keepPlayingBoundaryGeneration, terminalIndex: 0),
                       "next() must remember it stopped only because an extension was still in flight")
 
         player.keepPlayingProvider = FixedProvider(.ready([pick]))
@@ -457,7 +458,7 @@ final class KeepPlayingTests: XCTestCase {
         XCTAssertEqual(player.queue.map(\.id), [1, pick])
         XCTAssertTrue(player.isPlaying, "the extension landed real tracks — playback must actually resume, not sit queued-but-silent")
         XCTAssertEqual(player.index, 1)
-        XCTAssertFalse(player.isWaitingForKeepPlayingToResume)
+        XCTAssertEqual(player.keepPlayingBoundaryState, .idle)
     }
 
     /// The same race, but the extension comes back with nothing playable
@@ -470,13 +471,15 @@ final class KeepPlayingTests: XCTestCase {
 
         player.keepPlayingExtensionInFlight = true
         player.next()
-        XCTAssertTrue(player.isWaitingForKeepPlayingToResume)
+        XCTAssertEqual(player.keepPlayingBoundaryState,
+                       .waiting(queueGeneration: player.keepPlayingBoundaryGeneration, terminalIndex: 0))
 
         player.keepPlayingProvider = FixedProvider(.unavailable)
         await player.extendKeepPlayingQueueForTesting()
 
         XCTAssertFalse(player.isPlaying)
-        XCTAssertFalse(player.isWaitingForKeepPlayingToResume)
+        XCTAssertEqual(player.keepPlayingBoundaryState,
+                       .exhausted(queueGeneration: player.keepPlayingBoundaryGeneration, terminalIndex: 0))
     }
 
     /// A playlist is a starting scope, not a hard stop for Keep Playing. Once
