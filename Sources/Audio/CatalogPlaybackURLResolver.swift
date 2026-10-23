@@ -19,6 +19,12 @@ struct CatalogPlaybackURLResolver: Sendable {
     func resolve(row: TrackRow) async throws -> (catalogKey: String, url: URL)? {
         guard row.source?.kind == .jamendoGenre,
               let id = row.asset?.remoteNodeID, !id.isEmpty else { return nil }
+        // Browse/search rows deliberately have no persistent Source/Asset/catalog entry. Their
+        // provider node ID is still durable for this in-memory queue and must be refreshed.
+        if row.source?.id == nil {
+            let fresh = try await resolver.refreshOnly(.jamendo(trackID: id, cachedURL: nil, expiry: nil))
+            return (BlendCatalogTrack.jamendoKey(trackID: id), fresh.url)
+        }
         let key = BlendCatalogTrack.jamendoKey(trackID: id)
         guard let catalog = await lookup(key), let locator = catalog.audioLocator(),
               case .jamendo = locator else { throw JamendoResolveError.permanent }

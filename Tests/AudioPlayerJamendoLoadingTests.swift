@@ -134,6 +134,19 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         XCTAssertFalse(player.isPlaying)
     }
 
+    func testTransientBrowseRowPlaysFreshURLWithoutCatalogInsert() async throws {
+        let spy = Spy()
+        try install(spy: spy)
+        let store = FakeCatalog()
+        let player = AudioPlayer.shared
+        // Empty catalog: a catalog lookup would fail this load.
+        player.catalogPlaybackURLResolver.lookup = { _ in XCTFail("browse row must not look up catalog"); return nil }
+        load([CatalogPlaybackURLResolverTests.row(kind: .jamendoGenre, nodeID: "99123", url: stale, sourceID: nil)])
+        await settle()
+        XCTAssertEqual(spy.urls, [fresh.absoluteString])
+        XCTAssertNil(store.row(BlendCatalogTrack.jamendoKey(trackID: "99123")))
+    }
+
     func testNonJamendoRemoteRowStillUsesUnchangedBuildPath() async throws {
         let spy = Spy()
         try install(spy: spy)
