@@ -69,4 +69,62 @@ final class QueueEdgeRowsTests: XCTestCase {
         let r = rows([1, 2], live: live(1, 2))
         XCTAssertEqual(r[0].summary, "Phrase · Out 2:05 → In 2:17 · Ready")
     }
+
+    private func ledgerSnapshot(style: TransitionDisplayStyle = .bassSwap,
+                                phase: TransitionExecutionPhase = .upcoming,
+                                reason: TransitionExecutionReason? = nil) -> TransitionExecutionSnapshot {
+        let key = TransitionEdgeKey(from: QueueOccurrenceID(), to: QueueOccurrenceID())
+        var ledger = TransitionExecutionLedger()
+        XCTAssertTrue(ledger.record(key, generation: 0,
+            .scheduled(requested: style, planned: style, executed: style, readiness: .ready, reason: reason,
+                       overlapStart: 100, overlapEnd: 200, handoff: 200, sampleRate: 44_100)))
+        if phase == .overlapping { XCTAssertTrue(ledger.record(key, generation: 0, .overlapBegan(atFrame: 100))) }
+        return try! XCTUnwrap(ledger.snapshot(for: key))
+    }
+
+    private func fallbackRows(_ snapshot: TransitionExecutionSnapshot?, slot: Int = 0) -> [QueueEdgeRow] {
+        let a = QueueOccurrenceID(), b = QueueOccurrenceID()
+        return QueueEdgeResolver.rows(
+            trackIDs: [1, 2], currentIndex: 0, repeatMode: .off, smartBlendEnabled: true,
+            live: TransitionPresentation(phase: .fallback), occurrences: [a, b],
+            snapshot: { requested in
+                XCTAssertEqual(requested, slot)
+                return snapshot
+            })
+    }
+
+    func testCurrentFallbackDefersToSuccessfulSnapshotForExactOccurrence() {
+        let rows = fallbackRows(ledgerSnapshot(style: .bassSwap))
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].presentation.phase, .ready)
+        XCTAssertEqual(rows[0].presentation.actualStyle, .bassSwap)
+        XCTAssertEqual(rows[0].timeline.summary, "Bass swap · Ready")
+        XCTAssertFalse(rows[0].presentation.isFallback)
+        XCTAssertFalse(rows[0].isActive)
+        let playing = fallbackRows(ledgerSnapshot(style: .doubleDrop, phase: .overlapping))
+        XCTAssertTrue(playing[0].isActive)
+        XCTAssertEqual(playing[0].presentation.actualStyle, .doubleDrop)
+    }
+
+    func testCurrentFallbackStillShowsTruthfulGaplessAndTerminalStates() {
+        let gapless = fallbackRows(ledgerSnapshot(style: .gapless))
+        XCTAssertEqual(gapless[0].presentation.phase, .fallback)
+        let late = fallbackRows(ledgerSnapshot(style: .gapless, reason: .lateForPlannedBlend))
+        XCTAssertEqual(late[0].presentation.phase, .fallback)
+        XCTAssertNotEqual(late[0].presentation.actualStyle, .bassSwap)
+
+        let key = TransitionEdgeKey(from: QueueOccurrenceID(), to: QueueOccurrenceID())
+        var ledger = TransitionExecutionLedger()
+        XCTAssertTrue(ledger.record(key, generation: 0, .denied(.admissionDenied("x"), readiness: .ready)))
+        let denied = fallbackRows(try! XCTUnwrap(ledger.snapshot(for: key)))
+        XCTAssertEqual(denied[0].presentation.phase, .fallback)
+        XCTAssertNotEqual(denied[0].presentation.actualStyle, .bassSwap)
+        XCTAssertNotEqual(denied[0].presentation.actualStyle, .doubleDrop)
+    }
+
+    func testSuccessfulSnapshotForDifferentOccurrenceDoesNotOverrideCurrentFallback() {
+        let rows = fallbackRows(nil)
+        XCTAssertEqual(rows[0].presentation.phase, .fallback)
+        XCTAssertNil(rows[0].presentation.actualStyle)
+    }
 }
