@@ -408,6 +408,14 @@ extension Schema {
                 for column in ["genre", "subgenre", "camelotKey", "sourceURL", "analysisVersion"] {
                     try db.alter(table: "blend_catalog_track") { $0.add(column: column, .text) }
                 }
+            }
+        }
+        if shouldRegister("v37", upTo: target) {
+            migrator.registerMigration("v37") { db in
+                // Durable provider/catalog identity, kept apart from the local key and the pack tag.
+                // Seeding lives here (not in v36) so every column it writes exists; existing rows keep
+                // their grid, loudness and state while canonical fields are refreshed.
+                try db.alter(table: "blend_catalog_track") { $0.add(column: "catalogID", .text) }
                 try LibraryStore.seedStarterCatalog(db)
             }
         }

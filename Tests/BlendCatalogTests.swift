@@ -105,6 +105,8 @@ final class BlendCatalogTests: XCTestCase {
             XCTAssertEqual(row.bpm, entry.bpm)
             XCTAssertTrue(StarterCatalogAdapter.bpmRange.contains(try XCTUnwrap(row.bpm)))
             XCTAssertEqual(row.camelotKey, entry.camelot)
+            XCTAssertEqual(row.catalogID, entry.catalogID)
+            XCTAssertTrue(entry.catalogID.hasPrefix("jamendo-"))
             XCTAssertNotNil(BlendTraits.parseCamelot(try XCTUnwrap(row.camelotKey)))
             XCTAssertEqual(row.sourceURL, StarterBlendPack.v1.assetURL(trackID: entry.trackID)?.absoluteString)
             XCTAssertEqual(row.analysisVersion, "starter-v4:\(version)")
@@ -166,7 +168,7 @@ final class BlendCatalogTests: XCTestCase {
                 try db.execute(sql: """
                     CREATE TABLE blend_catalog_track (catalogKey TEXT PRIMARY KEY, packTag TEXT, state TEXT, durationSeconds REAL,
                         bpm REAL, beatPeriod REAL, beatPhase REAL, rmsDB REAL, updatedAt DATETIME, genre TEXT, subgenre TEXT,
-                        camelotKey TEXT, sourceURL TEXT, analysisVersion TEXT);
+                        camelotKey TEXT, sourceURL TEXT, analysisVersion TEXT, catalogID TEXT);
                     CREATE TABLE blend_catalog_edge (fromKey TEXT, toKey TEXT, packTag TEXT, planJSON BLOB, PRIMARY KEY (fromKey, toKey));
                     """)
             }
@@ -176,6 +178,32 @@ final class BlendCatalogTests: XCTestCase {
             let rows = try queue.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM blend_catalog_track") }
             XCTAssertEqual(rows, 0, "\(name): nothing is written, not even the valid ids like \(first)")
         }
+    }
+
+    func testStarterSeedRollsBackEverythingWhenAnEdgeWriteFails() throws {
+        let queue = try DatabaseQueue()
+        try queue.write { db in
+            try db.execute(sql: """
+                CREATE TABLE blend_catalog_track (catalogKey TEXT PRIMARY KEY, packTag TEXT, state TEXT, durationSeconds REAL,
+                    bpm REAL, beatPeriod REAL, beatPhase REAL, rmsDB REAL, updatedAt DATETIME, genre TEXT, subgenre TEXT,
+                    camelotKey TEXT, sourceURL TEXT, analysisVersion TEXT, catalogID TEXT);
+                CREATE TABLE blend_catalog_edge (fromKey TEXT, toKey TEXT, packTag TEXT, planJSON BLOB, PRIMARY KEY (fromKey, toKey));
+                CREATE TRIGGER fail_edge BEFORE INSERT ON blend_catalog_edge BEGIN SELECT RAISE(ABORT, 'injected'); END;
+                """)
+        }
+        XCTAssertThrowsError(try queue.write { try LibraryStore.seedStarterCatalog($0) })
+        try queue.read { db in
+            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_track"), 0)
+            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_edge"), 0)
+        }
+    }
+
+    func testStarterSeedSourceDoesNotReadRuntimeFactsOrHardCodedTraits() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/Data/LibraryStore+BlendCatalog.swift"), encoding: .utf8)
+        let body = String(source[source.range(of: "static func seedStarterCatalog")!.lowerBound...].prefix(2500))
+        XCTAssertFalse(body.contains("StarterBlendRuntimeData.tracks"))
+        XCTAssertTrue(body.contains("StarterCatalogAdapter"))
     }
 
     func testStarterSeedRejectsADuplicatedTrackID() throws {
@@ -269,6 +297,6 @@ final class BlendCatalogTests: XCTestCase {
     }
 
     func testMigrationListIncludesTheCatalog() {
-        XCTAssertEqual(Schema.migrationOrder.last, "v36")
+        XCTAssertEqual(Schema.migrationOrder.last, "v37")
     }
 }

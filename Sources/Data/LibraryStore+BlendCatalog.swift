@@ -19,6 +19,15 @@ extension LibraryStore {
         let adapter = try catalog ?? StarterCatalogAdapter.bundled()
         let entries = try adapter.resolve(trackIDs: StarterBlendCatalog.blends.flatMap(\.trackIDs))
         let provenance = "starter-v4:\(try adapter.contentVersion())"
+        try db.inSavepoint {
+            try writeStarterCatalog(db, entries: entries, pack: pack, now: now, provenance: provenance)
+            return .commit
+        }
+    }
+
+    /// The writes of `seedStarterCatalog`, run inside one savepoint so a failure leaves nothing behind.
+    private static func writeStarterCatalog(_ db: Database, entries: [StarterCatalogEntry], pack: StarterBlendPack,
+                                            now: Date, provenance: String) throws {
         for entry in entries {
             // Only mirrored Starter assets have a Release URL; other catalog IDs are never seeded here.
             guard let assetURL = pack.assetURL(trackID: entry.trackID) else { continue }
@@ -32,6 +41,7 @@ extension LibraryStore {
             record.genre = entry.genre
             record.subgenre = nil
             record.camelotKey = entry.camelot
+            record.catalogID = entry.catalogID
             record.sourceURL = assetURL.absoluteString
             record.analysisVersion = provenance
             record.updatedAt = now
