@@ -129,6 +129,16 @@ public final class AudioPlayer: ObservableObject {
     /// unrelated one. `performKeepPlayingExtension` checks
     /// `Task.isCancelled` before doing anything observable.
     var keepPlayingExtensionTask: Task<Void, Never>?
+    var catalogPlaybackURLResolver = CatalogPlaybackURLResolver.live()
+    var catalogPlaybackLoadTask: Task<Void, Never>?
+    var catalogPlaybackLoadGeneration = 0
+    /// Autoplay intent of the pending Jamendo resolve; an explicit pause demotes it so a late
+    /// result loads the item without starting playback.
+    var catalogPlaybackAutoplay = false
+    /// The ordinary Jamendo load in flight or on the player; scopes the one-time stale-link retry.
+    var ordinaryJamendoLoad: OrdinaryJamendoLoad?
+    /// Test seam: replaces `buildItem(for:)` inside the ordinary load path.
+    var ordinaryBuildItemHook: ((Asset) -> (item: AVPlayerItem, loader: CachingResourceLoader?)?)?
     @Published public internal(set) var cacheState: CacheGlyphState = .none
     @Published public internal(set) var cachePercent: Int = 0
     @Published public internal(set) var cachedFraction: Double = 0
@@ -362,6 +372,7 @@ public final class AudioPlayer: ObservableObject {
         keepPlayingExtensionTask?.cancel()
         keepPlayingExtensionTask = nil
         keepPlayingExtensionInFlight = false
+        cancelCatalogPlaybackLoad()
         resetKeepPlayingBoundary()
         keepPlayingHistory = []
         keepPlayingAutoAddedTrackIDs = []
@@ -634,6 +645,7 @@ public final class AudioPlayer: ObservableObject {
     }
 
     func clearQueuePlayback() {
+        cancelCatalogPlaybackLoad()
         endStarterSession()
         stopMixDecks()
         cancelCrossfade(resetVolume: true)

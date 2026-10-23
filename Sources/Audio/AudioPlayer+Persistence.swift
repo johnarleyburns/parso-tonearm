@@ -36,7 +36,7 @@ extension AudioPlayer {
         isPlaying = true
         updateNowPlaying()
     }
-    func pause() { mixDecks?.pause(); starterStream?.pause(); player.pause(); isPlaying = false; updateNowPlaying() }
+    func pause() { catalogPlaybackAutoplay = false; mixDecks?.pause(); starterStream?.pause(); player.pause(); isPlaying = false; updateNowPlaying() }
 
     /// Nudges output volume by `delta`, clamped to [0, 1] — the Mac
     /// Playback menu's Increase/Decrease Volume commands (native-mac-
@@ -252,6 +252,7 @@ extension AudioPlayer {
         keepPlayingExtensionTask?.cancel()
         keepPlayingExtensionTask = nil
         keepPlayingExtensionInFlight = false
+        cancelCatalogPlaybackLoad()
         resetKeepPlayingBoundary()
     }
 

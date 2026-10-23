@@ -27,6 +27,24 @@ final class LocalPlayerItem: AVPlayerItem {
     func releaseLease() { lease?.release() }
 }
 
+/// Why a remote item could not be opened, as shown to the user.
+enum RemotePlaybackFailure: Equatable {
+    case jamendoLocatorUnavailable
+
+    var userMessage: String {
+        String(localized: "Jamendo track unavailable — the stream link could not be refreshed", bundle: .module)
+    }
+}
+
+/// An ordinary Jamendo load bound to its exact queue occurrence and load generation.
+struct OrdinaryJamendoLoad {
+    let row: TrackRow
+    let asset: Asset
+    let occurrence: QueueOccurrenceID?
+    let generation: Int
+    var retried: Bool
+}
+
 extension AudioPlayer {
     // MARK: - Loading
 
@@ -39,6 +57,10 @@ extension AudioPlayer {
             loadingLog.error("loadCurrent: track \(row.track.id ?? -1, privacy: .public) \"\(row.track.title, privacy: .public)\" has no asset row — nothing to play")
             return
         }
+        // Any new load supersedes a pending catalog resolve (exact queue occurrence + generation).
+        let occurrence = queueOccurrences.indices.contains(index) ? queueOccurrences[index] : nil
+        cancelCatalogPlaybackLoad()
+        let generation = catalogPlaybackLoadGeneration
         // Loading any item ends the terminal boundary (waiting or exhausted).
         if keepPlayingBoundaryState != .idle { resetKeepPlayingBoundary() }
         if let trackId = row.track.id { recordKeepPlayingHistory(trackId) }
@@ -57,6 +79,102 @@ extension AudioPlayer {
 
         if loadCurrentOnStarterStream(row: row, autoplay: autoplay) { return }
         if wantsMixDecks, loadCurrentOnMixDecks(row: row, autoplay: autoplay) { return }
+
+        if row.source?.kind == .jamendoGenre, asset.kind == .remote {
+            startOrdinaryJamendoLoad(OrdinaryJamendoLoad(row: row, asset: asset, occurrence: occurrence,
+                                                         generation: generation, retried: false),
+                                     autoplay: autoplay)
+            return
+        }
+        finishOrdinaryLoad(row: row, asset: asset, autoplay: autoplay)
+    }
+
+    /// Invalidates any pending catalog resolve so a late result can never apply.
+    func cancelCatalogPlaybackLoad() {
+        catalogPlaybackLoadGeneration &+= 1
+        catalogPlaybackLoadTask?.cancel()
+        catalogPlaybackLoadTask = nil
+        ordinaryJamendoLoad = nil
+    }
+
+    /// Resolves the durable `jamendo:<id>` locator off the render path, then builds the item with the
+    /// fresh URL only if the exact occurrence/generation is still current.
+    private func startOrdinaryJamendoLoad(_ load: OrdinaryJamendoLoad, autoplay: Bool) {
+        ordinaryJamendoLoad = load
+        catalogPlaybackAutoplay = autoplay
+        catalogPlaybackLoadTask?.cancel()
+        let resolver = catalogPlaybackURLResolver
+        catalogPlaybackLoadTask = Task { @MainActor [weak self] in
+            do {
+                let resolved = try await resolver.resolve(row: load.row)
+                guard let self else { return }
+                guard !Task.isCancelled,
+                      self.catalogPlaybackLoadGeneration == load.generation,
+                      self.queueOccurrences.indices.contains(self.index),
+                      self.queueOccurrences[self.index] == load.occurrence else { return }
+                var transient = load.asset
+                if let resolved { transient.remoteURL = resolved.url.absoluteString }
+                self.finishOrdinaryLoad(row: load.row, asset: transient, autoplay: self.catalogPlaybackAutoplay)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard let self, !Task.isCancelled,
+                      self.catalogPlaybackLoadGeneration == load.generation else { return }
+                self.failRemotePlayback(.jamendoLocatorUnavailable)
+            }
+        }
+    }
+
+    /// Classified HTTP failure from the ordinary remote loader for the current Jamendo item: a stale
+    /// link refreshes once for the exact occurrence; a second one (or a permanent one) fails truthfully.
+    func handleOrdinaryJamendoLoaderFailure(httpStatus: Int) {
+        guard let load = ordinaryJamendoLoad,
+              load.generation == catalogPlaybackLoadGeneration,
+              queueOccurrences.indices.contains(index),
+              queueOccurrences[index] == load.occurrence else { return }
+        switch JamendoLocatorFailure.classify(httpStatus: httpStatus) {
+        case .transient:
+            return   // the loader's own bounded retry/backoff owns this
+        case .permanent:
+            failRemotePlayback(.jamendoLocatorUnavailable)
+        case .expiredOrInvalid:
+            guard !load.retried else {
+                failRemotePlayback(.jamendoLocatorUnavailable)
+                return
+            }
+            var retry = load
+            retry.retried = true
+            startOrdinaryJamendoLoad(retry, autoplay: catalogPlaybackAutoplay || isPlaying)
+        }
+    }
+
+    /// Controlled stop for a remote item that cannot be opened; leaves the player idle and says why.
+    func failRemotePlayback(_ failure: RemotePlaybackFailure) {
+        ordinaryJamendoLoad = nil
+        catalogPlaybackLoadTask = nil
+        shutdownLoaders()
+        itemStatusCancellable = nil
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        isPlaying = false
+        currentTime = 0
+        networkSkipMessage = failure.userMessage
+        updateNowPlaying()
+    }
+
+    private static func httpStatus(of item: AVPlayerItem) -> Int? {
+        if let code = item.errorLog()?.events.map(\.errorStatusCode).last(where: { $0 > 0 }) { return code }
+        var error = item.error as NSError?
+        while let current = error {
+            if let code = current.userInfo["HTTPStatusCode"] as? Int { return code }
+            error = current.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return nil
+    }
+
+    /// Existing body of `loadCurrent` after its Starter/MixDeck checks. It receives the resolved
+    /// transient asset and therefore keeps buildItem/cache behavior intact.
+    private func finishOrdinaryLoad(row: TrackRow, asset: Asset, autoplay: Bool) {
         smartBlendFallbackToken = nil
         stopMixDecks()
         cancelCrossfade(resetVolume: true)
@@ -78,7 +196,7 @@ extension AudioPlayer {
             built = (preItem, preloadedNextLoader)
         } else {
             lastLocalFailure = nil
-            built = buildItem(for: asset)
+            built = ordinaryBuildItemHook?(asset) ?? buildItem(for: asset)
         }
         // TEMPORARY diagnostic — real, repeated report ("I click on a track
         // I've played before and nothing happens"), 4th occurrence despite
@@ -365,6 +483,11 @@ extension AudioPlayer {
             // (Swift 6), so it must be delivered on the main queue or the runtime traps.
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak item] status in
+                if let self, status == .failed, let item, self.player.currentItem === item,
+                   self.ordinaryJamendoLoad != nil, let code = Self.httpStatus(of: item) {
+                    self.handleOrdinaryJamendoLoaderFailure(httpStatus: code)
+                    return
+                }
                 if let self, let local = item as? LocalPlayerItem, self.player.currentItem === local {
                     switch status {
                     case .readyToPlay:
