@@ -89,4 +89,78 @@ final class TransitionPresentationTests: XCTestCase {
         XCTAssertFalse(player.isOutgoingTransitionTailAudible)
         player.transitionPlan = nil
     }
+
+    private func snapshot(_ phase: TransitionExecutionPhase,
+                          executed: TransitionDisplayStyle = .bassSwap,
+                          reason: TransitionExecutionReason? = nil) -> TransitionExecutionSnapshot {
+        let a = QueueOccurrenceID(), b = QueueOccurrenceID()
+        let key = TransitionEdgeKey(from: a, to: b)
+        var ledger = TransitionExecutionLedger()
+        XCTAssertTrue(ledger.record(key, generation: 0,
+            .scheduled(requested: .bassSwap, planned: .bassSwap, executed: executed,
+                       readiness: .ready, reason: reason,
+                       overlapStart: executed.overlaps ? 100 : nil,
+                       overlapEnd: executed.overlaps ? 200 : nil,
+                       handoff: executed.overlaps ? 200 : nil, sampleRate: 44_100)))
+        if phase == .overlapping {
+            XCTAssertTrue(ledger.record(key, generation: 0, .overlapBegan(atFrame: 100)))
+        } else if phase == .handedOff {
+            XCTAssertTrue(ledger.record(key, generation: 0, .handedOff(atFrame: 200)))
+        } else if phase == .completed {
+            XCTAssertTrue(ledger.record(key, generation: 0, .completed(atFrame: 200)))
+        }
+        return try! XCTUnwrap(ledger.snapshot(for: key))
+    }
+
+    func testScheduledRendererSnapshotPromotesNoLegacyPlanToReady() {
+        let base = TransitionPresentation.make(plan: nil, preparation: .ready, hasNext: true)
+        let result = base.applying(snapshot(.upcoming))
+        XCTAssertEqual(result.phase, .ready)
+        XCTAssertEqual(result.plannedStyle, .bassSwap)
+        XCTAssertEqual(result.actualStyle, .bassSwap)
+        XCTAssertFalse(result.isFallback)
+        XCTAssertEqual(result.connectorLabel, "Bass swap · Ready")
+        XCTAssertNil(result.overlapRange, "the snapshot must not fabricate plan timing")
+    }
+
+    func testOverlappingRendererSnapshotPromotesNoLegacyPlanToOverlap() {
+        let base = TransitionPresentation.make(plan: nil, preparation: .ready, hasNext: true)
+        let result = base.applying(snapshot(.overlapping, executed: .doubleDrop))
+        XCTAssertEqual(result.phase, .overlap)
+        XCTAssertEqual(result.actualStyle, .doubleDrop)
+        XCTAssertTrue(result.isBlendingNow)
+        XCTAssertFalse(result.isFallback)
+    }
+
+    func testHandedOffAndCompletedRendererSnapshotsLeaveNoLegacyFallback() {
+        let base = TransitionPresentation.make(plan: nil, preparation: .ready, hasNext: true)
+        XCTAssertEqual(base.applying(snapshot(.handedOff)).phase, .outgoingTail)
+        XCTAssertEqual(base.applying(snapshot(.completed)).phase, .ready)
+    }
+
+    func testGaplessAndTerminalSnapshotsRemainTruthfulFallbacksWithoutLegacyPlan() {
+        let base = TransitionPresentation.make(plan: nil, preparation: .ready, hasNext: true)
+        let gapless = base.applying(snapshot(.upcoming, executed: .gapless, reason: .lateForPlannedBlend))
+        XCTAssertEqual(gapless.phase, .fallback)
+        XCTAssertEqual(gapless.actualStyle, .gapless)
+        XCTAssertTrue(gapless.fallbackDetail?.hasPrefix("Sequential handoff") == true)
+
+        let key = TransitionEdgeKey(from: QueueOccurrenceID(), to: QueueOccurrenceID())
+        var ledger = TransitionExecutionLedger()
+        XCTAssertTrue(ledger.record(key, generation: 0,
+                                    .denied(.admissionDenied("unsafe"), readiness: .ready)))
+        let denied = base.applying(try! XCTUnwrap(ledger.snapshot(for: key)))
+        XCTAssertEqual(denied.phase, .fallback)
+        XCTAssertNil(denied.actualStyle)
+
+        let key2 = TransitionEdgeKey(from: QueueOccurrenceID(), to: QueueOccurrenceID())
+        var ledger2 = TransitionExecutionLedger()
+        XCTAssertTrue(ledger2.record(key2, generation: 0,
+            .scheduled(requested: .bassSwap, planned: .bassSwap, executed: .bassSwap, readiness: .ready,
+                       reason: nil, overlapStart: 100, overlapEnd: 200, handoff: 200, sampleRate: 44_100)))
+        ledger2.cancelAll(reason: .queueChanged)
+        let cancelled = base.applying(try! XCTUnwrap(ledger2.snapshot(for: key2)))
+        XCTAssertEqual(cancelled.phase, .fallback)
+        XCTAssertNil(cancelled.actualStyle)
+    }
 }

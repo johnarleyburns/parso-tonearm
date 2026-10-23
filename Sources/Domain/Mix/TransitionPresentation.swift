@@ -145,17 +145,28 @@ public struct TransitionPresentation: Sendable, Equatable {
             return r
         }
         switch snapshot.phase {
-        case .upcoming where r.phase == .overlap:
-            // Position reached the planned window but the renderer has not begun the overlap.
-            r.phase = .ready
-            r.secondsRemaining = nil
-            r.secondsUntilOverlap = 0
-        case .overlapping where r.phase == .ready || r.phase == .preparing:
-            r.phase = .overlap
-        case .completed where r.phase == .overlap || r.phase == .outgoingTail:
-            r.phase = .ready
-            r.secondsRemaining = nil
-        default: break
+        case .upcoming:
+            // A renderer-scheduled overlapping edge is real even without a legacy TransitionPlan.
+            if r.phase == .fallback || r.phase == .overlap {
+                r.phase = .ready
+                r.secondsRemaining = nil
+                r.secondsUntilOverlap = 0
+            }
+        case .overlapping:
+            if r.phase == .fallback || r.phase == .ready || r.phase == .preparing {
+                r.phase = .overlap
+            }
+        case .handedOff:
+            if r.phase == .fallback || r.phase == .ready || r.phase == .preparing || r.phase == .overlap {
+                r.phase = .outgoingTail
+            }
+        case .completed:
+            if r.phase == .fallback || r.phase == .overlap || r.phase == .outgoingTail {
+                r.phase = .ready
+                r.secondsRemaining = nil
+            }
+        case .denied, .cancelled:
+            break // handled by the existing truthful fallback branch above
         }
         return r
     }
