@@ -202,7 +202,7 @@ extension AudioPlayer {
             tail = best.0
         }
         guard !chain.isEmpty else {
-            finishKeepPlayingExtension(with: [], isFallback: true, reason: .unavailable)
+            appendPlayableContinuationFallback(for: session)
             return
         }
         var previous = session.trackIDs.last ?? ""
@@ -224,6 +224,33 @@ extension AudioPlayer {
         starterSession = current
         starterStream?.extend(trackIDs: chain, plans: plans)
         finishKeepPlayingExtension(with: rows, isFallback: false, reason: nil)
+    }
+
+    /// The preferred blended continuation has no candidate: append a complete verified pack card
+    /// in order so the queue does not end in silence. The bridge is ordinary sequential playback
+    /// (no `BlendEdgePlan`, no blend claimed) and is reported as the `.unavailable` fallback.
+    /// A card with an unplayed track is preferred; otherwise one card is repeated, deterministically.
+    func appendPlayableContinuationFallback(for session: StarterSession) {
+        let pack = session.pack
+        let cards = StarterBlendCatalog.blends.filter { $0.pack.releaseTag == pack.releaseTag }
+        let used = Set(session.trackIDs)
+        func complete(_ blend: StarterBlend) -> [TrackRow]? {
+            let rows = StarterBlendPlayback.rows(for: blend)
+            return !rows.isEmpty && rows.count == blend.trackIDs.count ? rows : nil
+        }
+        let fresh = cards.first { card in
+            card.trackIDs.contains { !used.contains($0) } && complete(card) != nil
+        }
+        let repeated = cards.first { $0.id == session.blendID && complete($0) != nil }
+            ?? cards.first { complete($0) != nil }
+        guard let card = fresh ?? repeated, let rows = complete(card),
+              var current = starterSession, current.blendID == session.blendID, !current.sequential else {
+            finishKeepPlayingExtension(with: [], isFallback: true, reason: .unavailable)
+            return
+        }
+        current.sequential = true
+        starterSession = current
+        finishKeepPlayingExtension(with: rows, isFallback: true, reason: .unavailable)
     }
 
     /// Every edge of the loaded blend has a concrete plan, so every edge is published as planned

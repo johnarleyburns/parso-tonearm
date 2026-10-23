@@ -271,14 +271,52 @@ final class StarterBlendProductionPathTests: XCTestCase {
         for row in player.queue.dropFirst(6) { XCTAssertTrue(StarterBlendPack.v1.owns(URL(string: row.asset?.remoteURL ?? "")!)) }
     }
 
-    func testKeepPlayingWithNothingEligibleSaysSoInsteadOfGuessing() async throws {
-        let blend = StarterBlendCatalog.blends[2]            // night-drive: nothing in the catalog follows its last track
+    func testExhaustedPackContinuationAppendsVerifiedSequentialFallbackBeforeEnd() async throws {
+        let blend = StarterBlendCatalog.blends[0]
         let player = try await start(blend, factory: SynthCatalog.Factory(blend))
         player.keepPlayingEnabled = true
         await player.extendKeepPlayingQueueForTesting()
-        XCTAssertEqual(player.queue.count, 6)
+        XCTAssertGreaterThan(player.queue.count, blend.trackIDs.count)
         XCTAssertTrue(player.keepPlayingLastExtensionWasFallback)
         XCTAssertEqual(player.keepPlayingFallbackReason, .unavailable)
+        let appended = Array(player.queue.dropFirst(blend.trackIDs.count))
+        XCTAssertFalse(appended.isEmpty)
+        for row in appended {
+            let url = try XCTUnwrap(URL(string: row.asset?.remoteURL ?? ""))
+            XCTAssertTrue(StarterBlendPack.v1.owns(url), "fallback uses only verified pack audio")
+        }
+        XCTAssertTrue(player.starterSession?.sequential == true)
+        XCTAssertEqual(player.starterSession?.plans.count, blend.edgePlans.count,
+                       "there is no invented bridge plan into sequential fallback")
+    }
+
+    func testPlayableFallbackNeverClaimsABlendForItsBridge() async throws {
+        let blend = StarterBlendCatalog.blends[1]
+        let player = try await start(blend, factory: SynthCatalog.Factory(blend))
+        player.keepPlayingEnabled = true
+        await player.extendKeepPlayingQueueForTesting()
+        let bridge = TransitionEdgeKey(from: player.queueOccurrences[blend.trackIDs.count - 1],
+                                       to: player.queueOccurrences[blend.trackIDs.count])
+        XCTAssertNil(player.transitionExecution.snapshot(for: bridge))
+    }
+
+    func testFallbackReusesAVerifiedCardWhenEveryPackTrackIsAlreadyUsed() async throws {
+        let blend = StarterBlendCatalog.blends[2]
+        let player = try await start(blend, factory: SynthCatalog.Factory(blend))
+        player.keepPlayingEnabled = true
+        var session = try XCTUnwrap(player.starterSession)
+        let others = StarterBlendCatalog.starterTrackIDs.subtracting(session.trackIDs)
+        session.append(trackIDs: Array(others), plans: [], rowIDs: [])
+        player.starterSession = session
+        let before = player.queue.count
+        player.appendPlayableContinuationFallback(for: session)
+        XCTAssertEqual(player.queue.count, before + blend.trackIDs.count)
+        XCTAssertTrue(player.keepPlayingLastExtensionWasFallback)
+        XCTAssertEqual(player.keepPlayingFallbackReason, .unavailable)
+        XCTAssertTrue(player.starterSession?.sequential == true)
+        for row in player.queue.dropFirst(before) {
+            XCTAssertTrue(StarterBlendPack.v1.owns(try XCTUnwrap(URL(string: row.asset?.remoteURL ?? ""))))
+        }
     }
 
     func testAnotherQueueEndsTheStarterSession() async throws {
