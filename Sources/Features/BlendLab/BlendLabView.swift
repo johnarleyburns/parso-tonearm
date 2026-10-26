@@ -36,12 +36,16 @@ struct BlendLabEntryButton: View {
 enum BlendLabGenerator {
     static func generate(store: LibraryStore, library: [TrackRow],
                          request: BlendLabRequest) async throws -> BlendLabGeneration {
+        let library = request.allowedTrackIDs.map { allowed in
+            library.filter { $0.track.id.map(allowed.contains) ?? false }
+        } ?? library
         let ids = library.compactMap(\.track.id)
         let info = (try? await store.djLoadTrackInfo(trackIds: ids)) ?? [:]
         let energies = (try? await store.discoveryEnergies(trackIds: ids)) ?? [:]
         let candidates = library.compactMap { row -> MixCandidate? in
             guard let id = row.track.id else { return nil }
             let m = info[id]
+            if let range = request.bpmRange, !(m?.bpm.map(range.contains) ?? false) { return nil }
             return MixCandidate(trackID: id, bpm: m?.bpm, camelot: m?.camelotKey, energy: energies[id],
                                 artist: row.artist?.name, albumID: row.album?.id,
                                 duration: row.track.durationSec ?? 0)
@@ -64,8 +68,12 @@ struct BlendLabView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @StateObject private var session: BlendLabSession
-    @State private var seedID: Int64?
-    @State private var count = 12
+    @State private var count = 10
+    @State private var scope: BlendLabScope = .all
+    @State private var genre: String?
+    @State private var playlistID: Int64?
+    @State private var playlistTracks: [Int64: [Int64]] = [:]
+    @State private var bpmIndex = 0
     @State private var shape: MixShape = .steady
     @State private var replacing: ReplaceTarget?
     @State private var title = ""
@@ -90,6 +98,7 @@ struct BlendLabView: View {
                 if session.document != nil { resultSections }
             }
             .navigationTitle("Blend Lab")
+            .task { playlistTracks = (try? appState.store.playlistTrackIDs()) ?? [:] }
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -110,13 +119,32 @@ struct BlendLabView: View {
 
     private var createSection: some View {
         Section("Create") {
-            Picker("Start from", selection: $seedID) {
-                Text("Surprise me").tag(Int64?.none)
-                ForEach(appState.allTracks.prefix(200), id: \.id) { row in
-                    Text(row.track.title).tag(row.track.id)
-                }
+            Picker("Source", selection: $scope) {
+                Text("Genre").tag(BlendLabScope.genre)
+                Text("Playlists").tag(BlendLabScope.playlist)
+                Text("All").tag(BlendLabScope.all)
             }
-            .accessibilityIdentifier("blendlab.seed")
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("blendlab.scope")
+            switch scope {
+            case .genre:
+                Picker("Genre", selection: $genre) {
+                    Text("Choose a genre").tag(String?.none)
+                    ForEach(BlendLabScope.genres(in: appState.allTracks), id: \.self) { Text($0).tag(String?.some($0)) }
+                }
+                .accessibilityIdentifier("blendlab.genre")
+            case .playlist:
+                Picker("Playlist", selection: $playlistID) {
+                    Text("Choose a playlist").tag(Int64?.none)
+                    ForEach(appState.playlists, id: \.id) { Text($0.title).tag($0.id) }
+                }
+                .accessibilityIdentifier("blendlab.playlist")
+            case .all:
+                Picker("Tempo", selection: $bpmIndex) {
+                    ForEach(Array(BlendLabScope.bpmPresets.enumerated()), id: \.offset) { Text($1.name).tag($0) }
+                }
+                .accessibilityIdentifier("blendlab.bpm")
+            }
             Picker("Mood", selection: $shape) {
                 Text("Steady").tag(MixShape.steady)
                 Text("Rising energy").tag(MixShape.risingBPM)
@@ -124,7 +152,8 @@ struct BlendLabView: View {
                 Text("Wind down").tag(MixShape.windDown)
             }
             .accessibilityIdentifier("blendlab.shape")
-            Stepper("Tracks: \(count)", value: $count, in: 2...40)
+            Stepper("Tracks: \(clampedCount)", value: Binding(get: { clampedCount }, set: { count = $0 }),
+                    in: BlendLabScope.minTracks...max(BlendLabScope.minTracks, maxCount))
                 .accessibilityIdentifier("blendlab.count")
             if session.phase == .generating {
                 Button("Cancel", role: .cancel) { session.cancel() }
@@ -132,7 +161,7 @@ struct BlendLabView: View {
             } else {
                 Button(session.document == nil ? "Generate" : "Regenerate") { generate() }
                     .accessibilityIdentifier("blendlab.generate")
-                    .disabled(appState.allTracks.isEmpty)
+                    .disabled(appState.allTracks.isEmpty || scopedIDs.map { $0.count < BlendLabScope.minTracks } ?? false)
             }
             if appState.allTracks.isEmpty {
                 Text("Add music to your library to create a blend.")
@@ -218,9 +247,30 @@ struct BlendLabView: View {
         return Text(text).font(Typography.caption).foregroundStyle(Palette.inkSecondary)
     }
 
+    /// Track ids the chosen genre/playlist allows; nil for All (nothing chosen yet → empty).
+    private var scopedIDs: Set<Int64>? {
+        switch scope {
+        case .all: return nil
+        case .genre:
+            return genre.map { BlendLabScope.trackIDs(genre: $0, in: appState.allTracks) } ?? []
+        case .playlist:
+            let inLibrary = Set(appState.allTracks.compactMap(\.track.id))
+            return Set((playlistID.flatMap { playlistTracks[$0] } ?? []).filter(inLibrary.contains))
+        }
+    }
+
+    private var maxCount: Int {
+        BlendLabScope.maxTrackCount(available: scopedIDs?.count ?? appState.allTracks.count)
+    }
+
+    private var clampedCount: Int {
+        BlendLabScope.clampedCount(count, available: scopedIDs?.count ?? appState.allTracks.count)
+    }
+
     private func generate() {
-        session.start(BlendLabRequest(seedTrackIDs: seedID.map { [$0] } ?? [],
-                                      targetTrackCount: count, shape: shape))
+        let bpm = scope == .all && bpmIndex > 0 ? BlendLabScope.bpmPresets[bpmIndex].range : nil
+        session.start(BlendLabRequest(targetTrackCount: clampedCount, shape: shape,
+                                      allowedTrackIDs: scopedIDs, bpmRange: bpm))
     }
 }
 
