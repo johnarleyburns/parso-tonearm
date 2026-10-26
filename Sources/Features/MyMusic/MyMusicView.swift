@@ -90,6 +90,8 @@ struct MyMusicView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             VStack(spacing: 0) {
+                ScreenHeader(title: "My Music", showAdd: false)
+                    .padding(.horizontal, 18)
                 scopePicker
 
                 if !appState.didLoadLibraryOnce {
@@ -115,7 +117,7 @@ struct MyMusicView: View {
                     case .artists, .albums, .songs, .genres:
                         LibraryView(ownsNavigationStack: false, externalMode: libraryModeBinding,
                                     filter: .init(), searchRows: nil, searchRowsRevision: 0,
-                                    showsSearchField: false)
+                                    showsSearchField: false, showsHeader: false)
                             .accessibilityIdentifier("mymusic.content.music")
                     }
                 }

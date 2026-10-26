@@ -37,6 +37,7 @@ struct FindView: View {
             VStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 0) {
                         ScreenHeader(title: "Find", showAdd: false)
+                            .padding(.horizontal, 18)
                         MyMusicSearchControls(mode: $mode, bpmPreset: $bpmPreset,
                                               mixKey: $mixKey,
                                               onSoundRows: { rows in
