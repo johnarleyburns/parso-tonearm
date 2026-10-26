@@ -90,6 +90,8 @@ public struct TransitionPresentation: Sendable, Equatable {
     public var incomingTrackID: Int64?
     /// Seconds in the outgoing track; nil when unknown.
     public var overlapRange: ClosedRange<Double>?
+    /// Seconds in the incoming track where it enters; nil when unknown.
+    public var entryTime: Double?
     public var secondsUntilOverlap: Double?
     public var secondsRemaining: Double?
     public var confidence: Double?
@@ -103,7 +105,9 @@ public struct TransitionPresentation: Sendable, Equatable {
                 incomingTrackID: Int64? = nil, overlapRange: ClosedRange<Double>? = nil,
                 secondsUntilOverlap: Double? = nil, secondsRemaining: Double? = nil,
                 confidence: Double? = nil, reasons: [TransitionReason] = [],
-                preparation: GridPrepState? = nil, executionReason: TransitionExecutionReason? = nil) {
+                preparation: GridPrepState? = nil, executionReason: TransitionExecutionReason? = nil,
+                entryTime: Double? = nil) {
+        self.entryTime = entryTime
         self.executionReason = executionReason
         self.phase = phase
         self.plannedStyle = plannedStyle
@@ -150,7 +154,7 @@ public struct TransitionPresentation: Sendable, Equatable {
             if r.phase == .fallback || r.phase == .overlap {
                 r.phase = .ready
                 r.secondsRemaining = nil
-                r.secondsUntilOverlap = 0
+                // Never claim "in 0 s": keep a countdown only when the plan's timing supplied one.
             }
         case .overlapping:
             if r.phase == .fallback || r.phase == .ready || r.phase == .preparing {
@@ -189,7 +193,8 @@ public struct TransitionPresentation: Sendable, Equatable {
         var result = TransitionPresentation(
             phase: .ready, plannedStyle: planned0, actualStyle: actual,
             outgoingTrackID: plan.fromTrackID, incomingTrackID: plan.toTrackID,
-            confidence: plan.confidence, reasons: plan.reasons, preparation: preparation)
+            confidence: plan.confidence, reasons: plan.reasons, preparation: preparation,
+            entryTime: plan.entryTime)
         if preparing(preparation) { result.phase = .preparing }
         if !actual.overlaps { return result }
         let seconds = plan.overlapSeconds > 0 ? plan.overlapSeconds : nil
