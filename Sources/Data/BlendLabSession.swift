@@ -5,11 +5,55 @@ public struct BlendLabRequest: Sendable, Equatable {
     public var seedTrackIDs: [Int64]
     public var targetTrackCount: Int
     public var shape: MixShape
+    /// When set, only these tracks may be used (a genre or playlist scope).
+    public var allowedTrackIDs: Set<Int64>?
+    /// When set, only tracks whose analysed BPM falls in this range may be used.
+    public var bpmRange: ClosedRange<Double>?
 
-    public init(seedTrackIDs: [Int64] = [], targetTrackCount: Int = 12, shape: MixShape = .steady) {
+    public init(seedTrackIDs: [Int64] = [], targetTrackCount: Int = 12, shape: MixShape = .steady,
+                allowedTrackIDs: Set<Int64>? = nil, bpmRange: ClosedRange<Double>? = nil) {
         self.seedTrackIDs = seedTrackIDs
         self.targetTrackCount = targetTrackCount
         self.shape = shape
+        self.allowedTrackIDs = allowedTrackIDs
+        self.bpmRange = bpmRange
+    }
+}
+
+/// Which part of the library a blend is created from, and the track-count
+/// range that scope allows.
+public enum BlendLabScope: String, CaseIterable, Sendable, Identifiable {
+    case genre, playlist, all
+    public var id: String { rawValue }
+
+    public static let minTracks = 2
+    public static let maxTracks = 10
+
+    /// Common BPM ranges by style, for the "All" scope.
+    public static let bpmPresets: [(name: String, range: ClosedRange<Double>)] = [
+        ("Any tempo", 0...1000), ("Hip hop (80–100)", 80...100), ("House (118–130)", 118...130),
+        ("Techno (125–150)", 125...150), ("Trance (130–145)", 130...145),
+        ("Dubstep (138–142)", 138...142), ("Drum and bass (160–180)", 160...180)]
+
+    /// Highest track count allowed for `available` tracks in scope: the smaller of that and 10.
+    public static func maxTrackCount(available: Int) -> Int { min(maxTracks, available) }
+
+    /// Clamps a requested count into the allowed range (never below 2).
+    public static func clampedCount(_ count: Int, available: Int) -> Int {
+        min(max(count, minTracks), max(minTracks, maxTrackCount(available: available)))
+    }
+
+    /// Sorted distinct non-empty genres across the library.
+    public static func genres(in library: [TrackRow]) -> [String] {
+        Array(Set(library.compactMap { $0.track.genre?.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty })).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    /// Ids of library tracks with exactly this genre.
+    public static func trackIDs(genre: String, in library: [TrackRow]) -> Set<Int64> {
+        Set(library.compactMap { row in
+            row.track.genre?.trimmingCharacters(in: .whitespaces) == genre ? row.track.id : nil
+        })
     }
 }
 
@@ -28,6 +72,9 @@ public struct BlendLabGeneration: Sendable {
 /// Deterministic library fallback: seeds first, then library order, no model.
 public enum BlendLabFallback {
     public static func basicMix(_ request: BlendLabRequest, library: [TrackRow]) -> BlendLabGeneration {
+        let library = request.allowedTrackIDs.map { allowed in
+            library.filter { $0.track.id.map(allowed.contains) ?? false }
+        } ?? library
         let seeds = request.seedTrackIDs.compactMap { id in library.first { $0.track.id == id } }
         let seedIDs = Set(seeds.compactMap(\.track.id))
         let rest = library.filter { row in row.track.id.map { !seedIDs.contains($0) } ?? true }

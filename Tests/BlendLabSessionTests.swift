@@ -134,3 +134,23 @@ private actor CallCounter {
     private var n = 0
     func next() -> Int { n += 1; return n }
 }
+
+final class BlendLabScopeTests: XCTestCase {
+    func testTrackCountRangeIsTwoToSmallerOfAvailableAndTen() {
+        XCTAssertEqual(BlendLabScope.clampedCount(40, available: 50), 10)
+        XCTAssertEqual(BlendLabScope.clampedCount(40, available: 5), 5)
+        XCTAssertEqual(BlendLabScope.clampedCount(0, available: 5), 2)
+        XCTAssertEqual(BlendLabScope.clampedCount(7, available: 1), 2)
+    }
+
+    func testBasicMixHonoursAllowedTrackIDs() {
+        func row(_ id: Int64) -> TrackRow {
+            TrackRow(track: Track(id: id, albumId: nil, sourceId: 1, title: "T\(id)", trackNo: nil, discNo: nil,
+                                  durationSec: 100, codec: nil, sampleRate: nil, bitDepthOrBitrate: nil,
+                                  sortKey: "t\(id)", syncID: "S\(id)"), album: nil, source: nil, asset: nil)
+        }
+        let out = BlendLabFallback.basicMix(BlendLabRequest(targetTrackCount: 5, allowedTrackIDs: [2, 3]),
+                                            library: (1...4).map(row))
+        XCTAssertEqual(Set(out.rows.map(\.id)), [2, 3])
+    }
+}
