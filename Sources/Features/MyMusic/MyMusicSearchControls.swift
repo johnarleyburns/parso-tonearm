@@ -56,6 +56,7 @@ struct MyMusicSearchControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if mode == .all { allSearchField }
             HStack(spacing: 8) {
                 ForEach(MyMusicSearchMode.allCases) { option in
                     Button { mode = option } label: {
@@ -72,15 +73,7 @@ struct MyMusicSearchControls: View {
 
             switch mode {
             case .all:
-                // Plain text search by title, artist, album and the other general fields. The
-                // library list below doesn't show its own field inside My Music, so this is it.
-                // On Mac the same search lives in the window toolbar (⌘F).
-                #if os(iOS)
-                SearchField(text: $appState.searchText, placeholder: "Search all your music…")
-                    .accessibilityIdentifier("mymusic.search.text")
-                #else
                 EmptyView()
-                #endif
             case .mix:
                 mixControls
             case .sound:
@@ -121,6 +114,19 @@ struct MyMusicSearchControls: View {
                 onSoundRows(nil)
             }
         }
+    }
+
+    @ViewBuilder
+    private var allSearchField: some View {
+        // Plain text search by title, artist, album and the other general fields. The
+        // library list below doesn't show its own field inside My Music, so this is it.
+        // On Mac the same search lives in the window toolbar (⌘F).
+        #if os(iOS)
+        SearchField(text: $appState.searchText, placeholder: "Search all your music…")
+            .accessibilityIdentifier("mymusic.search.text")
+        #else
+        EmptyView()
+        #endif
     }
 
     private var mixControls: some View {
