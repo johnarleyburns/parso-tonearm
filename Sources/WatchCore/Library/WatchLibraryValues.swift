@@ -138,6 +138,12 @@ public struct WatchStorageSnapshot: Equatable, Sendable {
     }
 }
 
+struct WatchAudioJournalEntry: Codable, Equatable, Sendable {
+    let relativeFilename: String
+    let bytes: Int64
+    let sha256: String
+}
+
 /// A file found on disk with no database row, already hashed by reconciliation and therefore
 /// adoptable. Contrast `WatchRecoverableFileSnapshot`, which is the cheap launch-time scan.
 public struct WatchOrphanSnapshot: Identifiable, Hashable, Sendable {
