@@ -236,6 +236,29 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         XCTAssertEqual(ready.map(\.id), ["recover"]); XCTAssertEqual(playlists.map(\.id), ["night"])
     }
 
+    /// Regression (#157): after an upgrade rebuilt the store, every previously downloaded track
+    /// showed as undownloaded. The surviving files must re-attach to *their own* tracks.
+    func testRebuiltStoreReadoptsDownloadsToTheirOwnTracks() async throws {
+        let fixture = try Fixture()
+        let a = try fixture.write("a.m4a", bytes: Data("track-a-audio".utf8))
+        let b = try fixture.write("b.m4a", bytes: Data("track-b-audio-longer".utf8))
+        try await fixture.repository.upsertTrack(.init(trackID: "A", title: "A"))
+        try await fixture.repository.upsertTrack(.init(trackID: "B", title: "B"))
+        try await fixture.repository.markAsset(trackID: "A", relativeFilename: "a.m4a", installedBytes: a.bytes, sha256: a.sha256, state: .ready)
+        try await fixture.repository.markAsset(trackID: "B", relativeFilename: "b.m4a", installedBytes: b.bytes, sha256: b.sha256, state: .ready)
+
+        // The store is lost; only the audio directory and journal remain. B's metadata arrives first.
+        let rebuilt = WatchLibraryRepository(container: try WatchStoreBootstrap.inMemory(), audioDirectory: fixture.audio)
+        try await rebuilt.upsertTrack(.init(trackID: "B", title: "B"))
+        try await rebuilt.upsertTrack(.init(trackID: "A", title: "A"))
+        let orphans = try await rebuilt.reconcileFiles().orphans
+        XCTAssertEqual(orphans.count, 2)
+        for orphan in orphans { await rebuilt.adoptJournaledOrphan(orphan) }
+        let ready = try await rebuilt.tracks(readyOnly: true)
+        XCTAssertEqual(Dictionary(uniqueKeysWithValues: ready.map { ($0.id, $0.localFilename) }),
+                       ["A": "a.m4a", "B": "b.m4a"])
+    }
+
     // A rebuilt store must not call an unrelated file "ready" just because a track is waiting for one.
     func testOrphanAdoptionRejectsFilesThatContradictTrackMetadata() async throws {
         let fixture = try Fixture()

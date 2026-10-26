@@ -357,6 +357,10 @@ public actor WatchSyncActor: WatchConnectivityObserver {
         guard let snapshot = try? await repository.reconcileFiles() else { return }
         let tracks = (try? await repository.tracks(readyOnly: false)) ?? []
         for orphan in snapshot.orphans {
+            // A rebuilt store lost the pairing; the journal remembers it. A journaled file is only
+            // ever re-attached to its own track, never guessed onto another one.
+            if await repository.adoptJournaledOrphan(orphan) { continue }
+            if await repository.journaledTrackID(for: orphan) != nil { continue }
             // Adopt an orphan only where a track's declared checksum/bytes match it exactly;
             // `adoptOrphan` throws on any mismatch, so a wrong pairing just moves to the next track.
             for track in tracks where track.localFilename == nil {

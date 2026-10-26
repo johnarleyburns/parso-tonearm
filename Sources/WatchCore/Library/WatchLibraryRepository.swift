@@ -103,6 +103,45 @@ public actor WatchLibraryRepository {
         asset.sha256 = sha256; asset.validationState = state; asset.installedAt = Date(); asset.track = track
         track.asset = asset
         try context.save()
+        if state == .ready {
+            updateJournal { $0[trackID] = WatchAudioJournalEntry(relativeFilename: relativeFilename, bytes: installedBytes, sha256: sha256) }
+        }
+    }
+
+    // MARK: - Audio journal
+
+    /// Survives a store rebuild: the journal lives beside, not inside, the SwiftData store, so the
+    /// track-to-file pairing is still known when an unreadable store is quarantined and recreated.
+    private var journalURL: URL {
+        audioDirectory.deletingLastPathComponent().appendingPathComponent("audio-journal.json")
+    }
+
+    private func readJournal() -> [String: WatchAudioJournalEntry] {
+        guard let data = try? Data(contentsOf: journalURL),
+              let decoded = try? JSONDecoder().decode([String: WatchAudioJournalEntry].self, from: data) else { return [:] }
+        return decoded
+    }
+
+    private func updateJournal(_ change: (inout [String: WatchAudioJournalEntry]) -> Void) {
+        var journal = readJournal()
+        change(&journal)
+        guard let data = try? JSONEncoder().encode(journal) else { return }
+        try? data.write(to: journalURL, options: .atomic)
+    }
+
+    /// The track a recovered file belonged to before the store was rebuilt, if the journal knows it.
+    public func journaledTrackID(for orphan: WatchOrphanSnapshot) -> String? {
+        readJournal().first { $0.value.relativeFilename == orphan.relativeFilename }?.key
+    }
+
+    /// Re-attach a surviving file to the track it was installed for. True only when the journal,
+    /// the track row and the file's measured bytes/checksum all agree.
+    @discardableResult
+    public func adoptJournaledOrphan(_ orphan: WatchOrphanSnapshot) -> Bool {
+        guard let trackID = journaledTrackID(for: orphan),
+              let entry = readJournal()[trackID],
+              entry.bytes == orphan.bytes, entry.sha256 == orphan.sha256 else { return false }
+        return (try? adoptOrphan(orphan, forTrackID: trackID)) != nil
     }
 
     public func markArtworkAsset(artworkID: String, relativeFilename: String,
@@ -161,6 +200,7 @@ public actor WatchLibraryRepository {
             context.delete(track)
             removed.append(track.trackID)
         }
+        updateJournal { journal in removed.forEach { journal[$0] = nil } }
         // A playlist entry pointing at a now-deleted track is left in place: membership is the
         // phone's, and `WatchPlaylistSnapshot.isPartial` already tells the UI the row is incomplete.
         try context.save()
