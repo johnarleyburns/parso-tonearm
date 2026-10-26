@@ -89,3 +89,16 @@ public enum StarterBlendCatalog {
         UUID(uuidString: String(format: "5EED0000-%04X-4000-8000-%012X", blend, slot))!
     }
 }
+
+extension StarterBlendCatalog {
+    /// Saved blends followed by the built-in Starter Blends the user has not saved a copy of.
+    public static func mergingStarterBlends(into saved: [BlendDocument]) -> [BlendDocument] {
+        let savedIDs = Set(saved.map(\.id))
+        return saved + blends.map(\.document).filter { !savedIDs.contains($0.id) }
+    }
+
+    /// True for a catalog Starter Blend, which is always listed and so cannot be removed.
+    public static func isBuiltIn(_ document: BlendDocument) -> Bool {
+        document.origin == .starter && blends.contains { $0.document.id == document.id }
+    }
+}

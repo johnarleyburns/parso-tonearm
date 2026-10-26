@@ -46,7 +46,7 @@ struct SavedBlendsView: View {
 
     private func reload() async {
         let snapshot = await appState.blendRepository.load()
-        blends = snapshot.blends; issues = snapshot.issues; didLoad = true
+        blends = StarterBlendCatalog.mergingStarterBlends(into: snapshot.blends); issues = snapshot.issues; didLoad = true
     }
 
     static func describe(_ issue: BlendRepository.LoadIssue) -> String {
@@ -100,7 +100,9 @@ struct BlendDetailView: View {
                 }
                 Section {
                     Button("Play") { play() }.accessibilityIdentifier("blenddetail.play")
-                    Button("Remove Saved Blend", role: .destructive) { confirmRemove = true }
+                    if !StarterBlendCatalog.isBuiltIn(blend) {
+                        Button("Remove Saved Blend", role: .destructive) { confirmRemove = true }
+                    }
                 }
             }
             .navigationTitle(blend.title)
