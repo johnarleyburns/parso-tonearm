@@ -25,6 +25,7 @@ step "Automation regression tests"
 bash scripts/tests/test-issue-pr-policy.sh
 bash scripts/tests/test-issue-backlog-order.sh
 bash scripts/tests/test-release-repair-policy.sh
+bash scripts/tests/test-clap-candidate-workflow.sh
 bash scripts/tests/test-testflight-delivery-body.sh
 bash scripts/tests/test-testflight-reconciler-discovery.sh
 bash scripts/tests/test-production-regression-wiring.sh

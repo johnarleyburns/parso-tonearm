@@ -1,0 +1,151 @@
+name: CLAP Candidate Model
+# Manual only. Generates, validates, packages and (optionally) publishes a CLAP
+# candidate as a GitHub PRERELEASE. Never edits Config/models.lock, ODR config or
+# production model URLs. contents: write exists solely for the release upload;
+# GH_TOKEN is set only on that final step, never for converter code.
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Candidate component to build
+        type: choice
+        required: true
+        options: [audio, text]
+      release_tag:
+        description: Release tag, e.g. clap-audio-int8-128-v1-candidate
+        type: string
+        required: true
+      publish:
+        description: Create a prerelease (false = retained Actions artifact only)
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: clap-candidate-${{ inputs.component }}-${{ inputs.release_tag }}
+  cancel-in-progress: false
+env:
+  CLAP_REVISION: 4226474e38defca6fc9272a7848bb7b0355ccd7a
+  CLAP_SHA256: fae3e9c087f2909c28a09dc31c8dfcdacbc42ba44c70e972b58c1bd1caf6dedd
+jobs:
+  candidate:
+    runs-on: xcode-27
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate inputs
+        env:
+          COMPONENT: ${{ inputs.component }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          [[ "$COMPONENT" == audio || "$COMPONENT" == text ]]
+          [[ "$RELEASE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$ ]]
+          test -f "tools/clap-coreml/generate_candidate_${COMPONENT}.py" \
+            || { echo "Missing generator tools/clap-coreml/generate_candidate_${COMPONENT}.py" >&2; exit 1; }
+          test -f tools/clap-coreml/requirements-candidate.txt
+      - name: Fail early if the release already exists
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; refusing to replace it." >&2; exit 1
+          fi
+          if git ls-remote --exit-code --tags "https://github.com/$GITHUB_REPOSITORY.git" "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag $RELEASE_TAG already exists; refusing to reuse it." >&2; exit 1
+          fi
+      - name: Fetch pinned starter database (frozen 512-to-128 projection)
+        run: make starter
+      - name: Prepare isolated working directory
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/clap-candidate"
+          rm -rf "$work"
+          mkdir -p "$work/download" "$work/out"
+          echo "WORK=$work" >> "$GITHUB_ENV"
+      - name: Install pinned Python packages
+        run: |
+          set -euo pipefail
+          python3 -m venv "$WORK/venv"
+          "$WORK/venv/bin/pip" install --no-input -r tools/clap-coreml/requirements-candidate.txt
+          if grep -Ev '^\s*(#|$)' tools/clap-coreml/requirements-candidate.txt | grep -Evq '=='; then
+            echo "requirements must be exact == pins" >&2; exit 1
+          fi
+      - name: Download and verify LAION checkpoint
+        run: |
+          set -euo pipefail
+          url="https://huggingface.co/lukewys/laion_clap/resolve/${CLAP_REVISION}/music_audioset_epoch_15_esc_90.14.pt"
+          curl -fsSL --retry 3 -o "$WORK/download/music_audioset_epoch_15_esc_90.14.pt" "$url"
+          actual=$(shasum -a 256 "$WORK/download/music_audioset_epoch_15_esc_90.14.pt" | cut -d' ' -f1)
+          if [[ "$actual" != "$CLAP_SHA256" ]]; then
+            echo "Checkpoint SHA-256 mismatch: expected $CLAP_SHA256 got $actual" >&2
+            rm -f "$WORK/download/music_audioset_epoch_15_esc_90.14.pt"
+            exit 1
+          fi
+      - name: Generate and verify candidate
+        env:
+          COMPONENT: ${{ inputs.component }}
+        run: |
+          set -euo pipefail
+          "$WORK/venv/bin/python" -I "tools/clap-coreml/generate_candidate_${COMPONENT}.py" \
+            --checkpoint "$WORK/download/music_audioset_epoch_15_esc_90.14.pt" \
+            --checkpoint-revision "$CLAP_REVISION" \
+            --checkpoint-sha256 "$CLAP_SHA256" \
+            --starter-dir Resources/Starter \
+            --output-dir "$WORK/out"
+      - name: Validate package manifest and checksums
+        env:
+          COMPONENT: ${{ inputs.component }}
+        run: |
+          set -euo pipefail
+          cd "$WORK/out"
+          ls -1 | sort
+          test -f manifest.json && test -f verification.json && test -f REPORT.md
+          archives=$(ls -1 *.mlpackage.zip *.mlpackage.tar.gz *.mlpackage.tar.xz 2>/dev/null || true)
+          [[ $(printf '%s\n' "$archives" | grep -c .) -eq 1 ]] || { echo "Expected exactly one .mlpackage archive" >&2; exit 1; }
+          archive="$archives"
+          "$WORK/venv/bin/python" -I - "$COMPONENT" "$archive" "$CLAP_REVISION" "$CLAP_SHA256" <<'PY'
+          import hashlib, json, sys
+          component, archive, rev, sha = sys.argv[1:5]
+          m = json.load(open("manifest.json"))
+          json.load(open("verification.json"))
+          need = ["component", "source_checkpoint_revision", "source_checkpoint_sha256",
+                  "coremltools_version", "python_version", "precision", "inputs", "outputs",
+                  "projection_sha256", "archive_sha256"]
+          missing = [k for k in need if not m.get(k)]
+          assert not missing, f"manifest missing {missing}"
+          assert m["component"] == component, "manifest component mismatch"
+          assert m["source_checkpoint_revision"] == rev, "manifest revision mismatch"
+          assert m["source_checkpoint_sha256"] == sha, "manifest checkpoint sha mismatch"
+          h = hashlib.sha256(open(archive, "rb").read()).hexdigest()
+          assert m["archive_sha256"] == h, f"archive sha mismatch {h}"
+          PY
+          shasum -a 256 "$archive" manifest.json verification.json REPORT.md > SHA256SUMS.txt
+          shasum -a 256 -c SHA256SUMS.txt
+      - name: Upload CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clap-${{ inputs.component }}-candidate-${{ github.run_id }}
+          path: ${{ runner.temp }}/clap-candidate/out/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish prerelease
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          COMPONENT: ${{ inputs.component }}
+        run: |
+          set -euo pipefail
+          cd "$WORK/out"
+          shasum -a 256 -c SHA256SUMS.txt
+          archive=$(ls -1 *.mlpackage.zip *.mlpackage.tar.gz *.mlpackage.tar.xz 2>/dev/null)
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --prerelease \
+            --target "$GITHUB_SHA" --title "CLAP $COMPONENT candidate $RELEASE_TAG" \
+            --notes-file REPORT.md \
+            "$archive" manifest.json verification.json REPORT.md SHA256SUMS.txt

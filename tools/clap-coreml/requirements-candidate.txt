@@ -1,0 +1,11 @@
+# Pinned converter environment for .github/workflows/clap-candidate-model.yml.
+# Exact versions only; extend with == pins, never ranges.
+torch==2.7.0
+torchvision==0.22.0
+transformers==4.57.6
+coremltools==9.0
+laion-clap==1.1.7
+librosa==0.10.2.post1
+torchlibrosa==0.1.0
+numpy==1.26.4
+huggingface_hub==0.34.4
