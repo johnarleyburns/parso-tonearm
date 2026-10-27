@@ -35,7 +35,8 @@ final class WatchAVPlayerItemTests: XCTestCase {
         XCTAssertEqual(PhoneWatchAudioPreparation.sourceMIMEType(for: URL(string: "https://example.com/audio?format=json&audioformat=mp32")!), "audio/mpeg")
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let shell = try String(contentsOf: root.appendingPathComponent("Sources/Features/RootView.swift"), encoding: .utf8)
-        XCTAssertTrue(shell.contains(".safeAreaInset(edge: .bottom, spacing: 0) { accessoryClearance }"))
+        let chrome = try String(contentsOf: root.appendingPathComponent("Sources/Features/RootTabChrome.swift"), encoding: .utf8)
+        XCTAssertTrue(chrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
         XCTAssertTrue(shell.contains("TransferPill { transferBannerDismissed = true }"))
         XCTAssertLessThan(try XCTUnwrap(shell.range(of: "TransferPill {")).lowerBound,
                           try XCTUnwrap(shell.range(of: "MiniPlayerAccessory(")).lowerBound)

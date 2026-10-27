@@ -35,11 +35,11 @@ struct ListenView: View {
                 StarterBlendsSection()
                 BlendLabEntryButton()
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 16)
             .padding(.bottom, 160)
         }
         .navigationTitle("Listen")
-        .nativeLargeTitle()
+        .largeNavigationTitle()
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { showSettings = true } label: {
@@ -374,11 +374,11 @@ struct MoodView: View {
                                   onPlay: {}, onMakeMix: { appState.requestBuildAMix() })
                 }
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 16)
             .padding(.bottom, 160)
         }
         .navigationTitle("Mood")
-        .nativeLargeTitle()
+        .largeNavigationTitle()
         .foregroundStyle(Palette.ink)
         .task(id: appState.didLoadLibraryOnce) {
             guard appState.didLoadLibraryOnce else { return }
@@ -732,16 +732,5 @@ struct RecentCard: View {
                 .padding(.top, 1)
         }
         .frame(width: 132)
-    }
-}
-
-private extension View {
-    /// Native large navigation title on iOS; no-op on macOS.
-    func nativeLargeTitle() -> some View {
-        #if os(iOS)
-        navigationBarTitleDisplayMode(.large)
-        #else
-        self
-        #endif
     }
 }

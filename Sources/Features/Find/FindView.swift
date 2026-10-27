@@ -69,6 +69,7 @@ struct FindView: View {
             .background(Palette.libraryBackground.ignoresSafeArea())
             .navigationTitle("Find")
             .largeNavigationTitle()
+            .rootTabChrome(.find)
         }
         .sheet(item: $selectedBlend) { blend in
             BlendDetailView(blend: blend)
@@ -111,7 +112,7 @@ struct FindView: View {
                 }
             }
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 16)
         .padding(.bottom, 8)
         .accessibilityIdentifier("find.blends")
     }
@@ -148,7 +149,7 @@ struct FindView: View {
                     .accessibilityIdentifier("find.scope.\(candidate.rawValue.lowercased())")
                 }
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 16)
         }
         .padding(.top, 4)
         .padding(.bottom, 8)
