@@ -19,10 +19,6 @@ struct ListenView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                ScreenHeader(title: "Listen", addAction: { showSettings = true },
-                             addAccessibilityIdentifier: "listen.settings",
-                             actionIcon: "gearshape.fill",
-                             actionAccessibilityLabel: "Settings")
                 if support.isSupporter {
                     supporterBadge
                         .padding(.top, 6)
@@ -41,6 +37,17 @@ struct ListenView: View {
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 160)
+        }
+        .navigationTitle("Listen")
+        .nativeLargeTitle()
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { showSettings = true } label: {
+                    Image(systemName: "gearshape.fill")
+                }
+                .accessibilityLabel("Settings")
+                .accessibilityIdentifier("listen.settings")
+            }
         }
         .foregroundStyle(Palette.ink)
         .task {
@@ -332,7 +339,6 @@ struct MoodView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                ScreenHeader(title: "Mood", showAdd: false)
                 if let playbackMessage {
                     Text(playbackMessage).font(Typography.caption).foregroundStyle(Palette.inkSecondary)
                 }
@@ -371,6 +377,8 @@ struct MoodView: View {
             .padding(.horizontal, 18)
             .padding(.bottom, 160)
         }
+        .navigationTitle("Mood")
+        .nativeLargeTitle()
         .foregroundStyle(Palette.ink)
         .task(id: appState.didLoadLibraryOnce) {
             guard appState.didLoadLibraryOnce else { return }
@@ -724,5 +732,16 @@ struct RecentCard: View {
                 .padding(.top, 1)
         }
         .frame(width: 132)
+    }
+}
+
+private extension View {
+    /// Native large navigation title on iOS; no-op on macOS.
+    func nativeLargeTitle() -> some View {
+        #if os(iOS)
+        navigationBarTitleDisplayMode(.large)
+        #else
+        self
+        #endif
     }
 }
