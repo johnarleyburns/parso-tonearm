@@ -18,6 +18,7 @@ label='needs-human-review'
 repo="$GITHUB_REPOSITORY"
 run_url="${GITHUB_SERVER_URL:-https://github.com}/${repo}/actions/runs/${GITHUB_RUN_ID:-0}"
 ci_paths=(
+  .github/workflows/clap-candidate-model.yml
   .github/workflows/issue-to-pr.yml
   .github/workflows/pr-validation.yml
   .github/workflows/ios.yml

@@ -341,7 +341,7 @@ write_report() {
 
 macos_work_pending() {
   jq -e 'any(.workflow_runs[]?;
-    (.path // "" | test("/(ios|ci|pr-validation|pr-conflict-repair|issue-to-pr)\\.yml$")))' >/dev/null
+    (.path // "" | test("/(ios|ci|clap-candidate-model|pr-validation|pr-conflict-repair|issue-to-pr)\\.yml$")))' >/dev/null
 }
 
 main() {

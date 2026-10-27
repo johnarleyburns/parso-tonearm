@@ -51,6 +51,7 @@ if gh issue view "$ISSUE" --json labels --jq '.labels[].name' | grep -Fxq 'ai-ci
   else echo 'ai-ci-maintenance was not applied by the repository owner; CI changes disallowed' >&2; fi
 fi
 ci_paths=(
+  .github/workflows/clap-candidate-model.yml
   .github/workflows/issue-to-pr.yml
   .github/workflows/pr-validation.yml
   .github/workflows/ios.yml
