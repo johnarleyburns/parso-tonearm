@@ -90,8 +90,6 @@ struct MyMusicView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             VStack(spacing: 0) {
-                ScreenHeader(title: "My Music", showAdd: false)
-                    .padding(.horizontal, 18)
                 scopePicker
 
                 if !appState.didLoadLibraryOnce {
@@ -123,7 +121,8 @@ struct MyMusicView: View {
                 }
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
-            .hiddenNavigationBar()
+            .navigationTitle("My Music")
+            .largeNavigationTitle()
         }
         .task {
             // On Mac the search field is the window toolbar's, and typing in

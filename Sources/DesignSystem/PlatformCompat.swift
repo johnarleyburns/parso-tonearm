@@ -76,6 +76,23 @@ public extension View {
         #endif
     }
 
+    /// Native large navigation title; a no-op on macOS (no large-title concept).
+    @ViewBuilder
+    func largeNavigationTitle() -> some View {
+        #if os(macOS)
+        self
+        #else
+        self.navigationBarTitleDisplayMode(.large)
+        #endif
+    }
+
+    /// Hides the navigation bar only when `condition` holds, so an embedded
+    /// child never suppresses its parent's native chrome.
+    @ViewBuilder
+    func hiddenNavigationBar(when condition: Bool) -> some View {
+        if condition { self.hiddenNavigationBar() } else { self }
+    }
+
     /// These screens draw their own header, so iPhone hides the navigation
     /// bar. A Mac window has no navigation bar to hide — the title lives in
     /// the window toolbar — so this is a no-op there.
