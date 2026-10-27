@@ -36,8 +36,6 @@ struct FindView: View {
         NavigationStack {
             VStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 0) {
-                        ScreenHeader(title: "Find", showAdd: false)
-                            .padding(.horizontal, 18)
                         MyMusicSearchControls(mode: $mode, bpmPreset: $bpmPreset,
                                               mixKey: $mixKey,
                                               onSoundRows: { rows in
@@ -69,7 +67,8 @@ struct FindView: View {
                 }
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
-            .hiddenNavigationBar()
+            .navigationTitle("Find")
+            .largeNavigationTitle()
         }
         .sheet(item: $selectedBlend) { blend in
             BlendDetailView(blend: blend)
