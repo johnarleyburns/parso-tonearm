@@ -11,6 +11,12 @@ on:
         type: choice
         required: true
         options: [audio, text]
+      precision:
+        description: Weight compression to evaluate (INT4 requires iOS 18+ Core ML)
+        type: choice
+        required: true
+        default: int4
+        options: [int4, int8]
       release_tag:
         description: Release tag, e.g. clap-audio-int8-128-v1-candidate
         type: string
@@ -38,10 +44,12 @@ jobs:
       - name: Validate inputs
         env:
           COMPONENT: ${{ inputs.component }}
+          PRECISION: ${{ inputs.precision }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
           [[ "$COMPONENT" == audio || "$COMPONENT" == text ]]
+          [[ "$PRECISION" == int4 || "$PRECISION" == int8 ]]
           [[ "$RELEASE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$ ]]
           test -f "tools/clap-coreml/generate_candidate_${COMPONENT}.py" \
             || { echo "Missing generator tools/clap-coreml/generate_candidate_${COMPONENT}.py" >&2; exit 1; }
@@ -90,12 +98,14 @@ jobs:
       - name: Generate and verify candidate
         env:
           COMPONENT: ${{ inputs.component }}
+          PRECISION: ${{ inputs.precision }}
         run: |
           set -euo pipefail
           "$WORK/venv/bin/python" -I "tools/clap-coreml/generate_candidate_${COMPONENT}.py" \
             --checkpoint "$WORK/download/music_audioset_epoch_15_esc_90.14.pt" \
             --checkpoint-revision "$CLAP_REVISION" \
             --checkpoint-sha256 "$CLAP_SHA256" \
+            --precision "$PRECISION" \
             --starter-dir Resources/Starter \
             --output-dir "$WORK/out"
       - name: Validate package manifest and checksums
