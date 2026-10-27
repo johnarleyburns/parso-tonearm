@@ -98,7 +98,7 @@ struct BlendLabView: View {
                 if session.document != nil { resultSections }
             }
             .navigationTitle("Blend Lab")
-            .task { playlistTracks = (try? appState.store.playlistTrackIDs()) ?? [:] }
+            .task { playlistTracks = (try? await appState.store.playlistTrackIDs()) ?? [:] }
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
