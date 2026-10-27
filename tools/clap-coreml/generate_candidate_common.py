@@ -134,7 +134,112 @@ def package_dir(package, archive):
     # ZIP_STORED and sorted paths make the artifact contents independently inspectable.
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as z:
         for path in sorted(Path(package).rglob("*")):
-            if path.is_file(): z.write(path, path.relative_to(package.parent))
+            if not path.is_file():
+                continue
+            info = zipfile.ZipInfo(str(path.relative_to(package.parent)), date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_STORED
+            info.external_attr = 0o644 << 16
+            z.writestr(info, path.read_bytes())
+
+
+MIN_COSINE = 0.995
+MIN_TOP10_OVERLAP = 0.95
+CORPUS_SIZE = 48
+COSINE_FIXTURES = 5
+TOP_K = 10
+
+
+def dir_size(path):
+    return sum(p.stat().st_size for p in Path(path).rglob("*") if p.is_file())
+
+
+def fixture_waveforms(count, sr=48000, seconds=10):
+    """Deterministic 10 s / 48 kHz waveforms: seeded sine mixtures plus shaped noise."""
+    t = np.arange(sr * seconds) / sr
+    out = []
+    for i in range(count):
+        rng = np.random.RandomState(1000 + i)
+        w = np.zeros_like(t)
+        for _ in range(int(rng.randint(2, 6))):
+            w += rng.uniform(0.1, 1.0) * np.sin(2 * np.pi * float(np.exp(rng.uniform(np.log(40), np.log(12000)))) * t + rng.uniform(0, 6.28))
+        w *= 0.5 + 0.5 * np.sin(2 * np.pi * rng.uniform(0.2, 4.0) * t)
+        w += rng.uniform(0.0, 0.4) * np.cumsum(rng.randn(t.size)) / np.sqrt(t.size)
+        out.append((w / (np.max(np.abs(w)) + 1e-9)).astype(np.float32))
+    return out
+
+
+def log_mel(model, waveform):
+    h = model.audio_branch
+    h.spectrogram_extractor.float(); h.logmel_extractor.float()
+    with torch.no_grad():
+        lm = h.logmel_extractor(h.spectrogram_extractor(torch.from_numpy(waveform).unsqueeze(0)))
+    lm = lm.numpy().astype(np.float32)
+    if lm.shape != (1, 1, 1001, 64):
+        raise RuntimeError(f"unexpected log-mel shape {lm.shape}")
+    return lm
+
+
+def unit(x):
+    return x / np.linalg.norm(x, axis=-1, keepdims=True)
+
+
+def top_k_overlap(ref, cand, k=TOP_K):
+    """Per-query overlap of top-k neighbours (query excluded) between two embedding sets."""
+    def neighbours(m, i):
+        sims = m @ m[i]
+        sims[i] = -np.inf
+        return set(np.argsort(-sims, kind="stable")[:k].tolist())
+    return [len(neighbours(ref, i) & neighbours(cand, i)) / k for i in range(len(ref))]
+
+
+def convert_audio_base512(model, ep_inputs, deployment):
+    """FP16 (default ML Program precision) 512-D reference: the numerical ground truth."""
+    class Base(torch.nn.Module):
+        def __init__(self, h, projection):
+            super().__init__(); self.h = h; self.projection = projection
+        def forward(self, log_mel):
+            x = log_mel.transpose(1, 3); x = self.h.bn0(x); x = x.transpose(1, 3)
+            out = self.h.forward_features(self.h.reshape_wav2img(x))
+            return F.normalize(self.projection(out["embedding"]), dim=-1)
+    base = Base(model.audio_branch, model.audio_projection).eval()
+    example = (torch.zeros(1, 1, 1001, 64),)
+    ep = replace_fmod(torch.export.export(base, example, strict=True).run_decompositions())
+    return ct.convert(ep, inputs=ep_inputs, outputs=[ct.TensorType(name="audio_embedding")], source="pytorch",
+                      convert_to="mlprogram", compute_units=ct.ComputeUnit.CPU_AND_GPU,
+                      minimum_deployment_target=deployment)
+
+
+def verify_audio(model, reference_ml, cm, mean, components):
+    """Run the five-fixture cosine gate and the fixed-corpus top-10 overlap gate."""
+    mean_np, comp_np = mean.numpy(), components.numpy()
+    waves = fixture_waveforms(CORPUS_SIZE)
+    ref_vecs, cand_vecs = [], []
+    for w in waves:
+        feed = {"log_mel": log_mel(model, w)}
+        base = unit(np.asarray(reference_ml.predict(feed)["audio_embedding"], dtype=np.float64))
+        ref_vecs.append(unit((base - mean_np) @ comp_np.T)[0])
+        cand_vecs.append(np.asarray(cm.predict(feed)["audio_embedding"], dtype=np.float64)[0])
+    ref, cand = np.stack(ref_vecs), np.stack(cand_vecs)
+    failures = []
+    if cand.shape[1] != 128 or not np.all(np.isfinite(cand)):
+        failures.append("candidate output is not finite 128-D")
+    norms = np.linalg.norm(cand, axis=1)
+    if np.any(np.abs(norms - 1.0) > 1e-2):
+        failures.append(f"candidate output not unit length (min {norms.min():.6f}, max {norms.max():.6f})")
+    cosines = [float(np.dot(ref[i], cand[i]) / (np.linalg.norm(ref[i]) * np.linalg.norm(cand[i]))) for i in range(COSINE_FIXTURES)]
+    for i, c in enumerate(cosines):
+        if not np.isfinite(c) or c < MIN_COSINE:
+            failures.append(f"fixture {i} cosine {c:.6f} < {MIN_COSINE}")
+    overlaps = top_k_overlap(ref, cand)
+    mean_overlap = float(np.mean(overlaps))
+    failed_queries = [{"query": i, "overlap": o} for i, o in enumerate(overlaps) if o < MIN_TOP10_OVERLAP]
+    if mean_overlap < MIN_TOP10_OVERLAP:
+        failures.append(f"mean top-{TOP_K} overlap {mean_overlap:.4f} < {MIN_TOP10_OVERLAP}")
+    return {"fixture_cosines": cosines, "min_fixture_cosine": min(cosines), "minimum_cosine": MIN_COSINE,
+            "corpus_size": CORPUS_SIZE, "top_k": TOP_K, "mean_top10_overlap": mean_overlap,
+            "minimum_mean_top10_overlap": MIN_TOP10_OVERLAP, "failed_queries": failed_queries,
+            "candidate_norm_min": float(norms.min()), "candidate_norm_max": float(norms.max()),
+            "failures": failures, "passed": not failures}
 
 
 def main(component):
@@ -168,20 +273,47 @@ def main(component):
     candidate = linear_quantize_weights(raw, config)
     package = args.output_dir / f"clap-{component}-{args.precision}-128.mlpackage"
     candidate.save(package)
-    # A real Core ML prediction is mandatory evidence; candidates below this fail closed.
-    cm = ct.models.MLModel(package, compute_units=ct.ComputeUnit.CPU_ONLY)
-    feed = {"log_mel": example[0].numpy()} if component == "audio" else {"input_ids": example[0].numpy().astype(np.int32), "attention_mask": example[1].numpy().astype(np.int32)}
-    actual = cm.predict(feed)[output]
-    cosine = float(np.dot(reference[0], actual[0]) / (np.linalg.norm(reference[0]) * np.linalg.norm(actual[0])))
-    if not np.isfinite(cosine) or cosine < 0.985:
-        raise RuntimeError(f"candidate fidelity gate failed: cosine={cosine:.6f} < 0.985")
+    # A real Core ML prediction is mandatory evidence; candidates below the gates fail closed.
+    cm = ct.models.MLModel(str(package), compute_units=ct.ComputeUnit.CPU_ONLY)
+    if component == "audio":
+        reference_ml = convert_audio_base512(model, inputs, ct.target.iOS18)
+        source_path = args.output_dir / "reference-fp16-512.mlpackage"
+        reference_ml.save(str(source_path))
+        reference_ml = ct.models.MLModel(str(source_path), compute_units=ct.ComputeUnit.CPU_ONLY)
+        verification = verify_audio(model, reference_ml, cm, mean, components)
+        verification["component"] = component
+        verification["reference"] = "FP16 512-D Core ML model, then frozen projection, L2-normalized"
+        source_size = dir_size(source_path)
+        shutil.rmtree(source_path)
+        cosine = verification["min_fixture_cosine"]
+        if not verification["passed"]:
+            (args.output_dir / "verification.json").write_text(json.dumps(verification, indent=2) + "\n")
+            raise RuntimeError("candidate quality gates failed: " + "; ".join(verification["failures"]))
+    else:
+        source_size = None
+        feed = {"input_ids": example[0].numpy().astype(np.int32), "attention_mask": example[1].numpy().astype(np.int32)}
+        actual = cm.predict(feed)[output]
+        cosine = float(np.dot(reference[0], actual[0]) / (np.linalg.norm(reference[0]) * np.linalg.norm(actual[0])))
+        if not np.isfinite(cosine) or cosine < 0.985:
+            raise RuntimeError(f"candidate fidelity gate failed: cosine={cosine:.6f} < 0.985")
+        verification = {"component": component, "fixture": "zero-input deterministic smoke fixture", "cosine_to_pytorch": cosine, "minimum_cosine": 0.985, "passed": True}
     archive = args.output_dir / f"clap-{component}-{args.precision}-128.mlpackage.zip"
     package_dir(package, archive)
-    verification = {"component": component, "fixture": "zero-input deterministic smoke fixture", "cosine_to_pytorch": cosine, "minimum_cosine": 0.985, "passed": True}
-    manifest = {"component": component, "dimensions": 128, "precision": args.precision, "minimum_deployment_target": "iOS18", "source_checkpoint_revision": args.checkpoint_revision, "source_checkpoint_sha256": args.checkpoint_sha256, "projection_sha256": projection_sha, "coremltools_version": ct.__version__, "python_version": platform.python_version(), "inputs": [x.name for x in inputs], "outputs": [output], "quantization": {"algorithm": "linear_symmetric", "granularity": "per_block", "block_size": 32, "weights_only": True}, "archive_sha256": sha256(archive)}
+    manifest = {"component": component, "dimensions": 128, "precision": args.precision, "minimum_deployment_target": "iOS18", "source_checkpoint_revision": args.checkpoint_revision, "source_checkpoint_sha256": args.checkpoint_sha256, "projection_sha256": projection_sha, "coremltools_version": ct.__version__, "python_version": platform.python_version(), "inputs": [x.name for x in inputs], "outputs": [output], "quantization": {"algorithm": "linear_symmetric", "granularity": "per_block", "block_size": 32, "weights_only": True, "api": "coremltools.optimize.coreml.linear_quantize_weights", "dtype": args.precision, "mixed_precision_exceptions": "none configured; ops Core ML cannot quantize remain at their converted precision"}, "projection": {"source_dims": 512, "target_dims": 128, "sha256": projection_sha, "applied_after": "normalized 512-D audio embedding, then L2-normalized"}, "package_size_bytes": dir_size(package), "verification": verification, "source_fp16_512_package_size_bytes": source_size, "archive_size_bytes": archive.stat().st_size, "archive_sha256": sha256(archive)}
     (args.output_dir / "verification.json").write_text(json.dumps(verification, indent=2) + "\n")
     (args.output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    (args.output_dir / "REPORT.md").write_text(f"# CLAP {component} {args.precision} 128-D candidate\n\n- Core ML prediction cosine to PyTorch: `{cosine:.6f}` (gate: `0.985`)\n- Weight-only `{args.precision}` compression; this is not a runtime-speed claim.\n- Uses the frozen starter 512-to-128 projection (`{projection_sha}`).\n- Minimum deployment target: iOS 18.\n")
+    lines = [f"# CLAP {component} {args.precision} 128-D candidate", "",
+             f"- Gate metric (min fixture cosine to reference): `{cosine:.6f}`",
+             f"- Package size: `{manifest['package_size_bytes']}` bytes (FP16 512-D source: `{source_size}`); archive `{manifest['archive_size_bytes']}` bytes",
+             f"- Weight-only `{args.precision}` per-block (32) linear_symmetric compression; not a runtime-speed claim.",
+             f"- Frozen starter 512-to-128 projection SHA-256: `{projection_sha}`",
+             f"- Archive SHA-256: `{manifest['archive_sha256']}`",
+             "- Minimum deployment target: iOS 18."]
+    if component == "audio":
+        lines += [f"- Fixture cosines: `{[round(c, 6) for c in verification['fixture_cosines']]}` (gate `{MIN_COSINE}`)",
+                  f"- Mean top-{TOP_K} overlap over {CORPUS_SIZE} fixtures: `{verification['mean_top10_overlap']:.4f}` (gate `{MIN_TOP10_OVERLAP}`)",
+                  f"- Queries below overlap gate: `{verification['failed_queries']}`"]
+    (args.output_dir / "REPORT.md").write_text("\n".join(lines) + "\n")
 
 
 if __name__ == "__main__":
