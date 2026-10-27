@@ -153,4 +153,30 @@ final class BlendLabScopeTests: XCTestCase {
                                             library: (1...4).map(row))
         XCTAssertEqual(Set(out.rows.map(\.id)), [2, 3])
     }
+
+    private func plainRow(_ id: Int64) -> TrackRow {
+        TrackRow(track: Track(id: id, albumId: nil, sourceId: 1, title: "T\(id)", trackNo: nil, discNo: nil,
+                              durationSec: 100, codec: nil, sampleRate: nil, bitDepthOrBitrate: nil,
+                              sortKey: "t\(id)", syncID: "S\(id)"), album: nil, source: nil, asset: nil)
+    }
+
+    func testEligibleIDsBPMRangeIsInclusiveAndExcludesUnknown() {
+        let lib = (1...4).map(plainRow)
+        let bpm: [Int64: Double] = [1: 120, 2: 130, 3: 131]  // 4 unknown
+        let out = BlendLabScope.eligibleIDs(allowed: nil, library: lib, bpm: 120...130, bpmByID: bpm)
+        XCTAssertEqual(out, [1, 2])
+        XCTAssertEqual(BlendLabScope.eligibleIDs(allowed: nil, library: lib, bpm: nil, bpmByID: bpm), [1, 2, 3, 4])
+        XCTAssertEqual(BlendLabScope.eligibleIDs(allowed: [2, 3], library: lib, bpm: 120...130, bpmByID: bpm), [2])
+    }
+
+    func testReversedBPMRangeIsInvalid() {
+        XCTAssertFalse(BlendLabScope.isValidBPMRange(lower: 130, upper: 120))
+        XCTAssertTrue(BlendLabScope.isValidBPMRange(lower: 120, upper: 120))
+    }
+
+    func testCountBoundsForSourceSizes() {
+        let maxes = [0, 1, 2, 7, 12].map { BlendLabScope.maxTrackCount(available: $0) }
+        XCTAssertEqual(maxes, [0, 1, 2, 7, 10])
+        XCTAssertEqual([0, 1, 2, 7, 12].map { BlendLabScope.clampedCount(40, available: $0) }, [2, 2, 2, 7, 10])
+    }
 }

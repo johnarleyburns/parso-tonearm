@@ -29,11 +29,20 @@ public enum BlendLabScope: String, CaseIterable, Sendable, Identifiable {
     public static let minTracks = 2
     public static let maxTracks = 10
 
-    /// Common BPM ranges by style, for the "All" scope.
-    public static let bpmPresets: [(name: String, range: ClosedRange<Double>)] = [
-        ("Any tempo", 0...1000), ("Hip hop (80–100)", 80...100), ("House (118–130)", 118...130),
-        ("Techno (125–150)", 125...150), ("Trance (130–145)", 130...145),
-        ("Dubstep (138–142)", 138...142), ("Drum and bass (160–180)", 160...180)]
+    /// A BPM filter is valid when its lower bound does not exceed its upper bound.
+    public static func isValidBPMRange(lower: Double, upper: Double) -> Bool { lower <= upper }
+
+    /// Ids in scope after the optional inclusive BPM filter. A track with unknown BPM
+    /// is excluded whenever `bpm` is set.
+    public static func eligibleIDs(allowed: Set<Int64>?, library: [TrackRow], bpm: ClosedRange<Double>?,
+                                   bpmByID: [Int64: Double]) -> Set<Int64> {
+        Set(library.compactMap { row -> Int64? in
+            guard let id = row.track.id else { return nil }
+            if let allowed, !allowed.contains(id) { return nil }
+            if let bpm, !(bpmByID[id].map(bpm.contains) ?? false) { return nil }
+            return id
+        })
+    }
 
     /// Highest track count allowed for `available` tracks in scope: the smaller of that and 10.
     public static func maxTrackCount(available: Int) -> Int { min(maxTracks, available) }
@@ -52,7 +61,8 @@ public enum BlendLabScope: String, CaseIterable, Sendable, Identifiable {
     /// Ids of library tracks with exactly this genre.
     public static func trackIDs(genre: String, in library: [TrackRow]) -> Set<Int64> {
         Set(library.compactMap { row in
-            row.track.genre?.trimmingCharacters(in: .whitespaces) == genre ? row.track.id : nil
+            row.track.genre?.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(genre) == .orderedSame
+                ? row.track.id : nil
         })
     }
 }
