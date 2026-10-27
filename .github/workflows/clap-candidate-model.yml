@@ -41,6 +41,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      # xcode-27 currently defaults to a Python version without a torch 2.7
+      # macOS wheel. Keep the interpreter explicit and within torch's wheel
+      # support matrix rather than silently depending on runner image churn.
+      - name: Select supported Python for PyTorch
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Validate inputs
         env:
           COMPONENT: ${{ inputs.component }}
@@ -79,7 +86,8 @@ jobs:
       - name: Install pinned Python packages
         run: |
           set -euo pipefail
-          python3 -m venv "$WORK/venv"
+          python3.12 --version
+          python3.12 -m venv "$WORK/venv"
           "$WORK/venv/bin/pip" install --no-input -r tools/clap-coreml/requirements-candidate.txt
           if grep -Ev '^\s*(#|$)' tools/clap-coreml/requirements-candidate.txt | grep -Evq '=='; then
             echo "requirements must be exact == pins" >&2; exit 1

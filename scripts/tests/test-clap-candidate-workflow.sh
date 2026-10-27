@@ -21,6 +21,9 @@ grep -Fq 'gh release create "$RELEASE_TAG"' "$wf"
 grep -Fq -- '--prerelease' "$wf"
 grep -Fq 'precision:' "$wf"
 grep -Fq -- '--precision "$PRECISION"' "$wf"
+grep -Fq 'actions/setup-python@v5' "$wf"
+grep -Fq "python-version: '3.12'" "$wf"
+grep -Fq 'python3.12 -m venv' "$wf"
 ! grep -Eq 'models\.lock|gh release (edit|upload|delete)|--clobber' "$wf"
 # Converter step must not see the token.
 ! sed -n '/name: Generate and verify candidate/,/name: Validate package/p' "$wf" | grep -q GH_TOKEN
