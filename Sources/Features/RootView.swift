@@ -24,13 +24,7 @@ struct RootView: View {
         ZStack(alignment: .bottom) {
             backgroundLayer.ignoresSafeArea()
 
-            NavigationStack {
-                rootTabs
-                    .navigationDestination(isPresented: $appState.showNowPlaying) {
-                        NowPlayingView()
-                            .navigationTransition(.zoom(sourceID: "now-playing", in: nowPlayingTransition))
-                    }
-            }
+            rootTabs
 
             if accessoryHeight > 0 {
                 tabAccessory
@@ -80,25 +74,29 @@ struct RootView: View {
     @ViewBuilder
     private var rootTabs: some View {
         baseTabs
+            .environment(\.rootTabAccessoryHeight, accessoryHeight)
+            .environment(\.rootTabNowPlayingNamespace, nowPlayingTransition)
             .sensoryFeedback(.selection, trigger: appState.tab)
     }
 
     private var baseTabs: some View {
         TabView(selection: $appState.tab) {
-            ListenView()
-                .safeAreaInset(edge: .bottom, spacing: 0) { accessoryClearance }
+            NavigationStack {
+                ListenView()
+                    .rootTabChrome(.listen)
+            }
                 .tabItem { Label("Listen", systemImage: "play.circle.fill") }
                 .tag(AppTab.listen)
             MyMusicView()
-                .safeAreaInset(edge: .bottom, spacing: 0) { accessoryClearance }
                 .tabItem { Label("My Music", systemImage: "music.note.list") }
                 .tag(AppTab.myMusic)
-            MoodView()
-                .safeAreaInset(edge: .bottom, spacing: 0) { accessoryClearance }
+            NavigationStack {
+                MoodView()
+                    .rootTabChrome(.mood)
+            }
                 .tabItem { Label("Mood", systemImage: "sparkles") }
                 .tag(AppTab.mood)
             FindView()
-                .safeAreaInset(edge: .bottom, spacing: 0) { accessoryClearance }
                 .tabItem { Label("Find", systemImage: "magnifyingglass") }
                 .tag(AppTab.find)
         }
@@ -118,10 +116,6 @@ struct RootView: View {
                     .id(player.currentTrack?.id ?? -1)
             }
         }
-    }
-
-    private var accessoryClearance: some View {
-        Color.clear.frame(height: accessoryHeight).allowsHitTesting(false)
     }
 
     private var backgroundLayer: some View {

@@ -123,6 +123,7 @@ struct MyMusicView: View {
             .background(Palette.libraryBackground.ignoresSafeArea())
             .navigationTitle("My Music")
             .largeNavigationTitle()
+            .rootTabChrome(.myMusic)
         }
         .task {
             // On Mac the search field is the window toolbar's, and typing in
@@ -172,7 +173,7 @@ struct MyMusicView: View {
                     .accessibilityIdentifier("mymusic.scope.\(candidate.rawValue.lowercased().replacingOccurrences(of: " ", with: ""))")
                 }
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 16)
         }
         .padding(.top, 8)
         .padding(.bottom, 4)
