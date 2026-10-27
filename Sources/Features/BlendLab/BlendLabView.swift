@@ -8,19 +8,16 @@ struct BlendLabEntryButton: View {
 
     var body: some View {
         Button { appState.showBlendLab = true } label: {
-            HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 Image(systemName: "wand.and.stars").foregroundStyle(Palette.accent)
+                    .font(Typography.title)
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Blend Lab").font(Typography.headline)
-                    Text("Create, preview, edit and save a blend.")
-                        .font(Typography.caption).foregroundStyle(Palette.inkSecondary)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right").foregroundStyle(Palette.inkTertiary)
-                    .accessibilityHidden(true)
+                Text("Blend Lab").font(Typography.headline)
+                Text("Create, preview, edit and save a blend.")
+                    .font(Typography.caption).foregroundStyle(Palette.inkSecondary).lineLimit(2)
             }
             .padding(12)
+            .frame(width: 250, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -73,7 +70,8 @@ struct BlendLabView: View {
     @State private var genre: String?
     @State private var playlistID: Int64?
     @State private var playlistTracks: [Int64: [Int64]] = [:]
-    @State private var bpmIndex = 0
+    @State private var minimumBPM = 80.0
+    @State private var maximumBPM = 160.0
     @State private var shape: MixShape = .steady
     @State private var replacing: ReplaceTarget?
     @State private var title = ""
@@ -140,8 +138,11 @@ struct BlendLabView: View {
                 }
                 .accessibilityIdentifier("blendlab.playlist")
             case .all:
-                Picker("Tempo", selection: $bpmIndex) {
-                    ForEach(Array(BlendLabScope.bpmPresets.enumerated()), id: \.offset) { Text($1.name).tag($0) }
+                VStack(alignment: .leading) {
+                    Stepper("Minimum BPM: \(Int(minimumBPM))", value: $minimumBPM, in: 0...400, step: 1)
+                        .accessibilityIdentifier("blendlab.bpm.min")
+                    Stepper("Maximum BPM: \(Int(maximumBPM))", value: $maximumBPM, in: 0...400, step: 1)
+                        .accessibilityIdentifier("blendlab.bpm.max")
                 }
                 .accessibilityIdentifier("blendlab.bpm")
             }
@@ -161,11 +162,11 @@ struct BlendLabView: View {
             } else {
                 Button(session.document == nil ? "Generate" : "Regenerate") { generate() }
                     .accessibilityIdentifier("blendlab.generate")
-                    .disabled(appState.allTracks.isEmpty || scopedIDs.map { $0.count < BlendLabScope.minTracks } ?? false)
+                    .disabled(!canGenerate)
             }
-            if appState.allTracks.isEmpty {
-                Text("Add music to your library to create a blend.")
-                    .font(Typography.caption).foregroundStyle(Palette.inkSecondary)
+            if let reason = unavailableReason {
+                Text(reason).font(Typography.caption).foregroundStyle(Palette.inkSecondary)
+                    .accessibilityIdentifier("blendlab.unavailable")
             }
         }
     }
@@ -259,16 +260,40 @@ struct BlendLabView: View {
         }
     }
 
-    private var maxCount: Int {
-        BlendLabScope.maxTrackCount(available: scopedIDs?.count ?? appState.allTracks.count)
+    private var isValidBPMRange: Bool { BlendLabScope.isValidBPMRange(lower: minimumBPM, upper: maximumBPM) }
+
+    private var bpmRange: ClosedRange<Double>? {
+        scope == .all && isValidBPMRange ? minimumBPM...maximumBPM : nil
     }
 
-    private var clampedCount: Int {
-        BlendLabScope.clampedCount(count, available: scopedIDs?.count ?? appState.allTracks.count)
+    private var eligibleCount: Int {
+        let bpmByID = appState.musicalInfo.compactMapValues(\.bpm)
+        return BlendLabScope.eligibleIDs(allowed: scopedIDs, library: appState.allTracks,
+                                         bpm: bpmRange, bpmByID: bpmByID).count
     }
+
+    private var canGenerate: Bool {
+        !appState.allTracks.isEmpty && (scope != .all || isValidBPMRange) && eligibleCount >= BlendLabScope.minTracks
+    }
+
+    private var unavailableReason: LocalizedStringKey? {
+        if appState.allTracks.isEmpty { return "Add music to your library to create a blend." }
+        if scope == .all && !isValidBPMRange { return "The minimum BPM must not exceed the maximum." }
+        guard eligibleCount < BlendLabScope.minTracks else { return nil }
+        switch scope {
+        case .genre: return genre == nil ? "Choose a genre." : "This genre has fewer than 2 tracks."
+        case .playlist: return playlistID == nil ? "Choose a playlist." : "This playlist has fewer than 2 tracks."
+        case .all: return "No tracks match \(Int(minimumBPM))–\(Int(maximumBPM)) BPM."
+        }
+    }
+
+    private var maxCount: Int { BlendLabScope.maxTrackCount(available: eligibleCount) }
+
+    private var clampedCount: Int { BlendLabScope.clampedCount(count, available: eligibleCount) }
 
     private func generate() {
-        let bpm = scope == .all && bpmIndex > 0 ? BlendLabScope.bpmPresets[bpmIndex].range : nil
+        guard canGenerate else { return }
+        let bpm = bpmRange
         session.start(BlendLabRequest(targetTrackCount: clampedCount, shape: shape,
                                       allowedTrackIDs: scopedIDs, bpmRange: bpm))
     }
