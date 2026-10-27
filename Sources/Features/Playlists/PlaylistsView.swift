@@ -163,7 +163,7 @@ struct PlaylistsView: View {
             .navigationDestination(for: String.self) { value in
                 if value == "ambient" { AmbientPlaylistView() }
             }
-            .hiddenNavigationBar()
+            .hiddenNavigationBar(when: ownsNavigationStack)
             .sheet(isPresented: $showLocalCreate) {
                 CreatePlaylistSheet(isEmbedded: true)
             }
