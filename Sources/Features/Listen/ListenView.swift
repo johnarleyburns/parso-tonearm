@@ -31,14 +31,13 @@ struct ListenView: View {
                     Spacer().frame(height: 16)
                 }
 
-                BlendLabEntryButton()
-                StarterBlendsSection()
                 cardRow(title: "Jump Back In", rows: appState.recentlyPlayed,
                         emptyMessage: "Your recently played music will appear here.", identifier: "listen.recent")
                 favorites
                 statsCard(appState.listeningStats)
                     .redacted(reason: appState.didLoadLibraryOnce ? [] : .placeholder)
-
+                StarterBlendsSection()
+                BlendLabEntryButton()
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 160)

@@ -18,11 +18,14 @@ private struct StarterBlendsList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: "Starter Blends")
-            VStack(spacing: 10) {
-                ForEach(StarterBlendCatalog.blends) { blend in
-                    StarterBlendCard(blend: blend, state: playback.state(for: blend),
-                                     play: { Task { await playback.play(blend) } })
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(StarterBlendCatalog.blends) { blend in
+                        StarterBlendCard(blend: blend, state: playback.state(for: blend),
+                                         play: { Task { await playback.play(blend) } })
+                    }
                 }
+                .padding(.horizontal, 2)
             }
             HStack(spacing: 6) {
                 Text(StarterBlendCatalog.attribution)
@@ -44,20 +47,20 @@ private struct StarterBlendCard: View {
     let play: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 14)
                     .fill(Color(hue: blend.artworkHue, saturation: 0.55, brightness: 0.45))
                 Image(systemName: blend.artworkSymbol)
                     .foregroundStyle(.white)
                     .font(Typography.title)
             }
-            .frame(width: 56, height: 56)
+            .frame(width: 132, height: 132)
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(blend.title).font(Typography.headline)
-                Text(blend.subtitle).font(Typography.caption).foregroundStyle(Palette.inkSecondary)
+                Text(blend.title).font(Typography.callout).lineLimit(1)
+                Text(blend.subtitle).font(Typography.caption).foregroundStyle(Palette.inkSecondary).lineLimit(2)
                 if case .failed(let message) = state {
                     Text(message).font(Typography.caption).foregroundStyle(Palette.danger)
                 }
@@ -76,7 +79,7 @@ private struct StarterBlendCard: View {
                     EmptyView()
                 }
             }
-            Spacer(minLength: 8)
+            .padding(.top, 7)
             Button(action: play) {
                 if state == .loading || state == .buffering {
                     ProgressView()
@@ -88,10 +91,10 @@ private struct StarterBlendCard: View {
             }
             .buttonStyle(.bordered)
             .disabled(state == .loading || state == .buffering || isPermanent)
+            .padding(.top, 6)
             .accessibilityIdentifier("listen.starter.play.\(blend.id)")
         }
-        .padding(12)
-        .background(Palette.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+        .frame(width: 132, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(blend.title). \(blend.subtitle)")
         .accessibilityHint(hint)
