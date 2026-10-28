@@ -293,4 +293,17 @@ enum DiscoveryMigrations {
             t.add(column: "nextScheduledAt", .datetime)
         }
     }
+
+    /// Native embedding-space contract: a one-row table holding the fingerprint of the
+    /// installed space. Derived discovery state is reset (outside this migration, by
+    /// `EmbeddingSpace.install`) whenever it differs from the app's current space.
+    static func v39(_ db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE IF NOT EXISTS discovery_embedding_space (
+              singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+              fingerprint TEXT NOT NULL,
+              installedAt TEXT NOT NULL
+            )
+            """)
+    }
 }

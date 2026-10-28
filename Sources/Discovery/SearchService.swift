@@ -270,6 +270,11 @@ public actor SearchService {
             return response(mode: .semantic, state: .modelDownloadFailed, results: [],
                 coverage: coverage, generation: nil, start: start)
         }
+        guard queryVector.count == EmbeddingSpace.current.dimensions else {
+            if !keywords.isEmpty { return keywordOnly(q, keywords, coverage: coverage, start: start) }
+            return response(mode: .semantic, state: .searchFailed, results: [], coverage: coverage,
+                generation: nil, start: start)
+        }
         if isCancelled() { return cancelledResponse(.semantic, start) }
 
         // Plain prose has no musical target — energy/phrase are never invented
@@ -545,7 +550,7 @@ public actor SearchService {
     private func refinedQueryVector(
         _ q: ValidatedQuery, encoder: any SemanticModel
     ) async throws -> [Float] {
-        var vec = [Float](repeating: 0, count: encoder.spec.dimensions)
+        var vec = [Float](repeating: 0, count: EmbeddingSpace.current.dimensions)
         if !q.text.isEmpty {
             vec = try await encoder.embedText(q.text)
         }

@@ -106,6 +106,8 @@ public actor DiscoveryAssembly {
         self.modelDownloadTagDebugProvider = modelDownloadTagDebugProvider
         self.modelDiagnosticsProvider = modelDiagnosticsProvider
         self.executionEngineProvider = executionEngineProvider
+        // Bootstrap: reconcile the persisted embedding-space contract before any work runs.
+        try? EmbeddingSpace.install(on: writer)
         let jobs = IndexJobRepository(writer: writer)
         self.jobs = jobs
         self.importJobs = ImportJobRepository(writer: writer)

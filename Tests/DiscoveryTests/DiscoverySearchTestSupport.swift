@@ -16,6 +16,10 @@ enum SearchFixture {
         config.foreignKeysEnabled = true
         let queue = try DatabaseQueue()
         try Schema.migrator().migrate(queue)
+        // Bootstrap the embedding-space contract, as the assembly does at open.
+        try EmbeddingSpace.install(
+            on: queue, cacheURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("space-\(UUID().uuidString).bin"))
         return queue
     }
 
@@ -52,6 +56,13 @@ enum SearchFixture {
         return asset.id!
     }
 
+    /// Zero-pads a short test vector up to the native embedding width; longer
+    /// vectors are left alone so tests can seed wrong-dimension rows.
+    static func padded(_ vector: [Float]) -> [Float] {
+        vector.count >= EmbeddingSpace.current.dimensions
+            ? vector : vector + [Float](repeating: 0, count: EmbeddingSpace.current.dimensions - vector.count)
+    }
+
     /// Seed a real quantized embedding row for `trackId` from an arbitrary
     /// vector (L2-normalized then int8-quantized, exactly as the worker does).
     static func seedEmbedding(
@@ -61,7 +72,7 @@ enum SearchFixture {
         samplingVersion: Int = DiscoveryPipelineVersion.sampling,
         completedAt: Date = Date()
     ) throws {
-        let unit = SemanticPooling.l2Normalized(vector)
+        let unit = SemanticPooling.l2Normalized(padded(vector))
         let (int8, scale) = VectorQuantization.quantize(unit)
         var row = DiscoveryEmbedding(
             trackId: trackId, assetId: assetId, assetRevision: 1, modelVersion: modelVersion,
@@ -104,9 +115,10 @@ struct FixedTextModel: SemanticModel {
     init(dimensions: Int, vector: [Float]) {
         precondition(vector.count == dimensions)
         var spec = EmbeddingModelSpec.musicCLAPMetadata
-        spec.dimensions = dimensions
+        let full = SearchFixture.padded(vector)
+        spec.dimensions = full.count
         self.spec = spec
-        self.vector = SemanticPooling.l2Normalized(vector)
+        self.vector = SemanticPooling.l2Normalized(full)
     }
 
     func embedText(_ text: String) async throws -> [Float] { vector }

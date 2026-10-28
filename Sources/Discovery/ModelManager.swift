@@ -176,7 +176,7 @@ public actor ModelManager {
             throw ModelManagerError.tokenizerLoadFailed(error.localizedDescription)
         }
 
-        // Text spec: 512-d shared space, the model's real 77-token limit
+        // Text spec: shared embedding space (`EmbeddingSpace.current`), the model's real 77-token limit
         // (`EmbeddingModelSpec.musicCLAPMetadata.textMaxLength`) — the
         // tokenizer enforces it, keeping `<s>` and re-appending `</s>` on
         // truncation (`RoBERTaTokenizer.encode`). No mel filterbank is needed

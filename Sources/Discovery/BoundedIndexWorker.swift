@@ -273,6 +273,9 @@ public actor BoundedIndexWorker: IndexJobExecuting {
         guard !pooled.isEmpty, pooled.allSatisfy({ $0.isFinite }) else {
             return .embeddingStageFinished(.failed)
         }
+        guard pooled.count == EmbeddingSpace.current.dimensions else {
+            return .embeddingStageFinished(.failed)
+        }
         let (int8, scale) = VectorQuantization.quantize(pooled)
 
         let trackId = job.trackId

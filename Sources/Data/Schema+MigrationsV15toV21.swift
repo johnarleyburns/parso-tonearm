@@ -433,5 +433,10 @@ extension Schema {
                 try LibraryStore.seedStarterCatalog(db)
             }
         }
+        if shouldRegister("v39", upTo: target) {
+            migrator.registerMigration("v39") { db in
+                try DiscoveryMigrations.v39(db)
+            }
+        }
     }
 }

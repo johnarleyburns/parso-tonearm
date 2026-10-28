@@ -17,14 +17,18 @@ final class DiscoveryAssemblyTests: XCTestCase {
         config.foreignKeysEnabled = true
         let queue = try DatabaseQueue(configuration: config)
         try Schema.migrator().migrate(queue)
+        // The contract is already installed on an existing database at launch.
+        try EmbeddingSpace.install(on: queue)
         return queue
     }
 
     private func spec() -> EmbeddingModelSpec {
         let meta = EmbeddingModelSpec.musicCLAPMetadata
         let bins = meta.fftSize / 2 + 1
-        return EmbeddingModelSpec.musicCLAP(
+        var spec = EmbeddingModelSpec.musicCLAP(
             melFilterBank: [Float](repeating: 0.01, count: bins * meta.melBins))
+        spec.dimensions = EmbeddingSpace.current.dimensions
+        return spec
     }
 
     private func nominal(paused: Bool = false) -> DiscoverySchedulingSnapshot {

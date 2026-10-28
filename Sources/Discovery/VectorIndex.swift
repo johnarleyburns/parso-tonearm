@@ -94,6 +94,7 @@ public actor VectorIndex {
     /// ahead (plan §8: "reconcile generation and rebuild before using stale
     /// snapshots").
     public func currentSnapshot() throws -> Snapshot {
+        try ensureEmbeddingSpaceInstalled()
         let live = try liveSignature()
 
         if let published, published.signature == live {
@@ -113,6 +114,7 @@ public actor VectorIndex {
     /// corrupt, and by the recovery tests.
     @discardableResult
     public func rebuildFromEmbeddings() throws -> Snapshot {
+        try ensureEmbeddingSpaceInstalled()
         let rebuilt = try rebuild(signature: try liveSignature())
         published = rebuilt
         return rebuilt
@@ -128,6 +130,17 @@ public actor VectorIndex {
     /// Test/diagnostic hook: the raw bytes currently on disk, if any.
     public func cacheFileByteCount() -> Int? {
         (try? Data(contentsOf: cacheURL))?.count
+    }
+
+    private var spaceInstalled = false
+
+    /// Reconciles the persisted embedding-space fingerprint with
+    /// `EmbeddingSpace.current` once per index, resetting derived state (and
+    /// dropping the published snapshot) on mismatch.
+    private func ensureEmbeddingSpaceInstalled() throws {
+        guard !spaceInstalled else { return }
+        if try EmbeddingSpace.install(on: writer, cacheURL: cacheURL) { published = nil }
+        spaceInstalled = true
     }
 
     // MARK: - Signature
@@ -155,40 +168,21 @@ public actor VectorIndex {
         generationCounter += 1
         let generation = generationCounter
 
-        struct Head {
-            let dims: Int
-            let model: Int
-            let preprocessing: Int
-            let sampling: Int
-        }
+        let space = EmbeddingSpace.current
+        let head = (
+            dims: space.dimensions, model: DiscoveryPipelineVersion.model,
+            preprocessing: space.preprocessingVersion, sampling: space.samplingVersion)
 
-        let (head, rows): (Head?, [DiscoveryEmbedding]) = try writer.read { db in
-            // The most recently completed embedding defines the "current"
-            // pipeline; every older-version row is excluded from the scan set.
-            guard let newest = try DiscoveryEmbedding
-                .order(Column("completedAt").desc, Column("trackId").desc)
-                .fetchOne(db)
-            else { return (nil, []) }
-            let head = Head(
-                dims: newest.dimensions,
-                model: newest.modelVersion,
-                preprocessing: newest.preprocessingVersion,
-                sampling: newest.samplingVersion)
-            let matching = try DiscoveryEmbedding
+        // Only rows in the current embedding space are scanned; any other
+        // dimension/version is ignored, never selected as "newest".
+        let rows: [DiscoveryEmbedding] = try writer.read { db in
+            try DiscoveryEmbedding
                 .filter(Column("modelVersion") == head.model)
                 .filter(Column("preprocessingVersion") == head.preprocessing)
                 .filter(Column("samplingVersion") == head.sampling)
                 .filter(Column("dimensions") == head.dims)
                 .order(Column("trackId").asc)
                 .fetchAll(db)
-            return (head, matching)
-        }
-
-        guard let head else {
-            return Snapshot(
-                generation: generation, signature: signature, dimensions: 0,
-                modelVersion: 0, preprocessingVersion: 0, samplingVersion: 0,
-                matrix: Data(), trackIDByRow: [])
         }
 
         let stride = Self.rowBytes(dimensions: head.dims)
