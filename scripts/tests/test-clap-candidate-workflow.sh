@@ -33,4 +33,6 @@ for f in "$root/tools/clap-coreml/generate_candidate_audio.py" "$root/tools/clap
   test -f "$f"
   python3 -m py_compile "$f"
 done
+grep -Fq 'sys.path.insert(0, str(Path(__file__).resolve().parent))' "$root/tools/clap-coreml/generate_candidate_audio.py"
+grep -Fq 'sys.path.insert(0, str(Path(__file__).resolve().parent))' "$root/tools/clap-coreml/generate_candidate_text.py"
 echo "clap candidate workflow policy OK"
