@@ -242,6 +242,100 @@ def verify_audio(model, reference_ml, cm, mean, components):
             "failures": failures, "passed": not failures}
 
 
+TEXT_PROMPTS = [
+    "calm acoustic guitar", "energetic electronic dance music", "slow jazz piano ballad",
+    "heavy distorted metal guitars", "orchestral strings and brass", "lo-fi hip hop beat",
+    "upbeat pop song with female vocals", "ambient synthesizer drone", "solo violin classical",
+    "reggae with offbeat guitar", "thunderstorm and rain sounds", "tribal drums and percussion",
+]
+
+
+def quantize(raw, precision):
+    dtype = mil_types.int4 if precision == "int4" else mil_types.int8
+    config = OptimizationConfig(global_config=OpLinearQuantizerConfig(mode="linear_symmetric", dtype=dtype, granularity="per_block", block_size=32))
+    return linear_quantize_weights(raw, config)
+
+
+def convert_text_base512(model, deployment):
+    """FP16 512-D text reference (L2-normalized text embedding, before the frozen projection)."""
+    class Base(torch.nn.Module):
+        def __init__(self, text, projection):
+            super().__init__(); self.text = text; self.projection = projection
+        def forward(self, input_ids, attention_mask):
+            pooled = self.text(input_ids=input_ids, attention_mask=attention_mask)["pooler_output"]
+            return F.normalize(self.projection(pooled), dim=-1)
+    base = Base(model.text_branch, model.text_projection).eval()
+    example = (torch.ones(1, 77, dtype=torch.int64), torch.ones(1, 77, dtype=torch.int64))
+    ep = replace_fmod(torch.export.export(base, example, strict=True).run_decompositions())
+    ins = [ct.TensorType(name="input_ids", shape=(1, 77), dtype=np.int32), ct.TensorType(name="attention_mask", shape=(1, 77), dtype=np.int32)]
+    return ct.convert(ep, inputs=ins, outputs=[ct.TensorType(name="text_embedding")], source="pytorch",
+                      convert_to="mlprogram", compute_units=ct.ComputeUnit.ALL, minimum_deployment_target=deployment)
+
+
+def build_audio_candidate(model, mean, components, precision, workdir):
+    """Rebuild the #180 audio candidate (same code path, projection and precision) plus its FP16 reference."""
+    encoder, example = make_encoder("audio", model, mean, components)
+    encoder.eval()
+    ep = replace_fmod(torch.export.export(encoder, example, strict=True).run_decompositions())
+    inputs = [ct.TensorType(name="log_mel", shape=(1, 1, 1001, 64), dtype=np.float32)]
+    raw = ct.convert(ep, inputs=inputs, outputs=[ct.TensorType(name="audio_embedding")], source="pytorch", convert_to="mlprogram",
+                     compute_units=ct.ComputeUnit.CPU_AND_GPU, minimum_deployment_target=ct.target.iOS18)
+    cand_path = Path(workdir) / "audio-candidate.mlpackage"
+    quantize(raw, precision).save(str(cand_path))
+    ref_path = Path(workdir) / "audio-reference-fp16-512.mlpackage"
+    convert_audio_base512(model, inputs, ct.target.iOS18).save(str(ref_path))
+    return (ct.models.MLModel(str(cand_path), compute_units=ct.ComputeUnit.CPU_ONLY),
+            ct.models.MLModel(str(ref_path), compute_units=ct.ComputeUnit.CPU_ONLY))
+
+
+def verify_text(clap, model, reference_ml, cm, mean, components, audio_cm, audio_ref_ml, text_projection_sha, audio_projection_sha):
+    """Fixed-prompt cosine gate plus text-to-audio retrieval overlap against the projected FP16 references."""
+    mean_np, comp_np = mean.numpy(), components.numpy()
+    ref_t, cand_t = [], []
+    for prompt in TEXT_PROMPTS:
+        tok = clap.tokenizer(prompt)
+        feed = {"input_ids": tok["input_ids"].numpy().astype(np.int32), "attention_mask": tok["attention_mask"].numpy().astype(np.int32)}
+        if feed["input_ids"].shape != (1, 77):
+            raise RuntimeError(f"unexpected token shape {feed['input_ids'].shape}")
+        base = unit(np.asarray(reference_ml.predict(feed)["text_embedding"], dtype=np.float64))
+        ref_t.append(unit((base - mean_np) @ comp_np.T)[0])
+        cand_t.append(np.asarray(cm.predict(feed)["text_embedding"], dtype=np.float64)[0])
+    ref_a, cand_a = [], []
+    for w in fixture_waveforms(CORPUS_SIZE):
+        feed = {"log_mel": log_mel(model, w)}
+        base = unit(np.asarray(audio_ref_ml.predict(feed)["audio_embedding"], dtype=np.float64))
+        ref_a.append(unit((base - mean_np) @ comp_np.T)[0])
+        cand_a.append(np.asarray(audio_cm.predict(feed)["audio_embedding"], dtype=np.float64)[0])
+    ref_t, cand_t, ref_a, cand_a = map(np.stack, (ref_t, cand_t, ref_a, cand_a))
+    failures = []
+    if text_projection_sha != audio_projection_sha:
+        failures.append(f"projection SHA mismatch: text {text_projection_sha} audio {audio_projection_sha}")
+    if cand_t.shape[1] != 128 or not np.all(np.isfinite(cand_t)):
+        failures.append("candidate output is not finite 128-D")
+    norms = np.linalg.norm(cand_t, axis=1)
+    if np.any(np.abs(norms - 1.0) > 1e-2):
+        failures.append(f"candidate output not unit length (min {norms.min():.6f}, max {norms.max():.6f})")
+    cosines = [float(np.dot(ref_t[i], cand_t[i]) / (np.linalg.norm(ref_t[i]) * np.linalg.norm(cand_t[i]))) for i in range(len(TEXT_PROMPTS))]
+    for prompt, c in zip(TEXT_PROMPTS, cosines):
+        if not np.isfinite(c) or c < MIN_COSINE:
+            failures.append(f"prompt {prompt!r} cosine {c:.6f} < {MIN_COSINE}")
+    overlaps = []
+    for i in range(len(TEXT_PROMPTS)):
+        top_ref = set(np.argsort(-(ref_a @ ref_t[i]), kind="stable")[:TOP_K].tolist())
+        top_cand = set(np.argsort(-(cand_a @ cand_t[i]), kind="stable")[:TOP_K].tolist())
+        overlaps.append(len(top_ref & top_cand) / TOP_K)
+    mean_overlap = float(np.mean(overlaps))
+    if mean_overlap < MIN_TOP10_OVERLAP:
+        failures.append(f"mean text-to-audio top-{TOP_K} overlap {mean_overlap:.4f} < {MIN_TOP10_OVERLAP}")
+    return {"prompts": TEXT_PROMPTS, "prompt_cosines": cosines, "min_prompt_cosine": min(cosines), "minimum_cosine": MIN_COSINE,
+            "audio_corpus_size": CORPUS_SIZE, "top_k": TOP_K, "text_to_audio_top10_overlaps": overlaps,
+            "mean_top10_overlap": mean_overlap, "minimum_mean_top10_overlap": MIN_TOP10_OVERLAP,
+            "candidate_norm_min": float(norms.min()), "candidate_norm_max": float(norms.max()),
+            "text_projection_sha256": text_projection_sha, "audio_projection_sha256": audio_projection_sha,
+            "projection_sha_match": text_projection_sha == audio_projection_sha,
+            "failures": failures, "passed": not failures}
+
+
 def main(component):
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", required=True, type=Path)
@@ -249,6 +343,7 @@ def main(component):
     parser.add_argument("--checkpoint-sha256", required=True)
     parser.add_argument("--starter-dir", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
+    parser.add_argument("--audio-manifest", type=Path, help="published #180 audio manifest.json; its projection_sha256 must match")
     parser.add_argument("--precision", choices=("int4", "int8"), required=True)
     args = parser.parse_args()
     if sha256(args.checkpoint) != args.checkpoint_sha256:
@@ -268,9 +363,7 @@ def main(component):
         output = "text_embedding"; units = ct.ComputeUnit.ALL
     # INT4 weight palettes are an iOS 18 ML Program feature. INT8 is retained as a control.
     raw = ct.convert(ep, inputs=inputs, outputs=[ct.TensorType(name=output)], source="pytorch", convert_to="mlprogram", compute_units=units, minimum_deployment_target=ct.target.iOS18)
-    dtype = mil_types.int4 if args.precision == "int4" else mil_types.int8
-    config = OptimizationConfig(global_config=OpLinearQuantizerConfig(mode="linear_symmetric", dtype=dtype, granularity="per_block", block_size=32))
-    candidate = linear_quantize_weights(raw, config)
+    candidate = quantize(raw, args.precision)
     package = args.output_dir / f"clap-{component}-{args.precision}-128.mlpackage"
     candidate.save(package)
     # A real Core ML prediction is mandatory evidence; candidates below the gates fail closed.
@@ -290,16 +383,23 @@ def main(component):
             (args.output_dir / "verification.json").write_text(json.dumps(verification, indent=2) + "\n")
             raise RuntimeError("candidate quality gates failed: " + "; ".join(verification["failures"]))
     else:
-        source_size = None
-        feed = {"input_ids": example[0].numpy().astype(np.int32), "attention_mask": example[1].numpy().astype(np.int32)}
-        actual = cm.predict(feed)[output]
-        cosine = float(np.dot(reference[0], actual[0]) / (np.linalg.norm(reference[0]) * np.linalg.norm(actual[0])))
-        if not np.isfinite(cosine) or cosine < 0.985:
-            raise RuntimeError(f"candidate fidelity gate failed: cosine={cosine:.6f} < 0.985")
-        verification = {"component": component, "fixture": "zero-input deterministic smoke fixture", "cosine_to_pytorch": cosine, "minimum_cosine": 0.985, "passed": True}
+        published_sha = json.loads(args.audio_manifest.read_text())["projection_sha256"] if args.audio_manifest else projection_sha
+        with tempfile.TemporaryDirectory() as tmp:
+            audio_cm, audio_ref = build_audio_candidate(model, mean, components, args.precision, tmp)
+            ref_path = Path(tmp) / "text-reference-fp16-512.mlpackage"
+            convert_text_base512(model, ct.target.iOS18).save(str(ref_path))
+            text_ref = ct.models.MLModel(str(ref_path), compute_units=ct.ComputeUnit.CPU_ONLY)
+            source_size = dir_size(ref_path)
+            verification = verify_text(clap, model, text_ref, cm, mean, components, audio_cm, audio_ref, projection_sha, published_sha)
+        verification["component"] = component
+        verification["reference"] = "FP16 512-D Core ML text model, then frozen projection, L2-normalized"
+        cosine = verification["min_prompt_cosine"]
+        if not verification["passed"]:
+            (args.output_dir / "verification.json").write_text(json.dumps(verification, indent=2) + "\n")
+            raise RuntimeError("candidate quality gates failed: " + "; ".join(verification["failures"]))
     archive = args.output_dir / f"clap-{component}-{args.precision}-128.mlpackage.zip"
     package_dir(package, archive)
-    manifest = {"component": component, "dimensions": 128, "precision": args.precision, "minimum_deployment_target": "iOS18", "source_checkpoint_revision": args.checkpoint_revision, "source_checkpoint_sha256": args.checkpoint_sha256, "projection_sha256": projection_sha, "coremltools_version": ct.__version__, "python_version": platform.python_version(), "inputs": [x.name for x in inputs], "outputs": [output], "quantization": {"algorithm": "linear_symmetric", "granularity": "per_block", "block_size": 32, "weights_only": True, "api": "coremltools.optimize.coreml.linear_quantize_weights", "dtype": args.precision, "mixed_precision_exceptions": "none configured; ops Core ML cannot quantize remain at their converted precision"}, "projection": {"source_dims": 512, "target_dims": 128, "sha256": projection_sha, "applied_after": "normalized 512-D audio embedding, then L2-normalized"}, "package_size_bytes": dir_size(package), "verification": verification, "source_fp16_512_package_size_bytes": source_size, "archive_size_bytes": archive.stat().st_size, "archive_sha256": sha256(archive)}
+    manifest = {"component": component, "dimensions": 128, "precision": args.precision, "minimum_deployment_target": "iOS18", "source_checkpoint_revision": args.checkpoint_revision, "source_checkpoint_sha256": args.checkpoint_sha256, "projection_sha256": projection_sha, "coremltools_version": ct.__version__, "python_version": platform.python_version(), "inputs": [x.name for x in inputs], "outputs": [output], "quantization": {"algorithm": "linear_symmetric", "granularity": "per_block", "block_size": 32, "weights_only": True, "api": "coremltools.optimize.coreml.linear_quantize_weights", "dtype": args.precision, "mixed_precision_exceptions": "none configured; ops Core ML cannot quantize remain at their converted precision"}, "projection": {"source_dims": 512, "target_dims": 128, "sha256": projection_sha, "applied_after": f"normalized 512-D {component} embedding, then L2-normalized"}, "package_size_bytes": dir_size(package), "verification": verification, "source_fp16_512_package_size_bytes": source_size, "archive_size_bytes": archive.stat().st_size, "archive_sha256": sha256(archive)}
     (args.output_dir / "verification.json").write_text(json.dumps(verification, indent=2) + "\n")
     (args.output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     lines = [f"# CLAP {component} {args.precision} 128-D candidate", "",
@@ -313,6 +413,10 @@ def main(component):
         lines += [f"- Fixture cosines: `{[round(c, 6) for c in verification['fixture_cosines']]}` (gate `{MIN_COSINE}`)",
                   f"- Mean top-{TOP_K} overlap over {CORPUS_SIZE} fixtures: `{verification['mean_top10_overlap']:.4f}` (gate `{MIN_TOP10_OVERLAP}`)",
                   f"- Queries below overlap gate: `{verification['failed_queries']}`"]
+    if component == "text":
+        lines += [f"- Prompt cosines (min): `{verification['min_prompt_cosine']:.6f}` over {len(TEXT_PROMPTS)} prompts (gate `{MIN_COSINE}`)",
+                  f"- Mean text-to-audio top-{TOP_K} overlap over {CORPUS_SIZE} audio fixtures: `{verification['mean_top10_overlap']:.4f}` (gate `{MIN_TOP10_OVERLAP}`)",
+                  f"- Audio projection SHA-256 matches text: `{verification['projection_sha_match']}` (`{verification['audio_projection_sha256']}`)"]
     (args.output_dir / "REPORT.md").write_text("\n".join(lines) + "\n")
 
 
