@@ -306,4 +306,22 @@ enum DiscoveryMigrations {
             )
             """)
     }
+
+    /// Per-asset-revision TransitionProfile, tied to the embedding space it was derived
+    /// under. Cascades only from `track`/`asset` deletion: audio-cache eviction removes
+    /// bytes, never `asset` rows, so it cannot reach this table.
+    static func v40(_ db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE discovery_transition_profile (
+              trackId INTEGER NOT NULL REFERENCES track(id) ON DELETE CASCADE,
+              assetId INTEGER NOT NULL REFERENCES asset(id) ON DELETE CASCADE,
+              assetRevision INTEGER NOT NULL,
+              embeddingSpaceFingerprint TEXT NOT NULL,
+              profileVersion INTEGER NOT NULL,
+              payload BLOB NOT NULL,
+              completedAt TEXT NOT NULL,
+              PRIMARY KEY (trackId, assetId, assetRevision, embeddingSpaceFingerprint)
+            )
+            """)
+    }
 }
