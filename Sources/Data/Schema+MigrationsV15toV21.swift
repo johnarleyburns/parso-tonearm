@@ -438,5 +438,10 @@ extension Schema {
                 try DiscoveryMigrations.v39(db)
             }
         }
+        if shouldRegister("v40", upTo: target) {
+            migrator.registerMigration("v40") { db in
+                try DiscoveryMigrations.v40(db)
+            }
+        }
     }
 }

@@ -67,6 +67,7 @@ public struct EmbeddingSpace: Codable, Equatable, Sendable {
             try db.execute(sql: "DELETE FROM discovery_index_job")
             try db.execute(sql: "DELETE FROM discovery_embedding")
             try db.execute(sql: "DELETE FROM discovery_track_analysis")
+            try db.execute(sql: "DELETE FROM discovery_transition_profile")
             try db.execute(sql: "DELETE FROM discovery_embedding_space")
             try db.execute(
                 sql: "INSERT INTO discovery_embedding_space(singleton, fingerprint, installedAt) VALUES (1, ?, ?)",
