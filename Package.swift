@@ -74,7 +74,6 @@ let package = Package(
                 "ShareExtension",
                 "SiriIntentsExtension",
                 "Sources/App",
-                "Sources/AppMac",
                 "Sources/CSQLiteVec",
                 "Sources/DesignSystem",
                 "Sources/Discovery",

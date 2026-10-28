@@ -12,11 +12,8 @@
 # the TonearmCore package bundles the same file, so package code looks it up
 # with `bundle: .module`. TonearmDiscovery has its own catalog.
 #
-# Builds sequentially (iOS, watchOS, then the native Mac app) like every other
-# xcodebuild here — the Mac target's own strings (menus, toolbar, Settings
-# panes) live in the same shared catalog, so they must be extracted too or the
-# sync would mark them stale —
-# do not run it while another build is active.
+# Builds sequentially for iOS and watchOS. Do not run it while another build
+# is active.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -27,21 +24,14 @@ xcodebuild build -project Tonearm.xcodeproj -scheme Tonearm \
 xcodebuild build -project Tonearm.xcodeproj -scheme TonearmWatch \
   -destination 'generic/platform=watchOS Simulator' -derivedDataPath "$derived_data" \
   CODE_SIGNING_ALLOWED=NO -quiet
-xcodebuild build -project Tonearm.xcodeproj -scheme TonearmMac \
-  -destination 'platform=macOS' -derivedDataPath "$derived_data" \
-  CODE_SIGNING_ALLOWED=NO -quiet
 
 stringsdata() {
   find "$derived_data/Build/Intermediates.noindex" -path "*/Debug-*/$1.build/*" -name '*.stringsdata'
 }
 
-mac_stringsdata() {
-  find "$derived_data/Build/Intermediates.noindex" -path "*/Debug/$1.build/*" -name '*.stringsdata'
-}
-
 # shellcheck disable=SC2046 # one argument per .stringsdata file is intended
 xcrun xcstringstool sync Resources/Localizable.xcstrings Resources/AppShortcuts.xcstrings \
-  --stringsdata $(stringsdata Tonearm) $(mac_stringsdata TonearmMac) $(stringsdata TonearmCore)
+  --stringsdata $(stringsdata Tonearm) $(stringsdata TonearmCore)
 # shellcheck disable=SC2046
 xcrun xcstringstool sync Sources/Discovery/Localization/Localizable.xcstrings \
   --stringsdata $(stringsdata TonearmDiscovery)

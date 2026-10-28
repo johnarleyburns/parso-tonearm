@@ -2,7 +2,7 @@ import SwiftUI
 import TonearmCore
 
 /// The iPhone shell (tab bar + mini player). The Mac shell is
-/// `Sources/AppMac/MacRootView.swift`; both share `AppPresentations`.
+/// The app shell shares `AppPresentations` with its supported platform surfaces.
 #if os(iOS)
 struct RootView: View {
     @EnvironmentObject var appState: AppState
