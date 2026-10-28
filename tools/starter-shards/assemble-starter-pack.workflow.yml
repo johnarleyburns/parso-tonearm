@@ -1,0 +1,96 @@
+# PROPOSED .github/workflows/assemble-starter-pack.yml. It lives here because the automated worker
+# may not edit .github; a maintainer copies it to .github/workflows/ unchanged.
+name: Assemble starter pack
+on:
+  workflow_dispatch:
+    inputs:
+      catalog_manifest:
+        description: Immutable catalog-manifest SHA-256 or path
+        required: true
+      shard_source:
+        description: Repo path of an explicit allowlist manifest (batch ID, batch manifest SHA-256, asset URL/name, asset SHA-256)
+        required: true
+      publish:
+        description: Publish a prerelease only after all checks pass
+        type: boolean
+        default: false
+
+# At most one assembler (and publisher) at a time; shard workflows are unaffected.
+concurrency:
+  group: assemble-starter-pack
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # only used by the gated release step
+    env:
+      CATALOG_INPUT: ${{ inputs.catalog_manifest }}
+      ALLOWLIST: ${{ inputs.shard_source }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve catalog and allowlist
+        run: |
+          set -euo pipefail
+          CATALOG=Config/starter-batches/manifest-v1.json
+          if [[ "$CATALOG_INPUT" =~ ^[0-9a-f]{64}$ ]]; then echo "CATALOG_SHA=$CATALOG_INPUT" >> "$GITHUB_ENV"
+          else CATALOG="$CATALOG_INPUT"; echo "CATALOG_SHA=" >> "$GITHUB_ENV"; fi
+          echo "CATALOG=$CATALOG" >> "$GITHUB_ENV"
+          test -f "$ALLOWLIST"
+      - name: Download allowlisted shards (SHA-256 re-verified by the assembler before opening)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/shards"
+          python3 -I - "$ALLOWLIST" "$RUNNER_TEMP/shards" <<'PY'
+          import json, sys, os, urllib.request
+          for s in json.load(open(sys.argv[1]))['shards']:
+              name = os.path.basename(s['assetName'])
+              urllib.request.urlretrieve(s['assetURL'], os.path.join(sys.argv[2], name))
+          PY
+      - name: Unit tests
+        run: python3 -I -m unittest discover -s tools/starter-shards/tests
+      - name: Validate (no output database)
+        run: |
+          set -euo pipefail
+          args=()
+          [ -n "${CATALOG_SHA}" ] && args+=(--catalog-sha256 "$CATALOG_SHA")
+          python3 -I tools/starter-shards/assemble_starter.py --catalog "$CATALOG" \
+            --shard-allowlist "$ALLOWLIST" --shard-dir "$RUNNER_TEMP/shards" "${args[@]}" \
+            --output "$RUNNER_TEMP/check/starter.sqlite" --report "$RUNNER_TEMP/check/REPORT.md" --validate-only
+      - name: Assemble
+        run: |
+          set -euo pipefail
+          args=()
+          [ -n "${CATALOG_SHA}" ] && args+=(--catalog-sha256 "$CATALOG_SHA")
+          python3 -I tools/starter-shards/assemble_starter.py --catalog "$CATALOG" \
+            --shard-allowlist "$ALLOWLIST" --shard-dir "$RUNNER_TEMP/shards" "${args[@]}" \
+            --generator-git-sha "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/pack/starter.sqlite" --report "$RUNNER_TEMP/pack/REPORT.md"
+          (cd "$RUNNER_TEMP/pack" && sha256sum -c SHA256SUMS.txt)
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: starter-pack
+          path: |
+            ${{ runner.temp }}/pack/starter.sqlite
+            ${{ runner.temp }}/pack/starter.manifest.json
+            ${{ runner.temp }}/pack/SHA256SUMS.txt
+            ${{ runner.temp }}/pack/REPORT.md
+      # Reachable only after every step above succeeded, and only when publish=true.
+      - name: Publish immutable prerelease
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          hash=$(python3 -I -c "import json,sqlite3,sys;print(dict(sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True).execute('select key,value from starter_meta'))['logical_content_sha256'])" "$RUNNER_TEMP/pack/starter.sqlite")
+          tag="starter-v4-${hash:0:12}"
+          if gh release view "$tag" >/dev/null 2>&1; then echo "release $tag already exists; refusing to modify it"; exit 1; fi
+          gh release create "$tag" --prerelease --target "$GITHUB_SHA" --title "$tag" \
+            --notes-file "$RUNNER_TEMP/pack/REPORT.md" \
+            "$RUNNER_TEMP/pack/starter.sqlite" "$RUNNER_TEMP/pack/starter.manifest.json" \
+            "$RUNNER_TEMP/pack/SHA256SUMS.txt" "$RUNNER_TEMP/pack/REPORT.md"
