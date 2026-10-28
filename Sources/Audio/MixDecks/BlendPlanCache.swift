@@ -15,16 +15,45 @@ import ParsoMixEngine
 public final class BlendPlanCache {
     public static let shared = BlendPlanCache()
 
+    /// What a profile-driven plan was derived from besides the two track ids: both
+    /// assets' revisions, both compact profiles' content digests, the requested
+    /// duration, the planner configuration version and the embedding space. Any change
+    /// is a different key, so a stale plan is never served; eviction stays disposable.
+    public struct ProfileContext: Hashable, Sendable {
+        public let outgoingAssetRevision: String
+        public let incomingAssetRevision: String
+        public let outgoingProfileDigest: String
+        public let incomingProfileDigest: String
+        public let requestedDurationMillis: Int64
+        public let plannerConfigVersion: Int
+        public let embeddingSpaceFingerprint: String
+
+        public init(outgoingAssetRevision: String, incomingAssetRevision: String,
+                    outgoingProfileDigest: String, incomingProfileDigest: String,
+                    requestedDurationMillis: Int64, plannerConfigVersion: Int,
+                    embeddingSpaceFingerprint: String) {
+            self.outgoingAssetRevision = outgoingAssetRevision
+            self.incomingAssetRevision = incomingAssetRevision
+            self.outgoingProfileDigest = outgoingProfileDigest
+            self.incomingProfileDigest = incomingProfileDigest
+            self.requestedDurationMillis = requestedDurationMillis
+            self.plannerConfigVersion = plannerConfigVersion
+            self.embeddingSpaceFingerprint = embeddingSpaceFingerprint
+        }
+    }
+
     struct Key: Hashable {
         let from: Int64
         let to: Int64
         /// The outgoing deck's tempo, in millionths.
         let outgoingTempo: Int64
+        let profile: ProfileContext?
 
-        init(from: Int64, to: Int64, outgoingTempo: Double) {
+        init(from: Int64, to: Int64, outgoingTempo: Double, profile: ProfileContext? = nil) {
             self.from = from
             self.to = to
             self.outgoingTempo = Int64((outgoingTempo * 1_000_000).rounded())
+            self.profile = profile
         }
     }
 
@@ -42,12 +71,12 @@ public final class BlendPlanCache {
     /// Bounded: each entry is a few KB (two beat grids and per-beat levels).
     static let capacity = 256
 
-    func entry(from: Int64, to: Int64, outgoingTempo: Double) -> Entry? {
-        entries[Key(from: from, to: to, outgoingTempo: outgoingTempo)]
+    func entry(from: Int64, to: Int64, outgoingTempo: Double, profile: ProfileContext? = nil) -> Entry? {
+        entries[Key(from: from, to: to, outgoingTempo: outgoingTempo, profile: profile)]
     }
 
-    func store(_ entry: Entry, from: Int64, to: Int64) {
-        let key = Key(from: from, to: to, outgoingTempo: entry.outgoingTempo)
+    func store(_ entry: Entry, from: Int64, to: Int64, profile: ProfileContext? = nil) {
+        let key = Key(from: from, to: to, outgoingTempo: entry.outgoingTempo, profile: profile)
         if entries[key] == nil { order.append(key) }
         entries[key] = entry
         while order.count > Self.capacity {
