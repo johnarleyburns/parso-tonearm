@@ -124,8 +124,10 @@ final class DiscoveryBackgroundControllerTests: XCTestCase {
     private func spec() -> EmbeddingModelSpec {
         let meta = EmbeddingModelSpec.musicCLAPMetadata
         let bins = meta.fftSize / 2 + 1
-        return EmbeddingModelSpec.musicCLAP(
+        var spec = EmbeddingModelSpec.musicCLAP(
             melFilterBank: [Float](repeating: 0.01, count: bins * meta.melBins))
+        spec.dimensions = EmbeddingSpace.current.dimensions
+        return spec
     }
 
     private func backgroundSnapshot(

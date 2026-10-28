@@ -33,8 +33,10 @@ final class BoundedIndexWorkerTests: XCTestCase {
         // resulting log-mel bytes), only the shape must be valid.
         let meta = EmbeddingModelSpec.musicCLAPMetadata
         let bins = meta.fftSize / 2 + 1
-        return EmbeddingModelSpec.musicCLAP(
+        var spec = EmbeddingModelSpec.musicCLAP(
             melFilterBank: [Float](repeating: 0.01, count: bins * meta.melBins))
+        spec.dimensions = EmbeddingSpace.current.dimensions
+        return spec
     }
 
     @discardableResult

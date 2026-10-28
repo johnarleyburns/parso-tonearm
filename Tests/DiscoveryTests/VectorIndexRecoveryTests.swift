@@ -44,11 +44,11 @@ final class VectorIndexRecoveryTests: XCTestCase {
 
         let snap = try await index.currentSnapshot()
         XCTAssertEqual(snap.rowCount, 3)
-        XCTAssertEqual(snap.dimensions, 4)
+        XCTAssertEqual(snap.dimensions, EmbeddingSpace.current.dimensions)
         XCTAssertEqual(Set(snap.trackIDByRow).count, 3)
         // Dequantized row 0 ≈ its unit vector.
         let r0 = snap.dequantizedRow(snap.trackIDByRow.firstIndex(of: snap.trackIDByRow[0])!)
-        XCTAssertEqual(r0.count, 4)
+        XCTAssertEqual(r0.count, EmbeddingSpace.current.dimensions)
         XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL.path))
     }
 
