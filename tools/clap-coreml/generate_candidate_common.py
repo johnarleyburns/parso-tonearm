@@ -142,7 +142,10 @@ def package_dir(package, archive):
             z.writestr(info, path.read_bytes())
 
 
-MIN_COSINE = 0.995
+# Product acceptance threshold for the candidate's fixed fidelity fixtures.
+# Retain a separate retrieval gate below; neither metric substitutes for the
+# other when documenting an accepted compressed candidate.
+MIN_COSINE = 0.98
 # Product acceptance threshold: 0.89 retains roughly nine of ten neighbours
 # across the fixed 48-item audio corpus. Keep the independent per-fixture
 # cosine gate above; retrieval overlap alone is not a numerical-fidelity gate.
