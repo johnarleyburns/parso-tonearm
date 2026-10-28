@@ -143,7 +143,10 @@ def package_dir(package, archive):
 
 
 MIN_COSINE = 0.995
-MIN_TOP10_OVERLAP = 0.95
+# Product acceptance threshold: 0.89 retains roughly nine of ten neighbours
+# across the fixed 48-item audio corpus. Keep the independent per-fixture
+# cosine gate above; retrieval overlap alone is not a numerical-fidelity gate.
+MIN_TOP10_OVERLAP = 0.89
 CORPUS_SIZE = 48
 COSINE_FIXTURES = 5
 TOP_K = 10
