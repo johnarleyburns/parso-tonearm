@@ -141,10 +141,10 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
     /// default; irrelevant while `isRemoteIndexingEnabled` is false).
     public var isRemoteIndexingWiFiOnly: Bool
     public var modelResourceAvailable: Bool
-    /// Real ODR download bytes while the model is fetching; `nil` when
-    /// nothing is currently downloading.
+    /// Download bytes while a model is fetching; always `nil` for the
+    /// bundled CLAP models.
     public var modelDownloadProgress: ModelDownloadProgress?
-    /// The most recent `beginAccessingResources` failure, if any — a stalled
+    /// The most recent model acquisition failure, if any — a stalled
     /// download is not always "still fetching" (no network, low disk space,
     /// an unknown-resource error); this is what tells the difference instead
     /// of leaving the user staring at "Downloading…" forever with no real
