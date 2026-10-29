@@ -8,7 +8,11 @@
 #
 # One row per package:
 #
-#   <url>  <sha256 of the asset>  <directory it unpacks to>
+#   <url>  <sha256 of the asset>  <directory it unpacks to>  [archive-root-directory]
+#
+# The optional fourth field names the single top-level directory inside the
+# archive (.tar.gz or .zip) that is moved to the destination; without it the
+# archive root is expected to equal the destination name.
 #
 # The directory is relative to `Resources/Models/`. The checksum is the contract:
 # a mismatch is a hard failure, never a warning, because a silently absent or
@@ -32,13 +36,11 @@
 # better home than a release asset once the stems model joins the CLAP pair —
 # every archive run pulls ~460 MB.
 #
-# The same three packages are also on the GitHub release `models-v1` (the CLAP
-# pair since 2026-08-17, and that is where build 274 fetched them from). That
-# release is kept as a fallback, not as a second source of truth: whatever this
-# file names is what a build uses.
+# The CLAP pair is the int4/128-D release assets below (the only production
+# pair); Demucs stays in R2.
 
-https://pub-52cc1d6c476a423baa609d53de0fd435.r2.dev/v1/CLAPAudioEncoder.mlpackage.tar.gz  3f42d8b3b14adeadfc36c5a3e58992651f2dd0de5aae2d6322d6402470e0d10d  CLAPAudioEncoder.mlpackage
-https://pub-52cc1d6c476a423baa609d53de0fd435.r2.dev/v1/CLAPTextEncoder.mlpackage.tar.gz   305fe37c860548be1acd4b649fd1589bd3225ec2a91d0e2044a1f8be555fdd36  CLAPTextEncoder.mlpackage
+https://github.com/johnarleyburns/parso-tonearm/releases/download/clap-audio-int4-128-v1-candidate/clap-audio-int4-128.mlpackage.zip  b69c830c05cc006e380c2f7ab938c2c561721be868f3a45613982c046db93b7a  CLAPAudioEncoder.mlpackage  clap-audio-int4-128.mlpackage
+https://github.com/johnarleyburns/parso-tonearm/releases/download/clap-text-int4-128-v1-candidate/clap-text-int4-128.mlpackage.zip  429a248e33d03b106e4f80a7098c66fdadc022b83eee72710347629fc341fb86  CLAPTextEncoder.mlpackage  clap-text-int4-128.mlpackage
 
 # The stems model (plan dj-stems-model S1–S8): htdemucs converted to Core ML
 # FP32, verified against torch at max|d| 1.1e-6. Pinning it here is what puts
