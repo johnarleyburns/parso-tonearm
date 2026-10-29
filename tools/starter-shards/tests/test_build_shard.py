@@ -1,4 +1,4 @@
-import datetime, json, os, shutil, sqlite3, sys, tempfile, unittest
+import datetime, io, json, os, shutil, sqlite3, sys, tempfile, unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 import build_shard as B
@@ -134,6 +134,33 @@ class ShardTests(unittest.TestCase):
     def test_model_checksum_pin(self):
         with self.assertRaisesRegex(S.ShardError, 'model'):
             self.build(expected_model_sha='0' * 64)
+
+    def test_durable_jamendo_locator_is_resolved_without_persisting_urls(self):
+        seen, now, sleeps = [], [10.0], []
+        class Response(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): self.close()
+        def opener(request, timeout):
+            seen.append(request.full_url)
+            return Response(b'x' * 10001)
+        downloader = B.JamendoTrackDownloader('secret-client-id', opener=opener,
+                                               clock=lambda: now[0], sleep=sleeps.append)
+        first = dict(entry(7), streamURL='jamendo://track/7')
+        first_path = os.path.join(self.dir, 'first.mp3')
+        downloader(first, first_path)
+        now[0] = 12.0
+        second_path = os.path.join(self.dir, 'second.mp3')
+        downloader(first, second_path)
+        self.assertEqual(sleeps, [3.0])
+        self.assertEqual(len(seen), 2)
+        self.assertTrue(all('/tracks/file/?' in url and 'id=7' in url for url in seen))
+        self.assertFalse(os.path.exists(first_path + '.url'))
+        self.assertFalse(os.path.exists(second_path + '.url'))
+
+    def test_jamendo_resolver_requires_matching_durable_locator(self):
+        downloader = B.JamendoTrackDownloader('client')
+        with self.assertRaisesRegex(B.TrackFailure, 'durable Jamendo locator'):
+            downloader(entry(1), os.path.join(self.dir, 'x.mp3'))
 
 
 if __name__ == '__main__':

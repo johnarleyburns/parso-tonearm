@@ -8,12 +8,14 @@ Each source is downloaded to a runner-local temp file, analysed, and the audio d
 finally block. The shard is the only artifact: no shared DB, release, branch or cache is touched.
 Per-track failures become shard_failure rows and mark the shard `incomplete`; nothing is dropped.
 """
-import argparse, datetime, json, os, shutil, sqlite3, subprocess, sys, tempfile, time, urllib.request
+import argparse, datetime, json, os, shutil, sqlite3, subprocess, sys, tempfile, time, urllib.error, urllib.parse, urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shardlib as S
 import pilot_metrics as M
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+JAMENDO_FILE_ENDPOINT = 'https://api.jamendo.com/v3.0/tracks/file/'
+JAMENDO_MIN_REQUEST_INTERVAL_SECONDS = 5.0
 
 
 class TrackFailure(Exception):
@@ -22,8 +24,46 @@ class TrackFailure(Exception):
         self.stage, self.code, self.detail = stage, code, detail
 
 
+class JamendoTrackDownloader:
+    """Resolve one durable `jamendo://track/<id>` locator only at download time.
+
+    The request URL contains the client id and redirects to a short-lived CDN URL;
+    neither URL is logged or persisted.  One builder is serial, with five seconds
+    between request starts, to avoid burdening Jamendo.
+    """
+    def __init__(self, client_id=None, opener=urllib.request.urlopen, clock=time.monotonic,
+                 sleep=time.sleep):
+        self.client_id = client_id if client_id is not None else os.environ.get('JAMENDO_CLIENT_ID', '')
+        self.opener, self.clock, self.sleep = opener, clock, sleep
+        self.last_request_at = None
+
+    def __call__(self, entry, dest):
+        tid = str(entry.get('providerTrackID', ''))
+        if entry.get('provider') != 'jamendo' or entry.get('streamURL') != f'jamendo://track/{tid}' or not tid.isdigit():
+            raise TrackFailure('resolve', 'invalid_locator', 'durable Jamendo locator required')
+        if not self.client_id:
+            raise TrackFailure('resolve', 'missing_client_id', 'JAMENDO_CLIENT_ID is not set')
+        if self.last_request_at is not None:
+            wait = JAMENDO_MIN_REQUEST_INTERVAL_SECONDS - (self.clock() - self.last_request_at)
+            if wait > 0:
+                self.sleep(wait)
+        query = urllib.parse.urlencode({'client_id': self.client_id, 'id': tid,
+                                        'action': 'download', 'audioformat': 'mp32'})
+        request = urllib.request.Request(JAMENDO_FILE_ENDPOINT + '?' + query)
+        self.last_request_at = self.clock()
+        try:
+            with self.opener(request, timeout=120) as r, open(dest, 'wb') as out:
+                shutil.copyfileobj(r, out)
+        except urllib.error.HTTPError as e:
+            raise TrackFailure('resolve', 'jamendo_http_error', f'HTTP {e.code}')
+        except Exception as e:
+            raise TrackFailure('resolve', 'jamendo_resolve_failed', type(e).__name__)
+        if os.path.getsize(dest) < 10_000:
+            raise TrackFailure('download', 'too_small', 'downloaded file is implausibly small')
+
+
 def download_audio(entry, dest):
-    """Fetch the source to `dest`. Never echoes the URL (it may carry credentials)."""
+    """Legacy HTTP fixture downloader; production builds use JamendoTrackDownloader."""
     try:
         with urllib.request.urlopen(entry['streamURL'], timeout=120) as r, open(dest, 'wb') as out:
             shutil.copyfileobj(r, out)
@@ -121,9 +161,10 @@ def process_track(entry, fingerprint, download, analyze, tmp_root, metrics=None)
 
 
 def build(batch_path, catalog_path, model_dir, fingerprint, output, expected_model_sha=None,
-          download=download_audio, analyze=analyze_audio, now=None, git_sha=None, tmp_root=None,
+          download=None, analyze=analyze_audio, now=None, git_sha=None, tmp_root=None,
           metrics_out=None, env=None):
     batch, batch_sha, catalog_sha = S.load_batch(batch_path, catalog_path)
+    download = download or JamendoTrackDownloader()
     model_sha = S.sha256_dir(model_dir)
     if expected_model_sha and expected_model_sha != model_sha:
         raise S.ShardError('model archive checksum does not match the pinned value')

@@ -27,7 +27,7 @@ jobs:
     env:
       PILOT_ID: ${{ inputs.pilot_id }}
       PUBLISH: ${{ inputs.publish }}
-      MODEL_DIR: ${{ vars.STARTER_MODEL_DIR }}   # the #206 pinned model pair, fetched by `make models`
+      MODEL_DIR: Resources/Models/CLAPAudioEncoder.mlpackage
       EMBEDDING_SPACE_FINGERPRINT: ${{ vars.STARTER_EMBEDDING_SPACE_FINGERPRINT }}
     steps:
       - name: Enforce publish=false and a named pilot
@@ -47,8 +47,11 @@ jobs:
           echo "PILOT_TMP=$RUNNER_TEMP/pilot-tmp" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/pilot-tmp" "$RUNNER_TEMP/pilot-out"
       - name: Run pilot with the normal build_shard CLI
+        env:
+          JAMENDO_CLIENT_ID: ${{ secrets.TONEARM_JAMENDO_CLIENT_ID }}
         run: |
           set -euo pipefail
+          [ -n "$JAMENDO_CLIENT_ID" ] || { echo "Jamendo runner credential is not configured"; exit 1; }
           TMPDIR="$PILOT_TMP" python3 -I tools/starter-shards/build_shard.py \
             --batch "Config/starter-batches/pilots/${PILOT_ID}.json" \
             --catalog Config/starter-batches/manifest-v1.json \
