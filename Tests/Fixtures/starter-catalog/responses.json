@@ -1,0 +1,261 @@
+{
+ "retrievedAt": "2026-01-01T00:00:00Z",
+ "responses": {
+  "genre:ambient": [
+   {
+    "id": "30",
+    "name": "Title 30",
+    "artist_name": "Artist",
+    "duration": 150,
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/30",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 5.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "electronic",
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   },
+   {
+    "id": "10",
+    "name": "Title 10",
+    "artist_name": "Artist",
+    "duration": 130,
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/10",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 5.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   },
+   {
+    "id": "20",
+    "name": "Title 20",
+    "artist_name": "Artist",
+    "duration": 140,
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/20",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 9.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "electronic",
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   },
+   {
+    "id": "40",
+    "name": "Title 40",
+    "artist_name": "Artist",
+    "duration": 160,
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/40",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 1.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   },
+   {
+    "id": "41",
+    "name": "Title 41",
+    "artist_name": "Artist",
+    "duration": 161,
+    "audiodownload_allowed": false,
+    "audio": "https://example.invalid/audio/41",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 99.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   },
+   {
+    "id": "42",
+    "name": "Title 42",
+    "artist_name": "Artist",
+    "duration": "0",
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/42",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 98.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   },
+   {
+    "id": "43",
+    "name": "Title 43",
+    "artist_name": "Artist",
+    "duration": "abc",
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/43",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 97.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   },
+   {
+    "id": "44",
+    "name": "Title 44",
+    "artist_name": "Artist",
+    "duration": 164,
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/44",
+    "license_ccurl": "https://example.invalid/license",
+    "popularity_total": 96.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   },
+   {
+    "id": "45",
+    "name": "Title 45",
+    "artist_name": "Artist",
+    "duration": 165,
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/45",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 95.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "rock"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   },
+   {
+    "id": "46",
+    "name": null,
+    "artist_name": "Artist",
+    "duration": 166,
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/46",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 94.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   }
+  ],
+  "subgenre:electronic:ambient": [
+   {
+    "id": "20",
+    "name": "Title 20",
+    "artist_name": "Artist",
+    "duration": 140,
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/20",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 9.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "electronic",
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   },
+   {
+    "id": "30",
+    "name": "Title 30",
+    "artist_name": "Artist",
+    "duration": 150,
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/30",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 5.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "electronic",
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   },
+   {
+    "id": "50",
+    "name": "Title 50",
+    "artist_name": "Artist",
+    "duration": 170,
+    "audiodownload_allowed": true,
+    "audio": "https://example.invalid/audio/50",
+    "license_ccurl": "https://creativecommons.org/licenses/by/4.0/",
+    "popularity_total": 2.0,
+    "musicinfo": {
+     "tags": {
+      "genres": [
+       "electronic",
+       "ambient"
+      ],
+      "instruments": [],
+      "vartags": []
+     }
+    }
+   }
+  ]
+ }
+}

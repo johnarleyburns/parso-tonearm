@@ -1,0 +1,26 @@
+{
+ "schema": "jamendo-taxonomy-v1",
+ "nodes": [
+  {
+   "id": "genre:ambient",
+   "displayName": "Ambient",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "ambient"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:electronic:ambient",
+   "displayName": "Ambient Electronic",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "electronic",
+     "ambient"
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,738 @@
+{
+ "schema": "jamendo-taxonomy-v1",
+ "apiEndpoint": "https://api.jamendo.com/v3.0/tracks/",
+ "filterField": "tags (AND of all listed tags; verified per row against musicinfo.tags)",
+ "nodes": [
+  {
+   "id": "genre:electronic",
+   "displayName": "Electronic",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "electronic"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:electronic:ambient",
+   "displayName": "Ambient (electronic)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "electronic",
+     "ambient"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:electronic:house",
+   "displayName": "House (electronic)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "electronic",
+     "house"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:electronic:techno",
+   "displayName": "Techno (electronic)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "electronic",
+     "techno"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:electronic:trance",
+   "displayName": "Trance (electronic)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "electronic",
+     "trance"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:electronic:dubstep",
+   "displayName": "Dubstep (electronic)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "electronic",
+     "dubstep"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:electronic:drumnbass",
+   "displayName": "Drumnbass (electronic)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "electronic",
+     "drumnbass"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:electronic:downtempo",
+   "displayName": "Downtempo (electronic)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "electronic",
+     "downtempo"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:electronic:chillout",
+   "displayName": "Chillout (electronic)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "electronic",
+     "chillout"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:electronic:synthwave",
+   "displayName": "Synthwave (electronic)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "electronic",
+     "synthwave"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:electronic:idm",
+   "displayName": "Idm (electronic)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "electronic",
+     "idm"
+    ]
+   }
+  },
+  {
+   "id": "genre:rock",
+   "displayName": "Rock",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "rock"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:rock:indie",
+   "displayName": "Indie (rock)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "rock",
+     "indie"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:rock:alternative",
+   "displayName": "Alternative (rock)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "rock",
+     "alternative"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:rock:hardrock",
+   "displayName": "Hardrock (rock)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "rock",
+     "hardrock"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:rock:progressive",
+   "displayName": "Progressive (rock)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "rock",
+     "progressive"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:rock:psychedelic",
+   "displayName": "Psychedelic (rock)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "rock",
+     "psychedelic"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:rock:postrock",
+   "displayName": "Postrock (rock)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "rock",
+     "postrock"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:rock:punk",
+   "displayName": "Punk (rock)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "rock",
+     "punk"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:rock:grunge",
+   "displayName": "Grunge (rock)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "rock",
+     "grunge"
+    ]
+   }
+  },
+  {
+   "id": "genre:pop",
+   "displayName": "Pop",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "pop"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:pop:indiepop",
+   "displayName": "Indiepop (pop)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "pop",
+     "indiepop"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:pop:electropop",
+   "displayName": "Electropop (pop)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "pop",
+     "electropop"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:pop:synthpop",
+   "displayName": "Synthpop (pop)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "pop",
+     "synthpop"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:pop:dance",
+   "displayName": "Dance (pop)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "pop",
+     "dance"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:pop:acoustic",
+   "displayName": "Acoustic (pop)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "pop",
+     "acoustic"
+    ]
+   }
+  },
+  {
+   "id": "genre:hiphop",
+   "displayName": "Hiphop",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "hiphop"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:hiphop:instrumental",
+   "displayName": "Instrumental (hiphop)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "hiphop",
+     "instrumental"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:hiphop:boombap",
+   "displayName": "Boombap (hiphop)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "hiphop",
+     "boombap"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:hiphop:trap",
+   "displayName": "Trap (hiphop)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "hiphop",
+     "trap"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:hiphop:lofi",
+   "displayName": "Lofi (hiphop)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "hiphop",
+     "lofi"
+    ]
+   }
+  },
+  {
+   "id": "genre:jazz",
+   "displayName": "Jazz",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "jazz"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:jazz:smoothjazz",
+   "displayName": "Smoothjazz (jazz)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "jazz",
+     "smoothjazz"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:jazz:fusion",
+   "displayName": "Fusion (jazz)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "jazz",
+     "fusion"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:jazz:swing",
+   "displayName": "Swing (jazz)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "jazz",
+     "swing"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:jazz:bebop",
+   "displayName": "Bebop (jazz)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "jazz",
+     "bebop"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:jazz:lounge",
+   "displayName": "Lounge (jazz)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "jazz",
+     "lounge"
+    ]
+   }
+  },
+  {
+   "id": "genre:classical",
+   "displayName": "Classical",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "classical"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:classical:piano",
+   "displayName": "Piano (classical)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "classical",
+     "piano"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:classical:orchestral",
+   "displayName": "Orchestral (classical)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "classical",
+     "orchestral"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:classical:chamber",
+   "displayName": "Chamber (classical)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "classical",
+     "chamber"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:classical:baroque",
+   "displayName": "Baroque (classical)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "classical",
+     "baroque"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:classical:contemporary",
+   "displayName": "Contemporary (classical)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "classical",
+     "contemporary"
+    ]
+   }
+  },
+  {
+   "id": "genre:metal",
+   "displayName": "Metal",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "metal"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:metal:heavy",
+   "displayName": "Heavy (metal)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "metal",
+     "heavy"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:metal:death",
+   "displayName": "Death (metal)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "metal",
+     "death"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:metal:black",
+   "displayName": "Black (metal)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "metal",
+     "black"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:metal:doom",
+   "displayName": "Doom (metal)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "metal",
+     "doom"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:metal:progressive",
+   "displayName": "Progressive (metal)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "metal",
+     "progressive"
+    ]
+   }
+  },
+  {
+   "id": "genre:folk",
+   "displayName": "Folk",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "folk"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:folk:acoustic",
+   "displayName": "Acoustic (folk)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "folk",
+     "acoustic"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:folk:celtic",
+   "displayName": "Celtic (folk)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "folk",
+     "celtic"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:folk:singersongwriter",
+   "displayName": "Singersongwriter (folk)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "folk",
+     "singersongwriter"
+    ]
+   }
+  },
+  {
+   "id": "genre:world",
+   "displayName": "World",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "world"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:world:latin",
+   "displayName": "Latin (world)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "world",
+     "latin"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:world:african",
+   "displayName": "African (world)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "world",
+     "african"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:world:asian",
+   "displayName": "Asian (world)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "world",
+     "asian"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:world:reggae",
+   "displayName": "Reggae (world)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "world",
+     "reggae"
+    ]
+   }
+  },
+  {
+   "id": "genre:ambient",
+   "displayName": "Ambient",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "ambient"
+    ]
+   }
+  },
+  {
+   "id": "genre:soundtrack",
+   "displayName": "Soundtrack",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "soundtrack"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:soundtrack:cinematic",
+   "displayName": "Cinematic (soundtrack)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "soundtrack",
+     "cinematic"
+    ]
+   }
+  },
+  {
+   "id": "subgenre:soundtrack:epic",
+   "displayName": "Epic (soundtrack)",
+   "kind": "subgenre",
+   "sourceFilter": {
+    "tags": [
+     "soundtrack",
+     "epic"
+    ]
+   }
+  },
+  {
+   "id": "genre:blues",
+   "displayName": "Blues",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "blues"
+    ]
+   }
+  },
+  {
+   "id": "genre:country",
+   "displayName": "Country",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "country"
+    ]
+   }
+  },
+  {
+   "id": "genre:funk",
+   "displayName": "Funk",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "funk"
+    ]
+   }
+  },
+  {
+   "id": "genre:rnb",
+   "displayName": "Rnb",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "rnb"
+    ]
+   }
+  },
+  {
+   "id": "genre:easylistening",
+   "displayName": "Easylistening",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "easylistening"
+    ]
+   }
+  },
+  {
+   "id": "genre:lounge",
+   "displayName": "Lounge",
+   "kind": "genre",
+   "sourceFilter": {
+    "tags": [
+     "lounge"
+    ]
+   }
+  }
+ ]
+}
