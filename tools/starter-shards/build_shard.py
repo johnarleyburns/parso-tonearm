@@ -8,9 +8,10 @@ Each source is downloaded to a runner-local temp file, analysed, and the audio d
 finally block. The shard is the only artifact: no shared DB, release, branch or cache is touched.
 Per-track failures become shard_failure rows and mark the shard `incomplete`; nothing is dropped.
 """
-import argparse, datetime, os, shutil, sqlite3, subprocess, sys, tempfile, urllib.request
+import argparse, datetime, json, os, shutil, sqlite3, subprocess, sys, tempfile, time, urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shardlib as S
+import pilot_metrics as M
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
@@ -34,15 +35,18 @@ def download_audio(entry, dest):
 
 def analyze_audio(entry, path):
     """Real analysis via the BuiltInEmbedder/BuiltInAnalyzer release tools (dev-only binaries)."""
-    import json
     bin_dir = os.environ.get('STARTER_SHARD_BIN', os.path.join(REPO, '.build/release'))
     folder = os.path.dirname(path)
     tid = os.path.splitext(os.path.basename(path))[0]
+    t0 = time.monotonic()
+    embed_seconds = None
     try:
         emb_path = os.path.join(folder, 'embeddings.json')
         subprocess.run([os.path.join(bin_dir, 'BuiltInEmbedder'), folder, emb_path], check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         emb = {e['id']: e for e in json.load(open(emb_path))}[tid]
+        embed_seconds = time.monotonic() - t0
+        t1 = time.monotonic()
         idx_path = os.path.join(folder, 'index.json')
         json.dump([{'id': tid, 'streamURL': 'local', 'durationSec': entry['durationSec']}],
                   open(idx_path, 'w'))
@@ -53,22 +57,53 @@ def analyze_audio(entry, path):
     except Exception as e:
         raise TrackFailure('analyze', 'analyze_failed', type(e).__name__)
     profile = {k: v for k, v in ana.items() if k not in ('id', 'streamURL', 'durationSec')}
-    return {'embedding': emb.get('embedding') or emb.get('vector'), 'transitionProfile': profile}
+    return {'embedding': emb.get('embedding') or emb.get('vector'), 'transitionProfile': profile,
+            'embedSeconds': embed_seconds, 'analysisSeconds': time.monotonic() - t1}
 
 
-def process_track(entry, fingerprint, download, analyze, tmp_root):
-    """Returns the payload dict; raises TrackFailure. Temp audio never outlives this call."""
+def _dir_bytes(path):
+    return sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(path) for f in fs
+               if os.path.exists(os.path.join(r, f)))
+
+
+def process_track(entry, fingerprint, download, analyze, tmp_root, metrics=None):
+    """Returns the payload dict; raises TrackFailure. Temp audio never outlives this call.
+
+    When `metrics` is a list, exactly one safe row is appended per attempt (success, failure or
+    cancellation) from the finally block."""
     work = tempfile.mkdtemp(prefix='shard-', dir=tmp_root)
+    started = time.monotonic()
+    t = {'dl': None, 'an': None, 'embed': None, 'ana': None, 'bytes': None, 'disk': None}
+    outcome, stage, code = 'cancelled', None, None
     try:
         path = os.path.join(work, f"{entry['providerTrackID']}.mp3")
-        download(entry, path)
-        result = analyze(entry, path)
-    except TrackFailure:
+        mark = time.monotonic()
+        try:
+            download(entry, path)
+        finally:
+            t['dl'] = time.monotonic() - mark
+            t['bytes'] = os.path.getsize(path) if os.path.exists(path) else None
+        mark = time.monotonic()
+        try:
+            result = analyze(entry, path)
+        finally:
+            t['an'] = time.monotonic() - mark
+            t['disk'] = _dir_bytes(work)
+        t['embed'], t['ana'] = result.get('embedSeconds'), result.get('analysisSeconds')
+        outcome = 'success'
+    except TrackFailure as f:
+        outcome, stage, code = 'failure', f.stage, f.code
         raise
     except Exception as e:
+        outcome, stage, code = 'failure', 'analyze', 'analyze_failed'
         raise TrackFailure('analyze', 'analyze_failed', type(e).__name__)
     finally:
         shutil.rmtree(work, ignore_errors=True)
+        if metrics is not None:
+            metrics.append(M.make_row(
+                entry.get('providerTrackID', ''), entry.get('durationSec'), outcome,
+                t['dl'], t['bytes'], t['embed'], t['ana'] if t['ana'] is not None else t['an'],
+                time.monotonic() - started, stage, code, t['disk']))
     payload = {
         'schema': 'starter-v4', 'provider': entry['provider'],
         'providerTrackID': entry['providerTrackID'], 'sourceRevision': entry['sourceRevision'],
@@ -86,17 +121,23 @@ def process_track(entry, fingerprint, download, analyze, tmp_root):
 
 
 def build(batch_path, catalog_path, model_dir, fingerprint, output, expected_model_sha=None,
-          download=download_audio, analyze=analyze_audio, now=None, git_sha=None, tmp_root=None):
+          download=download_audio, analyze=analyze_audio, now=None, git_sha=None, tmp_root=None,
+          metrics_out=None, env=None):
     batch, batch_sha, catalog_sha = S.load_batch(batch_path, catalog_path)
     model_sha = S.sha256_dir(model_dir)
     if expected_model_sha and expected_model_sha != model_sha:
         raise S.ShardError('model archive checksum does not match the pinned value')
-    successes, failures = [], []
-    for entry in batch['tracks']:
-        try:
-            successes.append((entry, process_track(entry, fingerprint, download, analyze, tmp_root)))
-        except TrackFailure as f:
-            failures.append((entry, f))
+    successes, failures, rows = [], [], []
+    run_env = env or M.environment(git_sha or os.environ.get('GITHUB_SHA', 'unknown'), model_sha, fingerprint)
+    try:
+        for entry in batch['tracks']:
+            try:
+                successes.append((entry, process_track(entry, fingerprint, download, analyze, tmp_root, rows)))
+            except TrackFailure as f:
+                failures.append((entry, f))
+    finally:
+        if metrics_out:  # also on cancellation, so attempted tracks are never lost
+            write_metrics(metrics_out, rows, output, run_env)
     created = (now or datetime.datetime.now(datetime.timezone.utc)).strftime('%Y-%m-%dT%H:%M:%SZ')
     meta = {
         'schema_version': str(S.SCHEMA_VERSION), 'generator_git_sha': git_sha or os.environ.get('GITHUB_SHA', 'unknown'),
@@ -128,7 +169,15 @@ def build(batch_path, catalog_path, model_dir, fingerprint, output, expected_mod
     os.replace(tmp, output)
     S.validate_shard(output, fingerprint, batch, batch_sha, catalog_sha, model_sha)
     write_reports(output, meta, failures, fingerprint)
+    if metrics_out:  # refresh now that the shard size is known
+        write_metrics(metrics_out, rows, output, run_env)
     return meta
+
+
+def write_metrics(path, rows, output, env):
+    shard_bytes = os.path.getsize(output) if os.path.exists(output) else None
+    with open(path, 'wb') as f:
+        f.write(S.canonical(M.build_document(rows, env, shard_bytes)) + b'\n')
 
 
 def write_reports(output, meta, failures, fingerprint):
@@ -162,6 +211,7 @@ def main(argv=None):
     ap.add_argument('--embedding-space-fingerprint', required=True)
     ap.add_argument('--expected-model-sha256')
     ap.add_argument('--output', required=True)
+    ap.add_argument('--metrics-out', help='opt-in safe per-track timing metrics (JSON)')
     ap.add_argument('--validate-only', action='store_true')
     ap.add_argument('--dry-run', action='store_true', help='check batch, catalog and model only')
     a = ap.parse_args(argv)
@@ -185,7 +235,7 @@ def main(argv=None):
             print('dry-run ok:', S.artifact_name(batch['batchID'], batch_sha, a.embedding_space_fingerprint))
             return 0
         meta = build(a.batch, a.catalog, a.model_dir, a.embedding_space_fingerprint, a.output,
-                     a.expected_model_sha256)
+                     a.expected_model_sha256, metrics_out=a.metrics_out)
         print(f"built {meta['batch_id']}: {meta['status']} "
               f"{meta['success_count']} ok, {meta['failure_count']} failed")
         return 0

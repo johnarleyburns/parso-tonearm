@@ -25,3 +25,14 @@ vectors), runs FK/integrity/order checks, VACUUM, a read-only round trip, then w
 (`schema: starter-assemble-allowlist-v1`, `shards: [{batchID, batchManifestSHA256, assetName, assetURL, assetSHA256}]`).
 `assemble-starter-pack.workflow.yml` is the proposed dispatch-only workflow (copy to `.github/workflows/`);
 `Config/starter.lock` adoption stays a separate PR.
+
+## Capacity pilot (no production indexing)
+
+`build_shard.py --metrics-out F` writes safe per-track timings (download/embed/analysis/total, bytes, outcome,
+stage/error code only; never URLs). `select_pilot.py` cuts the frozen 10-track pilot from the frozen catalog
+(`Config/starter-batches/pilots/<id>.json`, run once after #207 freezes the catalog). `pilot_report.py` computes
+p50/p90 (nearest-rank), the 25/50/100 recommendation (p90 ≤ 60 s & 0 failures → 100; p90 ≤ 120 s & ≤ 2% → 50; else 25)
+and fails on >25 GB temp disk, surviving `shard-*` dirs, fingerprint mismatch, URL-like text, >150 min or non-metric
+artifacts. `starter-shard-pilot.workflow.yml` is the proposed dispatch-only macOS workflow (copy to `.github/workflows/`;
+needs repo vars `STARTER_MODEL_DIR`, `STARTER_EMBEDDING_SPACE_FINGERPRINT` from the #206 pin). The recommendation is a
+maximum, never a dispatcher. No production batch dispatched; no starter release published.
