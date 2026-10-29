@@ -82,6 +82,7 @@ Config/Secrets.xcconfig
 # would either drop a tag from the owner's own build or put a file that is not
 # there into CI's asset pack.
 Config/models-odr.yml
+Config/models-bundled.yml
 Config/stems-odr.yml
 *.local.sh
 .test-results/

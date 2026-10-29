@@ -191,7 +191,6 @@ final class DiscoveryRuntimeController {
         didStart = true
 
         sampler.beginObserving()
-        DiscoveryModelResources.shared.beginAccessing()
         observePlayback()
         observeMemoryWarnings()
         await refreshPauseFromStore()
@@ -448,9 +447,7 @@ final class DiscoveryRuntimeController {
             onAnalyzeTrack: { trackID in
                 Task { @MainActor in await DiscoveryRuntimeController.shared.analyzeTrack(trackID) }
             },
-            onDownloadModels: {
-                DiscoveryModelResources.shared.beginAccessing()
-            },
+            onDownloadModels: {},
             onOpenIndexStatus: {})
     }
 

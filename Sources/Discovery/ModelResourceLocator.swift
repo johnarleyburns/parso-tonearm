@@ -23,30 +23,13 @@ import Foundation
 /// missing").
 public struct ModelResourceLocator: Sendable {
     /// Directories to search, in priority order — the fallback path when
-    /// `bundle` is `nil` (tests / dev checkouts pointed at a plain
-    /// filesystem folder, not a real app bundle). See `bundle` below for
-    /// why this alone is NOT sufficient for real On-Demand Resource
-    /// content.
+    /// `bundle` is `nil` (tests / dev checkouts pointed at a plain folder).
     public var searchDirectories: [URL]
 
-    /// The bundle to resolve On-Demand Resource content through, via
-    /// `Bundle.url(forResource:withExtension:subdirectory:)` — the only
-    /// Apple-documented way to find ODR-mounted files. This is not
-    /// optional polish: a real device diagnostics export showed BOTH ODR
-    /// tags reporting `beginAccessingResources` success ("finished") while
-    /// `modelResourceAvailable` stayed `false` — the downloads completed,
-    /// but nothing could find the files, because they were never where a
-    /// guessed path expects them to be. Xcode mounts each ODR tag's
-    /// content into a *hashed*, unpredictable asset-pack directory (a real
-    /// CI archive showed
-    /// `guru.parso.tonearm.clap-text-956b7b876cac28a5d0622945cf9adb21.assetpack`,
-    /// not `Resources/CLAPTextEncoder.mlmodelc`) — `searchDirectories` +
-    /// plain `FileManager.fileExists` can never construct that path, no
-    /// matter how many subdirectories it's told to check. `Bundle`'s own
-    /// resource APIs are what actually know where ODR content lives; they
-    /// abstract over exactly this. `nil` in tests/dev checkouts, where
-    /// `searchDirectories` point at a plain filesystem folder instead of a
-    /// real app bundle.
+    /// The bundle the CLAP packages are compiled into (`Bundle.main` in the
+    /// app), resolved via `Bundle.url(forResource:withExtension:subdirectory:)`.
+    /// CLAP is bundled, not On-Demand; the compiled `.mlmodelc` is preferred
+    /// over a raw `.mlpackage`. `nil` in tests/dev checkouts.
     public var bundle: Bundle?
 
     /// Audio-encoder file names, in preference order (compiled first).

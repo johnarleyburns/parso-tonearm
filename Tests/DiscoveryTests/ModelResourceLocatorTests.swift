@@ -24,6 +24,30 @@ final class ModelResourceLocatorTests: XCTestCase {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     }
 
+    /// Issue #201: both compiled CLAP packages resolve from a main-bundle-style
+    /// fixture (compiled `.mlmodelc` preferred over raw `.mlpackage`), with no
+    /// On-Demand Resource request involved.
+    func testResolvesBothCompiledCLAPPackagesFromBundleStyleFixture() throws {
+        let dir = try makeTempDir()
+        for name in ["CLAPAudioEncoder", "CLAPTextEncoder"] {
+            try makeDir(dir.appendingPathComponent("\(name).mlmodelc"))
+            try makeDir(dir.appendingPathComponent("\(name).mlpackage"))
+        }
+        let bundle = try XCTUnwrap(Bundle(url: dir))
+        let resolved = ModelResourceLocator(searchDirectories: [dir], bundle: bundle).resolve()
+        XCTAssertEqual(resolved.audioEncoderURL?.lastPathComponent, "CLAPAudioEncoder.mlmodelc")
+        XCTAssertEqual(resolved.textEncoderURL?.lastPathComponent, "CLAPTextEncoder.mlmodelc")
+    }
+
+    /// Issue #201: a missing package is honest unavailability, not an acquisition.
+    func testMissingCLAPPackagesResolveUnavailable() throws {
+        let dir = try makeTempDir()
+        let bundle = try XCTUnwrap(Bundle(url: dir))
+        let resolved = ModelResourceLocator(searchDirectories: [dir], bundle: bundle).resolve()
+        XCTAssertNil(resolved.audioEncoderURL)
+        XCTAssertNil(resolved.textEncoderURL)
+    }
+
     func testResolvesBothWhenPresent() throws {
         let dir = try makeTempDir()
         try makeDir(dir.appendingPathComponent("CLAPAudioEncoder.mlpackage"))
