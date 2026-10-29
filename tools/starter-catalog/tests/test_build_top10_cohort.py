@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(TOOL, '..', 'starter-shards'))
 import build_top10_cohort as B
 import shardlib as S
 
-FX = os.path.join(HERE, '..', '..', '..', 'Tests', 'fixtures', 'starter-catalog')
+FX = os.path.join(HERE, '..', '..', '..', 'Tests', 'Fixtures', 'starter-catalog')
 TAX = os.path.join(FX, 'taxonomy.json')
 RESP = os.path.join(FX, 'responses.json')
 
@@ -16,11 +16,18 @@ def run(top=10, responses=None, out=None):
     fx = RESP
     if responses is not None:
         fx = os.path.join(out, 'fx.json')
-        json.dump({'responses': responses}, open(fx, 'w'))
+        with open(fx, 'w', encoding='utf-8') as f:
+            json.dump({'responses': responses}, f)
     paths = [os.path.join(out, n) for n in ('sel.json', 'rep.json', 'cat.json')]
     B.main(['--taxonomy', TAX, '--selection-out', paths[0], '--report-out', paths[1],
             '--catalog-out', paths[2], '--top-per-node', str(top), '--fixture', fx])
-    return [json.load(open(p)) for p in paths], [open(p, 'rb').read() for p in paths]
+    decoded, raw = [], []
+    for path in paths:
+        with open(path, encoding='utf-8') as f:
+            decoded.append(json.load(f))
+        with open(path, 'rb') as f:
+            raw.append(f.read())
+    return decoded, raw
 
 
 class CohortTests(unittest.TestCase):
@@ -58,7 +65,8 @@ class CohortTests(unittest.TestCase):
         self.assertEqual(rep['recommendedExecutionIssueCount'], 1)
 
     def test_deterministic_across_reordering(self):
-        base = json.load(open(RESP))['responses']
+        with open(RESP, encoding='utf-8') as f:
+            base = json.load(f)['responses']
         _, first = run(responses=base)
         for seed in range(3):
             shuffled = {k: random.Random(seed).sample(v, len(v)) for k, v in reversed(list(base.items()))}
@@ -85,7 +93,8 @@ class CohortTests(unittest.TestCase):
             self.assertNotIn('example.invalid/audio', text)
         for name in os.listdir(FX):
             self.assertTrue(name.endswith('.json'))
-            self.assertNotRegex(open(os.path.join(FX, name)).read(), r'https?://[^"]*[?&]|client_id')
+            with open(os.path.join(FX, name), encoding='utf-8') as f:
+                self.assertNotRegex(f.read(), r'https?://[^"]*[?&]|client_id')
 
     def test_live_mode_requires_env_credential(self):
         env = {k: v for k, v in os.environ.items() if k != 'JAMENDO_CLIENT_ID'}

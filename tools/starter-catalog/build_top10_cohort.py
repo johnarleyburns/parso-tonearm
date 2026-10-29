@@ -16,6 +16,9 @@ API_VERSION = 'v3.0'
 METHOD = 'top-10-per-node-v1'
 EMBEDDING_SPACE = 'clap-int4-128-v1'
 BATCH_SIZE, EXECUTION_BATCHES = 100, 4
+# Live catalog freezing is a one-off curation task, so deliberately pace API
+# calls instead of bursting the full taxonomy at Jamendo.
+MIN_REQUEST_INTERVAL_SECONDS = 5.0
 REASONS = ('not_downloadable', 'license', 'missing_metadata', 'invalid_duration', 'filter_mismatch')
 CC_URL = re.compile(r'^https?://(?:www\.)?creativecommons\.org/(?:licenses/([a-z-]+)/([0-9.]+)|publicdomain/zero/([0-9.]+))/?')
 
@@ -86,7 +89,7 @@ def classify(row, node):
         return 'missing_metadata', None
     title, artist = row.get('name'), row.get('artist_name')
     pop = popularity(row)
-    if not all(isinstance(s, str) and s.strip() for s in (title, artist)) or pop is None:
+    if not all(isinstance(s, str) and s.strip() for s in (title, artist)):
         return 'missing_metadata', None
     try:
         dur = float(row.get('duration'))
@@ -106,18 +109,30 @@ def classify(row, node):
 def select_for_node(node, rows, top):
     excluded = {r: 0 for r in REASONS}
     good, seen = [], set()
-    for row in rows:
+    for source_order, row in enumerate(rows):
         reason, norm = classify(row, node)
         if reason:
             excluded[reason] += 1
         elif norm['providerTrackID'] not in seen:
             seen.add(norm['providerTrackID'])
+            # Jamendo applies the requested popularity_total_desc ordering but
+            # does not consistently return a numeric popularity_total field.
+            # Preserve its response order in that case instead of rejecting a
+            # valid candidate for metadata the API did not expose.
+            norm['sourceOrder'] = source_order
             good.append(norm)
-    good.sort(key=lambda t: (-t['popularityTotal'], int(t['providerTrackID'])))
+    if all(t['popularityTotal'] is not None for t in good):
+        good.sort(key=lambda t: (-t['popularityTotal'], int(t['providerTrackID'])))
+    else:
+        good.sort(key=lambda t: t['sourceOrder'])
     return good[:top], len(good), excluded
 
 
-def fetch_live(node, client_id, limit):
+def fetch_live(node, client_id, limit, last_request_at=None):
+    if last_request_at is not None:
+        wait = MIN_REQUEST_INTERVAL_SECONDS - (time.monotonic() - last_request_at[0])
+        if wait > 0:
+            time.sleep(wait)
     params = {'client_id': client_id, 'format': 'json', 'limit': limit, 'audiodownload_allowed': 'true',
               'order': 'popularity_total_desc', 'tags': '+'.join(node['sourceFilter']['tags']),
               'include': 'musicinfo+licenses+stats'}
@@ -130,11 +145,14 @@ def fetch_live(node, client_id, limit):
     results = body.get('results') if isinstance(body, dict) else None
     if not isinstance(results, list):
         raise CohortError(f'Jamendo response for {node["id"]} had no results list')
+    if last_request_at is not None:
+        last_request_at[0] = time.monotonic()
     return results
 
 
 def load_taxonomy(path):
-    raw = open(path, 'rb').read()
+    with open(path, 'rb') as f:
+        raw = f.read()
     tax = json.loads(raw)
     if tax.get('schema') != 'jamendo-taxonomy-v1' or not isinstance(tax.get('nodes'), list):
         raise CohortError('taxonomy: schema must be jamendo-taxonomy-v1 with a nodes list')
@@ -235,7 +253,8 @@ def main(argv=None):
         raise CohortError('--top-per-node must be >= 1')
     tax, tax_sha = load_taxonomy(a.taxonomy)
     if a.fixture:
-        fx = json.load(open(a.fixture))
+        with open(a.fixture, encoding='utf-8') as f:
+            fx = json.load(f)
         responses, when = fx['responses'], fx.get('retrievedAt', 'fixture')
         fetch = lambda node: responses.get(node['id'], [])
     else:
@@ -243,7 +262,8 @@ def main(argv=None):
         if not cid:
             raise CohortError('JAMENDO_CLIENT_ID is not set (use --fixture for recorded responses)')
         when = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-        fetch = lambda node: fetch_live(node, cid, a.candidate_limit)
+        last_request_at = [float('-inf')]
+        fetch = lambda node: fetch_live(node, cid, a.candidate_limit, last_request_at)
     sel, rep, cat, report = build(tax, tax_sha, fetch, a.top_per_node, when)
     for path, data in ((a.selection_out, sel), (a.report_out, rep), (a.catalog_out, cat)):
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
