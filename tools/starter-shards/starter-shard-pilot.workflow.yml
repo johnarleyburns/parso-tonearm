@@ -1,0 +1,74 @@
+# PROPOSED .github/workflows/starter-shard-pilot.yml. It lives here because the automated worker
+# may not edit .github; a maintainer copies it to .github/workflows/ unchanged.
+# Capacity benchmark only: never publishes, never creates a release, never pushes, never touches a shared DB.
+name: Starter shard pilot
+on:
+  workflow_dispatch:
+    inputs:
+      pilot_id:
+        description: Frozen 10-track pilot manifest ID (Config/starter-batches/pilots/<id>.json)
+        required: true
+      publish:
+        description: Must remain false; pilot never publishes
+        type: boolean
+        default: false
+
+concurrency:
+  group: starter-shard-pilot
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  pilot:
+    runs-on: macos-latest
+    timeout-minutes: 150
+    env:
+      PILOT_ID: ${{ inputs.pilot_id }}
+      PUBLISH: ${{ inputs.publish }}
+      MODEL_DIR: ${{ vars.STARTER_MODEL_DIR }}   # the #206 pinned model pair, fetched by `make models`
+      EMBEDDING_SPACE_FINGERPRINT: ${{ vars.STARTER_EMBEDDING_SPACE_FINGERPRINT }}
+    steps:
+      - name: Enforce publish=false and a named pilot
+        run: |
+          set -euo pipefail
+          [ "$PUBLISH" = "false" ] || { echo "pilot never publishes"; exit 1; }
+          [[ "$PILOT_ID" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ ]] || { echo "invalid pilot_id"; exit 1; }
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        run: python3 -I -m unittest discover -s tools/starter-shards/tests
+      - name: Build analysis tools and fetch the pinned model pair (#206)
+        run: |
+          set -euo pipefail
+          swift build -c release --product BuiltInEmbedder --product BuiltInAnalyzer
+          make models   # checksum-verified against Config/models.lock
+          echo "STARTED=$(date +%s)" >> "$GITHUB_ENV"
+          echo "PILOT_TMP=$RUNNER_TEMP/pilot-tmp" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/pilot-tmp" "$RUNNER_TEMP/pilot-out"
+      - name: Run pilot with the normal build_shard CLI
+        run: |
+          set -euo pipefail
+          TMPDIR="$PILOT_TMP" python3 -I tools/starter-shards/build_shard.py \
+            --batch "Config/starter-batches/pilots/${PILOT_ID}.json" \
+            --catalog Config/starter-batches/manifest-v1.json \
+            --model-dir "$MODEL_DIR" --embedding-space-fingerprint "$EMBEDDING_SPACE_FINGERPRINT" \
+            --output "$RUNNER_TEMP/pilot-out/pilot.sqlite" \
+            --metrics-out "$RUNNER_TEMP/pilot-out/pilot-metrics.json"
+      - name: Report and gate
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          python3 -I tools/starter-shards/pilot_report.py \
+            --metrics "$RUNNER_TEMP/pilot-out/pilot-metrics.json" \
+            --expected-fingerprint "$EMBEDDING_SPACE_FINGERPRINT" \
+            --elapsed-seconds $(( $(date +%s) - STARTED )) --temp-root "$PILOT_TMP" \
+            --artifact-dir "$RUNNER_TEMP/pilot-out" \
+            --out "$RUNNER_TEMP/pilot-out/pilot-report.json" --markdown "$RUNNER_TEMP/pilot-out/pilot-report.md"
+      - name: Upload short-retention artifact (metrics, reports, checksums, incomplete shard only)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: starter-shard-pilot
+          retention-days: 3
+          path: ${{ runner.temp }}/pilot-out/
