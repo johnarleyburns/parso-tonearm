@@ -4,6 +4,27 @@ Immutable 100-track input manifests for the from-scratch int4/128-D (`clap-int4-
 starter catalog. Identity is `(provider, providerTrackID)` with provider exactly `jamendo`; stream
 URLs are never identity. No v3/512-D vector or `starter.sqlite` row is an input.
 
+## Taxonomy and eligibility contract
+
+The authoritative taxonomy is the app's `JamendoGenreTree` in
+`Sources/Remote/Providers/JamendoGenreProvider.swift`: 155 selectable nodes (13 roots and 142
+subgenres). `tools/starter-catalog/jamendo_taxonomy_v1.json` is generated from that source of truth;
+regenerate and verify it after an app-tree edit:
+
+    python3 -I tools/starter-catalog/generate_taxonomy.py \
+      --tree Sources/Remote/Providers/JamendoGenreProvider.swift \
+      --out tools/starter-catalog/jamendo_taxonomy_v1.json
+    python3 -I tools/starter-catalog/generate_taxonomy.py \
+      --tree Sources/Remote/Providers/JamendoGenreProvider.swift \
+      --out tools/starter-catalog/jamendo_taxonomy_v1.json --check
+
+Each node queries exactly its own final, live-verified Jamendo tag. Never substitute a smaller
+hand-maintained taxonomy and never require a parent tag in addition to a subgenre tag.
+
+All Jamendo tracks are approved for Tonearm's free open-source use. Preserve any `license_ccurl`
+metadata for attribution, but it is not an eligibility filter: a missing or unfamiliar license URL
+must not drop a downloadable candidate.
+
 - `manifest-v1.json` — canonical catalog (`starter-catalog-v1`), tracks sorted by identity. It is the
   frozen input and must be supplied from the Jamendo catalog export; it is not generated here.
 - `batch-NNNN.json` — `starter-batch-v1`, 1..100 tracks, `catalogSHA256` = hash of the catalog.

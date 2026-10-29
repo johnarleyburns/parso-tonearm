@@ -9,7 +9,7 @@ recorded responses ({"retrievedAt": "...", "responses": {nodeID: [rows]}}) and n
 network. Nothing here downloads audio, reads embeddings or reads any starter database; signed audio
 URLs from the API are used only as a truthiness check and are never persisted or logged.
 """
-import argparse, hashlib, json, math, os, re, sys, time, urllib.error, urllib.parse, urllib.request
+import argparse, hashlib, json, math, os, sys, time, urllib.error, urllib.parse, urllib.request
 
 API_ENDPOINT = 'https://api.jamendo.com/v3.0/tracks/'
 API_VERSION = 'v3.0'
@@ -19,8 +19,7 @@ BATCH_SIZE, EXECUTION_BATCHES = 100, 4
 # Live catalog freezing is a one-off curation task, so deliberately pace API
 # calls instead of bursting the full taxonomy at Jamendo.
 MIN_REQUEST_INTERVAL_SECONDS = 5.0
-REASONS = ('not_downloadable', 'license', 'missing_metadata', 'invalid_duration', 'filter_mismatch')
-CC_URL = re.compile(r'^https?://(?:www\.)?creativecommons\.org/(?:licenses/([a-z-]+)/([0-9.]+)|publicdomain/zero/([0-9.]+))/?')
+REASONS = ('not_downloadable', 'missing_metadata', 'invalid_duration', 'filter_mismatch')
 
 
 class CohortError(Exception):
@@ -34,17 +33,6 @@ def canonical(obj):
 
 def sha256_hex(data):
     return hashlib.sha256(data).hexdigest()
-
-
-def license_info(row):
-    """(license id, url) for a permitted Creative Commons license, else None."""
-    url = row.get('license_ccurl')
-    m = CC_URL.match(url) if isinstance(url, str) else None
-    if not m:
-        return None
-    if m.group(1):
-        return f'cc-{m.group(1)}-{m.group(2)}', url
-    return f'cc0-{m.group(3)}', url
 
 
 def row_tags(row):
@@ -97,13 +85,18 @@ def classify(row, node):
         return 'invalid_duration', None
     if not math.isfinite(dur) or dur <= 0:
         return 'invalid_duration', None
-    lic = license_info(row)
-    if lic is None:
-        return 'license', None
     if not matches_exact_node_filter(row, node):
         return 'filter_mismatch', None
+    # Jamendo approval covers the complete catalog for this free open-source
+    # app. Keep source metadata for attribution, but it must never exclude a
+    # track from the starter cohort.
+    license_url = row.get('license_ccurl')
+    if not isinstance(license_url, str) or not license_url.strip():
+        license_url = None
+    license_value = license_url or 'jamendo-approved'
     return None, {'providerTrackID': tid, 'title': title.strip(), 'artist': artist.strip(),
-                  'durationSec': dur, 'license': lic[0], 'licenseURL': lic[1], 'popularityTotal': pop}
+                  'durationSec': dur, 'license': license_value, 'licenseURL': license_url,
+                  'popularityTotal': pop}
 
 
 def select_for_node(node, rows, top):

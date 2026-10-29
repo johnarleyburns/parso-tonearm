@@ -4,6 +4,7 @@ TOOL = os.path.dirname(HERE)
 sys.path.insert(0, TOOL)
 sys.path.insert(0, os.path.join(TOOL, '..', 'starter-shards'))
 import build_top10_cohort as B
+import generate_taxonomy as G
 import shardlib as S
 
 FX = os.path.join(HERE, '..', '..', '..', 'Tests', 'Fixtures', 'starter-catalog')
@@ -34,25 +35,30 @@ class CohortTests(unittest.TestCase):
     def test_dedup_and_provenance(self):
         (sel, rep, cat), _ = run()
         ids = [t['providerTrackID'] for t in sel['tracks']]
-        self.assertEqual(ids, ['10', '20', '30', '40', '50'])
+        self.assertEqual(ids, ['10', '20', '30', '40', '44', '50'])
         t20 = next(t for t in sel['tracks'] if t['providerTrackID'] == '20')
         self.assertEqual(t20['genreNodeIDs'], ['genre:ambient', 'subgenre:electronic:ambient'])
-        self.assertEqual(rep['rawSelectionsBeforeDedupe'], 4 + 3 + 0)
-        self.assertEqual(rep['uniqueSelectedTracks'], 5)
+        self.assertEqual(rep['rawSelectionsBeforeDedupe'], 5 + 3 + 0)
+        self.assertEqual(rep['uniqueSelectedTracks'], 6)
         self.assertEqual(rep['duplicateCollapseCount'], 2)
         self.assertEqual(rep['taxonomyNodeCount'], 2)
 
     def test_ranking_popularity_desc_then_id_asc(self):
         (sel, _, _), _ = run()
         node = next(n for n in sel['nodes'] if n['nodeID'] == 'genre:ambient')
-        self.assertEqual([s['providerTrackID'] for s in node['rankedSelections']], ['20', '10', '30', '40'])
-        self.assertEqual([s['rank'] for s in node['rankedSelections']], [1, 2, 3, 4])
+        self.assertEqual([s['providerTrackID'] for s in node['rankedSelections']], ['44', '20', '10', '30', '40'])
+        self.assertEqual([s['rank'] for s in node['rankedSelections']], [1, 2, 3, 4, 5])
 
     def test_exclusions(self):
         (_, rep, _), _ = run()
         ex = rep['excludedByReason']
-        self.assertEqual(ex, {'not_downloadable': 1, 'license': 1, 'missing_metadata': 1,
+        self.assertEqual(ex, {'not_downloadable': 1, 'missing_metadata': 1,
                               'invalid_duration': 2, 'filter_mismatch': 1})
+
+    def test_unrecognized_license_is_retained_not_filtered(self):
+        (sel, _, _), _ = run()
+        track = next(track for track in sel['tracks'] if track['providerTrackID'] == '44')
+        self.assertEqual(track['license'], 'https://example.invalid/license')
 
     def test_limit_and_no_padding(self):
         (sel, rep, _), _ = run(top=2)
@@ -78,7 +84,7 @@ class CohortTests(unittest.TestCase):
         (_, rep, cat), raw = run()
         S.validate_catalog(cat)
         self.assertEqual(cat['embeddingSpace'], 'clap-int4-128-v1')
-        self.assertEqual(cat['metadata']['selectedCount'], 5)
+        self.assertEqual(cat['metadata']['selectedCount'], 6)
         self.assertEqual(cat['metadata']['nodeCount'], 2)
         self.assertEqual(cat['metadata']['selectionManifestSHA256'], rep['selectionSHA256'])
         self.assertEqual(S.sha256_hex(raw[2]), rep['catalogSHA256'])
@@ -109,6 +115,16 @@ class CohortTests(unittest.TestCase):
         tax, sha = B.load_taxonomy(os.path.join(TOOL, 'jamendo_taxonomy_v1.json'))
         self.assertGreater(len(tax['nodes']), 0)
         self.assertEqual(len(sha), 64)
+
+    def test_real_taxonomy_is_generated_from_the_app_tree(self):
+        with open(os.path.join(TOOL, 'jamendo_taxonomy_v1.json'), encoding='utf-8') as f:
+            actual = json.load(f)
+        with open(os.path.join(HERE, '..', '..', '..', 'Sources', 'Remote', 'Providers',
+                               'JamendoGenreProvider.swift'), encoding='utf-8') as f:
+            expected = G.build(f.read())
+        self.assertEqual(actual, expected)
+        self.assertEqual(len(actual['nodes']), 155)
+        self.assertTrue(all(len(node['sourceFilter']['tags']) == 1 for node in actual['nodes']))
 
 
 if __name__ == '__main__':
