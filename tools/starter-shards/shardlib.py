@@ -79,7 +79,11 @@ def load_canonical(path, what):
         obj = json.loads(raw)
     except ValueError as e:
         raise ShardError(f'{what}: not valid JSON ({e})')
-    if raw != canonical(obj) and raw != canonical(obj) + b'\n':
+    try:
+        canon = canonical(obj)
+    except ValueError as e:
+        raise ShardError(f'{what}: not canonical-serializable (NaN/Infinity/invalid Unicode: {e})')
+    if raw != canon and raw != canon + b'\n':
         raise ShardError(f'{what}: not in canonical form (sorted keys, compact separators)')
     return obj, sha256_hex(canonical(obj))
 
@@ -97,6 +101,54 @@ def check_entries(entries, what):
         seen.add(identity(e))
     if entries != sorted(entries, key=identity):
         raise ShardError(f'{what}: tracks are not sorted by (provider, providerTrackID)')
+
+
+REQUIRED_NONEMPTY = ('provider', 'providerTrackID', 'streamURL', 'sourceRevision', 'title', 'artist', 'license')
+CATALOG_SCHEMA = 'starter-catalog-v1'
+CATALOG_EMBEDDING_SPACE = 'clap-int4-128-v1'
+CATALOG_PROVIDER = 'jamendo'
+
+
+def _clean_text(value):
+    if not isinstance(value, str):
+        return False
+    try:
+        value.encode('utf-8')
+    except UnicodeEncodeError:
+        return False
+    return not any(ord(c) < 0x20 or 0x7f <= ord(c) < 0xa0 for c in value)
+
+
+def validate_catalog(catalog):
+    """Strict frozen-catalog validation (Jamendo-only, int4/128-D, identity = provider+id)."""
+    if not isinstance(catalog, dict):
+        raise ShardError('catalog: must be a JSON object')
+    if catalog.get('schema') != CATALOG_SCHEMA:
+        raise ShardError(f'catalog: schema must be {CATALOG_SCHEMA}')
+    if catalog.get('embeddingSpace') != CATALOG_EMBEDDING_SPACE:
+        raise ShardError(f'catalog: embeddingSpace must be exactly {CATALOG_EMBEDDING_SPACE}')
+    tracks = catalog.get('tracks')
+    if not isinstance(tracks, list):
+        raise ShardError('catalog: tracks must be a list')
+    for e in tracks:
+        if not isinstance(e, dict):
+            raise ShardError('catalog: track must be an object')
+        for k in REQUIRED_NONEMPTY:
+            v = e.get(k)
+            if not isinstance(v, str) or not v.strip():
+                raise ShardError(f'catalog: track {e.get("providerTrackID")!r} missing nonempty {k}')
+        for k in ('genre', 'licenseURL'):
+            if k in e and e[k] is not None and not isinstance(e[k], str):
+                raise ShardError(f'catalog: track {e.get("providerTrackID")!r} {k} must be a string')
+        for k, v in e.items():
+            if isinstance(v, str) and not _clean_text(v):
+                raise ShardError(f'catalog: track {e["providerTrackID"]!r} {k} has invalid Unicode/control characters')
+        if e['provider'] != CATALOG_PROVIDER:
+            raise ShardError(f'catalog: provider must be exactly {CATALOG_PROVIDER}, got {e["provider"]!r}')
+        d = e.get('durationSec')
+        if isinstance(d, bool) or not isinstance(d, (int, float)) or not math.isfinite(d) or d <= 0:
+            raise ShardError(f'catalog: track {e["providerTrackID"]!r} durationSec must be finite and positive')
+    check_entries(tracks, 'catalog')
 
 
 def load_batch(batch_path, catalog_path):
