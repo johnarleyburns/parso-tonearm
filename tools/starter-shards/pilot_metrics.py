@@ -99,6 +99,8 @@ def evaluate(doc, expected_fingerprint, elapsed_seconds=None, leftover_temp_dirs
     import json
     s = doc['summary']
     violations = []
+    if s['failureCount'] > 0:
+        violations.append(f"{s['failureCount']} track attempt(s) failed")
     if s['peakTempDiskBytes'] > MAX_TEMP_DISK_BYTES:
         violations.append('peak temporary disk exceeds 25 GB')
     if leftover_temp_dirs:

@@ -116,6 +116,9 @@ class MetricsTests(PilotBase):
         rows = [M.make_row('1', 1, 'success', total_seconds=10, temp_bytes=1)]
         doc = M.build_document(rows, ENV, 1)
         self.assertEqual(M.evaluate(doc, FP)[1], [])
+        failed = M.build_document([M.make_row('1', 1, 'failure', total_seconds=10,
+                                              stage='analyze', error_code='failed')], ENV, 1)
+        self.assertIn('1 track attempt(s) failed', M.evaluate(failed, FP)[1])
         big = M.build_document([M.make_row('1', 1, 'success', total_seconds=1, temp_bytes=26 * 10 ** 9)], ENV, 1)
         self.assertEqual(len(M.evaluate(big, FP, 151 * 60, ['x'], True)[1]), 4 + 0)
         self.assertEqual(len(M.evaluate(doc, 'other')[1]), 1)
@@ -128,8 +131,9 @@ class MetricsTests(PilotBase):
         mo = self.run_build()
         out = os.path.join(self.dir, 'r.json')
         self.assertEqual(R.main(['--metrics', mo, '--expected-fingerprint', FP, '--temp-root', self.dir,
-                                 '--out', out, '--markdown', out + '.md']), 0)
+                                 '--out', out, '--markdown', out + '.md']), 1)
         rep = json.load(open(out))
+        self.assertEqual(rep['status'], 'fail')
         self.assertEqual(rep['recommendedMaxTracksPerRunner'], 25)
         self.assertNotIn('SECRET', open(out).read() + open(out + '.md').read())
         os.makedirs(os.path.join(self.dir, 'shard-left'))

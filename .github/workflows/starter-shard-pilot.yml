@@ -42,6 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           swift build -c release --product BuiltInEmbedder --product BuiltInAnalyzer
+          echo "STARTER_SHARD_BIN=$(swift build -c release --show-bin-path)" >> "$GITHUB_ENV"
           make models   # checksum-verified against Config/models.lock
           echo "STARTED=$(date +%s)" >> "$GITHUB_ENV"
           echo "PILOT_TMP=$RUNNER_TEMP/pilot-tmp" >> "$GITHUB_ENV"
