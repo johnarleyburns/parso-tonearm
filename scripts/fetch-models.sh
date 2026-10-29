@@ -27,7 +27,7 @@
 
 set -euo pipefail
 
-cd "$(git rev-parse --show-toplevel)"
+cd "${TONEARM_REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 
 LOCK="Config/models.lock"
 DEST_ROOT="Resources/Models"
@@ -44,16 +44,50 @@ if [[ ! -f "$LOCK" ]]; then
   exit 1
 fi
 
+# Unpack a verified archive into a staging directory, check it holds exactly one
+# expected top-level directory and no path traversal, and only then replace the
+# destination. A rejected archive leaves any existing destination untouched.
+unpack_model_asset() {
+  local asset=$1 tmp=$2 destination=$3 archive_root=$4 stage listing
+  case "$asset" in
+    *.tar.gz) listing=$(tar -tzf "$tmp") || { echo "models: unreadable archive: $asset" >&2; return 1; } ;;
+    *.zip) listing=$(unzip -Z1 "$tmp") || { echo "models: unreadable archive: $asset" >&2; return 1; } ;;
+    *) echo "models: unsupported archive format: $asset" >&2; return 1 ;;
+  esac
+  if printf '%s\n' "$listing" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+    echo "models: archive path traversal rejected: $asset" >&2
+    return 1
+  fi
+  stage=$(mktemp -d /tmp/tonearm-model.XXXXXX)
+  case "$asset" in
+    *.tar.gz) tar -xzf "$tmp" -C "$stage" ;;
+    *.zip) unzip -q "$tmp" -d "$stage" ;;
+  esac
+  test -d "$stage/$archive_root" ||
+    { echo "models: expected root missing: $archive_root" >&2; rm -rf "$stage"; return 1; }
+  test "$(find "$stage" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" = 1 ||
+    { echo "models: archive has unexpected top-level content" >&2; rm -rf "$stage"; return 1; }
+  rm -rf "$destination"
+  mv "$stage/$archive_root" "$destination"
+  rm -rf "$stage"
+}
+
 mkdir -p "$DEST_ROOT"
 fetched=0
 kept=0
 
-while read -r url sha dir; do
+while read -r url sha dir root || [[ -n "${url:-}" ]]; do
   # Skip blank lines and comments.
   [[ -z "${url:-}" || "${url:0:1}" == "#" ]] && continue
 
   target="$DEST_ROOT/$dir"
-  if [[ -d "$target" && "$FORCE" == "0" ]]; then
+  # Rows with an archive root are the pinned CLAP pair: the directory is only
+  # kept when it was installed from this exact archive (marker), so a model from
+  # an earlier lock is replaced rather than kept.
+  marker="$DEST_ROOT/.$dir.sha256"
+  if [[ -n "${root:-}" && -d "$target" && "$(cat "$marker" 2>/dev/null)" != "$sha" ]]; then
+    echo "==> models: $dir is not the pinned asset — replacing"
+  elif [[ -d "$target" && "$FORCE" == "0" ]]; then
     echo "==> models: $dir already present — kept (--force to replace)"
     kept=$((kept + 1))
     continue
@@ -82,14 +116,12 @@ while read -r url sha dir; do
     exit 1
   fi
 
-  rm -rf "$target"
-  tar -xzf "$tmp" -C "$DEST_ROOT"
-  rm -f "$tmp"
-
-  if [[ ! -d "$target" ]]; then
-    echo "models: $asset did not contain $dir" >&2
+  if ! unpack_model_asset "$asset" "$tmp" "$target" "${root:-$dir}"; then
+    rm -f "$tmp"
     exit 1
   fi
+  rm -f "$tmp"
+  [[ -n "${root:-}" ]] && printf '%s\n' "$sha" > "$marker"
   echo "==> models: $dir unpacked and verified"
   fetched=$((fetched + 1))
 done < "$LOCK"

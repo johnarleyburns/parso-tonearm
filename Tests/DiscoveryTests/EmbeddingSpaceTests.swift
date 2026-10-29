@@ -45,8 +45,11 @@ final class EmbeddingSpaceTests: XCTestCase {
         XCTAssertEqual(s.dimensions, 128)
         XCTAssertEqual(
             s.fingerprint,
-            "clap-int4-128-v1:128:development-audio:development-text:development-projection:"
+            "clap-int4-128-v1:128:b69c830c05cc006e380c2f7ab938c2c561721be868f3a45613982c046db93b7a:"
+                + "429a248e33d03b106e4f80a7098c66fdadc022b83eee72710347629fc341fb86:"
+                + "df530674afd552bffc04ad38acbabf028dc279408de0a57238a53a3ea763f32a:"
                 + "\(s.preprocessingVersion):\(s.samplingVersion)")
+        XCTAssertFalse(s.fingerprint.contains("development-"))
     }
 
     func test512DimensionalStateIsResetAndUserDataSurvives() throws {
