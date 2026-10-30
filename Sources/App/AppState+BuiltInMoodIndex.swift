@@ -11,8 +11,9 @@ extension AppState {
     /// them on a fresh install. Assets are `.remote` with the real stream URL: network use only
     /// happens when the user presses play (CLAUDE.md "no silent/magic background work").
     ///
-    /// Runs again only when the starter DB's content version changes, and then only adds what
-    /// is missing (new tracks, analysis, artwork) — existing rows are never duplicated.
+    /// A starter-pack content change replaces only the prior Mood Starter source before it is
+    /// reseeded. This intentionally discards retired starter embeddings while leaving every
+    /// user-imported local or remote-library source untouched.
     ///
     /// Merged in chunks of `starterMergeChunk` tracks, each its own transaction, so the library
     /// stays readable while a large starter (tens of thousands of tracks) goes in; the progress
@@ -22,11 +23,18 @@ extension AppState {
         guard starterMerge == nil || starterMerge?.paused == true else { return }
         guard let starter = StarterLibrary.shared else { return }
         let key = "builtin.starterLibrary.mergedVersion"
-        let alreadyMerged = UserDefaults.standard.string(forKey: key) == starter.contentVersion
-        let sourcePresent = (try? await store.firstSource(title: Self.moodIndexSourceTitle, kind: .local)) != nil
+        let previousVersion = UserDefaults.standard.string(forKey: key)
+        let alreadyMerged = previousVersion == starter.contentVersion
+        let source = try? await store.firstSource(title: Self.moodIndexSourceTitle, kind: .local)
+        let sourcePresent = source != nil
         guard !(alreadyMerged && sourcePresent) else { return }
         starterMergePaused = false
         do {
+            if previousVersion != nil, previousVersion != starter.contentVersion, let sourceID = source?.id {
+                try await store.deleteSource(id: sourceID)
+                UserDefaults.standard.removeObject(forKey: key)
+                await reload()
+            }
             let tracks = try await Task.detached(priority: .utility) { try starter.tracks() }.value
             guard !tracks.isEmpty else { return }
             let versions = StarterMergeVersions(

@@ -1,0 +1,92 @@
+name: Build starter shard
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_id:
+        description: Frozen batch ID (for example batch-0001)
+        required: true
+        type: string
+
+concurrency:
+  group: starter-shard-${{ inputs.batch_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      MODEL_DIR: Resources/Models/CLAPAudioEncoder.mlpackage
+      EMBEDDING_SPACE_FINGERPRINT: ${{ vars.STARTER_EMBEDDING_SPACE_FINGERPRINT }}
+      BATCH_ID: ${{ inputs.batch_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate immutable batch selection
+        run: |
+          set -euo pipefail
+          [[ "$BATCH_ID" =~ ^batch-[0-9]{4}$ ]]
+          test -f "Config/starter-batches/$BATCH_ID.json"
+          test -n "$EMBEDDING_SPACE_FINGERPRINT"
+          echo "BATCH=Config/starter-batches/$BATCH_ID.json" >> "$GITHUB_ENV"
+          echo "OUT_DIR=$RUNNER_TEMP/starter-shard" >> "$GITHUB_ENV"
+      - name: Unit tests
+        run: python3 -I -m unittest discover -s tools/starter-shards/tests
+      - name: Build analysis tools and fetch pinned model
+        run: |
+          set -euo pipefail
+          swift build -c release --product BuiltInEmbedder
+          swift build -c release --product BuiltInAnalyzer
+          echo "STARTER_SHARD_BIN=$(swift build -c release --show-bin-path)" >> "$GITHUB_ENV"
+          make models
+          mkdir -p "$OUT_DIR" "$RUNNER_TEMP/starter-audio"
+      - name: Build exactly one immutable shard
+        env:
+          JAMENDO_CLIENT_ID: ${{ secrets.TONEARM_JAMENDO_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          [ -n "$JAMENDO_CLIENT_ID" ] || { echo "Jamendo runner credential is not configured"; exit 1; }
+          TMPDIR="$RUNNER_TEMP/starter-audio" python3 -I tools/starter-shards/build_shard.py \
+            --batch "$BATCH" --catalog Config/starter-batches/manifest-v1.json \
+            --model-dir "$MODEL_DIR" --embedding-space-fingerprint "$EMBEDDING_SPACE_FINGERPRINT" \
+            --output "$OUT_DIR/$BATCH_ID.sqlite"
+      - name: Require a complete zero-failure shard
+        run: |
+          set -euo pipefail
+          python3 -I - "$OUT_DIR/$BATCH_ID.sqlite" <<'PY'
+          import sqlite3, sys
+          db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+          meta = dict(db.execute("SELECT key, value FROM shard_meta"))
+          failures = db.execute("SELECT count(*) FROM shard_failure").fetchone()[0]
+          assert meta.get("status") == "complete", meta
+          assert meta.get("failure_count") == "0" and failures == 0, (meta, failures)
+          assert meta.get("success_count") == meta.get("track_count"), meta
+          PY
+      - name: Create or verify the immutable shard release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          catalog_sha=$(sha256sum Config/starter-batches/manifest-v1.json | awk '{print $1}')
+          tag="starter-shards-v1-${catalog_sha:0:12}"
+          echo "SHARD_RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+          gh release view "$tag" >/dev/null 2>&1 || \
+            gh release create "$tag" --prerelease --target "$GITHUB_SHA" --title "$tag" \
+              --notes "Immutable int4/128-D starter shard set for catalog $catalog_sha."
+      - name: Publish checked shard assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload "$SHARD_RELEASE_TAG" \
+            "$OUT_DIR/$BATCH_ID.sqlite" \
+            "$OUT_DIR/$BATCH_ID.manifest.json" \
+            "$OUT_DIR/$BATCH_ID.report.json" \
+            "$OUT_DIR/$BATCH_ID.SHA256SUMS"
+      - name: Upload run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: starter-shard-${{ inputs.batch_id }}
+          path: ${{ runner.temp }}/starter-shard/

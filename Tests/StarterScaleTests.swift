@@ -1,8 +1,8 @@
 import XCTest
 @testable import TonearmCore
 
-/// How a larger starter behaves on first launch: reading it (embeddings rebuilt from the
-/// projection), merging it into the library, and loading the library's rows. Opt-in timing
+/// How a larger starter behaves on first launch: reading its native 128-D embeddings, merging it
+/// into the library, and loading the library's rows. Opt-in timing
 /// run: TONEARM_STARTER_SCALE=<tracks> swift test -c release -Xswiftc -enable-testing --filter StarterScaleTests
 final class StarterScaleTests: XCTestCase {
     func testTimingAtScale() async throws {

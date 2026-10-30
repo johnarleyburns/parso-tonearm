@@ -34,27 +34,26 @@ final class EmbeddingProjectionTests: XCTestCase {
         XCTAssertEqual(decoded, projection)
     }
 
-    func testStarterShipsProjectedEmbeddingsAndReadsThemInFull() throws {
-        let data = vectors(count: 60)
+    func testStarterShipsNative128DimensionalEmbeddings() throws {
+        let data = vectors(count: 60).map { Array($0 + $0) }
         let tracks = data.enumerated().map { index, vector -> BuiltInMoodTrack in
             let (bytes, scale) = EmbeddingProjection.quantize(vector)
             return BuiltInMoodTrack(
                 id: "jamendo-\(index)", title: "T\(index)", artist: "A", genre: "House", license: "cc-by",
                 licenseURL: nil, durationSec: 200, streamURL: "https://example.com/\(index).mp3", artworkURL: nil,
-                dimensions: 64, scale: scale, quantizedVector: bytes, bpm: 120, key: "8A", energy: 0.5,
+                dimensions: 128, scale: scale, quantizedVector: bytes, bpm: 120, key: "8A", energy: 0.5,
                 analysisScopeSeconds: 60)
         }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("starter-\(UUID().uuidString).sqlite")
         defer { try? FileManager.default.removeItem(at: url) }
-        try StarterLibraryWriter.create(at: url, tracks: tracks, meta: [:], embeddingDimensions: 8)
+        try StarterLibraryWriter.create(at: url, tracks: tracks, meta: [:])
         let starter = try StarterLibrary(url: url)
-        XCTAssertEqual(starter.projection?.dimensions, 8)
         let read = try starter.tracks()
         XCTAssertEqual(read.count, 60)
         for track in read {
             let original = data[Int(track.id.dropFirst("jamendo-".count))!]
-            XCTAssertEqual(track.dimensions, 64, "the library gets full embeddings")
-            XCTAssertEqual(track.quantizedVector.count, 64)
+            XCTAssertEqual(track.dimensions, 128)
+            XCTAssertEqual(track.quantizedVector.count, 128)
             let rebuilt = EmbeddingProjection.dequantize(track.quantizedVector, scale: track.scale)
             XCTAssertGreaterThan(cosine(rebuilt, original), 0.99)
         }

@@ -1,0 +1,70 @@
+name: Assemble starter pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      shard_allowlist:
+        description: Repository path to explicit immutable shard allowlist
+        required: true
+        type: string
+
+concurrency:
+  group: assemble-starter-pack
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate explicit assembly inputs
+        run: |
+          set -euo pipefail
+          test -f "${{ inputs.shard_allowlist }}"
+          echo "ALLOWLIST=${{ inputs.shard_allowlist }}" >> "$GITHUB_ENV"
+      - name: Download only allowlisted shard assets
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/shards"
+          python3 -I - "$ALLOWLIST" "$RUNNER_TEMP/shards" <<'PY'
+          import json, os, sys, urllib.request
+          allowlist, destination = sys.argv[1:]
+          for shard in json.load(open(allowlist, encoding="utf-8"))["shards"]:
+              name = os.path.basename(shard["assetName"])
+              if name != shard["assetName"]: raise SystemExit("unsafe asset name")
+              urllib.request.urlretrieve(shard["assetURL"], os.path.join(destination, name))
+          PY
+      - name: Unit tests
+        run: python3 -I -m unittest discover -s tools/starter-shards/tests
+      - name: Validate and assemble native starter v4
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/check" "$RUNNER_TEMP/pack"
+          python3 -I tools/starter-shards/assemble_starter.py \
+            --catalog Config/starter-batches/manifest-v1.json --shard-allowlist "$ALLOWLIST" \
+            --shard-dir "$RUNNER_TEMP/shards" --output "$RUNNER_TEMP/check/starter.sqlite" \
+            --report "$RUNNER_TEMP/check/REPORT.md" --validate-only
+          python3 -I tools/starter-shards/assemble_starter.py \
+            --catalog Config/starter-batches/manifest-v1.json --shard-allowlist "$ALLOWLIST" \
+            --shard-dir "$RUNNER_TEMP/shards" --generator-git-sha "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/pack/starter.sqlite" --report "$RUNNER_TEMP/pack/REPORT.md"
+          (cd "$RUNNER_TEMP/pack" && sha256sum -c SHA256SUMS.txt)
+      - name: Publish immutable starter pack
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          hash=$(python3 -I -c "import sqlite3,sys; print(dict(sqlite3.connect('file:'+sys.argv[1]+'?mode=ro', uri=True).execute('SELECT key,value FROM starter_meta'))['logical_content_sha256'])" "$RUNNER_TEMP/pack/starter.sqlite")
+          tag="starter-v4-${hash:0:12}"
+          if gh release view "$tag" >/dev/null 2>&1; then echo "immutable release already exists: $tag"; exit 1; fi
+          gh release create "$tag" --prerelease --target "$GITHUB_SHA" --title "$tag" \
+            --notes-file "$RUNNER_TEMP/pack/REPORT.md" "$RUNNER_TEMP/pack/starter.sqlite" \
+            "$RUNNER_TEMP/pack/starter.manifest.json" "$RUNNER_TEMP/pack/SHA256SUMS.txt" "$RUNNER_TEMP/pack/REPORT.md"
+      - name: Upload assembled pack artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: starter-pack
+          path: ${{ runner.temp }}/pack/

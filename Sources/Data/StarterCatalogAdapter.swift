@@ -53,7 +53,7 @@ struct StarterCatalogAdapter: Sendable {
             var entries: [StarterCatalogEntry] = [], missing: [String] = [], duplicated: [String] = []
             for trackID in trackIDs {
                 let catalogID = Self.catalogIDPrefix + trackID
-                let rows = try Row.fetchAll(db, sql: "SELECT id, title, artist, genre, duration, artwork_url, bpm, camelot FROM starter_track WHERE id = ?",
+                let rows = try Row.fetchAll(db, sql: "SELECT id, title, artist, genre, duration, NULL AS artwork_url, bpm, camelot FROM starter_track WHERE id = ?",
                                             arguments: [catalogID])
                 guard let row = rows.first else { missing.append(catalogID); continue }
                 if rows.count > 1 { duplicated.append(catalogID); continue }

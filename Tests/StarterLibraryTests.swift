@@ -9,7 +9,7 @@ final class StarterLibraryTests: XCTestCase {
             id: "jamendo-\(index)", title: "Track \(index)", artist: index.isMultiple(of: 2) ? "Ann" : "Bob",
             genre: index < 3 ? "House" : "Ambient", license: "cc-by", licenseURL: nil, durationSec: 200,
             streamURL: "https://example.com/\(index).mp3", artworkURL: "https://example.com/\(index).jpg",
-            dimensions: 4, scale: 0.01, quantizedVector: Data([1, 2, 3, 4]),
+            dimensions: 128, scale: 0.01, quantizedVector: Data(repeating: UInt8(index + 1), count: 128),
             bpm: analysed ? 120 + Double(index) : nil, key: analysed ? "8A" : nil, energy: 0.5,
             analysisScopeSeconds: 60)
     }
@@ -28,7 +28,8 @@ final class StarterLibraryTests: XCTestCase {
         XCTAssertEqual(starter.contentVersion, "v1")
         let read = try starter.tracks()
         XCTAssertEqual(read.map(\.id), tracks.map(\.id))
-        XCTAssertEqual(read[2].quantizedVector, Data([1, 2, 3, 4]))
+        XCTAssertEqual(read[2].dimensions, 128)
+        XCTAssertEqual(read[2].quantizedVector.count, 128)
         XCTAssertEqual(read[2].bpm, 122)
     }
 
