@@ -17,16 +17,20 @@ permissions:
 
 jobs:
   build:
-    # The pinned audio engine is validated against the Xcode SDK on macos-14.
-    # macos-15 currently supplies Xcode 26.6, whose MTAudioProcessingTap ABI
-    # breaks audio-engine 1.3.1 before either offline tool can be built.
-    runs-on: macos-14
+    # macos-14 is no longer available on GitHub-hosted runners. macos-15 also
+    # carries Xcode 16.4, the SDK supported by pinned audio-engine 1.3.1.
+    runs-on: macos-15
     env:
       MODEL_DIR: Resources/Models/CLAPAudioEncoder.mlpackage
       EMBEDDING_SPACE_FINGERPRINT: ${{ vars.STARTER_EMBEDDING_SPACE_FINGERPRINT }}
       BATCH_ID: ${{ inputs.batch_id }}
     steps:
       - uses: actions/checkout@v4
+      - name: Select supported Xcode for pinned audio engine
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode_16.4.app
+          xcodebuild -version
       - name: Validate immutable batch selection
         run: |
           set -euo pipefail
