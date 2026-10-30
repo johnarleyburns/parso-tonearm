@@ -32,7 +32,9 @@ public struct WatchStoreBootstrapResult: @unchecked Sendable {
 }
 
 public enum WatchStoreBootstrap {
-    public static let schema = Schema(WatchSchemaV1.models)
+    /// Computed rather than retained: SwiftData's Schema is non-Sendable, and this value has no
+    /// mutable identity that needs to cross isolation domains.
+    public static var schema: Schema { Schema(WatchSchemaV1.models) }
     public static let storeName = "PlatterheadWatch"
     public static let resetPendingKey = "watch.resetToDefault.pending"
 
@@ -161,7 +163,8 @@ public enum WatchStoreBootstrap {
 }
 
 public enum WatchSchemaV1: VersionedSchema {
-    public static let versionIdentifier = Schema.Version(1, 0, 0)
+    /// Computed rather than retained for Swift 6's non-Sendable SwiftData version value.
+    public static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
     public static var models: [any PersistentModel.Type] {
         [WatchStoreMetadata.self, WatchTrackModel.self, WatchAssetModel.self, WatchArtworkAssetModel.self, WatchPlaylistModel.self,
          WatchPlaylistEntryModel.self, WatchDownloadJobModel.self, WatchDownloadRootModel.self,
