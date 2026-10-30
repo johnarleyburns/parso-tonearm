@@ -215,12 +215,14 @@ final class MixDeckPlayer {
         if current != nil { host.mixDecksPublish(plan: nil, state: .cancelled) }
     }
 
-    isolated deinit {
-        pressureObservers.forEach { NotificationCenter.default.removeObserver($0) }
-        startTask?.cancel()
-        cancelPlanning()
-        ticker?.cancel()
-        loads.values.forEach { $0.cancel() }
+    deinit {
+        MainActor.assumeIsolated {
+            pressureObservers.forEach { NotificationCenter.default.removeObserver($0) }
+            startTask?.cancel()
+            cancelPlanning()
+            ticker?.cancel()
+            loads.values.forEach { $0.cancel() }
+        }
     }
 
     var isRunning: Bool { output.isRunning }

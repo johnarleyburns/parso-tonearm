@@ -51,9 +51,11 @@ final class MixDeckOutput {
         }
     }
 
-    isolated deinit {
-        engine.stop()
-        if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
+    deinit {
+        MainActor.assumeIsolated {
+            engine.stop()
+            if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
+        }
     }
 
     func start() throws {

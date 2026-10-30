@@ -527,7 +527,7 @@ extension AudioPlayer {
         Task { @MainActor [weak self, asset, weak item] in
             guard let self, let item,
                   self.player.currentItem === item,
-                  let audioTracks = try? await asset.loadTracks(withMediaType: .audio),
+                  let audioTracks = asset.tracks(withMediaType: .audio),
                   let audioTrack = audioTracks.first,
                   let descriptions = try? await audioTrack.load(.formatDescriptions)
             else { return }
