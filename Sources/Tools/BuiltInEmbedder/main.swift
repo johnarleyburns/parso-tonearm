@@ -52,7 +52,11 @@ struct BuiltInEmbedder {
             FileHandle.standardError.write("mel filterbank load failed: \(error)\n".data(using: .utf8)!)
             exit(1)
         }
-        let spec = EmbeddingModelSpec.musicCLAP(melFilterBank: melFilterBank)
+        var spec = EmbeddingModelSpec.musicCLAP(melFilterBank: melFilterBank)
+        // The released int4 CLAP pair is native 128-D.  The upstream music
+        // CLAP metadata defaults to its legacy 512-D reference width, so use
+        // this repository's embedding-space contract for Core ML extraction.
+        spec.dimensions = EmbeddingSpace.current.dimensions
 
         let loadableURL: URL
         do {
