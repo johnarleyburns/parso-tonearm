@@ -10,7 +10,9 @@ on:
 
 concurrency:
   group: starter-shard-${{ inputs.batch_id }}
-  cancel-in-progress: false
+  # A newer dispatch for the same immutable batch supersedes a queued retry.
+  # This cannot mix shard contents because the batch ID is the group key.
+  cancel-in-progress: true
 
 permissions:
   contents: write
