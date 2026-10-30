@@ -19,9 +19,9 @@ permissions:
 
 jobs:
   build:
-    # macos-latest currently routes to a capacity-constrained arm64 pool. This
-    # available hosted image carries a current Xcode and starts shard work.
-    runs-on: macos-15
+    # Avoid the capacity-constrained arm64 queue while retaining a current
+    # macOS 15 / Xcode image for the native Core ML tools.
+    runs-on: macos-15-intel
     env:
       MODEL_DIR: Resources/Models/CLAPAudioEncoder.mlpackage
       EMBEDDING_SPACE_FINGERPRINT: ${{ vars.STARTER_EMBEDDING_SPACE_FINGERPRINT }}
