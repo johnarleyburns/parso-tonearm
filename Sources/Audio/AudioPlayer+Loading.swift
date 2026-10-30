@@ -525,9 +525,9 @@ extension AudioPlayer {
         eqTap?.prune(keeping: [item, preloadedNextItem].compactMap { $0 })
         let asset = item.asset
         Task { @MainActor [weak self, asset, weak item] in
+            let audioTracks = asset.tracks(withMediaType: .audio)
             guard let self, let item,
                   self.player.currentItem === item,
-                  let audioTracks = asset.tracks(withMediaType: .audio),
                   let audioTrack = audioTracks.first,
                   let descriptions = try? await audioTrack.load(.formatDescriptions)
             else { return }
