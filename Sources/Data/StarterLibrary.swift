@@ -113,12 +113,17 @@ public final class StarterLibrary: Sendable {
         guard dimensions == 128, data.count == dimensions * MemoryLayout<UInt32>.size else {
             throw StarterLibraryError.invalidRow("embedding dimensions")
         }
-        let bytes = [UInt8](data)
-        let vector = stride(from: 0, to: bytes.count, by: 4).map { offset in
-            Float(bitPattern: UInt32(bytes[offset]) | UInt32(bytes[offset + 1]) << 8 |
-                  UInt32(bytes[offset + 2]) << 16 | UInt32(bytes[offset + 3]) << 24)
+        let bytes: [UInt8] = Array(data)
+        var vector: [Float] = []
+        vector.reserveCapacity(dimensions)
+        for offset in stride(from: 0, to: bytes.count, by: 4) {
+            let low = UInt32(bytes[offset])
+            let high = UInt32(bytes[offset + 1]) << 8
+            let upper = UInt32(bytes[offset + 2]) << 16
+            let top = UInt32(bytes[offset + 3]) << 24
+            vector.append(Float(bitPattern: low | high | upper | top))
         }
-        guard vector.allSatisfy(\.isFinite) else { throw StarterLibraryError.invalidRow("non-finite embedding") }
+        guard vector.allSatisfy({ $0.isFinite }) else { throw StarterLibraryError.invalidRow("non-finite embedding") }
         return vector
     }
 }
