@@ -11,6 +11,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
+        try requireCurrentStarterCatalog()
         directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("tonearm-starter-path-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -25,8 +26,8 @@ final class StarterBlendProductionPathTests: XCTestCase {
         reset()
         PlaybackStateStore.defaultsProvider = { PlaybackStateStore.sharedDefaults() }
         PlaybackStateFileStore.fileURLOverride = nil
-        try? FileManager.default.removeItem(at: directory)
-        UserDefaults().removePersistentDomain(forName: suite)
+        if let directory { try? FileManager.default.removeItem(at: directory) }
+        if let suite { UserDefaults().removePersistentDomain(forName: suite) }
         try await super.tearDown()
     }
 

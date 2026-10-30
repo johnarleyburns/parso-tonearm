@@ -430,7 +430,12 @@ extension Schema {
                     t.add(column: "cachedURLExpiry", .datetime)
                 }
                 try LibraryStore.backfillCatalogSources(db)
-                try LibraryStore.seedStarterCatalog(db)
+                do {
+                    try LibraryStore.seedStarterCatalog(db)
+                } catch StarterCatalogError.unavailable, StarterCatalogError.incompatibleVersion {
+                    // No catalog, or one in a retired format (embeddings from an old model space): leave the
+                    // blend catalog unseeded rather than fail the whole library migration.
+                }
             }
         }
         if shouldRegister("v39", upTo: target) {

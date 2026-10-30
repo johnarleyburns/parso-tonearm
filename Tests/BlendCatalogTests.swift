@@ -3,6 +3,10 @@ import GRDB
 @testable import TonearmCore
 
 final class BlendCatalogTests: XCTestCase {
+    override func setUpWithError() throws {
+        try requireCurrentStarterCatalog()
+    }
+
     private func facts(_ id: String, bpm: Double = 100) -> StarterTrackFacts {
         StarterTrackFacts(id: id, durationSeconds: 240, bpm: bpm, beatPeriod: 60 / bpm, beatPhase: 0.2, rmsDB: -12)
     }

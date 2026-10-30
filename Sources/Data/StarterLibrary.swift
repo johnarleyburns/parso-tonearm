@@ -86,7 +86,7 @@ public final class StarterLibrary: Sendable {
                 let floats = try Self.decodeNativeVector(vector, dimensions: dimensions)
                 let (quantized, scale) = EmbeddingProjection.quantize(floats)
                 let profile: TransitionProfile = try Self.decodeProfile(row["transition_profile_json"])
-                BuiltInMoodTrack(
+                return BuiltInMoodTrack(
                     id: row["id"], title: row["title"], artist: row["artist"], genre: row["genre"],
                     license: row["license"], licenseURL: nil, durationSec: row["duration"],
                     streamURL: row["stream_url"], artworkURL: nil,
@@ -114,11 +114,16 @@ public final class StarterLibrary: Sendable {
             throw StarterLibraryError.invalidRow("embedding dimensions")
         }
         let bytes = [UInt8](data)
-        let vector = stride(from: 0, to: bytes.count, by: 4).map { offset in
-            Float(bitPattern: UInt32(bytes[offset]) | UInt32(bytes[offset + 1]) << 8 |
-                  UInt32(bytes[offset + 2]) << 16 | UInt32(bytes[offset + 3]) << 24)
+        var vector: [Float] = []
+        vector.reserveCapacity(dimensions)
+        for offset in stride(from: 0, to: bytes.count, by: 4) {
+            let b0 = UInt32(bytes[offset])
+            let b1 = UInt32(bytes[offset + 1]) << 8
+            let b2 = UInt32(bytes[offset + 2]) << 16
+            let b3 = UInt32(bytes[offset + 3]) << 24
+            vector.append(Float(bitPattern: b0 | b1 | b2 | b3))
         }
-        guard vector.allSatisfy(\.isFinite) else { throw StarterLibraryError.invalidRow("non-finite embedding") }
+        guard vector.allSatisfy({ (value: Float) in value.isFinite }) else { throw StarterLibraryError.invalidRow("non-finite embedding") }
         return vector
     }
 }
@@ -159,7 +164,7 @@ public enum StarterLibraryWriter {
                                                                            energy: track.energy,
                                                                            analysisScopeSeconds: track.analysisScopeSeconds))
                 try db.execute(sql: """
-                    INSERT INTO starter_track VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO starter_track VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, arguments: [
                         "test", track.id, track.id, "test", "test", track.title, track.artist, track.genre,
                         track.license, track.durationSec, track.streamURL, track.bpm, track.key, track.energy,

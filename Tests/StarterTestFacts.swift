@@ -1,4 +1,5 @@
 import Foundation
+import XCTest
 @testable import TonearmCore
 
 /// Test-only analysis of the 36 Starter tracks, used to synthesize audio and to seed catalog rows.
@@ -43,4 +44,16 @@ enum StarterTestFacts {
         StarterTrackFacts(id: "1960412", durationSeconds: 167.32299319727892, bpm: 73.9982122443568, beatPeriod: 0.8108303995489524, beatPhase: 0.1478076249177778, rmsDB: -14.340025827591958),
     ]
     static let byID: [String: StarterTrackFacts] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+}
+
+/// The fetched `Resources/Starter/starter.sqlite` can predate `StarterLibrary.formatVersion` until the
+/// current pack is assembled; tests that read the bundled catalog skip (visibly) instead of failing on it.
+func requireCurrentStarterCatalog() throws {
+    do {
+        _ = try StarterCatalogAdapter.bundled().contentVersion()
+    } catch StarterCatalogError.unavailable {
+        throw XCTSkip("Resources/Starter/starter.sqlite is not present (make starter)")
+    } catch StarterCatalogError.incompatibleVersion(let found) {
+        throw XCTSkip("Resources/Starter/starter.sqlite is format \(found); needs \(StarterLibrary.formatVersion)")
+    }
 }

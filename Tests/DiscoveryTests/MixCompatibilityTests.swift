@@ -21,7 +21,8 @@ final class MixCompatibilityTests: XCTestCase {
         XCTAssertFalse(rules.bpmCompatible(0, 100))
     }
 
-    func testChainObeysTheRulesAndReachesTheLengthFromTheBundledLibrary() {
+    func testChainObeysTheRulesAndReachesTheLengthFromTheBundledLibrary() throws {
+        try XCTSkipIf(BuiltInMoodIndexProvider.tracks.isEmpty, "Resources/Starter/starter.sqlite is missing or not format \(StarterLibrary.formatVersion)")
         let candidates = BuiltInMoodIndexProvider.tracks.enumerated().compactMap { index, track -> MixCandidate? in
             guard track.hasMusicalAnalysis else { return nil }
             return MixCandidate(trackID: Int64(index), bpm: track.bpm, camelot: track.key, energy: track.energy,

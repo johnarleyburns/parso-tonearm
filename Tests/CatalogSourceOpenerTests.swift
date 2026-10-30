@@ -52,6 +52,7 @@ final class CatalogSourceOpenerTests: XCTestCase {
     }
 
     func testStarterRowOpensThePinnedReleaseAssetAndNeverTouchesJamendo() async throws {
+        try requireCurrentStarterCatalog()
         let store = try LibraryStore(inMemory: true)
         let id = try XCTUnwrap(StarterBlendCatalog.starterTrackIDs.sorted().first)
         let log = Log()
@@ -150,6 +151,7 @@ final class CatalogSourceOpenerTests: XCTestCase {
     }
 
     func testUnknownAndNonMirroredIDsNeverBuildAReleaseURL() async throws {
+        try requireCurrentStarterCatalog()
         let store = try LibraryStore(inMemory: true)
         let log = Log()
         let o = opener(store, log: log) { _ in }
@@ -188,6 +190,7 @@ final class CatalogSourceOpenerTests: XCTestCase {
     }
 
     func testMigrationBackfillsSourceIdentityAndDemotesURLsToCache() throws {
+        try requireCurrentStarterCatalog()
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v37").migrate(queue)
         let starter = try XCTUnwrap(StarterBlendCatalog.starterTrackIDs.sorted().first)

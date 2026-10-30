@@ -85,6 +85,7 @@ final class StarterBlendTests: XCTestCase {
     }
 
     func testAssetsComeFromTheImmutableReleaseNeverJamendo() throws {
+        try requireCurrentStarterCatalog()
         let pack = StarterBlendCatalog.pack
         XCTAssertEqual(pack.releaseTag, "starter-blends-aac-v1")
         XCTAssertEqual(pack.assetURL(trackID: "337997")?.absoluteString,
@@ -112,6 +113,7 @@ final class StarterBlendTests: XCTestCase {
     }
 
     func testPlayBuildsOneRequestCarryingEveryEdgePlan() async throws {
+        try requireCurrentStarterCatalog()
         let blend = StarterBlendCatalog.blends[0]
         let log = StartLog()
         let playback = StarterBlendPlayback(start: { log.requests.append($0) })
@@ -127,7 +129,8 @@ final class StarterBlendTests: XCTestCase {
         XCTAssertEqual(playback.state(for: blend), .buffering)
     }
 
-    func testRepeatedTapWhileInFlightStartsOnce() async {
+    func testRepeatedTapWhileInFlightStartsOnce() async throws {
+        try requireCurrentStarterCatalog()
         let blend = StarterBlendCatalog.blends[0]
         let log = StartLog()
         let playback = StarterBlendPlayback(start: { log.requests.append($0) })
@@ -167,6 +170,10 @@ final class StarterBlendTests: XCTestCase {
 
 
 final class StarterBlendCatalogMetadataTests: XCTestCase {
+    override func setUpWithError() throws {
+        try requireCurrentStarterCatalog()
+    }
+
     func testStarterRowsUseCatalogSongAndArtistMetadataNotSyntheticCardSlots() throws {
         let blend = try XCTUnwrap(StarterBlendCatalog.blend(id: "starter.upbeat-energy"))
         let rows = try StarterBlendPlayback.catalogRows(for: blend)

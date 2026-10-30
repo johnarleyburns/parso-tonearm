@@ -48,7 +48,8 @@ final class MixSourcePickerTests: XCTestCase {
         }
     }
 
-    func testBundledLibraryMixesComeFromOneGenreAndObeyTheRules() {
+    func testBundledLibraryMixesComeFromOneGenreAndObeyTheRules() throws {
+        try XCTSkipIf(BuiltInMoodIndexProvider.tracks.isEmpty, "Resources/Starter/starter.sqlite is missing or not format \(StarterLibrary.formatVersion)")
         let tracks = BuiltInMoodIndexProvider.tracks
         let candidates = tracks.enumerated().compactMap { index, entry -> MixCandidate? in
             guard entry.hasMusicalAnalysis else { return nil }
