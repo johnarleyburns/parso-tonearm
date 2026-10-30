@@ -86,7 +86,7 @@ public final class StarterLibrary: Sendable {
                 let floats = try Self.decodeNativeVector(vector, dimensions: dimensions)
                 let (quantized, scale) = EmbeddingProjection.quantize(floats)
                 let profile: TransitionProfile = try Self.decodeProfile(row["transition_profile_json"])
-                BuiltInMoodTrack(
+                return BuiltInMoodTrack(
                     id: row["id"], title: row["title"], artist: row["artist"], genre: row["genre"],
                     license: row["license"], licenseURL: nil, durationSec: row["duration"],
                     streamURL: row["stream_url"], artworkURL: nil,
