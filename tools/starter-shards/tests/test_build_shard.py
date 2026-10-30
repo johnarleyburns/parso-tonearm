@@ -1,4 +1,4 @@
-import datetime, io, json, os, shutil, sqlite3, sys, tempfile, unittest
+import base64, datetime, io, json, os, shutil, sqlite3, sys, tempfile, unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 import build_shard as B
@@ -167,6 +167,21 @@ class ShardTests(unittest.TestCase):
         detail = B.safe_subprocess_detail(error)
         self.assertNotIn('token=', detail)
         self.assertNotIn('/tmp/secret', detail)
+
+    def test_embedder_quantized_output_is_decoded_at_128_dimensions(self):
+        raw = bytes([0, 127, 128] + [1] * 125)
+        vector = B.embedding_from_tool_result({
+            'dimensions': 128,
+            'scale': 0.25,
+            'quantizedVectorBase64': base64.b64encode(raw).decode('ascii'),
+        })
+        self.assertEqual(len(vector), 128)
+        self.assertEqual(vector[:3], [0.0, 31.75, -32.0])
+        with self.assertRaisesRegex(ValueError, 'length'):
+            B.embedding_from_tool_result({
+                'dimensions': 128, 'scale': 0.25,
+                'quantizedVectorBase64': base64.b64encode(raw[:-1]).decode('ascii'),
+            })
 
 
 if __name__ == '__main__':

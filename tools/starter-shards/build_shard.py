@@ -8,7 +8,7 @@ Each source is downloaded to a runner-local temp file, analysed, and the audio d
 finally block. The shard is the only artifact: no shared DB, release, branch or cache is touched.
 Per-track failures become shard_failure rows and mark the shard `incomplete`; nothing is dropped.
 """
-import argparse, datetime, json, os, re, shutil, sqlite3, subprocess, sys, tempfile, time, urllib.error, urllib.parse, urllib.request
+import argparse, base64, datetime, json, os, re, shutil, sqlite3, subprocess, sys, tempfile, time, urllib.error, urllib.parse, urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shardlib as S
 import pilot_metrics as M
@@ -82,6 +82,30 @@ def download_audio(entry, dest):
         raise TrackFailure('download', 'too_small', 'downloaded file is implausibly small')
 
 
+def embedding_from_tool_result(result):
+    """Read the embedder's stable int8-on-disk format as validated float values.
+
+    BuiltInEmbedder deliberately emits the same `quantizedVectorBase64` and
+    `scale` representation used by the app.  Shard payloads are canonical JSON,
+    so decode exactly that representation here rather than relying on a stale
+    development-only raw-vector field.
+    """
+    vector = result.get('embedding') or result.get('vector')
+    if vector is not None:
+        return vector
+    dimensions = result.get('dimensions')
+    encoded, scale = result.get('quantizedVectorBase64'), result.get('scale')
+    if dimensions != S.DIMENSIONS or not isinstance(encoded, str) or not isinstance(scale, (int, float)):
+        raise ValueError('embedder result has no valid 128-D quantized vector')
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError) as error:
+        raise ValueError('embedder quantized vector is not valid base64') from error
+    if len(raw) != dimensions:
+        raise ValueError('embedder quantized vector length does not match dimensions')
+    return [(byte if byte < 128 else byte - 256) * float(scale) for byte in raw]
+
+
 def analyze_audio(entry, path):
     """Real analysis via the BuiltInEmbedder/BuiltInAnalyzer release tools (dev-only binaries)."""
     bin_dir = os.environ.get('STARTER_SHARD_BIN', os.path.join(REPO, '.build/release'))
@@ -109,7 +133,7 @@ def analyze_audio(entry, path):
     except Exception as e:
         raise TrackFailure('analyze', 'analyze_failed', type(e).__name__)
     profile = {k: v for k, v in ana.items() if k not in ('id', 'streamURL', 'durationSec')}
-    return {'embedding': emb.get('embedding') or emb.get('vector'), 'transitionProfile': profile,
+    return {'embedding': embedding_from_tool_result(emb), 'transitionProfile': profile,
             'embedSeconds': embed_seconds, 'analysisSeconds': time.monotonic() - t1}
 
 
