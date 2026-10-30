@@ -162,6 +162,12 @@ class ShardTests(unittest.TestCase):
         with self.assertRaisesRegex(B.TrackFailure, 'durable Jamendo locator'):
             downloader(entry(1), os.path.join(self.dir, 'x.mp3'))
 
+    def test_tool_diagnostic_redacts_urls_and_paths(self):
+        error = __import__('subprocess').CalledProcessError(1, ['tool'], stderr='https://x/?token=nope /tmp/secret/file')
+        detail = B.safe_subprocess_detail(error)
+        self.assertNotIn('token=', detail)
+        self.assertNotIn('/tmp/secret', detail)
+
 
 if __name__ == '__main__':
     unittest.main()

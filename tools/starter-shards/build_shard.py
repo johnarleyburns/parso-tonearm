@@ -8,7 +8,7 @@ Each source is downloaded to a runner-local temp file, analysed, and the audio d
 finally block. The shard is the only artifact: no shared DB, release, branch or cache is touched.
 Per-track failures become shard_failure rows and mark the shard `incomplete`; nothing is dropped.
 """
-import argparse, datetime, json, os, shutil, sqlite3, subprocess, sys, tempfile, time, urllib.error, urllib.parse, urllib.request
+import argparse, datetime, json, os, re, shutil, sqlite3, subprocess, sys, tempfile, time, urllib.error, urllib.parse, urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import shardlib as S
 import pilot_metrics as M
@@ -22,6 +22,15 @@ class TrackFailure(Exception):
     def __init__(self, stage, code, detail):
         super().__init__(detail)
         self.stage, self.code, self.detail = stage, code, detail
+
+
+def safe_subprocess_detail(error):
+    """Bounded stderr diagnostic with URLs, query strings and paths removed."""
+    raw = (getattr(error, 'stderr', '') or '').replace('\n', ' ')
+    raw = re.sub(r'https?://\S+|\S*[?&](?:token|sig|client_id)=[^\s]+', '[redacted-url]', raw)
+    raw = re.sub(r'/(?:[^\s/]+/){2,}[^\s]*', '[redacted-path]', raw)
+    raw = re.sub(r'\s+', ' ', raw).strip()
+    return raw[:240] or type(error).__name__
 
 
 class JamendoTrackDownloader:
@@ -83,7 +92,7 @@ def analyze_audio(entry, path):
     try:
         emb_path = os.path.join(folder, 'embeddings.json')
         subprocess.run([os.path.join(bin_dir, 'BuiltInEmbedder'), folder, emb_path], check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         emb = {e['id']: e for e in json.load(open(emb_path))}[tid]
         embed_seconds = time.monotonic() - t0
         t1 = time.monotonic()
@@ -91,9 +100,12 @@ def analyze_audio(entry, path):
         json.dump([{'id': tid, 'streamURL': 'local', 'durationSec': entry['durationSec']}],
                   open(idx_path, 'w'))
         subprocess.run([os.path.join(bin_dir, 'BuiltInAnalyzer'), idx_path, '1'], check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
                        env=dict(os.environ, BUILTIN_ANALYZER_AUDIO_DIR=folder))
-        ana = json.load(open(idx_path))[0]
+        with open(idx_path, encoding='utf-8') as f:
+            ana = json.load(f)[0]
+    except subprocess.CalledProcessError as e:
+        raise TrackFailure('analyze', 'tool_failed', safe_subprocess_detail(e))
     except Exception as e:
         raise TrackFailure('analyze', 'analyze_failed', type(e).__name__)
     profile = {k: v for k, v in ana.items() if k not in ('id', 'streamURL', 'durationSec')}
