@@ -41,8 +41,8 @@ jobs:
       - name: Build analysis tools and fetch the pinned model pair (#206)
         run: |
           set -euo pipefail
-          swift build -c release --target BuiltInEmbedder
-          swift build -c release --target BuiltInAnalyzer
+          swift build -c release --product BuiltInEmbedder
+          swift build -c release --product BuiltInAnalyzer
           echo "STARTER_SHARD_BIN=$(swift build -c release --show-bin-path)" >> "$GITHUB_ENV"
           make models   # checksum-verified against Config/models.lock
           echo "STARTED=$(date +%s)" >> "$GITHUB_ENV"

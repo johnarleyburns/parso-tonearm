@@ -9,7 +9,9 @@ let package = Package(
         .library(name: "TonearmCore", targets: ["TonearmCore"]),
         .library(name: "TonearmDiscovery", targets: ["TonearmDiscovery"]),
         .library(name: "TonearmWatchProtocol", targets: ["TonearmWatchProtocol"]),
-        .library(name: "TonearmWatchCore", targets: ["TonearmWatchCore"])
+        .library(name: "TonearmWatchCore", targets: ["TonearmWatchCore"]),
+        .executable(name: "BuiltInAnalyzer", targets: ["BuiltInAnalyzer"]),
+        .executable(name: "BuiltInEmbedder", targets: ["BuiltInEmbedder"])
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
