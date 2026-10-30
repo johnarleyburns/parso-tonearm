@@ -45,7 +45,12 @@ jobs:
           swift build -c release --product BuiltInEmbedder
           swift build -c release --product BuiltInAnalyzer
           echo "STARTER_SHARD_BIN=$(swift build -c release --show-bin-path)" >> "$GITHUB_ENV"
-          make models
+          # Shard generation embeds audio only. Do not download the unrelated
+          # text encoder (or optional models) on every macOS runner.
+          MODEL_LOCK="$RUNNER_TEMP/starter-audio.models.lock"
+          awk '/^[[:space:]]*#/ || /^[[:space:]]*$/ || /CLAPAudioEncoder\.mlpackage/ { print }' \
+            Config/models.lock > "$MODEL_LOCK"
+          MODELS_LOCK="$MODEL_LOCK" scripts/fetch-models.sh
           mkdir -p "$OUT_DIR" "$RUNNER_TEMP/starter-audio"
       - name: Build exactly one immutable shard
         env:

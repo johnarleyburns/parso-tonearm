@@ -29,7 +29,10 @@ set -euo pipefail
 
 cd "${TONEARM_REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 
-LOCK="Config/models.lock"
+# A caller that needs only one model (for example, the audio-only starter
+# shard builder) can supply a derived, checksum-pinned subset.  The default
+# remains the complete production lock for normal app archives.
+LOCK="${MODELS_LOCK:-Config/models.lock}"
 DEST_ROOT="Resources/Models"
 FORCE=0
 [[ "${1:-}" == "--force" ]] && FORCE=1
