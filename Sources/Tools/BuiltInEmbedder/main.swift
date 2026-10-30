@@ -3,7 +3,7 @@ import AVFoundation
 import CoreML
 import Foundation
 import ParsoAudioNeural
-import TonearmDiscovery
+import StarterGeneratorSupport
 
 // Dev-only offline tool: pre-computes CLAP embeddings for a batch of audio
 // files (the bundled built-in mood-starter library — Jamendo + archive.org
@@ -56,7 +56,7 @@ struct BuiltInEmbedder {
         // The released int4 CLAP pair is native 128-D.  The upstream music
         // CLAP metadata defaults to its legacy 512-D reference width, so use
         // this repository's embedding-space contract for Core ML extraction.
-        spec.dimensions = EmbeddingSpace.current.dimensions
+        spec.dimensions = 128
 
         let loadableURL: URL
         do {

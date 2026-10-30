@@ -2,8 +2,7 @@
 import CryptoKit
 import Foundation
 import ParsoAudioAnalysis
-import TonearmCore
-import TonearmDiscovery
+import StarterGeneratorSupport
 
 // Dev-only offline tool: adds tempo, key and energy to the bundled mood-starter index
 // (data/mood-starter/source-index.json) so Build a Mix can place the built-in tracks on a
@@ -23,12 +22,6 @@ import TonearmDiscovery
 struct BuiltInAnalyzer {
     static func main() async {
         let args = CommandLine.arguments
-        if args.count >= 4, args[1] == "build-starter" {
-            let dims = args.firstIndex(of: "--embedding-dims").flatMap { $0 + 1 < args.count ? Int(args[$0 + 1]) : nil }
-            buildStarter(source: URL(fileURLWithPath: args[2]), output: URL(fileURLWithPath: args[3]),
-                         embeddingDimensions: dims ?? 128)
-            return
-        }
         guard args.count >= 2 else {
             FileHandle.standardError.write("usage: BuiltInAnalyzer <builtin-mood-index.json> [parallelism]\n".data(using: .utf8)!)
             exit(1)
@@ -116,7 +109,7 @@ struct BuiltInAnalyzer {
             let duration = entry.duration ?? 0
             guard duration > 0 else { return nil }
             // BoundedIndexWorker's musical-analysis window.
-            let scope = min(BoundedIndexWorker.musicalAnalysisMaxSeconds, duration)
+            let scope = min(60, duration)
             let start = max(0, duration / 2 - scope / 2)
             guard let pcm = try? reader.readWindow(url: temp, startSeconds: start, windowSeconds: scope),
                   !pcm.isEmpty else { return nil }
@@ -184,28 +177,6 @@ struct BuiltInAnalyzer {
     /// Progress for the person running the tool (stdout, unbuffered).
     static func say(_ line: String) {
         FileHandle.standardOutput.write((line + "\n").data(using: .utf8)!)
-    }
-
-    /// `embeddingDimensions`: principal-component coordinates per track (0: full embeddings).
-    static func buildStarter(source: URL, output: URL, embeddingDimensions: Int) {
-        do {
-            let sourceData = try Data(contentsOf: source)
-            let tracks = try JSONDecoder().decode([BuiltInMoodTrack].self, from: sourceData)
-            var hasher = SHA256()
-            hasher.update(data: sourceData)
-            hasher.update(data: Data("format-\(StarterLibrary.formatVersion)-emb\(embeddingDimensions)".utf8))
-            let contentVersion = hasher.finalize().prefix(8).map { String(format: "%02x", $0) }.joined()
-            try StarterLibraryWriter.create(
-                at: output, tracks: tracks,
-                meta: ["content_version": contentVersion, "track_count": String(tracks.count),
-                       "embedding_dims": String(embeddingDimensions > 0 ? embeddingDimensions : tracks.first?.dimensions ?? 0),
-                       "built_at": ISO8601DateFormatter().string(from: Date())],
-                embeddingDimensions: embeddingDimensions > 0 ? embeddingDimensions : nil)
-            let size = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-            say("starter DB → \(output.path): \(tracks.count) tracks, \(size / 1_024) KB, content \(contentVersion)")
-        } catch {
-            say("build-starter failed: \(error)")
-        }
     }
 
     static func curl(_ url: URL, to file: URL) async -> Bool {

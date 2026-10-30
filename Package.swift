@@ -185,6 +185,7 @@ let package = Package(
         .target(
             name: "TonearmDiscovery",
             dependencies: [
+                "StarterGeneratorSupport",
                 "TonearmCore",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
@@ -199,11 +200,15 @@ let package = Package(
             resources: [.process("Localization/Localizable.xcstrings")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        .target(
+            name: "StarterGeneratorSupport",
+            path: "Sources/StarterGeneratorSupport",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .executableTarget(
             name: "BuiltInAnalyzer",
             dependencies: [
-                "TonearmDiscovery",
-                "TonearmCore",
+                "StarterGeneratorSupport",
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine")
             ],
             path: "Sources/Tools/BuiltInAnalyzer",
@@ -212,8 +217,7 @@ let package = Package(
         .executableTarget(
             name: "BuiltInEmbedder",
             dependencies: [
-                "TonearmDiscovery",
-                "TonearmCore",
+                "StarterGeneratorSupport",
                 .product(name: "ParsoAudioNeural", package: "parso-audio-engine")
             ],
             path: "Sources/Tools/BuiltInEmbedder",

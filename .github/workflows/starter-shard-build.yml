@@ -47,7 +47,7 @@ jobs:
           set -euo pipefail
           swift build -c release --product BuiltInEmbedder
           swift build -c release --product BuiltInAnalyzer
-          echo "STARTER_SHARD_BIN=$(swift build -c release --show-bin-path)" >> "$GITHUB_ENV"
+          echo "STARTER_SHARD_BIN=$PWD/.build/release" >> "$GITHUB_ENV"
           # Shard generation embeds audio only. Do not download the unrelated
           # text encoder (or optional models) on every macOS runner.
           MODEL_LOCK="$RUNNER_TEMP/starter-audio.models.lock"
