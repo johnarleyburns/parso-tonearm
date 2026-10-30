@@ -17,8 +17,9 @@ permissions:
 
 jobs:
   build:
-    # Use the current hosted Apple SDK rather than an unavailable legacy image.
-    runs-on: macos-latest
+    # macos-latest currently routes to a capacity-constrained arm64 pool. This
+    # available hosted image carries a current Xcode and starts shard work.
+    runs-on: macos-15
     env:
       MODEL_DIR: Resources/Models/CLAPAudioEncoder.mlpackage
       EMBEDDING_SPACE_FINGERPRINT: ${{ vars.STARTER_EMBEDDING_SPACE_FINGERPRINT }}
