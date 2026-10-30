@@ -17,7 +17,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    # The pinned audio engine is validated against the Xcode SDK on macos-14.
+    # macos-15 currently supplies Xcode 26.6, whose MTAudioProcessingTap ABI
+    # breaks audio-engine 1.3.1 before either offline tool can be built.
+    runs-on: macos-14
     env:
       MODEL_DIR: Resources/Models/CLAPAudioEncoder.mlpackage
       EMBEDDING_SPACE_FINGERPRINT: ${{ vars.STARTER_EMBEDDING_SPACE_FINGERPRINT }}
