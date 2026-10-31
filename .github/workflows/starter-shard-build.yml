@@ -99,6 +99,7 @@ jobs:
             "$OUT_DIR/$BATCH_ID.report.json" \
             "$OUT_DIR/$BATCH_ID.SHA256SUMS"
       - name: Upload run artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: starter-shard-${{ inputs.batch_id }}
