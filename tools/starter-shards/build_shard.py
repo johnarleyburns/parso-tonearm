@@ -16,6 +16,7 @@ import pilot_metrics as M
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 JAMENDO_FILE_ENDPOINT = 'https://api.jamendo.com/v3.0/tracks/file/'
 JAMENDO_MIN_REQUEST_INTERVAL_SECONDS = 5.0
+JAMENDO_TRANSIENT_ATTEMPTS = 3
 
 
 class TrackFailure(Exception):
@@ -60,13 +61,20 @@ class JamendoTrackDownloader:
                                         'action': 'download', 'audioformat': 'mp32'})
         request = urllib.request.Request(JAMENDO_FILE_ENDPOINT + '?' + query)
         self.last_request_at = self.clock()
-        try:
-            with self.opener(request, timeout=120) as r, open(dest, 'wb') as out:
-                shutil.copyfileobj(r, out)
-        except urllib.error.HTTPError as e:
-            raise TrackFailure('resolve', 'jamendo_http_error', f'HTTP {e.code}')
-        except Exception as e:
-            raise TrackFailure('resolve', 'jamendo_resolve_failed', type(e).__name__)
+        for attempt in range(JAMENDO_TRANSIENT_ATTEMPTS):
+            try:
+                with self.opener(request, timeout=120) as r, open(dest, 'wb') as out:
+                    shutil.copyfileobj(r, out)
+                break
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    raise TrackFailure('resolve', 'jamendo_http_error', 'HTTP 404')
+                if e.code < 500 or attempt + 1 == JAMENDO_TRANSIENT_ATTEMPTS:
+                    raise TrackFailure('resolve', 'jamendo_http_error', f'HTTP {e.code}')
+            except Exception as e:
+                if attempt + 1 == JAMENDO_TRANSIENT_ATTEMPTS:
+                    raise TrackFailure('resolve', 'jamendo_resolve_failed', type(e).__name__)
+            self.sleep(2 ** attempt)
         if os.path.getsize(dest) < 10_000:
             raise TrackFailure('download', 'too_small', 'downloaded file is implausibly small')
 
