@@ -43,6 +43,12 @@ CREATE TABLE starter_track (
   transition_profile_json TEXT NOT NULL, payload_sha256 TEXT NOT NULL,
   PRIMARY KEY (provider, provider_track_id)
 );
+CREATE TABLE starter_stale_track (
+  provider TEXT NOT NULL, provider_track_id TEXT NOT NULL,
+  batch_id TEXT NOT NULL REFERENCES starter_batch(batch_id),
+  source_revision TEXT NOT NULL, title TEXT NOT NULL, artist TEXT NOT NULL,
+  stale_reason TEXT NOT NULL, PRIMARY KEY (provider, provider_track_id)
+);
 """
 TRACK_COLUMNS = ('provider, provider_track_id, id, batch_id, source_revision, title, artist, genre, '
                  'license, duration, stream_url, bpm, camelot, energy, emb_dimensions, emb_vector, '
@@ -94,10 +100,10 @@ def read_shard_rows(path):
         db.close()
 
 
-def failure_ids(path):
+def failures(path):
     db = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
     try:
-        return [tuple(r) for r in db.execute('SELECT provider, provider_track_id FROM shard_failure')]
+        return [tuple(r) for r in db.execute('SELECT provider, provider_track_id, stage, error_code, detail FROM shard_failure')]
     finally:
         db.close()
 
@@ -126,7 +132,7 @@ def collect(catalog_path, allowlist_path, shard_dir=None, expected_catalog_sha=N
     shard_dir = shard_dir or os.path.dirname(os.path.abspath(allowlist_path))
     allow = load_allowlist(allowlist_path)
 
-    problems, batches, successes, seen = [], [], {}, collections.Counter()
+    problems, batches, successes, stale, seen = [], [], {}, {}, collections.Counter()
     fingerprint = model_sha = generator_version = None
     for a in allow:
         path = os.path.join(shard_dir, a['assetName'])
@@ -148,18 +154,22 @@ def collect(catalog_path, allowlist_path, shard_dir=None, expected_catalog_sha=N
             raise S.ShardError(f"{a['batchID']}: mixed model archive checksums")
         if meta['generator_version'] != generator_version:
             raise S.ShardError(f"{a['batchID']}: incompatible generator version")
-        failed = failure_ids(path)
-        if meta['status'] != S.STATUS_COMPLETE or failed:
-            problems.append(f"{a['batchID']}: shard is {meta['status']} with {len(failed)} failed track(s)")
+        failed = failures(path)
+        fatal = [f for f in failed if not S.is_stale_failure(f[2], f[3], f[4])]
+        if meta['status'] != S.STATUS_COMPLETE or fatal:
+            problems.append(f"{a['batchID']}: shard is {meta['status']} with {len(fatal)} fatal failed track(s)")
         rows = read_shard_rows(path)
         for p, t, payload in rows:
             seen[(p, t)] += 1
             successes[(p, t)] = (a['batchID'], payload)
-        for ident in failed:
-            seen[ident] += 1
+        for p, t, _, _, _ in failed:
+            seen[(p, t)] += 1
+        for p, t, stage, code, detail in failed:
+            if S.is_stale_failure(stage, code, detail):
+                stale[(p, t)] = (a['batchID'], entries[(p, t)], f'{stage}:{code}:{detail}')
         batches.append({'batchID': a['batchID'], 'batchManifestSHA256': a['batchManifestSHA256'],
                         'shardLogicalDigest': S.logical_digest(path), 'trackCount': len(rows) + len(failed),
-                        'successCount': len(rows), 'failureCount': len(failed)})
+                        'successCount': len(rows), 'failureCount': len(fatal), 'staleCount': len(failed) - len(fatal)})
 
     duplicate = sorted(i for i, n in seen.items() if n > 1)
     unknown = sorted(i for i in seen if i not in entries)
@@ -187,8 +197,10 @@ def collect(catalog_path, allowlist_path, shard_dir=None, expected_catalog_sha=N
         check_profile(payload['transitionProfile'], str(ident))
         tracks.append((batch_id, entry, payload))
     counts['assembled'] = len(tracks)
+    if stale:
+        counts['stale'] = len(stale)
     return {'catalog_sha': catalog_sha, 'model_sha': model_sha, 'fingerprint': fingerprint,
-            'batches': batches, 'tracks': tracks, 'counts': counts}
+            'batches': batches, 'tracks': tracks, 'stale': stale, 'counts': counts}
 
 
 def pack_vector(embedding):
@@ -227,6 +239,7 @@ def build_db(path, plan, generator_sha):
                                  'shardLogicalDigest': b['shardLogicalDigest']}
                                 for b in plan['batches']]).decode('utf-8'),
         'track_count': str(len(rows)), 'logical_content_sha256': digest,
+        'stale_track_count': str(len(plan['stale'])),
     }
     db = sqlite3.connect(path, isolation_level=None)
     try:
@@ -239,6 +252,9 @@ def build_db(path, plan, generator_sha):
                            [(b['batchID'], b['batchManifestSHA256'], b['shardLogicalDigest'], b['trackCount'])
                             for b in plan['batches']])
             db.executemany(f'INSERT INTO starter_track ({TRACK_COLUMNS}) VALUES ({",".join("?" * 18)})', rows)
+            db.executemany('INSERT INTO starter_stale_track VALUES (?, ?, ?, ?, ?, ?, ?)',
+                           [(p, t, batch, entry['sourceRevision'], entry['title'], entry['artist'], reason)
+                            for (p, t), (batch, entry, reason) in sorted(plan['stale'].items())])
             db.execute('COMMIT')
         except BaseException:
             db.execute('ROLLBACK')
@@ -256,7 +272,7 @@ def verify_db(db, plan, rows):
     if db.execute('PRAGMA integrity_check').fetchall() != [('ok',)]:
         raise S.ShardError('integrity_check failed')
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    if tables != {'starter_meta', 'starter_batch', 'starter_track'}:
+    if tables != {'starter_meta', 'starter_batch', 'starter_track', 'starter_stale_track'}:
         raise S.ShardError(f'unexpected output tables {sorted(tables)}')
     ids = db.execute('SELECT provider, provider_track_id FROM starter_track ORDER BY rowid').fetchall()
     if ids != sorted(ids) or len(ids) != len(plan['tracks']):
@@ -267,6 +283,8 @@ def verify_db(db, plan, rows):
             raise S.ShardError(f'{ident}: embedding is not native {S.DIMENSIONS}-D')
         if not all(math.isfinite(x) for x in struct.unpack(f'<{S.DIMENSIONS}f', blob)):
             raise S.ShardError(f'{ident}: non-finite embedding')
+    if db.execute('SELECT count(*) FROM starter_stale_track').fetchone()[0] != len(plan['stale']):
+        raise S.ShardError('stale-track count differs')
 
 
 def read_back(path):

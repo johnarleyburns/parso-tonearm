@@ -223,7 +223,9 @@ def build(batch_path, catalog_path, model_dir, fingerprint, output, expected_mod
         'model_archive_sha256': model_sha, 'embedding_space_fingerprint': fingerprint,
         'track_count': str(len(batch['tracks'])), 'success_count': str(len(successes)),
         'failure_count': str(len(failures)),
-        'status': S.STATUS_INCOMPLETE if failures else S.STATUS_COMPLETE, 'created_at': created,
+        'stale_count': str(sum(S.is_stale_failure(f.stage, f.code, f.detail) for _, f in failures)),
+        'fatal_failure_count': str(sum(not S.is_stale_failure(f.stage, f.code, f.detail) for _, f in failures)),
+        'status': S.STATUS_INCOMPLETE if any(not S.is_stale_failure(f.stage, f.code, f.detail) for _, f in failures) else S.STATUS_COMPLETE, 'created_at': created,
     }
     tmp = output + '.partial'
     if os.path.exists(tmp):

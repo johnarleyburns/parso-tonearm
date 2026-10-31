@@ -72,10 +72,10 @@ jobs:
           import sqlite3, sys
           db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
           meta = dict(db.execute("SELECT key, value FROM shard_meta"))
-          failures = db.execute("SELECT count(*) FROM shard_failure").fetchone()[0]
+          failures = db.execute("SELECT count(*) FROM shard_failure WHERE NOT (stage = 'resolve' AND error_code = 'jamendo_http_error' AND detail = 'HTTP 404')").fetchone()[0]
           assert meta.get("status") == "complete", meta
-          assert meta.get("failure_count") == "0" and failures == 0, (meta, failures)
-          assert meta.get("success_count") == meta.get("track_count"), meta
+          assert meta.get("fatal_failure_count") == "0" and failures == 0, (meta, failures)
+          assert int(meta.get("success_count", "0")) + int(meta.get("stale_count", "0")) == int(meta.get("track_count", "-1")), meta
           PY
       - name: Create or verify the immutable shard release
         env:

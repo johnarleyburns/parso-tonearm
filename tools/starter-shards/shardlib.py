@@ -30,12 +30,17 @@ CREATE TABLE shard_failure (
 """
 REQUIRED_META = ('schema_version', 'generator_git_sha', 'generator_version', 'batch_id',
                  'batch_manifest_sha256', 'input_catalog_sha256', 'model_archive_sha256',
-                 'embedding_space_fingerprint', 'track_count', 'success_count', 'failure_count',
+                 'embedding_space_fingerprint', 'track_count', 'success_count', 'failure_count', 'stale_count', 'fatal_failure_count',
                  'status', 'created_at')
 
 
 class ShardError(Exception):
     pass
+
+
+def is_stale_failure(stage, error_code, detail):
+    """A withdrawn Jamendo ID is an expected historical-catalog exclusion."""
+    return stage == 'resolve' and error_code == 'jamendo_http_error' and detail == 'HTTP 404'
 
 
 def canonical(obj):
@@ -204,7 +209,7 @@ def validate_shard(path, fingerprint, batch=None, batch_sha=None, catalog_sha=No
                 raise ShardError(f'{key} mismatch')
         rows = db.execute('SELECT provider, provider_track_id, source_revision, payload_json, '
                           'payload_sha256 FROM shard_track ORDER BY provider, provider_track_id').fetchall()
-        failures = db.execute('SELECT provider, provider_track_id FROM shard_failure').fetchall()
+        failures = db.execute('SELECT provider, provider_track_id, stage, error_code, detail FROM shard_failure').fetchall()
         for provider, tid, revision, blob, digest in rows:
             blob = bytes(blob)
             if sha256_hex(blob) != digest:
@@ -218,13 +223,17 @@ def validate_shard(path, fingerprint, batch=None, batch_sha=None, catalog_sha=No
                 validate_payload(payload, fingerprint)
             except ShardError as e:
                 raise ShardError(f'{provider}/{tid}: {e}')
-        ids = [(r[0], r[1]) for r in rows] + [tuple(f) for f in failures]
+        ids = [(r[0], r[1]) for r in rows] + [(p, t) for p, t, _, _, _ in failures]
         if len(ids) != len(set(ids)):
             raise ShardError('a track is recorded as both success and failure')
+        stale = sum(is_stale_failure(stage, code, detail) for _, _, stage, code, detail in failures)
+        fatal = len(failures) - stale
         if (int(meta['success_count']), int(meta['failure_count']), int(meta['track_count'])) != (
                 len(rows), len(failures), len(ids)):
             raise ShardError('shard_meta counts disagree with rows')
-        if meta['status'] != (STATUS_INCOMPLETE if failures else STATUS_COMPLETE):
+        if int(meta['stale_count']) != stale or int(meta['fatal_failure_count']) != fatal:
+            raise ShardError('shard stale/fatal counts disagree with rows')
+        if meta['status'] != (STATUS_INCOMPLETE if fatal else STATUS_COMPLETE):
             raise ShardError('shard status disagrees with failure rows')
         if batch is not None:
             if meta['batch_id'] != batch.get('batchID'):
