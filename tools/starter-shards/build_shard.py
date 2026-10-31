@@ -15,6 +15,7 @@ import pilot_metrics as M
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 JAMENDO_FILE_ENDPOINT = 'https://api.jamendo.com/v3.0/tracks/file/'
+JAMENDO_TRACKS_ENDPOINT = 'https://api.jamendo.com/v3.0/tracks/'
 JAMENDO_MIN_REQUEST_INTERVAL_SECONDS = 5.0
 JAMENDO_TRANSIENT_ATTEMPTS = 3
 
@@ -69,6 +70,14 @@ class JamendoTrackDownloader:
             except urllib.error.HTTPError as e:
                 if e.code == 404:
                     raise TrackFailure('resolve', 'jamendo_http_error', 'HTTP 404')
+                if e.code >= 500:
+                    try:
+                        fallback = self._metadata_download_url(tid)
+                        with self.opener(urllib.request.Request(fallback), timeout=120) as r, open(dest, 'wb') as out:
+                            shutil.copyfileobj(r, out)
+                        break
+                    except Exception:
+                        pass
                 if e.code < 500 or attempt + 1 == JAMENDO_TRANSIENT_ATTEMPTS:
                     raise TrackFailure('resolve', 'jamendo_http_error', f'HTTP {e.code}')
             except Exception as e:
@@ -77,6 +86,17 @@ class JamendoTrackDownloader:
             self.sleep(2 ** attempt)
         if os.path.getsize(dest) < 10_000:
             raise TrackFailure('download', 'too_small', 'downloaded file is implausibly small')
+
+    def _metadata_download_url(self, tid):
+        """Resolve a one-use CDN URL only after the file resolver has a 5xx failure."""
+        query = urllib.parse.urlencode({'client_id': self.client_id, 'id': tid, 'format': 'json'})
+        with self.opener(urllib.request.Request(JAMENDO_TRACKS_ENDPOINT + '?' + query), timeout=120) as response:
+            payload = json.load(response)
+        results = payload.get('results') or []
+        url = results[0].get('audiodownload') if results else None
+        if not isinstance(url, str) or not url.startswith('https://'):
+            raise ValueError('Jamendo metadata did not return an audio download URL')
+        return url
 
 
 def download_audio(entry, dest):
