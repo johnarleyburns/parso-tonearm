@@ -81,12 +81,15 @@ class JamendoTrackDownloader:
                     except TrackFailure:
                         raise
                     except Exception:
-                        pass
+                        if attempt + 1 == JAMENDO_TRANSIENT_ATTEMPTS:
+                            raise TrackFailure('resolve', 'jamendo_stale_source',
+                                               'resolver HTTP 5xx and metadata download unavailable')
                 if e.code < 500 or attempt + 1 == JAMENDO_TRANSIENT_ATTEMPTS:
                     raise TrackFailure('resolve', 'jamendo_http_error', f'HTTP {e.code}')
             except Exception as e:
                 if attempt + 1 == JAMENDO_TRANSIENT_ATTEMPTS:
-                    raise TrackFailure('resolve', 'jamendo_resolve_failed', type(e).__name__)
+                    raise TrackFailure('resolve', 'jamendo_stale_source',
+                                       'resolver HTTP 5xx and metadata download unavailable')
             self.sleep(2 ** attempt)
         if os.path.getsize(dest) < 10_000:
             raise TrackFailure('download', 'too_small', 'downloaded file is implausibly small')

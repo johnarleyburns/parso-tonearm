@@ -40,7 +40,8 @@ class ShardError(Exception):
 
 def is_stale_failure(stage, error_code, detail):
     """A withdrawn Jamendo ID is an expected historical-catalog exclusion."""
-    return stage == 'resolve' and error_code == 'jamendo_http_error' and detail == 'HTTP 404'
+    return stage == 'resolve' and ((error_code == 'jamendo_http_error' and detail == 'HTTP 404')
+                                   or error_code == 'jamendo_stale_source')
 
 
 def canonical(obj):
