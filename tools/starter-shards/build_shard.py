@@ -73,9 +73,13 @@ class JamendoTrackDownloader:
                 if e.code >= 500:
                     try:
                         fallback = self._metadata_download_url(tid)
+                        if fallback is None:
+                            raise TrackFailure('resolve', 'jamendo_http_error', 'HTTP 404')
                         with self.opener(urllib.request.Request(fallback), timeout=120) as r, open(dest, 'wb') as out:
                             shutil.copyfileobj(r, out)
                         break
+                    except TrackFailure:
+                        raise
                     except Exception:
                         pass
                 if e.code < 500 or attempt + 1 == JAMENDO_TRANSIENT_ATTEMPTS:
@@ -93,7 +97,9 @@ class JamendoTrackDownloader:
         with self.opener(urllib.request.Request(JAMENDO_TRACKS_ENDPOINT + '?' + query), timeout=120) as response:
             payload = json.load(response)
         results = payload.get('results') or []
-        url = results[0].get('audiodownload') if results else None
+        if not results:
+            return None
+        url = results[0].get('audiodownload')
         if not isinstance(url, str) or not url.startswith('https://'):
             raise ValueError('Jamendo metadata did not return an audio download URL')
         return url
