@@ -30,7 +30,7 @@ class AssembleTests(unittest.TestCase):
         open(p, 'wb').write(S.canonical(obj) + b'\n')
         return p
 
-    def shard(self, batch_id, tracks, model=None, fp=FP, catalog_tracks=None):
+    def shard(self, batch_id, tracks, model=None, fp=FP, catalog_tracks=None, profile=None):
         cat_tracks = catalog_tracks or self.tracks
         cat = {'schema': 'starter-catalog-v1', 'tracks': cat_tracks}
         cpath = self.write(f'cat-{batch_id}.json', cat)
@@ -42,6 +42,8 @@ class AssembleTests(unittest.TestCase):
             open(dest, 'wb').write(b'x' * 20000)
 
         def analyze(e, path):
+            if profile is not None:
+                return {'embedding': [int(e['providerTrackID']) / 100.0] * 128, 'transitionProfile': profile(e)}
             if e['providerTrackID'] in self.fail_ids:
                 raise RuntimeError('boom')
             n = int(e['providerTrackID'])
@@ -158,6 +160,19 @@ class AssembleTests(unittest.TestCase):
         with self.assertRaisesRegex(S.ShardError, 'overwrite'):
             self.run_assemble(e)
         self.run_assemble(e, overwrite=True)
+
+    def test_whole_number_bpm_and_energy_round_trip(self):
+        # A whole-number bpm/energy in the analysis payload is a plain JSON int. SQLite's REAL
+        # column affinity stores and returns it as a float, so the pre-insert logical hash must
+        # already be computed over the float form or build_db's round-trip check fails.
+        whole = lambda e: {'bpm': 120, 'key': '8A', 'energy': 7}
+        e = [self.shard('batch-0001', self.tracks[:2], profile=whole),
+             self.shard('batch-0002', self.tracks[2:], profile=whole)]
+        (plan, meta), d = self.run_assemble(e)
+        self.assertEqual(meta['logical_content_sha256'], A.logical_hash(plan, A.read_back(
+            os.path.join(d, 'starter.sqlite'))[1]))
+        rows = A.read_back(os.path.join(d, 'starter.sqlite'))[1]
+        self.assertTrue(all(isinstance(r[11], float) and isinstance(r[13], float) for r in rows))
 
     def test_validate_only_leaves_no_database(self):
         d = os.path.join(self.dir, 'v')

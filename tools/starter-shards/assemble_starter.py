@@ -210,10 +210,15 @@ def pack_vector(embedding):
 def track_row(batch_id, entry, payload):
     profile = payload['transitionProfile']
     blob = S.canonical(payload)
+    bpm, energy = profile.get('bpm'), profile.get('energy')
     return (entry['provider'], entry['providerTrackID'], f"{entry['provider']}-{entry['providerTrackID']}",
             batch_id, entry['sourceRevision'], entry['title'], entry['artist'], entry.get('genre', ''),
             entry['license'], float(entry['durationSec']), entry['streamURL'],
-            profile.get('bpm'), profile.get('key'), profile.get('energy'), S.DIMENSIONS,
+            # bpm/camelot/energy go into REAL columns, which SQLite round-trips a whole-number
+            # int as a float; coercing here keeps the pre-insert logical hash equal to the
+            # post-insert round-trip hash computed from read_back().
+            None if bpm is None else float(bpm), profile.get('key'),
+            None if energy is None else float(energy), S.DIMENSIONS,
             pack_vector(payload['embedding']), S.canonical(profile).decode('utf-8'), S.sha256_hex(blob))
 
 
