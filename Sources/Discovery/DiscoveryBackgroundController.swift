@@ -1,5 +1,6 @@
 #if !os(watchOS)
 import Foundation
+import StarterGeneratorSupport
 
 /// A `BGProcessingTaskRequest` reduced to the fields the discovery subsystem
 /// actually sets (IMPLEMENT_CLAP_PLAN.md §7). The iOS adapter maps this to a

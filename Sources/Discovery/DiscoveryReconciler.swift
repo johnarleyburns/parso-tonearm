@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import StarterGeneratorSupport
 import TonearmCore
 
 /// Turns core catalog state (and the `discovery_change` outbox) into

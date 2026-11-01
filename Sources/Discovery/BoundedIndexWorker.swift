@@ -4,6 +4,7 @@ import GRDB
 import os.log
 import ParsoAudioAnalysis
 import ParsoAudioNeural
+import StarterGeneratorSupport
 import TonearmCore
 
 /// The real C04 `IndexJobExecuting` implementation: bounded windowed reads
