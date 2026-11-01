@@ -100,6 +100,36 @@ class ShardTests(unittest.TestCase):
         with self.assertRaisesRegex(S.ShardError, 'fingerprint'):
             S.validate_shard(out, 'other')
 
+    def test_legacy_shard_without_stale_fatal_meta_keys(self):
+        # Shards published before stale_count/fatal_failure_count were added to shard_meta carry
+        # no such keys. They must still validate when failure_count is 0 (so stale=0, fatal=0 is
+        # implied by the actual shard_failure rows, which validate_shard recomputes directly).
+        out, _, _ = self.build()
+        db = sqlite3.connect(out)
+        db.execute("DELETE FROM shard_meta WHERE key IN ('stale_count', 'fatal_failure_count')")
+        db.commit()
+        db.close()
+        S.validate_shard(out, FP)
+
+    def test_legacy_shard_with_real_failures_still_validates_status_from_rows(self):
+        # Even with stale_count/fatal_failure_count absent, the fatal/stale split is recomputed
+        # from the actual shard_failure rows (not trusted from meta), so a legitimately-complete
+        # legacy shard with one real (non-stale) failure still validates successfully...
+        self.fail_download = '1'
+        out, _, _ = self.build()
+        db = sqlite3.connect(out)
+        db.execute("DELETE FROM shard_meta WHERE key IN ('stale_count', 'fatal_failure_count')")
+        db.commit()
+        db.close()
+        S.validate_shard(out, FP)
+        # ...but a corrupted status is still caught, proving the row-based check is not weakened.
+        db = sqlite3.connect(out)
+        db.execute("UPDATE shard_meta SET value = 'complete' WHERE key = 'status'")
+        db.commit()
+        db.close()
+        with self.assertRaisesRegex(S.ShardError, 'status'):
+            S.validate_shard(out, FP)
+
     def test_127d_and_oversized_profile(self):
         p = B.process_track(entry(1), FP, self.download, self.analyze, self.dir)
         p['embedding'] = p['embedding'][:127]

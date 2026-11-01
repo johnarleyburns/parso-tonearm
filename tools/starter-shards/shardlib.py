@@ -30,8 +30,11 @@ CREATE TABLE shard_failure (
 """
 REQUIRED_META = ('schema_version', 'generator_git_sha', 'generator_version', 'batch_id',
                  'batch_manifest_sha256', 'input_catalog_sha256', 'model_archive_sha256',
-                 'embedding_space_fingerprint', 'track_count', 'success_count', 'failure_count', 'stale_count', 'fatal_failure_count',
+                 'embedding_space_fingerprint', 'track_count', 'success_count', 'failure_count',
                  'status', 'created_at')
+# stale_count/fatal_failure_count are optional: shards published before that split was added to
+# the schema carry no such keys. Their stale/fatal split is still recomputed from shard_failure
+# rows below and cross-checked against these fields only when a shard does carry them.
 
 
 class ShardError(Exception):
@@ -232,8 +235,10 @@ def validate_shard(path, fingerprint, batch=None, batch_sha=None, catalog_sha=No
         if (int(meta['success_count']), int(meta['failure_count']), int(meta['track_count'])) != (
                 len(rows), len(failures), len(ids)):
             raise ShardError('shard_meta counts disagree with rows')
-        if int(meta['stale_count']) != stale or int(meta['fatal_failure_count']) != fatal:
-            raise ShardError('shard stale/fatal counts disagree with rows')
+        if 'stale_count' in meta and int(meta['stale_count']) != stale:
+            raise ShardError('shard stale count disagrees with rows')
+        if 'fatal_failure_count' in meta and int(meta['fatal_failure_count']) != fatal:
+            raise ShardError('shard fatal failure count disagrees with rows')
         if meta['status'] != (STATUS_INCOMPLETE if fatal else STATUS_COMPLETE):
             raise ShardError('shard status disagrees with failure rows')
         if batch is not None:
