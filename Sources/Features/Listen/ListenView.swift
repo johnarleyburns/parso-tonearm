@@ -499,7 +499,7 @@ private struct MoodEntryPointSection: View {
     }
 
     private var genrePills: [MoodPill] {
-        genres.map { MoodPill(id: $0, label: $0, queryTerm: $0) }
+        genres.map { MoodPill(id: $0, label: JamendoGenreTree.humanizedGenre($0), queryTerm: $0) }
     }
 
     /// Selected genres filter the results to those genres (any of them).
