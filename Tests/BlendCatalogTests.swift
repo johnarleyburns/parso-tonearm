@@ -172,11 +172,28 @@ final class BlendCatalogTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { !$0.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
     }
 
+    /// A track missing from the bundled catalog is dropped (with its edges) instead of failing the seed.
+    func testStarterSeedDropsTracksMissingFromTheCatalog() throws {
+        let last = StarterBlendCatalog.blends[5].trackIDs[5]
+        let adapter = try mutatedCatalog { try $0.execute(sql: "DELETE FROM starter_track WHERE id = ?", arguments: ["jamendo-\(last)"]) }
+        let queue = try DatabaseQueue()
+        try queue.write { db in
+            try db.execute(sql: """
+                CREATE TABLE blend_catalog_track (catalogKey TEXT PRIMARY KEY, packTag TEXT, state TEXT, durationSeconds REAL,
+                    bpm REAL, beatPeriod REAL, beatPhase REAL, rmsDB REAL, updatedAt DATETIME, genre TEXT, subgenre TEXT,
+                    camelotKey TEXT, sourceURL TEXT, analysisVersion TEXT, catalogID TEXT,
+                    sourceKind TEXT, providerTrackID TEXT, cachedURL TEXT, cachedURLExpiry DATETIME);
+                CREATE TABLE blend_catalog_edge (fromKey TEXT, toKey TEXT, packTag TEXT, planJSON BLOB, PRIMARY KEY (fromKey, toKey));
+                """)
+        }
+        XCTAssertNoThrow(try queue.write { try LibraryStore.seedStarterCatalog($0, catalog: adapter) })
+        let rows = try queue.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM blend_catalog_track") }
+        XCTAssertEqual(rows, 35)
+    }
+
     func testStarterSeedFailsAtomicallyOnABadCatalog() throws {
         let first = StarterBlendCatalog.blends[0].trackIDs[0], last = StarterBlendCatalog.blends[5].trackIDs[5]
         let cases: [(String, (Database) throws -> Void, StarterCatalogError)] = [
-            ("absent", { try $0.execute(sql: "DELETE FROM starter_track WHERE id = ?", arguments: ["jamendo-\(last)"]) },
-             .missing(["jamendo-\(last)"])),
             ("title", { try $0.execute(sql: "UPDATE starter_track SET title = '  ' WHERE id = ?", arguments: ["jamendo-\(last)"]) },
              .invalid(id: "jamendo-\(last)", reason: "title")),
             ("artist", { try $0.execute(sql: "UPDATE starter_track SET artist = '' WHERE id = ?", arguments: ["jamendo-\(last)"]) },

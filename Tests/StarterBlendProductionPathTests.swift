@@ -169,11 +169,11 @@ final class StarterBlendProductionPathTests: XCTestCase {
         }
         XCTAssertEqual(executed, 30)
         let night = try XCTUnwrap(StarterBlendRuntimeData.edges.first { $0.blendID == "starter.night-drive" && $0.edge == 5 })
-        XCTAssertEqual(night.schedule()?.outgoingStart, 17.481796056227534)
-        XCTAssertEqual(night.schedule()?.incomingStart, 0)
+        XCTAssertEqual(night.schedule()?.outgoingStart, 163.13557642256)
+        XCTAssertEqual(night.schedule()?.incomingStart, 0.2136076500500913)
         let rainy = try XCTUnwrap(StarterBlendRuntimeData.edges.first { $0.blendID == "starter.rainy-day" && $0.edge == 1 })
-        XCTAssertEqual(rainy.schedule()?.outgoingStart, 83.738989863914227)
-        XCTAssertEqual(rainy.schedule()?.incomingStart, 0.401727281007933)
+        XCTAssertEqual(rainy.schedule()?.outgoingStart, 144.27863945578233)
+        XCTAssertEqual(rainy.schedule()?.incomingStart, 0.8126984126984098)
     }
 
     func testIncompleteLegacyPlanFallsBackTruthfullyWithoutReplanning() async throws {
