@@ -6,9 +6,15 @@ import Foundation
 /// display data. Absent fields mean "not measured": a planner treats them as lower-confidence
 /// fallback and nothing is fabricated for sparse-only remote work.
 public struct TransitionProfile: Codable, Equatable, Sendable {
-    public static let currentVersion = 1
+    /// v1: beat grid + cues + plain phrase-boundary timestamps (`ProfileTransitionPlanner`).
+    /// v2 (additive): also carries real drop/bass-exit timestamps and the bar phase they snap to
+    /// (`ParsoAudioAnalysis.DropDetector`, `Domain/Mix/DropAwareEdgePlanner`) — enough to plan a
+    /// genuine `.doubleDrop`/`.bassSwap`/`.phraseCut` edge, not just a crossfade. A v1 payload
+    /// decodes fine with the new fields absent/empty; nothing that reads only v1 fields changes.
+    public static let currentVersion = 2
     public static let maxPhraseBoundaries = 512
     public static let maxEnvelopePoints = 600
+    public static let maxDropOrExitPoints = 64
 
     public enum ValidationError: Error, Equatable, Sendable {
         case nonFinite(String)
@@ -25,11 +31,26 @@ public struct TransitionProfile: Codable, Equatable, Sendable {
     public var phraseBoundariesSeconds: [Double]
     public var loudnessEnvelopeDB: [Float]
     public var peak: Float
+    /// v2: the beat-grid phase (0...3 beats) most drops/bass-exits share, for re-snapping a beat
+    /// index to the same bar alignment `DropAwareTrackStructure.detect` used. Nil when v1 or
+    /// unmeasured.
+    public var barPhase: Int?
+    /// v2: real drop timestamps (the bass returning), bar-phase-snapped. Never invented — empty
+    /// means none were found, not that none exist.
+    public var dropSeconds: [Double]
+    /// v2: real bass-exit timestamps (a breakdown or the outro starting), same snapping.
+    public var exitSeconds: [Double]
+    /// v2: whether the track's bass is already present near its start (no intro to wait for) —
+    /// the one scalar `DropAwareTrackStructure.bassPresentFromStart` needs from the full kick-band
+    /// curve, kept instead of the curve itself to stay compact. Nil when unmeasured.
+    public var bassPresentFromStart: Bool?
 
     public init(
         beatPeriodSeconds: Double? = nil, beatPhaseSeconds: Double? = nil, beatConfidence: Double = 0,
         introEndSeconds: Double? = nil, outroStartSeconds: Double? = nil,
-        phraseBoundariesSeconds: [Double] = [], loudnessEnvelopeDB: [Float] = [], peak: Float = 0
+        phraseBoundariesSeconds: [Double] = [], loudnessEnvelopeDB: [Float] = [], peak: Float = 0,
+        barPhase: Int? = nil, dropSeconds: [Double] = [], exitSeconds: [Double] = [],
+        bassPresentFromStart: Bool? = nil
     ) {
         self.beatPeriodSeconds = beatPeriodSeconds
         self.beatPhaseSeconds = beatPhaseSeconds
@@ -39,6 +60,27 @@ public struct TransitionProfile: Codable, Equatable, Sendable {
         self.phraseBoundariesSeconds = phraseBoundariesSeconds
         self.loudnessEnvelopeDB = loudnessEnvelopeDB
         self.peak = peak
+        self.barPhase = barPhase
+        self.dropSeconds = dropSeconds
+        self.exitSeconds = exitSeconds
+        self.bassPresentFromStart = bassPresentFromStart
+    }
+
+    /// Decodes a payload written before the v2 fields existed with them absent/empty.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        beatPeriodSeconds = try c.decodeIfPresent(Double.self, forKey: .beatPeriodSeconds)
+        beatPhaseSeconds = try c.decodeIfPresent(Double.self, forKey: .beatPhaseSeconds)
+        beatConfidence = try c.decode(Double.self, forKey: .beatConfidence)
+        introEndSeconds = try c.decodeIfPresent(Double.self, forKey: .introEndSeconds)
+        outroStartSeconds = try c.decodeIfPresent(Double.self, forKey: .outroStartSeconds)
+        phraseBoundariesSeconds = try c.decode([Double].self, forKey: .phraseBoundariesSeconds)
+        loudnessEnvelopeDB = try c.decode([Float].self, forKey: .loudnessEnvelopeDB)
+        peak = try c.decode(Float.self, forKey: .peak)
+        barPhase = try c.decodeIfPresent(Int.self, forKey: .barPhase)
+        dropSeconds = try c.decodeIfPresent([Double].self, forKey: .dropSeconds) ?? []
+        exitSeconds = try c.decodeIfPresent([Double].self, forKey: .exitSeconds) ?? []
+        bassPresentFromStart = try c.decodeIfPresent(Bool.self, forKey: .bassPresentFromStart)
     }
 
     public func validate() throws {
@@ -70,6 +112,14 @@ public struct TransitionProfile: Codable, Equatable, Sendable {
         }
         if let intro = introEndSeconds, let outro = outroStartSeconds, intro > outro {
             throw ValidationError.cuesOutOfOrder
+        }
+        if let barPhase { guard (0..<4).contains(barPhase) else { throw ValidationError.outOfRange("barPhase") } }
+        guard dropSeconds.count <= Self.maxDropOrExitPoints, exitSeconds.count <= Self.maxDropOrExitPoints else {
+            throw ValidationError.tooLarge("dropOrExit")
+        }
+        guard dropSeconds.allSatisfy({ $0.isFinite && $0 >= 0 }),
+              exitSeconds.allSatisfy({ $0.isFinite && $0 >= 0 }) else {
+            throw ValidationError.nonFinite("dropOrExit")
         }
     }
 
