@@ -183,9 +183,9 @@ final class StarterBlendProductionPathTests: XCTestCase {
     func testIncompleteLegacyPlanFallsBackTruthfullyWithoutReplanning() async throws {
         let blend = StarterBlendCatalog.blends[0]
         var legacy = blend.document
-        legacy.edges[1].plan?.blendEndSeconds = nil
+        legacy.edges[0].plan?.blendEndSeconds = nil
         let request = try XCTUnwrap(BlendReplay.starterRequest(for: legacy))
-        XCTAssertNil(request.edgePlans[1].schedule(), "an incomplete plan is never completed from audio or a fact table")
+        XCTAssertNil(request.edgePlans[0].schedule(), "an incomplete plan is never completed from audio or a fact table")
         var statuses: [StarterStreamStatus] = []
         let player = AudioPlayer.shared
         player.starterStatusHandler = { statuses.append($0) }
