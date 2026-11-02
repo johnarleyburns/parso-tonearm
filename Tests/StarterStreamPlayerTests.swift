@@ -268,13 +268,13 @@ final class StarterStreamPlayerTests: XCTestCase {
         try await wait(player) { !player.isBuffering }
         XCTAssertGreaterThanOrEqual(player.bufferedFrames(deck: 0), 44_100, "one second buffered before sound")
         XCTAssertEqual(host.buffering, [true, false])
-        XCTAssertLessThan(try XCTUnwrap(factory.latest("337997")).framesRead, 44_100 * 12, "only the ring was decoded")
+        XCTAssertLessThan(try XCTUnwrap(factory.latest("1174818")).framesRead, 44_100 * 12, "only the ring was decoded")
         let planes = try XCTUnwrap(player.renderOffline(frames: 4_096))
         XCTAssertGreaterThan(goertzel(planes[0][...], freq: SynthCatalog.high(0)), 0.03)
     }
 
     func testPlayerRunsFullBlendHandoffsOneByOneAndFinishes() async throws {
-        let blend = StarterBlendCatalog.blends[2]    // night-drive: includes a phrase cut at the end
+        let blend = StarterBlendCatalog.blends[2]    // night-drive: runs the whole blend to its last edge
         let host = RecordingStarterHost()
         let factory = SynthCatalog.Factory(blend)
         // Use short synthetic lengths through the real plans? No: real plans, jumped to the last edge.
@@ -294,14 +294,14 @@ final class StarterStreamPlayerTests: XCTestCase {
             let blend = StarterBlendCatalog.blends[0]
             let host = RecordingStarterHost()
             let factory = SynthCatalog.Factory(blend)
-            factory.failing["337997"] = error
+            factory.failing["1174818"] = error
             let player = StarterStreamPlayer(config: config(blend), host: host, output: nil, makeSource: factory.make)
             player.start(at: 0)
             try await wait(player) { !host.failures.isEmpty }
             let failure = try XCTUnwrap(host.failures.first)
             XCTAssertEqual(failure.retryable, retryable)
             XCTAssertEqual(failure.trackIndex, 0)
-            XCTAssertEqual(failure.trackID, "337997")
+            XCTAssertEqual(failure.trackID, "1174818")
             XCTAssertTrue(failure.message.hasPrefix("Track 1:"))
             XCTAssertFalse(player.isStreaming, "the stream is torn down; sequential playback takes over")
         }
@@ -311,7 +311,7 @@ final class StarterStreamPlayerTests: XCTestCase {
         let blend = StarterBlendCatalog.blends[0]
         let host = RecordingStarterHost()
         let factory = SynthCatalog.Factory(blend)
-        factory.failing["1424003"] = .permanent("not found (HTTP 404)")
+        factory.failing["2232438"] = .permanent("not found (HTTP 404)")
         let player = StarterStreamPlayer(config: config(blend), host: host, output: nil, makeSource: factory.make)
         player.start(at: 0, seconds: 10)
         try await wait(player) { !host.failures.isEmpty }
@@ -327,12 +327,12 @@ final class StarterStreamPlayerTests: XCTestCase {
         let blend = StarterBlendCatalog.blends[0]
         let host = RecordingStarterHost()
         let factory = SynthCatalog.Factory(blend)
-        factory.failMainAfter["337997"] = 60_000
+        factory.failMainAfter["1174818"] = 60_000
         let player = StarterStreamPlayer(config: config(blend), host: host, output: nil, makeSource: factory.make)
         player.start(at: 0)
         try await wait(player) { !host.failures.isEmpty }
         XCTAssertEqual(host.failures.first?.retryable, true)
-        XCTAssertTrue(try XCTUnwrap(factory.latest("337997")).isCancelled)
+        XCTAssertTrue(try XCTUnwrap(factory.latest("1174818")).isCancelled)
     }
 
     func testMismatchedSampleRateIsAnUnavailableEdgeNotAGuess() async throws {
@@ -340,7 +340,7 @@ final class StarterStreamPlayerTests: XCTestCase {
         let host = RecordingStarterHost()
         let factory = SynthCatalog.Factory(blend)
         let player = StarterStreamPlayer(config: config(blend), host: host, output: nil) { id, token in
-            if id == "1424003" {
+            if id == "2232438" {
                 return SynthSource(low: 60, high: 1_000, seconds: 200, rate: 48_000)
             }
             return try factory.make(id, token)
@@ -358,14 +358,14 @@ final class StarterStreamPlayerTests: XCTestCase {
         let player = StarterStreamPlayer(config: config(blend), host: host, output: nil, makeSource: factory.make)
         player.start(at: 0, seconds: 100)
         try await wait(player) { !player.isBuffering }
-        try await wait(player) { factory.latest("1424003") != nil }
+        try await wait(player) { factory.latest("2232438") != nil }
         player.stop()
-        for id in ["337997", "1424003"] {
+        for id in ["1174818", "2232438"] {
             XCTAssertTrue(try XCTUnwrap(factory.latest(id)).isCancelled, id)
         }
-        let before = factory.latest("337997")!.framesRead
+        let before = factory.latest("1174818")!.framesRead
         try await Task.sleep(nanoseconds: 100_000_000)
-        XCTAssertEqual(factory.latest("337997")!.framesRead, before, "feeders stopped")
+        XCTAssertEqual(factory.latest("1174818")!.framesRead, before, "feeders stopped")
         XCTAssertFalse(player.isStreaming)
     }
 

@@ -9,7 +9,9 @@ import ParsoAudioAnalysis
 final class BuiltInMixReadinessTests: XCTestCase {
     func testBundledIndexCarriesTempoAndKeyForNearlyEveryTrack() throws {
         let tracks = BuiltInMoodIndexProvider.tracks
-        XCTAssertGreaterThan(tracks.count, 1_000, "the bundled Mood Starter index should load")
+        // The v4 native Jamendo starter pipeline's 9 batches assemble to 881 tracks (886 minus 5
+        // durably-stale withdrawn sources); 800 is a sanity floor, not a precise historical count.
+        XCTAssertGreaterThan(tracks.count, 800, "the bundled Mood Starter index should load")
         let analysed = tracks.filter(\.hasMusicalAnalysis)
         XCTAssertGreaterThanOrEqual(Double(analysed.count) / Double(tracks.count), 0.95,
                                     "\(analysed.count)/\(tracks.count) bundled tracks have BPM + key")
@@ -75,7 +77,8 @@ final class BuiltInMixReadinessTests: XCTestCase {
     /// A large "All tracks" mix from bundled tracks: every analysed track is placed, quickly.
     /// The whole bundled library (3,994 tracks) plans in ~2 s in a release build; before the
     /// accelerated solve it ran for minutes and Generate looked frozen. CI runs a debug build, so
-    /// this uses 1,000 tracks (the solve is quadratic) with a broad bound.
+    /// this uses 800 tracks (the solve is quadratic) with a broad bound; the v4 native Jamendo
+    /// starter pipeline's 881-track pack is smaller than the earlier pack this once used 1,000 from.
     func testLargeBundledLibraryPlansQuickly() {
         let candidates = BuiltInMoodIndexProvider.tracks.enumerated().compactMap { index, track -> MixCandidate? in
             guard track.hasMusicalAnalysis else { return nil }
@@ -83,8 +86,8 @@ final class BuiltInMixReadinessTests: XCTestCase {
             return MixCandidate(trackID: Int64(index), bpm: track.bpm, camelot: track.key, energy: track.energy,
                                 artist: track.artist, duration: track.durationSec, embedding: embedding)
         }
-        .prefix(1_000).map { $0 }
-        XCTAssertEqual(candidates.count, 1_000)
+        .prefix(800).map { $0 }
+        XCTAssertEqual(candidates.count, 800)
         let start = Date()
         let plan = MixPlanner.plan(MixRequest(candidates: candidates, shape: .warmUpPeakCoolDown, seed: 3))
         let elapsed = Date().timeIntervalSince(start)

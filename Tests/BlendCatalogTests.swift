@@ -54,7 +54,7 @@ final class BlendCatalogTests: XCTestCase {
     }
 
     func testKeepPlayingCandidateRequiresEligibilityFactsTraitsAndAMirroredLocator() throws {
-        let pack = StarterBlendPack.v1
+        let pack = StarterBlendPack.v2
         let real = try XCTUnwrap(StarterBlendCatalog.starterTrackIDs.sorted().first)
         let url = try XCTUnwrap(pack.assetURL(trackID: real)).absoluteString
         func make(_ id: String, state: BlendCatalogState = .blendEligible, source: String?) -> BlendCatalogTrack {
@@ -107,7 +107,7 @@ final class BlendCatalogTests: XCTestCase {
         let ids = StarterBlendCatalog.blends.flatMap(\.trackIDs)
         let entries = try adapter.resolve(trackIDs: ids)
         XCTAssertEqual(entries.count, 36)
-        let rows = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v1.releaseTag)
+        let rows = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v2.releaseTag)
         XCTAssertEqual(rows.count, 36)
         for entry in entries {
             let row = try XCTUnwrap(rows.first { $0.trackID == entry.trackID }, entry.catalogID)
@@ -120,7 +120,7 @@ final class BlendCatalogTests: XCTestCase {
             XCTAssertEqual(row.catalogID, entry.catalogID)
             XCTAssertTrue(entry.catalogID.hasPrefix("jamendo-"))
             XCTAssertNotNil(BlendTraits.parseCamelot(try XCTUnwrap(row.camelotKey)))
-            XCTAssertEqual(row.sourceURL, StarterBlendPack.v1.assetURL(trackID: entry.trackID)?.absoluteString)
+            XCTAssertEqual(row.sourceURL, StarterBlendPack.v2.assetURL(trackID: entry.trackID)?.absoluteString)
             XCTAssertEqual(row.analysisVersion, "starter-v4:\(version)")
             // Beat grid and loudness are not in the catalog: never invented, so the row stays unindexed.
             XCTAssertEqual(row.state, .unindexed)
@@ -131,7 +131,7 @@ final class BlendCatalogTests: XCTestCase {
 
     func testStarterSeedIsIdempotentAndRefreshesStaleCatalogFacts() async throws {
         let store = try LibraryStore(inMemory: true)
-        let key = BlendCatalogTrack.key(pack: .v1, trackID: StarterBlendCatalog.blends[0].trackIDs[0])
+        let key = BlendCatalogTrack.key(pack: .v2, trackID: StarterBlendCatalog.blends[0].trackIDs[0])
         try await store.dbQueue.write { db in
             var row = try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: key))
             row.bpm = 1; row.genre = "Stale"; row.camelotKey = "1A"; row.state = .blendEligible
@@ -147,7 +147,7 @@ final class BlendCatalogTests: XCTestCase {
         XCTAssertEqual(row?.camelotKey, fresh.camelot)
         XCTAssertEqual(row?.state, .blendEligible, "progress made by indexing is kept")
         XCTAssertEqual(row?.beatPeriod, 0.5)
-        let count = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v1.releaseTag).count
+        let count = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v2.releaseTag).count
         XCTAssertEqual(count, 36)
     }
 
@@ -244,13 +244,13 @@ final class BlendCatalogTests: XCTestCase {
 
     func testFreshInstallSeedsTheCatalogAndSuppliedPlans() async throws {
         let store = try LibraryStore(inMemory: true)
-        let tracks = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v1.releaseTag)
+        let tracks = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v2.releaseTag)
         XCTAssertEqual(tracks.count, 36)
         for blend in StarterBlendCatalog.blends {
             for plan in blend.edgePlans {
                 let stored = try await store.blendCatalogEdgePlan(
-                    from: BlendCatalogTrack.key(pack: .v1, trackID: plan.outgoingTrackID),
-                    to: BlendCatalogTrack.key(pack: .v1, trackID: plan.incomingTrackID))
+                    from: BlendCatalogTrack.key(pack: .v2, trackID: plan.outgoingTrackID),
+                    to: BlendCatalogTrack.key(pack: .v2, trackID: plan.incomingTrackID))
                 XCTAssertEqual(stored, plan, "\(blend.id) edge \(plan.edge) survives persistence exactly")
             }
         }

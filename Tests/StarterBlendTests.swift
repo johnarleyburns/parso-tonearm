@@ -10,12 +10,12 @@ private final class StartLog {
 @MainActor
 final class StarterBlendTests: XCTestCase {
     static let expected: [(id: String, tracks: [String])] = [
-        ("starter.morning-light", ["337997", "1424003", "337069", "1180864", "642026", "1077690"]),
-        ("starter.deep-focus", ["455018", "117009", "971563", "1097061", "26403", "1100130"]),
-        ("starter.night-drive", ["1163782", "1828808", "1121468", "1739551", "1493402", "1560522"]),
-        ("starter.acoustic-evening", ["1229422", "398193", "1418240", "1308980", "1849464", "1212932"]),
-        ("starter.upbeat-energy", ["2053669", "2228244", "1901830", "2126638", "2133921", "1977152"]),
-        ("starter.rainy-day", ["1891078", "1891935", "1974389", "2220789", "2169489", "1960412"])
+        ("starter.morning-light", ["1174818", "2232438", "1428775", "2020849", "26742", "1832242"]),
+        ("starter.deep-focus", ["98135", "785424", "1458069", "1629934", "501673", "1406396"]),
+        ("starter.night-drive", ["946", "20237", "7475", "1555047", "1353514", "296235"]),
+        ("starter.acoustic-evening", ["1204663", "1585553", "1246367", "337997", "1204670", "1337398"]),
+        ("starter.upbeat-energy", ["81744", "951", "2016794", "222565", "1059819", "375191"]),
+        ("starter.rainy-day", ["29872", "957463", "1589557", "1393688", "878019", "398173"])
     ]
 
     func testSixRevisedPacksAre36UniqueTracksAndThirtyOrderedEdges() {
@@ -26,7 +26,7 @@ final class StarterBlendTests: XCTestCase {
         XCTAssertEqual(Set(all).count, 36)
                 XCTAssertEqual(StarterBlendRuntimeData.edges.count, 30)
         for blend in StarterBlendCatalog.blends {
-            XCTAssertEqual(blend.pack, .v1)
+            XCTAssertEqual(blend.pack, .v2)
             XCTAssertEqual(blend.edgePlans.count, 5, blend.id)
             XCTAssertEqual(blend.edgePlans.map(\.edge), [1, 2, 3, 4, 5])
             for (i, plan) in blend.edgePlans.enumerated() {
@@ -50,45 +50,36 @@ final class StarterBlendTests: XCTestCase {
             XCTAssertLessThan(s.incomingStart, inc.durationSeconds)
             XCTAssertGreaterThan(s.incomingTempo, 0.9); XCTAssertLessThan(s.incomingTempo, 1.1)
         }
-        XCTAssertEqual(styles[.bassSwap], 25)
-        XCTAssertEqual(styles[.doubleDrop], 3)
-        XCTAssertEqual(styles[.phraseCut], 2)
+        XCTAssertEqual(styles[.bassSwap], 30)
+        XCTAssertEqual(styles[.doubleDrop], nil)
+        XCTAssertEqual(styles[.phraseCut], nil)
     }
 
     func testPlanValuesAreCopiedExactly() throws {
+        // v2 is bassSwap-only (CatalogEdgePlanner-computed from real audio analysis, no hand-tuned
+        // doubleDrop/phraseCut data is available for the re-curated tracks).
         let first = try XCTUnwrap(StarterBlendCatalog.blends[0].edgePlans.first)
         XCTAssertEqual(first.style, .bassSwap)
-        XCTAssertEqual(first.tempo, 1.027062079171714)
-        XCTAssertEqual(first.incomingGain, 1.8138238773630753)
-        XCTAssertEqual(first.overlapBeats, 64)
-        XCTAssertEqual(first.outgoingSwapBeat, 270)
-        XCTAssertEqual(first.incomingSwapBeat, 32)
-        XCTAssertEqual(first.blendStartSeconds, 173.87837804159568)
-        XCTAssertEqual(first.swapSeconds, 197.24420019525732)
-        XCTAssertEqual(first.blendEndSeconds, 220.610022348919)
-        XCTAssertEqual(first.incomingOffsetSeconds, 173.77569620595946)
-        let cut = try XCTUnwrap(StarterBlendCatalog.blends[2].edgePlans.last)
-        XCTAssertEqual(cut.style, .phraseCut)
-        XCTAssertEqual(cut.outgoingStartSeconds, 17.481796056227534)
-        XCTAssertEqual(cut.incomingStartSeconds, 0)
-        let rainy = try XCTUnwrap(StarterBlendCatalog.blends[5].edgePlans.first)
-        XCTAssertEqual(rainy.style, .phraseCut)
-        XCTAssertEqual(rainy.schedule()?.outgoingStart, 83.738989863914227)
-        XCTAssertEqual(rainy.schedule()?.incomingStart, 0.401727281007933)
-        XCTAssertEqual(cut.schedule()?.outgoingStart, 17.481796056227534)
-        XCTAssertEqual(cut.schedule()?.incomingStart, 0)
-        XCTAssertEqual(cut.overlapBeats, 0)
-        let drop = StarterBlendCatalog.blends[1].edgePlans[3]
-        XCTAssertEqual(drop.style, .doubleDrop)
-        XCTAssertEqual(drop.outgoingSwapBeat, 324)
-        XCTAssertEqual(drop.incomingSwapBeat, 131)
+        XCTAssertEqual(first.tempo, 0.9855223417262398)
+        XCTAssertEqual(first.incomingGain, 0.6698350299104915)
+        XCTAssertEqual(first.overlapBeats, 32)
+        XCTAssertEqual(first.outgoingSwapBeat, 368)
+        XCTAssertEqual(first.incomingSwapBeat, 16)
+        XCTAssertEqual(first.blendStartSeconds, 244.0708560128043)
+        XCTAssertEqual(first.swapSeconds, 255.15002082229805)
+        XCTAssertEqual(first.blendEndSeconds, 266.22918563179184)
+        XCTAssertEqual(first.incomingOffsetSeconds, 243.4347072935251)
+        let last = try XCTUnwrap(StarterBlendCatalog.blends[5].edgePlans.last)
+        XCTAssertEqual(last.style, .bassSwap)
+        XCTAssertEqual(last.outgoingTrackID, "878019")
+        XCTAssertEqual(last.incomingTrackID, "398173")
     }
 
     func testAssetsComeFromTheImmutableReleaseNeverJamendo() throws {
         let pack = StarterBlendCatalog.pack
-        XCTAssertEqual(pack.releaseTag, "starter-blends-aac-v1")
-        XCTAssertEqual(pack.assetURL(trackID: "337997")?.absoluteString,
-                       "https://github.com/johnarleyburns/parso-tonearm/releases/download/starter-blends-aac-v1/337997.m4a")
+        XCTAssertEqual(pack.releaseTag, "starter-blends-aac-v2")
+        XCTAssertEqual(pack.assetURL(trackID: "1174818")?.absoluteString,
+                       "https://github.com/johnarleyburns/parso-tonearm/releases/download/starter-blends-aac-v2/1174818.m4a")
         for blend in StarterBlendCatalog.blends {
             for row in try StarterBlendPlayback.catalogRows(for: blend) {
                 let url = URL(string: row.asset?.remoteURL ?? "")
@@ -104,7 +95,7 @@ final class StarterBlendTests: XCTestCase {
         for blend in StarterBlendCatalog.blends {
             XCTAssertEqual(blend.document, blend.document)
             XCTAssertEqual(blend.document.origin, .starter)
-            XCTAssertEqual(blend.document.pack, .v1)
+            XCTAssertEqual(blend.document.pack, .v2)
             XCTAssertEqual(blend.document.occurrences.count, 6)
             XCTAssertEqual(blend.document.edges.compactMap(\.plan), blend.edgePlans)
             XCTAssertEqual(blend.document.edges.map(\.requestedStyle), blend.edgePlans.map { $0.style.rawValue })
@@ -122,7 +113,7 @@ final class StarterBlendTests: XCTestCase {
         XCTAssertEqual(request.trackIDs, blend.trackIDs)
         XCTAssertEqual(request.edgePlans, blend.edgePlans)
         XCTAssertEqual(request.rows.count, 6)
-        XCTAssertEqual(request.pack, .v1)
+        XCTAssertEqual(request.pack, .v2)
         XCTAssertTrue(request.isBlended)
         XCTAssertEqual(playback.state(for: blend), .buffering)
     }

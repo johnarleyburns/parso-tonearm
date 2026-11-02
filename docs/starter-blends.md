@@ -1,7 +1,8 @@
 # Starter Blends: release-backed streaming
 
 Six curated blends (36 tracks, 30 edges) stream from the immutable GitHub Release
-`starter-blends-aac-v1` (`<releaseTag>/<trackID>.m4a`, CC0 AAC-LC). Nothing is bundled, pre-downloaded,
+`starter-blends-aac-v2` (`<releaseTag>/<trackID>.m4a`, AAC-LC; Jamendo content mirrored under the
+owner's direct licensing agreement with Jamendo). Nothing is bundled, pre-downloaded,
 planned or analysed at runtime.
 
 | Piece | Where |

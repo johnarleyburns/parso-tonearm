@@ -240,13 +240,13 @@ final class StarterBlendProductionPathTests: XCTestCase {
         let fresh = BlendRepository(url: directory.appendingPathComponent("blends.json"))
         let found = await fresh.blend(id: blend.document.id)
         let saved = try XCTUnwrap(found)
-        XCTAssertEqual(saved.pack, .v1)
+        XCTAssertEqual(saved.pack, .v2)
         XCTAssertEqual(saved.edges.compactMap(\.plan), blend.edgePlans)
         let request = try XCTUnwrap(BlendReplay.starterRequest(for: saved))
         XCTAssertEqual(request.edgePlans, blend.edgePlans)
         XCTAssertEqual(request.edgePlans.compactMap { $0.schedule() }.count, 5)
         XCTAssertEqual(request.trackIDs, blend.trackIDs)
-        XCTAssertEqual(request.pack, StarterBlendPack.v1)
+        XCTAssertEqual(request.pack, StarterBlendPack.v2)
         XCTAssertEqual(request.blendID, blend.id)
         let expected = try StarterBlendPlayback.catalogRows(for: blend)
         XCTAssertEqual(request.rows.map(\.track.title), expected.map(\.track.title))
@@ -259,7 +259,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
         player.playStarterBlend(request)
         XCTAssertEqual(player.activeStarterBlendID, blend.id)
         XCTAssertEqual(player.starterSession?.plans, blend.edgePlans, "the persisted plans reach the renderer's session")
-        XCTAssertEqual(player.starterSession?.pack, .v1)
+        XCTAssertEqual(player.starterSession?.pack, .v2)
         XCTAssertNil(player.mixDecks)
         XCTAssertEqual(player.queue.map(\.track.title), expected.map(\.track.title))
         XCTAssertEqual(player.queue.compactMap(\.artist?.name), expected.compactMap(\.artist?.name))
@@ -280,7 +280,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
     /// No seeded row's genre, key or tempo is ever rewritten to manufacture compatibility.
     private func indexSeededCatalog() async throws {
         let store = LibraryStore.shared
-        let rows = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v1.releaseTag)
+        let rows = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v2.releaseTag)
         for row in rows where row.state == .unindexed {
             guard let traits = row.traits, let fixture = StarterTestFacts.byID[row.trackID] else { continue }
             let facts = StarterTrackFacts(id: row.trackID, durationSeconds: row.durationSeconds ?? fixture.durationSeconds,
@@ -335,14 +335,14 @@ final class StarterBlendProductionPathTests: XCTestCase {
         let blend = StarterBlendCatalog.blends[1]
         try await indexSeededCatalog()
         let store = LibraryStore.shared
-        let tailKey = BlendCatalogTrack.key(pack: .v1, trackID: try XCTUnwrap(blend.trackIDs.last))
+        let tailKey = BlendCatalogTrack.key(pack: .v2, trackID: try XCTUnwrap(blend.trackIDs.last))
         let tailOpt = try await store.blendCatalogTrack(key: tailKey)
         let tail = try XCTUnwrap(tailOpt)
         let id = "9900001"
         try await indexJamendoFollower(id: id, tail: tail)
         let beforeOpt = try await store.blendCatalogTrack(key: BlendCatalogTrack.jamendoKey(trackID: id))
         let before = try XCTUnwrap(beforeOpt)
-        let locator = try XCTUnwrap(before.keepPlayingLocator(in: .v1))
+        let locator = try XCTUnwrap(before.keepPlayingLocator(in: .v2))
         XCTAssertEqual(locator, .jamendo(trackID: id, cachedURL: nil, expiry: nil))
         let player = try await startForKeepPlaying(blend, jamendo: [id: 240])
         await player.extendKeepPlayingQueueForTesting()
@@ -375,7 +375,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
         try await indexSeededCatalog()
         let store = LibraryStore.shared
         let tailOpt = try await store.blendCatalogTrack(
-            key: BlendCatalogTrack.key(pack: .v1, trackID: try XCTUnwrap(blend.trackIDs.last)))
+            key: BlendCatalogTrack.key(pack: .v2, trackID: try XCTUnwrap(blend.trackIDs.last)))
         let tail = try XCTUnwrap(tailOpt)
         let tailKey = try XCTUnwrap(tail.traits).camelotKey
         let number = try XCTUnwrap(BlendTraits.parseCamelot(tailKey)).number
@@ -403,7 +403,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
         XCTAssertTrue(player.starterSession?.sequential == true)
         XCTAssertGreaterThan(player.queue.count, before, "a verified sequential bridge keeps playing")
         for row in player.queue.dropFirst(before) {
-            XCTAssertTrue(StarterBlendPack.v1.owns(try XCTUnwrap(URL(string: row.asset?.remoteURL ?? ""))))
+            XCTAssertTrue(StarterBlendPack.v2.owns(try XCTUnwrap(URL(string: row.asset?.remoteURL ?? ""))))
         }
     }
 
@@ -411,18 +411,18 @@ final class StarterBlendProductionPathTests: XCTestCase {
     /// blend's tail and none is manufactured: the mirrored path is proven at the admission and row-building seams.
     func testMirroredStarterCandidateKeepsItsPinnedReleaseAsset() async throws {
         try await indexSeededCatalog()
-        let rows = try await LibraryStore.shared.blendCatalogTracks(atLeast: .blendEligible, packTag: StarterBlendPack.v1.releaseTag)
-        let candidate = try XCTUnwrap(rows.first { $0.isKeepPlayingCandidate(in: .v1) })
-        let locator = try XCTUnwrap(candidate.keepPlayingLocator(in: .v1))
-        XCTAssertEqual(locator, StarterBlendPack.v1.locator(trackID: candidate.trackID))
-        let built = try StarterBlendPlayback.rows(blendID: "t", title: "Keep Playing", trackIDs: [candidate.trackID], pack: .v1,
+        let rows = try await LibraryStore.shared.blendCatalogTracks(atLeast: .blendEligible, packTag: StarterBlendPack.v2.releaseTag)
+        let candidate = try XCTUnwrap(rows.first { $0.isKeepPlayingCandidate(in: .v2) })
+        let locator = try XCTUnwrap(candidate.keepPlayingLocator(in: .v2))
+        XCTAssertEqual(locator, StarterBlendPack.v2.locator(trackID: candidate.trackID))
+        let built = try StarterBlendPlayback.rows(blendID: "t", title: "Keep Playing", trackIDs: [candidate.trackID], pack: .v2,
                                                   locators: [candidate.trackID: locator])
-        XCTAssertTrue(StarterBlendPack.v1.owns(try XCTUnwrap(URL(string: built.first?.asset?.remoteURL ?? ""))))
-        XCTAssertEqual(BlendCatalogTrack.catalogKey(forTrackID: candidate.trackID, pack: .v1), candidate.catalogKey)
+        XCTAssertTrue(StarterBlendPack.v2.owns(try XCTUnwrap(URL(string: built.first?.asset?.remoteURL ?? ""))))
+        XCTAssertEqual(BlendCatalogTrack.catalogKey(forTrackID: candidate.trackID, pack: .v2), candidate.catalogKey)
     }
 
     func testKeepPlayingNeverUsesSyntheticOrUnmirroredStarterIDs() async throws {
-        let pack = StarterBlendPack.v1
+        let pack = StarterBlendPack.v2
         var row = BlendCatalogTrack(catalogKey: BlendCatalogTrack.key(pack: pack, trackID: "999999999"), packTag: pack.releaseTag,
                                     state: .blendEligible, durationSeconds: 240, bpm: 100, beatPeriod: 0.6, beatPhase: 0.2,
                                     rmsDB: -12, updatedAt: Date(), genre: "Electronic", subgenre: nil, camelotKey: "8A")
@@ -445,7 +445,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
         XCTAssertFalse(appended.isEmpty)
         for row in appended {
             let url = try XCTUnwrap(URL(string: row.asset?.remoteURL ?? ""))
-            XCTAssertTrue(StarterBlendPack.v1.owns(url), "fallback uses only verified pack audio")
+            XCTAssertTrue(StarterBlendPack.v2.owns(url), "fallback uses only verified pack audio")
         }
         XCTAssertTrue(player.starterSession?.sequential == true)
         XCTAssertEqual(player.starterSession?.plans.count, blend.edgePlans.count,
@@ -477,7 +477,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
         XCTAssertEqual(player.keepPlayingFallbackReason, .unavailable)
         XCTAssertTrue(player.starterSession?.sequential == true)
         for row in player.queue.dropFirst(before) {
-            XCTAssertTrue(StarterBlendPack.v1.owns(try XCTUnwrap(URL(string: row.asset?.remoteURL ?? ""))))
+            XCTAssertTrue(StarterBlendPack.v2.owns(try XCTUnwrap(URL(string: row.asset?.remoteURL ?? ""))))
         }
     }
 

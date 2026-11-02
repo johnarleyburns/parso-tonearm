@@ -11,7 +11,7 @@ struct CatalogSourceOpener: Sendable {
     typealias RangeOpen = @Sendable (_ url: URL, _ fileType: AudioFileTypeID, _ cancellation: StarterCancellation) throws
         -> any StarterDeckSource
 
-    var pack: StarterBlendPack = .v1
+    var pack: StarterBlendPack = .v2
     var lookup: @Sendable (_ catalogKey: String) async -> BlendCatalogTrack?
     var resolver: JamendoLocatorResolver
     var openRange: RangeOpen

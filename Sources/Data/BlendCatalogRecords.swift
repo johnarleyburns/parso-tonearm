@@ -63,7 +63,7 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
     /// The explicit source of this row. A Starter row yields only the pinned Release asset of one of the
     /// 36 mirrored IDs; a Jamendo row yields provider identity plus its cached URL. A Release locator is
     /// never produced for a non-starter ID, and a Jamendo locator never for a Starter ID.
-    public func audioLocator(in pack: StarterBlendPack = .v1) -> AudioLocator? {
+    public func audioLocator(in pack: StarterBlendPack = .v2) -> AudioLocator? {
         switch sourceKind {
         case .starterRelease?:
             guard packTag == pack.releaseTag else { return nil }

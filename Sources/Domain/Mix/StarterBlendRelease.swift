@@ -1,7 +1,8 @@
 import Foundation
 
 /// The immutable, versioned origin of Starter Blend audio. Never a runtime Jamendo stream: every
-/// asset is a CC0 AAC-LC M4A on a pinned GitHub Release.
+/// asset is an AAC-LC M4A on a pinned GitHub Release, mirrored from Jamendo under the owner's
+/// direct licensing agreement with Jamendo (not gated by an individual track's CC variant).
 public struct StarterBlendPack: Codable, Sendable, Equatable, Hashable {
     /// Stable identity of the pack as saved with a blend (`starter-blends-aac-v1`).
     public let releaseTag: String
@@ -9,6 +10,10 @@ public struct StarterBlendPack: Codable, Sendable, Equatable, Hashable {
     public let audioFormat: String
 
     public static let v1 = StarterBlendPack(releaseTag: "starter-blends-aac-v1", version: 1,
+                                            audioFormat: "aac-lc-128k-m4a")
+    /// v2: tracks mirrored from the v4 native Jamendo starter pipeline (`Config/starter-batches/`),
+    /// replacing v1's tracks that are no longer in the bundled starter catalog.
+    public static let v2 = StarterBlendPack(releaseTag: "starter-blends-aac-v2", version: 2,
                                             audioFormat: "aac-lc-128k-m4a")
 
     /// Whether `trackID` is one of the mirrored Starter Pack assets. Only these exist on the release.

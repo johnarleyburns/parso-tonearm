@@ -19,9 +19,9 @@ final class StarterPathGuardTests: XCTestCase {
 
     func testReleaseIsAACOnlyAndNoShippingSourceNeedsDeletedJSON() throws {
         for id in StarterBlendCatalog.starterTrackIDs {
-            let url = try XCTUnwrap(StarterBlendPack.v1.assetURL(trackID: id))
+            let url = try XCTUnwrap(StarterBlendPack.v2.assetURL(trackID: id))
             XCTAssertEqual(url.pathExtension, "m4a", "\(id) must be an AAC asset")
-            XCTAssertTrue(StarterBlendPack.v1.owns(url))
+            XCTAssertTrue(StarterBlendPack.v2.owns(url))
         }
         let deleted = ["starter-blend-source.json", "starter-transition-candidates.json"]
         for dir in ["Sources", "tools"] {
