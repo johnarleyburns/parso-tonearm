@@ -59,7 +59,7 @@ public struct DropAwareTrackStructure: Sendable, Equatable {
     /// True when the first 16 beats after `silenceBeat` already carry bass within 6 dB of the
     /// track's overall level — i.e. nothing to wait for, so a phrase line is as good an entry as
     /// a drop.
-    func bassPresentFromStart(silenceBeat: Int) -> Bool {
+    public func bassPresentFromStart(silenceBeat: Int) -> Bool {
         guard !bassLevelsDB.isEmpty else { return false }
         let lo = max(0, silenceBeat), hi = min(bassLevelsDB.count, silenceBeat + 16)
         guard hi > lo else { return false }

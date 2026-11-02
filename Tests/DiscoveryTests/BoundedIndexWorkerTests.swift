@@ -99,6 +99,44 @@ final class BoundedIndexWorkerTests: XCTestCase {
         }
     }
 
+    /// A real decodable fixture for `DropDetector`: decaying kick impulses on a fixed beat grid
+    /// (120 bpm), quiet up to `stepAtSeconds` then loud from there — a genuine kick-band step the
+    /// real beat tracker and drop detector should find, not a flat tone.
+    private func writeKickStepWAV(
+        seconds: Double, bpm: Double = 120, stepAtSeconds: Double, quietAmplitude: Float = 0.05,
+        loudAmplitude: Float = 0.9, to url: URL
+    ) throws {
+        let sampleRate = 44_100.0
+        let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
+        let file = try AVAudioFile(forWriting: url, settings: format.settings)
+        let totalFrames = Int((seconds * sampleRate).rounded())
+        let period = 60.0 / bpm
+        let periodFrames = Int((period * sampleRate).rounded())
+        let kickFrames = Int(0.05 * sampleRate)  // 50 ms decaying kick body
+        let kickHz = 80.0
+        let chunkFrames = AVAudioFrameCount(sampleRate)
+        var written = 0
+        while written < totalFrames {
+            let n = min(Int(chunkFrames), totalFrames - written)
+            let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n))!
+            buffer.frameLength = AVAudioFrameCount(n)
+            let ch = buffer.floatChannelData![0]
+            for i in 0..<n {
+                let frame = written + i
+                let phaseInPeriod = frame % periodFrames
+                let amplitude = Double(frame) / sampleRate >= stepAtSeconds ? loudAmplitude : quietAmplitude
+                if phaseInPeriod < kickFrames {
+                    let envelope = Float(exp(-Double(phaseInPeriod) / Double(kickFrames) * 5.0))
+                    ch[i] = amplitude * envelope * Float(sin(2.0 * Double.pi * kickHz * Double(phaseInPeriod) / sampleRate))
+                } else {
+                    ch[i] = 0
+                }
+            }
+            try file.write(from: buffer)
+            written += n
+        }
+    }
+
     private func nominalSnapshot() -> DiscoverySchedulingSnapshot {
         DiscoverySchedulingSnapshot(
             appState: .foreground, thermalState: .nominal, batteryLevel: 0.9, isCharging: true,
@@ -382,6 +420,47 @@ final class BoundedIndexWorkerTests: XCTestCase {
         XCTAssertNil(
             DiscoveryReconciler.preferredAsset(from: [unsupported, remote]),
             "neither an unsupported nor a remote-only asset is a valid pick")
+    }
+
+    /// A track long enough to need both a head and a tail window (> 2×60 s), with a real kick-
+    /// band step in its tail (where an outgoing-track drop point matters), should get a
+    /// `discovery_transition_profile` row with a real beat grid and at least one detected
+    /// drop/bass-exit — never silently skipped just because this is new, best-effort behavior.
+    func testPersistsATransitionProfileWithRealDropStructure() async throws {
+        let queue = try makeQueue()
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let wav = dir.appendingPathComponent("drop.wav")
+        let duration = 150.0
+        try writeKickStepWAV(seconds: duration, stepAtSeconds: 140, to: wav)
+
+        let (trackId, assetId) = try await seedTrackWithAsset(queue, fileURL: wav, durationSec: duration)
+        let jobs = IndexJobRepository(writer: queue)
+        try await jobs.enqueueOrRestart(
+            trackId: trackId, selectedAssetId: assetId, assetRevision: 1, pipelineVersion: 1)
+        let models = ModelManager(resourceProvider: { .unavailable })
+        await models.injectModelForTesting(DeterministicFakeSemanticModel(spec: syntheticSpec()))
+        let scheduler = IndexScheduler(
+            jobs: jobs, worker: BoundedIndexWorker(writer: queue, jobs: jobs, models: models),
+            sleeper: { _ in })
+
+        let outcome = try await runToCompletion(scheduler, maxTicks: 200)
+        guard case .jobCompleted = outcome else {
+            return XCTFail("expected jobCompleted, got \(outcome)")
+        }
+
+        let payload = try await queue.read { db in
+            try Data.fetchOne(db, sql: "SELECT payload FROM discovery_transition_profile WHERE trackId = ?",
+                              arguments: [trackId])
+        }
+        let profile = try TransitionProfile.decode(
+            XCTUnwrap(payload, "a best-effort transition profile should still be written"))
+        XCTAssertNotNil(profile.beatPeriodSeconds)
+        XCTAssertNotNil(profile.beatPhaseSeconds)
+        XCTAssertFalse(profile.dropSeconds.isEmpty || profile.exitSeconds.isEmpty,
+                       "the real kick-band step at 140s should surface as a drop or a bass exit")
     }
 
     // MARK: - small async helpers
