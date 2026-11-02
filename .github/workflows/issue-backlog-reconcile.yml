@@ -35,6 +35,16 @@ jobs:
         with:
           ref: main
           persist-credentials: false
+      - name: Reopen on qa-failed
+        if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'qa-failed'
+        run: |
+          test -n "$GH_TOKEN" || { echo '::error::CLAUDE_WORKFLOW_TOKEN is not configured'; exit 1; }
+          n=${{ github.event.issue.number }}
+          state=$(gh issue view "$n" --json state --jq .state)
+          if [[ "$state" == "CLOSED" ]]; then
+            gh issue reopen "$n"
+            gh issue comment "$n" --body "<!-- claude-qa-failed-reopen --> Reopened: \`qa-failed\` was applied after merge. Starting a repair cycle." >/dev/null
+          fi
       - run: |
           test -n "$GH_TOKEN" || { echo '::error::CLAUDE_WORKFLOW_TOKEN is not configured'; exit 1; }
           bash .github/scripts/admit-one-stranded-issue.sh
