@@ -340,50 +340,16 @@ public actor BoundedIndexWorker: IndexJobExecuting {
         let scopeSeconds = min(Self.musicalAnalysisMaxSeconds, duration)
         let startSeconds = max(0, duration / 2 - scopeSeconds / 2)
 
-        let pcm: [Float]
-        let sampleRate: Double
-        if asset.kind == .remote {
-            sampleRate = remoteReader.targetSampleRate
-            switch await readRemoteWindow(
-                jobId: job.id, asset: asset, startSeconds: startSeconds, windowSeconds: scopeSeconds)
-            {
-            case .samples(let samples): pcm = samples
-            case .waitingForAsset: return .waiting(reason: .waitingForAsset, retryAfterSeconds: 300)
-            case .unsupported: return .musicalAnalysisStageFinished(.unsupported)
-            case .transientFailure(let code, let message):
-                return .transientFailure(code: code, message: message)
-            }
-        } else {
-            sampleRate = reader.targetSampleRate
-            do {
-                let outcome = try resolver.withResolvedURL(for: asset) { url -> [Float] in
-                    let samples = try reader.readWindow(
-                        url: url, startSeconds: startSeconds, windowSeconds: scopeSeconds)
-                    self.recordAssetState(
-                        assetId: selectedAssetId, revision: job.assetRevision ?? 1, url: url)
-                    return samples
-                }
-                switch outcome {
-                case .success(let samples): pcm = samples
-                case .failure: return .waiting(reason: .waitingForAsset, retryAfterSeconds: 300)
-                }
-            } catch let readerError as WindowedAudioReaderError {
-                switch readerError.kind {
-                case .cannotOpenFile, .unsupportedFormat:
-                    return .musicalAnalysisStageFinished(.unsupported)
-                case .converterCreationFailed, .readFailed:
-                    return .transientFailure(code: "windowReadFailed", message: readerError.detail)
-                }
-            } catch {
-                return .transientFailure(code: "windowReadFailed", message: error.localizedDescription)
-            }
-        }
-        guard !pcm.isEmpty else {
-            return .musicalAnalysisStageFinished(.unsupported)
+        let midpointAudio: AnalysisAudio
+        switch await readAnalysisWindow(
+            job: job, asset: asset, selectedAssetId: selectedAssetId, startSeconds: startSeconds,
+            windowSeconds: scopeSeconds)
+        {
+        case .success(let audio): midpointAudio = audio
+        case .failure(let outcome): return outcome
         }
 
-        let analysisAudio = AnalysisAudio(sampleRate: sampleRate, channels: [pcm])
-        let result = FullAnalysis.run(analysisAudio)
+        let result = FullAnalysis.run(midpointAudio)
 
         let trackId = job.trackId
         let assetRevision = job.assetRevision ?? 1
@@ -406,7 +372,160 @@ public actor BoundedIndexWorker: IndexJobExecuting {
         } catch {
             return .transientFailure(code: "analysisCommitFailed", message: error.localizedDescription)
         }
+
+        // Best-effort: real double-drop/bass-exit/phrase-line structure for
+        // DropAwareEdgePlanner, from two more bounded windows (track head and
+        // tail — where a blend transition actually happens; never a whole-
+        // file decode). A read/detection failure here never fails the stage
+        // that already committed bpm/key/energy above.
+        await persistTransitionProfileBestEffort(
+            job: job, asset: asset, selectedAssetId: selectedAssetId, assetRevision: assetRevision,
+            trackId: trackId, duration: duration, midpointResult: result, completedAt: completedAt)
         return .musicalAnalysisStageFinished(.complete)
+    }
+
+    /// One bounded PCM window as `AnalysisAudio`, local or remote, sharing the exact read/error
+    /// handling the musical-analysis stage already used for its single midpoint window.
+    private func readAnalysisWindow(
+        job: DiscoveryIndexJob, asset: Asset, selectedAssetId: Int64, startSeconds: Double,
+        windowSeconds: Double
+    ) async -> Result<AnalysisAudio, IndexWorkOutcome> {
+        let pcm: [Float]
+        let sampleRate: Double
+        if asset.kind == .remote {
+            sampleRate = remoteReader.targetSampleRate
+            switch await readRemoteWindow(
+                jobId: job.id, asset: asset, startSeconds: startSeconds, windowSeconds: windowSeconds)
+            {
+            case .samples(let samples): pcm = samples
+            case .waitingForAsset:
+                return .failure(.waiting(reason: .waitingForAsset, retryAfterSeconds: 300))
+            case .unsupported: return .failure(.musicalAnalysisStageFinished(.unsupported))
+            case .transientFailure(let code, let message):
+                return .failure(.transientFailure(code: code, message: message))
+            }
+        } else {
+            sampleRate = reader.targetSampleRate
+            do {
+                let outcome = try resolver.withResolvedURL(for: asset) { url -> [Float] in
+                    let samples = try reader.readWindow(
+                        url: url, startSeconds: startSeconds, windowSeconds: windowSeconds)
+                    self.recordAssetState(
+                        assetId: selectedAssetId, revision: job.assetRevision ?? 1, url: url)
+                    return samples
+                }
+                switch outcome {
+                case .success(let samples): pcm = samples
+                case .failure: return .failure(.waiting(reason: .waitingForAsset, retryAfterSeconds: 300))
+                }
+            } catch let readerError as WindowedAudioReaderError {
+                switch readerError.kind {
+                case .cannotOpenFile, .unsupportedFormat:
+                    return .failure(.musicalAnalysisStageFinished(.unsupported))
+                case .converterCreationFailed, .readFailed:
+                    return .failure(.transientFailure(code: "windowReadFailed", message: readerError.detail))
+                }
+            } catch {
+                return .failure(.transientFailure(code: "windowReadFailed", message: error.localizedDescription))
+            }
+        }
+        guard !pcm.isEmpty else { return .failure(.musicalAnalysisStageFinished(.unsupported)) }
+        return .success(AnalysisAudio(sampleRate: sampleRate, channels: [pcm]))
+    }
+
+    /// Reads a head window (first `musicalAnalysisMaxSeconds`) and a tail window (last
+    /// `musicalAnalysisMaxSeconds`, or the same head window again for a track shorter than two
+    /// window-lengths), runs `DropDetector` on each against its own beat grid, converts every
+    /// detected beat to an absolute track second via the midpoint window's constant-tempo
+    /// bpm/phase, and persists one `TransitionProfile`. Any failure along the way (read,
+    /// unsupported, stale revision) is swallowed: this is supplementary data, not the stage's
+    /// primary contract.
+    private func persistTransitionProfileBestEffort(
+        job: DiscoveryIndexJob, asset: Asset, selectedAssetId: Int64, assetRevision: Int64,
+        trackId: Int64, duration: Double, midpointResult: FullAnalysisResult, completedAt: Date
+    ) async {
+        guard let bpm = midpointResult.bpm, bpm.isFinite, bpm > 0,
+              let grid = midpointResult.beatGrid, grid.bpm.isFinite, grid.bpm > 0
+        else { return }
+        let period = 60 / grid.bpm
+        let windowSeconds = min(Self.musicalAnalysisMaxSeconds, duration)
+        let midStart = max(0, duration / 2 - windowSeconds / 2)
+        let sampleRate = asset.kind == .remote ? remoteReader.targetSampleRate : reader.targetSampleRate
+        // The first beat's absolute track second, reduced into [0, period): the midpoint window's
+        // own first-beat sample, offset by where that window actually starts in the track.
+        let midpointFirstBeatAbsolute = midStart + Double(grid.firstBeatSample) / sampleRate
+        let phase = midpointFirstBeatAbsolute - period * (midpointFirstBeatAbsolute / period).rounded(.down)
+        guard period > 0, phase.isFinite else { return }
+        let beatCount = max(0, Int(((duration - phase) / period).rounded(.down)) + 1)
+        guard beatCount > 0 else { return }
+
+        // Sequential, not concurrent: this actor's own design keeps exactly one heavy read/decode
+        // in flight at a time (see the type's doc comment); two overlapping window reads against
+        // the same resolved URL/session would fight that invariant for no real benefit here.
+        let headStart = 0.0
+        let tailStart = max(0, duration - windowSeconds)
+        var results: [(drops: [Int], exits: [Int], bassLevelsDB: [Double])] = []
+        if let head = await windowDropsAndExits(
+            job: job, asset: asset, selectedAssetId: selectedAssetId, startSeconds: headStart,
+            windowSeconds: windowSeconds, period: period, phase: phase)
+        {
+            results.append(head)
+        }
+        if tailStart > headStart,
+           let tail = await windowDropsAndExits(
+               job: job, asset: asset, selectedAssetId: selectedAssetId, startSeconds: tailStart,
+               windowSeconds: windowSeconds, period: period, phase: phase)
+        {
+            results.append(tail)
+        }
+        guard !results.isEmpty else { return }
+
+        let structure = DropAwareTrackStructure.detect(
+            rawDrops: results.flatMap(\.drops), rawExits: results.flatMap(\.exits), beatCount: beatCount,
+            bassLevelsDB: results.first(where: { !$0.bassLevelsDB.isEmpty })?.bassLevelsDB ?? [])
+        func beatTime(_ beat: Int) -> Double { phase + Double(beat) * period }
+        let profile = TransitionProfile(
+            beatPeriodSeconds: period, beatPhaseSeconds: phase, beatConfidence: grid.isConstantTempo ? 0.8 : 0.4,
+            barPhase: structure.barPhase, phrasePhase: structure.phrasePhase,
+            dropSeconds: structure.drops.map(beatTime), exitSeconds: structure.exits.map(beatTime),
+            bassPresentFromStart: structure.bassLevelsDB.isEmpty ? nil : structure.bassPresentFromStart(silenceBeat: 0))
+        do {
+            try DiscoveryDerivedStore(writer: writer).persistTransitionProfileIfCurrent(
+                profile, trackId: trackId, assetId: selectedAssetId, expectedRevision: assetRevision,
+                expectedFingerprint: EmbeddingSpace.current.fingerprint, now: completedAt)
+        } catch {
+            // Best-effort: a stale revision/fingerprint or validation failure just means no
+            // profile this pass; the next re-index attempt tries again.
+        }
+    }
+
+    /// One window's drop/bass-exit beat indices (into its own local grid) and kick-band levels,
+    /// or nil if the window could not be read/analyzed. `period`/`phase` are the track's already-
+    /// known constant-tempo grid (from the midpoint window); this window's own detected grid is
+    /// used only to run `DropDetector`, never to re-derive tempo (one source of truth per track).
+    private func windowDropsAndExits(
+        job: DiscoveryIndexJob, asset: Asset, selectedAssetId: Int64, startSeconds: Double,
+        windowSeconds: Double, period: Double, phase: Double
+    ) async -> (drops: [Int], exits: [Int], bassLevelsDB: [Double])? {
+        let audio: AnalysisAudio
+        switch await readAnalysisWindow(
+            job: job, asset: asset, selectedAssetId: selectedAssetId, startSeconds: startSeconds,
+            windowSeconds: windowSeconds)
+        {
+        case .success(let a): audio = a
+        case .failure: return nil
+        }
+        guard let grid = FullAnalysis.run(audio).beatGrid, !grid.beatSamples.isEmpty else { return nil }
+        let (localDrops, localExits, levels) = DropDetector.dropsAndExits(audio, beatSamples: grid.beatSamples)
+        // This window's beats, in the track's own global beat-index space (via the shared
+        // period/phase), not this window's local 0-based indices.
+        func globalBeat(_ localBeatIndex: Int) -> Int {
+            let localSeconds = startSeconds + Double(grid.beatSamples[localBeatIndex]) / audio.sampleRate
+            return Int(((localSeconds - phase) / period).rounded())
+        }
+        let drops = localDrops.compactMap { $0 < grid.beatSamples.count ? globalBeat($0) : nil }
+        let exits = localExits.compactMap { $0 < grid.beatSamples.count ? globalBeat($0) : nil }
+        return (drops, exits, levels)
     }
 
     /// Plain (non-async) helper so the call to `writer.write` resolves to

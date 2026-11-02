@@ -97,23 +97,54 @@ public struct DiscoveryDerivedStore: Sendable {
                 analysisScopeSeconds: nil, completedAt: now)
             try analysis.upsert(db)
             guard let payload else { return }
-            // One profile per asset revision: drop rows from older revisions/spaces.
-            try db.execute(
-                sql: """
-                    DELETE FROM discovery_transition_profile WHERE trackId = ?
-                      AND NOT (assetId = ? AND assetRevision = ? AND embeddingSpaceFingerprint = ?)
-                    """,
-                arguments: [trackId, assetId, expectedRevision, expectedFingerprint])
-            try db.execute(
-                sql: """
-                    INSERT OR REPLACE INTO discovery_transition_profile
-                    (trackId, assetId, assetRevision, embeddingSpaceFingerprint, profileVersion, payload, completedAt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                arguments: [trackId, assetId, expectedRevision, expectedFingerprint,
-                            TransitionProfile.currentVersion, payload,
-                            ISO8601DateFormatter().string(from: now)])
+            try Self.writeProfile(db, payload: payload, trackId: trackId, assetId: assetId,
+                                  expectedRevision: expectedRevision, expectedFingerprint: expectedFingerprint,
+                                  now: now)
         }
+    }
+
+    /// Commits `profile` alone (no embedding/analysis row), under the same revision/fingerprint
+    /// guard as `persistIfCurrent`. For a caller (`BoundedIndexWorker`) that already writes its
+    /// own embedding and `DiscoveryTrackAnalysis` rows through its normal stage-checkpointed path
+    /// and only needs the transition-profile write added alongside it.
+    public func persistTransitionProfileIfCurrent(
+        _ profile: TransitionProfile, trackId: Int64, assetId: Int64, expectedRevision: Int64,
+        expectedFingerprint: String, now: Date = Date()
+    ) throws {
+        let payload = try profile.encoded()
+        try writer.write { db in
+            guard try Asset.fetchOne(db, key: assetId)?.trackId == trackId else {
+                throw DiscoveryIndexError.staleAssetRevision
+            }
+            guard try Self.currentRevision(db, assetId: assetId) == expectedRevision else {
+                throw DiscoveryIndexError.staleAssetRevision
+            }
+            try Self.writeProfile(db, payload: payload, trackId: trackId, assetId: assetId,
+                                  expectedRevision: expectedRevision, expectedFingerprint: expectedFingerprint,
+                                  now: now)
+        }
+    }
+
+    /// One profile per asset revision: drop rows from older revisions/spaces, then write this one.
+    private static func writeProfile(
+        _ db: Database, payload: Data, trackId: Int64, assetId: Int64, expectedRevision: Int64,
+        expectedFingerprint: String, now: Date
+    ) throws {
+        try db.execute(
+            sql: """
+                DELETE FROM discovery_transition_profile WHERE trackId = ?
+                  AND NOT (assetId = ? AND assetRevision = ? AND embeddingSpaceFingerprint = ?)
+                """,
+            arguments: [trackId, assetId, expectedRevision, expectedFingerprint])
+        try db.execute(
+            sql: """
+                INSERT OR REPLACE INTO discovery_transition_profile
+                (trackId, assetId, assetRevision, embeddingSpaceFingerprint, profileVersion, payload, completedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+            arguments: [trackId, assetId, expectedRevision, expectedFingerprint,
+                        TransitionProfile.currentVersion, payload,
+                        ISO8601DateFormatter().string(from: now)])
     }
 
     /// The stored profile for the track, only if it matches the asset's current revision and

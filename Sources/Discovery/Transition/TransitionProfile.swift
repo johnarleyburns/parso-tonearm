@@ -35,6 +35,9 @@ public struct TransitionProfile: Codable, Equatable, Sendable {
     /// index to the same bar alignment `DropAwareTrackStructure.detect` used. Nil when v1 or
     /// unmeasured.
     public var barPhase: Int?
+    /// v2: the bar-aligned beat phase (0...31 beats) where 8-bar phrases start — where
+    /// `DropAwareEdgePlanner` looks for a phrase-line swap point when no drop/exit qualifies.
+    public var phrasePhase: Int?
     /// v2: real drop timestamps (the bass returning), bar-phase-snapped. Never invented — empty
     /// means none were found, not that none exist.
     public var dropSeconds: [Double]
@@ -49,8 +52,8 @@ public struct TransitionProfile: Codable, Equatable, Sendable {
         beatPeriodSeconds: Double? = nil, beatPhaseSeconds: Double? = nil, beatConfidence: Double = 0,
         introEndSeconds: Double? = nil, outroStartSeconds: Double? = nil,
         phraseBoundariesSeconds: [Double] = [], loudnessEnvelopeDB: [Float] = [], peak: Float = 0,
-        barPhase: Int? = nil, dropSeconds: [Double] = [], exitSeconds: [Double] = [],
-        bassPresentFromStart: Bool? = nil
+        barPhase: Int? = nil, phrasePhase: Int? = nil, dropSeconds: [Double] = [],
+        exitSeconds: [Double] = [], bassPresentFromStart: Bool? = nil
     ) {
         self.beatPeriodSeconds = beatPeriodSeconds
         self.beatPhaseSeconds = beatPhaseSeconds
@@ -61,6 +64,7 @@ public struct TransitionProfile: Codable, Equatable, Sendable {
         self.loudnessEnvelopeDB = loudnessEnvelopeDB
         self.peak = peak
         self.barPhase = barPhase
+        self.phrasePhase = phrasePhase
         self.dropSeconds = dropSeconds
         self.exitSeconds = exitSeconds
         self.bassPresentFromStart = bassPresentFromStart
@@ -78,6 +82,7 @@ public struct TransitionProfile: Codable, Equatable, Sendable {
         loudnessEnvelopeDB = try c.decode([Float].self, forKey: .loudnessEnvelopeDB)
         peak = try c.decode(Float.self, forKey: .peak)
         barPhase = try c.decodeIfPresent(Int.self, forKey: .barPhase)
+        phrasePhase = try c.decodeIfPresent(Int.self, forKey: .phrasePhase)
         dropSeconds = try c.decodeIfPresent([Double].self, forKey: .dropSeconds) ?? []
         exitSeconds = try c.decodeIfPresent([Double].self, forKey: .exitSeconds) ?? []
         bassPresentFromStart = try c.decodeIfPresent(Bool.self, forKey: .bassPresentFromStart)
@@ -114,6 +119,9 @@ public struct TransitionProfile: Codable, Equatable, Sendable {
             throw ValidationError.cuesOutOfOrder
         }
         if let barPhase { guard (0..<4).contains(barPhase) else { throw ValidationError.outOfRange("barPhase") } }
+        if let phrasePhase {
+            guard (0..<32).contains(phrasePhase) else { throw ValidationError.outOfRange("phrasePhase") }
+        }
         guard dropSeconds.count <= Self.maxDropOrExitPoints, exitSeconds.count <= Self.maxDropOrExitPoints else {
             throw ValidationError.tooLarge("dropOrExit")
         }
